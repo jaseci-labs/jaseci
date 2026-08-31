@@ -336,6 +336,7 @@ walker TypeEvaluator {
 
     has program: JacProgram,
         _shared_intern: dict[tuple, ClassDetailsShared] = {},
+        _shared_by_module: dict[str, list] = {},
         _BUILTINS_STUB_FILE_PATH: str postinit,
         _TYPING_STUB_FILE_PATH: str postinit,
         _TYPES_STUB_FILE_PATH: str postinit,

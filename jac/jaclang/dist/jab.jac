@@ -1,12 +1,13 @@
 import hashlib;
 import io;
 import json;
-import os;
 import shutil;
 import tarfile;
 
 import from pathlib { Path }
-import from jaclang.jac0core.cache_paths { get_app_cache_dir }
+import from jaclang.jac0core.cachefs {
+    atomic_publish_dir, lock_path, pid_tmp, store_dir, unlock
+}
 import from jaclang.jac0core.sealed {
     MANIFEST_NAME,
     register_image,
@@ -30,23 +31,17 @@ def materialize_jab_bytes(data: bytes) -> Path {
 
 def _materialize_jab_data(data: bytes, label: str) -> Path {
     digest = hashlib.sha256(data).hexdigest();
-    dest = get_app_cache_dir() / digest[:20];
+    apps_dir = store_dir("apps");
+    dest = apps_dir / digest[:20];
     manifest_path = dest / "_precompiled" / MANIFEST_NAME;
     if not manifest_path.is_file() {
-        tmp = dest.with_suffix(f".{os.getpid()}.tmp");
-        shutil.rmtree(tmp, ignore_errors=True);
-        tmp.mkdir(parents=True, exist_ok=True);
+        handle = lock_path(apps_dir / f".{digest}.lock");
         try {
-            with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as tf {
-                tf.extractall(tmp, filter="data");
+            if not manifest_path.is_file() {
+                _extract_jab(data, label, dest);
             }
-            if not (tmp / "_precompiled" / MANIFEST_NAME).is_file() {
-                raise RuntimeError(f"{label} is not a jab: no sealed manifest inside");
-            }
-            shutil.rmtree(dest, ignore_errors=True);
-            tmp.rename(dest);
         } finally {
-            shutil.rmtree(tmp, ignore_errors=True);
+            unlock(handle);
         }
     }
     bundle_dir = str(dest / "_precompiled");
@@ -57,6 +52,24 @@ def _materialize_jab_data(data: bytes, label: str) -> Path {
 
     activate_vendored(dest);
     return dest;
+}
+
+def _extract_jab(data: bytes, label: str, dest: Path) {
+    tmp = pid_tmp(dest);
+    shutil.rmtree(tmp, ignore_errors=True);
+    tmp.mkdir(parents=True, exist_ok=True);
+    try {
+        with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as tf {
+            tf.extractall(tmp, filter="data");
+        }
+        if not (tmp / "_precompiled" / MANIFEST_NAME).is_file() {
+            raise RuntimeError(f"{label} is not a jab: no sealed manifest inside");
+        }
+        shutil.rmtree(dest, ignore_errors=True);
+        atomic_publish_dir(tmp, dest);
+    } finally {
+        shutil.rmtree(tmp, ignore_errors=True);
+    }
 }
 
 def jab_app_meta(img_root: Path) -> dict[str, any] {

@@ -184,8 +184,8 @@ impl CDP.close{
 
 
 impl get_cache_dir -> Path {
-    env = os.environ.get("JACBROWSER_CACHE");
-    return Path(env) if env else (Path.home() / ".cache" / "jacbrowser");
+    import from jaclang.jac0core.cachefs { store_dir }
+    return store_dir("browser");
 }
 
 impl _find_chrome -> str {

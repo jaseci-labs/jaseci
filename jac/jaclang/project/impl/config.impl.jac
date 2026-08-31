@@ -1292,9 +1292,7 @@ impl _parse_toml_data(
     }
     if "cache" in data {
         cache_data = data["cache"];
-        config.cache = CacheConfig(
-            enabled=cache_data.get("enabled", True), dir=cache_data.get("dir", "cache")
-        );
+        config.cache = CacheConfig(dir=cache_data.get("dir", "cache"));
     }
     if "storage" in data {
         storage_data: dict[str, any] = data["storage"];

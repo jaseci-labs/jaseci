@@ -21,9 +21,9 @@ test "an unchanged release is served from the local cache, not re-downloaded" {
     import jaclang.scale.injector.binary as binmod;
     _calls.clear();
     cache_dir = tempfile.mkdtemp();
-    saved_env = os.environ.get("JAC_SCALE_CACHE_DIR");
+    saved_env = os.environ.get("JAC_CACHE_DIR");
     saved_http = binmod._http_get_bytes;
-    os.environ["JAC_SCALE_CACHE_DIR"] = cache_dir;
+    os.environ["JAC_CACHE_DIR"] = cache_dir;
     binmod._http_get_bytes = _fake_http;
     try {
         assert binmod.download_release_binary("dev", "x86_64") == _payload;
@@ -48,9 +48,9 @@ test "an unchanged release is served from the local cache, not re-downloaded" {
     } finally {
         binmod._http_get_bytes = saved_http;
         if saved_env is None {
-            os.environ.pop("JAC_SCALE_CACHE_DIR", None);
+            os.environ.pop("JAC_CACHE_DIR", None);
         } else {
-            os.environ["JAC_SCALE_CACHE_DIR"] = saved_env;
+            os.environ["JAC_CACHE_DIR"] = saved_env;
         }
         shutil.rmtree(cache_dir, ignore_errors=True);
     }
@@ -90,9 +90,9 @@ test "two pinned versions keep separate cache entries" {
     import jaclang.scale.injector.binary as binmod;
     import from pathlib { Path }
     cache_dir = tempfile.mkdtemp();
-    saved_env = os.environ.get("JAC_SCALE_CACHE_DIR");
+    saved_env = os.environ.get("JAC_CACHE_DIR");
     saved_http = binmod._http_get_bytes;
-    os.environ["JAC_SCALE_CACHE_DIR"] = cache_dir;
+    os.environ["JAC_CACHE_DIR"] = cache_dir;
     binmod._http_get_bytes = _fake_stable_http;
     try {
         first = binmod.download_release_binary("stable", "x86_64", "0.34.3");
@@ -100,13 +100,16 @@ test "two pinned versions keep separate cache entries" {
         assert first != second;
         # On one shared key the second download would have evicted the first.
         assert binmod.download_release_binary("stable", "x86_64", "0.34.3") == first;
-        assert len(list(Path(cache_dir).`glob("jac-stable-*-linux-x86_64"))) == 2;
+        assert len(
+            list((Path(cache_dir) / "bin").`glob("jac-stable-*-linux-x86_64"))
+        )
+            == 2;
     } finally {
         binmod._http_get_bytes = saved_http;
         if saved_env is None {
-            os.environ.pop("JAC_SCALE_CACHE_DIR", None);
+            os.environ.pop("JAC_CACHE_DIR", None);
         } else {
-            os.environ["JAC_SCALE_CACHE_DIR"] = saved_env;
+            os.environ["JAC_CACHE_DIR"] = saved_env;
         }
         shutil.rmtree(cache_dir, ignore_errors=True);
     }
@@ -126,9 +129,9 @@ test "two pins downloading at once keep their own cache entries" {
     import from pathlib { Path }
     versions = ["0.34.3", "0.34.4"];
     cache_dir = tempfile.mkdtemp();
-    saved_env = os.environ.get("JAC_SCALE_CACHE_DIR");
+    saved_env = os.environ.get("JAC_CACHE_DIR");
     saved_http = binmod._http_get_bytes;
-    os.environ["JAC_SCALE_CACHE_DIR"] = cache_dir;
+    os.environ["JAC_CACHE_DIR"] = cache_dir;
     binmod._http_get_bytes = _fake_stable_http;
     got: dict = {};
     gate = threading.Barrier(len(versions));
@@ -140,7 +143,7 @@ test "two pins downloading at once keep their own cache entries" {
 
     try {
         for _round in range(20) {
-            for f in Path(cache_dir).`glob("*") {
+            for f in (Path(cache_dir) / "bin").`glob("*") {
                 f.unlink();
             }
             gate.reset();
@@ -152,7 +155,7 @@ test "two pins downloading at once keep their own cache entries" {
                 t.join();
             }
             for v in versions {
-                cached = Path(cache_dir) / f"jac-stable-{v}-linux-x86_64";
+                cached = Path(cache_dir) / "bin" / f"jac-stable-{v}-linux-x86_64";
                 assert cached.is_file() , (
                     f"{v} left no cache entry; the other pin's rename took the "
                     "temp file it was still writing"
@@ -165,9 +168,9 @@ test "two pins downloading at once keep their own cache entries" {
     } finally {
         binmod._http_get_bytes = saved_http;
         if saved_env is None {
-            os.environ.pop("JAC_SCALE_CACHE_DIR", None);
+            os.environ.pop("JAC_CACHE_DIR", None);
         } else {
-            os.environ["JAC_SCALE_CACHE_DIR"] = saved_env;
+            os.environ["JAC_CACHE_DIR"] = saved_env;
         }
         shutil.rmtree(cache_dir, ignore_errors=True);
     }

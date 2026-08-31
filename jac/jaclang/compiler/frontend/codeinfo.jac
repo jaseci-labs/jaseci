@@ -667,6 +667,7 @@ obj CodeGenTarget {
         _clib_paths: list[str] = field(default_factory=`list),
         _clib_symbol_lib: dict[(str, str)] = field(default_factory=`dict),
         _exported_symbols: list[str] = field(default_factory=`list),
+        analyses_run: set[str] = field(default_factory=`set),
         doc_comments: (NodeComments | None) = None;
 
     has doc_ir: Doc { getter; setter(value: Doc); }

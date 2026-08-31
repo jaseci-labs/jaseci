@@ -8,6 +8,9 @@ import tarfile;
 import from pathlib { Path }
 import from urllib.request { urlopen }
 import from urllib.error { HTTPError }
+import from jaclang.jac0core.cachefs {
+    atomic_publish, atomic_publish_dir, pid_tmp, store_dir
+}
 import from jaclang.scale.injector.bundle { TOOLCHAIN_SUBDIR }
 import from jaclang.runtime.graph_utils { release_arch, host_arch, host_os }
 
@@ -467,14 +470,6 @@ def download_release_binary(
 }
 
 
-def _write_cache_atomic(cache_file: Path, payload: bytes) {
-    cache_file.parent.mkdir(parents=True, exist_ok=True);
-    tmp = cache_file.with_name(f"{cache_file.name}.{os.getpid()}.tmp");
-    tmp.write_bytes(payload);
-    tmp.replace(cache_file);
-}
-
-
 def _fetch_verified_asset(
     url: str, checksum_url: str, cache_file: Path, what: str
 ) -> bytes {
@@ -512,7 +507,7 @@ def _fetch_verified_asset(
             );
         }
         try {
-            _write_cache_atomic(cache_file, payload);
+            atomic_publish(cache_file, payload);
         } except Exception as e {
             logger.warning(f"Could not cache the downloaded {what} ({e}).");
         }
@@ -535,7 +530,7 @@ def host_toolchain_path(project_dir: str, channel: str = "") -> str {
     payload = download_release_binary(channel, arch, version, plat);
     path = _binary_cache_path(channel, arch, plat, version);
     if not path.is_file() {
-        _write_cache_atomic(path, payload);
+        atomic_publish(path, payload);
     }
     path.chmod(0o755);
     logger.info(f"Host build steps for this deploy run the pinned jac {version}.");
@@ -616,13 +611,7 @@ def resolve_pod_base_image(
 
 
 def _scale_cache_root -> Path {
-    base = os.environ.get("JAC_SCALE_CACHE_DIR", "");
-    if base {
-        return Path(base);
-    }
-    return Path(os.environ.get("XDG_CACHE_HOME", "") or (Path.home() / ".cache"))
-        / "jac"
-        / "scale-binaries";
+    return store_dir("bin");
 }
 
 
@@ -760,7 +749,7 @@ def stage_admin_dist(project_dir: str, channel: str, version: str = "") -> bool 
             return False;
         }
 
-        tmp = dest.with_name(f".admin.tmp-{os.getpid()}");
+        tmp = pid_tmp(dest);
         if tmp.exists() {
             shutil.rmtree(str(tmp));
         }
@@ -777,11 +766,10 @@ def stage_admin_dist(project_dir: str, channel: str, version: str = "") -> bool 
             logger.warning("Admin console asset has no index.html; not staging it.");
             return False;
         }
-        dest.parent.mkdir(parents=True, exist_ok=True);
         if dest.exists() {
             shutil.rmtree(str(dest));
         }
-        tmp.rename(dest);
+        atomic_publish_dir(tmp, dest);
         logger.info("Staged the downloaded admin console into the app bundle.");
         return True;
     } except Exception as e {

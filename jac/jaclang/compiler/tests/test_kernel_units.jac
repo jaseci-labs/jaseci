@@ -36,7 +36,7 @@ test "unit path is stable and carries the exact concatenated sources" {
     p1 = osp_core_unit_path('cl');
     p2 = osp_core_unit_path('cl');
     assert p1 == p2 , "variant path must be stable across calls";
-    assert "kernel_units" in p1;
+    assert "kernels" in p1;
     with open(p1, "r") as f {
         assert f.read() == unit_source(OSP_CORE_PARTS);
     }

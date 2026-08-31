@@ -12,7 +12,7 @@ Answers to common questions about Jac, organized by topic. Click a category to e
         jac clean --cache
         ```
 
-        If the problem persists, delete the global per-user cache manually:
+        If the problem persists, empty the global per-user cache with `jac purge`, or delete it manually:
         ```
         Linux:   rm -rf ~/.cache/jac
         macOS:   rm -rf ~/Library/Caches/jac

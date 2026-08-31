@@ -35,11 +35,13 @@ ARG TARGETARCH
 # so the tree baked below is reused no matter which user or HOME runs jac.
 ENV XDG_CACHE_HOME=/opt/jac/cache
 
-# jac's own runtime state (the embedded Postgres cluster) is keyed off
-# JAC_CACHE_HOME, which otherwise follows HOME. Pin it to a shared sticky
-# directory so any uid the pod runs as can provision a cluster, and so an
+# jac's runtime state splits across two roots: JAC_CACHE_DIR (regenerable,
+# holds the pg dist download) and JAC_DATA_DIR (durable, holds the embedded
+# Postgres cluster), both otherwise following HOME. Pin them to shared sticky
+# directories so any uid the pod runs as can provision a cluster, and so an
 # operator who mounts a volume has one path to mount.
-ENV JAC_CACHE_HOME=/opt/jac/state
+ENV JAC_CACHE_DIR=/opt/jac/state
+ENV JAC_DATA_DIR=/opt/jac/data
 
 COPY ${TARGETARCH}/jac /usr/local/bin/jac
 

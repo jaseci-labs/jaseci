@@ -4,19 +4,18 @@ import struct;
 import sys;
 import zlib;
 import from pathlib { Path }
+import from jaclang.jac0core.cachefs { atomic_publish, store_dir }
 
 glob MAGIC = b"JIR\x00",
-     FORMAT_VERSION: int = 23,
-     HEADER_SIZE: int = 32,
-     HEADER_FMT: str = "<4sHHIIIIII",
-     EXTERNAL_REF: int = 0xFFFFFF,
+     FORMAT_VERSION: int = 24,
+     HEADER_SIZE: int = 20,
+     HEADER_FMT: str = "<4sHHIII",
      SECTIONS_MAGIC: any = b"JIRX",
      SEC_BYTECODE: int = 0x02,
      SEC_MTIR: int = 0x03,
      SEC_LLVM_IR: int = 0x04,
      SEC_INTEROP: int = 0x05,
      SEC_NATIVE_OBJ: int = 0x06,
-     SEC_SYMINDEX: int = 0x07,
      SEC_MODKEY: int = 0x08,
      SEC_DEBUG_SRC: int = 0x09,
      SEC_PLACEMENT: int = 0x0A,
@@ -33,33 +32,10 @@ obj JirHeader {
         python_version: int = 0,
         jaclang_version_hash: int = 0,
         source_content_hash: int = 0,
-        node_count: int = 0,
-        symbol_count: int = 0,
-        string_pool_size: int = 0,
         flags: int = 0;
 
     def to_bytes -> bytes;
     def is_compatible -> bool;
-}
-
-def create_header(
-    source_hash: int,
-    node_count: int,
-    symbol_count: int,
-    string_pool_size: int,
-    flags: int = 0
-) -> JirHeader {
-    return JirHeader(
-        magic=MAGIC,
-        format_version=FORMAT_VERSION,
-        python_version=(sys.version_info.major << 8) | sys.version_info.minor,
-        jaclang_version_hash=zlib.crc32(jaclang_version().encode()) & 0xFFFFFFFF,
-        source_content_hash=source_hash & 0xFFFFFFFF,
-        node_count=node_count,
-        symbol_count=symbol_count,
-        string_pool_size=string_pool_size,
-        flags=flags
-    );
 }
 
 def parse_header(data: (bytes | memoryview)) -> (JirHeader | None) {
@@ -67,7 +43,7 @@ def parse_header(data: (bytes | memoryview)) -> (JirHeader | None) {
         return None;
     }
     try {
-        (magic, fmt_ver, py_ver, jac_hash, src_hash, n_nodes, n_syms, sp_size, flags) = struct.unpack(
+        (magic, fmt_ver, py_ver, jac_hash, src_hash, flags) = struct.unpack(
             HEADER_FMT, data[:HEADER_SIZE]
         );
     } except struct.error {
@@ -82,16 +58,8 @@ def parse_header(data: (bytes | memoryview)) -> (JirHeader | None) {
         python_version=py_ver,
         jaclang_version_hash=jac_hash,
         source_content_hash=src_hash,
-        node_count=n_nodes,
-        symbol_count=n_syms,
-        string_pool_size=sp_size,
         flags=flags
     );
-}
-
-def get_jir_cache_dir -> Path {
-    import from jaclang.jac0core.cache_paths { get_jir_cache_dir as _root }
-    return _root();
 }
 
 def compute_content_sha256(file_path: str) -> str {
@@ -491,11 +459,11 @@ def _module_cache_root(source_path: str) -> Path {
     resolved_str = str(resolved);
 
     if resolved_str.startswith(_jaclang_pkg_dir + os.sep) {
-        return get_jir_cache_dir() / 'modules';
+        return store_dir('modules');
     }
     try {
         resolved.relative_to(sys.prefix);
-        return get_jir_cache_dir() / 'modules';
+        return store_dir('modules');
     } except ValueError { }
 
     try {
@@ -506,12 +474,10 @@ def _module_cache_root(source_path: str) -> Path {
                 resolved.relative_to(cfg.project_root);
                 return cfg.get_cache_dir();
             } except ValueError { }
-
-            return get_jir_cache_dir() / 'modules';
         }
     } except Exception { }
 
-    return resolved.parent / ".jac" / "cache";
+    return store_dir('modules');
 }
 
 def _get_module_cache_dir(source_path: str) -> Path {
@@ -633,21 +599,16 @@ def get_native_cache_dir(source_path: str) -> Path {
 def scrub_cache_dirs(root_dir: str) -> int {
     import glob as _glob;
     import shutil as _shutil;
-    patterns = [
-        os.path.join(root_dir, "**", ".jac", "cache"),
-        os.path.join(root_dir, "**", ".jac_ir")
-    ];
+    pattern = os.path.join(root_dir, "**", ".jac", "cache");
     removed = 0;
     seen: set[str] = set();
-    for pattern in patterns {
-        for cache_dir in _glob.`glob(pattern, recursive=True) {
-            if cache_dir in seen or not os.path.isdir(cache_dir) {
-                continue;
-            }
-            seen.add(cache_dir);
-            _shutil.rmtree(cache_dir, ignore_errors=True);
-            removed += 1;
+    for cache_dir in _glob.`glob(pattern, recursive=True) {
+        if cache_dir in seen or not os.path.isdir(cache_dir) {
+            continue;
         }
+        seen.add(cache_dir);
+        _shutil.rmtree(cache_dir, ignore_errors=True);
+        removed += 1;
     }
     return removed;
 }
@@ -723,12 +684,8 @@ def write_precompiled_jir(
         (sys.version_info.major << 8) | sys.version_info.minor,
         jac_hash,
         0,
-        0,
-        0,
-        0,
         flags
     );
-    empty_payload = zlib.compress(bytes(1), 1);
     sections: dict[int, bytes] = {SEC_BYTECODE: bytecode};
     if module_key {
         sections[SEC_MODKEY] = module_key.encode('utf-8');
@@ -737,7 +694,7 @@ def write_precompiled_jir(
         sections.update(extra_sections);
     }
     section_bytes = write_sections(sections);
-    return header + empty_payload + section_bytes;
+    return header + section_bytes;
 }
 
 def read_debug_source(data: bytes) -> (str | None) {
@@ -820,7 +777,6 @@ def write_module_cache(
         if is_module_cache_valid(resolved_path, cache_path) {
             return False;
         }
-        cache_path.parent.mkdir(parents=True, exist_ok=True);
         _sweep_once(_module_cache_root(resolved_path));
         sections: dict[int, bytes] = module_jir_key_sections(resolved_path);
         if extra_sections is not None {
@@ -829,13 +785,7 @@ def write_module_cache(
             }
         }
         jir_bytes = write_precompiled_jir(bytecode, "", 0, sections);
-        tmp_path = cache_path.with_suffix(f'.{os.getpid()}.tmp');
-        try {
-            tmp_path.write_bytes(jir_bytes);
-            tmp_path.rename(cache_path);
-        } finally {
-            tmp_path.unlink(missing_ok=True);
-        }
+        atomic_publish(cache_path, jir_bytes);
         return True;
     } except Exception {
         return False;

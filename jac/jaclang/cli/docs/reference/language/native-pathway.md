@@ -986,11 +986,10 @@ Each demotion emits `NA_DEBUG demote <Type>.<method>` followed by every diagnost
 
 ### Bytecode Cache
 
-The Jac compiler caches compiled bytecode at `~/Library/Caches/jac/bytecode/` (macOS) or `~/.cache/jac/bytecode/` (Linux). When modifying the compiler itself, clear this cache to ensure changes take effect:
+The Jac compiler caches compiled modules in the `modules/` store under the jac cache root: `~/Library/Caches/jac/modules/` (macOS) or `~/.cache/jac/modules/` (Linux). When modifying the compiler itself, clear this cache to ensure changes take effect:
 
 ```bash
-rm -rf ~/Library/Caches/jac/bytecode/   # macOS
-rm -rf ~/.cache/jac/bytecode/           # Linux
+jac cache purge modules
 ```
 
 ---

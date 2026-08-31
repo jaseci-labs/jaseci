@@ -45,8 +45,8 @@ impl conninfo_from_url(url: str) -> ConnInfo {
 
 
 impl shared_pg_data_dir -> str {
-    import from jaclang.data.pgembed { dist_cache_dir }
-    return os.path.join(os.path.dirname(dist_cache_dir()), 'main');
+    import from jaclang.jac0core.cachefs { data_dir }
+    return str(data_dir("pg") / "main");
 }
 
 

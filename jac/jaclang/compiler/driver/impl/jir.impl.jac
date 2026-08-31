@@ -10,9 +10,6 @@ impl JirHeader.to_bytes -> bytes {
         self.python_version,
         self.jaclang_version_hash,
         self.source_content_hash,
-        self.node_count,
-        self.symbol_count,
-        self.string_pool_size,
         self.flags
     );
 }

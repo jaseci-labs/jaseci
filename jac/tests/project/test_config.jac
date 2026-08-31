@@ -507,7 +507,7 @@ test "closure cap override resolves through effective_native_closure_cap" {
 
 test "parse full config" {
     config_mod._config = None;
-    toml_str = "\n[project]\nname = \"full-project\"\nversion = \"1.2.3\"\ndescription = \"A full project\"\nauthors = [\"Jane Doe <jane@example.com>\"]\nlicense = \"MIT\"\nentry-point = \"app.jac\"\n\n[dependencies]\nnumpy = \">=1.24.0\"\npandas = \">=2.0.0\"\n\n[run]\nsession = \"my_session\"\nmain = false\ncache = false\n\n[build]\ndir = \".jac\"\n\n[test]\ndirectory = \"tests\"\nverbose = true\nfail_fast = true\nmax_failures = 5\n\n[serve]\nport = 9000\n\n[cache]\nenabled = false\ndir = \".cache\"\n\n[scripts]\nstart = \"jac run app.jac\"\nlint = \"jac lint . --fix\"\n\n[byllm]\ndefault_model = \"gpt-4\"\ntemperature = 0.7\n\n[environments.development]\n[environments.development.serve]\nport = 3000\n\n[environments.production]\n[environments.production.serve]\nport = 8000\n";
+    toml_str = "\n[project]\nname = \"full-project\"\nversion = \"1.2.3\"\ndescription = \"A full project\"\nauthors = [\"Jane Doe <jane@example.com>\"]\nlicense = \"MIT\"\nentry-point = \"app.jac\"\n\n[dependencies]\nnumpy = \">=1.24.0\"\npandas = \">=2.0.0\"\n\n[run]\nsession = \"my_session\"\nmain = false\ncache = false\n\n[build]\ndir = \".jac\"\n\n[test]\ndirectory = \"tests\"\nverbose = true\nfail_fast = true\nmax_failures = 5\n\n[serve]\nport = 9000\n\n[cache]\ndir = \".cache\"\n\n[scripts]\nstart = \"jac run app.jac\"\nlint = \"jac lint . --fix\"\n\n[byllm]\ndefault_model = \"gpt-4\"\ntemperature = 0.7\n\n[environments.development]\n[environments.development.serve]\nport = 3000\n\n[environments.production]\n[environments.production.serve]\nport = 8000\n";
     cfg = JacConfig.from_toml_str(toml_str);
 
     # Project
@@ -539,7 +539,6 @@ test "parse full config" {
     assert cfg.serve.port == 9000;
 
     # Cache config
-    assert cfg.cache.enabled is False;
     assert cfg.cache.dir == ".cache";
 
     # Scripts
@@ -1431,10 +1430,10 @@ test "apply profile dot section" {
 test "apply profile cache section" {
     config_mod._config = None;
     cfg = JacConfig.from_toml_str(
-        "[project]\nname = \"test\"\n\n[environments.ci]\n[environments.ci.cache]\nenabled = false\n"
+        "[project]\nname = \"test\"\n\n[environments.ci]\n[environments.ci.cache]\ndir = \".ci_cache\"\n"
     );
     cfg.apply_profile("ci");
-    assert cfg.cache.enabled is False;
+    assert cfg.cache.dir == ".ci_cache";
 }
 
 test "apply profile storage type mapping" {
@@ -1580,9 +1579,8 @@ test "merge cache section" {
         temp_project = make_temp_project(Path(tmpdir));
         cfg = JacConfig.load(temp_project / "jac.toml");
         overlay = temp_project / "overlay.toml";
-        overlay.write_text("[cache]\nenabled = false\ndir = \".custom_cache\"\n");
+        overlay.write_text("[cache]\ndir = \".custom_cache\"\n");
         cfg.merge_from_toml_file(overlay);
-        assert cfg.cache.enabled is False;
         assert cfg.cache.dir == ".custom_cache";
     }
 }

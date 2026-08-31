@@ -29,7 +29,7 @@ from jaclang.jac0 import discover_impl_files as _jac0_discover_impls  # noqa: E4
 from jaclang import bootstrap_manifest as _bootstrap_manifest  # noqa: E402
 from jaclang.jac0core import ext_registry  # noqa: E402
 from jaclang.jac0core import sealed as _sealed  # noqa: E402
-from jaclang.jac0core.cache_paths import get_bootstrap_cache_dir  # noqa: E402
+from jaclang.jac0core import cachefs as _cachefs  # noqa: E402
 
 _jac0_source_path = getattr(_jac0_mod, "__file__", "")
 _jac0_hash = (
@@ -47,14 +47,15 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 #
 # Seed-tier .jac files are transpiled by jac0 on every invocation.  Caching
 # the resulting bytecode avoids ~200 ms of repeated work when the sources
-# haven't changed.  The cache lives at ~/.cache/jac/jir/bootstrap/ as plain
-# marshalled code objects: the cache *filename* already encodes a digest over
-# the Python version, the jac0 transpiler, and all source/impl contents, so no
-# in-file header or validation is needed.  The directory is resolved by the
-# pure-Python `jaclang.jac0core.cache_paths` (importable here, before the JIR
-# Jac modules are bootstrapped), so it shares one platform-resolution rule with
-# `jaclang.compiler.driver.jir`; the cache *key*, however, stays independent of that
-# module's `compute_module_key` since it must work before the seed tier compiles.
+# haven't changed.  The cache lives in the `bootstrap/` store under the global
+# cache root as plain marshalled code objects: the cache *filename* already
+# encodes a digest over the Python version, the jac0 transpiler, and all
+# source/impl contents, so no in-file header or validation is needed.  The
+# directory and atomic publish come from the pure-Python
+# `jaclang.jac0core.cachefs` (importable here, before the JIR Jac modules are
+# bootstrapped), so location and write discipline live in exactly one place;
+# the cache *key*, however, stays independent of the compiler's
+# `compute_module_key` since it must work before the seed tier compiles.
 # ---------------------------------------------------------------------------
 
 
@@ -76,7 +77,7 @@ def _bootstrap_compile(
     digest = h.hexdigest()[:16]
 
     base_name = os.path.splitext(os.path.basename(file_path))[0]
-    cache_file = get_bootstrap_cache_dir() / f"{base_name}.{digest}.jbc"
+    cache_file = _cachefs.store_dir("bootstrap") / f"{base_name}.{digest}.jbc"
 
     if cache_file.is_file():
         try:
@@ -88,15 +89,7 @@ def _bootstrap_compile(
     py_source = _jac0_compile(jac_source, file_path, impl_sources=impl_sources)
     code = compile(py_source, file_path, "exec")
     try:
-        cache_file.parent.mkdir(parents=True, exist_ok=True)
-        # Process-unique temp + atomic replace so concurrent bootstraps (e.g.
-        # parallel test workers) can't read a half-written cache file.
-        tmp_file = cache_file.with_suffix(cache_file.suffix + f".{os.getpid()}.tmp")
-        try:
-            tmp_file.write_bytes(marshal.dumps(code))
-            os.replace(tmp_file, cache_file)
-        finally:
-            tmp_file.unlink(missing_ok=True)
+        _cachefs.atomic_publish(cache_file, marshal.dumps(code))
     except OSError:
         pass
 

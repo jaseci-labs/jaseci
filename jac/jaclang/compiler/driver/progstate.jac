@@ -3,9 +3,14 @@ import from jaclang.compiler.frontend.relations { ScopeChild }
 import from jaclang.compiler.passes.transform { Alert }
 import type from jaclang.compiler.driver.mtp { Info }
 
+glob STAGE_PARSE: str = "parse",
+     STAGE_ANALYZED: str = "analyzed",
+     STAGE_NATIVE: str = "native";
+
 obj ModuleHub {
     has mod: uni.ProgramModule,
         stamps: dict[str, float] = {},
+        stages: dict[str, str] = {},
         artifacts: dict[str, any] = {};
 
     def stamp(resolved_path: str) {
@@ -42,6 +47,9 @@ obj ModuleHub {
         if resolved_path in self.stamps {
             del self.stamps[resolved_path];
         }
+        if resolved_path in self.stages {
+            del self.stages[resolved_path];
+        }
         if resolved_path in self.artifacts {
             del self.artifacts[resolved_path];
         }
@@ -50,12 +58,16 @@ obj ModuleHub {
     def reset {
         retained_mods: dict[str, uni.Module] = {};
         retained_stamps: dict[str, float] = {};
+        retained_stages: dict[str, str] = {};
         dropped: list[uni.Module] = [];
         for (path, mod) in self.mod.hub.items() {
             if path.endswith(".pyi") {
                 retained_mods[path] = mod;
                 if path in self.stamps {
                     retained_stamps[path] = self.stamps[path];
+                }
+                if path in self.stages {
+                    retained_stages[path] = self.stages[path];
                 }
             } else {
                 dropped.append(mod);
@@ -82,6 +94,8 @@ obj ModuleHub {
         prog_root.hub.update(retained_mods);
         self.stamps.clear();
         self.stamps.update(retained_stamps);
+        self.stages.clear();
+        self.stages.update(retained_stages);
     }
 }
 
@@ -204,7 +218,6 @@ obj BuildScratch {
         na_verdict_resolving: set[str] postinit,
         na_unverified_live: dict[str, dict] = {},
         na_verdict_misses: int = 0,
-        boundary_parse_memo: dict[str, any] = {},
         compile_depth: int = 0;
 
     def postinit {
@@ -218,7 +231,6 @@ obj BuildScratch {
         self.na_verdict_resolving.clear();
         self.na_unverified_live.clear();
         self.na_verdict_misses = 0;
-        self.boundary_parse_memo.clear();
         self.compile_depth = 0;
     }
 }
@@ -226,13 +238,17 @@ obj BuildScratch {
 class AnalysisCaches {
     has placement_summaries: dict[str, any],
         placement_state: dict[str, any],
-        analyses_run: dict[int, set[str]],
         mtir_map: dict[(str, Info)];
 
     def init(self: AnalysisCaches) {
         self.placement_summaries: dict[str, any] = {};
         self.placement_state: dict[str, any] = {};
-        self.analyses_run: dict[int, set[str]] = {};
         self.mtir_map: dict[(str, Info)] = {};
+    }
+
+    def clear(self: AnalysisCaches) {
+        self.placement_summaries.clear();
+        self.placement_state.clear();
+        self.mtir_map.clear();
     }
 }

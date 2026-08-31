@@ -409,8 +409,8 @@ test "admin console asset: verified download staged, cache reused, bad checksum 
     threading.Thread(target=srv.serve_forever, daemon=True).start();
     _fake_urls["url"] = f"http://127.0.0.1:{srv.server_address[1]}/{asset}";
 
-    saved_cache = os.environ.get("JAC_SCALE_CACHE_DIR");
-    os.environ["JAC_SCALE_CACHE_DIR"] = tempfile.mkdtemp();
+    saved_cache = os.environ.get("JAC_CACHE_DIR");
+    os.environ["JAC_CACHE_DIR"] = tempfile.mkdtemp();
     try {
         with unittest.mock.patch.object(
             binary_mod, "_admin_dist_urls", _fake_admin_dist_urls
@@ -427,7 +427,7 @@ test "admin console asset: verified download staged, cache reused, bad checksum 
             assert stage_admin_dist(proj2, "dev");
             assert (Path(proj2) / ".jac" / "admin" / "index.html").is_file();
             # A checksum mismatch stages nothing.
-            os.environ["JAC_SCALE_CACHE_DIR"] = tempfile.mkdtemp();
+            os.environ["JAC_CACHE_DIR"] = tempfile.mkdtemp();
             (Path(serve_dir) / asset).write_bytes(payload);
             (Path(serve_dir) / (asset + ".sha256")).write_text(
                 f"{'0' * 64}  {asset}\n"
@@ -439,9 +439,9 @@ test "admin console asset: verified download staged, cache reused, bad checksum 
     } finally {
         srv.shutdown();
         if saved_cache is None {
-            os.environ.pop("JAC_SCALE_CACHE_DIR", None);
+            os.environ.pop("JAC_CACHE_DIR", None);
         } else {
-            os.environ["JAC_SCALE_CACHE_DIR"] = saved_cache;
+            os.environ["JAC_CACHE_DIR"] = saved_cache;
         }
     }
 }

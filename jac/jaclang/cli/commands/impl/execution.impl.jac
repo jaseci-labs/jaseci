@@ -568,8 +568,8 @@ def _exec_file(
     _discover_config_from_file(filename);
 
     if not cache {
-        import from jaclang.compiler.driver.jir { scrub_cache_dirs }
-        scrub_cache_dirs(os.path.dirname(os.path.abspath(filename)) or ".");
+        os.environ["JAC_REBUILD"] = "1";
+        os.environ["JAC_NO_PRECOMPILE"] = "1";
     }
 
     if not diagnostics {

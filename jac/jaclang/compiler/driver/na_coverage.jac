@@ -7,10 +7,10 @@ glob _na_coverage: dict[str, dict] = {},
      _na_cap_noted: dict[str, bool] = {};
 
 def na_coverage_begin {
-    import from jaclang.compiler.placement.placement_pins { _na_demotion_memo }
+    import from jaclang.compiler.placement.placement_pins { na_verdicts }
     import from jaclang.compiler.placement.placement_solver { native_scan_memo_clear }
     _na_coverage.clear();
-    _na_demotion_memo.clear();
+    na_verdicts.reset();
     native_scan_memo_clear();
     _na_coverage_state["enabled"] = True;
 }

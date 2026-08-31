@@ -76,8 +76,30 @@ def graft_runtime(self_path: str, host_path: str) -> bool {
 }
 
 
+def runtime_store_roots -> list[str] {
+    primary: str = "";
+    try {
+        import from jaclang.dist.fused.materialize { preferred_cache_root }
+        primary = preferred_cache_root();
+    } except Exception {
+        import from jaclang.jac0core.cachefs { writable_cache_root }
+        primary = str(writable_cache_root());
+    }
+    roots: list[str] = [];
+    if primary != "" {
+        roots.append(os.path.join(primary, "runtimes"));
+    }
+    tmp = os.environ.get("TMPDIR", "") or "/tmp";
+    uid = os.getuid() if hasattr(os, "getuid") else 0;
+    fallback = os.path.join(tmp, f"jac-cache-{uid}", "runtimes");
+    if fallback not in roots {
+        roots.append(fallback);
+    }
+    return roots;
+}
+
+
 def materialized_runtime_dir(path: str = "") -> (str | None) {
-    import from jaclang.jac0core.cache_paths { get_jir_cache_dir }
     exe = path
         or os.environ.get("JAC_EXECUTABLE", "")
         or os.path.realpath(sys.executable);
@@ -106,10 +128,7 @@ def materialized_runtime_dir(path: str = "") -> (str | None) {
         return None;
     }
     key = rt_key(t.hash16(), exe);
-    roots = [str(get_jir_cache_dir().parent / "rt")];
-    tmp = os.environ.get("TMPDIR", "") or "/tmp";
-    roots.append(os.path.join(tmp, f"jac-cache-{os.getuid()}", "rt"));
-    for r in roots {
+    for r in runtime_store_roots() {
         cand = os.path.join(r, key);
         if os.path.isfile(os.path.join(cand, ".ok")) {
             return cand;

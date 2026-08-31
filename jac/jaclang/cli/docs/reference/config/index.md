@@ -462,7 +462,6 @@ Bytecode cache settings:
 
 ```toml
 [cache]
-enabled = true   # Enable caching
 dir = "cache"    # Cache subdirectory under the build dir (i.e. .jac/cache).
                  # An absolute path relocates the cache wholesale.
 ```
@@ -476,8 +475,7 @@ fingerprint -- so a content, config, path, or pipeline change automatically
 invalidates the relevant entries. Entries are written only for fully
 successful, unchanged (or just-rewritten) results; syntax errors, lint
 failures, and annex failures are never cached as clean. `--cache` / precommit
-enable this format cache explicitly and do **not** consult `[cache].enabled`
-(that flag gates the bytecode cache). The directory is git-ignored, so it is
+enable this format cache explicitly. The directory is git-ignored, so it is
 safe to delete at any time. See [`jac fmt --cache`](../cli/index.md#jac-fmt).
 
 ---
@@ -874,6 +872,7 @@ A `jac scale deploy` reads the same file when it stages the app bundle, so a par
 | `JAC_PROFILE` | Activate a configuration profile (e.g., `production`) |
 | `JAC_BASE_PATH` | Override base directory for data/storage |
 | `JAC_DATA_PATH` | Override the base directory for application data (graph storage, user db) |
+| `JAC_CACHE_DIR` | Override the machine-wide cache root (default `~/.cache/jac` on Linux, `~/Library/Caches/jac` on macOS, `%LOCALAPPDATA%/jac/cache` on Windows) |
 | `JACPATH` | Colon-separated extra search path for Jac module resolution (like `PYTHONPATH`) |
 | `JAC_SCHEMA_REPAIR` | Schema-drift handling on load: `repair` (default) or `strict` |
 | `JAC_STRICT_PERMISSIONS` | Enable strict permission checking for security-sensitive operations (`1`/`true`) |
@@ -891,7 +890,7 @@ A `jac scale deploy` reads the same file when it stages the app bundle, so a par
 | Variable | Description |
 |----------|-------------|
 | `JAC_DB_URL` | Postgres connection URL for **this process** (overrides `[scale.database].url` at runtime). A deploy ignores it: what database the deployed app gets is decided by `[scale.kubernetes]` `database_mode` / `database_url`, then `[scale.database]` `url`, then provisioning |
-| `JAC_CACHE_HOME` | Root of the machine-wide jac cache; the shared embedded Postgres cluster lives in `<JAC_CACHE_HOME>/pg/main` (default `~/.cache/jac`) |
+| `JAC_DATA_DIR` | Root of jac's durable data (survives `jac cache purge`); the shared embedded Postgres cluster lives in `<JAC_DATA_DIR>/pg/main` (default `~/.local/share/jac`) |
 | `JAC_DB_RETENTION_DAYS` | Drop databases unused for this many days when the embedded cluster starts; overrides `[database] retention_days`, unset means never |
 | `JAC_DB_SCRATCH` | `1` makes this process open one throwaway database that is dropped when it exits, instead of a per-project one (used by the test runner and deploy staging) |
 | `FIREBASE_PROJECT_ID` | Shared Firebase project ID fallback for Auth SSO and Storage |

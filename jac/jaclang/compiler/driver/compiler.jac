@@ -7,7 +7,6 @@ import from threading { Event }
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.frontend.unitree { ability_of_symbol }
 import from jaclang.compiler.driver.jir {
-    SEC_BYTECODE,
     SEC_MTIR,
     SEC_LLVM_IR,
     SEC_INTEROP,
@@ -15,7 +14,6 @@ import from jaclang.compiler.driver.jir {
     SEC_PLACEMENT,
     FLAG_PRECOMPILED,
     get_module_cache_path,
-    is_module_cache_valid,
     precompiled_jir_matches_source,
     cache_mode,
     read_bytecode_only,
@@ -33,7 +31,9 @@ import from jaclang.compiler.passes.semantic_analysis_pass { SemanticAnalysisPas
 import from jaclang.compiler.passes.sym_tab_build_pass { SymTabBuildPass }
 import from jaclang.compiler.passes.transform { Transform }
 import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.progstate { STAGE_ANALYZED, STAGE_PARSE }
 import from jaclang.compiler.driver.selfhost { SelfHostCache }
+import from jaclang.compiler.driver.artifact_store { ArtifactStore }
 import from jaclang.compiler.driver.pass_driver {
     build_diagnostic_policy,
     deliver_alerts,
@@ -83,6 +83,7 @@ glob COMPILE_GC_THRESHOLDS: tuple[int, int, int] = (100000, 50, 100);
 
 obj JacCompiler {
     has _selfhost: (SelfHostCache | None) = None,
+        _artifacts: (ArtifactStore | None) = None,
         _reentrant_depth: int = 0,
         _stub_catalog: any = None,
         _stub_catalog_tried: bool = False,
@@ -90,6 +91,7 @@ obj JacCompiler {
         unit_collect: bool = True;
 
     has selfhost: SelfHostCache { getter; }
+    has artifacts: ArtifactStore { getter; }
 
     def stub_catalog -> any;
     def ensure_stub_catalog -> any;
@@ -143,10 +145,6 @@ obj JacCompiler {
     def stamp_client_kind_facts(mod: uni.Module, target_program: JacProgram) -> None;
     def stamp_access_check_facts(mod: uni.Module) -> None;
     def stamp_native_import_facts(mod: uni.Module, target_program: JacProgram) -> None;
-    def _persist_module_cache(
-        full_target: str, result: uni.Module, actual_program: JacProgram
-    ) -> None;
-
     def _release_compile_scratch(target_program: JacProgram) -> None;
     def compile(
         file_path: str,

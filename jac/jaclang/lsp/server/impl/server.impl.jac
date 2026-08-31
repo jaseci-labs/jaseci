@@ -1,4 +1,5 @@
 import from jaclang.cli.console { console }
+import from jaclang.lsp.protocol { uris }
 
 impl run_lang_server -> None {
     server = JacLangServer();
@@ -109,15 +110,22 @@ impl did_close(ls: JacLangServer, params: lspt.DidCloseTextDocumentParams) -> No
 
 impl did_delete_files(ls: JacLangServer, params: lspt.DeleteFilesParams) -> None {
     for file in params.files {
-        ls.delete_module(file.uri);
+        fs_path = uris.to_fs_path(file.uri);
+        if fs_path is None {
+            continue;
+        }
+        ls.delete_module(fs_path);
     }
 }
 
 impl did_rename_files(ls: JacLangServer, params: lspt.RenameFilesParams) -> None {
-    new_uris = [file.new_uri for file in params.files];
-    old_uris = [file.old_uri for file in params.files];
-    for i in range(len(new_uris)) {
-        ls.rename_module(old_uris[i], new_uris[i]);
+    for file in params.files {
+        old_fs = uris.to_fs_path(file.old_uri);
+        new_fs = uris.to_fs_path(file.new_uri);
+        if old_fs is None or new_fs is None {
+            continue;
+        }
+        ls.rename_module(old_fs, new_fs);
     }
 }
 

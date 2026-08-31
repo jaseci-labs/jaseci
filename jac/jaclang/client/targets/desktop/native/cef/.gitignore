@@ -13,7 +13,6 @@ test_sizes
 test_null_args
 .build/
 .cef_tarball.tar.bz2
-.jac_ir/
 .jac/
 __pycache__/
 .pytest_cache/

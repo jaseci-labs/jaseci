@@ -98,11 +98,6 @@ def config_module_pin(source_path: str) -> str {
 }
 
 
-glob _na_demotion_memo: dict[str, tuple] = {},
-     _na_demotion_code: dict[str, str] = {},
-     _na_demotion_probed: set[str] = set();
-
-
 def _demotion_sidecar(path: str) -> (str | None) {
     try {
         import from jaclang.compiler.driver.jir { get_module_cache_path }
@@ -123,26 +118,6 @@ def _file_key(path: str) -> (tuple | None) {
 }
 
 
-def _load_demotion(path: str) -> (tuple | None) {
-    sidecar = _demotion_sidecar(path);
-    if sidecar is None {
-        return None;
-    }
-    try {
-        with open(sidecar, "r", encoding="utf-8") as f {
-            parts = f.read().split();
-        }
-        if len(parts) < 2 {
-            return None;
-        }
-        _na_demotion_code[path] = parts[2] if len(parts) > 2 else "";
-        return (int(parts[0]), int(parts[1]));
-    } except Exception {
-        return None;
-    }
-}
-
-
 def _remove_demotion_sidecar(path: str) {
     sidecar = _demotion_sidecar(path);
     if sidecar is None {
@@ -156,67 +131,112 @@ def _remove_demotion_sidecar(path: str) {
 }
 
 
-def _is_demoted_native(path: str) -> bool {
-    key = _na_demotion_memo.get(path);
-    if key is None {
-        if path in _na_demotion_probed {
-            return False;
+obj NaVerdictStore {
+    has mem: dict[str, (tuple | None)] = {};
+
+    def lookup(path: str) -> (tuple | None) {
+        if path in self.mem {
+            hit = self.mem[path];
+            if hit is None {
+                return None;
+            }
+            if hit[2] == _file_key(path) {
+                return (hit[0], hit[1]);
+            }
+            self.mem.pop(path, None);
+            _remove_demotion_sidecar(path);
+            return None;
         }
-        _na_demotion_probed.add(path);
-        key = _load_demotion(path);
+        loaded = self._load(path);
+        if loaded is None {
+            self.mem[path] = None;
+            return None;
+        }
+        (key, code) = loaded;
+        if key != _file_key(path) {
+            self.mem[path] = None;
+            _remove_demotion_sidecar(path);
+            return None;
+        }
+        self.mem[path] = (True, code, key);
+        return (True, code);
+    }
+
+    def record(path: str, demoted: bool, code: str) {
+        if not demoted {
+            self.mem.pop(path, None);
+            _remove_demotion_sidecar(path);
+            return;
+        }
+        key = _file_key(path);
         if key is None {
-            return False;
+            return;
         }
-        _na_demotion_memo[path] = key;
+        self.mem[path] = (True, code, key);
+        sidecar = _demotion_sidecar(path);
+        if sidecar is None {
+            return;
+        }
+        import from jaclang.jac0core.cachefs { atomic_publish }
+        try {
+            atomic_publish(sidecar, f"{key[0]} {key[1]} {code}\n".encode());
+        } except OSError {
+            ;
+        }
     }
-    if key == _file_key(path) {
-        return True;
+
+    def reset {
+        self.mem.clear();
     }
-    del _na_demotion_memo[path];
-    _na_demotion_code.pop(path, None);
-    _remove_demotion_sidecar(path);
-    return False;
+
+    def _load(path: str) -> (tuple | None) {
+        sidecar = _demotion_sidecar(path);
+        if sidecar is None {
+            return None;
+        }
+        try {
+            with open(sidecar, "r", encoding="utf-8") as f {
+                parts = f.read().split();
+            }
+            if len(parts) < 2 {
+                return None;
+            }
+            return (
+                (int(parts[0]), int(parts[1])),
+                parts[2] if len(parts) > 2 else ""
+            );
+        } except Exception {
+            return None;
+        }
+    }
+}
+
+
+glob na_verdicts: NaVerdictStore = NaVerdictStore();
+
+
+def _is_demoted_native(path: str) -> bool {
+    verdict = na_verdicts.lookup(path);
+    return verdict is not None and verdict[0];
 }
 
 
 def _demoted_native_code(path: str) -> str {
-    if not _is_demoted_native(path) {
+    verdict = na_verdicts.lookup(path);
+    if verdict is None or not verdict[0] {
         return "";
     }
-    return _na_demotion_code.get(path, "");
+    return verdict[1];
 }
 
 
 def _mark_demoted_native(path: str, code: str = "") {
-    key = _file_key(path);
-    if key is None {
-        return;
-    }
-    _na_demotion_memo[path] = key;
-    _na_demotion_code[path] = code;
-    _na_demotion_probed.discard(path);
-    sidecar = _demotion_sidecar(path);
-    if sidecar is None {
-        return;
-    }
-    try {
-        os.makedirs(os.path.dirname(sidecar), exist_ok=True);
-        tmp = f"{sidecar}.{os.getpid()}.tmp";
-        with open(tmp, "w", encoding="utf-8") as f {
-            f.write(f"{key[0]} {key[1]} {code}\n");
-        }
-        os.replace(tmp, sidecar);
-    } except OSError {
-        ;
-    }
+    na_verdicts.record(path, True, code);
 }
 
 
 def _clear_demoted_native(path: str) {
-    _na_demotion_memo.pop(path, None);
-    _na_demotion_code.pop(path, None);
-    _na_demotion_probed.discard(path);
-    _remove_demotion_sidecar(path);
+    na_verdicts.record(path, False, "");
 }
 
 

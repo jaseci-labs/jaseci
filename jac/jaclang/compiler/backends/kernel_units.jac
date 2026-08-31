@@ -12,10 +12,8 @@ def _jaclang_dir -> str {
 }
 
 def _units_dir -> str {
-    import from jaclang.jac0core.cache_paths { get_jir_cache_dir }
-    d = os.path.join(str(get_jir_cache_dir()), "kernel_units");
-    os.makedirs(d, exist_ok=True);
-    return d;
+    import from jaclang.jac0core.cachefs { store_dir }
+    return str(store_dir("kernels"));
 }
 
 def unit_source(parts: list[str]) -> str {
@@ -27,14 +25,6 @@ def unit_source(parts: list[str]) -> str {
         }
     }
     return "\n\n".join(texts);
-}
-
-def _atomic_write(path: str, text: str) {
-    tmp = f"{path}.{os.getpid()}.tmp";
-    with open(tmp, "w") as f {
-        f.write(text);
-    }
-    os.replace(tmp, path);
 }
 
 glob _RETIRED_UNITS: set[str] = set();
@@ -55,7 +45,7 @@ def _retire_superseded_artifacts(name: str, keep: str) {
     live = f"{name}.{keep}.";
     for path in _g.`glob(os.path.join(_units_dir(), f"{name}.*")) {
         base = os.path.basename(path);
-        if base.endswith(".jac") or base.startswith(live) {
+        if base.startswith(live) {
             continue;
         }
         try {
@@ -70,11 +60,12 @@ def _retire_superseded_artifacts(name: str, keep: str) {
 
 def kernel_unit_path(name: str, parts: list[str]) -> str {
     import hashlib;
+    import from jaclang.jac0core.cachefs { atomic_publish }
     source = unit_source(parts);
     digest = hashlib.sha256(source.encode()).hexdigest()[:16];
     path = os.path.join(_units_dir(), f"{name}.{digest}.jac");
     if not os.path.exists(path) {
-        _atomic_write(path, source);
+        atomic_publish(path, source.encode());
     }
     _retire_superseded_artifacts(name, digest);
     return path;
@@ -125,6 +116,7 @@ def load_unit_artifact(unit_path: str, kind: str, fingerprint: str) -> (str | No
 
 def store_unit_artifact(unit_path: str, kind: str, fingerprint: str, text: str) {
     import glob as _g;
+    import from jaclang.jac0core.cachefs { atomic_publish }
     path = unit_artifact_path(unit_path, kind, fingerprint);
     stem = os.path.splitext(os.path.basename(unit_path))[0];
     for stale in _g.`glob(os.path.join(_units_dir(), f"{stem}.*.{kind}")) {
@@ -145,7 +137,7 @@ def store_unit_artifact(unit_path: str, kind: str, fingerprint: str, text: str) 
     } except Exception {
         ;
     }
-    _atomic_write(path, text);
+    atomic_publish(path, text.encode());
 }
 
 def es_pass_fingerprint -> str {

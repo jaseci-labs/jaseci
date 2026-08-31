@@ -30,8 +30,7 @@ import from jaclang.compiler.placement.placement_pins {
     _demotion_sidecar,
     _is_demoted_native,
     _mark_demoted_native,
-    _na_demotion_memo,
-    _na_demotion_probed,
+    na_verdicts,
     effective_module_pin
 }
 import from jaclang.compiler.placement.placement_solver { invalidate_importers_es }
@@ -117,8 +116,7 @@ test "a demotion verdict persists across processes and dies with the file" {
             _mark_demoted_native(path, "E5092");
             sidecar = _demotion_sidecar(path);
             assert sidecar is not None and os.path.exists(sidecar) , "marking must persist a sidecar";
-            _na_demotion_memo.clear();
-            _na_demotion_probed.clear();
+            na_verdicts.reset();
             assert _is_demoted_native(path) , "a fresh process must read the verdict back";
             assert _demoted_native_code(path) == "E5092" , "the demotion code must persist with the verdict";
             with open(path, "w", encoding="utf-8") as f {

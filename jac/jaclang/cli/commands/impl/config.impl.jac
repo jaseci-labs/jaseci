@@ -123,7 +123,7 @@ def _config_groups {
         "format": "Format command defaults (outfile, fix)",
         "check": "Check command defaults (print_errs)",
         "dot": "Dot/graph visualization defaults (depth, traverse, format)",
-        "cache": "Cache settings (enabled, dir)",
+        "cache": "Cache settings (dir)",
         "environment": "Environment profile settings (default_profile)"
     };
     for grp in CONFIG_GROUPS {

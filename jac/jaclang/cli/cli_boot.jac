@@ -1,69 +1,45 @@
 import os;
 import sys;
-import shutil;
-import from pathlib { Path }
 
-def _get_cache_dir -> Path {
-    if sys.platform == "win32" {
-        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"));
-        return base / "jac" / "cache" / "bytecode";
-    } elif sys.platform == "darwin" {
-        return Path.home() / "Library" / "Caches" / "jac" / "bytecode";
-    } else {
-        xdg = os.environ.get("XDG_CACHE_HOME");
-        base = Path(xdg) if xdg else (Path.home() / ".cache");
-        return base / "jac" / "bytecode";
+def _human_size(size_bytes: int) -> str {
+    size = float(size_bytes);
+    for unit in ["B", "KB", "MB", "GB", "TB"] {
+        if size < 1024.0 or unit == "TB" {
+            return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} B";
+        }
+        size /= 1024.0;
     }
+    return f"{size_bytes} B";
 }
 
 def _handle_purge {
     if "-h" in sys.argv or "--help" in sys.argv {
-        print("usage: jac purge [-h]\n");
+        print("usage: jac purge [-h] [--all]\n");
         print(
-            "Remove all cached Jac files (JIR, bytecode, bootstrap) from the cache directories.\n"
+            "Empty jac's global cache stores (modules, bootstrap, kernels, stubs, ...).\n"
         );
-        print("Useful when switching branches or when cache becomes corrupted.");
+        print("Prune-exempt stores (models) are kept unless --all is given.");
         sys.`exit(0);
     }
 
-    cache_dir = _get_cache_dir();
-    bootstrap_dir = cache_dir.parent / "bootstrap";
+    import from jaclang.cache.registry { all_stores, purge_all }
 
-    jir_dir = cache_dir.parent / "jir";
-
-    total_files = 0;
-    total_size = 0;
-    removed_dirs: list[str] = [];
-    for d in [cache_dir, bootstrap_dir, jir_dir] {
-        if d.exists() {
-            total_files += sum(
-                1
-                for f in d.iterdir()
-                if f.is_file()
-            );
-            total_size += sum(
-                f.stat().st_size
-                for f in d.iterdir()
-                if f.is_file()
-            );
-            try {
-                shutil.rmtree(d);
-                removed_dirs.append(str(d));
-            } except OSError as e {
-                print(f"Error purging {d}: {e}", file=sys.stderr);
-            }
+    include_exempt = "--all" in sys.argv;
+    purged: list[tuple[str, int]] = [];
+    for store in all_stores() {
+        if store.prune_exempt and not include_exempt {
+            continue;
         }
+        purged.append((store.name, store.size_bytes()));
     }
+    purge_all(include_exempt=include_exempt);
 
-    if not removed_dirs {
-        print("No cache directories found.");
-        sys.`exit(0);
+    total_size = 0;
+    for (name, size) in purged {
+        total_size += size;
+        print(f"Purged store '{name}' ({_human_size(size)})");
     }
-
-    print(f"Purged {total_files} cached files ({total_size / 1024:.1f} KB)");
-    for rd in removed_dirs {
-        print(f"Removed: {rd}");
-    }
+    print(f"Freed {_human_size(total_size)} across {len(purged)} stores");
     sys.`exit(0);
 }
 

@@ -56,6 +56,11 @@ import from jaclang.compiler.driver.modresolver {
     push_import_base,
     pop_import_base
 }
+import from jaclang.cache.events {
+    EV_CONFIG_CHANGED,
+    EV_PROCESS_RESET,
+    subscribe
+}
 import from jaclang.compiler.driver.mtp { Info }
 import type from jaclang.byllm.mtir { MTRuntime }
 import type from jaclang.cli.console { JacConsole as ConsoleImpl }
@@ -557,4 +562,18 @@ class JacRuntime(JacRuntimeInterface) {
     static def set_context(context: ExecutionContext) -> None;
     static def push_request_context(context: ExecutionContext) -> any;
     static def reset_request_context(token: any) -> None;
+}
+
+def _forget_scale_provider(payload: any) -> None {
+    _scale_provider_cache.clear();
+}
+
+def _forget_default_llm(payload: any) -> None {
+    JacLLM._default_llm_instance = None;
+}
+
+with entry {
+    subscribe(EV_PROCESS_RESET, _forget_scale_provider);
+    subscribe(EV_CONFIG_CHANGED, _forget_scale_provider);
+    subscribe(EV_CONFIG_CHANGED, _forget_default_llm);
 }

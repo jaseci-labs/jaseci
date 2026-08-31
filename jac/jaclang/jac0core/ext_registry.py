@@ -9,7 +9,7 @@ tuples and hand-rolled ``endswith`` precedence chains (see issue #6858).
 
 This is **plain Python with no jaclang dependencies** so the pre-runtime
 bootstrap (``_jac_finder.py``, ``jac0.py``, ``meta_importer.py``) can import it,
-exactly like the sibling ``cache_paths.py``. Jac code consumes it as a normal
+exactly like the sibling ``cachefs.py``. Jac code consumes it as a normal
 ``.py`` import::
 
     import from jaclang.jac0core.ext_registry { base_stem, is_annex }

@@ -650,8 +650,15 @@ impl ExecutionManager.spawn_walker_async(
 
 impl ModuleIntrospector.postinit -> None {
     import threading;
+    import from jaclang.cache.events { subscribe, EV_CONFIG_CHANGED }
     self._bundle_builder = Jac.get_client_bundle_builder();
     self._bundle_lock = threading.Lock();
+
+    def _reset_spa_latch(payload: any) -> None {
+        self._spa_routes_loaded = False;
+        self._spa_route_patterns = None;
+    }
+    subscribe(EV_CONFIG_CHANGED, _reset_spa_latch);
 }
 
 impl ModuleIntrospector.load(force_reload: bool = False) -> None {

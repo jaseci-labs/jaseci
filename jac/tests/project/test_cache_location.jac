@@ -4,7 +4,8 @@ while compiler/bootstrap cache remains in the global cache."""
 import os;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.compiler.driver.jir { get_jir_cache_dir, get_module_cache_path }
+import from jaclang.compiler.driver.jir { get_module_cache_path }
+import from jaclang.jac0core.cachefs { store_dir }
 import from jaclang.project.config { JacConfig, set_config }
 import jaclang.project.config as config_mod;
 import jaclang;
@@ -43,7 +44,7 @@ test "user module cache path is under project local .jac directory" {
             cache_path = get_module_cache_path(source_file);
             # The cache path should be under the project's .jac/cache/ directory,
             # NOT under the global cache
-            global_cache = get_jir_cache_dir();
+            global_cache = store_dir("modules");
             project_cache = cfg.get_cache_dir();
             assert not str(cache_path).startswith(str(global_cache)) , (
                 f"User module cache should NOT be in global cache.\n"
@@ -63,8 +64,8 @@ test "user module cache path is under project local .jac directory" {
 }
 
 test "bootstrap and compiler cache remains in global cache" {
-    # The global JIR cache directory should be platform-appropriate
-    global_cache = get_jir_cache_dir();
+    # The global module store should be platform-appropriate
+    global_cache = store_dir("modules");
     home = Path.home();
 
     # Should NOT be under any project directory
@@ -89,7 +90,7 @@ test "external packages use global cache even with active project" {
             # should go to the global cache, not the project-local cache
             external_file = str(Path(jaclang.__file__).parent / "cli" / "cli.jac");
             cache_path = get_module_cache_path(external_file);
-            global_cache = get_jir_cache_dir();
+            global_cache = store_dir("modules");
             project_cache = cfg.get_cache_dir();
             assert str(cache_path).startswith(str(global_cache)) , (
                 f"External package modules should use global cache.\n"
@@ -107,7 +108,7 @@ test "external packages use global cache even with active project" {
     }
 }
 
-test "user module cache uses .jac dir relative to source when no project context" {
+test "user module cache uses global store when no project context" {
     old_config = config_mod._config;
     try {
         # Set an invalid config to prevent auto-discovery from cwd
@@ -118,20 +119,17 @@ test "user module cache uses .jac dir relative to source when no project context
             source_file = str(Path(tmpdir) / "standalone.jac");
             Path(source_file).write_text(MAIN_JAC_CONTENT);
             cache_path = get_module_cache_path(source_file);
-            global_cache = get_jir_cache_dir();
-            # Without a project context, cache should be in .jac/cache/
-            # relative to the source file, NOT in the global cache
-            expected_cache_dir = Path(tmpdir) / ".jac" / "cache";
-            assert not str(cache_path).startswith(str(global_cache)) , (
-                f"Without project context, cache should NOT be in global cache.\n"
+            global_cache = store_dir("modules");
+            # Without a project context, cache goes to the global module
+            # store; no .jac/cache is scattered next to loose sources
+            stray_cache_dir = Path(tmpdir) / ".jac";
+            assert str(cache_path).startswith(str(global_cache)) , (
+                f"Without project context, cache should be in the global store.\n"
                 f"  Got:      {cache_path}\n"
-                f"  Global:   {global_cache}\n"
-                f"  Expected: under {expected_cache_dir}"
+                f"  Expected: under {global_cache}"
             );
-            assert str(cache_path).startswith(str(expected_cache_dir)) , (
-                f"Without project context, cache should be in .jac/cache/ next to source.\n"
-                f"  Got:      {cache_path}\n"
-                f"  Expected: under {expected_cache_dir}"
+            assert not stray_cache_dir.exists() , (
+                f"Loose-file compile must not create {stray_cache_dir}"
             );
         }
     } finally {

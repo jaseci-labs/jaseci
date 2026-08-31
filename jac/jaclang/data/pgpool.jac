@@ -2,6 +2,7 @@ import logging;
 import os;
 import threading;
 import time;
+import from jaclang.cache.events { EV_POST_FORK, subscribe }
 
 glob logger = logging.getLogger(__name__),
      _lock = threading.Lock(),
@@ -14,6 +15,21 @@ glob logger = logging.getLogger(__name__),
          'drain_all',
          'pool_stats'
      ];
+
+
+def _drop_pools_after_fork(payload: any) -> None {
+    for bucket in list(_pools.values()) {
+        for (conn, _at) in bucket {
+            _discard(conn);
+        }
+    }
+    _pools.clear();
+}
+
+
+with entry {
+    subscribe(EV_POST_FORK, _drop_pools_after_fork);
+}
 
 
 def pool_enabled -> bool {

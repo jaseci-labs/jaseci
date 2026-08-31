@@ -8,6 +8,15 @@ impl JacCompiler.selfhost.getter -> SelfHostCache {
     return cache;
 }
 
+impl JacCompiler.artifacts.getter -> ArtifactStore {
+    store = self._artifacts;
+    if (store is None) {
+        store = ArtifactStore(compiler=self);
+        self._artifacts = store;
+    }
+    return store;
+}
+
 impl JacCompiler.stub_catalog -> any {
     if self.stub_catalog_disabled {
         return None;
@@ -103,7 +112,6 @@ impl JacCompiler.get_bytecode(
 ) -> (types.CodeType | None) {
     actual_program = self.selfhost.resolve(full_target, target_program);
     (rebuild, no_precompile) = cache_mode();
-    symtab_only_recovery = False;
 
     if (
         (not rebuild)
@@ -118,7 +126,6 @@ impl JacCompiler.get_bytecode(
         and not actual_program.mod.hub[full_target].gen.py_bytecode
     ) {
         actual_program.invalidate_module(full_target);
-        symtab_only_recovery = True;
     } elif (
         (not rebuild)
         and (full_target in actual_program.mod.hub)
@@ -128,7 +135,7 @@ impl JacCompiler.get_bytecode(
         codeobj = hit_mod.gen.py_bytecode;
         if isinstance(codeobj, `bytes)
             and not self.selfhost.is_selfhost(actual_program) {
-            self._persist_module_cache(full_target, hit_mod, actual_program);
+            self.artifacts.persist(full_target, hit_mod, actual_program);
         }
         return marshal.loads(codeobj) if isinstance(codeobj, `bytes) else None;
     }
@@ -156,42 +163,10 @@ impl JacCompiler.get_bytecode(
         }
     }
 
-    cache_path = get_module_cache_path(full_target);
-    if (not rebuild) and is_module_cache_valid(full_target, cache_path) {
-        try {
-            jir_data = cache_path.read_bytes();
-            bc = read_bytecode_only(jir_data);
-            if bc is not None {
-                magic_bytes: any = SECTIONS_MAGIC;
-                sec_pos = jir_data.find(magic_bytes, HEADER_SIZE);
-                _had_native_secs = False;
-                if sec_pos >= 0 {
-                    secs = read_sections(jir_data, sec_pos + len(magic_bytes));
-                    self._restore_sections(full_target, actual_program, secs);
-                    _had_native_secs = SEC_NATIVE_OBJ in secs or SEC_LLVM_IR in secs;
-                }
-                if (
-                    _had_native_secs
-                    and full_target not in actual_program.hub.artifacts
-                    and not self.selfhost.is_selfhost(actual_program)
-                ) {
-                    import logging as _bc_logging;
-                    _bc_logging.getLogger(__name__).warning(
-                        f"Cached native sections for {full_target} could "
-                        f"not be restored; recompiling."
-                    );
-
-                    cache_path.unlink(missing_ok=True);
-                } else {
-                    return marshal.loads(bc);
-                }
-            } else {
-                cache_path.unlink(missing_ok=True);
-                actual_program.invalidate_module(full_target);
-                symtab_only_recovery = True;
-            }
-        } except Exception {
-            ;
+    if not rebuild {
+        cached_bc = self.artifacts.load(full_target, actual_program);
+        if cached_bc is not None {
+            return marshal.loads(cached_bc);
         }
     }
 
@@ -204,21 +179,13 @@ impl JacCompiler.get_bytecode(
                 module_jir_key_sections,
                 FLAG_PRECOMPILED
             }
+            import from jaclang.jac0core.cachefs { atomic_publish }
             jir_bytes = write_precompiled_jir(
                 precompiled_bc,
                 flags=FLAG_PRECOMPILED,
                 extra_sections=module_jir_key_sections(full_target)
             );
-            cache_path.parent.mkdir(parents=True, exist_ok=True);
-
-            import os as _os;
-            tmp_path = cache_path.with_suffix(f'.{_os.getpid()}.tmp');
-            try {
-                tmp_path.write_bytes(jir_bytes);
-                tmp_path.rename(cache_path);
-            } finally {
-                tmp_path.unlink(missing_ok=True);
-            }
+            atomic_publish(get_module_cache_path(full_target), jir_bytes);
         } except Exception {
             ;
         }
@@ -238,7 +205,7 @@ impl JacCompiler.get_bytecode(
         );
         if result.gen.py_bytecode {
             actual_program.hub_cache_stamp(full_target);
-            self._persist_module_cache(full_target, result, actual_program);
+            self.artifacts.persist(full_target, result, actual_program);
             if is_internal {
                 note_compiler_source_failure(full_target, '');
             }
@@ -253,7 +220,7 @@ impl JacCompiler.get_bytecode(
     } finally {
         if is_internal {
             if self.selfhost.at_outermost_bytecode() {
-                self.selfhost.evict_unit(
+                self.artifacts.evict_slim(
                     full_target, result, collect=self.unit_collect
                 );
             }
@@ -704,6 +671,7 @@ impl JacCompiler.parse_str(
     if had_error {
         mod.parse_failed = True;
         target_program.mod.hub[hub_key] = mod;
+        target_program.hub.stages[hub_key] = STAGE_PARSE;
         target_program.hub_cache_stamp(hub_key);
         return mod;
     }
@@ -715,6 +683,7 @@ impl JacCompiler.parse_str(
         target_program.mod.hub.update(old_hub);
     }
     target_program.mod.hub[hub_key] = mod;
+    target_program.hub.stages[hub_key] = STAGE_PARSE;
 
     if run_codespace_infer {
         _opts = target_program.options;
@@ -879,26 +848,25 @@ impl JacCompiler.stamp_boundary_facts(
     }
 
     def parse_only_module(file_path: str) -> (uni.Module | None) {
-        memo = target_program.scratch.boundary_parse_memo;
         try {
             key = JacProgram.hub_key(file_path);
-            stamp = os.path.getmtime(file_path);
         } except OSError {
             return None;
         }
-        cached = memo.get(key);
-        if cached is not None and cached[0] == stamp {
-            return cached[1];
+        if key in target_program.mod.hub {
+            target_program.invalidate_module(key);
         }
         try {
             src_text = read_file_with_encoding(file_path);
-            parsed = JacCompiler().parse_str(
-                source_str=src_text, file_path=file_path, target_program=JacProgram()
+            parsed = self.parse_str(
+                source_str=src_text,
+                file_path=file_path,
+                target_program=target_program
             );
         } except Exception {
             return None;
         }
-        memo[key] = (stamp, parsed);
+        target_program.hub_cache_stamp(key);
         return parsed;
     }
 
@@ -907,6 +875,20 @@ impl JacCompiler.stamp_boundary_facts(
             return None;
         }
         found = target_program.find_module(resolved_path);
+        if found is not None {
+            try {
+                key = JacProgram.hub_key(resolved_path);
+            } except OSError {
+                return found;
+            }
+            if (
+                target_program.hub.stages.get(key) != STAGE_PARSE
+                or target_program.hub.is_fresh(key)
+            ) {
+                return found;
+            }
+            found = None;
+        }
         if (found is None and os.path.isfile(resolved_path)) {
             found = parse_only_module(resolved_path);
         }
@@ -1293,80 +1275,6 @@ impl JacCompiler.compile(
     }
 }
 
-impl JacCompiler._persist_module_cache(
-    full_target: str, result: uni.Module, actual_program: JacProgram
-) -> None {
-    import from jaclang.compiler.driver.jir {
-        get_module_cache_path,
-        is_module_cache_valid
-    }
-    try {
-        if is_module_cache_valid(full_target, get_module_cache_path(full_target)) {
-            return;
-        }
-    } except Exception {
-        return;
-    }
-    cache_bc = result.gen.py_bytecode;
-    if cache_bc is None or result.parse_failed {
-        return;
-    }
-    try {
-        import pickle;
-        import json;
-        import zlib;
-        sections: dict[int, bytes] = {};
-        sections[SEC_BYTECODE] = cache_bc;
-        if actual_program.mtir_map {
-            sections[SEC_MTIR] = pickle.dumps(
-                actual_program.mtir_map, int(pickle.HIGHEST_PROTOCOL)
-            );
-        }
-
-        native_bc = result.gen.native_bitcode;
-        if native_bc is not None {
-            import struct as _struct;
-            import jaclang.compiler.backends.native.llvm.binding as _llvm;
-            triple_text = _llvm.get_default_triple();
-            assert isinstance(triple_text, str);
-            triple = triple_text.encode('utf-8');
-            hdr = _struct.pack('<H', len(triple)) + triple;
-            sections[SEC_NATIVE_OBJ] = hdr + native_bc;
-        } else {
-            llvm_ir = result.gen.llvm_ir;
-            if llvm_ir is not None {
-                sections[SEC_LLVM_IR] = zlib.compress(str(llvm_ir).encode('utf-8'), 6);
-            }
-        }
-        interop_dict = self._build_interop_dict(result);
-        if interop_dict {
-            sections[SEC_INTEROP] = json.dumps(interop_dict).encode('utf-8');
-        }
-        try {
-            import from jaclang.compiler.placement.placement {
-                get_module_summary,
-                summary_to_bytes
-            }
-            sections[SEC_PLACEMENT] = summary_to_bytes(
-                get_module_summary(result, actual_program)
-            );
-        } except Exception {
-            ;
-        }
-        import from jaclang.compiler.driver.jir {
-            SEC_CTDEPS,
-            ct_deps_section,
-            write_module_cache
-        }
-        if result.ct_file_deps {
-            sections[SEC_CTDEPS] = ct_deps_section(result.ct_file_deps);
-        }
-        write_module_cache(full_target, cache_bc, extra_sections=sections);
-    } except Exception {
-        ;
-    }
-}
-
 impl JacCompiler._release_compile_scratch(target_program: JacProgram) -> None {
     try {
         target_program.release_native_dep_units();
@@ -1445,6 +1353,11 @@ impl JacCompiler._compile_once(
         passes=_head_sched,
         cancel_token=options.cancel_token
     );
+    if mod_targ.loc {
+        actual_program.hub.stages[
+            JacProgram.hub_key(mod_targ.loc.mod_path)
+        ] = STAGE_ANALYZED;
+    }
 
     blocking_errs_post_ir = self._count_module_blocking_errors(
         actual_program, cur_mod_path
@@ -1482,8 +1395,7 @@ impl JacCompiler._compile_once(
         );
 
     if _analyze {
-        if 'TypeOf'
-            not in actual_program.analysis.analyses_run.get(id(mod_targ), set()) {
+        if 'TypeOf' not in mod_targ.gen.analyses_run {
             self.run_schedule(
                 mod=mod_targ,
                 target_program=actual_program,
@@ -1515,7 +1427,7 @@ impl JacCompiler._compile_once(
         and not options.symtab_ir_only
         and not had_parse_errors
         and not had_blocking_errors
-        and 'TypeOf' in actual_program.analysis.analyses_run.get(id(mod_targ), set())
+        and 'TypeOf' in mod_targ.gen.analyses_run
     ) {
         import from jaclang.compiler.backends.py.module_codegen_pass {
             ModuleCodegenPass as _PtyMcp
@@ -1626,9 +1538,7 @@ impl JacCompiler._compile_once(
         needs_native = is_native_mod
             or ModuleCodegenPass.has_native_context_stmts(mod_targ);
 
-        if needs_native
-            and 'TypeOf'
-                not in actual_program.analysis.analyses_run.get(id(mod_targ), set()) {
+        if needs_native and 'TypeOf' not in mod_targ.gen.analyses_run {
             self.run_schedule(
                 mod=mod_targ,
                 target_program=actual_program,
@@ -1641,7 +1551,7 @@ impl JacCompiler._compile_once(
             target_program=actual_program,
             passes=get_py_code_gen(
                 native=needs_native,
-                provided=actual_program.analysis.analyses_run.get(id(mod_targ), set())
+                provided=mod_targ.gen.analyses_run
             ),
             cancel_token=options.cancel_token
         );
@@ -1674,11 +1584,7 @@ impl JacCompiler.run_schedule(
     passes: list[type[Transform]],
     cancel_token: (Event | None) = None
 ) -> None {
-    provided = target_program.analysis.analyses_run.get(id(mod));
-    if provided is None {
-        provided = set();
-        target_program.analysis.analyses_run[id(mod)] = provided;
-    }
+    provided = mod.gen.analyses_run;
     validate_schedule(
         passes,
         preprovided=provided,

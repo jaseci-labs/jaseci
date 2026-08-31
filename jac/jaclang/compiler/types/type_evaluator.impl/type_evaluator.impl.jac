@@ -6233,5 +6233,20 @@ impl TypeEvaluator._intern_shared(shared: ClassDetailsShared) -> ClassDetailsSha
         return found;
     }
     self._shared_intern[key] = shared;
+    mod_path = shared.symbol_table?.loc?.mod_path;
+    if mod_path {
+        import os;
+        try {
+            canon = os.path.realpath(mod_path);
+        } except OSError {
+            canon = mod_path;
+        }
+        bucket = self._shared_by_module.get(canon);
+        if bucket is None {
+            bucket = [];
+            self._shared_by_module[canon] = bucket;
+        }
+        bucket.append(key);
+    }
     return shared;
 }

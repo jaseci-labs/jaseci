@@ -359,12 +359,14 @@ impl HotReloader._refresh_routing(file_path: str) -> None {
 
 impl HotReloader._reload_server_module(file_path: str) -> None {
     import from jaclang.runtime.runtime { JacRuntime as Jac }
+    import from jaclang.cache.events { emit, EV_CONFIG_CHANGED, EV_MODULE_FORGOTTEN }
 
     sys.modules.pop(self.module_name, None);
     program = Jac.program;
     if program is not None {
         for key in list(program.mod.hub.keys()) {
             sys.modules.pop(self._path_to_module(key), None);
+            emit(EV_MODULE_FORGOTTEN, key);
         }
     }
 
@@ -375,6 +377,7 @@ impl HotReloader._reload_server_module(file_path: str) -> None {
                 program.invalidate_module(key);
                 program.drop_module_alerts(key);
             }
+            emit(EV_MODULE_FORGOTTEN, key);
         }
     } except Exception as e {
         console.warning(f"Could not clear module hub: {e}");
@@ -385,6 +388,7 @@ impl HotReloader._reload_server_module(file_path: str) -> None {
             target=self.module_name, base_path=self.base_path, reload_module=True
         );
         console.print(f"[HMR] Reloaded: {file_path}");
+        emit(EV_CONFIG_CHANGED);
     } except SyntaxError as e {
         console.error(
             _syntax_error_line(file_path, e), hint="Fix the error and save to retry"

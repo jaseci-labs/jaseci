@@ -29,7 +29,7 @@ JACLANG = os.path.join(REPO, "jac", "jaclang")
 # the manifest itself and the seed transpiler.
 PY_BOOT_MODULES = {
     "jaclang.jac0core.sealed",
-    "jaclang.jac0core.cache_paths",
+    "jaclang.jac0core.cachefs",
     "jaclang.jac0core.ext_registry",
     "jaclang.jac0core.osp0",
     "jaclang.bootstrap_manifest",

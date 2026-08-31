@@ -49,6 +49,8 @@ impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None 
     }
 
     self.deps.forget(resolved_path);
+    import from jaclang.cache.events { EV_MODULE_FORGOTTEN, emit }
+    emit(EV_MODULE_FORGOTTEN, resolved_path);
 }
 
 impl JacProgram.release_module(self: JacProgram, resolved_path: str) -> None {
@@ -290,10 +292,13 @@ impl JacProgram.release_compile_closure(
     self.type_evaluator = None;
     self.diags.clear();
     self.scratch.clear();
+    self.analysis.clear();
     if collect {
         import gc;
         gc.collect();
     }
+    import from jaclang.cache.events { EV_PROGRAM_RELEASED, emit }
+    emit(EV_PROGRAM_RELEASED);
 }
 
 impl JacProgram._search_hubs(self: JacProgram) -> list[dict[(str, uni.Module)]] {

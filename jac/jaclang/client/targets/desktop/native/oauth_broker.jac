@@ -7,7 +7,9 @@ import queue;
 import secrets;
 import time;
 import webbrowser;
+import from pathlib { Path }
 import from urllib.parse { parse_qs, quote, urlparse }
+import from jaclang.jac0core.cachefs { atomic_publish, data_dir }
 
 glob _LOOPBACK_HOSTS: frozenset = frozenset({"127.0.0.1", "localhost", "::1"});
 
@@ -28,9 +30,14 @@ class _EventHub(Protocol) {
 }
 
 
+def default_token_path -> str {
+    return str(data_dir("desktop") / "session.json");
+}
+
+
 class SessionStore {
-    def init(self: SessionStore, path: str) {
-        self.path = path;
+    def init(self: SessionStore, path: str = "") {
+        self.path = path or default_token_path();
     }
 
     def read(self: SessionStore) -> str {
@@ -45,12 +52,10 @@ class SessionStore {
 
     def write(self: SessionStore, token: str) {
         token = token or "";
-        os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True);
-        tmp = self.path + ".tmp";
-        with open(tmp, "w", encoding="utf-8") as f {
-            json.dump({"token": token}, f);
-        }
-        os.replace(tmp, self.path);
+        atomic_publish(
+            Path(os.path.abspath(self.path)),
+            json.dumps({"token": token}).encode("utf-8")
+        );
     }
 
     def clear(self: SessionStore) {

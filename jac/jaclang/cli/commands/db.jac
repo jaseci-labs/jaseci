@@ -23,7 +23,7 @@ comptime SPEC_DB: CommandSpec = CommandSpec(
                  `default="",
                  help=(
                      "Postgres data directory. Defaults to the shared embedded "
-                     "cluster ($JAC_CACHE_HOME/pg/main, i.e. ~/.cache/jac/pg/main) "
+                     "cluster ($JAC_DATA_DIR/pg/main, i.e. ~/.local/share/jac/pg/main) "
                      "or, for `serve`, JAC_PGDATA / /var/lib/jac/pgdata."
                  ),
                  short="d"

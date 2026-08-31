@@ -2,6 +2,7 @@ import json;
 import os;
 import sys;
 import time;
+import from pathlib { Path }
 import from jaclang.compiler.types.stubcat.locate {
     ENV_BUILDING,
     catalog_key,
@@ -11,6 +12,7 @@ import from jaclang.compiler.types.stubcat.locate {
 }
 import from jaclang.compiler.types.stubcat.writer { CatalogWriter }
 import jaclang.compiler.types.stubcat.reader;
+import from jaclang.jac0core.cachefs { atomic_publish }
 
 glob PRELUDE_ORDER: tuple[str, ...] = (
          "builtins",
@@ -122,15 +124,6 @@ def _rss_mb -> int {
         else int(usage // 1024);
 }
 
-def _write_atomic(path: str, data: bytes) {
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True);
-    tmp = f"{path}.tmp.{os.getpid()}";
-    with open(tmp, "wb") as f {
-        f.write(data);
-    }
-    os.replace(tmp, path);
-}
-
 def build_catalog(
     out_path: str,
     only: (list[str] | None) = None,
@@ -225,7 +218,7 @@ def _build_catalog_inner(
     }
     writer.force_all();
     data = writer.emit(catalog_key(pkg), ev.ambient_typing_names_by_module);
-    _write_atomic(out_path, data);
+    atomic_publish(Path(out_path), data);
     manifest = writer.manifest();
     manifest["bytes"] = len(data);
     manifest["key"] = catalog_key(pkg);

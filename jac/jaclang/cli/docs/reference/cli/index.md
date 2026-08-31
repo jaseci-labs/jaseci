@@ -48,6 +48,7 @@ A task-first index into the commands below. The full alphabetical list follows i
 | `jac fmt` | Format code |
 | `jac precommit` | Run format + check using `jac.toml` lint settings (installable as a git hook) |
 | `jac clean` | Clean project build artifacts |
+| `jac cache` | Inspect and maintain the global cache stores (`ls`, `prune`, `purge`; `jac purge` is the standalone shortcut) |
 | `jac dot` | Generate graph visualization |
 | `jac browse` | Automate a headless browser over CDP (navigate, click, snapshot, screenshot) |
 | `jac code` | Query code structure via the compiler (symbols, uses, walkers, slices) |
@@ -131,7 +132,7 @@ jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [-e DIAGNOSTICS] [
 | `filename` | Jac file (or `.jab` artifact) to run. Omit to dispatch on the project's `jac.toml` | (project) |
 | `-s, --show` | Print the resolved run plan (kind, action, equivalent command) without executing | `False` |
 | `-m, --main` | Treat module as `__main__` | `True` |
-| `-c, --cache` | Enable compilation cache | `True` |
+| `-c, --cache` | Read compilation caches; `--no-cache` bypasses cache reads for this run (forces a rebuild and skips precompiled modules) without deleting anything on disk | `True` |
 | `-e, --diagnostics` | Diagnostic verbosity: `error`, `all`, or `none` | `error` |
 | `--profile` | Configuration profile to load (e.g. prod, staging) | `""` |
 | `args` | Arguments passed to the script (available via `sys.argv[1:]`) | |
@@ -186,7 +187,7 @@ jac run
 # Preview what the project would run/build, without doing it
 jac run --show
 
-# Run without cache (flags before filename)
+# Run with a forced rebuild, bypassing cache reads (flags before filename)
 jac run --no-cache main.jac
 
 # Pass arguments to the script
@@ -546,7 +547,7 @@ jac fmt . --cache
 
 > **Note**: For auto-linting (code corrections), use `jac check --lint --fix` instead. See [`jac check`](#jac-check) above.
 >
-> **Format cache**: `--cache` records each file proven clean under `<build dir>/<cache dir>/fmt-v1/` (default `.jac/cache/fmt-v1/`, already git-ignored). Outside a project (no `jac.toml`), the same default path is created next to the formatted file. A later run skips such files entirely -- no parse, no format pass, no lint. An entry is only ever written for a fully successful, unchanged (or just-rewritten) result, so syntax errors, lint failures, and annex failures are never cached as clean. `--cache` is an explicit opt-in and enables the format cache regardless of [`[cache].enabled`](../config/index.md#cache) (that setting gates the bytecode cache). Caching is disabled when combined with `--to_screen` so preview always prints source. `jac precommit` enables the cache automatically; with `--staged --verify` it keys on the **staged blob bytes** of the full module unit (including tracked sibling `.impl.jac`/`.test.jac` annexes) while preserving the original logical path for config/lint discovery, so a clean staged file is a hit even over a dirty worktree. Ordinary `--staged` (without `--verify`) still formats worktree files. Changing the file content, the effective `[format]` / `[check]` settings, the logical path under `--lintfix`, or the formatter pipeline invalidates the relevant entries.
+> **Format cache**: `--cache` records each file proven clean under `<build dir>/<cache dir>/fmt-v1/` (default `.jac/cache/fmt-v1/`, already git-ignored). Outside a project (no `jac.toml`), the same default path is created next to the formatted file. A later run skips such files entirely -- no parse, no format pass, no lint. An entry is only ever written for a fully successful, unchanged (or just-rewritten) result, so syntax errors, lint failures, and annex failures are never cached as clean. `--cache` is an explicit opt-in for the format cache. Caching is disabled when combined with `--to_screen` so preview always prints source. `jac precommit` enables the cache automatically; with `--staged --verify` it keys on the **staged blob bytes** of the full module unit (including tracked sibling `.impl.jac`/`.test.jac` annexes) while preserving the original logical path for config/lint discovery, so a clean staged file is a hit even over a dirty worktree. Ordinary `--staged` (without `--verify`) still formats worktree files. Changing the file content, the effective `[format]` / `[check]` settings, the logical path under `--lintfix`, or the formatter pipeline invalidates the relevant entries.
 >
 > **Safety**: If the formatter detects that comments were displaced (e.g., moved to the end of the file), it emits error `E5051` and refuses to save the file. Run `jac fmt <file> -s` to inspect the output without writing.
 
@@ -722,7 +723,7 @@ Outputs are printed raw so they pipe cleanly; JSON-valued results (`eval`, `get`
 
 **Sessions and persistence:**
 
-A launched browser stays alive between CLI calls -- each invocation reconnects to the running Chrome recorded under `~/.cache/jacbrowser/`. Use `-s` to run multiple isolated browsers side by side. Element refs from `snapshot` (the `@e1` handles) persist across calls, so you can snapshot once and act on refs in later commands.
+A launched browser stays alive between CLI calls -- each invocation reconnects to the running Chrome recorded in the `browser/` store under the jac cache root (`~/.cache/jac/browser/` on Linux; override the root with `JAC_CACHE_DIR`). Use `-s` to run multiple isolated browsers side by side. Element refs from `snapshot` (the `@e1` handles) persist across calls, so you can snapshot once and act on refs in later commands.
 
 **Refs vs. selectors:**
 
@@ -734,7 +735,7 @@ A launched browser stays alive between CLI calls -- each invocation reconnects t
 |----------|-------------|
 | `JACBROWSER_SESSION` | Default session name (overridden by `-s`) |
 | `JACBROWSER_CHROME` | Path to the Chrome/Chromium binary |
-| `JACBROWSER_CACHE` | Cache directory for session, ref, and screenshot files |
+| `JAC_CACHE_DIR` | Override the cache root; session, ref, and screenshot files live in its `browser/` store |
 
 **Examples:**
 
@@ -850,7 +851,7 @@ See the [MCP Server Reference](../mcp.md) for the full tool catalog and per-clie
 
 ## Local Model Cache
 
-The `jac model` command manages the on-disk cache of bundled local LLM weights used by byLLM's `local:<alias>` route. Weights live under `~/.cache/jac/models/<alias>/` (override with `JAC_MODELS_DIR`). See [Built-in Local Models](../plugins/byllm.md#built-in-local-models) in the byLLM reference for the full backend.
+The `jac model` command manages the on-disk cache of bundled local LLM weights used by byLLM's `local:<alias>` route. Weights live in the `models/` store under the jac cache root, i.e. `~/.cache/jac/models/<alias>/` on Linux (override the root with `JAC_CACHE_DIR`); the store is prune-exempt, so `jac purge` keeps it unless `--all` is given. See [Built-in Local Models](../plugins/byllm.md#built-in-local-models) in the byLLM reference for the full backend.
 
 ### jac model
 
@@ -904,7 +905,7 @@ Local model cache: /home/you/.cache/jac/models
 
 The `jac db` command group manages the project's Postgres store -- a database inside the embedded cluster the runtime provisions automatically, or the external database `JAC_DB_URL` / `[scale.database].url` points at.
 
-The embedded cluster is **shared by the whole machine**, not per project: one PostgreSQL instance lives at `$JAC_CACHE_HOME/pg/main` (default `~/.cache/jac/pg/main`) and holds one database per project, named `jac_<project>_<digest of the project's absolute path>`. Two projects therefore share a server but never a database, and moving or deleting a project directory leaves its database behind (`jac db list` shows it as `orphaned`; `jac db prune` reclaims it).
+The embedded cluster is **shared by the whole machine**, not per project: one PostgreSQL instance lives at `$JAC_DATA_DIR/pg/main` (default `~/.local/share/jac/pg/main`) and holds one database per project, named `jac_<project>_<digest of the project's absolute path>`. Two projects therefore share a server but never a database, and moving or deleting a project directory leaves its database behind (`jac db list` shows it as `orphaned`; `jac db prune` reclaims it).
 
 For the architectural background (fingerprints, drift detection, quarantine philosophy, alias decorator), see [Persistence & Schema Migration](../persistence.md).
 
@@ -944,7 +945,7 @@ jac db list
 ```
 
 ```text
-data dir : /home/you/.cache/jac/pg/main
+data dir : /home/you/.local/share/jac/pg/main
 databases: 3 (23.1 MB)
 
 NAME                              SIZE  KIND     STATE         LAST USED            OWNER
@@ -1482,7 +1483,44 @@ jac clean --data --cache
 jac clean --all --force
 ```
 
-> **💡 Troubleshooting Tip:** If you encounter unexpected syntax errors, "NodeAnchor is not a valid reference" errors, or other strange behavior after modifying your code, try clearing the project cache with `jac clean --cache` (removes `.jac/cache/`). If that doesn't help -- for example after upgrading Jaseci packages -- also remove the global per-user cache with `rm -rf ~/.cache/jac`. Stale bytecode can cause issues when source files change.
+> **💡 Troubleshooting Tip:** If you encounter unexpected syntax errors, "NodeAnchor is not a valid reference" errors, or other strange behavior after modifying your code, try clearing the project cache with `jac clean --cache` (removes `.jac/cache/`). If that doesn't help -- for example after upgrading Jaseci packages -- also empty the global per-user cache with `jac purge`. Stale bytecode can cause issues when source files change.
+
+---
+
+### jac cache
+
+Inspect and maintain jac's global on-disk cache stores. All stores live under one cache root: `~/.cache/jac` on Linux (`$XDG_CACHE_HOME` honored), `~/Library/Caches/jac` on macOS, `%LOCALAPPDATA%/jac/cache` on Windows; override with `JAC_CACHE_DIR`. The registered stores are `modules`, `bootstrap`, `kernels`, `stubs`, `runtimes`, `apps`, `bin`, `models`, `browser`, and `pg`.
+
+```bash
+jac cache [-h] [action] [name] [--all]
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `action` | `ls`, `prune`, or `purge` | `ls` |
+| `name` | With `purge`: empty just that store | (all stores) |
+| `--all` | With `purge`: also empty prune-exempt stores (`models`) | `False` |
+
+**Examples:**
+
+```bash
+# List every store with size, entries, and path
+jac cache ls
+
+# Apply each store's retention policy now
+jac cache prune
+
+# Empty all non-exempt stores
+jac cache purge
+
+# Empty one store by name
+jac cache purge modules
+
+# Empty every store, models included
+jac cache purge --all
+```
+
+`jac purge [--all]` is the standalone shortcut for `jac cache purge`, handled before the CLI fully boots, so it works even when the cache itself is what is broken. It empties every registered store except the prune-exempt ones (`models`, which holds downloaded LLM weights); `--all` includes them. Durable data under the data root (`~/.local/share/jac`, override `JAC_DATA_DIR`), such as the embedded Postgres cluster, is never touched by a purge.
 
 ---
 

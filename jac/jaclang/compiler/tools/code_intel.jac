@@ -1,23 +1,10 @@
 import os;
 import time;
-import json;
-import zlib;
 import jaclang.compiler.frontend.unitree as uni;
 import from pathlib { Path }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.passes { Alert }
 import from jaclang.compiler.tools.unparse_pass { unparse_node }
-import from jaclang.compiler.driver.jir {
-    SEC_SYMINDEX,
-    SECTIONS_MAGIC,
-    HEADER_SIZE,
-    create_header,
-    parse_header,
-    write_sections,
-    read_sections,
-    get_module_cache_path
-}
-import from jaclang.compiler.driver.bccache { discover_annex_files }
 import from jaclang.jac0core.ext_registry {
     ANNEX_SUFFIXES,
     ANNEX_FOLDER,
@@ -211,37 +198,6 @@ obj EntryPoint {
             line=int(d.get("line", 0))
         );
     }
-}
-
-
-def _combined_source_hash(file: str) -> int {
-    crc = 0;
-    try {
-        with open(file, 'rb') as f {
-            crc = zlib.crc32(f.read(), crc);
-        }
-    } except OSError as e {
-        _ = e;
-        return -1;
-    }
-    annexes: list[str] = [];
-    for suffix in ANNEX_SUFFIXES {
-        try {
-            annexes.extend(discover_annex_files(file, suffix));
-        } except Exception as e {
-            _ = e;
-        }
-    }
-    for annex in sorted(set(annexes)) {
-        try {
-            with open(annex, 'rb') as f {
-                crc = zlib.crc32(f.read(), crc);
-            }
-        } except OSError as e {
-            _ = e;
-        }
-    }
-    return crc & 0xFFFFFFFF;
 }
 
 

@@ -2173,6 +2173,8 @@ impl JacRuntime.reset_process_state(cls: any, clear_modules: bool = True) -> Non
     cls.selfhost = None;
     import from jaclang.project.config { set_config }
     set_config(None);
+    import from jaclang.cache.events { emit, EV_PROCESS_RESET }
+    emit(EV_PROCESS_RESET);
 }
 
 impl JacRuntime.get_compiler(cls: any) -> JacCompiler {

@@ -20,7 +20,7 @@ works before any ``.jac`` (including ``modresolver`` / ``jir`` / the compiler)
 can load. jac0 stays the compiler for that tier; only the container is unified.
 
 This module is therefore **plain Python with no jaclang dependencies** (like the
-sibling ``cache_paths.py`` / ``ext_registry.py``).
+sibling ``cachefs.py`` / ``ext_registry.py``).
 
 Manifest layout (``_precompiled/MANIFEST.json``, format ``MANIFEST_FORMAT``
 below; every version in ``MANIFEST_FORMATS_ACCEPTED`` remains loadable --
@@ -101,8 +101,8 @@ MANIFEST_FORMATS_ACCEPTED = (2, 3, 4, 5, 6, 7, MANIFEST_FORMAT)
 # pure-Python section reader below, so they need none of the .jac machinery
 # (jir.jac's reader is itself a jac0core module).
 PRECOMPILE_SENTINEL = "__PKG_ROOT__"
-JIR_FORMAT_VERSION = 23
-HEADER_SIZE = 32
+JIR_FORMAT_VERSION = 24
+HEADER_SIZE = 20
 SECTIONS_MAGIC = b"JIRX"
 SEC_BYTECODE = 0x02
 SEC_DEBUG_SRC = 0x09

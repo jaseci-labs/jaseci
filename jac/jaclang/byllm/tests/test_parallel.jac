@@ -44,7 +44,7 @@ import from jaclang.byllm.parallel {
     _index_by_identity,
     mark_serialize,
     _PARALLEL_TOOL_HINT,
-    _WORKER_POOL
+    _worker_pool
 }
 import from jaclang.byllm.types { Tool, MockToolCall }
 import from jaclang.byllm.llm { BaseLLM }
@@ -390,9 +390,9 @@ test "parallel hint appended without mutating original message" {
 # 16. Shared worker pool is a real ThreadPoolExecutor
 # ---------------------------------------------------------------------------
 test "shared worker pool is a thread pool executor" {
-    assert isinstance(_WORKER_POOL, ThreadPoolExecutor);
+    assert isinstance(_worker_pool(), ThreadPoolExecutor);
     # Pool is alive — can submit work
-    future = _WORKER_POOL.submit(lambda { 42; });
+    future = _worker_pool().submit(lambda { 42; });
     assert future.result(timeout=2) == 42;
 }
 

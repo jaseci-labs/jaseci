@@ -51,7 +51,7 @@ import time;
 
 import from pathlib { Path }
 import from tests.support { JAC_ROOT, TESTS_DIR }
-import from jaclang.jac0core.cache_paths { get_jir_cache_dir }
+import from jaclang.jac0core.cachefs { cache_root }
 
 glob PROBE: str = os.path.join(
          TESTS_DIR, "compiler", "fixtures", "compile_timing_probe.jac"
@@ -136,7 +136,7 @@ jac cache root is the copy that survives, and since the runner came in-house
 """
 def publish(name: str, text: str) {
     print(text);
-    out_dir = get_jir_cache_dir().parent / "timing";
+    out_dir = cache_root() / "timing";
     out_dir.mkdir(parents=True, exist_ok=True);
     (out_dir / f"{name}.txt").write_text(text + "\n", encoding="utf-8");
 }
@@ -231,7 +231,7 @@ running out of. Cached by ref under the jac cache root, so only the first run
 pays the extraction and the baseline compiler's bootstrap.
 """
 def baseline_tree -> str {
-    dest = get_jir_cache_dir().parent / "timing-baseline" / BASELINE_REF[:12];
+    dest = cache_root() / "timing-baseline" / BASELINE_REF[:12];
     tree = dest / "jac";
     if (tree / "jac.toml").is_file() {
         return str(tree);

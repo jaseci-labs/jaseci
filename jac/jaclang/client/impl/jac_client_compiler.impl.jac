@@ -13,10 +13,8 @@ def _jac_client_plugin_dir -> Path {
 }
 
 def _atomic_write_text(path: Path, text: str) {
-    import os;
-    tmp = path.with_name(path.name + '.tmp');
-    tmp.write_text(text, encoding='utf-8');
-    os.replace(str(tmp), str(path));
+    import from jaclang.jac0core.cachefs { atomic_publish_text }
+    atomic_publish_text(path, text);
 }
 
 

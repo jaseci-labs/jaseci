@@ -117,8 +117,7 @@ obj DotConfig {
 }
 
 obj CacheConfig {
-    has enabled: bool = True,
-        dir: str = "cache";
+    has dir: str = "cache";
 }
 
 obj StorageConfig {

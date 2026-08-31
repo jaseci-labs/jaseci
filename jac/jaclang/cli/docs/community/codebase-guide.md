@@ -79,7 +79,7 @@ The most important files to know:
 - **`frontend/parser/`** -- The Lark grammar definition and lexer that parse Jac source into the initial AST.
 - **`passes/`** -- The shared analysis passes: AST validation, symbol table construction, declaration-implementation matching, semantic analysis, and more (see the pass ordering below).
 
-Which of these files the `jac0.py` bootstrap compiles is declared in `jaclang/bootstrap_manifest.py`, not by directory. A small `jac0core/` directory still exists, but it holds only the frozen pure-Python launcher boot modules (`sealed.py`, `cache_paths.py`, `ext_registry.py`, `cli_boot.py`) -- built binaries bake these paths in, so they cannot move.
+Which of these files the `jac0.py` bootstrap compiles is declared in `jaclang/bootstrap_manifest.py`, not by directory. A small `jac0core/` directory still exists, but it holds only the frozen pure-Python launcher boot modules (`sealed.py`, `cachefs.py`, `ext_registry.py`, `cli_boot.py`) -- built binaries bake these paths in, so they cannot move.
 
 ### `compiler/` -- Multi-Target Compilation
 

@@ -1,6 +1,7 @@
 import sys;
 import from dataclasses { fields, is_dataclass }
 import from typing { cast }
+import from jaclang.cache.events { EV_CONFIG_CHANGED, EV_PROCESS_RESET, subscribe }
 
 glob _cache: dict[type, dict[str, object]] = {};
 
@@ -79,4 +80,13 @@ impl invalidate(cls: type) -> None {
 
 impl clear -> None {
     _cache.clear();
+}
+
+def _clear_on_event(payload: any) -> None {
+    clear();
+}
+
+with entry {
+    subscribe(EV_PROCESS_RESET, _clear_on_event);
+    subscribe(EV_CONFIG_CHANGED, _clear_on_event);
 }

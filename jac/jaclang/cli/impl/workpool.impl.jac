@@ -89,6 +89,8 @@ impl WorkPool._spawn(slot: int) -> dict[(str, any)] {
     pid = os.fork();
     if pid == 0 {
         try {
+            import from jaclang.cache.events { emit, EV_POST_FORK }
+            emit(EV_POST_FORK);
             os.close(dispatch_w);
             os.close(result_r);
             for other in self.kids {

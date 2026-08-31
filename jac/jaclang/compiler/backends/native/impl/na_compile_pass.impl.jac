@@ -223,6 +223,10 @@ impl native_unit_demotions(
             prog.scratch.na_verdict_resolving.discard(real_path);
         }
         prog.scratch.na_dep_units[real_path] = `entry;
+        if `entry is not None and not isinstance(`entry, str) {
+            import from jaclang.compiler.driver.progstate { STAGE_NATIVE }
+            prog.hub.stages[real_path] = STAGE_NATIVE;
+        }
     }
     if `entry is None or isinstance(`entry, str) or `entry.gen.llvm_ir is None {
         prog.scratch.na_verdict_misses += 1;
@@ -934,40 +938,25 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 _uv_c: sorted(_uv_n) for (_uv_c, _uv_n) in _uv_pending.items()
             };
             try {
-                os.makedirs(_ir_cache_dir, exist_ok=True);
+                import from jaclang.jac0core.cachefs { atomic_publish }
+                atomic_publish(_cache_ir_path, imported_llvm_str_raw.encode());
+                atomic_publish(_cache_meta_path, json.dumps(meta.to_meta()).encode());
 
                 import glob as _glob;
-                for stale in _glob.`glob(
-                    os.path.join(_ir_cache_dir, f"{_src_stem}.*.ir_cache")
-                ) {
-                    if stale != _cache_ir_path {
-                        os.remove(stale);
-                    }
-                }
-                for stale in _glob.`glob(
-                    os.path.join(_ir_cache_dir, f"{_src_stem}.*.ir_meta")
-                ) {
-                    if stale != _cache_meta_path {
-                        os.remove(stale);
-                    }
-                }
-
-                _meta_obj = meta.to_meta();
-                _tmp_ir = f"{_cache_ir_path}.{os.getpid()}.tmp";
-                _tmp_meta = f"{_cache_meta_path}.{os.getpid()}.tmp";
+                _fresh_mtime = 0.0;
                 try {
-                    with open(_tmp_ir, "w") as _wf {
-                        _wf.write(imported_llvm_str_raw);
-                    }
-                    with open(_tmp_meta, "w") as _wmf {
-                        _wmf.write(json.dumps(_meta_obj));
-                    }
-                    os.replace(_tmp_ir, _cache_ir_path);
-                    os.replace(_tmp_meta, _cache_meta_path);
-                } finally {
-                    for _leftover in (_tmp_ir, _tmp_meta) {
+                    _fresh_mtime = os.path.getmtime(_cache_ir_path);
+                } except OSError { }
+                for _pat in (f"{_src_stem}.*.ir_cache", f"{_src_stem}.*.ir_meta") {
+                    for stale in _glob.`glob(os.path.join(_ir_cache_dir, _pat)) {
+                        if stale in (_cache_ir_path, _cache_meta_path) {
+                            continue;
+                        }
                         try {
-                            os.remove(_leftover);
+                            if os.path.getmtime(stale) > _fresh_mtime {
+                                continue;
+                            }
+                            os.remove(stale);
                         } except OSError { }
                     }
                 }

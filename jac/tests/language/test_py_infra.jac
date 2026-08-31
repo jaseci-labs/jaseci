@@ -20,7 +20,8 @@ import jaclang;
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang { JacRuntime as Jac }
 import from jaclang.cli.commands { execution, transform }
-import from jaclang.compiler.driver.jir { get_jir_cache_dir, get_module_cache_path }
+import from jaclang.compiler.driver.jir { get_module_cache_path }
+import from jaclang.jac0core.cachefs { store_dir }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.passes.pyast_load_pass { PyastBuildPass }
 import from jaclang.compiler.tools.unparse_pass { unparse_module }
@@ -344,7 +345,7 @@ test "deep imports interp mode" {
         }
     }
     # Delete JIR cache files to force recompilation
-    cache_dir = get_jir_cache_dir() / "modules";
+    cache_dir = store_dir("modules");
     if cache_dir.exists() {
         for cache_file in cache_dir.rglob("*deep_import*") {
             cache_file.unlink();

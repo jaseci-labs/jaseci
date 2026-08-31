@@ -316,12 +316,12 @@ test "a pinned app builds its client on the pinned release, not the deploying ja
     _pin(project_dir, PINNED);
     cache = os.path.join(tmp, "cache");
     saved_exec = os.environ.get("JAC_EXECUTABLE");
-    saved_cache = os.environ.get("JAC_SCALE_CACHE_DIR");
+    saved_cache = os.environ.get("JAC_CACHE_DIR");
     saved_http = binary_mod._http_get_bytes;
     # Any step still reaching for the deploying jac lands on a path that is not
     # there, so a green run cannot be one that ignored the pin.
     os.environ["JAC_EXECUTABLE"] = os.path.join(tmp, "absent-jac");
-    os.environ["JAC_SCALE_CACHE_DIR"] = cache;
+    os.environ["JAC_CACHE_DIR"] = cache;
     binary_mod._http_get_bytes = _release_api(PINNED, jac_bin.read_bytes());
     try {
         _builder(project_dir)._build_client_bundle(project_dir);
@@ -334,7 +334,7 @@ test "a pinned app builds its client on the pinned release, not the deploying ja
     } finally {
         binary_mod._http_get_bytes = saved_http;
         _restore("JAC_EXECUTABLE", saved_exec);
-        _restore("JAC_SCALE_CACHE_DIR", saved_cache);
+        _restore("JAC_CACHE_DIR", saved_cache);
         shutil.rmtree(tmp, ignore_errors=True);
     }
 

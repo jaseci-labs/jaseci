@@ -1,6 +1,7 @@
 import hashlib;
 import os;
 import shutil;
+import sys;
 import tarfile;
 import time;
 import from compression.zstd { ZstdFile }
@@ -99,19 +100,43 @@ def dir_writable(path: str) -> bool {
     return True;
 }
 
-def:pub cache_root -> str {
-    base: str = os.environ.get("XDG_CACHE_HOME", "");
-    if base == "" {
-        home: str = os.environ.get("HOME", "");
-        if home != "" {
-            base = home + "/.cache";
-        }
+def:pub preferred_cache_root -> str {
+    override: str = os.environ.get("JAC_CACHE_DIR", "");
+    if override != "" {
+        return override;
     }
-    if base != "" {
-        preferred: str = base + "/jac";
-        if dir_writable(preferred) {
-            return preferred;
+    if sys.platform == "win32" {
+        local: str = os.environ.get("LOCALAPPDATA", "");
+        if local == "" {
+            profile: str = os.environ.get("USERPROFILE", "");
+            if profile == "" {
+                return "";
+            }
+            local = profile + "/AppData/Local";
         }
+        return local + "/jac/cache";
+    }
+    home: str = os.environ.get("HOME", "");
+    if sys.platform == "darwin" {
+        if home == "" {
+            return "";
+        }
+        return home + "/Library/Caches/jac";
+    }
+    base: str = os.environ.get("XDG_CACHE_HOME", "");
+    if base == "" and home != "" {
+        base = home + "/.cache";
+    }
+    if base == "" {
+        return "";
+    }
+    return base + "/jac";
+}
+
+def:pub cache_root -> str {
+    preferred: str = preferred_cache_root();
+    if preferred != "" and dir_writable(preferred) {
+        return preferred;
     }
     tmp: str = os.environ.get("TMPDIR", "");
     if tmp == "" {
@@ -119,7 +144,7 @@ def:pub cache_root -> str {
     }
     fallback: str = f"{tmp}/jac-cache-{getuid()}";
     if not dir_writable(fallback) {
-        die("no writable cache directory (set XDG_CACHE_HOME or TMPDIR)");
+        die("no writable cache directory (set JAC_CACHE_DIR or TMPDIR)");
         return "";
     }
     return fallback;
@@ -142,7 +167,7 @@ def:pub materialize(exe_path: str) -> str {
     }
     cache_dir = cache_root();
     key = rt_key(trailer.hash16(), exe_path);
-    rt = f"{cache_dir}/rt/{key}";
+    rt = f"{cache_dir}/runtimes/{key}";
     if os.path.isfile(rt + "/.ok") {
         return rt;
     }
@@ -197,7 +222,7 @@ def:pub extract_payload(zbuf: bytes, rt: str) {
 }
 
 def:pub gc_stale(cache_dir: str, keep_key: str) {
-    rtdir = cache_dir + "/rt";
+    rtdir = cache_dir + "/runtimes";
     mine = rt_key_pathhash(keep_key);
     for name in listdir(rtdir) {
         if name == keep_key or ".tmp." in name {

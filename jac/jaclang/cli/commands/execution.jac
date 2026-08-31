@@ -33,7 +33,7 @@ comptime SPEC_RUN: CommandSpec = CommandSpec(
                  "cache",
                  typ=bool,
                  `default=True,
-                 help="Enable compilation cache",
+                 help="Read compilation caches (--no-cache forces a rebuild and skips precompiled modules)",
                  short="c",
                  config_key="run.cache"
              ),
@@ -187,7 +187,7 @@ comptime SPEC_RUN: CommandSpec = CommandSpec(
                  "jac run --show",
                  "Print what the project would run/serve/build, without doing it"
              ),
-             ("jac run --no-cache app.jac", "Run without caching"),
+             ("jac run --no-cache app.jac", "Run with a forced rebuild, bypassing cache reads"),
              ("jac run --profile prod app.jac", "Run with production profile"),
              (
                  "jac run -e all app.jac",

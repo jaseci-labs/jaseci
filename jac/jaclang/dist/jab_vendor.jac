@@ -1,10 +1,10 @@
 import json;
 import logging;
-import os;
 import shutil;
 import subprocess;
 import sys;
 import from pathlib { Path }
+import from jaclang.jac0core.cachefs { atomic_publish_dir, pid_tmp }
 
 glob logger = logging.getLogger(__name__);
 
@@ -121,7 +121,7 @@ def _install_offline(wheels: Path, site: Path) {
     if not whl_files {
         return;
     }
-    tmp = site.with_suffix(f".{os.getpid()}.tmp");
+    tmp = pid_tmp(site);
     shutil.rmtree(tmp, ignore_errors=True);
     tmp.mkdir(parents=True, exist_ok=True);
     (rc, out) = _pip(
@@ -133,15 +133,8 @@ def _install_offline(wheels: Path, site: Path) {
             f"fat jab: offline install of vendored wheels failed: {out}"
         );
     }
-    try {
-        tmp.rename(site);
-    } except OSError as e {
-        shutil.rmtree(tmp, ignore_errors=True);
-        if not site.is_dir() {
-            raise RuntimeError(
-                f"fat jab: could not activate vendored site {site}: {e}"
-            );
-        }
+    if not atomic_publish_dir(tmp, site) {
+        raise RuntimeError(f"fat jab: could not activate vendored site {site}");
     }
 }
 

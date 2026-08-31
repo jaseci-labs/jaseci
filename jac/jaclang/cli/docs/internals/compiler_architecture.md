@@ -650,8 +650,8 @@ skipped when nothing has changed.
 
 | Cache | Location | Invalidated when |
 |-------|----------|------------------|
-| **Bootstrap** | `~/.cache/jac/jir/bootstrap/` | A `compiler/driver/` file or `jac0.py` changes |
-| **Module** | `~/.cache/jac/jir/modules/` | The full compiler's output format changes, or the source / its imports change |
+| **Bootstrap** | `~/.cache/jac/bootstrap/` | A `compiler/driver/` file or `jac0.py` changes |
+| **Module** | `~/.cache/jac/modules/` | The full compiler's output format changes, or the source / its imports change |
 
 Each cache entry is a **JIR file** (Jac IR) with named sections defined in
 [`compiler/driver/jir.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/jir.jac):
@@ -671,10 +671,10 @@ When debugging compiler changes, clear the relevant cache:
 
 ```bash
 # Bootstrap or core compiler change
-rm -rf ~/.cache/jac/jir/
+jac cache purge bootstrap && jac cache purge modules
 
 # Or just user modules
-rm -rf ~/.cache/jac/jir/modules/
+jac cache purge modules
 ```
 
 ---

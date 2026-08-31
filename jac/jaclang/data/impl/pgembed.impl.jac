@@ -14,11 +14,8 @@ impl pinned_major -> int {
 
 
 impl dist_cache_dir -> str {
-    return os.path.join(
-        os.path.expanduser(os.environ.get('JAC_CACHE_HOME', '~/.cache/jac')),
-        'pg',
-        'dist'
-    );
+    import from jaclang.jac0core.cachefs { store_dir }
+    return str(store_dir('pg') / 'dist');
 }
 
 
@@ -257,10 +254,8 @@ impl PgRuntime.ensure -> ConnInfo {
                 );
             }
         }
-        import fcntl;
-        os.makedirs(os.path.dirname(self.data_dir) or '.', exist_ok=True);
-        lock_f = open(self.data_dir + '.lock', 'w');
-        fcntl.flock(lock_f.fileno(), fcntl.LOCK_EX);
+        import from jaclang.jac0core.cachefs { lock_path, unlock }
+        handle = lock_path(Path(self.data_dir + '.lock'));
         started = False;
         try {
             if self.is_running() {
@@ -280,8 +275,7 @@ impl PgRuntime.ensure -> ConnInfo {
                 started = True;
             }
         } finally {
-            fcntl.flock(lock_f.fileno(), fcntl.LOCK_UN);
-            lock_f.close();
+            unlock(handle);
         }
         self._wait_ready();
         if started {
@@ -498,19 +492,15 @@ impl PgRuntime._download_zonky(major: int) -> (str | None) {
         return bin_dir;
     }
 
-    import fcntl;
-    os.makedirs(dist_cache_dir(), exist_ok=True);
-    lock_path = os.path.join(dist_cache_dir(), f".{slug}-{version}.lock");
-    lock_f = open(lock_path, 'w');
-    fcntl.flock(lock_f.fileno(), fcntl.LOCK_EX);
+    import from jaclang.jac0core.cachefs { lock_path, unlock }
+    handle = lock_path(Path(dist_cache_dir()) / f".{slug}-{version}.lock");
     try {
         if os.path.isfile(os.path.join(bin_dir, 'postgres')) {
             return bin_dir;
         }
         return self._fetch_dist(slug, version, dist_dir, bin_dir);
     } finally {
-        fcntl.flock(lock_f.fileno(), fcntl.LOCK_UN);
-        lock_f.close();
+        unlock(handle);
     }
 }
 
@@ -518,10 +508,11 @@ impl PgRuntime._download_zonky(major: int) -> (str | None) {
 impl PgRuntime._fetch_dist(
     slug: str, version: str, dist_dir: str, bin_dir: str
 ) -> (str | None) {
+    import from jaclang.jac0core.cachefs { atomic_publish_dir, pid_tmp }
     name = f"embedded-postgres-binaries-{slug}";
     jar_url = f"{ZONKY_BASE}{slug}/{version}/{name}-{version}.jar";
     logger.info(f"fetching embedded postgres {version} ({slug})...");
-    tmp = dist_dir + '.part';
+    tmp = str(pid_tmp(Path(dist_dir)));
     shutil.rmtree(tmp, ignore_errors=True);
     os.makedirs(tmp, exist_ok=True);
     jar_path = os.path.join(tmp, 'dist.jar');
@@ -564,7 +555,7 @@ impl PgRuntime._fetch_dist(
         }
         os.remove(jar_path);
         os.remove(os.path.join(tmp, txz_name));
-        os.replace(tmp, dist_dir);
+        atomic_publish_dir(Path(tmp), Path(dist_dir));
     } except Exception as e {
         shutil.rmtree(tmp, ignore_errors=True);
         logger.warning(f"embedded postgres download failed: {e}");

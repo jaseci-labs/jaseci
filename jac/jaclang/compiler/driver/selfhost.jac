@@ -1,6 +1,5 @@
 import os;
 import from jaclang.compiler.driver.program { JacProgram }
-import jaclang.compiler.frontend.unitree as uni;
 
 obj SelfHostCache {
     has _program: (JacProgram | None) = None,
@@ -39,26 +38,6 @@ obj SelfHostCache {
             return self.program;
         }
         return target_program;
-    }
-
-    def evict_unit(
-        full_target: str, result: (uni.Module | None), collect: bool = True
-    ) -> None {
-        import os;
-        if os.environ.get("JAC_NO_UNIT_EVICT") {
-            return;
-        }
-        if result is not None and result.gen.native_engine is not None {
-            import from jaclang.compiler.frontend.codeinfo { CodeGenTarget }
-            slim = CodeGenTarget();
-            slim.native_engine = result.gen.native_engine;
-            slim.native_layout = result.gen.native_layout;
-            slim.interop_py_funcs = result.gen.interop_py_funcs;
-            slim._interop_callbacks = result.gen._interop_callbacks;
-            slim.interop_manifest = result.gen.interop_manifest;
-            self.program.hub.artifacts[full_target] = slim;
-        }
-        self.program.release_compile_closure(collect=collect);
     }
 
     def enter_bytecode {

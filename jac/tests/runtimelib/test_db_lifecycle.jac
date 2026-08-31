@@ -6,7 +6,7 @@ created: internal work (deploy staging, test workers) minted permanent
 databases keyed to temp paths, and nothing could ever drop one.
 
 Every test owns an isolated cluster under a temp dir, so nothing here touches
-the developer's shared cluster at ~/.cache/jac/pg/main.
+the developer's shared cluster at ~/.local/share/jac/pg/main.
 """
 
 import io;
@@ -53,7 +53,7 @@ def _write_jac_toml(directory: str, name: str) {
 }
 
 
-"""Boot a private cluster whose layout matches $JAC_CACHE_HOME/pg/main."""
+"""Boot a private cluster whose layout matches $JAC_DATA_DIR/pg/main."""
 def _start_cluster -> Cluster {
     cache_home = tempfile.mkdtemp(prefix="jac-dblife-");
     data_dir = os.path.join(cache_home, "pg", "main");
@@ -155,7 +155,8 @@ def _child_env(cluster: Cluster, scratch: bool) -> dict {
     env = dict(os.environ);
     src = str(Path(jaclang.__file__).parent.parent);
     env["PYTHONPATH"] = src + os.pathsep + env.get("PYTHONPATH", "");
-    env["JAC_CACHE_HOME"] = cluster.cache_home;
+    env["JAC_DATA_DIR"] = cluster.cache_home;
+    env["JAC_CACHE_DIR"] = os.path.join(cluster.cache_home, "cache");
     env["JAC_PG_DIST"] = cluster.bin_dir;
     env.pop("JAC_DB_URL", None);
     if scratch {

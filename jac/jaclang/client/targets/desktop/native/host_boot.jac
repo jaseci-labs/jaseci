@@ -117,7 +117,7 @@ def _start_loopback(
     ctx: HostContext, app_dir: str, data_dir: str, app_name: str, mode: str
 ) {
     dist = os.path.join(app_dir, "dist");
-    store = SessionStore(os.path.join(data_dir, ".jac", "desktop", "session.json"));
+    store = SessionStore();
 
     server_cls: any = socketserver.ThreadingTCPServer;
     server_cls.daemon_threads = True;

@@ -1,6 +1,7 @@
 import ctypes;
 import logging;
 import from collections.abc { Callable }
+import from jaclang.cache.events { EV_CONFIG_CHANGED, EV_MODULE_FORGOTTEN, subscribe }
 import type from jaclang.compiler.frontend.codeinfo { InteropManifest }
 
 glob logger = logging.getLogger(__name__),
@@ -68,6 +69,30 @@ def _pyb_class_for(
     }
     _pyb_class_memo[key] = cls;
     return cls;
+}
+
+def _pyb_forget_module(payload: any) -> None {
+    if payload is None {
+        return;
+    }
+    import os;
+    dropped = os.path.abspath(str(payload));
+    _pyb_module_memo.pop(dropped, None);
+    for key in list(_pyb_class_memo.keys()) {
+        if os.path.abspath(key[0]) == dropped {
+            _pyb_class_memo.pop(key, None);
+        }
+    }
+}
+
+def _pyb_forget_all(payload: any) -> None {
+    _pyb_module_memo.clear();
+    _pyb_class_memo.clear();
+}
+
+with entry {
+    subscribe(EV_MODULE_FORGOTTEN, _pyb_forget_module);
+    subscribe(EV_CONFIG_CHANGED, _pyb_forget_all);
 }
 
 def _pyb_instantiate(

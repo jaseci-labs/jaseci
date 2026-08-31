@@ -53,7 +53,7 @@ jac run --port 8000 --profile prod
 
 ### Default Persistence
 
-When running locally (that is, not deployed with `jac scale deploy`), Jac uses the **embedded Postgres** store by default: it boots lazily on first graph access, keeping one database per project in the shared embedded cluster under the machine-wide jac cache (`~/.cache/jac/pg/main`). No external database setup is required for development; set `JAC_DB_URL` (or `[scale.database] url`) to point at an external Postgres instead.
+When running locally (that is, not deployed with `jac scale deploy`), Jac uses the **embedded Postgres** store by default: it boots lazily on first graph access, keeping one database per project in the shared embedded cluster under the machine-wide jac data root (`~/.local/share/jac/pg/main`). No external database setup is required for development; set `JAC_DB_URL` (or `[scale.database] url`) to point at an external Postgres instead.
 
 Persistence is Postgres-native everywhere: the same store serves local `jac run`, served projects, and `jac scale deploy` deployments, with full schema-migration support (fingerprints, drift repair, and the quarantine sidecar). See [CLI -> Database Operations](../cli/index.md#database-operations) and [Persistence & Schema Migration](../persistence.md) for the full model.
 

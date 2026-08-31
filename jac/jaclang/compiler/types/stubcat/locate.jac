@@ -100,10 +100,8 @@ def bundled_catalog_path(pkg_dir: str) -> str {
 }
 
 def dev_catalog_path(pkg_dir: str) -> str {
-    import from jaclang.jac0core.cache_paths { get_jir_cache_dir }
-    return os.path.join(
-        str(get_jir_cache_dir()), "stubcat", catalog_key(pkg_dir) + ".bin"
-    );
+    import from jaclang.jac0core.cachefs { store_dir }
+    return os.path.join(str(store_dir("stubs")), catalog_key(pkg_dir) + ".bin");
 }
 
 def _open_file(path: str, pkg_dir: str) -> any {
@@ -205,7 +203,15 @@ def ensure_catalog -> any {
         );
     }
     dev = dev_catalog_path(pkg);
-    _build_dev_catalog(dev, pkg);
+    import from jaclang.jac0core.cachefs { lock_path, store_dir, unlock }
+    handle = lock_path(store_dir("stubs") / ".build.lock");
+    try {
+        if not os.path.isfile(dev) {
+            _build_dev_catalog(dev, pkg);
+        }
+    } finally {
+        unlock(handle);
+    }
     cat = _publish(_open_file(dev, pkg));
     if cat is None {
         raise StubCatalogUnavailable(

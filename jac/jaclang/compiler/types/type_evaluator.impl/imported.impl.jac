@@ -466,6 +466,13 @@ impl TypeEvaluator.forget_module(resolved_path: str) -> None {
     for key in stale_paths {
         del self._module_type_cache[key];
     }
+
+    bucket = self._shared_by_module.pop(canon, None);
+    if bucket is not None {
+        for shared_key in bucket {
+            self._shared_intern.pop(shared_key, None);
+        }
+    }
 }
 
 impl TypeEvaluator._resolve_importer_path(ast_node: UniNode) -> (str | None) {

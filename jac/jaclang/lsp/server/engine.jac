@@ -112,7 +112,7 @@ obj JacLangServer(LanguageServer) {
     def _position_in_string_or_comment(file_uri: str, line: int, col: int) -> bool;
     def rename_module(old_path: str, new_path: str) -> None;
     def close_module(uri: str) -> None;
-    def delete_module(uri: str) -> None;
+    def delete_module(path: str) -> None;
     def format_document(
         file_path: str, auto_lint: bool = False
     ) -> list[lspt.TextEdit];

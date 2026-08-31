@@ -249,8 +249,8 @@ test "CDP surfaces a protocol error response as RuntimeError" {
 
 test "connect raises when no live browser session exists" {
     tmp = tempfile.mkdtemp();
-    old = os.environ.get("JACBROWSER_CACHE");
-    os.environ["JACBROWSER_CACHE"] = tmp;
+    old = os.environ.get("JAC_CACHE_DIR");
+    os.environ["JAC_CACHE_DIR"] = tmp;
     try {
         raised = False;
         try {
@@ -260,11 +260,15 @@ test "connect raises when no live browser session exists" {
             assert "no live browser" in str(e);
         }
         assert raised , "connect must reject a session with no state file";
+        assert os.path.isdir(os.path.join(tmp, "browser")) , (
+            "browser session state must live in the browser store under the "
+            "cache root"
+        );
     } finally {
         if old is None {
-            del os.environ["JACBROWSER_CACHE"];
+            del os.environ["JAC_CACHE_DIR"];
         } else {
-            os.environ["JACBROWSER_CACHE"] = old;
+            os.environ["JAC_CACHE_DIR"] = old;
         }
     }
 }

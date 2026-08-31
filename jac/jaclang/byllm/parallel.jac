@@ -8,17 +8,35 @@ import time;
 
 import from concurrent.futures { ThreadPoolExecutor, as_completed }
 import from jaclang.byllm.types { ToolCallResultMsg, normalize_tool_result }
+import from jaclang.cache.events { EV_POST_FORK, subscribe }
 
 glob _plog = logging.getLogger("byllm.parallel"),
      _POOL_SIZE: int = int(
          os.environ.get("BYLLM_TOOL_WORKERS", str(min(32, (os.cpu_count() or 4) * 5)))
      ),
-     _WORKER_POOL: ThreadPoolExecutor = ThreadPoolExecutor(
-         max_workers=_POOL_SIZE, thread_name_prefix="byllm-tool"
-     );
+     _WORKER_POOL: list = [None];
+
+
+def _worker_pool -> ThreadPoolExecutor {
+    pool = _WORKER_POOL[0];
+    if pool is None {
+        pool = ThreadPoolExecutor(
+            max_workers=_POOL_SIZE, thread_name_prefix="byllm-tool"
+        );
+        _WORKER_POOL[0] = pool;
+        atexit.register(pool.shutdown);
+    }
+    return pool;
+}
+
+
+def _drop_worker_pool(payload: any) -> None {
+    _WORKER_POOL[0] = None;
+}
+
 
 with entry {
-    atexit.register(_WORKER_POOL.shutdown);
+    subscribe(EV_POST_FORK, _drop_worker_pool);
 }
 
 glob _PARALLEL_TOOL_HINT: str = (
@@ -175,9 +193,10 @@ def dispatch_batch(tool_calls: list) -> any {
     t_batch = time.time();
 
     futures: dict = {};
+    pool = _worker_pool();
     for tc in tool_calls {
         ctx = contextvars.copy_context();
-        f = _WORKER_POOL.submit(ctx.run, _run_one, tc);
+        f = pool.submit(ctx.run, _run_one, tc);
         futures[f] = tc;
     }
     for f in as_completed(futures) {

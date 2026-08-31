@@ -17,15 +17,23 @@ impl ModuleManager.update(
     update_annexed: bool = True,
     files: (list[str] | None) = None
 ) -> None {
-    self.program.mod.hub[file_path] = build;
+    main_key = self.program.hub_key(file_path);
+    self.program.mod.hub[main_key] = build;
 
     if update_annexed {
+        rebuilt: set[str] = set();
         for f in (files or [file_path]) {
-            self.sem_managers[f] = SemTokManager(ir=build, target_path=f);
+            f_key = self.program.hub_key(f);
+            rebuilt.add(f_key);
+            self.sem_managers[f_key] = SemTokManager(ir=build, target_path=f_key);
         }
 
         for (p, mod) in self.program.mod.hub.items() {
-            if p != file_path {
+            if p in rebuilt {
+                continue;
+            }
+            mgr = self.sem_managers.get(p);
+            if mgr and mgr.ir is not mod {
                 self.sem_managers[p] = SemTokManager(ir=mod, target_path=p);
             }
         }

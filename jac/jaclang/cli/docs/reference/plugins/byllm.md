@@ -356,7 +356,7 @@ n_gpu_layers = -1   # -1 = all layers; positive int = that many; 0 = CPU only
 |----------|--------|
 | `BYLLM_DEFAULT_MODEL` | Overrides `[byllm.model].default_model` for the current shell. Useful for ad-hoc switches like `BYLLM_DEFAULT_MODEL=local:gemma-4-e4b jac run app.jac`. |
 | `BYLLM_AUTO_DOWNLOAD` | `1` to skip the TTY prompt; `0` to refuse silently. |
-| `JAC_MODELS_DIR` | Override the on-disk cache root. Defaults to `~/.cache/jac/models`. |
+| `JAC_CACHE_DIR` | Override the jac cache root; weights live in its `models/` store (default `~/.cache/jac/models` on Linux). |
 
 ### Default Model Resolution
 

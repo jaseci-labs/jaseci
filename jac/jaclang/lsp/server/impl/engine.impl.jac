@@ -3,7 +3,15 @@ impl _uri_of(path: str) -> str {
 }
 
 impl _path_of(uri: str) -> str {
-    return uris.to_fs_path(uri) or "";
+    fs_path = uris.to_fs_path(uri);
+    if not fs_path {
+        return "";
+    }
+    try {
+        return JacProgram.hub_key(fs_path);
+    } except OSError {
+        return fs_path;
+    }
 }
 
 import from jaclang.compiler.tools.unparse_pass { unparse_node }
@@ -81,12 +89,12 @@ impl JacLangServer._fanout_dependents(file_uri: str) -> None {
         return;
     }
 
-    self.program.invalidate_module(resolved);
-    dependents = self.program.transitive_dependents(resolved);
-    if not dependents {
-        return;
-    }
     with self._state_lock.write_lock() {
+        self.program.invalidate_module(resolved);
+        dependents = self.program.transitive_dependents(resolved);
+        if not dependents {
+            return;
+        }
         open_by_real: dict[str, str] = {};
         for open_uri in self.workspace._text_documents {
             open_fs = uris.to_fs_path(open_uri);
@@ -517,8 +525,8 @@ impl JacLangServer.get_definition(
 impl JacLangServer._string_import_definition(
     file_path: str, position: lspt.Position
 ) -> Optional[lspt.Location] {
-    fs_path = uris.to_fs_path(file_path);
-    if fs_path is None {
+    fs_path = _path_of(file_path);
+    if not fs_path {
         return None;
     }
     tok = self.get_node_at_position(fs_path, position.line, position.character);
@@ -728,32 +736,41 @@ impl JacLangServer.format_document(
 
 impl JacLangServer.close_module(uri: str) -> None {
     fs_path = uris.to_fs_path(uri);
+    if fs_path is None {
+        return;
+    }
+    key = self.program.hub_key(fs_path);
     with self._state_lock.write_lock() {
-        if fs_path in self.sem_managers {
-            del self.sem_managers[fs_path];
+        if key in self.sem_managers {
+            del self.sem_managers[key];
         }
     }
 }
 
-impl JacLangServer.delete_module(uri: str) -> None {
+impl JacLangServer.delete_module(path: str) -> None {
+    key = self.program.hub_key(path);
     with self._state_lock.write_lock() {
-        if uri in self.program.mod.hub {
-            self.program.mod.hub.pop(uri);
+        if key in self.program.mod.hub {
+            self.program.mod.hub.pop(key);
         }
-        if uri in self.sem_managers {
-            del self.sem_managers[uri];
+        if key in self.sem_managers {
+            del self.sem_managers[key];
         }
     }
 }
 
 impl JacLangServer.rename_module(old_path: str, new_path: str) -> None {
+    old_key = self.program.hub_key(old_path);
+    new_key = self.program.hub_key(new_path);
+    if new_key == old_key {
+        return;
+    }
     with self._state_lock.write_lock() {
-        if old_path in self.program.mod.hub and new_path != old_path {
-            self.program.mod.hub[new_path] = self.program.mod.hub[old_path];
-            self.sem_managers[new_path] = self.sem_managers[old_path];
-
-            self.program.mod.hub.pop(old_path);
-            del self.sem_managers[old_path];
+        if old_key in self.program.mod.hub {
+            self.program.mod.hub[new_key] = self.program.mod.hub.pop(old_key);
+        }
+        if old_key in self.sem_managers {
+            self.sem_managers[new_key] = self.sem_managers.pop(old_key);
         }
     }
 }

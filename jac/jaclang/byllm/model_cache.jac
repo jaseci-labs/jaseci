@@ -20,12 +20,8 @@ def _emit(msg: str) {
 }
 
 def get_cache_dir -> Path {
-    `override = os.environ.get("JAC_MODELS_DIR");
-    if `override {
-        return Path(`override).expanduser();
-    }
-    home = Path(os.path.expanduser("~"));
-    return home / ".cache" / "jac" / "models";
+    import from jaclang.jac0core.cachefs { store_dir }
+    return store_dir("models");
 }
 
 def alias_dir(alias: str) -> Path {
