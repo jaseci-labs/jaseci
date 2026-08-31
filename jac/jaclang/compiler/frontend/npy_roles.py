@@ -61,7 +61,7 @@ ROLE_FIELDS: dict[str, dict[str, tuple[str, int, str]]] = {
         'else_body': ('ElseBodyRole', 2, 'opt'),
     },
     'AstImplNeedingNode': {
-        'body': ('ImplOf', 2, 'shaped'),
+        'body': ('BodyRole', 2, 'shaped'),
     },
     'AstTypedVarNode': {
         'type': ('TypeOf', 2, 'opt'),

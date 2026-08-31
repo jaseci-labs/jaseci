@@ -356,7 +356,7 @@ class NpyBridge:
 
         t.__npy_native__ = True
         t.__npy_twin__ = twin
-        self._flatten_twin(t, twin)
+        self._flatten_twin(t, twin, fields)
         self._install_field_props(t, name, fields)
         self._install_natlist_props(t, fields)
         self._install_overlay_props(t, name, fields)
@@ -404,7 +404,7 @@ class NpyBridge:
             )
         return v
 
-    def _flatten_twin(self, t: type, twin: type) -> None:
+    def _flatten_twin(self, t: type, twin: type, fields: dict) -> None:
         """Every method/property the twins define, flattened base-first so
         overrides land last. Python functions bind to any instance, so the
         twins' bytecode runs unchanged over native storage; __class__ cells
@@ -412,9 +412,18 @@ class NpyBridge:
         skip = {
             "__dict__", "__weakref__", "__module__", "__qualname__",
             "__slots__", "__dictoffset__", "__basicsize__", "__new__",
+            # Class-creation hooks must not be flattened: every jac-generated
+            # subclass lists the runtime archetype base (Walker/Node/...)
+            # explicitly, so Archetype.__init_subclass__ is already in its MRO;
+            # a flattened copy on the native type would run it a second time,
+            # and the second dataclass pass strips factory defaults.
+            "__init_subclass__", "__set_name__",
         }
+        # Classes the native type already inherits from must not be
+        # flattened either — their methods arrive through the MRO.
+        inherited = set(t.__mro__)
         for cls in reversed(twin.__mro__):
-            if cls is object:
+            if cls is object or cls in inherited:
                 continue
             owner_native = t
             if (
@@ -425,6 +434,12 @@ class NpyBridge:
                 owner_native = self._type_for(cls.__name__)
             for k, v in vars(cls).items():
                 if k in skip:
+                    continue
+                if k in fields and not callable(v) and not isinstance(
+                    v, (property, classmethod, staticmethod)
+                ):
+                    # A dataclass field default is a plain class attribute;
+                    # copying it would shadow the native member descriptor.
                     continue
                 try:
                     setattr(t, k, self._flatten_member(v, owner_native))
