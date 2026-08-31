@@ -49,9 +49,16 @@ obj KubernetesRealizer {
         );
         env = release_binary_env();
         env[DELEGATED_ENV] = "1";
-        return subprocess.run(
+        code = subprocess.run(
             pinned_deploy_argv(pinned, filename, target, enable_tls), env=env
         ).returncode;
+        if code != 0 {
+            console.error(
+                f"The deploy ran on the pinned jac ({pinned}) and exited {code}.",
+                emoji=False
+            );
+        }
+        return code;
     }
 
     def realize(

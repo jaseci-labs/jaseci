@@ -11,6 +11,8 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 }
 import from jaclang.scale.deploy.target.kubernetes.target { KubernetesTarget }
 import inspect;
+import io;
+import from contextlib { redirect_stderr }
 import from jaclang.scale.runtime.realizer.kubernetes_realizer {
     DELEGATED_ENV,
     KubernetesRealizer,
@@ -453,9 +455,10 @@ test "delegating runs the pinned binary with this deploy, and forwards its resul
     );
     stub.chmod(0o755);
     os.environ["JAC_DEV_SOURCE"] = d;
+    err = io.StringIO();
     with unittest.mock.patch.object(
         binary_mod, "host_toolchain_path", return_value=str(stub)
-    ) {
+    ), redirect_stderr(err) {
         rc = KubernetesRealizer(ms_config={})._deploy_on_pinned_jac(
             f"{d}/main.jac", "kubernetes", False, False
         );
@@ -463,6 +466,10 @@ test "delegating runs the pinned binary with this deploy, and forwards its resul
     os.environ.pop("JAC_DEV_SOURCE", None);
 
     assert rc == 7 , f"the child exited 7; the deploy reported {rc}";
+    # A child that fails quietly would otherwise leave a bare non-zero exit.
+    assert "7" in err.getvalue() , (
+        f"a failed delegated deploy said nothing: {err.getvalue()!a}"
+    );
     argv = (Path(d) / "argv").read_text().split();
     assert argv
         == ["scale", "deploy", f"{d}/main.jac", "--target", "kubernetes"] , argv;
