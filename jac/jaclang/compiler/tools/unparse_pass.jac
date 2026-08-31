@@ -140,45 +140,35 @@ def unparse_node(nd: uni.UniNode) -> str {
 }
 
 def unparse_module(mod: uni.Module, requires_format: bool = True) -> str {
+    import copy;
     import from jaclang.compiler.tools.jac_formatter_pass { format_module }
     import from jaclang.compiler.tools.normalize_pass { NormalizePass }
     import from jaclang.compiler.driver.program { JacProgram }
 
+    mod = copy.deepcopy(mod);
     own_path = mod.loc.mod_path;
-    saved_body = mod.body;
     saved_kid = mod.kid;
     head_kid = [
         k
         for k in saved_kid
         if (not k.loc.mod_path) or (k.loc.mod_path == own_path)
     ];
-    filtered = len(head_kid) != len(saved_kid);
-
-    with mod.structure_thawed() {
-        if filtered {
-            mod._role_set(
-                BodyRole,
-                [
-                    st
-                    for st in saved_body
-                    if (not st.loc.mod_path) or (st.loc.mod_path == own_path)
-                ]
-            );
-            mod.set_kids(nodes=head_kid or [uni.EmptyToken()]);
-        }
-        try {
-            import from jaclang.compiler.driver.pass_driver { run_pass }
-            run_pass(NormalizePass, mod, JacProgram());
-            if requires_format {
-                return format_module(mod);
-            }
-            run_pass(UnparsePass, mod, JacProgram());
-            return mod.gen.jac;
-        } finally {
-            if filtered {
-                mod._role_set(BodyRole, saved_body);
-                mod.set_kids(nodes=saved_kid);
-            }
-        }
+    if len(head_kid) != len(saved_kid) {
+        mod._role_set(
+            BodyRole,
+            [
+                st
+                for st in mod.body
+                if (not st.loc.mod_path) or (st.loc.mod_path == own_path)
+            ]
+        );
+        mod.set_kids(nodes=head_kid or [uni.EmptyToken()]);
     }
+    import from jaclang.compiler.driver.pass_driver { run_pass }
+    run_pass(NormalizePass, mod, JacProgram());
+    if requires_format {
+        return format_module(mod);
+    }
+    run_pass(UnparsePass, mod, JacProgram());
+    return mod.gen.jac;
 }

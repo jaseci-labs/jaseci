@@ -1,4 +1,5 @@
 import jaclang.compiler.frontend.parser.lexer as na_lexer;
+import jaclang.compiler.store.host as _tsr;
 
 import from .lexer { Lexer }
 import from .parser { Parser }
@@ -40,14 +41,24 @@ def parse_diags(source: str, file_path: str = "<input>") -> tuple[(bool, list, l
 
 
 def parse(
-    source: str, file_path: str = "<input>", prog: (JacProgram | None) = None
+    source: str,
+    file_path: str = "<input>",
+    prog: (JacProgram | None) = None,
+    freeze: bool = True
 ) -> tuple[Module, bool] {
-    (tokens, comments, lex_diags, lex_errs) = na_lexer.tokenize_full(source, file_path);
-    parser = Parser(tokens=tokens, file_path=file_path, source_code=source);
-    module = parser.parse();
-    had_error = _finish_parse(
-        module, parser.error_count, parser.diags, comments, lex_diags, lex_errs, prog
-    );
+    _tsr.arena_begin(freeze_at_end=freeze);
+    try {
+        (tokens, comments, lex_diags, lex_errs) = na_lexer.tokenize_full(
+            source, file_path
+        );
+        parser = Parser(tokens=tokens, file_path=file_path, source_code=source);
+        module = parser.parse();
+        had_error = _finish_parse(
+            module, parser.error_count, parser.diags, comments, lex_diags, lex_errs, prog
+        );
+    } finally {
+        _tsr.arena_end();
+    }
     return (module, had_error);
 }
 
@@ -108,17 +119,31 @@ def _finish_parse(
     return p_errs > 0 or lex_errs > 0;
 }
 
+def _freeze_tree_arena(module: Module) -> None {
+    h = getattr(module, "_ts", -1);
+    if h >= 0 {
+        _tsr.arena_freeze(h >> 40);
+    }
+}
+
 def parse_woven(
     source_str: str, file_path: str, prog: (JacProgram | None), annexes: list
 ) -> tuple {
-    (module, had_error) = parse(source_str, file_path, prog=prog);
+    (module, had_error) = parse(source_str, file_path, prog=prog, freeze=False);
     if had_error or not annexes {
+        _freeze_tree_arena(module);
         return (module, had_error);
     }
     import from jaclang.compiler.passes.annex_weave { merge_annex_into }
+    a_mods = [];
     for (a_src, a_path) in annexes {
-        (a_mod, _a_err) = parse(a_src, a_path, prog=prog);
+        (a_mod, _a_err) = parse(a_src, a_path, prog=prog, freeze=False);
         merge_annex_into(module, a_mod);
+        a_mods.append(a_mod);
+    }
+    _freeze_tree_arena(module);
+    for a_mod in a_mods {
+        _freeze_tree_arena(a_mod);
     }
     return (module, had_error);
 }

@@ -1031,6 +1031,17 @@ impl JacGraph.refs(
     if slc is not None and path.slc is None {
         path.slc = slc;
     }
+    if path.origin and getattr(
+        `type(path.origin[0]), "__jac_store__", False
+    ) {
+        import from jaclang.runtime.adj_provider { SLOT, UNHANDLED }
+        if SLOT.provider is not None {
+            r = SLOT.provider.refs(path, lazy);
+            if r is not UNHANDLED {
+                return r;
+            }
+        }
+    }
     ctx = JacRuntimeInterface.get_context();
     origins = origin_anchors(path);
 
@@ -1097,6 +1108,20 @@ impl JacGraph.connect(
     edges_only: bool = False
 ) -> (NodeArchetype | list[NodeArchetype] | list[EdgeArchetype]) {
     if (
+        isinstance(left, NodeArchetype)
+        and getattr(`type(left), "__jac_store__", False)
+    ) {
+        import from jaclang.runtime.adj_provider { SLOT, UNHANDLED }
+        if SLOT.provider is not None {
+            r = SLOT.provider.connect(
+                left, right, `edge, undir, conn_assign, edges_only
+            );
+            if r is not UNHANDLED {
+                return r;
+            }
+        }
+    }
+    if (
         not undir
         and conn_assign is None
         and not edges_only
@@ -1162,6 +1187,17 @@ impl JacGraph.connect(
 impl JacGraph.hop(
     origin: any, dir: int, edge_type: (type | None) = None, edges_only: bool = False
 ) -> list {
+    if not isinstance(origin, `list) and getattr(
+        `type(origin), "__jac_store__", False
+    ) {
+        import from jaclang.runtime.adj_provider { SLOT, UNHANDLED }
+        if SLOT.provider is not None {
+            r = SLOT.provider.hop(origin, dir, edge_type, edges_only);
+            if r is not UNHANDLED {
+                return r;
+            }
+        }
+    }
     if not isinstance(origin, `list) {
         anchor = origin.__jac__;
         if (
@@ -1196,6 +1232,17 @@ impl JacGraph.hop(
 impl JacGraph.clear_edges(
     origin: any, dir: int, edge_type: (type | None) = None
 ) -> bool {
+    if not isinstance(origin, `list) and getattr(
+        `type(origin), "__jac_store__", False
+    ) {
+        import from jaclang.runtime.adj_provider { SLOT, UNHANDLED }
+        if SLOT.provider is not None {
+            r = SLOT.provider.clear_edges(origin, dir, edge_type);
+            if r is not UNHANDLED {
+                return r;
+            }
+        }
+    }
     import from jaclang.runtime.osp_kernel { osp_forget }
     if edge_type is not None and not isinstance(origin, `list) {
         anchor = origin.__jac__;
@@ -1250,6 +1297,18 @@ impl JacGraph.disconnect(
     dir: EdgeDir = EdgeDir.OUT,
     filter: (Callable[([EdgeArchetype], bool)] | None) = None
 ) -> bool {
+    if (
+        isinstance(left, NodeArchetype)
+        and getattr(`type(left), "__jac_store__", False)
+    ) {
+        import from jaclang.runtime.adj_provider { SLOT, UNHANDLED }
+        if SLOT.provider is not None {
+            r = SLOT.provider.disconnect(left, right, dir, filter);
+            if r is not UNHANDLED {
+                return r;
+            }
+        }
+    }
     import from jaclang.runtime.osp_graph_sv {
         sv_candidate_edges_between,
         sv_register_hydrated

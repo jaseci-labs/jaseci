@@ -1738,6 +1738,4 @@ impl NormalizePass.enter_match_arch with uni.MatchArch entry {
 
 impl NormalizePass.enter_token with uni.Token entry { }
 
-impl NormalizePass.enter_string with uni.String entry {
-    here.value = f"{here.value}";
-}
+impl NormalizePass.enter_string with uni.String entry { }

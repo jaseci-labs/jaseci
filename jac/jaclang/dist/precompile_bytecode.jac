@@ -38,6 +38,13 @@ import from jaclang.jac0core.sealed {
 
 glob RESULT_NAME: str = "PRECOMPILE_RESULT.json";
 
+glob NATIVE_STORE_REL: str = "compiler/store/pyapi.jac",
+     NATIVE_STORE_EXCLUDE: tuple[str, ...] = ("compiler/store/pyapi.jac",),
+     NATIVE_STORE_MODULES: tuple[str, ...] = (
+         "jaclang.compiler.store.pyapi",
+         "jaclang.compiler.store.unitree_store",
+     );
+
 def compiler_identity -> str {
     digest = running_compiler_digest();
     if digest.startswith("0:") {
@@ -150,6 +157,8 @@ def sealable_sources(package_dir: str) -> list[str] {
             p
             for p in candidates
             if not toolchain_native_by_policy(package_dir, p)
+                and os.path.relpath(p, base).replace(os.sep, "/")
+                    not in NATIVE_STORE_EXCLUDE
         ];
     } else {
         import from jaclang.compiler.placement.placement_facts {
@@ -583,6 +592,18 @@ def seal_finalize(
             f"  App: kind={app_meta.get('kind')} caps={app_meta.get('capabilities')}"
         );
     }
+    (store_rc, native_meta) = seal_native_store(pkg_path, out_dir, pkg_name);
+    if store_rc != 0 {
+        console.error(
+            "Seal aborted: the native token store is strict (#8789); a store "
+            "that cannot fully lower is a build failure, not a fallback."
+        );
+        return 1;
+    }
+    if native_meta {
+        app_meta = dict(app_meta) if app_meta else {};
+        app_meta["native"] = native_meta;
+    }
     placement = placement_facts_map(str(pkg_path)) if pkg_name != "jaclang" else {};
     if placement {
         console.print(f"  Placement facts: {len(placement)} modules");
@@ -594,6 +615,98 @@ def seal_finalize(
     );
     console.print(f"  Manifest: {precompiled_dir / MANIFEST_NAME}");
     return 0;
+}
+
+def seal_native_store(
+    pkg_path: Path, out_dir: Path, pkg_name: str
+) -> tuple[int, (dict[str, any] | None)] {
+    if pkg_name != "jaclang" {
+        return (0, None);
+    }
+    store_src = pkg_path / NATIVE_STORE_REL;
+    if not store_src.is_file() {
+        return (0, None);
+    }
+    try {
+        import jaclang.compiler.backends.native.llvm.binding as _llvm_binding;
+    } except Exception {
+        console.print(
+            "  Native store: no native backend on this platform; the store "
+            "module ships in the bytecode half of the partition."
+        );
+        return (0, None);
+    }
+    ext = ".dylib" if sys.platform == "darwin" else ".so";
+    lib_rel = f"native/libjac_store{ext}";
+    native_dir = out_dir / "native";
+    lib_path = native_dir / f"libjac_store{ext}";
+    stamp_path = native_dir / "libjac_store.digest";
+    digest = hashlib.sha256(
+        (store_src.read_text(encoding="utf-8") + "|" + compiler_identity()).encode()
+    ).hexdigest();
+    if (
+        lib_path.is_file()
+        and stamp_path.is_file()
+        and stamp_path.read_text().strip() == digest
+    ) {
+        console.print(f"  Native store: cached ({digest[:12]})");
+        return (0, _native_store_meta(lib_path, lib_rel));
+    }
+    console.print("  Stage 0: compiling the native token store...");
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
+    import from jaclang.compiler.backends.native.shared_emit {
+        emit_shared_library
+    }
+    import from jaclang.compiler.backends.native.na_compile_pass {
+        native_demoted_ir_symbols
+    }
+    prog = JacProgram();
+    options = CompileOptions(
+        aot_mode=True, default_codespace='native', force_target_program=True
+    );
+    ir_module = prog.compile(file_path=str(store_src), options=options);
+    if prog.errors_had {
+        console.error("  Native store failed to compile:");
+        for e in prog.errors_had[:5] {
+            console.error(f"    {e}");
+        }
+        return (1, None);
+    }
+    llvm_ir_str = str(ir_module.gen.llvm_ir);
+    demoted = native_demoted_ir_symbols(llvm_ir_str);
+    if demoted {
+        names = ", ".join(sorted(demoted)[:8]);
+        console.error(f"  Native store demoted {len(demoted)} function(s): {names}");
+        return (1, None);
+    }
+    native_dir.mkdir(parents=True, exist_ok=True);
+    (ok, err) = emit_shared_library(
+        llvm_ir_str,
+        getattr(ir_module.gen, "interop_manifest", []),
+        list(ir_module.gen._exported_symbols),
+        str(lib_path),
+        auto_init=True,
+        clib_paths=getattr(ir_module.gen, "_clib_paths", None),
+        clib_symbol_lib=getattr(ir_module.gen, "_clib_symbol_lib", None)
+    );
+    if not ok {
+        console.error(f"  Native store link failed: {err}");
+        return (1, None);
+    }
+    stamp_path.write_text(digest);
+    console.print(f"  Native store: {lib_path.name} ({digest[:12]})");
+    return (0, _native_store_meta(lib_path, lib_rel));
+}
+
+def _native_store_meta(lib_path: Path, lib_rel: str) -> dict[str, any] {
+    return {
+        "modules": list(NATIVE_STORE_MODULES),
+        "store": {
+            "lib": lib_rel,
+            "sha256": hashlib.sha256(lib_path.read_bytes()).hexdigest()
+        }
+    };
 }
 
 def write_manifest(

@@ -293,10 +293,6 @@ def get_py_code_gen(
             _note_native_schedule_failure(None);
         }
         passes.extend(_py_codegen_tail());
-        import from jaclang.compiler.passes.freeze_structure_pass {
-            FreezeStructurePass
-        }
-        passes.append(FreezeStructurePass);
         return validate_schedule(
             passes, preprovided=provided, origin='codegen schedule'
         );

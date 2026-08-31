@@ -1851,7 +1851,9 @@ impl JacCompiler._prepare_tool_program(
     import from jaclang.compiler.driver.program { JacProgram }
     import from jaclang.compiler.frontend.parser { parse as rd_parse }
     prog = JacProgram();
-    (current_mod, had_error) = rd_parse(source_str, file_path, prog=prog);
+    (current_mod, had_error) = rd_parse(
+        source_str, file_path, prog=prog, freeze=False
+    );
     if had_error {
         prog.reset_module_root(uni.ProgramModule(main_mod=current_mod));
         return (prog, None);

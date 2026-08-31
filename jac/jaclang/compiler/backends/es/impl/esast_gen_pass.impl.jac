@@ -6462,7 +6462,7 @@ impl EsastGenPass._build_osp_disconnect_call(
 
 impl EsastGenPass.enter_ability with uni.Ability entry {
     if isinstance(here.body, uni.ImplDef) and (here.body not in here.kid) {
-        here.add_kids_right([here.body], pos_update=False, parent_update=True);
+        visit :0: [here.body];
     }
 
     self._view_stack.append(None);

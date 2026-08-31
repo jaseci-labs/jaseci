@@ -1,7 +1,6 @@
 impl UniNode.postinit -> None {
     self.__sub_node_tab = None;
     self._ctx_parent = None;
-    self._struct_frozen = False;
     self._in_mod_nodes = [];
     self._gen = None;
     self.ct_pruned = False;
@@ -137,72 +136,7 @@ impl UniNode._role_shaped(role: type[Role], found: list[UniNode]) -> any {
     return None;
 }
 
-impl UniNode._assert_thawed -> None {
-    if self._struct_frozen {
-        raise RuntimeError(
-            f"structural mutation of frozen node {type(self).__name__}; "
-            "call thaw_structure() on the module first"
-        );
-    }
-}
-
-impl UniNode.freeze_structure -> None {
-    stack: list[UniNode] = [self];
-    seen: set[int] = set();
-    while stack {
-        nd = stack.pop();
-        if id(nd) in seen {
-            continue;
-        }
-        seen.add(id(nd));
-        nd._struct_frozen = True;
-        for tgt in nd._children() {
-            if id(tgt) not in seen {
-                stack.append(tgt);
-            }
-        }
-    }
-}
-
-impl UniNode.thaw_structure -> None {
-    stack: list[UniNode] = [self];
-    seen: set[int] = set();
-    while stack {
-        nd = stack.pop();
-        if id(nd) in seen {
-            continue;
-        }
-        seen.add(id(nd));
-        nd._struct_frozen = False;
-        for tgt in nd._children() {
-            if id(tgt) not in seen {
-                stack.append(tgt);
-            }
-        }
-    }
-}
-
-impl UniNode.structure_thawed -> StructureThaw {
-    return StructureThaw(target=self);
-}
-
-impl StructureThaw.__enter__ -> StructureThaw {
-    self.refreeze = self.target._struct_frozen;
-    if self.refreeze {
-        self.target.thaw_structure();
-    }
-    return self;
-}
-
-impl StructureThaw.__exit__(exc_type: any, exc: any, tb: any) -> bool {
-    if self.refreeze {
-        self.target.freeze_structure();
-    }
-    return False;
-}
-
 impl UniNode._role_set(role: type[Role], value: any) -> None {
-    self._assert_thawed();
     shapes: dict[type, str] = self?._role_shapes or {};
     self._role_shapes = shapes;
     if value is None {
@@ -331,7 +265,6 @@ impl UniNode.insert_kids_at_pos(
 }
 
 impl UniNode.set_kids(nodes: Sequence[UniNode], pos_update: bool = True) -> UniNode {
-    self._assert_thawed();
     del [edge self->:Kid:->];
     for n in nodes {
         if n is not None {
@@ -346,7 +279,6 @@ impl UniNode.set_kids(nodes: Sequence[UniNode], pos_update: bool = True) -> UniN
 }
 
 impl UniNode.replace_kid(old: UniNode, new: UniNode) -> UniNode {
-    self._assert_thawed();
     roles: list[type] = [];
     for e in [edge self->:Role:->] {
         if getattr(e, "__jac__").target.archetype is old and `type(e) not in roles {
@@ -372,23 +304,22 @@ impl UniNode.detached_copy -> UniNode {
 
 impl UniNode.__deepcopy__(memo: dict) -> UniNode {
     import copy;
+    import jaclang.compiler.store.host as _sh;
 
-    dup = object.__new__(type(self));
+    dup = type(self).__new__(type(self));
     memo[id(self)] = dup;
+    _sh.copy_slots(self.__dict__["_ts"], dup.__dict__["_ts"]);
     for (key, val) in self.__dict__.items() {
-        if key == "__jac__" {
+        if key in ("__jac__", "_ts", "_kd") {
             continue;
         }
-        if key == "_ctx_parent" or key.endswith("__sub_node_tab") {
+        if key.endswith("__sub_node_tab") {
             dup.__dict__[key] = None;
-        } elif key == "_struct_frozen" {
-            dup.__dict__[key] = False;
-        } elif key == "orig_src" {
-            dup.__dict__[key] = val;
         } else {
             dup.__dict__[key] = copy.deepcopy(val, memo);
         }
     }
+    dup._ctx_parent = None;
     for k in self.kid {
         kc = copy.deepcopy(k, memo);
         dup +>:Kid:+> kc;

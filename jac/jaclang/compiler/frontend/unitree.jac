@@ -153,7 +153,6 @@ walker TreeWalker {}
 
 node UniNode {
     has _ctx_parent: (UniNode | None) postinit,
-        _struct_frozen: bool postinit,
         _in_mod_nodes: list[UniNode] postinit,
         _gen: (CodeGenTarget | None) postinit,
         loc: CodeLocInfo postinit,
@@ -172,10 +171,6 @@ node UniNode {
     def _link(kid: Sequence[UniNode], roles: dict[type, any]) -> None;
     def detached_copy -> UniNode;
     def __deepcopy__(memo: dict) -> UniNode;
-    def _assert_thawed -> None;
-    def freeze_structure -> None;
-    def thaw_structure -> None;
-    def structure_thawed -> StructureThaw;
     def _attach(child: UniNode, role: type[Role]) -> None;
     def _children -> list[UniNode];
     def _role_shaped(role: type[Role], found: list[UniNode]) -> any;
@@ -2740,3 +2735,8 @@ def is_client_destined(nd: UniNode) -> bool;
 def type_only_import_of(nd: NameAtom) -> (ModuleItem | None);
 
 def in_type_position(nd: UniNode) -> bool;
+
+with entry {
+    import from jaclang.compiler.store.schema { install_schema }
+    install_schema();
+}

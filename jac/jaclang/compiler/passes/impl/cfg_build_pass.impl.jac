@@ -841,8 +841,10 @@ impl CFGBuildPass._wire_compr_filters(
             if isinstance(cond, CfgExpr) {
                 cfg_pred = cond;
             } else {
+                import from jaclang.compiler.frontend.roles { Kid }
                 cfg_pred = CfgExpr(expr=cond, kid=[cond]);
-                compr.replace_kid(cond, cfg_pred);
+                del [edge cfg_pred->:Kid:->];
+                cfg_pred.set_parent(compr);
             }
             cfg_pred.affected_symbols.update(collect_narrowing_symbols(cfg_pred.expr));
             if prev_node is not None {
