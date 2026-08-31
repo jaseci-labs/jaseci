@@ -131,3 +131,16 @@ def:pub np_role_shape(nd: UniNode, role_name: str) -> int {
 def:pub np_probe -> int {
     return 44061;
 }
+
+def:pub npy_list_len(l: list[UniNode]) -> int {
+    return len(l);
+}
+
+def:pub npy_list_get(l: list[UniNode], i: int) -> UniNode {
+    return l[i];
+}
+
+def:pub npy_list_append(l: list[UniNode], v: UniNode) -> int {
+    l.append(v);
+    return len(l);
+}

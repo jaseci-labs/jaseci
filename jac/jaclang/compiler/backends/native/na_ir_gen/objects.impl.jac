@@ -4403,7 +4403,17 @@ impl NaIRGenObjects._build_npy_layout -> str {
                 code = "float";
             } elif isinstance(ft, ir.PointerType) {
                 _pn = getattr(ft.pointee, "name", "") or "";
-                if _pn in self.pyobj_kind {
+                _is_list = False;
+                for (_, _lt) in self.list_types.items() {
+                    if ft == _lt.as_pointer() {
+                        _is_list = True;
+                        break;
+                    }
+                }
+                if _is_list {
+                    code = "natlist";
+                    aux = _pn;
+                } elif _pn in self.pyobj_kind {
                     code = "obj";
                     aux = _pn;
                 } elif _pn == "jac.str" or _pn.endswith(".str") or _pn == "str" {

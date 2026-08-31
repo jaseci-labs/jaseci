@@ -52,7 +52,7 @@ Py_TPFLAGS_BASETYPE = 1 << 10
 T_LONGLONG = 17
 T_BOOL = 14
 T_DOUBLE = 4
-T_OBJECT_EX = 16
+T_OBJECT = 6  # NULL reads as None -- every jac ref field is nullable-at-rest
 T_PYSSIZET = 19
 READONLY = 1
 
@@ -94,6 +94,44 @@ def _stable_tag(name: str) -> int:
 
 def _addr(obj) -> int:
     return id(obj)
+
+
+class NativeList:
+    """A mutable view over a jac native list of node pointers. Elements are
+    PyObject-headed nodes, so reads come back as the objects themselves."""
+
+    __slots__ = ("_lib", "_ptr")
+
+    def __init__(self, lib, ptr) -> None:
+        self._lib = lib
+        self._ptr = ptr or 0
+
+    def __len__(self) -> int:
+        if not self._ptr:
+            return 0
+        return self._lib.npy_list_len(self._ptr)
+
+    def __getitem__(self, i):
+        n = len(self)
+        if isinstance(i, slice):
+            return [self[j] for j in range(*i.indices(n))]
+        if i < 0:
+            i += n
+        if not 0 <= i < n:
+            raise IndexError(i)
+        return cast(self._lib.npy_list_get(self._ptr, i), py_object).value
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
+
+    def __bool__(self) -> bool:
+        return len(self) > 0
+
+    def append(self, v) -> None:
+        if not self._ptr:
+            raise ValueError("append to an unset native list field")
+        self._lib.npy_list_append(self._ptr, _addr(v))
 
 
 class NpyBridge:
@@ -141,6 +179,12 @@ class NpyBridge:
         L.np_parse.restype = py_object
         L.jac_str_new.argtypes = [c_char_p, ctypes.c_int64]
         L.jac_str_new.restype = c_void_p
+        L.npy_list_len.argtypes = [ctypes.c_int64]
+        L.npy_list_len.restype = ctypes.c_int64
+        L.npy_list_get.argtypes = [ctypes.c_int64] * 2
+        L.npy_list_get.restype = c_void_p
+        L.npy_list_append.argtypes = [ctypes.c_int64] * 2
+        L.npy_list_append.restype = ctypes.c_int64
 
     def _call_str2(self, name: str, a: str, b: str):
         """Call an export taking two jac-str args (each a {p, p, len} triple)."""
@@ -232,7 +276,7 @@ class NpyBridge:
             elif code == "float":
                 members.append((fname.encode(), T_DOUBLE, off, 0))
             elif code == "obj":
-                members.append((fname.encode(), T_OBJECT_EX, off, 0))
+                members.append((fname.encode(), T_OBJECT, off, 0))
             elif code == "enum":
                 members.append((b"__npy_raw_" + fname.encode(), T_LONGLONG, off, 0))
         members.append((b"__dictoffset__", T_PYSSIZET, HDR_DICT_OFF, READONLY))
@@ -266,7 +310,9 @@ class NpyBridge:
 
         self._flatten_twin(t, twin)
         self._install_field_props(t, name, fields)
+        self._install_natlist_props(t, fields)
         self._install_role_props(t, name)
+        self._install_parent(t)
         self._install_new(t, name)
         t.__npy_native__ = True
         t.__npy_twin__ = twin
@@ -326,6 +372,36 @@ class NpyBridge:
                     setattr(self, _f, int(getattr(value, "value", value)))
 
                 setattr(t, fname, property(eget, eset))
+
+    def _install_natlist_props(self, t: type, fields: dict) -> None:
+        lib = self.lib
+        for fname, f in fields.items():
+            if f["code"] != "natlist":
+                continue
+
+            def lget(self, _off=f["offset"]):
+                ptr = cast(_addr(self) + _off, POINTER(c_void_p))[0]
+                return NativeList(lib, ptr)
+
+            setattr(t, fname, property(lget))
+
+    def _install_parent(self, t: type) -> None:
+        """parent is the one hand-written adjacency getter: last Kid-in
+        holder, else last Role-in holder, else the _ctx_parent slot."""
+        lib = self.lib
+        kid_tag = _stable_tag("Kid")
+        role_tag = _stable_tag("Role")
+
+        def pget(self):
+            found = lib.npy_adj(_addr(self), kid_tag, 1)
+            if found:
+                return found[-1]
+            holders = lib.npy_adj(_addr(self), role_tag, 1)
+            if holders:
+                return holders[-1]
+            return getattr(self, "_ctx_parent", None)
+
+        setattr(t, "parent", property(pget))
 
     def _roles(self):
         if self._role_map is None:
