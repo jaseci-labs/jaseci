@@ -104,8 +104,8 @@ def:pub np_comments -> int {
 }
 
 def _read_i64(addr: int) -> int {
-    buf = bytes(8);
-    memcpy(buf, addr, 8);
+    buf = b"\x00" * 8;
+    memcpy(buf, addr, u64(8));
     return int.from_bytes(buf, "little");
 }
 

@@ -4203,9 +4203,14 @@ impl NaIRGenObjects._emit_npy_helpers -> None {
     i8p = i8.as_pointer();
     cap = 1024;
 
-    # Every module that needs them defines the tables and entry points
-    # identically as linkonce_odr; the linker keeps one of each, so no
-    # cross-module bookkeeping is involved.
+    # Open-addressed registry keyed by the stable FNV name tag, which the
+    # backend and the Python installer compute identically from the class
+    # name -- so independently compiled modules and the installer agree
+    # with no shared numbering. All definitions are weak_odr and identical;
+    # the linker keeps one of each.
+    kt = ir.GlobalVariable(
+        self.llvm_module, ir.ArrayType(i64, cap), name="__npy_key_table"
+    );
     tt = ir.GlobalVariable(
         self.llvm_module, ir.ArrayType(i8p, cap), name="__npy_type_table"
     );
@@ -4218,44 +4223,92 @@ impl NaIRGenObjects._emit_npy_helpers -> None {
     ot = ir.GlobalVariable(
         self.llvm_module, ir.ArrayType(i64, cap), name="__npy_tagoff_table"
     );
+    kt.initializer = ir.Constant(ir.ArrayType(i64, cap), None);
     tt.initializer = ir.Constant(ir.ArrayType(i8p, cap), None);
     st.initializer = ir.Constant(ir.ArrayType(i64, cap), None);
     gt.initializer = ir.Constant(ir.ArrayType(i64, cap), None);
     ot.initializer = ir.Constant(
         ir.ArrayType(i64, cap), [ir.Constant(i64, -1) for _ in range(cap)]
     );
-    for _g in [tt, st, gt, ot] {
-        _g.linkage = "linkonce_odr";
+    for _g in [kt, tt, st, gt, ot] {
+        _g.linkage = "weak_odr";
     }
-    self.npy_mod_tables[_mkey] = (tt, st, gt, ot);
+    self.npy_mod_tables[_mkey] = (kt, tt, st, gt, ot);
 
+    _saved = self._builder;
+
+    # __npy_slot_of(key): the registry slot for a key -- its own slot when
+    # registered, otherwise the empty slot where it belongs.
+    slot_fn = ir.Function(
+        self.llvm_module, ir.FunctionType(i64, [i64]), name="__npy_slot_of"
+    );
+    slot_fn.linkage = "weak_odr";
+    _sb_entry = slot_fn.append_basic_block("entry");
+    _sb_loop = slot_fn.append_basic_block("loop");
+    _sb_next = slot_fn.append_basic_block("next");
+    _sb_done = slot_fn.append_basic_block("done");
+    self._builder = ir.IRBuilder(_sb_entry);
+    b = self.builder;
+    _key = slot_fn.args[0];
+    _idx0 = b.and_(_key, ir.Constant(i64, cap - 1), name="npy.idx0");
+    b.branch(_sb_loop);
+    self._builder = ir.IRBuilder(_sb_loop);
+    b = self.builder;
+    _idx = b.phi(i64, name="npy.idx");
+    _idx.add_incoming(_idx0, _sb_entry);
+    _cur = b.load(b.gep(kt, [ir.Constant(i32, 0), _idx]), name="npy.curkey");
+    _hit = b.icmp_unsigned("==", _cur, _key, name="npy.hit");
+    _empty = b.icmp_unsigned("==", _cur, ir.Constant(i64, 0), name="npy.empty");
+    _stop = b.or_(_hit, _empty, name="npy.stop");
+    b.cbranch(_stop, _sb_done, _sb_next);
+    self._builder = ir.IRBuilder(_sb_next);
+    b = self.builder;
+    _nidx = b.and_(
+        b.add(_idx, ir.Constant(i64, 1), name="npy.idx1"),
+        ir.Constant(i64, cap - 1),
+        name="npy.idxw"
+    );
+    _idx.add_incoming(_nidx, _sb_next);
+    b.branch(_sb_loop);
+    self._builder = ir.IRBuilder(_sb_done);
+    self.builder.ret(_idx);
+
+    # __npy_type_of(key): the registered type pointer, or null.
+    tof = ir.Function(
+        self.llvm_module, ir.FunctionType(i8p, [i64]), name="__npy_type_of"
+    );
+    tof.linkage = "weak_odr";
+    self._builder = ir.IRBuilder(tof.append_basic_block("entry"));
+    b = self.builder;
+    _ti = b.call(slot_fn, [tof.args[0]], name="npy.tslot");
+    b.ret(b.load(b.gep(tt, [ir.Constant(i32, 0), _ti]), name="npy.tptr"));
+
+    # npy_register_kind(key, type_ptr, size, osp_tag, tag_off)
     reg = ir.Function(
         self.llvm_module,
         ir.FunctionType(i64, [i64, i8p, i64, i64, i64]),
         name="npy_register_kind"
     );
+    reg.linkage = "weak_odr";
+    self._builder = ir.IRBuilder(reg.append_basic_block("entry"));
+    b = self.builder;
+    _ri = b.call(slot_fn, [reg.args[0]], name="npy.rslot");
+    b.store(reg.args[0], b.gep(kt, [ir.Constant(i32, 0), _ri]));
+    b.store(reg.args[1], b.gep(tt, [ir.Constant(i32, 0), _ri]));
+    b.store(reg.args[2], b.gep(st, [ir.Constant(i32, 0), _ri]));
+    b.store(reg.args[3], b.gep(gt, [ir.Constant(i32, 0), _ri]));
+    b.store(reg.args[4], b.gep(ot, [ir.Constant(i32, 0), _ri]));
+    b.ret(_ri);
+
+    # npy_alloc(key): zeroed arena allocation with headers and OSP tag.
     al = ir.Function(
         self.llvm_module, ir.FunctionType(i8p, [i64]), name="npy_alloc"
     );
-    reg.linkage = "linkonce_odr";
-    al.linkage = "linkonce_odr";
-
-    _saved = self._builder;
-    self._builder = ir.IRBuilder(reg.append_basic_block("entry"));
-    b = self.builder;
-    (_kind, _tp, _sz, _tag, _toff) = (
-        reg.args[0], reg.args[1], reg.args[2], reg.args[3], reg.args[4]
-    );
-    b.store(_tp, b.gep(tt, [ir.Constant(i32, 0), _kind], name="npy.tt"));
-    b.store(_sz, b.gep(st, [ir.Constant(i32, 0), _kind], name="npy.st"));
-    b.store(_tag, b.gep(gt, [ir.Constant(i32, 0), _kind], name="npy.gt"));
-    b.store(_toff, b.gep(ot, [ir.Constant(i32, 0), _kind], name="npy.ot"));
-    b.ret(ir.Constant(i64, 0));
-
+    al.linkage = "weak_odr";
     self._builder = ir.IRBuilder(al.append_basic_block("entry"));
     b = self.builder;
-    _k = al.args[0];
-    _size = b.load(b.gep(st, [ir.Constant(i32, 0), _k]), name="npy.sz");
+    _ai = b.call(slot_fn, [al.args[0]], name="npy.aslot");
+    _size = b.load(b.gep(st, [ir.Constant(i32, 0), _ai]), name="npy.sz");
     _raw = self._rc_call_with_ctx(
         self.rc_alloc_fn, [_size], op="npy", loc="", name="npy.raw"
     );
@@ -4269,15 +4322,15 @@ impl NaIRGenObjects._emit_npy_helpers -> None {
         i8p.as_pointer(),
         name="npy.ob_type"
     );
-    b.store(b.load(b.gep(tt, [ir.Constant(i32, 0), _k]), name="npy.tp"), _tp_slot);
-    _toff_v = b.load(b.gep(ot, [ir.Constant(i32, 0), _k]), name="npy.toff");
+    b.store(b.load(b.gep(tt, [ir.Constant(i32, 0), _ai]), name="npy.tp"), _tp_slot);
+    _toff_v = b.load(b.gep(ot, [ir.Constant(i32, 0), _ai]), name="npy.toff");
     _has_tag = b.icmp_signed(">=", _toff_v, ir.Constant(i64, 0), name="npy.hastag");
     _bb_tag = al.append_basic_block("stamp_tag");
     _bb_done = al.append_basic_block("done");
     b.cbranch(_has_tag, _bb_tag, _bb_done);
     self._builder = ir.IRBuilder(_bb_tag);
     b = self.builder;
-    _tag_v = b.load(b.gep(gt, [ir.Constant(i32, 0), _k]), name="npy.tag");
+    _tag_v = b.load(b.gep(gt, [ir.Constant(i32, 0), _ai]), name="npy.tag");
     _tag_slot = b.bitcast(
         b.gep(_raw, [_toff_v], name="npy.tag.raw"), i64.as_pointer(), name="npy.tag.p"
     );
@@ -4300,7 +4353,6 @@ impl NaIRGenObjects._emit_pyobj_header(obj_ptr: ir.Value, arch_name: str) -> Non
         return;
     }
     self._emit_npy_helpers();
-    (tt, _st, _gt, _ot) = self.npy_mod_tables[id(self.llvm_module)];
     b = self.builder;
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
@@ -4314,8 +4366,11 @@ impl NaIRGenObjects._emit_pyobj_header(obj_ptr: ir.Value, arch_name: str) -> Non
             name="npy.hdr.refcnt"
         )
     );
-    _tp = b.load(
-        b.gep(tt, [ir.Constant(i32, 0), ir.Constant(i64, kind)]), name="npy.hdr.tp"
+    _tof = self.llvm_module.globals.get("__npy_type_of");
+    _tp = b.call(
+        _tof,
+        [ir.Constant(i64, stable_osp_tag(arch_name))],
+        name="npy.hdr.tp"
     );
     b.store(
         _tp,

@@ -246,20 +246,24 @@ class NpyBridge:
         twin = self._twins[name]
         base: type | None = None
         for anc in twin.__mro__[1:]:
-            if anc.__name__ in self.layout and anc.__name__ != name:
-                if anc.__name__ not in self._twins:
-                    self._twins[anc.__name__] = anc
+            if (
+                anc.__name__ in self.layout
+                and anc.__name__ != name
+                and self._twins.get(anc.__name__) is anc
+            ):
+                # Identity check: a runtime class sharing a name with a laid-
+                # out unitree class (e.g. Archetype) must not become a base.
                 base = self._type_for(anc.__name__)
                 break
         t = self._build_type(name, twin, base)
         self.types[name] = t
         info = self.layout[name]
-        self.kind_of_type[t] = info["kind"]
+        self.kind_of_type[t] = _stable_tag(name)
         self.lib.npy_register_kind(
-            info["kind"],
+            _stable_tag(name),
             c_void_p(_addr(t)),
             info["size"],
-            info["tag"] or _stable_tag(name),
+            info["tag"] or 0,
             info["tag_offset"],
         )
         return t
@@ -305,20 +309,19 @@ class NpyBridge:
         pythonapi.PyType_FromSpecWithBases.argtypes = [
             POINTER(PyType_Spec), py_object,
         ]
-        bases = (base,) if base is not None else ()
-        t = pythonapi.PyType_FromSpecWithBases(
-            ctypes.byref(spec), bases if bases else None
-        )
+        bases = (base,) if base is not None else (object,)
+        t = pythonapi.PyType_FromSpecWithBases(ctypes.byref(spec), bases)
 
+        t.__npy_native__ = True
+        t.__npy_twin__ = twin
         self._flatten_twin(t, twin)
         self._install_field_props(t, name, fields)
         self._install_natlist_props(t, fields)
         self._install_overlay_props(t, name, fields)
-        self._install_role_props(t, name)
+        self._install_role_props(t, name, fields)
         self._install_parent(t)
+        self._install_anchorless_overrides(t, name)
         self._install_new(t, name)
-        t.__npy_native__ = True
-        t.__npy_twin__ = twin
         return t
 
     def _flatten_twin(self, t: type, twin: type) -> None:
@@ -478,10 +481,12 @@ class NpyBridge:
             self._role_map = ROLE_FIELDS
         return self._role_map
 
-    def _install_role_props(self, t: type, name: str) -> None:
+    def _install_role_props(self, t: type, name: str, fields: dict) -> None:
         lib = self.lib
         bridge = self
-        seen: set[str] = set()
+        # A slot-backed field on this class wins over a role getter an MRO
+        # ancestor contributes under the same name.
+        seen: set[str] = set(fields)
         for cls_name in [name] + [b.__name__ for b in t.__npy_twin__.__mro__]:
             for fname, (role, direction, kind) in (
                 self._roles().get(cls_name, {}).items()
@@ -521,12 +526,47 @@ class NpyBridge:
 
     _KID_TAG = None
 
+    def _install_anchorless_overrides(self, t: type, name: str) -> None:
+        """Twin methods that introspect Python edge anchors have no anchors
+        to read on kernel-backed nodes; the graph-op equivalents replace
+        them (desk-checked: _drop_primary is on the sym-insert path,
+        replace_kid on tooling paths)."""
+        lib = self.lib
+        if name == "UniScopeNode":
+            sp_tag = _stable_tag("ScopePrimary")
+
+            def _drop_primary(self, sym, _tag=sp_tag):
+                lib.npy_disconn(_addr(self), _addr(sym), 2, _tag)
+
+            t._drop_primary = _drop_primary
+        if name == "UniNode":
+            role_map = self._roles()
+
+            def replace_kid(self, old, new):
+                from jaclang.compiler.frontend import roles as roles_mod
+
+                for rname in dir(roles_mod):
+                    rcls = getattr(roles_mod, rname)
+                    if not isinstance(rcls, type):
+                        continue
+                    rtag = _stable_tag(rname)
+                    peers = lib.npy_adj(_addr(self), rtag, 2)
+                    if any(p is old for p in peers):
+                        lib.npy_disconn(_addr(self), _addr(old), 2, rtag)
+                        lib.npy_conn(_addr(self), _addr(new), rtag)
+                self.set_kids(
+                    [new if k is old else k for k in self.kid], pos_update=False
+                )
+                return self
+
+            t.replace_kid = replace_kid
+
     def _install_new(self, t: type, name: str) -> None:
         lib = self.lib
         kind = self.layout[name]["kind"]
 
         def __new__(cls, *args, **kwargs):
-            k = self.kind_of_type.get(cls, kind)
+            k = self.kind_of_type.get(cls) or _stable_tag(cls.__name__)
             ptr = lib.npy_alloc(k)
             return cast(ptr, py_object).value
 
