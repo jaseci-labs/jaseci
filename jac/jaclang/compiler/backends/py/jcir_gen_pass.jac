@@ -156,7 +156,8 @@ import from jaclang.compiler.frontend.diagnostics {
     E5008,
     E5094,
     W5096,
-    E5098
+    E5098,
+    E5102
 }
 
 glob TOKEN_CLS_BY_NAME: dict[(str, str)] = {
