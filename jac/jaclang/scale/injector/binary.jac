@@ -276,6 +276,46 @@ def resolve_deploy_version(project_dir: str, channel: str) -> str {
 }
 
 
+def deploy_generation_refusal(
+    project_dir: str, channel: str = "", offline: bool = False
+) -> str {
+    import from jaclang.cli.cli { jac_version }
+    import from jaclang.project.config { JacConfig, find_project_root }
+    import from jaclang.scale.config.dev_config { Channel, resolve_dev_channel }
+    channel = channel or resolve_dev_channel(project_dir).value;
+    if offline {
+        found = find_project_root(Path(project_dir));
+        pinned = (
+            _exact_of(str(JacConfig.load(found[1]).project.jac_version or ""))
+                if found is not None and channel == Channel.STABLE.value
+                else ""
+        );
+    } else {
+        try {
+            pinned = resolve_deploy_version(project_dir, channel);
+        } except RuntimeError {
+            return "";
+        }
+    }
+    running = jac_version().strip();
+    if not pinned or not running {
+        return "";
+    }
+    (pin_major, pin_minor, _) = _ver_key(pinned);
+    (run_major, run_minor, _) = _ver_key(running);
+    if (pin_major, pin_minor) == (run_major, run_minor) {
+        return "";
+    }
+    return (
+        f"this deployer is jac {running} and cannot deploy an app pinned to "
+        f"{pinned}. the deploying jac renders the manifests and provisions the "
+        "database, so a different minor line stands up a backend the pod "
+        f"cannot use. upgrade the deployer, or pin [project] jac-version to "
+        f"{run_major}.{run_minor}."
+    );
+}
+
+
 def reset_deploy_version_cache {
     _deploy_version_memo.clear();
 }
@@ -408,6 +448,14 @@ def download_release_binary(
 }
 
 
+def _write_cache_atomic(cache_file: Path, payload: bytes) {
+    cache_file.parent.mkdir(parents=True, exist_ok=True);
+    tmp = cache_file.with_name(f"{cache_file.name}.{os.getpid()}.tmp");
+    tmp.write_bytes(payload);
+    tmp.replace(cache_file);
+}
+
+
 def _fetch_verified_asset(
     url: str, checksum_url: str, cache_file: Path, what: str
 ) -> bytes {
@@ -445,10 +493,7 @@ def _fetch_verified_asset(
             );
         }
         try {
-            cache_file.parent.mkdir(parents=True, exist_ok=True);
-            tmp = cache_file.with_suffix(f".{os.getpid()}.tmp");
-            tmp.write_bytes(payload);
-            tmp.rename(cache_file);
+            _write_cache_atomic(cache_file, payload);
         } except Exception as e {
             logger.warning(f"Could not cache the downloaded {what} ({e}).");
         }
@@ -476,11 +521,7 @@ def host_toolchain_path(project_dir: str, channel: str = "") -> str {
     payload = download_release_binary(channel, arch, version, plat);
     path = _binary_cache_path(channel, arch, plat, version);
     if not path.is_file() {
-        path.parent.mkdir(parents=True, exist_ok=True);
-        tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp");
-        tmp.write_bytes(payload);
-        tmp.chmod(0o755);
-        tmp.replace(path);
+        _write_cache_atomic(path, payload);
     }
     path.chmod(0o755);
     logger.info(f"Host build steps for this deploy run the pinned jac {version}.");

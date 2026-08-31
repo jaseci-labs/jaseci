@@ -1,3 +1,4 @@
+import os;
 def _carries_topology_index(anchor: Anchor) -> bool {
     return isinstance(anchor, NodeAnchor) and anchor.topology_index_data is not None;
 }
@@ -67,6 +68,13 @@ impl ScaleTieredMemory.postinit -> None {
             import from jaclang.cli.console { console }
             logger.debug("  ✔ Using MongoDB for persistence", style="muted");
         } except Exception { }
+    } elif os.environ.get('KUBERNETES_SERVICE_HOST', '').strip() {
+        raise RuntimeError(
+            'no MongoDB resolved in a cluster, and the local store here would '
+            'be per-replica and lost on restart. point the deploy at a '
+            'database, or set [scale.kubernetes] mongodb_enabled = false to '
+            'declare this app needs none.'
+        );
     } else {
         self.l3 = SqliteMemory(
             path=get_scale_config().get_database_config()['shelf_db_path']

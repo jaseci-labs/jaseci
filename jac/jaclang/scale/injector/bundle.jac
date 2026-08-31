@@ -53,7 +53,8 @@ glob _EXCLUDE_ENV: set[str] = {
          "PYTHONHOME",
          "JAC_LLVM_SHIM",
          "JAC_DEV_SOURCE",
-         "JAC_NO_PRECOMPILE"
+         "JAC_NO_PRECOMPILE",
+         "JAC_EXECUTABLE"
      };
 
 
