@@ -118,6 +118,24 @@ test "bootstrap calls venv-cache-restore before install and venv-cache-publish a
     assert "chmod 0777" not in script.split("jac install")[1];
 }
 
+test "bootstrap threads the pinned image into jac install's marker hash" {
+    # venv_cache_key gates restore on (specs, base_image); _venv_deps_hash
+    # gates the plain `jac install` skip on the marker it writes. Without
+    # this, a venv restored under one image keeps a marker that only ever
+    # hashed specs, so a later image change with the same specs would read
+    # as "not stale" and skip install against the wrong interpreter. Only
+    # matters on the cache-eligible path: a fresh install every boot (the
+    # mutable-tag case below) can never see a marker from another image.
+    specs = ["requests>=2.28.0"];
+    pinned_image = "jaseci/jaclang@sha256:" + "b" * 64;
+    ctr = build_bootstrap_init_container(
+        KubernetesConfig(), pinned_image, resolved_specs=specs
+    );
+    script = str(ctr["args"][0]);
+    assert f'JAC_VENV_CACHE_IMAGE_ID="{pinned_image}"' in script;
+    assert (script.index("JAC_VENV_CACHE_IMAGE_ID") < script.index("jac install"));
+}
+
 test "bootstrap skips the venv cache entirely for a mutable-tag image" {
     specs = ["requests>=2.28.0"];
     ctr = build_bootstrap_init_container(
@@ -126,4 +144,5 @@ test "bootstrap skips the venv cache entirely for a mutable-tag image" {
     script = str(ctr["args"][0]);
     assert "venv-cache-restore" not in script;
     assert "venv-cache-publish" not in script;
+    assert "JAC_VENV_CACHE_IMAGE_ID" not in script;
 }

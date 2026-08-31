@@ -181,7 +181,11 @@ def build_bootstrap_init_container(
         );
     }
 
-    commands.append("jac install");
+    if cache_eligible {
+        commands.append(f'JAC_VENV_CACHE_IMAGE_ID="{base_image}" jac install');
+    } else {
+        commands.append("jac install");
+    }
 
     if cache_eligible {
         commands.append(
