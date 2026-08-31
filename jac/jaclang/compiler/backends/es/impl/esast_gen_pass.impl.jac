@@ -5974,7 +5974,7 @@ impl EsastGenPass.exit_visit_stmt with uni.VisitStmt exit {
     if here.else_body and here.else_body.gen.es_ast {
         here.gen.es_ast = self.sync_loc(
             es.IfStatement(
-                test=self.sync_loc(
+                `test=self.sync_loc(
                     es.UnaryExpression(
                         operator='!', argument=visit_call, prefix=True
                     ),

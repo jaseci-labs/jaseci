@@ -107,13 +107,6 @@ def tag_of_cls(cls: type) -> int {
         }
         _tag_of_cls[cls] = t;
         _cls_of_tag_map[t] = cls;
-        bases: list[int] = [];
-        for c in cls.__mro__[1:] {
-            if c is not object {
-                bases.append(stable_osp_tag(c.__name__));
-            }
-        }
-        _graph.osp_register_type(t, bases);
     }
     return t;
 }

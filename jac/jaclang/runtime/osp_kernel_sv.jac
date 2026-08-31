@@ -1,6 +1,5 @@
 import inspect;
 import jaclang.runtime.osp_kernel as _kernel;
-import jaclang.runtime.osp_graph as _graph;
 import from contextvars { ContextVar }
 import from types { UnionType }
 import from typing { cast }
@@ -134,6 +133,12 @@ def _sv_tag_of(handle: any) -> int {
     return tag_of_cls(`type(handle));
 }
 
+def _sv_is_a(tag: int, base: int) -> bool {
+    tc = cls_of_tag(tag);
+    bc = cls_of_tag(base);
+    return tc is not None and bc is not None and issubclass(tc, bc);
+}
+
 def _sv_node_desc(tag: int) -> NodeDesc {
     cls = cls_of_tag(tag);
     if cls is None {
@@ -198,7 +203,7 @@ def _sv_on_complete(scope: WalkScope, ok: bool) {
 def make_sv_runtime -> OspRuntime {
     return OspRuntime(
         tag_of=_sv_tag_of,
-        is_a=_graph.osp_is_a,
+        is_a=_sv_is_a,
         node_desc=_sv_node_desc,
         on_complete=_sv_on_complete
     );
