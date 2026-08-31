@@ -1,5 +1,5 @@
 import os;
-import from jaclang.runtimelib.storage { Storage }
+import from jaclang.data.storage { Storage }
 import from jaclang.project.config { get_config }
 import from jaclang.scale.config.firebase_env {
     JAC_STORAGE_FIREBASE_PROJECT_ID_ENV,
@@ -38,7 +38,7 @@ class StorageFactory {
         }
 
         if storage_type == StorageType.LOCAL {
-            import from jaclang.runtimelib.storage { LocalStorage }
+            import from jaclang.data.storage { LocalStorage }
             cfg = config or {};
             return LocalStorage(
                 base_path=cfg.get("base_path", "./storage"),

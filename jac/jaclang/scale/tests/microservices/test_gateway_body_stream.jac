@@ -8,16 +8,17 @@ for the bytes up front.
 """
 
 import asyncio;
-import from jaclang.runtimelib.serving.app { ServingApp }
-import from jaclang.runtimelib.serving.datatypes {
+import from jaclang.server.serving.app { ServingApp }
+import from jaclang.server.serving.datatypes {
     Headers,
     HTTPError,
     Request,
     Response,
+    StreamingResponse,
     URL
 }
-import from jaclang.runtimelib.serving.endpoint { HTTPMethod, JEndPoint }
-import from jaclang.runtimelib.serving.server { ServingServer }
+import from jaclang.server.serving.endpoint { HTTPMethod, JEndPoint }
+import from jaclang.server.serving.server { ServingServer }
 import from jaclang.scale.runtime.gateway.service_registry {
     ServiceRegistry,
     ServiceEntry,
@@ -91,6 +92,7 @@ async def _truncated -> any {
 
 
 async def _drain(response: Response) -> str {
+    assert isinstance(response, StreamingResponse);
     body = b"";
     async for chunk in response.body_iterator {
         body += chunk if isinstance(chunk, bytes) else chunk.encode("utf-8");
@@ -120,6 +122,7 @@ test "forward_to streams a declared-length body through to the service" {
             resp = await gw.forward_to(
                 request, reg.entries["orders"], f"{base}/walker/sink"
             );
+            assert resp is not None;
             return {
                 "seen": await _drain(resp),
                 "buffered": len(request.body),
@@ -148,6 +151,7 @@ test "forward_to chunk-frames a body whose length the client never declared" {
                 reg.entries["orders"],
                 f"{base}/walker/sink"
             );
+            assert resp is not None;
             return await _drain(resp);
         } finally {
             stop();
@@ -194,6 +198,7 @@ test "an upload that asks for 100-continue still gets the real response" {
             resp = await gw.forward_to(
                 request, reg.entries["orders"], f"{base}/walker/sink"
             );
+            assert resp is not None;
             return {"status": resp.status_code, "seen": await _drain(resp)};
         } finally {
             stop();
@@ -216,6 +221,7 @@ test "builtin passthrough still replays the body past a service that declines" {
             gw = MicroserviceGateway(registry=reg);
             request = _streaming_request("/walker/sink", True);
             resp = await gw.handle_builtin_passthrough(request, "/walker/sink");
+            assert resp is not None;
             return {
                 "status": resp.status_code,
                 "seen": await _drain(resp),

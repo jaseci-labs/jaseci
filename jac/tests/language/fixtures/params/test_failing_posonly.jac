@@ -21,12 +21,23 @@ def no_regular_params( a: int , / , * , b: str)  -> str {
     return f"{a}: {b}";
 }
 
+"""Identity cast: the calls below are deliberately invalid and must fail at
+runtime, not at compile time, so the checker sees an any-typed callee."""
+def _as_any(v: any) -> any {
+    return v;
+}
+
 with entry {
     print("=== TESTING POSITIONAL-ONLY FAILURES ===");
+    bad_strict = _as_any(strict_posonly);
+    bad_mixed = _as_any(mixed_posonly);
+    bad_complex = _as_any(complex_posonly);
+    bad_edge = _as_any(edge_case_posonly);
+    bad_noreg = _as_any(no_regular_params);
 
     # Test 1: Calling pos-only with keyword arguments
     try {
-        result = strict_posonly(a=10, b="test");
+        result = bad_strict(a=10, b="test");
         print("❌ FAIL: Should reject pos-only as keywords");
     } except Exception as e {
         print("✅ PASS: Caught pos-only keyword error");
@@ -34,7 +45,7 @@ with entry {
 
     # Test 2: Partial keyword arguments on pos-only
     try {
-        result = strict_posonly(10, b="test");
+        result = bad_strict(10, b="test");
         print("❌ FAIL: Should reject mixed pos-only calling");
     } except Exception as e {
         print("✅ PASS: Caught mixed pos-only error");
@@ -42,7 +53,7 @@ with entry {
 
     # Test 3: Too many positional arguments
     try {
-        result = strict_posonly(1, "test", "extra");
+        result = bad_strict(1, "test", "extra");
         print("❌ FAIL: Should reject too many args");
     } except Exception as e {
         print("✅ PASS: Caught too many args error");
@@ -50,7 +61,7 @@ with entry {
 
     # Test 4: Missing required positional-only
     try {
-        result = strict_posonly(42);
+        result = bad_strict(42);
         print("❌ FAIL: Should reject missing required pos-only");
     } except Exception as e {
         print("✅ PASS: Caught missing pos-only error");
@@ -58,7 +69,7 @@ with entry {
 
     # Test 5: Mixed signature - wrong keyword usage
     try {
-        result = mixed_posonly(x=10, y="test");
+        result = bad_mixed(x=10, y="test");
         print("❌ FAIL: Should reject pos-only x as keyword");
     } except Exception as e {
         print("✅ PASS: Caught mixed signature error");
@@ -66,7 +77,7 @@ with entry {
 
     # Test 6: Complex signature - pos-only as keyword
     try {
-        result = complex_posonly(a=1, c=2.5, kw=True);
+        result = bad_complex(a=1, c=2.5, kw=True);
         print("❌ FAIL: Should reject pos-only a as keyword");
     } except Exception as e {
         print("✅ PASS: Caught complex pos-only error");
@@ -74,7 +85,7 @@ with entry {
 
     # Test 7: Edge case - only separator with keyword
     try {
-        result = edge_case_posonly(x=42);
+        result = bad_edge(x=42);
         print("✅ PASS: Edge case works:", result);
     } except Exception as e {
         print("✅ PASS: Edge case properly rejected");
@@ -82,17 +93,17 @@ with entry {
 
     # Test 8: No regular params - wrong calling pattern
     try {
-        result = no_regular_params(1, "test");
+        result = bad_noreg(1, "test");
         print("❌ FAIL: Should reject positional for keyword-only");
     } except Exception as e {
         print("✅ PASS: Caught no-regular-params error");
     }
 
-    result = strict_posonly("not_int", "test");
+    result = bad_strict("not_int", "test");
 
     # Test 10: Empty call to required pos-only
     try {
-        result = strict_posonly();
+        result = bad_strict();
         print("❌ FAIL: Should reject empty call");
     } except Exception as e {
         print("✅ PASS: Caught empty call error");

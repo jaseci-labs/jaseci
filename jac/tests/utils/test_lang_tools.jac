@@ -8,7 +8,7 @@ table output, and uninode autodoc.
 import os;
 import from tests.support { JAC_ROOT }
 import jaclang;
-import from jaclang.utils.lang_tools { AstTool }
+import from jaclang.compiler.tools.lang_tools { AstTool }
 
 glob LANG_FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures");
 
@@ -85,7 +85,11 @@ test "uninode doc" {
 }
 
 test "uni dispatch annexes in sync and unduplicated" {
-    import from jaclang.jac0core.gen_uni_dispatch { verify_all, abs_path, UNI_PASS_SRC }
+    import from jaclang.compiler.frontend.gen_uni_dispatch {
+        verify_all,
+        abs_path,
+        UNI_PASS_SRC
+    }
     stale = verify_all();
     assert stale == [] , f"stale dispatch artifacts: {stale}";
     src = open(abs_path(UNI_PASS_SRC), encoding="utf-8").read();

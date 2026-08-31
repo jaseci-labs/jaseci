@@ -100,6 +100,8 @@ walker check {
         # Count persisted anchor rows in the project store
         mem = Jac.get_context().mem;
         mem.read_barrier();
-        print(mem.store.rows("SELECT COUNT(*) FROM anchors", {})[0][0]);
+        st = mem.store;
+        assert st is not None;
+        print(st.rows("SELECT COUNT(*) FROM anchors", {})[0][0]);
     }
 }

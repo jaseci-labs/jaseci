@@ -22,18 +22,27 @@ import re;
 import jaclang;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.jac0core.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
+import from jaclang.runtime.runtime { JacRuntime }
+import from jaclang.runtime.context { ExecutionContext }
 
-glob SCAN_ROOTS: list[str] = ["jac0core", "runtimelib", "scale", "byllm"],
+glob SCAN_ROOTS: list[str] = [
+         "runtime",
+         "data",
+         "server",
+         "client",
+         "testing",
+         "dist",
+         "scale",
+         "byllm"
+     ],
      SANCTIONED: dict[str, tuple] = {
-         "jac0core/impl/archetype.impl.jac": (
+         "runtime/impl/archetype.impl.jac": (
              4,
              "the field's own primitives: __getstate__ stubs the list for "
              "pickling, edge_delta derives the OCC add/remove sets, and "
              "remove_edge is the mutation bookkeeping detach() rides on"
          ),
-         "jac0core/impl/runtime.impl.jac": (
+         "runtime/impl/runtime.impl.jac": (
              7,
              "mutation bookkeeping and persistence: build_edge's dual-write "
              "appends (the store write sits beside them), disconnect's "
@@ -42,24 +51,26 @@ glob SCAN_ROOTS: list[str] = ["jac0core", "runtimelib", "scale", "byllm"],
              "reset_graph's persistence-record rewrite (paired with "
              "sv_forget_by_id so the store retracts in step)"
          ),
-         "jac0core/osp_graph_sv.jac": (
+         "runtime/osp_graph_sv.jac": (
              1,
              "THE hydration mint: sv_register_hydrated loading the "
              "persistence record into the store is the one sanctioned live "
              "read"
          ),
-         "runtimelib/impl/query_planner.impl.jac": (
+         "runtime/graph_walk.jac": (
              1,
-             "_walk_memory's volatile arm enumerates live anchor objects "
-             "directly; detach keeps node.edges and the sv store in step, "
-             "and the persistent arm is pure SQL (epic #7945)"
+             "the in-memory traversal primitive enumerates live anchor "
+             "objects directly; detach keeps node.edges and the sv store in "
+             "step, and the store-backed arm in data/query_planner is pure "
+             "SQL (epic #7945). Moved here from that planner in #8743: "
+             "walking a graph is not a persistence concern"
          ),
-         "runtimelib/impl/serializer.impl.jac": (
+         "data/impl/serializer.impl.jac": (
              3,
              "serialization proper: writing data.edges on save and "
              "rebuilding the stub list plus _initial_edge_ids on load"
          ),
-         "runtimelib/impl/session.impl.jac": (
+         "server/impl/session.impl.jac": (
              1,
              "hydration: _materialize rebuilds the stub list from the "
              "store's src/dst adjacency (ordered by seq) since node rows "
@@ -75,6 +86,9 @@ test "NodeAnchor.edges has no unsanctioned readers" {
     for sub in SCAN_ROOTS {
         for pat in ["*.jac", "*.py"] {
             for p in sorted((base / sub).rglob(pat)) {
+                if not p.is_file() {
+                    continue;
+                }
                 rel = str(p.relative_to(base)).replace("\\", "/");
                 if "/tests/" in f"/{rel}" or "/fixtures/" in f"/{rel}" {
                     continue;

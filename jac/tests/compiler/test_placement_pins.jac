@@ -9,13 +9,13 @@ when the pins change.
 import os;
 import tempfile;
 import jaclang;
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.placement_pins {
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.placement.placement_pins {
     config_module_pin,
     config_pin_for,
     pins_digest
 }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 
 def _write(dirpath: str, name: str, text: str) -> str {

@@ -12,8 +12,8 @@ import marshal;
 import zlib;
 
 import from jaclang.jac0core { sealed }
-import from jaclang.jac0core.compiler { patch_co_filenames_bytes }
-import from jaclang.jac0core.jir {
+import from jaclang.compiler.driver.jir { patch_co_filenames_bytes }
+import from jaclang.compiler.driver.jir {
     FORMAT_VERSION,
     HEADER_SIZE,
     SECTIONS_MAGIC,
@@ -28,11 +28,11 @@ import from jaclang.jac0core.jir {
 
 test "sealed.py container constants match jir.jac" {
     assert sealed.JIR_FORMAT_VERSION == FORMAT_VERSION;
-    assert sealed._HEADER_SIZE == HEADER_SIZE;
-    assert sealed._SECTIONS_MAGIC == SECTIONS_MAGIC;
-    assert sealed._SEC_BYTECODE == SEC_BYTECODE;
-    assert sealed._SEC_DEBUG_SRC == SEC_DEBUG_SRC;
-    assert sealed._SEC_TERMINATOR == SEC_TERMINATOR;
+    assert sealed.HEADER_SIZE == HEADER_SIZE;
+    assert sealed.SECTIONS_MAGIC == SECTIONS_MAGIC;
+    assert sealed.SEC_BYTECODE == SEC_BYTECODE;
+    assert sealed.SEC_DEBUG_SRC == SEC_DEBUG_SRC;
+    assert sealed.SEC_TERMINATOR == SEC_TERMINATOR;
     assert sealed.PRECOMPILE_SENTINEL == PRECOMPILE_SENTINEL;
 }
 

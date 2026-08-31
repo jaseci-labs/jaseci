@@ -127,8 +127,23 @@ obj KubernetesTargetBase(DeploymentTarget) {
             return;
         }
         if pg_result['mode'] == 'external' {
+            external_secret_name = f"{app_name}-external-db";
+            create_k8s_secret(
+                core_v1,
+                namespace,
+                external_secret_name,
+                {'connection-string': pg_result['connection_string']}
+            );
             self.env_list.append(
-                {'name': 'JAC_DB_URL', 'value': pg_result['connection_string']}
+                {
+                    'name': 'JAC_DB_URL',
+                    'valueFrom': {
+                        'secretKeyRef': {
+                            'name': external_secret_name,
+                            'key': 'connection-string'
+                        }
+                    }
+                }
             );
             return;
         }
@@ -373,7 +388,7 @@ obj KubernetesTargetBase(DeploymentTarget) {
         autoscaler = AutoscalerFactory.create(
             self.k8s_config.autoscaler_engine, self.k8s_config.to_dict(), self.logger
         );
-        autoscaler.destroy(autoscaler.resource_name_for(app_name), namespace);
+        autoscaler.destroy(app_name, namespace);
         delete_if_exists(
             apps_v1.delete_namespaced_deployment, app_name, namespace, 'Deployment'
         );
@@ -501,7 +516,8 @@ obj KubernetesTargetBase(DeploymentTarget) {
             self._destroy_databases(app_name, namespace, apps_v1, core_v1);
 
             pvcs = core_v1.list_namespaced_persistent_volume_claim(namespace);
-            for pvc in pvcs.items {
+            pvc_items: list[any] = pvcs.items;
+            for pvc in pvc_items {
                 if pvc.metadata.name.startswith(app_name) {
                     try {
                         core_v1.delete_namespaced_persistent_volume_claim(
@@ -749,7 +765,7 @@ obj KubernetesTargetBase(DeploymentTarget) {
                     ingress = networking_v1.read_namespaced_ingress(
                         name=f"{app_name}-ingress", namespace=namespace
                     );
-                    ann = ingress.metadata.annotations or {};
+                    ann: dict[str, str] = ingress.metadata.annotations or {};
                     domain = ann.get('jac-scale/domain', '');
                 } except Exception as e {
                     if self.logger {
@@ -836,7 +852,10 @@ obj KubernetesTargetBase(DeploymentTarget) {
 
         dep_map = {};
         try {
-            for d in apps_v1.list_namespaced_deployment(namespace=namespace).items {
+            dep_items: list[any] = apps_v1.list_namespaced_deployment(
+                namespace=namespace
+            ).items;
+            for d in dep_items {
                 dep_map[d.metadata.name] = d;
             }
         } except Exception as e {
@@ -849,7 +868,10 @@ obj KubernetesTargetBase(DeploymentTarget) {
 
         sts_map = {};
         try {
-            for s in apps_v1.list_namespaced_stateful_set(namespace=namespace).items {
+            sts_items: list[any] = apps_v1.list_namespaced_stateful_set(
+                namespace=namespace
+            ).items;
+            for s in sts_items {
                 sts_map[s.metadata.name] = s;
             }
         } except Exception as e {
@@ -862,8 +884,11 @@ obj KubernetesTargetBase(DeploymentTarget) {
 
         restarting_apps = {};
         try {
-            for pod in core_v1.list_namespaced_pod(namespace=namespace).items {
-                pod_labels = pod.metadata.labels;
+            pod_items: list[any] = core_v1.list_namespaced_pod(
+                namespace=namespace
+            ).items;
+            for pod in pod_items {
+                pod_labels: (dict[str, str] | None) = pod.metadata.labels;
                 if pod_labels and 'app' in pod_labels {
                     pod_app = pod_labels['app'];
                     if pod.status and pod.status.container_statuses {

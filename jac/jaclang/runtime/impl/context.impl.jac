@@ -1,0 +1,152 @@
+import os;
+import from dataclasses { MISSING }
+import from typing { cast }
+import from uuid { UUID }
+
+import from jaclang.runtime.archetype { NodeAnchor, Root }
+import from jaclang.compiler.frontend.constant { Constants as Con }
+import from jaclang.runtime.exceptions { MissingAnchorError }
+import from jaclang.server.session { Session }
+
+impl ExecutionContext.postinit -> None {
+    import from jaclang.runtime.runtime { JacRuntime }
+    if self._parent is not None {
+        self.mem = self._parent.mem;
+        self.base_path_dir = self._parent.base_path_dir;
+        self.full_target_path = self._parent.full_target_path;
+        return;
+    }
+
+    if self.base_path_dir is None {
+        self.base_path_dir = JacRuntime.get_base_path_dir();
+    }
+    if self.full_target_path is None {
+        self.full_target_path = JacRuntime.get_full_target_path();
+    }
+
+    self.mem = Session(base_path=self.base_path_dir, target_path=self.full_target_path);
+}
+
+
+impl ExecutionContext.system_root.getter -> NodeAnchor {
+    self._resolve_roots();
+    return cast(NodeAnchor, self._system_root);
+}
+
+impl ExecutionContext.user_root.getter -> NodeAnchor {
+    self._resolve_roots();
+    return cast(NodeAnchor, self._user_root);
+}
+
+impl ExecutionContext.entry_node.getter -> NodeAnchor {
+    self._resolve_roots();
+    return cast(NodeAnchor, self._entry_node);
+}
+
+impl ExecutionContext._resolve_roots -> None {
+    if self._system_root is not None {
+        return;
+    }
+    outer = self._parent;
+    if outer is not None {
+        self._system_root = outer.system_root;
+        self._user_root = outer.user_root;
+        self._entry_node = outer.entry_node;
+        return;
+    }
+    seed = cast(NodeAnchor, Root().__jac__);
+    seed.id = UUID(Con.SUPER_ROOT_UUID);
+    self._system_root = seed;
+    self._user_root = seed;
+    self._entry_node = seed;
+    stored = cast((NodeAnchor | None), self.mem.get(UUID(Con.SUPER_ROOT_UUID)));
+    if not isinstance(stored, NodeAnchor) {
+        self.mem.put(seed);
+        return;
+    }
+    self._system_root = stored;
+    if self._user_root is seed {
+        self._user_root = stored;
+    }
+    if self._entry_node is seed {
+        self._entry_node = stored;
+    }
+}
+
+impl ExecutionContext._get_anchor(anchor_id: str) -> NodeAnchor {
+    id = UUID(anchor_id);
+
+    anchor = self.mem.get(id);
+    if not isinstance(anchor, NodeAnchor) {
+        raise MissingAnchorError(anchor_id=anchor_id);
+    }
+    return anchor;
+}
+
+impl ExecutionContext.set_user_root(root_id: str) -> None {
+    self._resolve_roots();
+    self._user_root = self._get_anchor(root_id);
+
+    self._entry_node = self._user_root;
+}
+
+impl ExecutionContext.set_entry_node(entry_node: (str | None)) -> None {
+    self._resolve_roots();
+    self._entry_node = self._get_anchor(entry_node) if entry_node else self.user_root;
+}
+
+impl ExecutionContext.close -> None {
+    if self._parent is not None {
+        return;
+    }
+
+    self.mem.close();
+
+    self.run_pending_effects();
+}
+
+impl ExecutionContext.on_commit(callback: Callable) -> None {
+    self.pending_effects.append(callback);
+}
+
+impl ExecutionContext.run_pending_effects -> None {
+    if not self.pending_effects {
+        return;
+    }
+    effects = self.pending_effects;
+    self.pending_effects = [];
+    for effect in effects {
+        try {
+            effect();
+        } except Exception as e {
+            logger.error(f"on_commit effect failed: {e}");
+        }
+    }
+}
+
+impl ExecutionContext.note_traversal_reads(origins: list[NodeAnchor]) -> None {
+    for anchor in origins {
+        if isinstance(anchor, NodeAnchor) and anchor.id is not None {
+            self.read_versions.setdefault(anchor.id, anchor.version);
+        }
+    }
+}
+
+impl ExecutionContext.get_root -> Root {
+    return cast(Root, self.user_root.archetype);
+}
+
+impl ExecutionContext._aget_anchor(anchor_id: str) -> NodeAnchor {
+    id = UUID(anchor_id);
+    anchor = await self.mem.aget(id);
+    if not isinstance(anchor, NodeAnchor) {
+        raise MissingAnchorError(anchor_id=anchor_id);
+    }
+    return anchor;
+}
+
+impl ExecutionContext.aset_user_root(root_id: str) -> None {
+    self._resolve_roots();
+    self._user_root = await self._aget_anchor(root_id);
+    self._entry_node = self._user_root;
+}

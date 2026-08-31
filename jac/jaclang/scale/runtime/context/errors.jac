@@ -1,4 +1,4 @@
-import from jaclang.runtimelib.serving.datatypes { JSONResponse }
+import from jaclang.server.serving.datatypes { JSONResponse }
 
 def error_response(
     code: str,
@@ -37,6 +37,15 @@ def service_unavailable(service: str, reason: str) -> JSONResponse {
         retry_after_seconds=2
     );
 }
+
+def identity_unresolvable(detail: str) -> JSONResponse {
+    return error_response(
+        code="IDENTITY_UNRESOLVABLE",
+        message=f"The caller's identity could not be resolved: {detail}",
+        status=401
+    );
+}
+
 
 def gateway_timeout(service: str) -> JSONResponse {
     return error_response(

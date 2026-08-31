@@ -106,12 +106,20 @@ authoritative service cut. There is no discovery from source: a module
 becomes a service by being listed (`jac scale split <module>` adds an
 entry), and imports of a listed module compile to RPC stubs.
 `[scale.microservices.services.<name>].file` overrides the service's entry
-file (default `<name>.jac`).
+file. Without it, a `--scale` deploy resolves the service against the
+shipped bundle: root `<name>.jac` wins, else the single shipped module with
+that basename anywhere in the tree (test fixtures included); zero or several
+candidates fail the pack, so set `file` to disambiguate. The implicit
+`main` service boots the `[project] entry-point` module at its exact path;
+the path is read relative to the directory holding `jac.toml` and
+re-expressed against the deployed tree when the deploy starts from a
+subdirectory (an entry module outside that tree fails the deploy).
+Local microservice mode runs `<name>.jac` from the project root as-is.
 
 ### 3. Start
 
 ```bash
-jac start main.jac
+jac run main.jac
 ```
 
 Runtime automatically:
@@ -146,8 +154,8 @@ jac scale logs products_app              # view logs
 jac scale destroy                        # stop everything
 
 # Preview before applying (no cluster contact, no docker build)
-jac start main.jac --scale --dry-run               # per-service plan + lint
-jac start main.jac --scale --dry-run --show-yaml   # + raw multi-doc YAML
+jac scale deploy main.jac --dry-run                # per-service plan + lint
+jac scale deploy main.jac --dry-run --show-yaml    # + raw multi-doc YAML
 ```
 
 `--dry-run` runs the same manifest generation as the real deploy but
@@ -295,7 +303,7 @@ No manual token passing. The hook reads it from the execution context.
 
 Same code, different deployer:
 
-| | Local | K8s (`--scale`) |
+| | Local | K8s (`jac scale deploy`) |
 |-|-------|-----------------|
 | Spawning | Subprocess per service | Pod per service |
 | URLs | `http://127.0.0.1:18xxx` | `http://svc.ns.svc.cluster.local:8000` |
@@ -306,7 +314,7 @@ Same code, different deployer:
 
 ## Kubernetes Deployment
 
-`jac start <file>.jac --scale` with services declared in
+`jac scale deploy <file>.jac` with services declared in
 `[scale.microservices.routes]`
 auto-routes to the microservice K8s target: one image built and pushed,
 then per-service `Deployment` + `ClusterIP Service` + autoscaler (HPA or KEDA `ScaledObject`) + PDB applied
@@ -433,7 +441,15 @@ kubectl delete deployment,service,hpa,pdb,ingress -l managed=jac-scale -n <ns>
 
 Every pod runs the same image, only needs `jac` + `jac-scale[deploy]`.
 The pod-spec's `command`/`args` reads `JAC_SV_NAME` and dispatches:
-`<svc>` -> `jac start <svc>.jac`, `__gateway__` -> `jac scale gateway`.
+`__gateway__` -> `jac scale gateway`; any other service runs
+`jac run --serve "$JAC_SV_FILE"`, where the deploy resolved every service's
+file host-side against the set of sources the bundle ships (explicit
+`[scale.microservices.services.NAME] file` > root `NAME.jac` > the unique
+same-named module anywhere in the tree; the implicit `main` boots the
+`[project] entry-point` module) and pinned it in the pod env. A missing,
+parked, or ambiguous module fails the deploy, `--dry-run` included, before
+anything is downloaded or sealed. The pod refuses to boot a file the
+extracted bundle does not contain.
 `JAC_SV_SIBLING=1` is set so the JacScalePlugin pre-hook skips the
 local-mode orchestrator.
 
@@ -589,11 +605,17 @@ per_ip_rpm        = 600
 per_user_rpm      = 120        # 0 disables per-user tier
 burst_multiplier  = 2.0        # capacity = rpm * burst / 60
 exempt_paths      = ["/health", "/healthz", "/metrics"]
+trusted_proxies   = []         # IPs/CIDRs allowed to set X-Forwarded-For
 ```
 
-Per-IP key falls back from `X-Forwarded-For` (first hop) to
-`request.client.host`. Per-user key is `sha256(Authorization)[:32]`. 429
-responses carry the standard envelope + `Retry-After` header.
+Per-IP key is the TCP peer address. `X-Forwarded-For` is honored only
+when the peer is listed in `trusted_proxies` (IPs or CIDRs); the key is
+then the rightmost forwarded hop not itself trusted, so clients cannot
+forge their way into fresh buckets. Deployments behind a proxy or
+ingress must list it in `trusted_proxies`, otherwise every request keys
+on the proxy's address and all clients share one bucket. Per-user key
+is `sha256(Authorization)[:32]`. 429 responses carry the standard
+envelope + `Retry-After` header.
 
 ### Observability
 

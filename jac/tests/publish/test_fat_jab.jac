@@ -22,6 +22,12 @@ glob DIST: str = "vend-demo",
      VERSION: str = "0.0.1";
 
 
+"""Identity helper: routes duck-typed values past the checker."""
+def _as_any(v: any) -> any {
+    return v;
+}
+
+
 """Write a minimal, valid pure-python wheel for `vend_demo` into `wheelhouse`.
 
 A wheel is just a zip with the package tree plus a `.dist-info/` carrying
@@ -100,7 +106,7 @@ test "jac build --fat vendors the dependency closure into the jab" {
         os.chdir(proj);
 
         result = run(
-            ["jac", "build", "--as", "jab", "--fat", "--no_typecheck"],
+            ["jac", "build", "--as", "jab", "--fat"],
             capture_output=True,
             text=True,
             env=_offline_env(wheelhouse)
@@ -152,7 +158,7 @@ test "a fat jab runs offline with its vendored dependency" {
         os.chdir(proj);
 
         build = run(
-            ["jac", "build", "--as", "jab", "--fat", "--no_typecheck"],
+            ["jac", "build", "--as", "jab", "--fat"],
             capture_output=True,
             text=True,
             env=_offline_env(wheelhouse)
@@ -202,10 +208,10 @@ def _pip_scripted(calls: list, args: list[str]) -> tuple[int, str] {
 
 test "native vendoring builds sdist-only deps instead of refusing the closure" {
     import functools;
-    import jaclang.runtimelib.jab_vendor as jab_vendor;
+    import jaclang.dist.jab_vendor as jab_vendor;
     calls: list = [];
     saved = jab_vendor._pip;
-    jab_vendor._pip = functools.partial(_pip_scripted, calls);
+    jab_vendor._pip = _as_any(functools.partial(_pip_scripted, calls));
     try {
         with tempfile.TemporaryDirectory() as tmp {
             (ok, err) = jab_vendor.download_wheels(["pywebpush>=2.0.0"], Path(tmp));
@@ -223,10 +229,10 @@ test "native vendoring builds sdist-only deps instead of refusing the closure" {
 
 test "cross-target vendoring still refuses when wheels are missing" {
     import functools;
-    import jaclang.runtimelib.jab_vendor as jab_vendor;
+    import jaclang.dist.jab_vendor as jab_vendor;
     calls: list = [];
     saved = jab_vendor._pip;
-    jab_vendor._pip = functools.partial(_pip_scripted, calls);
+    jab_vendor._pip = _as_any(functools.partial(_pip_scripted, calls));
     try {
         with tempfile.TemporaryDirectory() as tmp {
             (ok, err) = jab_vendor.download_wheels(

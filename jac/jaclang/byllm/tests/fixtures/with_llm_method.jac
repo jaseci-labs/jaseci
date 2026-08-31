@@ -9,7 +9,10 @@ enum Personality { INTROVERT, EXTROVERT }
 glob llm = MockLLM(
          model_name="mockllm", config={"outputs": [Personality.INTROVERT]}
      ),
-     personality_examples: dict[(str, Personality | None)] = {Personality.INTROVERT,Personality.EXTROVERT};
+     personality_examples: set[Personality] = {
+         Personality.INTROVERT,
+         Personality.EXTROVERT
+     };
 
 obj Person {
     has name: str,

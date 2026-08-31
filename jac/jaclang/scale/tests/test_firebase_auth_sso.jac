@@ -4,7 +4,7 @@ import asyncio;
 import json;
 import unittest.mock;
 import from tempfile { mkdtemp }
-import from jaclang.runtimelib.serving.datatypes { Request }
+import from jaclang.server.serving.datatypes { Request }
 
 import from jaclang.scale.config.config_loader { reset_scale_config }
 import from jaclang.scale.shared.enums { Platforms, Operations }
@@ -15,7 +15,12 @@ import from jaclang.scale._optdeps.firebase_auth {
     firebase_admin as _real_firebase_admin
 }
 import from jaclang.scale.tests.scale_test_client { make_client, extract_data }
-import from jaclang.runtimelib.transport { TransportResponse }
+import from jaclang.server.transport { TransportResponse }
+
+
+def _as_any(value: any) -> any {
+    return value;
+}
 
 
 def mock_sso_config_with_firebase -> dict {
@@ -103,8 +108,8 @@ def _teardown_user_manager(test_dir: str) {
 
 
 def _make_request(body: dict) -> Request {
-    mock_request = unittest.mock.Mock(spec=Request);
-    mock_request.body = json.dumps(body).encode('utf-8');
+    mock_request: any = unittest.mock.Mock(spec=Request);
+    mock_request.body = _as_any(json.dumps(body).encode('utf-8'));
     return mock_request;
 }
 
@@ -174,11 +179,13 @@ test 'get sso with firebase platform' {
 test 'firebase sso initiate returns helpful error' {
     (test_dir, user_manager) = _setup_user_manager(mock_sso_config_with_firebase());
     try {
-        result = asyncio.run(
-            user_manager.sso_initiate(Platforms.FIREBASE.value, Operations.LOGIN.value)
+        coro: any = user_manager.sso_initiate(
+            Platforms.FIREBASE.value, Operations.LOGIN.value
         );
+        result: any = asyncio.run(coro);
         assert isinstance(result, TransportResponse);
         assert not result.ok;
+        assert result.error is not None;
         assert 'POST /sso/firebase/token' in result.error.message;
     } finally {
         _teardown_user_manager(test_dir);
@@ -201,9 +208,10 @@ test 'firebase token auth login existing user' {
         with unittest.mock.patch.object(
             user_manager, 'get_sso', return_value=mock_sso
         ) {
-            result = asyncio.run(
-                user_manager.firebase_token_auth_with_id_token('firebase-token')
+            coro: any = user_manager.firebase_token_auth_with_id_token(
+                'firebase-token'
             );
+            result: any = asyncio.run(coro);
             assert result.ok;
             assert result.data['message'] == 'Login successful';
             assert result.data['platform'] == 'firebase';
@@ -240,9 +248,10 @@ test 'firebase token auth auto register new user' {
         with unittest.mock.patch.object(
             user_manager, 'get_sso', return_value=mock_sso
         ) {
-            result = asyncio.run(
-                user_manager.firebase_token_auth_with_id_token('firebase-token')
+            coro: any = user_manager.firebase_token_auth_with_id_token(
+                'firebase-token'
             );
+            result: any = asyncio.run(coro);
             assert result.ok;
             user_id = result.data['user_id'];
             assert user_id;
@@ -267,9 +276,8 @@ test 'firebase token auth auto register new user' {
 test 'firebase token auth not configured' {
     (test_dir, user_manager) = _setup_user_manager(mock_sso_config_without_firebase());
     try {
-        result = asyncio.run(
-            user_manager.firebase_token_auth_with_id_token('firebase-token')
-        );
+        coro: any = user_manager.firebase_token_auth_with_id_token('firebase-token');
+        result: any = asyncio.run(coro);
         assert not result.ok;
         assert 'not configured' in result.error.message.lower();
     } finally {
@@ -295,7 +303,8 @@ test 'firebase provider missing id token fails' {
         provider = FirebaseSSOProvider(project_id='test-project');
         raised = False;
         try {
-            asyncio.run(provider.handle_callback(_make_request({'nope': 'x'})));
+            cb: any = provider.handle_callback(_make_request({'nope': 'x'}));
+            asyncio.run(cb);
         } except ValueError as e {
             raised = True;
             assert "id_token" in str(e);
@@ -313,13 +322,13 @@ test 'register firebase token endpoint' {
         'jaclang.scale.server.serve.get_scale_config', return_value=mock_config
     ) {
         with unittest.mock.patch(
-            'jaclang.jac0core.runtime.JacRuntimeInterface.get_user_manager',
+            'jaclang.runtime.runtime.JacRuntimeInterface.get_user_manager',
             return_value=mock_user_manager
         ) {
             server = JacAPIServer(module_name='test_module', port=8000);
         }
     }
-    server.server = mock_server_impl;
+    server.server = _as_any(mock_server_impl);
     mock_server_impl.reset_mock();
     server.register_firebase_token_endpoint();
     mock_server_impl.add_endpoint.assert_called_once();

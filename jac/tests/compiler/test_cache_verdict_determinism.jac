@@ -17,13 +17,16 @@ reported it. Both lanes now report it.
 
 import os;
 import jaclang;
-import jaclang.jac0core.compiler as compiler_mod;
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.driver.compiler as compiler_mod;
+import jaclang.compiler.frontend.unitree as uni;
 import from tests.support { TESTS_DIR }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.passes { Transform }
-import from jaclang.jac0core.compiler { _native_env_memo, native_pipeline_available }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.passes { Transform }
+import from jaclang.compiler.driver.schedules {
+    _native_env_memo,
+    native_pipeline_available
+}
 
 glob BRAND_SRC: str = """
 type Branded := int;
@@ -48,10 +51,7 @@ def brand_errors(space: str) -> list[str] {
         file_path=BRAND_PATH,
         use_str=BRAND_SRC,
         options=CompileOptions(
-            type_check=True,
-            no_cgen=True,
-            force_codespace=space,
-            force_target_program=True
+            no_cgen=True, force_codespace=space, force_target_program=True
         )
     );
     return [
@@ -114,12 +114,12 @@ test "a distinct brand is enforced in every codespace" {
 
 test "the native env verdict does not depend on transient schedule state" {
     saved_memo = dict(_native_env_memo);
-    saved_sched = compiler_mod.get_inference_sched;
+    saved_sched = compiler_mod.get_analysis_sched;
     try {
         _native_env_memo.clear();
         baseline = native_pipeline_available();
         _native_env_memo.clear();
-        compiler_mod.get_inference_sched = unbuilt_sched;
+        compiler_mod.get_analysis_sched = unbuilt_sched;
         degraded = native_pipeline_available();
         assert degraded == baseline , (
             "an unbuildable schedule changed the environment verdict: "
@@ -131,7 +131,7 @@ test "the native env verdict does not depend on transient schedule state" {
             );
         }
     } finally {
-        compiler_mod.get_inference_sched = saved_sched;
+        compiler_mod.get_analysis_sched = saved_sched;
         _native_env_memo.clear();
         _native_env_memo.update(saved_memo);
     }
@@ -140,17 +140,17 @@ test "the native env verdict does not depend on transient schedule state" {
 
 test "the same source checks the same whichever verdict the probe memoized" {
     saved_memo = dict(_native_env_memo);
-    saved_sched = compiler_mod.get_inference_sched;
+    saved_sched = compiler_mod.get_analysis_sched;
     try {
         _native_env_memo.clear();
         native_pipeline_available();
         fresh = inferred_brand_errors();
         _native_env_memo.clear();
-        compiler_mod.get_inference_sched = unbuilt_sched;
+        compiler_mod.get_analysis_sched = unbuilt_sched;
         try {
             native_pipeline_available();
         } finally {
-            compiler_mod.get_inference_sched = saved_sched;
+            compiler_mod.get_analysis_sched = saved_sched;
         }
         degraded = inferred_brand_errors();
         assert fresh == degraded , (
@@ -160,7 +160,7 @@ test "the same source checks the same whichever verdict the probe memoized" {
         assert len(fresh) == 1 , f"expected one brand error, got {fresh}";
         assert "Branded" in fresh[0] , fresh[0];
     } finally {
-        compiler_mod.get_inference_sched = saved_sched;
+        compiler_mod.get_analysis_sched = saved_sched;
         _native_env_memo.clear();
         _native_env_memo.update(saved_memo);
     }

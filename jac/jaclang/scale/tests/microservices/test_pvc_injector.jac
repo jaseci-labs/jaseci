@@ -56,9 +56,8 @@ test "secrets are stripped and secret-bearing files excluded from the sealed .ja
                 "plugins.scale.secrets.jwt = \"topsecret\"\n"
                     + "[project]\nname = \"x\"\n"
                     + "[plugins.scale.database]\nurl = \"env:JAC_DB_URL\"\n"
-                    + "[plugins.scale]\n# nested creds annotation\nsecrets.token = \"nestedshh\"\n"
-                    + "[plugins.scale.secrets]\ndb_password = \"p@ssw0rd\"\n"
                     + "# s3 access creds\n[scale.secrets]\napi_key = \"shhhh\"\n"
+                    + "db_password = \"p@ssw0rd\"\ntoken = \"nestedshh\"\n"
             );
         }
         raw = pack_jab(project, _JAC_BIN.read_bytes());
@@ -66,7 +65,9 @@ test "secrets are stripped and secret-bearing files excluded from the sealed .ja
         toml_text = "";
         with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as tar {
             names = tar.getnames();
-            toml_text = tar.extractfile("jac.toml").read().decode("utf-8");
+            toml_member = tar.extractfile("jac.toml");
+            assert toml_member is not None;
+            toml_text = toml_member.read().decode("utf-8");
         }
         assert "app.jac" in names;
         assert "_precompiled/MANIFEST.json" in names;
@@ -79,6 +80,24 @@ test "secrets are stripped and secret-bearing files excluded from the sealed .ja
         assert "p@ssw0rd" not in toml_text;
         assert "shhhh" not in toml_text;
         assert "nestedshh" not in toml_text;
+    }
+}
+
+
+test "a dotted secret key inside a plugin table is stripped with its annotation" {
+    with tempfile.TemporaryDirectory() as project {
+        _make_project(
+            project,
+            "[project]\nname = \"x\"\n"
+                + "[plugins.scale]\n# nested creds annotation\nsecrets.token = \"nestedshh\"\n"
+                + "[plugins.scale.database]\nurl = \"env:JAC_DB_URL\"\n"
+        );
+        text = sanitized_jac_toml(Path(project)) or "";
+        assert "nestedshh" not in text , text;
+        assert "nested creds annotation" not in text , text;
+        data = tomllib.loads(text);
+        assert "secrets" not in data["plugins"]["scale"] , data;
+        assert data["plugins"]["scale"]["database"]["url"] == "env:JAC_DB_URL";
     }
 }
 

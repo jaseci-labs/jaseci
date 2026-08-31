@@ -1,27 +1,29 @@
 """Construction-time schedule validation against declared pass dependencies.
 
-Every pass schedule is validated (or derived) from the passes' declared
-REQUIRES/PROVIDES at construction time (#7871 workstream H): a schedule that
-omits a declared dependency fails fast with the pass and the missing analysis
-named, never mid-compile on user code. `resolve_schedule` derives providers
-from declarations, and `get_type_check_sched` drops analyses whose declared
-inputs have no available provider in the current environment instead of
-scheduling a pass that cannot run.
+Every pass schedule is validated from the passes' declared REQUIRES/PROVIDES at
+construction time (#7871 workstream H): a schedule that omits a declared
+dependency fails fast with the pass and the missing analysis named, never
+mid-compile on user code.
+
+Since #8398 there is one canonical compile pipeline instead of option-shaped
+fragments, so validation is the whole story: every REQUIRES is satisfied by an
+earlier pass in the single list, and nothing is derived or dropped at runtime.
+The analysis stage is unconditional, so a pass whose declared inputs are
+missing is a construction error rather than a silently omitted analysis.
 """
 
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.compiler {
-    get_inference_sched,
-    get_type_check_sched,
-    providers_for,
-    resolve_schedule,
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.schedules {
+    get_analysis_sched,
+    get_compile_sched,
+    providers_of,
     validate_schedule
 }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
-import from jaclang.compiler.passes.main.ownership_check_pass { OwnershipCheckPass }
-import from jaclang.compiler.passes.main.static_analysis_pass { StaticAnalysisPass }
-import from jaclang.compiler.passes.main.type_checker_pass { TypeInferencePass }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.passes.cfg_build_pass { CFGBuildPass }
+import from jaclang.compiler.passes.ownership_check_pass { OwnershipCheckPass }
+import from jaclang.compiler.passes.static_analysis_pass { StaticAnalysisPass }
+import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
 
 
 test "schedule omitting a declared dependency fails fast at construction" {
@@ -58,61 +60,45 @@ test "validation accepts a schedule whose dependencies are preprovided" {
 
 test "validation accepts a schedule whose dependencies run earlier in it" {
     sched = validate_schedule(
-        [CFGBuildPass, TypeInferencePass, OwnershipCheckPass], origin='test schedule'
+        [CFGBuildPass, TypeCheckPass, OwnershipCheckPass], origin='test schedule'
     );
     assert len(sched) == 3;
 }
 
-test "resolve_schedule inserts declared providers before the dependent pass" {
-    sched = resolve_schedule(
-        [OwnershipCheckPass],
-        providers=providers_for([CFGBuildPass, TypeInferencePass]),
-        origin='test schedule'
-    );
-    assert OwnershipCheckPass in sched;
-    assert sched.index(CFGBuildPass) < sched.index(OwnershipCheckPass);
-    assert sched.index(TypeInferencePass) < sched.index(OwnershipCheckPass);
-}
-
-test "resolve_schedule drops passes whose dependencies have no provider" {
-    sched = resolve_schedule(
-        [StaticAnalysisPass, OwnershipCheckPass],
-        providers={},
-        drop_unsatisfiable=True,
-        origin='test schedule'
-    );
-    assert sched == [StaticAnalysisPass];
-}
-
-test "resolve_schedule raises when a dependency has no provider" {
-    err = '';
-    try {
-        resolve_schedule([OwnershipCheckPass], providers={}, origin='test schedule');
-    } except RuntimeError as e {
-        err = str(e);
-    }
-    assert 'OwnershipCheckPass' in err;
-    assert "'cfg'" in err;
-}
-
-test "type-check schedule construction satisfies ownership dependencies" {
-    sched = get_type_check_sched();
+test "the analysis stage always carries type checking and the checkers" {
+    sched = get_analysis_sched();
+    assert TypeCheckPass in sched;
     assert StaticAnalysisPass in sched;
-    if OwnershipCheckPass in sched {
-        assert get_inference_sched() != [];
-        assert CFGBuildPass in sched;
-        assert TypeInferencePass in sched;
-        assert sched.index(CFGBuildPass) < sched.index(OwnershipCheckPass);
-        assert sched.index(TypeInferencePass) < sched.index(OwnershipCheckPass);
-    }
-    validate_schedule(sched, origin='type-check schedule');
+    assert OwnershipCheckPass in sched;
+    assert sched.index(TypeCheckPass) < sched.index(OwnershipCheckPass);
 }
 
-test "type-check schedule trusts analyses the module already ran" {
-    sched = get_type_check_sched(provided={'cfg', 'inference'});
+test "the canonical compile pipeline validates end to end" {
+    sched = get_compile_sched();
+    assert CFGBuildPass in sched;
+    assert TypeCheckPass in sched;
     assert OwnershipCheckPass in sched;
-    assert CFGBuildPass not in sched;
-    assert TypeInferencePass not in sched;
+    assert sched.index(CFGBuildPass) < sched.index(TypeCheckPass);
+    validate_schedule(sched, origin='compile schedule');
+}
+
+test "every declared requirement is satisfied within the one pipeline" {
+    sched = get_compile_sched();
+    provided: set[str] = set();
+    for p in sched {
+        for tag in (getattr(p, 'REQUIRES', ()) or ()) {
+            assert tag in provided , f"{p.__name__} requires '{tag}' with no earlier provider";
+        }
+        for tag in (getattr(p, 'PROVIDES', ()) or ()) {
+            provided.add(tag);
+        }
+    }
+}
+
+test "providers_of reports the tags a schedule segment supplies" {
+    assert 'cfg' in providers_of([CFGBuildPass]);
+    assert 'inference' in providers_of([TypeCheckPass]);
+    assert providers_of([]) == set();
 }
 
 test "run_schedule rejects an incoherent schedule before running any pass" {

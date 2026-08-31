@@ -9,11 +9,11 @@ import os;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import jaclang;
-import jaclang.jac0core.unitree as ast;
-import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
-import from jaclang.runtimelib.test { parametrize }
+import jaclang.compiler.frontend.unitree as ast;
+import from jaclang.compiler.passes.pyast_load_pass { PyastBuildPass }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.tools.unparse_pass { unparse_module }
+import from jaclang.testing.test { parametrize }
 import from tests.fixtures_list { JACLANG_PYTHON_FILES }
 
 """Every in-repo Python file should parse and unparse cleanly."""
@@ -23,8 +23,7 @@ def pyfile_parse_test(rel_path: str) {
     py_module = PyastBuildPass(
         ir_in=ast.PythonModuleAst(
             py_ast.parse(source), orig_src=ast.Source(source, filename)
-        ),
-        prog=JacProgram()
+        )
     ).ir_out;
 
     assert isinstance(py_module, ast.Module);
@@ -43,6 +42,6 @@ with entry {
         "python file parses with pyast build pass",
         JACLANG_PYTHON_FILES,
         pyfile_parse_test,
-        id_fn=lambda (f) { Path(f).stem; }
+        id_fn=lambda (f: str) { Path(f).stem; }
     );
 }

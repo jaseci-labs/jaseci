@@ -6,21 +6,21 @@ import sys;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from tests.support { JAC_ROOT }
-import from tests.compiler.passes.main.checker_npm_harness { make_npm_client_project }
+import from tests.compiler.passes.checker_npm_harness { make_npm_client_project }
 
-import jaclang.lsp.types as lspt;
+import jaclang.lsp.protocol.types as lspt;
 
 import jaclang;
-import from jaclang.langserve.engine { JacLangServer }
-import from jaclang.lsp { uris }
-import from jaclang.lsp.server { Workspace }
+import from jaclang.lsp.server.engine { JacLangServer }
+import from jaclang.lsp.protocol { uris }
+import from jaclang.lsp.protocol.server { Workspace }
 
 glob FIXTURE_DIR = os.path.join(
          os.path.dirname(os.path.abspath(__file__)), "fixtures"
      ),
      EXAMPLES_DIR = os.path.join(JAC_ROOT, "examples"),
      PASSES_FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"
+         JAC_ROOT, "tests", "compiler", "passes", "fixtures"
      ),
      _active_servers: list = [];
 
@@ -54,7 +54,7 @@ def teardown_test {
         with contextlib.suppress(Exception) as _s {
             server.shutdown();
         }
-        server.clear_type_system(clear_hub=True);
+        server.program.clear_type_system(clear_hub=True);
     }
     _active_servers.clear();
     _clear_jac_modules();
@@ -73,6 +73,11 @@ def examples_abs_path(name: str) -> str {
 """Get absolute path of a fixture from compiler passes main fixtures directory."""
 def passes_main_fixture_abs_path(name: str) -> str {
     return os.path.join(PASSES_FIXTURES, name);
+}
+
+"""Identity helper that erases static type info for checker-safe casts."""
+def _as_any(v: any) -> any {
+    return v;
 }
 
 """Create a JacLangServer wired to the given workspace."""
@@ -96,18 +101,20 @@ test "test_impl_stay_connected" {
     try {
         lsp = create_server();
         circle_file = uris.from_fs_path(fixture_path("circle_pure.jac"));
+        assert circle_file is not None;
         circle_impl_file = uris.from_fs_path(fixture_path("circle_pure.impl.jac"));
+        assert circle_impl_file is not None;
         lsp.type_check_file(circle_file);
         pos = lspt.Position(20, 8);
         assert (
             "Circle class inherits from Shape."
-            in lsp.get_hover_info(circle_file, pos).contents.value
+            in _as_any(lsp.get_hover_info(circle_file, pos)).contents.value
         );
         lsp.type_check_file(circle_impl_file);
         pos = lspt.Position(8, 11);
         assert (
             "ability) calculate_area\n( radius : float ) -> float"
-            in lsp.get_hover_info(circle_impl_file, pos).contents.value
+            in _as_any(lsp.get_hover_info(circle_impl_file, pos)).contents.value
         );
     } finally {
         teardown_test();
@@ -119,11 +126,12 @@ test "test_impl_auto_discover" {
     try {
         lsp = create_server();
         circle_impl_file = uris.from_fs_path(fixture_path("circle_pure.impl.jac"));
+        assert circle_impl_file is not None;
         lsp.type_check_file(circle_impl_file);
         pos = lspt.Position(8, 11);
         assert (
             "(public ability) calculate_area\n( radius : float ) -> float"
-            in lsp.get_hover_info(circle_impl_file, pos).contents.value
+            in _as_any(lsp.get_hover_info(circle_impl_file, pos)).contents.value
         );
     } finally {
         teardown_test();
@@ -135,6 +143,7 @@ test "test_outline_symbols" {
     try {
         lsp = create_server();
         circle_file = uris.from_fs_path(fixture_path("circle_pure.jac"));
+        assert circle_file is not None;
         lsp.type_check_file(circle_file);
         assert len(lsp.get_outline(circle_file)) == 8;
     } finally {
@@ -147,6 +156,7 @@ test "test_go_to_definition" {
     try {
         lsp = create_server();
         circle_file = uris.from_fs_path(fixture_path("circle_pure.jac"));
+        assert circle_file is not None;
         lsp.type_check_file(circle_file);
         assert "fixtures/circle_pure.impl.jac:8:5-8:19"
             in str(lsp.get_definition(circle_file, lspt.Position(9, 16)));
@@ -154,6 +164,7 @@ test "test_go_to_definition" {
             in str(lsp.get_definition(circle_file, lspt.Position(20, 16)));
 
         goto_defs_file = uris.from_fs_path(fixture_path("goto_def_tests.jac"));
+        assert goto_defs_file is not None;
         lsp.type_check_file(goto_defs_file);
 
         # Test if the visitor keyword goes to the walker definition
@@ -175,6 +186,7 @@ test "test_go_to_definition" {
         self_member_file = uris.from_fs_path(
             passes_main_fixture_abs_path("checker_impl/checker_impl_self_member.jac")
         );
+        assert self_member_file is not None;
         lsp.type_check_file(self_member_file);
         go_def_result = str(
             lsp.get_definition(self_member_file, lspt.Position(24, 14))
@@ -192,6 +204,7 @@ test "test_go_to_definition_any_keyword" {
     try {
         lsp = create_server();
         f = uris.from_fs_path(fixture_path("any_goto_def_tests.jac"));
+        assert f is not None;
         lsp.type_check_file(f);
 
         # Backtick-escaped `` `any `` (function form) → typeshed builtins.pyi
@@ -228,12 +241,14 @@ test "test_go_to_definition_method_manual_impl" {
                 "decl_defs_main.impl.jac"
             )
         );
+        assert decldef_file is not None;
         lsp.type_check_file(decldef_file);
         decldef_main_file = uris.from_fs_path(
             os.path.join(
                 JAC_ROOT, "tests", "compiler", "fixtures", "micro", "decl_defs_main.jac"
             )
         );
+        assert decldef_main_file is not None;
         lsp.type_check_file(decldef_main_file);
         lsp.type_check_file(decldef_file);
         assert "decl_defs_main.jac:7:8-7:17"
@@ -248,28 +263,29 @@ test "test_go_to_definition_md_path" {
     try {
         lsp = create_server();
         import_file = uris.from_fs_path(fixture_path("md_path.jac"));
+        assert import_file is not None;
         lsp.type_check_file(import_file);
         positions = [
             (3, 11, "asyncio/__init__.pyi:0:0-0:0"),
             (6, 17, "concurrent/__init__.pyi:0:0-0:0"),
             (6, 28, "concurrent/futures/__init__.pyi:0:0-0:0"),
             (7, 17, "typing.pyi:0:0-0:0"),
-            (9, 18, "jaclang/jac0core/__init__.py:0:0-0:0"),
-            (9, 25, "jaclang/jac0core/unitree.jac:0:0-0:0"),
+            (9, 18, "jaclang/compiler/__init__.py:0:0-0:0"),
+            (9, 34, "jaclang/compiler/frontend/unitree.jac:0:0-0:0"),
             # jaclang/__init__.py now exposes JacRuntimeInterface lazily via
             # PEP 562 __getattr__ (no static import binding), so go-to-def
             # resolves to the module file at 0:0-0:0 instead of a line.
-            (10, 34, "jaclang/__init__.py:0:0-0:0"),
-            (11, 35, "jaclang/jac0core/constant.jac:0:0-0:0"),
-            (11, 47, "jaclang/jac0core/constant.jac:2:5-2:15"),
-            (13, 47, "jaclang/compiler/type_system/type_utils.jac:0:0-0:0"),
-            (14, 34, "jaclang/compiler/type_system/__init__.py:0:0-0:0"),
-            (18, 5, "compiler/type_system/types.jac:37:4-37:12"),
-            (20, 34, "jaclang/jac0core/unitree.jac:0:0-0:0"),
+            (10, 34, "jaclang/__init__.py:"),
+            (11, 40, "jaclang/compiler/frontend/constant.jac:0:0-0:0"),
+            (11, 51, "jaclang/compiler/frontend/constant.jac:2:5-2:15"),
+            (13, 40, "jaclang/compiler/types/type_utils.jac:0:0-0:0"),
+            (14, 34, "jaclang/compiler/types/__init__.py:0:0-0:0"),
+            (18, 5, "compiler/types/types.jac:37:4-37:12"),
+            (20, 40, "jaclang/compiler/frontend/unitree.jac:0:0-0:0"),
             (22, 22, "tests/langserve/fixtures/circle.jac:7:5-7:8"),
-            (23, 28, "jaclang/lsp/uris.jac:0:0-0:0"),
-            (24, 40, "jaclang/lsp/server.jac:93:4-93:18"),
-            (26, 31, "jaclang/lsp/types.jac:0:0-0:0"),
+            (23, 37, "jaclang/lsp/protocol/uris.jac:0:0-0:0"),
+            (24, 44, "jaclang/lsp/protocol/server.jac:93:4-93:18"),
+            (26, 31, "jaclang/lsp/protocol/types.jac:0:0-0:0"),
 
         ];
 
@@ -303,6 +319,7 @@ test "test_go_to_definition_string_imports" {
             );
             lsp = create_server(str(proj));
             furi = uris.from_fs_path(str(src));
+            assert furi is not None;
             lsp.type_check_file(furi);
             # Bug 1 (#7839): an item imported from an npm package must land on
             # its declaration inside the package's .d.ts, not self-jump.
@@ -334,6 +351,7 @@ test "test_go_to_definition_jsx_component" {
     try {
         lsp = create_server();
         jsx_file = uris.from_fs_path(fixture_path("jsx_goto_def.jac"));
+        assert jsx_file is not None;
         lsp.type_check_file(jsx_file);
         # Cursor inside the <MyButton ...> tag name on line 12 (0-indexed 11).
         # `        <MyButton ...` -- 'M' is at column 9, so col 12 lands on 'u'.
@@ -353,6 +371,7 @@ test "test_go_to_definition_connect_filter" {
         import_file = uris.from_fs_path(
             passes_main_fixture_abs_path("checker/checker_connect_filter.jac")
         );
+        assert import_file is not None;
         lsp.type_check_file(import_file);
         positions = [
             (25, 5, "connect_filter.jac:19:4-19:10"),
@@ -386,6 +405,7 @@ test "test_go_to_definition_atom_trailer" {
     try {
         lsp = create_server();
         import_file = uris.from_fs_path(fixture_path("user.jac"));
+        assert import_file is not None;
         lsp.type_check_file(import_file);
         positions = [
             (12, 7, "fixtures/greet.py:6:3-7:15"),
@@ -409,6 +429,7 @@ test "test_missing_mod_warning" {
     try {
         lsp = create_server();
         import_file = uris.from_fs_path(fixture_path("md_path.jac"));
+        assert import_file is not None;
         lsp.type_check_file(import_file);
 
         expected_warnings = [
@@ -416,7 +437,7 @@ test "test_missing_mod_warning" {
             "fixtures/md_path.jac, line 27, col 8: Module not found",
 
         ];
-        warnings_str = [str(w) for w in lsp.warnings_had];
+        warnings_str = [str(w) for w in lsp.program.warnings_had];
         for expected in expected_warnings {
             assert any(expected in w for w in warnings_str) , f"Expected warning '{expected}' not found in {warnings_str}";
         }
@@ -432,6 +453,7 @@ test "test_completion" {
     try {
         lsp = create_server();
         base_module_file = uris.from_fs_path(fixture_path("completion_test_err.jac"));
+        assert base_module_file is not None;
         lsp.type_check_file(base_module_file);
 
         test_cases: list[Case] = [
@@ -440,9 +462,15 @@ test "test_completion" {
 
         ];
         for `case in test_cases {
-            results = asyncio.run(
-                lsp.get_completion(
-                    base_module_file, `case.pos, completion_trigger=`case.trigger
+            results = _as_any(
+                asyncio.run(
+                    _as_any(
+                        lsp.get_completion(
+                            base_module_file,
+                            `case.pos,
+                            completion_trigger=`case.trigger
+                        )
+                    )
                 )
             );
             completions = results.items;
@@ -465,6 +493,7 @@ test "test_completion_identifier_and_keywords" {
         with tempfile.TemporaryDirectory() as td {
             path = os.path.join(td, "completion_ident.jac");
             uri = uris.from_fs_path(path);
+            assert uri is not None;
             # Member access after `self.`
             with open(path, "w") as f {
                 f.write(
@@ -479,8 +508,14 @@ test "test_completion_identifier_and_keywords" {
                 );
             }
             lsp.type_check_file(uri);
-            members = asyncio.run(
-                lsp.get_completion(uri, lspt.Position(4, 13), completion_trigger=".")
+            members = _as_any(
+                asyncio.run(
+                    _as_any(
+                        lsp.get_completion(
+                            uri, lspt.Position(4, 13), completion_trigger="."
+                        )
+                    )
+                )
             );
             member_labels = [i.label for i in members.items];
             assert "bar" in member_labels;
@@ -498,8 +533,14 @@ test "test_completion_identifier_and_keywords" {
                 );
             }
             lsp.type_check_file(uri);
-            ident = asyncio.run(
-                lsp.get_completion(uri, lspt.Position(3, 10), completion_trigger=None)
+            ident = _as_any(
+                asyncio.run(
+                    _as_any(
+                        lsp.get_completion(
+                            uri, lspt.Position(3, 10), completion_trigger=None
+                        )
+                    )
+                )
             );
             ident_labels = [i.label for i in ident.items];
             assert "print" in ident_labels , f"expected print in {ident_labels[:30]}";
@@ -519,8 +560,14 @@ test "test_completion_identifier_and_keywords" {
                 );
             }
             lsp.type_check_file(uri);
-            on_self = asyncio.run(
-                lsp.get_completion(uri, lspt.Position(3, 10), completion_trigger=None)
+            on_self = _as_any(
+                asyncio.run(
+                    _as_any(
+                        lsp.get_completion(
+                            uri, lspt.Position(3, 10), completion_trigger=None
+                        )
+                    )
+                )
             );
             on_self_labels = [i.label for i in on_self.items];
             assert "print" in on_self_labels;
@@ -539,8 +586,14 @@ test "test_completion_identifier_and_keywords" {
                 );
             }
             lsp.type_check_file(uri);
-            blank = asyncio.run(
-                lsp.get_completion(uri, lspt.Position(4, 8), completion_trigger=None)
+            blank = _as_any(
+                asyncio.run(
+                    _as_any(
+                        lsp.get_completion(
+                            uri, lspt.Position(4, 8), completion_trigger=None
+                        )
+                    )
+                )
             );
             blank_labels = [i.label for i in blank.items];
             assert "print" in blank_labels;
@@ -564,6 +617,7 @@ test "test_completion_suppressed_in_string_and_comment" {
         with tempfile.TemporaryDirectory() as td {
             path = os.path.join(td, "completion_text.jac");
             uri = uris.from_fs_path(path);
+            assert uri is not None;
             with open(path, "w") as f {
                 f.write(
                     """class Foo {
@@ -579,30 +633,60 @@ test "test_completion_suppressed_in_string_and_comment" {
             }
             lsp.type_check_file(uri);
             # Inside the string literal -> no completions
-            in_string = asyncio.run(
-                lsp.get_completion(uri, lspt.Position(3, 18), completion_trigger=None)
+            in_string = _as_any(
+                asyncio.run(
+                    _as_any(
+                        lsp.get_completion(
+                            uri, lspt.Position(3, 18), completion_trigger=None
+                        )
+                    )
+                )
             );
             assert len(in_string.items) == 0 , "expected no completions inside a string";
             # Inside the line comment -> no completions
-            in_comment = asyncio.run(
-                lsp.get_completion(uri, lspt.Position(4, 14), completion_trigger=None)
+            in_comment = _as_any(
+                asyncio.run(
+                    _as_any(
+                        lsp.get_completion(
+                            uri, lspt.Position(4, 14), completion_trigger=None
+                        )
+                    )
+                )
             );
             assert len(in_comment.items) == 0 , "expected no completions inside a comment";
             # Inside the f-string literal text -> no completions
-            in_fstring_text = asyncio.run(
-                lsp.get_completion(uri, lspt.Position(5, 15), completion_trigger=None)
+            in_fstring_text = _as_any(
+                asyncio.run(
+                    _as_any(
+                        lsp.get_completion(
+                            uri, lspt.Position(5, 15), completion_trigger=None
+                        )
+                    )
+                )
             );
             assert len(in_fstring_text.items) == 0 , "expected no completions in f-string text";
             # Inside the f-string interpolated expression -> completions still work
-            in_fstring_expr = asyncio.run(
-                lsp.get_completion(uri, lspt.Position(5, 20), completion_trigger=None)
+            in_fstring_expr = _as_any(
+                asyncio.run(
+                    _as_any(
+                        lsp.get_completion(
+                            uri, lspt.Position(5, 20), completion_trigger=None
+                        )
+                    )
+                )
             );
             expr_labels = [i.label for i in in_fstring_expr.items];
             assert len(expr_labels) > 0 , "expected completions inside f-string expression";
             assert "print" in expr_labels;
             # Control: typing at a normal identifier position still completes
-            on_ident = asyncio.run(
-                lsp.get_completion(uri, lspt.Position(3, 9), completion_trigger=None)
+            on_ident = _as_any(
+                asyncio.run(
+                    _as_any(
+                        lsp.get_completion(
+                            uri, lspt.Position(3, 9), completion_trigger=None
+                        )
+                    )
+                )
             );
             assert len(on_ident.items) > 0 , "expected completions at a normal position";
         }
@@ -616,6 +700,7 @@ test "test_go_to_reference" {
     try {
         lsp = create_server();
         circle_file = uris.from_fs_path(fixture_path("circle.jac"));
+        assert circle_file is not None;
         lsp.type_check_file(circle_file);
         test_cases = [
             (45, 4, ["circle.jac:45:4-45:5", "51:23-51:24", "51:75-51:76"]),
@@ -641,6 +726,7 @@ test "test_go_to_def_import_star" {
         import_star_file = uris.from_fs_path(
             passes_main_fixture_abs_path("checker_import_star/main.jac")
         );
+        assert import_star_file is not None;
 
         lsp.type_check_file(import_star_file);
         positions = [
@@ -670,8 +756,10 @@ test "test_stub_impl_hover_and_goto_def" {
     try {
         lsp = create_server();
         test_file = uris.from_fs_path(fixture_path("stub_hover.jac"));
+        assert test_file is not None;
         impl_file_path = fixture_path("stub_hover.impl.jac");
         impl_file = uris.from_fs_path(impl_file_path);
+        assert impl_file is not None;
         lsp.type_check_file(test_file);
 
         # Test hover on type annotations in stub file
@@ -679,18 +767,24 @@ test "test_stub_impl_hover_and_goto_def" {
         # Hover on MyServer in: def process(self: MyServer, data: str) -> str;
         hover = lsp.get_hover_info(test_file, lspt.Position(12, 24));
         assert hover is not None , "Hover should return info for self type annotation";
-        assert "MyServer" in hover.contents.value , f"Hover should show MyServer info, got: {hover.contents.value}";
+        assert "MyServer" in _as_any(hover).contents.value , f"Hover should show MyServer info, got: {_as_any(
+            hover
+        ).contents.value}";
 
         # Hover on MyServer in: def handle(self: MyServer, request: int) -> None;
         hover2 = lsp.get_hover_info(test_file, lspt.Position(13, 23));
         assert hover2 is not None , "Hover should return info for self type annotation";
-        assert "MyServer" in hover2.contents.value , f"Hover should show MyServer info, got: {hover2.contents.value}";
+        assert "MyServer" in _as_any(hover2).contents.value , f"Hover should show MyServer info, got: {_as_any(
+            hover2
+        ).contents.value}";
 
         # Test hover on type annotations in impl file
         lsp.type_check_file(impl_file);
         hover3 = lsp.get_hover_info(impl_file, lspt.Position(14, 29));
         assert hover3 is not None , "Hover should return info for self type in impl file";
-        assert "MyServer" in hover3.contents.value , f"Hover should show MyServer info in impl, got: {hover3.contents.value}";
+        assert "MyServer" in _as_any(hover3).contents.value , f"Hover should show MyServer info in impl, got: {_as_any(
+            hover3
+        ).contents.value}";
 
         # Test go-to-definition from stub to impl
         defn = lsp.get_definition(test_file, lspt.Position(11, 10));
@@ -716,7 +810,9 @@ test "test_stub_impl_hover_and_goto_def" {
         # Hover on 'worker' in 'self.worker.start()'
         hover_worker = lsp.get_hover_info(impl_file, lspt.Position(22, 10));
         assert hover_worker is not None , "Hover should return info for worker field in impl body";
-        assert "Thread" in hover_worker.contents.value , f"Hover should show Thread type, got: {hover_worker.contents.value}";
+        assert "Thread" in _as_any(hover_worker).contents.value , f"Hover should show Thread type, got: {_as_any(
+            hover_worker
+        ).contents.value}";
 
         # Go-to-definition on 'start' should go to Python threading module
         defn_start = lsp.get_definition(impl_file, lspt.Position(22, 17));
@@ -734,6 +830,7 @@ test "test_go_to_definition_by_postinit" {
         file_uri = uris.from_fs_path(
             passes_main_fixture_abs_path("static_analysis/by_postinit_sym.jac")
         );
+        assert file_uri is not None;
         lsp.type_check_file(file_uri);
         # Foo: inline
         result = lsp.get_definition(file_uri, lspt.Position(1, 20));
@@ -759,6 +856,7 @@ test "test_go_to_definition_impl_body_self_attr" {
         impl_file = uris.from_fs_path(
             passes_main_fixture_abs_path("impl_symbol_resolution.impl.jac")
         );
+        assert impl_file is not None;
         lsp.type_check_file(impl_file);
 
         positions = [
@@ -784,6 +882,7 @@ test "test_go_to_definition_directory_import" {
     try {
         lsp = create_server();
         import_file = uris.from_fs_path(fixture_path("local_imports/main.jac"));
+        assert import_file is not None;
         lsp.type_check_file(import_file);
 
         positions = [
@@ -811,6 +910,7 @@ test "test_go_to_definition_nested_impl_symbols" {
     try {
         lsp = create_server();
         impl_file = uris.from_fs_path(fixture_path("nested_impl_resolution.impl.jac"));
+        assert impl_file is not None;
         lsp.type_check_file(impl_file);
 
         positions = [
@@ -840,6 +940,7 @@ test "test_go_to_definition_stub_param_compound_types" {
     try {
         lsp = create_server();
         stub_file = uris.from_fs_path(fixture_path("stub_param_goto_def.jac"));
+        assert stub_file is not None;
         lsp.type_check_file(stub_file);
 
         # (line, col, description) — 1-indexed; col points to `Module` in `uni.Module`
@@ -868,6 +969,7 @@ test "test_hover_narrowing_in_loop" {
         lsp = create_server();
         # Use the dedicated LSP fixture
         narrowing_file = uris.from_fs_path(fixture_path("hover_loop.jac"));
+        assert narrowing_file is not None;
         lsp.type_check_file(narrowing_file);
 
         # Line 13 is: for s in expr.strings {
@@ -877,9 +979,11 @@ test "test_hover_narrowing_in_loop" {
 
         assert hover is not None , "Hover should return info for expr inside loop";
         # Verify it shows the narrowed type MyString
-        assert "MyString" in hover.contents.value , f"Hover should show MyString, got: {hover.contents.value}";
+        assert "MyString" in _as_any(hover).contents.value , f"Hover should show MyString, got: {_as_any(
+            hover
+        ).contents.value}";
         # Verify it does NOT show the union type MyInt or None
-        assert "MyInt" not in hover.contents.value , "Hover should NOT show MyInt (it should be narrowed)";
+        assert "MyInt" not in _as_any(hover).contents.value , "Hover should NOT show MyInt (it should be narrowed)";
     } finally {
         teardown_test();
     }
@@ -892,6 +996,7 @@ test "test_hover_types" {
         narrowing_file = uris.from_fs_path(
             passes_main_fixture_abs_path("checker/checker_and_narrowing.jac")
         );
+        assert narrowing_file is not None;
         lsp.type_check_file(narrowing_file);
 
         hover_cases: list[tuple] = [
@@ -912,9 +1017,13 @@ test "test_hover_types" {
                 narrowing_file, lspt.Position(line - 1, col - 1)
             );
             assert hover is not None , f"Hover should exist at line {line}, col {col}";
-            assert expected in hover.contents.value , f"Line {line}: expected '{expected}' in hover, got: {hover.contents.value}";
+            assert expected in _as_any(hover).contents.value , f"Line {line}: expected '{expected}' in hover, got: {_as_any(
+                hover
+            ).contents.value}";
             if should_not_contain {
-                assert should_not_contain not in hover.contents.value , f"Line {line}: should NOT contain '{should_not_contain}', got: {hover.contents.value}";
+                assert should_not_contain not in _as_any(hover).contents.value , f"Line {line}: should NOT contain '{should_not_contain}', got: {_as_any(
+                    hover
+                ).contents.value}";
             }
         }
 
@@ -922,24 +1031,35 @@ test "test_hover_types" {
         match_file = uris.from_fs_path(
             passes_main_fixture_abs_path("checker_match_case_narrowing.jac")
         );
+        assert match_file is not None;
         lsp.type_check_file(match_file);
         hover = lsp.get_hover_info(match_file, lspt.Position(27, 19));
         assert hover is not None , "Match-case hover should exist";
-        assert "AtomTrailer" in hover.contents.value , f"Match-case: expected AtomTrailer, got: {hover.contents.value}";
-        assert "JsxElement" not in hover.contents.value , f"Match-case: should NOT contain JsxElement, got: {hover.contents.value}";
+        assert "AtomTrailer" in _as_any(hover).contents.value , f"Match-case: expected AtomTrailer, got: {_as_any(
+            hover
+        ).contents.value}";
+        assert "JsxElement" not in _as_any(hover).contents.value , f"Match-case: should NOT contain JsxElement, got: {_as_any(
+            hover
+        ).contents.value}";
 
         # Walrus narrowing: greeting should be str, not str | None
         walrus_file = uris.from_fs_path(
             passes_main_fixture_abs_path("checker_walrus_narrowing.jac")
         );
+        assert walrus_file is not None;
         lsp.type_check_file(walrus_file);
         hover = lsp.get_hover_info(walrus_file, lspt.Position(13, 15));
         assert hover is not None , "Walrus hover should exist";
-        assert "str" in hover.contents.value , f"Walrus: expected str, got: {hover.contents.value}";
-        assert "None" not in hover.contents.value , f"Walrus: should NOT contain None (narrowed!), got: {hover.contents.value}";
+        assert "str" in _as_any(hover).contents.value , f"Walrus: expected str, got: {_as_any(
+            hover
+        ).contents.value}";
+        assert "None" not in _as_any(hover).contents.value , f"Walrus: should NOT contain None (narrowed!), got: {_as_any(
+            hover
+        ).contents.value}";
 
         # Comprehension types: iteration variables should have inferred types
         compr_file = uris.from_fs_path(fixture_path("hover_comprehension.jac"));
+        assert compr_file is not None;
         lsp.type_check_file(compr_file);
         compr_cases = [
             (4, 41, "int"),
@@ -951,36 +1071,52 @@ test "test_hover_types" {
         for (line, col, expected) in compr_cases {
             hover = lsp.get_hover_info(compr_file, lspt.Position(line - 1, col - 1));
             assert hover is not None , f"Compr hover should exist at line {line}, col {col}";
-            assert expected in hover.contents.value , f"Compr line {line}: expected '{expected}', got: {hover.contents.value}";
+            assert expected in _as_any(hover).contents.value , f"Compr line {line}: expected '{expected}', got: {_as_any(
+                hover
+            ).contents.value}";
         }
 
         # __getattr__ dynamic attributes: hover should show "(dynamic attribute) name: type"
         getattr_file = uris.from_fs_path(
             passes_main_fixture_abs_path("checker_getattr_support.jac")
         );
+        assert getattr_file is not None;
         lsp.type_check_file(getattr_file);
         hover = lsp.get_hover_info(getattr_file, lspt.Position(23, 16));
         assert hover is not None , "__getattr__ hover should exist for p.foo";
-        assert "dynamic attribute" in hover.contents.value , f"p.foo: expected 'dynamic attribute', got: {hover.contents.value}";
-        assert "str" in hover.contents.value , f"p.foo: expected 'str' type, got: {hover.contents.value}";
+        assert "dynamic attribute" in _as_any(hover).contents.value , f"p.foo: expected 'dynamic attribute', got: {_as_any(
+            hover
+        ).contents.value}";
+        assert "str" in _as_any(hover).contents.value , f"p.foo: expected 'str' type, got: {_as_any(
+            hover
+        ).contents.value}";
         hover = lsp.get_hover_info(getattr_file, lspt.Position(31, 16));
         assert hover is not None , "Hover should exist for m.real_attr";
-        assert "dynamic attribute" not in hover.contents.value , f"m.real_attr: should NOT be 'dynamic attribute', got: {hover.contents.value}";
+        assert "dynamic attribute" not in _as_any(hover).contents.value , f"m.real_attr: should NOT be 'dynamic attribute', got: {_as_any(
+            hover
+        ).contents.value}";
         hover = lsp.get_hover_info(getattr_file, lspt.Position(32, 16));
         assert hover is not None , "__getattr__ hover should exist for m.dynamic_attr";
-        assert "dynamic attribute" in hover.contents.value , f"m.dynamic_attr: expected 'dynamic attribute', got: {hover.contents.value}";
+        assert "dynamic attribute" in _as_any(hover).contents.value , f"m.dynamic_attr: expected 'dynamic attribute', got: {_as_any(
+            hover
+        ).contents.value}";
         hover = lsp.get_hover_info(getattr_file, lspt.Position(39, 18));
         assert hover is not None , "Hover should exist for ng.real_attr";
-        assert "dynamic attribute" not in hover.contents.value , f"ng.real_attr: should NOT be 'dynamic attribute', got: {hover.contents.value}";
+        assert "dynamic attribute" not in _as_any(hover).contents.value , f"ng.real_attr: should NOT be 'dynamic attribute', got: {_as_any(
+            hover
+        ).contents.value}";
         hover = lsp.get_hover_info(getattr_file, lspt.Position(42, 7));
         if hover is not None {
-            assert "dynamic attribute" not in hover.contents.value , f"ng.nonexistent: should NOT be 'dynamic attribute', got: {hover.contents.value}";
+            assert "dynamic attribute" not in _as_any(hover).contents.value , f"ng.nonexistent: should NOT be 'dynamic attribute', got: {_as_any(
+                hover
+            ).contents.value}";
         }
 
         # Overload resolution: str.split() -> list[str], list[str][0] -> str
         overload_file = uris.from_fs_path(
             passes_main_fixture_abs_path("checker/checker_overload_resolution.jac")
         );
+        assert overload_file is not None;
         lsp.type_check_file(overload_file);
         overload_cases = [
             (4, 6, ["list"]),  # parts: list[str] or list[LiteralString]
@@ -996,20 +1132,25 @@ test "test_hover_types" {
             assert hover is not None , f"Overload hover at line {line} should exist";
             found = False;
             for exp in expected_list {
-                if exp in hover.contents.value {
+                if exp in _as_any(hover).contents.value {
                     found = True;
                     break;
                 }
             }
-            assert found , f"Overload line {line}: expected one of {expected_list}, got: {hover.contents.value}";
+            assert found , f"Overload line {line}: expected one of {expected_list}, got: {_as_any(
+                hover
+            ).contents.value}";
         }
 
         # Stdlib overload via wildcard import: os.path.dirname (from posixpath/ntpath import *)
         stdlib_file = uris.from_fs_path(fixture_path("stdlib_overload.jac"));
+        assert stdlib_file is not None;
         lsp.type_check_file(stdlib_file);
         hover = lsp.get_hover_info(stdlib_file, lspt.Position(5, 22));
         assert hover is not None , "Hover should return info for os.path.dirname";
-        assert "dirname" in hover.contents.value , f"os.path.dirname: expected 'dirname', got: {hover.contents.value}";
+        assert "dirname" in _as_any(hover).contents.value , f"os.path.dirname: expected 'dirname', got: {_as_any(
+            hover
+        ).contents.value}";
         defn = lsp.get_definition(stdlib_file, lspt.Position(5, 22));
         assert defn is not None , "Definition should be found for os.path.dirname";
         assert "posixpath.pyi" in defn.uri or "ntpath.pyi" in defn.uri , f"os.path.dirname go-to-def: expected posixpath/ntpath.pyi, got: {defn.uri}";
@@ -1018,22 +1159,30 @@ test "test_hover_types" {
         ternary_file = uris.from_fs_path(
             passes_main_fixture_abs_path("checker/checker_isinstance_ternary.jac")
         );
+        assert ternary_file is not None;
         lsp.type_check_file(ternary_file);
         # Line 8: result = [left] if isinstance(left, Node) else left;
         # True branch: left should be narrowed to Node (column 15, 0-indexed: 14)
         hover = lsp.get_hover_info(ternary_file, lspt.Position(7, 14));
         assert hover is not None , "Ternary true branch hover should exist";
-        assert "Node" in hover.contents.value , f"Ternary true branch: expected Node, got: {hover.contents.value}";
-        assert "list[Node]" not in hover.contents.value , f"Ternary true branch: should NOT contain list[Node], got: {hover.contents.value}";
+        assert "Node" in _as_any(hover).contents.value , f"Ternary true branch: expected Node, got: {_as_any(
+            hover
+        ).contents.value}";
+        assert "list[Node]" not in _as_any(hover).contents.value , f"Ternary true branch: should NOT contain list[Node], got: {_as_any(
+            hover
+        ).contents.value}";
         # Else branch: left should be narrowed to list[Node] (column 53, 0-indexed: 52)
         hover = lsp.get_hover_info(ternary_file, lspt.Position(7, 52));
         assert hover is not None , "Ternary else branch hover should exist";
-        assert "list[Node]" in hover.contents.value , f"Ternary else branch: expected list[Node], got: {hover.contents.value}";
+        assert "list[Node]" in _as_any(hover).contents.value , f"Ternary else branch: expected list[Node], got: {_as_any(
+            hover
+        ).contents.value}";
 
         # Generic function TypeVar resolution: resolved return types should appear in hover
         typevar_file = uris.from_fs_path(
             passes_main_fixture_abs_path("checker/checker_gap_func_typevar.jac")
         );
+        assert typevar_file is not None;
         lsp.type_check_file(typevar_file);
 
         typevar_cases: list[tuple[int, int, str, str]] = [
@@ -1048,7 +1197,9 @@ test "test_hover_types" {
         for (line, col, var_name, expected_type) in typevar_cases {
             hover = lsp.get_hover_info(typevar_file, lspt.Position(line, col));
             assert hover is not None , f"Hover should exist for {var_name}";
-            assert expected_type in hover.contents.value , f"{var_name} should contain {expected_type}, got: {hover.contents.value}";
+            assert expected_type in _as_any(hover).contents.value , f"{var_name} should contain {expected_type}, got: {_as_any(
+                hover
+            ).contents.value}";
         }
     } finally {
         teardown_test();
@@ -1061,6 +1212,7 @@ test "test_hover_lhs_assignment" {
     try {
         lsp = create_server("");
         lhs_file = uris.from_fs_path(fixture_path("hover_lhs_assignment.jac"));
+        assert lhs_file is not None;
         lsp.type_check_file(lhs_file);
 
         # (line, col, desc, expected, should_not_contain)
@@ -1086,9 +1238,13 @@ test "test_hover_lhs_assignment" {
             (line, col, desc, expected, should_not_contain) = `case;
             hover = lsp.get_hover_info(lhs_file, lspt.Position(line - 1, col - 1));
             assert hover is not None , f"Hover should exist for {desc} at line {line}";
-            assert expected in hover.contents.value , f"{desc}: expected '{expected}' in hover, got: {hover.contents.value}";
+            assert expected in _as_any(hover).contents.value , f"{desc}: expected '{expected}' in hover, got: {_as_any(
+                hover
+            ).contents.value}";
             if should_not_contain {
-                assert should_not_contain not in hover.contents.value , f"{desc}: should NOT contain '{should_not_contain}', got: {hover.contents.value}";
+                assert should_not_contain not in _as_any(hover).contents.value , f"{desc}: should NOT contain '{should_not_contain}', got: {_as_any(
+                    hover
+                ).contents.value}";
             }
         }
     } finally {
@@ -1104,6 +1260,7 @@ test "test_namedtuple_hover" {
         namedtuple_file = uris.from_fs_path(
             passes_main_fixture_abs_path("checker/checker_namedtuple.jac")
         );
+        assert namedtuple_file is not None;
         lsp.type_check_file(namedtuple_file);
 
         # Comprehensive list of all variables and their expected hover types
@@ -1162,8 +1319,8 @@ test "test_namedtuple_hover" {
             hover = lsp.get_hover_info(namedtuple_file, lspt.Position(line, col));
             assert hover is not None , f"Hover for '{name}' at line {line
                 + 1} should exist";
-            assert expected_type in hover.contents.value , f"'{name}' at line {line
-                + 1}: expected '{expected_type}', got: {hover.contents.value}";
+            assert expected_type in _as_any(hover).contents.value , f"'{name}' at line {line
+                + 1}: expected '{expected_type}', got: {_as_any(hover).contents.value}";
         }
     } finally {
         teardown_test();
@@ -1175,6 +1332,7 @@ test "test_go_to_definition_import_module_path_and_item" {
     try {
         lsp = create_server();
         import_file = uris.from_fs_path(fixture_path("local_imports/main.jac"));
+        assert import_file is not None;
         lsp.type_check_file(import_file);
 
         # Line 3: import from mypkg_deep.utils.helpers { greet, greeting }
@@ -1211,6 +1369,7 @@ test "test_cross_module_imported_func_no_false_errors" {
     try {
         lsp = create_server();
         caller_file = uris.from_fs_path(fixture_path("cross_module_func_caller.jac"));
+        assert caller_file is not None;
         lsp.type_check_file(caller_file);
 
         # There should be no diagnostics on line 5 (the call site).
@@ -1240,7 +1399,7 @@ test "test_jir_cache_invalidated_on_version_mismatch" {
     import struct;
     import tempfile;
     import shutil;
-    import from jaclang.jac0core.jir {
+    import from jaclang.compiler.driver.jir {
         get_module_cache_path,
         is_module_cache_valid,
         HEADER_FMT,
@@ -1251,8 +1410,8 @@ test "test_jir_cache_invalidated_on_version_mismatch" {
     try {
         # A full compile writes the bytecode module cache; dependency loads
         # derive trees per process and persist nothing (#8190).
-        import from jaclang.jac0core.compiler { JacCompiler }
-        import from jaclang.jac0core.program { JacProgram }
+        import from jaclang.compiler.driver.compiler { JacCompiler }
+        import from jaclang.compiler.driver.program { JacProgram }
         dep_src = fixture_path("cross_module_func.jac");
         JacCompiler().get_bytecode(dep_src, JacProgram());
         cache_path = get_module_cache_path(dep_src);
@@ -1277,15 +1436,16 @@ test "test_jir_cache_invalidated_on_version_mismatch" {
 }
 
 test "test_cross_module_imported_func_sem_token" {
-    import from jaclang.jac0core.constant { JacSemTokenType }
+    import from jaclang.compiler.frontend.constant { JacSemTokenType }
     setup_test();
     try {
         lsp = create_server();
         caller_file = uris.from_fs_path(fixture_path("cross_module_func_caller.jac"));
+        assert caller_file is not None;
         lsp.type_check_file(caller_file);
 
         # "greet_user" on line 3 (import) should have FUNCTION sem token, not PROPERTY.
-        import_tok = lsp.get_token_at_position(caller_file, lspt.Position(2, 35));
+        import_tok: any = lsp.get_token_at_position(caller_file, lspt.Position(2, 35));
         assert import_tok is not None , "Expected token at import line";
         `sem = import_tok.sem_token;
         assert `sem is not None , "Expected sem_token for imported function";
@@ -1294,7 +1454,7 @@ test "test_cross_module_imported_func_sem_token" {
         );
 
         # "greet_user" on line 5 (call site) should also have FUNCTION sem token.
-        call_tok = lsp.get_token_at_position(caller_file, lspt.Position(4, 14));
+        call_tok: any = lsp.get_token_at_position(caller_file, lspt.Position(4, 14));
         assert call_tok is not None , "Expected token at call site";
         call_sem = call_tok.sem_token;
         assert call_sem is not None , "Expected sem_token for function call";
@@ -1312,6 +1472,7 @@ test "test_format_document_lintfix" {
     try {
         lsp = create_server(FIXTURE_DIR);
         file_uri = uris.from_fs_path(fixture_path("format_lintfix.jac"));
+        assert file_uri is not None;
         lsp.type_check_file(file_uri);
         edits = lsp.format_document(file_uri, auto_lint=True);
         assert edits is not None and len(edits) > 0 , "Expected text edits from lintfix format_document";

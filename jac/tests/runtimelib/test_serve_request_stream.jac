@@ -9,10 +9,10 @@ while ordinary endpoints still see request.body exactly as before.
 
 import asyncio;
 import socket;
-import from jaclang.runtimelib.serving.app { ServingApp }
-import from jaclang.runtimelib.serving.datatypes { HTTPError, Request, Response }
-import from jaclang.runtimelib.serving.endpoint { HTTPMethod, JEndPoint }
-import from jaclang.runtimelib.serving.server { ServingServer }
+import from jaclang.server.serving.app { ServingApp }
+import from jaclang.server.serving.datatypes { HTTPError, Request, Response }
+import from jaclang.server.serving.endpoint { HTTPMethod, JEndPoint }
+import from jaclang.server.serving.server { ServingServer }
 
 
 def _echo_size(request: Request) -> Response {
@@ -258,7 +258,7 @@ test "a body that failed once stays failed and keeps the connection closed" {
     }
     loop = asyncio.new_event_loop();
     try {
-        result = loop.run_until_complete(scenario());
+        result: dict = loop.run_until_complete(scenario());
     } finally {
         loop.close();
     }
@@ -322,7 +322,7 @@ test "a body that failed cannot be forwarded as an empty one" {
     }
     loop = asyncio.new_event_loop();
     try {
-        result = loop.run_until_complete(scenario());
+        result: dict = loop.run_until_complete(scenario());
     } finally {
         loop.close();
     }

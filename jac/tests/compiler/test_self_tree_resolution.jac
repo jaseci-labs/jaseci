@@ -24,9 +24,9 @@ import tempfile;
 import importlib;
 import jaclang;
 import from pathlib { Path }
-import from jaclang.jac0core.modresolver { resolve_relative_path }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.compiler.driver.modresolver { resolve_relative_path }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 
 glob PKG_FILES: dict[str, str] = {
          '__init__.jac': '',
@@ -53,7 +53,7 @@ def _write_copy(base: str) -> Path {
     return pkg;
 }
 
-def _with_shadow_copy(body: callable) {
+def _with_shadow_copy(body: Callable[[Path, str], None]) {
     home = tempfile.mkdtemp();
     shadow = tempfile.mkdtemp();
     home_pkg = _write_copy(home);
@@ -87,9 +87,7 @@ test "type check holds one identity per class across a self-import cycle" {
         prog = JacProgram();
         prog.compile(
             file_path=str(home_pkg / 'app.jac'),
-            options=CompileOptions(
-                type_check=True, no_cgen=True, force_target_program=True
-            )
+            options=CompileOptions(no_cgen=True, force_target_program=True)
         );
         errs = [str(e) for e in prog.errors_had];
         assert not errs , f"identity split across package copies: {errs}";
@@ -99,16 +97,16 @@ test "type check holds one identity per class across a self-import cycle" {
 
 test "the compiler's own package stays with the running compiler" {
     home = tempfile.mkdtemp();
-    copy = Path(home) / 'jaclang' / 'runtimelib' / 'serving';
+    copy = Path(home) / 'jaclang' / 'server' / 'serving';
     copy.mkdir(parents=True);
     (Path(home) / 'jaclang' / '__init__.jac').write_text('');
     (copy / 'app.jac').write_text('obj ServingApp {}\n');
     (copy / 'openapi.jac').write_text(
-        'import from jaclang.runtimelib.serving.app { ServingApp }\n'
+        'import from jaclang.server.serving.app { ServingApp }\n'
     );
     try {
         resolved = resolve_relative_path(
-            'jaclang.runtimelib.serving.openapi', str(copy / 'app.jac')
+            'jaclang.server.serving.openapi', str(copy / 'app.jac')
         );
         running = os.path.dirname(os.path.realpath(jaclang.__file__));
         assert os.path.realpath(resolved).startswith(running + os.sep) , f"resolved into the foreign copy: {resolved}";
