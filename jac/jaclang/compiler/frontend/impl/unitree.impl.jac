@@ -20,7 +20,423 @@ impl UniNode.walk_kids with TreeWalker entry {
 }
 
 impl UniNode._attach(child: UniNode, role: type[Role]) -> None {
+    if role is Role {
+        self +>:Role:+> child;
+        return;
+    }
+    if role is ImplOf {
+        self +>:ImplOf:+> child;
+        return;
+    }
+    if role is AccessRole {
+        self +>:AccessRole:+> child;
+        return;
+    }
+    if role is AccessorsRole {
+        self +>:AccessorsRole:+> child;
+        return;
+    }
+    if role is AliasRole {
+        self +>:AliasRole:+> child;
+        return;
+    }
+    if role is ArchTagInfoRole {
+        self +>:ArchTagInfoRole:+> child;
+        return;
+    }
+    if role is ArchTypeRole {
+        self +>:ArchTypeRole:+> child;
+        return;
+    }
+    if role is ArgPatternsRole {
+        self +>:ArgPatternsRole:+> child;
+        return;
+    }
+    if role is AssignmentsRole {
+        self +>:AssignmentsRole:+> child;
+        return;
+    }
+    if role is AssignsRole {
+        self +>:AssignsRole:+> child;
+        return;
+    }
+    if role is AttributesRole {
+        self +>:AttributesRole:+> child;
+        return;
+    }
+    if role is AugOpRole {
+        self +>:AugOpRole:+> child;
+        return;
+    }
+    if role is AwaitingBodyRole {
+        self +>:AwaitingBodyRole:+> child;
+        return;
+    }
+    if role is BaseClassesRole {
+        self +>:BaseClassesRole:+> child;
+        return;
+    }
+    if role is BodyRole {
+        self +>:BodyRole:+> child;
+        return;
+    }
+    if role is BoundRole {
+        self +>:BoundRole:+> child;
+        return;
+    }
+    if role is CasesRole {
+        self +>:CasesRole:+> child;
+        return;
+    }
+    if role is CastTypeRole {
+        self +>:CastTypeRole:+> child;
+        return;
+    }
+    if role is CauseRole {
+        self +>:CauseRole:+> child;
+        return;
+    }
+    if role is ChainRole {
+        self +>:ChainRole:+> child;
+        return;
+    }
+    if role is ChildrenRole {
+        self +>:ChildrenRole:+> child;
+        return;
+    }
+    if role is ClibDeclsRole {
+        self +>:ClibDeclsRole:+> child;
+        return;
+    }
+    if role is CodeRole {
+        self +>:CodeRole:+> child;
+        return;
+    }
+    if role is CollectionRole {
+        self +>:CollectionRole:+> child;
+        return;
+    }
+    if role is ComparesRole {
+        self +>:ComparesRole:+> child;
+        return;
+    }
+    if role is ComprRole {
+        self +>:ComprRole:+> child;
+        return;
+    }
+    if role is ConditionRole {
+        self +>:ConditionRole:+> child;
+        return;
+    }
+    if role is ConditionalRole {
+        self +>:ConditionalRole:+> child;
+        return;
+    }
+    if role is ConnAssignRole {
+        self +>:ConnAssignRole:+> child;
+        return;
+    }
+    if role is ConnTypeRole {
+        self +>:ConnTypeRole:+> child;
+        return;
+    }
+    if role is CountByRole {
+        self +>:CountByRole:+> child;
+        return;
+    }
+    if role is CtrlRole {
+        self +>:CtrlRole:+> child;
+        return;
+    }
+    if role is DecoratorsRole {
+        self +>:DecoratorsRole:+> child;
+        return;
+    }
+    if role is DefaultValRole {
+        self +>:DefaultValRole:+> child;
+        return;
+    }
+    if role is DescriptionRole {
+        self +>:DescriptionRole:+> child;
+        return;
+    }
+    if role is DocRole {
+        self +>:DocRole:+> child;
+        return;
+    }
+    if role is DynamicTagRole {
+        self +>:DynamicTagRole:+> child;
+        return;
+    }
+    if role is EdgeSpecRole {
+        self +>:EdgeSpecRole:+> child;
+        return;
+    }
+    if role is ElseBodyRole {
+        self +>:ElseBodyRole:+> child;
+        return;
+    }
+    if role is ElseValueRole {
+        self +>:ElseValueRole:+> child;
+        return;
+    }
+    if role is EndRole {
+        self +>:EndRole:+> child;
+        return;
+    }
+    if role is ErrorMsgRole {
+        self +>:ErrorMsgRole:+> child;
+        return;
+    }
+    if role is EventRole {
+        self +>:EventRole:+> child;
+        return;
+    }
+    if role is ExTypeRole {
+        self +>:ExTypeRole:+> child;
+        return;
+    }
+    if role is ExceptsRole {
+        self +>:ExceptsRole:+> child;
+        return;
+    }
+    if role is ExprRole {
+        self +>:ExprRole:+> child;
+        return;
+    }
+    if role is ExprsRole {
+        self +>:ExprsRole:+> child;
+        return;
+    }
+    if role is FTypeRole {
+        self +>:FTypeRole:+> child;
+        return;
+    }
+    if role is FilterCondRole {
+        self +>:FilterCondRole:+> child;
+        return;
+    }
+    if role is FinallyBodyRole {
+        self +>:FinallyBodyRole:+> child;
+        return;
+    }
+    if role is FormatPartRole {
+        self +>:FormatPartRole:+> child;
+        return;
+    }
+    if role is FormatSpecRole {
+        self +>:FormatSpecRole:+> child;
+        return;
+    }
+    if role is FromLocRole {
+        self +>:FromLocRole:+> child;
+        return;
+    }
+    if role is FromTargetRole {
+        self +>:FromTargetRole:+> child;
+        return;
+    }
+    if role is GuardRole {
+        self +>:GuardRole:+> child;
+        return;
+    }
+    if role is HintRole {
+        self +>:HintRole:+> child;
+        return;
+    }
+    if role is InsertLocRole {
+        self +>:InsertLocRole:+> child;
+        return;
+    }
+    if role is ItemsRole {
+        self +>:ItemsRole:+> child;
+        return;
+    }
+    if role is IterRole {
+        self +>:IterRole:+> child;
+        return;
+    }
+    if role is KeyRole {
+        self +>:KeyRole:+> child;
+        return;
+    }
+    if role is KeywordsRole {
+        self +>:KeywordsRole:+> child;
+        return;
+    }
+    if role is KvPairRole {
+        self +>:KvPairRole:+> child;
+        return;
+    }
+    if role is KvPairsRole {
+        self +>:KvPairsRole:+> child;
+        return;
+    }
+    if role is KwPatternsRole {
+        self +>:KwPatternsRole:+> child;
+        return;
+    }
+    if role is KwargsRole {
+        self +>:KwargsRole:+> child;
+        return;
+    }
+    if role is KwonlyargsRole {
+        self +>:KwonlyargsRole:+> child;
+        return;
+    }
+    if role is LeftRole {
+        self +>:LeftRole:+> child;
+        return;
+    }
+    if role is MainRole {
+        self +>:MainRole:+> child;
+        return;
+    }
+    if role is NameRole {
+        self +>:NameRole:+> child;
+        return;
+    }
+    if role is NameRefRole {
+        self +>:NameRefRole:+> child;
+        return;
+    }
+    if role is OpRole {
+        self +>:OpRole:+> child;
+        return;
+    }
+    if role is OperandRole {
+        self +>:OperandRole:+> child;
+        return;
+    }
+    if role is OpsRole {
+        self +>:OpsRole:+> child;
+        return;
+    }
+    if role is OutExprRole {
+        self +>:OutExprRole:+> child;
+        return;
+    }
+    if role is ParamsRole {
+        self +>:ParamsRole:+> child;
+        return;
+    }
+    if role is PartsRole {
+        self +>:PartsRole:+> child;
+        return;
+    }
+    if role is PathRole {
+        self +>:PathRole:+> child;
+        return;
+    }
+    if role is PatternRole {
+        self +>:PatternRole:+> child;
+        return;
+    }
+    if role is PatternsRole {
+        self +>:PatternsRole:+> child;
+        return;
+    }
+    if role is PosonlyParamsRole {
+        self +>:PosonlyParamsRole:+> child;
+        return;
+    }
+    if role is ReturnTypeRole {
+        self +>:ReturnTypeRole:+> child;
+        return;
+    }
+    if role is RightRole {
+        self +>:RightRole:+> child;
+        return;
+    }
+    if role is RightsRole {
+        self +>:RightsRole:+> child;
+        return;
+    }
+    if role is SignatureRole {
+        self +>:SignatureRole:+> child;
+        return;
+    }
+    if role is SlicesRole {
+        self +>:SlicesRole:+> child;
+        return;
+    }
+    if role is SpecRole {
+        self +>:SpecRole:+> child;
+        return;
+    }
+    if role is SrcEndpointRole {
+        self +>:SrcEndpointRole:+> child;
+        return;
+    }
+    if role is StartRole {
+        self +>:StartRole:+> child;
+        return;
+    }
+    if role is StepRole {
+        self +>:StepRole:+> child;
+        return;
+    }
+    if role is StopRole {
+        self +>:StopRole:+> child;
+        return;
+    }
+    if role is StringsRole {
+        self +>:StringsRole:+> child;
+        return;
+    }
+    if role is TargetRole {
+        self +>:TargetRole:+> child;
+        return;
+    }
+    if role is TgtEndpointRole {
+        self +>:TgtEndpointRole:+> child;
+        return;
+    }
+    if role is TokRole {
+        self +>:TokRole:+> child;
+        return;
+    }
+    if role is TypeCtxRole {
+        self +>:TypeCtxRole:+> child;
+        return;
+    }
+    if role is TypeParamsRole {
+        self +>:TypeParamsRole:+> child;
+        return;
+    }
+    if role is TypeTagRole {
+        self +>:TypeTagRole:+> child;
+        return;
+    }
+    if role is UnpackRole {
+        self +>:UnpackRole:+> child;
+        return;
+    }
+    if role is ValueRole {
+        self +>:ValueRole:+> child;
+        return;
+    }
+    if role is ValueTypeRole {
+        self +>:ValueTypeRole:+> child;
+        return;
+    }
+    if role is ValuesRole {
+        self +>:ValuesRole:+> child;
+        return;
+    }
+    if role is VarargsRole {
+        self +>:VarargsRole:+> child;
+        return;
+    }
+    if role is VarsRole {
+        self +>:VarsRole:+> child;
+        return;
+    }
     self +>:(role):+> child;
+}
+
+impl UniNode._as_node_list(value: any) -> list[UniNode] {
+    return value;
 }
 
 impl UniNode._link(kid: Sequence[UniNode], roles: dict[type, any]) -> None {
@@ -43,7 +459,8 @@ impl UniNode._link(kid: Sequence[UniNode], roles: dict[type, any]) -> None {
                 shapes[role] = "none";
             } elif isinstance(value, (list, tuple)) {
                 shapes[role] = "many";
-                for v in value {
+                vlist = self._as_node_list(value);
+                for v in vlist {
                     if isinstance(v, UniNode) {
                         prev = role_of.get(id(v));
                         if prev is None {
@@ -83,16 +500,29 @@ impl UniNode._link(kid: Sequence[UniNode], roles: dict[type, any]) -> None {
         }
     }
     for (role, value) in roles.items() {
-        vals = value if isinstance(value, (list, tuple)) else [value];
-        for v in vals {
-            if isinstance(v, UniNode) and id(v) not in attached {
-                self._attach(v, role);
-                attached.add(id(v));
-                if extra_roles {
-                    for extra in extra_roles.get(id(v), []) {
-                        if extra is not role {
-                            self._attach(v, extra);
+        if isinstance(value, (list, tuple)) {
+            vlist2 = self._as_node_list(value);
+            for v in vlist2 {
+                if isinstance(v, UniNode) and id(v) not in attached {
+                    self._attach(v, role);
+                    attached.add(id(v));
+                    if extra_roles {
+                        for extra in extra_roles.get(id(v), []) {
+                            if extra is not role {
+                                self._attach(v, extra);
+                            }
                         }
+                    }
+                }
+            }
+        } elif isinstance(value, UniNode) and id(value) not in attached {
+            one: UniNode = value;
+            self._attach(one, role);
+            attached.add(id(one));
+            if extra_roles {
+                for extra in extra_roles.get(id(one), []) {
+                    if extra is not role {
+                        self._attach(one, extra);
                     }
                 }
             }
@@ -139,23 +569,23 @@ impl UniNode._role_shaped(role: type[Role], found: list[UniNode]) -> any {
 impl UniNode._role_set(role: type[Role], value: any) -> None {
     shapes: dict[type, str] = self?._role_shapes or {};
     self._role_shapes = shapes;
+    del [edge self->:role:->];
     if value is None {
         shapes[role] = "none";
-        vals: list = [];
     } elif isinstance(value, (list, tuple)) {
         shapes[role] = "many";
-        vals = [
-            v
-            for v in value
-            if isinstance(v, UniNode)
-        ];
-    } else {
+        vsrc = self._as_node_list(value);
+        for v in vsrc {
+            if isinstance(v, UniNode) {
+                self._attach(v, role);
+            }
+        }
+    } elif isinstance(value, UniNode) {
         shapes[role] = "one";
-        vals = [value];
-    }
-    del [edge self->:role:->];
-    for v in vals {
-        self._attach(v, role);
+        one: UniNode = value;
+        self._attach(one, role);
+    } else {
+        shapes[role] = "none";
     }
     self._invalidate_sub_node_tab();
 }
@@ -306,17 +736,21 @@ impl UniNode.__deepcopy__(memo: dict) -> UniNode {
     import copy;
     import jaclang.compiler.store.host as _sh;
 
-    dup = type(self).__new__(type(self));
+    dup: UniNode = _sh.alloc_like(self);
     memo[id(self)] = dup;
-    _sh.copy_slots(self.__dict__["_ts"], dup.__dict__["_ts"]);
-    for (key, val) in self.__dict__.items() {
+    src_h = int(getattr(self, "_ts", -1));
+    dst_h = int(getattr(dup, "_ts", -1));
+    if src_h >= 0 and dst_h >= 0 and (src_h & 4611686018427387904) == 0 {
+        _sh.copy_slots(src_h, dst_h);
+    }
+    for (key, val) in vars(self).items() {
         if key in ("__jac__", "_ts", "_kd") {
             continue;
         }
         if key.endswith("__sub_node_tab") {
-            dup.__dict__[key] = None;
+            setattr(dup, key, None);
         } else {
-            dup.__dict__[key] = copy.deepcopy(val, memo);
+            setattr(dup, key, copy.deepcopy(val, memo));
         }
     }
     dup._ctx_parent = None;
@@ -415,6 +849,10 @@ impl UniNode.in_client_context -> bool {
 
 impl UniNode.in_native_context -> bool {
     return self.codespace() == CodeContext.NATIVE;
+}
+
+impl Module.absorb_annex_body(stmts: Sequence[UniNode]) -> None {
+    self.add_kids_right(stmts, pos_update=False, parent_update=True, role=BodyRole);
 }
 
 impl Module.declares_codespace(ctx: CodeContext, path_hint: str = '') -> bool {

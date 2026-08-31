@@ -103,6 +103,20 @@ def _bootstrap_compile(
     return code
 
 
+def _post_exec_hook(module: ModuleType) -> None:
+    """Module-exec epilogues the harness owns rather than the module body.
+
+    The unitree store flip must run the instant unitree's module body finishes
+    executing, before any importer can construct a node -- and it cannot live
+    in unitree's own ``with entry`` because the native scan must see a closure
+    free of Python-module imports (#8789 Phase 4).
+    """
+    if module.__name__ == "jaclang.compiler.frontend.unitree":
+        from jaclang.compiler.store import schema
+
+        schema.install_schema()
+
+
 class JacSourceCompileError(ImportError):
     """A .jac module was found on disk but its source failed to compile.
 
@@ -348,6 +362,7 @@ class JacMetaImporter(MetaPathFinder, Loader):
             sealed is not None and sealed[1].get("bootstrap")
         ) or self._is_bootstrap_jac(file_path):
             self._exec_bootstrap(module, file_path)
+            _post_exec_hook(module)
             return
 
         from jaclang.runtime.runtime import JacRuntime as Jac
@@ -420,6 +435,7 @@ class JacMetaImporter(MetaPathFinder, Loader):
 
         # Execute the bytecode directly in the module's namespace
         exec(codeobj, module.__dict__)
+        _post_exec_hook(module)
 
         # An inferred-native module keeps its plain python side for python
         # callers (the preference must not route sv-side calls through the

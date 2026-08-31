@@ -98,10 +98,47 @@ impl NaIRGenTypes._unify_repr_lowering(reprs: list) -> (ir.Type | None) {
             _all_ptr = False;
         }
     }
-    if _shared or _all_ptr or not self?.jacval_type {
+    if _shared or not self?.jacval_type {
         return _first;
     }
+    if _all_ptr {
+        _kind = self._ptr_box_kind(_first);
+        _same_kind = True;
+        for _r in _rest {
+            if self._ptr_box_kind(_r) != _kind {
+                _same_kind = False;
+                break;
+            }
+        }
+        if _same_kind {
+            return _first;
+        }
+    }
     return self.jacval_type;
+}
+
+impl NaIRGenTypes._ptr_box_kind(rt: any) -> int {
+    for (_, ltype) in self.list_types.items() {
+        if rt == ltype.as_pointer() {
+            return 3;
+        }
+    }
+    for (_, dtype) in self.dict_types.items() {
+        if rt == dtype.as_pointer() {
+            return 4;
+        }
+    }
+    for (_, stype) in self.set_types.items() {
+        if rt == stype.as_pointer() {
+            return 5;
+        }
+    }
+    for (_, structt) in self.struct_types.items() {
+        if rt == structt.as_pointer() {
+            return 6;
+        }
+    }
+    return 2;
 }
 
 impl NaIRGenTypes._type_key_of(expr: (uni.UniNode | None)) -> (str | None) {

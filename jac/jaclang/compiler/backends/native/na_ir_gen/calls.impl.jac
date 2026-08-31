@@ -1380,6 +1380,36 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             }
         }
 
+        if func_name == "id" {
+            _id_params = nd.params or [];
+            if len(_id_params) == 1 {
+                _id_val = self._codegen_expr(_id_params[0]);
+                if _id_val is not None
+                    and self._opt_payload_of(_id_val.type) is not None {
+                    _id_val = self._coerce_type(
+                        _id_val, self._opt_payload_of(_id_val.type)
+                    );
+                }
+                if (
+                    _id_val is not None
+                    and isinstance(_id_val.type, ir.PointerType)
+                ) {
+                    return self.builder.ptrtoint(
+                        _id_val, ir.IntType(64), name="id.p2i"
+                    );
+                }
+                if (
+                    _id_val is not None
+                    and self?.jacval_type
+                    and _id_val.type == self.jacval_type
+                ) {
+                    return self.builder.extract_value(
+                        _id_val, 1, name="id.jv.payload"
+                    );
+                }
+            }
+        }
+
         if func_name == "len" {
             params_l = nd.params or [];
             if params_l {

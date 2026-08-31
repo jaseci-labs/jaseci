@@ -3,7 +3,8 @@ import os;
 import threading;
 import from pathlib { Path }
 
-glob ABI_VERSION: int = 3;
+glob ABI_VERSION: int = 3,
+     NP_TAG: int = 4611686018427387904;
 
 obj StoreHost {
     has status: int = 0,
@@ -31,7 +32,8 @@ obj StoreHost {
         n_slot_set: any = None,
         n_edge_add: any = None,
         n_adj_clear: any = None,
-        n_subtree_copy: any = None;
+        n_subtree_copy: any = None,
+        fe: any = None;
 }
 
 glob _H: StoreHost = StoreHost();
@@ -131,10 +133,48 @@ def ensure_loaded -> None {
     if not os.environ.get("JAC_NO_NATIVE_STORE") {
         lib_path = _find_lib();
         if lib_path is not None and _bind_native(lib_path) {
+            _bind_frontend();
             return;
         }
     }
     _bind_twin();
+    _bind_frontend();
+}
+
+def _bind_frontend -> None {
+    fp = os.environ.get("JAC_FRONTEND_LIB");
+    if not fp or fp.lower() in ("none", "off", "disabled") {
+        return;
+    }
+    if not os.path.isfile(fp) {
+        return;
+    }
+    try {
+        import from jaclang.compiler.store.natbind { FrontendLib }
+        _H.fe = FrontendLib(fp);
+    } except Exception {
+        _H.fe = None;
+    }
+}
+
+def frontend_active -> bool {
+    ensure_loaded();
+    return _H.fe is not None;
+}
+
+def frontend_lib -> any {
+    if _H.fe is None {
+        raise RuntimeError("jacstore: native frontend not bound");
+    }
+    return _H.fe;
+}
+
+def native_view(ptr: int) -> any {
+    return _H.fe.materialize(ptr);
+}
+
+def alloc_like(nd: any) -> any {
+    return type(nd).__new__(type(nd));
 }
 
 def backend_name -> str {
@@ -343,4 +383,20 @@ def view_of(h: int) -> any {
         return None;
     }
     return per.get(h);
+}
+
+def view_or_make(h: int) -> any {
+    per = _H.views.get(h >> 40);
+    if per is not None {
+        hit = per.get(h);
+        if hit is not None {
+            return hit;
+        }
+    }
+    if (h & NP_TAG) != 0 {
+        return _H.fe.materialize(h - NP_TAG);
+    }
+    import jaclang.compiler.store.schema as _schema;
+    import jaclang.compiler.store.host as _me;
+    return _schema.materialize_view(h, _me);
 }

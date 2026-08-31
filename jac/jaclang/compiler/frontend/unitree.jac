@@ -169,6 +169,7 @@ node UniNode {
     has _sub_node_tab: dict[(type, list[UniNode])] { getter; }
 
     def _link(kid: Sequence[UniNode], roles: dict[type, any]) -> None;
+    def _as_node_list(value: any) -> list[UniNode];
     def detached_copy -> UniNode;
     def __deepcopy__(memo: dict) -> UniNode;
     def _attach(child: UniNode, role: type[Role]) -> None;
@@ -670,6 +671,7 @@ node Module(AstDocNode, UniScopeNode) {
     has annexable_by: (str | None) { getter; }
 
     def declares_codespace(ctx: CodeContext, path_hint: str = '') -> bool;
+    def absorb_annex_body(stmts: Sequence[UniNode]) -> None;
     static def make_stub(
         inject_name: (str | None) = None, inject_src: (Source | None) = None
     ) -> Module {
@@ -2736,7 +2738,53 @@ def type_only_import_of(nd: NameAtom) -> (ModuleItem | None);
 
 def in_type_position(nd: UniNode) -> bool;
 
-with entry {
-    import from jaclang.compiler.store.schema { install_schema }
-    install_schema();
+def _shape_code(s: str) -> int {
+    if s == "many" {
+        return 2;
+    }
+    if s == "one" {
+        return 1;
+    }
+    return 0;
+}
+
+def nu_role_shape(nd: UniNode, role_name: str) -> int {
+    shapes = nd._role_shapes;
+    if shapes is None {
+        return 0;
+    }
+    if role_name == "BodyRole" {
+        return _shape_code(shapes.get(BodyRole, ""));
+    }
+    if role_name == "SpecRole" {
+        return _shape_code(shapes.get(SpecRole, ""));
+    }
+    if role_name == "AccessorsRole" {
+        return _shape_code(shapes.get(AccessorsRole, ""));
+    }
+    return 0;
+}
+
+def _sym_cat_str(c: (SymbolType | None)) -> str {
+    if c is None {
+        return "";
+    }
+    return c.value;
+}
+
+def nu_sym_category(nd: UniNode) -> str {
+    if isinstance(nd, NameAtom) {
+        return _sym_cat_str(nd._sym_category);
+    }
+    return "";
+}
+
+def nu_subtag_tag(nd: UniNode) -> (UniNode | None) {
+    if isinstance(nd, SubTag) {
+        t = nd.tag;
+        if isinstance(t, UniNode) {
+            return t;
+        }
+    }
+    return None;
 }

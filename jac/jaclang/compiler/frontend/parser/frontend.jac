@@ -121,14 +121,115 @@ def _finish_parse(
 
 def _freeze_tree_arena(module: Module) -> None {
     h = getattr(module, "_ts", -1);
-    if h >= 0 {
+    if h >= 0 and (h & 4611686018427387904) == 0 {
         _tsr.arena_freeze(h >> 40);
     }
+}
+
+obj _NatLoc {
+    has line: int = 0,
+        end_line: int = 0,
+        col_start: int = 0,
+        col_end: int = 0,
+        pos_start: int = 0,
+        pos_end: int = 0;
+}
+
+obj _NatDiag {
+    has message: str = "",
+        code_str: str = "",
+        is_error: bool = True,
+        help: str = "",
+        loc: (_NatLoc | None) = None;
+}
+
+obj _NatComment {
+    has value: str = "",
+        line: int = 0,
+        end_line: int = 0,
+        col_start: int = 0,
+        col_end: int = 0,
+        pos_start: int = 0,
+        pos_end: int = 0;
+}
+
+def _nat_diags(fe: any, prefix: str) -> list {
+    out = [];
+    n = fe.entry_int(f"np_{prefix}_count");
+    for i in range(n) {
+        loc = _NatLoc(
+            line=fe.entry_int(f"np_{prefix}_pos", i, 0),
+            end_line=fe.entry_int(f"np_{prefix}_pos", i, 1),
+            col_start=fe.entry_int(f"np_{prefix}_pos", i, 2),
+            col_end=fe.entry_int(f"np_{prefix}_pos", i, 3),
+            pos_start=fe.entry_int(f"np_{prefix}_pos", i, 4),
+            pos_end=fe.entry_int(f"np_{prefix}_pos", i, 5)
+        );
+        out.append(_NatDiag(
+            message=fe.entry_str(f"np_{prefix}_msg", i),
+            code_str=fe.entry_str(f"np_{prefix}_code", i),
+            is_error=fe.entry_int(f"np_{prefix}_is_err", i) != 0,
+            help=fe.entry_str(f"np_{prefix}_help", i),
+            loc=loc
+        ));
+    }
+    return out;
+}
+
+def _nat_comments(fe: any) -> list {
+    out = [];
+    n = fe.entry_int("np_comment_count");
+    for i in range(n) {
+        out.append(_NatComment(
+            value=fe.entry_str("np_comment_val", i),
+            line=fe.entry_int("np_comment_pos", i, 0),
+            end_line=fe.entry_int("np_comment_pos", i, 1),
+            col_start=fe.entry_int("np_comment_pos", i, 2),
+            col_end=fe.entry_int("np_comment_pos", i, 3),
+            pos_start=fe.entry_int("np_comment_pos", i, 4),
+            pos_end=fe.entry_int("np_comment_pos", i, 5)
+        ));
+    }
+    return out;
+}
+
+def _native_parse_woven(
+    source_str: str, file_path: str, prog: (JacProgram | None), annexes: list
+) -> (tuple | None) {
+    fe = _tsr.frontend_lib();
+    root_ptr = fe.parse(source_str, file_path);
+    if not root_ptr {
+        return None;
+    }
+    p_errs = fe.entry_int("np_err_count");
+    lex_errs = fe.entry_int("np_lex_errs");
+    p_diags = _nat_diags(fe, "diag");
+    comments = _nat_comments(fe);
+    lex_diags = _nat_diags(fe, "lexdiag");
+    if p_errs == 0 and lex_errs == 0 {
+        for (a_src, a_path) in annexes {
+            rc = fe.weave(root_ptr, a_src, a_path);
+            if rc != 0 {
+                return None;
+            }
+        }
+    }
+    module = _tsr.native_view(root_ptr);
+    had_error = _finish_parse(
+        module, p_errs, p_diags, comments, lex_diags, lex_errs, prog
+    );
+    return (module, had_error);
 }
 
 def parse_woven(
     source_str: str, file_path: str, prog: (JacProgram | None), annexes: list
 ) -> tuple {
+    if _tsr.frontend_active() {
+        nat = _native_parse_woven(source_str, file_path, prog, annexes);
+        if nat is not None {
+            return nat;
+        }
+    }
     (module, had_error) = parse(source_str, file_path, prog=prog, freeze=False);
     if had_error or not annexes {
         _freeze_tree_arena(module);

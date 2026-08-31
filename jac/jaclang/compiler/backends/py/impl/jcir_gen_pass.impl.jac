@@ -478,10 +478,26 @@ impl JcirGenPass.val(nd: UniNode) -> CgNode {
     got: list[CgItem] = self._sink[nd] if nd in self._sink else [];
     if not got {
         loc = nd.loc;
+        _ts = getattr(nd, "_ts", None);
+        _twins = [
+            k
+            for k in self._sink.keys()
+            if getattr(k, "_ts", None) == _ts and k is not nd
+        ];
         raise RuntimeError(
             self.ice(
                 f"Empty JCIR recipe on {type(nd).__name__} "
                 f"at {loc.mod_path}:{loc.first_line}:{loc.col_start}"
+                f" [dbg ts={_ts if _ts is None else hex(_ts)}"
+                f" in_sink={nd in self._sink} twins={len(_twins)}"
+                f" kid={[type(k).__name__ for k in nd.kid]}"
+                f" pruned={nd.ct_pruned} truthy={bool(nd)}"
+                f" par={type(nd.parent).__name__ if nd.parent else None}"
+                f" par_pruned={nd.parent.ct_pruned if nd.parent else None}"
+                f" in_par_kid={any(k is nd for k in nd.parent.kid) if nd.parent else None}"
+                f" par_in_sink={nd.parent in self._sink if nd.parent else None}"
+                f" par_kid={[(type(k).__name__, hex(getattr(k, '_ts', 0))) for k in nd.parent.kid] if nd.parent else None}"
+                f" ts_twin_in_par={any(getattr(k, '_ts', 0) == _ts for k in nd.parent.kid) if nd.parent else None}]"
             )
         );
     }

@@ -4,7 +4,10 @@ import jaclang.compiler.store.host as _host;
 
 glob EKIND_OF: dict = {},
      CLS_OF: dict = {},
-     EXPAND: dict = {};
+     EXPAND: dict = {},
+     OV_OUT: dict = {},
+     OV_IN: dict = {},
+     NP_TAG: int = 4611686018427387904;
 
 def register_edge(cls: type, ekind: int, is_struct: bool) -> None {
     EKIND_OF[cls] = ekind;
@@ -30,7 +33,7 @@ def ekinds_for(cls: type) -> list {
 def _views(handles: list) -> list {
     out = [];
     for h in handles {
-        v = _host.view_of(h);
+        v = _host.view_or_make(h);
         if v is not None {
             out.append(v);
         }
@@ -42,7 +45,7 @@ def _edge_views(src: any, handles: list, ekind: int, direction: int) -> list {
     cls = CLS_OF[ekind];
     out = [];
     for h in handles {
-        peer = _host.view_of(h);
+        peer = _host.view_or_make(h);
         if peer is None {
             continue;
         }
@@ -79,7 +82,14 @@ def connect(
     rights = [right] if isinstance(right, NodeArchetype) else right;
     for l in lefts {
         for r in rights {
-            _host.edge_add(l._ts, r._ts, ekind);
+            lts = l._ts;
+            rts = r._ts;
+            if ((lts & NP_TAG) != 0) or ((rts & NP_TAG) != 0) {
+                OV_OUT.setdefault((lts, ekind, ), []).append(rts);
+                OV_IN.setdefault((rts, ekind, ), []).append(lts);
+            } else {
+                _host.edge_add(lts, rts, ekind);
+            }
         }
     }
     if edges_only {
@@ -92,6 +102,23 @@ def connect(
         return out;
     }
     return right;
+}
+
+def _adj_all(h: int, ek: int, direction: int) -> list {
+    if (h & NP_TAG) != 0 {
+        cls = CLS_OF[ek];
+        fe = _host.frontend_lib();
+        ptrs = fe.adj(cls.__name__, h - NP_TAG, direction);
+        hs = [p | NP_TAG for p in ptrs];
+    } else {
+        hs = _host.adj(h, ek, direction);
+    }
+    ov = OV_OUT if direction == 0 else OV_IN;
+    extra = ov.get((h, ek, ));
+    if extra {
+        hs = list(hs) + list(extra);
+    }
+    return hs;
 }
 
 def hop(origin: any, dir: int, edge_type: any, edges_only: bool) -> any {
@@ -110,7 +137,7 @@ def hop(origin: any, dir: int, edge_type: any, edges_only: bool) -> any {
     out = [];
     if dir == 2 or dir == 3 {
         for ek in ekinds {
-            hs = _host.adj(h, ek, 0);
+            hs = _adj_all(h, ek, 0);
             if hs {
                 if edges_only {
                     out.extend(_edge_views(origin, hs, ek, 0));
@@ -122,7 +149,7 @@ def hop(origin: any, dir: int, edge_type: any, edges_only: bool) -> any {
     }
     if dir == 1 or dir == 3 {
         for ek in ekinds {
-            hs = _host.adj(h, ek, 1);
+            hs = _adj_all(h, ek, 1);
             if hs {
                 if edges_only {
                     out.extend(_edge_views(origin, hs, ek, 1));
@@ -132,11 +159,11 @@ def hop(origin: any, dir: int, edge_type: any, edges_only: bool) -> any {
             }
         }
     }
-    if edge_type is None {
+    if edge_type is None or (h & NP_TAG) != 0 {
         import from jaclang.runtime.archetype { light_hop, light_hop_answers }
         anchor = origin.__jac__;
-        if light_hop_answers(anchor, None) {
-            extra = light_hop(anchor, dir, None, edges_only);
+        if light_hop_answers(anchor, edge_type) {
+            extra = light_hop(anchor, dir, edge_type, edges_only);
             if extra {
                 seen = set([id(x) for x in out]);
                 for x in extra {
@@ -161,13 +188,34 @@ def clear_edges(origin: any, dir: int, edge_type: any) -> any {
     }
     for ek in ekinds {
         if dir == 2 or dir == 3 {
-            _host.adj_clear(origin._ts, ek, 0);
+            _ov_clear(h, ek, 0);
+            if (h & NP_TAG) == 0 {
+                _host.adj_clear(h, ek, 0);
+            }
         }
         if dir == 1 or dir == 3 {
-            _host.adj_clear(origin._ts, ek, 1);
+            _ov_clear(h, ek, 1);
+            if (h & NP_TAG) == 0 {
+                _host.adj_clear(h, ek, 1);
+            }
         }
     }
     return True;
+}
+
+def _ov_clear(h: int, ek: int, direction: int) -> None {
+    ov = OV_OUT if direction == 0 else OV_IN;
+    mirror = OV_IN if direction == 0 else OV_OUT;
+    peers = ov.pop((h, ek, ), None);
+    if peers {
+        for p in peers {
+            mkey = (p, ek, );
+            mlist = mirror.get(mkey);
+            if mlist {
+                mirror[mkey] = [x for x in mlist if x != h];
+            }
+        }
+    }
 }
 
 def refs(path: any, lazy: bool) -> any {

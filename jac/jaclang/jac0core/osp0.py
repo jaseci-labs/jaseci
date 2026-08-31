@@ -65,6 +65,21 @@ def _rt() -> Any:
     return JacRuntimeInterface
 
 
+
+_NP_TAG = 1 << 62
+
+
+def _native_provider(origin: Any):
+    """Native-backed IR views (bit-62-tagged handles) route to the store
+    adjacency provider; every other node keeps osp0's light-tier fast paths
+    (#8789 Phase 4)."""
+    if getattr(origin, "_ts", 0) & _NP_TAG:
+        from jaclang.runtime.adj_provider import SLOT
+
+        return SLOT.provider
+    return None
+
+
 def connect0(
     left: Any,
     right: Any,
@@ -78,6 +93,18 @@ def connect0(
     anchors' edge lists. Nothing here pins an anchor in a registry, so a
     released module is collectable.
     """
+    # Route only native-ORIGIN connects: a native node's adjacency cannot be a
+    # light edge. Record-origin edges (native target included) stay light so
+    # the jac0-tier readers that created them keep seeing them; a view target
+    # is an ordinary Python object to the light machinery.
+    if not isinstance(left, list):
+        _prov = _native_provider(left)
+        if _prov is not None and conn_assign is None and isinstance(edge, type):
+            from jaclang.runtime.adj_provider import UNHANDLED as _UNH
+
+            _r = _prov.connect(left, right, edge, False, None, False)
+            if _r is not _UNH:
+                return _r
     if (
         conn_assign is None
         and isinstance(edge, type)
@@ -246,6 +273,12 @@ def hop0(origin: Any, dir: int, edge: Any = None, edges_only: bool = False) -> l
     of the compiler's tree) is answered here in one frame: a copy of the
     adjacency list, connection order kept, one entry per edge.
     """
+    if not isinstance(origin, list):
+        _prov = _native_provider(origin)
+        if _prov is not None:
+            _r = _prov.hop(origin, dir, edge, edges_only)
+            if isinstance(_r, list):
+                return _r
     if edge is not None and dir != 3 and not edges_only and not isinstance(origin, list):
         me = origin.__jac__
         if not me.persistent and (
@@ -283,6 +316,12 @@ def clear0(origin: Any, dir: int, edge: Any = None) -> bool:
     Light edges are popped from the adjacency by class; EdgeAnchors of the
     set are detached one by one (destroyed, if persistent).
     """
+    if not isinstance(origin, list):
+        _prov = _native_provider(origin)
+        if _prov is not None:
+            _r = _prov.clear_edges(origin, dir, edge)
+            if _r is not None and not isinstance(_r, tuple) and _r.__class__ is bool:
+                return _r
     if edge is not None and not isinstance(origin, list):
         me = origin.__jac__
         if not me.edges:
