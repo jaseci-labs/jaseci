@@ -120,8 +120,9 @@ test "no existing tag: the guard creates it at the release commit" {
     fx = scaffold();
     try {
         res = run_guard(fx, fx["new"]);
-        assert res.returncode == 0 , "tagging a fresh version must succeed: " + res.stdout
-        + res.stderr;
+        assert res.returncode == 0 , "tagging a fresh version must succeed: "
+            + res.stdout
+            + res.stderr;
         assert remote_tag_commit(fx) == fx["new"] , "the pushed tag must resolve to the commit being released";
     } finally {
         shutil.rmtree(fx["base"], ignore_errors=True);
@@ -133,8 +134,9 @@ test "existing tag on the release commit: the re-run is idempotent" {
     try {
         tag_at(fx, fx["new"]);
         res = run_guard(fx, fx["new"]);
-        assert res.returncode == 0 , "a recovery re-run of the same commit must proceed: " + res.stdout
-        + res.stderr;
+        assert res.returncode == 0 , "a recovery re-run of the same commit must proceed: "
+            + res.stdout
+            + res.stderr;
         assert remote_tag_commit(fx) == fx["new"] , "the tag must still resolve to the release commit";
     } finally {
         shutil.rmtree(fx["base"], ignore_errors=True);
@@ -147,9 +149,12 @@ test "existing annotated tag on another commit: refuse, naming both commits" {
         tag_at(fx, fx["old"]);
         res = run_guard(fx, fx["new"]);
         out = res.stdout + res.stderr;
-        assert res.returncode != 0 , "a tag pointing at a different commit must fail the release instead of building the old tree; got: " + out;
-        assert (fx["old"] in out) , "the refusal must name the commit the tag already points at: " + out;
-        assert (fx["new"] in out) , "the refusal must name the commit being released: " + out;
+        assert res.returncode != 0 , "a tag pointing at a different commit must fail the release instead of building the old tree; got: "
+            + out;
+        assert (fx["old"] in out) , "the refusal must name the commit the tag already points at: "
+            + out;
+        assert (fx["new"] in out) , "the refusal must name the commit being released: "
+            + out;
         assert remote_tag_commit(fx) == fx["old"] , "a refusal must leave the existing tag exactly where it was";
     } finally {
         shutil.rmtree(fx["base"], ignore_errors=True);
@@ -163,7 +168,8 @@ test "existing lightweight tag on another commit: refuse as well" {
         res = run_guard(fx, fx["new"]);
         out = res.stdout + res.stderr;
         assert res.returncode != 0 , "an unannotated stale tag must refuse too: " + out;
-        assert (fx["old"] in out) , "the refusal must name the commit the tag already points at: " + out;
+        assert (fx["old"] in out) , "the refusal must name the commit the tag already points at: "
+            + out;
         assert remote_tag_commit(fx) == fx["old"] , "a refusal must leave the existing tag exactly where it was";
     } finally {
         shutil.rmtree(fx["base"], ignore_errors=True);
