@@ -61,7 +61,7 @@ comptime SPEC_CREATE: CommandSpec = CommandSpec(
                  "style",
                  typ=str,
                  `default=None,
-                 help="shadcn style preset (nova|vega|maia|lyra|mira)",
+                 help="shadcn style preset (nova|vega|maia|lyra|mira|luma|rhea|sera)",
                  short=""
              ),
              Arg.create(

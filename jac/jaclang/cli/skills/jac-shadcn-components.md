@@ -236,7 +236,7 @@ The `[jac-shadcn]` block in `jac.toml` is the source of truth (no longer just sc
 
 ```toml
 [jac-shadcn]
-style = "nova"        # nova | vega | maia | lyra | mira  (--style also restyles installed components)
+style = "nova"        # nova | vega | maia | lyra | mira | luma | rhea | sera  (--style also restyles installed components)
 baseColor = "neutral" # neutral | stone | zinc | gray
 theme = "rose"        # accent: any base color or amber/blue/cyan/emerald/fuchsia/green/indigo/lime/orange/pink/purple/red/rose/sky/teal/violet/yellow
 font = "inter"        # figtree (default), inter, geist, geist-mono, roboto, raleway, dm-sans, public-sans, outfit, noto-sans, nunito-sans, jetbrains-mono
@@ -309,7 +309,7 @@ menuAccent = "subtle" # subtle | bold
 jac retheme --style nova --baseColor neutral --theme indigo --font inter --radius default --menuAccent subtle
 
 # All supported flags (any combination, all optional):
-# --style       nova | vega | maia | lyra | mira
+# --style       nova | vega | maia | lyra | mira | luma | rhea | sera
 # --baseColor   neutral | stone | zinc | gray        (NOT --base-color)
 # --theme       <any theme name from table above>
 # --font        <any font name from table above>

@@ -457,13 +457,15 @@ test "message component installs with no npm deps" {
     }
 }
 
-test "bubble resolves every cn- token against the nova style" {
+test "bubble resolves every cn- token against every style" {
     # bubble.tsx is token-only (no inline utilities on its variants), so an
     # unresolved cn-bubble-* token means the style CSS drifted and the
-    # component would ship unstyled.
-    data = resolve_single_component("bubble", "nova");
-    assert "error" not in data;
-    assert "cn-" not in data["content"];
+    # component would ship unstyled. Check all eight styles, not just nova.
+    for style in ["lyra", "maia", "mira", "nova", "vega", "luma", "rhea", "sera"] {
+        data = resolve_single_component("bubble", style);
+        assert "error" not in data;
+        assert "cn-" not in data["content"] , f"bubble has unresolved cn- token in {style}";
+    }
 }
 
 test "attachment pulls in the button peer and pins its deps" {
@@ -484,15 +486,38 @@ test "attachment pulls in the button peer and pins its deps" {
         assert "import from .button {" in attachment_src;
         assert "-" not in (ui_dir / "attachment.jac").name;
         toml_after = toml_path.read_text();
-        assert "class-variance-authority" in toml_after;
-        assert "radix-ui" in toml_after;
+        # Assert the resolved version ranges, not just the bare package names:
+        # a bare-name substring check passes even against an unpinned "*".
+        assert 'class-variance-authority = "^0.7.1"' in toml_after;
+        assert 'radix-ui = "^1.6.7"' in toml_after;
     }
 }
 
-test "styles synced from upstream all parse to a token map" {
+test "every declared cn-* rule is parseable in every style" {
+    # `len > 0` and a `cn-bubble` substring pass even when a style silently
+    # drops a rule (a stray comment before @apply, a missing semicolon). The
+    # invariant that actually holds: every `.cn-*` selector in the file must
+    # come back out of parse_style_css.
+    import from jaclang.cli.shadcn.shadcn_handler { _registry_dir }
+    import re;
+    styles_dir = _registry_dir() / "styles";
     for style in ["lyra", "maia", "mira", "nova", "vega", "luma", "rhea", "sera"] {
-        resolution_map = parse_style_css(style);
-        assert len(resolution_map) > 0 , f"style {style} produced no tokens";
-        assert "cn-bubble" in str(list(resolution_map.keys())) , f"style {style} is missing the new cn-bubble tokens";
+        css = (styles_dir / f"style-{style}.css").read_text();
+        css = re.sub(r'/\*.*?\*/', "", css, flags=re.DOTALL);
+        declared = set(re.findall(r'\.(cn-[\w-]+)\s*\{', css));
+        parsed = set(parse_style_css(style).keys());
+        assert declared == parsed , f"{style}: unparsed {declared - parsed}";
+    }
+}
+
+test "drawer and sheet keep their layout after style resolution" {
+    # Upstream moved the direction/positioning and enter-exit animation
+    # utilities out of the cn-drawer-content / cn-sheet-content tokens and into
+    # the component. Guard against a resolved component that has lost them.
+    for style in ["lyra", "maia", "mira", "nova", "vega", "luma", "rhea", "sera"] {
+        drawer = resolve_single_component("drawer", style)["content"];
+        assert "data-[vaul-drawer-direction=left]:left-0" in drawer , f"drawer lost edge positioning in {style}";
+        sheet = resolve_single_component("sheet", style)["content"];
+        assert "data-[side=right]:data-open:slide-in-from-right-10" in sheet , f"sheet lost its open animation in {style}";
     }
 }

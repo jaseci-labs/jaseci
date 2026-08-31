@@ -493,8 +493,8 @@
     @apply bg-black/80 supports-backdrop-filter:backdrop-blur-xs;
   }
 
+  /* Shared surface only. Direction layout is owned by each primitive TSX. */
   .cn-drawer-content {
-    /* Shared surface only. Direction layout is owned by each primitive TSX. */
     @apply before:bg-popover text-popover-foreground before:border-border relative flex h-auto flex-col bg-transparent p-4 text-sm before:absolute before:inset-2 before:-z-10 before:rounded-4xl before:border;
   }
 

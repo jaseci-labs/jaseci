@@ -1,5 +1,7 @@
 import from ...lib.utils { cn }
 
+glob _messageExcludeKeys: list[str] = ["className", "align"];
+
 def:pub MessageGroup(props: any) -> JsxElement {
     attrs: dict[str, any] = {** props};
     <div
@@ -10,10 +12,15 @@ def:pub MessageGroup(props: any) -> JsxElement {
 }
 
 def:pub Message(props: any) -> JsxElement {
-    attrs: dict[str, any] = {** props};
     align = props["align"] or "start";
+    restProps = {};
+    for key in Object.keys(props) {
+        if key not in _messageExcludeKeys {
+            restProps[key] = props[key];
+        }
+    }
     <div
-        {**attrs}
+        {**restProps}
         data-slot="message"
         data-align={align}
         className={cn(
