@@ -876,9 +876,13 @@ def _ttg_render_hop_join(
         );
     }
     edge_sql = "\n                    UNION ALL\n".join(branches);
-    cycle_terms = [
-        f"NOT ({alias}_edges.node_id = ANY({frontier_alias}.path_nodes))"
-    ];
+    cycle_terms: list[str] = [];
+    if frontier_alias {
+        cycle_terms.append(
+            f"NOT ({alias}_edges.node_id = ANY({frontier_alias}.path_nodes))"
+        );
+    }
+    cycle_terms.append(f"{alias}_edges.node_id <> {source_expr}");
     cycle_terms.extend([f"{alias}_edges.node_id <> {n}" for n in prior_nodes]);
     cycle_sql = " AND ".join(cycle_terms) if cycle_terms else "TRUE";
     return f"""
@@ -993,7 +997,7 @@ def _ttg_render_frontier_spec_select(
         hop_joins.append(
             _ttg_render_hop_join(
                 spec_idx, hop_idx, source_expr, prior_nodes, hop, params,
-                "frontier"
+                ""
             )
         );
         hop_keys.append(_ttg_hop_key_expr(alias));
@@ -1007,25 +1011,22 @@ def _ttg_render_frontier_spec_select(
     last_node_expr = prior_nodes[-1];
     last_arch_type_expr = f"{hop_aliases[-1]}.arch_type";
     path_nodes_sql = ", ".join(prior_nodes);
-    hop_key_sql = ", ".join(hop_keys);
     edge_ids_sql = ", ".join(edge_ids);
+    step_ord_sql = " || ':' || ".join(hop_keys);
     visit_sql = _ttg_sql_bool(bool(spec.get("is_visit")));
     return f"""
                 SELECT
                     frontier.depth + 1 AS depth,
                     {last_node_expr} AS node_id,
                     {last_arch_type_expr} AS arch_type,
-                    frontier.path_nodes
-                        || ARRAY[{path_nodes_sql}]::uuid[] AS path_nodes,
-                    frontier.path_edges
-                        || ARRAY[{edge_ids_sql}]::uuid[] AS path_edges,
-                    (
-                        frontier.path_ord
-                        || ARRAY[
-                            LPAD(CAST({spec_idx} AS text), 12, '0')
-                        ]::text[]
-                    ) || ARRAY[{hop_key_sql}]::text[] AS path_ord,
-                    {visit_sql}::boolean AS is_frontier
+                    frontier.depth AS parent_depth,
+                    frontier.bfs_ord AS parent_bfs_ord,
+                    frontier.node_id AS parent_node_id,
+                    ARRAY[{path_nodes_sql}]::uuid[] AS step_nodes,
+                    ARRAY[{edge_ids_sql}]::uuid[] AS step_edges,
+                    ({step_ord_sql}) AS step_ord,
+                    {visit_sql}::boolean AS is_frontier,
+                    {spec_idx}::int AS spec_idx
                 FROM frontier
                 {" ".join(hop_joins)}
                 WHERE {_ttg_sql_type_match("frontier.arch_type", f"{pfx}from")}
@@ -1043,86 +1044,110 @@ def _ttg_render_specialized_set_based_sql(
     ];
     recursive_sql = "\n                UNION ALL\n".join(frontier_selects);
     return f"""
-            WITH RECURSIVE
-            walk(
-                depth,
-                node_id,
-                arch_type,
-                path_nodes,
-                path_edges,
-                path_ord,
-                is_frontier
-            ) AS (
-                SELECT
-                    0::int AS depth,
-                    seed.id AS node_id,
-                    n.arch_type AS arch_type,
-                    ARRAY[seed.id]::uuid[] AS path_nodes,
-                    ARRAY[]::uuid[] AS path_edges,
-                    ARRAY[
-                        LPAD(CAST(seed.ord AS text), 20, '0')
-                    ]::text[] AS path_ord,
-                    TRUE AS is_frontier
-                FROM unnest(CAST(:origin_ids AS uuid[]))
-                    WITH ORDINALITY AS seed(id, ord)
-                JOIN anchors n ON n.id = seed.id
-                 AND n.kind = 'NodeAnchor'
-                UNION ALL
-                SELECT
-                    next.depth,
-                    next.node_id,
-                    next.arch_type,
-                    next.path_nodes,
-                    next.path_edges,
-                    next.path_ord,
-                    next.is_frontier
-                FROM (
-                    WITH frontier AS MATERIALIZED (
-                        SELECT *
-                        FROM walk
-                        WHERE walk.is_frontier
-                          AND walk.depth < CAST(:max_depth AS int)
-                    )
-                    {recursive_sql}
-                ) next
-            ),
-            candidate_node_rows AS (
-                SELECT
-                    walk.depth,
-                    walk.node_id AS target_id,
-                    walk.path_ord,
-                    walk.path_nodes,
-                    walk.path_edges,
-                    walk.is_frontier,
-                    CASE
-                        WHEN n.kind = 'NodeAnchor' AND n.arch_type = 'Root'
-                            THEN n.id
+	            WITH RECURSIVE
+	            walk(
+	                depth,
+	                bfs_ord,
+	                node_id,
+	                arch_type,
+	                parent_depth,
+	                parent_bfs_ord,
+	                parent_node_id,
+	                step_nodes,
+	                step_edges,
+	                is_frontier
+	            ) AS (
+	                SELECT
+	                    0::int AS depth,
+	                    seed.ord::bigint AS bfs_ord,
+	                    seed.id AS node_id,
+	                    n.arch_type AS arch_type,
+	                    NULL::int AS parent_depth,
+	                    NULL::bigint AS parent_bfs_ord,
+	                    NULL::uuid AS parent_node_id,
+	                    ARRAY[seed.id]::uuid[] AS step_nodes,
+	                    ARRAY[]::uuid[] AS step_edges,
+	                    TRUE AS is_frontier
+	                FROM unnest(CAST(:origin_ids AS uuid[]))
+	                    WITH ORDINALITY AS seed(id, ord)
+	                JOIN anchors n ON n.id = seed.id
+	                 AND n.kind = 'NodeAnchor'
+	                UNION ALL
+	                SELECT
+	                    raw.depth,
+	                    (ROW_NUMBER() OVER (
+	                        ORDER BY
+	                            raw.parent_bfs_ord,
+	                            raw.spec_idx,
+	                            raw.step_ord,
+	                            raw.node_id
+	                    ))::bigint AS bfs_ord,
+	                    raw.node_id,
+	                    raw.arch_type,
+	                    raw.parent_depth,
+	                    raw.parent_bfs_ord,
+	                    raw.parent_node_id,
+	                    raw.step_nodes,
+	                    raw.step_edges,
+	                    raw.is_frontier
+	                FROM (
+	                    WITH frontier AS MATERIALIZED (
+	                        SELECT *
+	                        FROM walk
+	                        WHERE walk.is_frontier
+	                          AND walk.depth < CAST(:max_depth AS int)
+	                    )
+	                    {recursive_sql}
+	                ) raw
+	            ),
+	            candidate_node_rows AS (
+	                SELECT
+	                    walk.depth,
+	                    walk.bfs_ord,
+	                    walk.node_id AS target_id,
+	                    walk.parent_depth,
+	                    walk.parent_bfs_ord,
+	                    walk.parent_node_id,
+	                    walk.step_nodes,
+	                    walk.step_edges,
+	                    walk.is_frontier,
+	                    CASE
+	                        WHEN n.kind = 'NodeAnchor' AND n.arch_type = 'Root'
+	                            THEN n.id
                         ELSE n.root_id
                     END AS owner_root
                 FROM walk
                 JOIN anchors n ON n.id = walk.node_id
                  AND n.kind = 'NodeAnchor'
             ),
-            raw_additions AS (
-                SELECT
-                    depth,
-                    path_ord,
-                    path_nodes,
-                    path_edges,
-                    0 AS sub_ord,
-                    target_id AS id,
-                    is_frontier
-                FROM candidate_node_rows
-                UNION ALL
-                SELECT
-                    depth,
-                    path_ord,
-                    path_nodes,
-                    path_edges,
-                    1 AS sub_ord,
-                    owner_root AS id,
-                    FALSE AS is_frontier
-                FROM candidate_node_rows
+	            raw_additions AS (
+	                SELECT
+	                    depth,
+	                    bfs_ord,
+	                    target_id AS path_node_id,
+	                    parent_depth,
+	                    parent_bfs_ord,
+	                    parent_node_id,
+	                    step_nodes,
+	                    step_edges,
+	                    0 AS sub_ord,
+	                    target_id AS id,
+	                    is_frontier
+	                FROM candidate_node_rows
+	                UNION ALL
+	                SELECT
+	                    depth,
+	                    bfs_ord,
+	                    target_id AS path_node_id,
+	                    parent_depth,
+	                    parent_bfs_ord,
+	                    parent_node_id,
+	                    step_nodes,
+	                    step_edges,
+	                    1 AS sub_ord,
+	                    owner_root AS id,
+	                    FALSE AS is_frontier
+	                FROM candidate_node_rows
                 WHERE owner_root IS NOT NULL
                   AND owner_root <> target_id
             ),
@@ -1135,43 +1160,125 @@ def _ttg_render_specialized_set_based_sql(
                 GROUP BY id
             ),
             dedup_additions AS (
-                SELECT DISTINCT ON (id)
-                    raw_additions.id,
-                    raw_additions.depth,
-                    raw_additions.path_ord,
-                    raw_additions.path_nodes,
-                    raw_additions.path_edges,
-                    raw_additions.sub_ord,
-                    frontier_flags.is_frontier
-                FROM raw_additions
-                JOIN frontier_flags ON frontier_flags.id = raw_additions.id
-                WHERE raw_additions.id IS NOT NULL
-                ORDER BY raw_additions.id, depth, path_ord, sub_ord
-            ),
-            ordered_plan AS (
-                SELECT
-                    id,
-                    depth,
-                    is_frontier,
-                    path_nodes,
-                    path_edges,
-                    ROW_NUMBER() OVER (
-                        ORDER BY depth, path_ord, sub_ord, id
-                    ) AS ord
-                FROM dedup_additions
-            ),
-            prefetch_plan AS (
-                SELECT id, depth, is_frontier, path_nodes, path_edges, ord
-                FROM ordered_plan
-                WHERE ord <= CAST(:limit AS bigint)
-            ),
-            plan_stats AS (
-                SELECT COUNT(*)::bigint AS total
-                FROM ordered_plan
-            ),
-            plan_rows AS (
-                SELECT
-                    p.ord,
+	                SELECT DISTINCT ON (id)
+	                    raw_additions.id,
+	                    raw_additions.depth,
+	                    raw_additions.bfs_ord,
+	                    raw_additions.path_node_id,
+	                    raw_additions.parent_depth,
+	                    raw_additions.parent_bfs_ord,
+	                    raw_additions.parent_node_id,
+	                    raw_additions.step_nodes,
+	                    raw_additions.step_edges,
+	                    raw_additions.sub_ord,
+	                    frontier_flags.is_frontier
+	                FROM raw_additions
+	                JOIN frontier_flags ON frontier_flags.id = raw_additions.id
+	                WHERE raw_additions.id IS NOT NULL
+	                ORDER BY raw_additions.id, depth, bfs_ord, sub_ord
+	            ),
+	            ordered_plan AS (
+	                SELECT
+	                    id,
+	                    depth,
+	                    bfs_ord,
+	                    path_node_id,
+	                    parent_depth,
+	                    parent_bfs_ord,
+	                    parent_node_id,
+	                    step_nodes,
+	                    step_edges,
+	                    is_frontier,
+	                    ROW_NUMBER() OVER (
+	                        ORDER BY depth, bfs_ord, sub_ord, id
+	                    ) AS ord
+	                FROM dedup_additions
+	            ),
+	            prefetch_plan AS (
+	                SELECT
+	                    id,
+	                    depth,
+	                    bfs_ord,
+	                    path_node_id,
+	                    parent_depth,
+	                    parent_bfs_ord,
+	                    parent_node_id,
+	                    step_nodes,
+	                    step_edges,
+	                    is_frontier,
+	                    ord
+	                FROM ordered_plan
+	                WHERE ord <= CAST(:limit AS bigint)
+	            ),
+	            plan_stats AS (
+	                SELECT COUNT(*)::bigint AS total
+	                FROM ordered_plan
+	            ),
+	            selected_path_rows AS (
+	                SELECT
+	                    p.depth,
+	                    p.bfs_ord,
+	                    p.path_node_id AS node_id,
+	                    p.parent_depth,
+	                    p.parent_bfs_ord,
+	                    p.parent_node_id,
+	                    p.step_nodes,
+	                    p.step_edges
+	                FROM prefetch_plan p
+	                UNION ALL
+	                SELECT
+	                    c.depth,
+	                    c.bfs_ord,
+	                    c.target_id AS node_id,
+	                    c.parent_depth,
+	                    c.parent_bfs_ord,
+	                    c.parent_node_id,
+	                    c.step_nodes,
+	                    c.step_edges
+	                FROM candidate_node_rows c
+	                CROSS JOIN plan_stats ps
+	                WHERE ps.total <= CAST(:limit AS bigint)
+	            ),
+	            chosen_paths(
+	                depth,
+	                bfs_ord,
+	                node_id,
+	                parent_depth,
+	                parent_bfs_ord,
+	                parent_node_id,
+	                step_nodes,
+	                step_edges
+	            ) AS (
+	                SELECT
+	                    depth,
+	                    bfs_ord,
+	                    node_id,
+	                    parent_depth,
+	                    parent_bfs_ord,
+	                    parent_node_id,
+	                    step_nodes,
+	                    step_edges
+	                FROM selected_path_rows
+	                UNION
+	                SELECT
+	                    parent.depth,
+	                    parent.bfs_ord,
+	                    parent.node_id,
+	                    parent.parent_depth,
+	                    parent.parent_bfs_ord,
+	                    parent.parent_node_id,
+	                    parent.step_nodes,
+	                    parent.step_edges
+	                FROM walk parent
+	                JOIN chosen_paths child
+	                  ON child.parent_node_id IS NOT NULL
+	                 AND parent.depth = child.parent_depth
+	                 AND parent.bfs_ord = child.parent_bfs_ord
+	                 AND parent.node_id = child.parent_node_id
+	            ),
+	            plan_rows AS (
+	                SELECT
+	                    p.ord,
                     p.id,
                     p.depth,
                     p.is_frontier,
@@ -1195,33 +1302,24 @@ def _ttg_render_specialized_set_based_sql(
                     n.id,
                     n.kind,
                     n.arch_type,
-                    n.root_id
-            ),
-            topology_path_rows AS (
-                SELECT path_nodes, path_edges
-                FROM prefetch_plan
-                UNION ALL
-                SELECT c.path_nodes, c.path_edges
-                FROM candidate_node_rows c
-                CROSS JOIN plan_stats ps
-                WHERE ps.total <= CAST(:limit AS bigint)
-            ),
-            topology_node_ids AS (
-                SELECT DISTINCT pn.id
-                FROM topology_path_rows p
-                CROSS JOIN LATERAL unnest(p.path_nodes) AS pn(id)
-                WHERE pn.id IS NOT NULL
-                EXCEPT
-                SELECT id
+	                    n.root_id
+	            ),
+	            topology_node_ids AS (
+	                SELECT DISTINCT pn.id
+	                FROM chosen_paths p
+	                CROSS JOIN LATERAL unnest(p.step_nodes) AS pn(id)
+	                WHERE pn.id IS NOT NULL
+	                EXCEPT
+	                SELECT id
                 FROM prefetch_plan
                 WHERE id IS NOT NULL
             ),
-            topology_edge_ids AS (
-                SELECT DISTINCT pe.id
-                FROM topology_path_rows p
-                CROSS JOIN LATERAL unnest(p.path_edges) AS pe(id)
-                WHERE pe.id IS NOT NULL
-            ),
+	            topology_edge_ids AS (
+	                SELECT DISTINCT pe.id
+	                FROM chosen_paths p
+	                CROSS JOIN LATERAL unnest(p.step_edges) AS pe(id)
+	                WHERE pe.id IS NOT NULL
+	            ),
             topology_node_rows AS (
                 SELECT
                     n.id,
