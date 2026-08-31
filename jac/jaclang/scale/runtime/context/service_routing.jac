@@ -13,6 +13,19 @@ obj ServiceRoute {
 }
 
 
+def resolve_interceptor_service_address(kubernetes_cfg: dict[str, any]) -> str {
+    """The one place that decides which interceptor address a deployment
+    uses: [scale.kubernetes.http_activation].interceptor_service_address when
+    set, KEDA_INTERCEPTOR_SERVICE_ADDRESS otherwise. Every KEDAAutoscaler
+    construction site and the runtime routing resolver below both go through
+    this, so neither can point at an interceptor the other does not.""";
+    http_cfg: dict[str, any] = dict(kubernetes_cfg.get("http_activation", {}));
+    return str(
+        http_cfg.get("interceptor_service_address", KEDA_INTERCEPTOR_SERVICE_ADDRESS)
+    );
+}
+
+
 def resolve_http_activation_config(
     top_level_http_activation: dict[str, any],
     microservices_cfg: dict[str, any],
@@ -50,9 +63,8 @@ def resolve_service_route(
         dict(kubernetes_cfg.get("http_activation", {})), microservices_cfg, svc_name
     );
     if http_cfg is not None {
-        return ServiceRoute(
-            url=f"http://{KEDA_INTERCEPTOR_SERVICE_ADDRESS}", host_header=real_host
-        );
+        interceptor_address = resolve_interceptor_service_address(kubernetes_cfg);
+        return ServiceRoute(url=f"http://{interceptor_address}", host_header=real_host);
     }
     return ServiceRoute(url=f"http://{real_host}:{port}", host_header=None);
 }
