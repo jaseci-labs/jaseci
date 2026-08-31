@@ -12,9 +12,67 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 }
 import from jaclang.scale.deploy.target.kubernetes { target as target_mod }
 import from jaclang.scale.deploy.target.kubernetes.utils { kubernetes_utils as utils }
+import from jaclang.scale.injector.pvc_injector { bundle_pvc_name }
 
 glob APP: str = "test01",
-     NS: str = "jb-test-ns";
+     NS: str = "jb-test-ns",
+     CO_TENANT: str = "test02";
+
+
+def _pvc(name: str, role: str, owner: str = "") -> any {
+    labels: dict[str, str] = {"managed": "jac-scale", "jac-scale.role": role};
+    if owner {
+        labels["jac-scale.owner"] = owner;
+    }
+    return SimpleNamespace(metadata=SimpleNamespace(name=name, labels=labels));
+}
+
+
+def _run_destroy(
+    apps_v1: any,
+    core_v1: any,
+    on_delete_namespace: any,
+    component: str = "",
+    monitoring: any = None
+) {
+    monitoring_deployer = unittest.mock.MagicMock();
+    if monitoring is not None {
+        monitoring_deployer = unittest.mock.MagicMock(return_value=monitoring);
+    }
+    fake_client = SimpleNamespace(
+        AppsV1Api=lambda { apps_v1; },
+        CoreV1Api=lambda { core_v1; },
+        PolicyV1Api=lambda { unittest.mock.MagicMock(); },
+        NetworkingV1Api=lambda { unittest.mock.MagicMock(); },
+        RbacAuthorizationV1Api=lambda { unittest.mock.MagicMock(); }
+    );
+    with unittest.mock.patch.multiple(
+        target_mod,
+        client=fake_client,
+        namespace_is_owned=unittest.mock.MagicMock(return_value=True),
+        delete_namespace=on_delete_namespace,
+        KEDAAutoscaler=unittest.mock.MagicMock(),
+        MonitoringDeployer=monitoring_deployer
+    ) {
+        with unittest.mock.patch.object(
+            target_mod.KubernetesTarget,
+            "_load_cluster_config",
+            unittest.mock.MagicMock(return_value=None)
+        ) {
+            with unittest.mock.patch.object(
+                target_mod.AutoscalerFactory,
+                "create",
+                return_value=unittest.mock.MagicMock()
+            ) {
+                target = target_mod.KubernetesTarget(
+                    config=KubernetesConfig(app_name=APP, namespace=NS),
+                    microservices_config={}
+                );
+                target.destroy(APP, component=component);
+            }
+        }
+    }
+}
 
 
 test "the default namespace is never treated as owned" {
@@ -72,53 +130,96 @@ test "a missing namespace is not owned" {
 
 
 test "a failed monitoring teardown keeps the namespace" {
-    order: list = [];
+    deleted_namespaces: list = [];
     core_v1 = unittest.mock.MagicMock();
     core_v1.list_namespaced_service.return_value = SimpleNamespace(items=[]);
     monitoring = unittest.mock.MagicMock();
     monitoring.destroy.side_effect = RuntimeError("prometheus ClusterRole stuck");
 
-    def _note_namespace(namespace: str) {
-        order.append("namespace");
-    }
-
-    fake_client = SimpleNamespace(
-        AppsV1Api=lambda { unittest.mock.MagicMock(); },
-        CoreV1Api=lambda { core_v1; },
-        PolicyV1Api=lambda { unittest.mock.MagicMock(); },
-        NetworkingV1Api=lambda { unittest.mock.MagicMock(); },
-        RbacAuthorizationV1Api=lambda { unittest.mock.MagicMock(); }
+    _run_destroy(
+        unittest.mock.MagicMock(),
+        core_v1,
+        deleted_namespaces.append,
+        monitoring=monitoring
     );
 
-    with unittest.mock.patch.multiple(
-        target_mod,
-        client=fake_client,
-        namespace_is_owned=unittest.mock.MagicMock(return_value=True),
-        delete_namespace=_note_namespace,
-        KEDAAutoscaler=unittest.mock.MagicMock(),
-        MonitoringDeployer=unittest.mock.MagicMock(return_value=monitoring)
-    ) {
-        with unittest.mock.patch.object(
-            target_mod.KubernetesTarget,
-            "_load_cluster_config",
-            unittest.mock.MagicMock(return_value=None)
-        ) {
-            with unittest.mock.patch.object(
-                target_mod.AutoscalerFactory,
-                "create",
-                return_value=unittest.mock.MagicMock()
-            ) {
-                target = target_mod.KubernetesTarget(
-                    config=KubernetesConfig(app_name=APP, namespace=NS),
-                    microservices_config={}
-                );
-                target.destroy(APP);
-            }
-        }
-    }
-
-    assert "namespace" not in order , (
+    assert not deleted_namespaces , (
         "the namespace was deleted after monitoring teardown failed, orphaning "
         "cluster-scoped roles named after a namespace that no longer exists"
+    );
+}
+
+
+test "a namespace this app created but no longer holds alone is kept" {
+    deleted_namespaces: list = [];
+    apps_v1 = unittest.mock.MagicMock();
+    apps_v1.list_namespaced_stateful_set.return_value = SimpleNamespace(
+        items=[SimpleNamespace(metadata=SimpleNamespace(name=f"{CO_TENANT}-postgres"))]
+    );
+    core_v1 = unittest.mock.MagicMock();
+    core_v1.list_namespaced_service.return_value = SimpleNamespace(items=[]);
+    core_v1.read_namespace.side_effect = ApiException(status=404);
+    core_v1.list_namespaced_persistent_volume_claim.return_value = SimpleNamespace(
+        items=[_pvc(bundle_pvc_name(CO_TENANT), "bundle-store")]
+    );
+
+    _run_destroy(apps_v1, core_v1, deleted_namespaces.append);
+
+    assert not deleted_namespaces , (
+        f"the namespace was deleted whole while '{CO_TENANT}' was still "
+        "deployed into it, taking that app's database and volumes with it"
+    );
+    assert apps_v1.delete_namespaced_stateful_set.called , (
+        "the shared-namespace path did not run, so this app's own database "
+        "was left behind instead"
+    );
+}
+
+
+test "a namespace this app created and holds alone is still reclaimed" {
+    deleted_namespaces: list = [];
+    apps_v1 = unittest.mock.MagicMock();
+    apps_v1.list_namespaced_stateful_set.return_value = SimpleNamespace(
+        items=[SimpleNamespace(metadata=SimpleNamespace(name=f"{APP}-postgres"))]
+    );
+    core_v1 = unittest.mock.MagicMock();
+    core_v1.list_namespaced_service.return_value = SimpleNamespace(items=[]);
+    core_v1.read_namespace.side_effect = ApiException(status=404);
+    core_v1.list_namespaced_persistent_volume_claim.return_value = SimpleNamespace(
+        items=[
+            _pvc(bundle_pvc_name(APP), "bundle-store"),
+            _pvc("uploads", "shared-volume", APP)
+        ]
+    );
+
+    _run_destroy(apps_v1, core_v1, deleted_namespaces.append);
+
+    assert deleted_namespaces == [NS] , (
+        "this app's own resources read as a co-tenant's, so the namespace it "
+        "created leaks with everything in it (#7968)"
+    );
+}
+
+
+test "destroying the database keeps the volume holding the app's code" {
+    core_v1 = unittest.mock.MagicMock();
+
+    _run_destroy(
+        unittest.mock.MagicMock(),
+        core_v1,
+        unittest.mock.MagicMock(),
+        component="database"
+    );
+
+    deleted: list = [
+        call.args[0]
+        for call in core_v1.delete_namespaced_persistent_volume_claim.call_args_list
+    ];
+    assert bundle_pvc_name(APP) not in deleted , (
+        "tearing down the database deleted the bundle volume the still-running "
+        "app pods mount"
+    );
+    assert f"{APP}-postgres-data-{APP}-postgres-0" in deleted , (
+        "the postgres data volume outlived the database it belongs to"
     );
 }

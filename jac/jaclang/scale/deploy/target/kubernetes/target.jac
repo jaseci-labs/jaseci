@@ -1902,14 +1902,21 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
     }
 
-    def _app_pvc_names(app_name: str) -> list[str] {
-        safe_name: str = k8s_safe_name(app_name);
+    def _postgres_pvc_name(app_name: str) -> str {
+        """Name the PVC the postgres volumeClaimTemplates entry creates.""";
         pg_name: str = f"{app_name}-postgres";
-        return [bundle_pvc_name(safe_name), f"{pg_name}-data-{pg_name}-0"];
+        return f"{pg_name}-data-{pg_name}-0";
     }
 
-    def _destroy_app_pvcs(app_name: str, namespace: str, core_v1: any) {
-        for pvc_name in self._app_pvc_names(app_name) {
+    def _app_pvc_names(app_name: str) -> list[str] {
+        return [
+            bundle_pvc_name(k8s_safe_name(app_name)),
+            self._postgres_pvc_name(app_name)
+        ];
+    }
+
+    def _destroy_pvcs(pvc_names: list[str], namespace: str, core_v1: any) {
+        for pvc_name in pvc_names {
             delete_if_exists(
                 core_v1.delete_namespaced_persistent_volume_claim,
                 pvc_name,
@@ -1917,6 +1924,10 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 'PersistentVolumeClaim'
             );
         }
+    }
+
+    def _destroy_app_pvcs(app_name: str, namespace: str, core_v1: any) {
+        self._destroy_pvcs(self._app_pvc_names(app_name), namespace, core_v1);
     }
 
     def _report_unowned_shared_volumes(namespace: str, core_v1: any) {
@@ -1964,6 +1975,53 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 }
             }
         }
+    }
+
+    def _list_managed(lister: any, namespace: str, selector: str) -> list[any] {
+        """List the objects a lister returns, tolerating a kind the cluster lacks.""";
+        try {
+            return lister(namespace=namespace, label_selector=selector).items;
+        } except ApiException as e {
+            if e.status == 404 {
+                return [];
+            }
+            raise;
+        }
+    }
+
+    def _foreign_app_resources(
+        app_name: str, namespace: str, apps_v1: any, core_v1: any
+    ) -> list[str] {
+        """Name the jac-scale resources in this namespace another app owns.""";
+        owner: str = k8s_safe_name(app_name);
+        our_bundle: str = bundle_pvc_name(owner);
+        our_postgres: str = f"{app_name}-postgres";
+        managed: str = "managed=jac-scale";
+        found: list[str] = [];
+        for pvc in self._list_managed(
+            core_v1.list_namespaced_persistent_volume_claim, namespace, managed
+        ) {
+            labels: dict[str, str] = pvc.metadata.labels or {};
+            role: str = labels.get("jac-scale.role", "");
+            volume_owner: str = labels.get("jac-scale.owner", "");
+            foreign_bundle: bool = (
+                role == "bundle-store" and pvc.metadata.name != our_bundle
+            );
+            foreign_volume: bool = (
+                role == "shared-volume" and bool(volume_owner) and volume_owner != owner
+            );
+            if foreign_bundle or foreign_volume {
+                found.append(f"PersistentVolumeClaim/{pvc.metadata.name}");
+            }
+        }
+        for sts in self._list_managed(
+            apps_v1.list_namespaced_stateful_set, namespace, managed
+        ) {
+            if sts.metadata.name != our_postgres {
+                found.append(f"StatefulSet/{sts.metadata.name}");
+            }
+        }
+        return found;
     }
 
     def _destroy_ops_rbac(app_name: str, namespace: str) {
@@ -2086,7 +2144,13 @@ obj KubernetesTarget(KubernetesTargetBase) {
         );
         owner: str = k8s_safe_name(app_name);
 
-        sole_tenant: bool = namespace_is_owned(core_v1, namespace, owner);
+        created_namespace: bool = namespace_is_owned(core_v1, namespace, owner);
+        co_tenants: list[str] = (
+            self._foreign_app_resources(app_name, namespace, apps_v1, core_v1)
+                if created_namespace
+                else []
+        );
+        sole_tenant: bool = created_namespace and not co_tenants;
 
         if sole_tenant {
             if monitoring_reclaimed {
@@ -2101,6 +2165,13 @@ obj KubernetesTarget(KubernetesTargetBase) {
                     {"app_name": app_name}
                 );
             }
+        } elif co_tenants and self.logger {
+            self.logger.warning(
+                f"Keeping namespace '{namespace}': this app created it, but "
+                f"{', '.join(co_tenants)} in it belongs to another app. "
+                f"Removing only this app's resources.",
+                {"app_name": app_name}
+            );
         }
         self._destroy_in_shared_namespace(
             app_name, namespace, apps_v1, core_v1, sole_tenant
@@ -2122,7 +2193,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
             );
         } elif component == 'database' {
             self._destroy_app_database(app_name, namespace, apps_v1, core_v1);
-            self._destroy_app_pvcs(app_name, namespace, core_v1);
+            self._destroy_pvcs([self._postgres_pvc_name(app_name)], namespace, core_v1);
         } elif component == 'monitoring' {
             self._destroy_monitoring(app_name, namespace, apps_v1, core_v1);
         } else {
