@@ -102,7 +102,7 @@ def assets_for(platforms: list[str]) -> list[str] {
 }
 
 def run_guard(
-    fx: dict[(str, str)], required: list[str]
+    fx: dict[(str, str)], required: list[str], api_fails: bool = False
 ) -> subprocess.CompletedProcess[str] {
     env = dict(os.environ);
     env["PATH"] = fx["bin"] + os.pathsep + env["PATH"];
@@ -111,6 +111,7 @@ def run_guard(
     env["GH_ISDRAFT"] = fx["isdraft"];
     env["GH_LATEST"] = fx["latest"];
     env["GH_REPO"] = "jaseci-labs/jac";
+    env["GH_VIEW_FAILS"] = "1" if api_fails else "";
     env["RELEASE_ASSET_TIMEOUT"] = "1";
     env["RELEASE_ASSET_POLL"] = "1";
     return subprocess.run(
@@ -213,6 +214,21 @@ test "an already-published release is left exactly as it is" {
         assert res.returncode == 0 , "a re-run over a published release must converge: "
             + out;
         assert publish_call(fx) == "" , "a published release's latest pointer must not be re-flipped";
+    } finally {
+        shutil.rmtree(fx["base"], ignore_errors=True);
+    }
+}
+
+test "an unreadable release API is reported as such, and publishes nothing" {
+    fx = scaffold(assets_for(ALL_PLATFORMS));
+    try {
+        res = run_guard(fx, ALL_PLATFORMS, api_fails=True);
+        out = res.stdout + res.stderr;
+        assert res.returncode != 0 , "an API the guard cannot read must not pass for a complete release: "
+            + out;
+        assert ("502" in out) , "the refusal must carry the API's own error rather than blame missing assets: "
+            + out;
+        assert publish_call(fx) == "" , "nothing may be published while the release cannot be read";
     } finally {
         shutil.rmtree(fx["base"], ignore_errors=True);
     }
