@@ -108,12 +108,12 @@ def _finish_parse(
     return p_errs > 0 or lex_errs > 0;
 }
 
+"""Parse through the PyObject-unitree lib when it is loaded: the
+returned Module and every diagnostic are Python objects built in native
+memory, so the replay below is ordinary attribute access (#8789)."""
 def _native_parse_woven(
     source_str: str, file_path: str, prog: (JacProgram | None), annexes: list
 ) -> (tuple | None) {
-    """Parse through the PyObject-unitree lib when it is loaded: the
-    returned Module and every diagnostic are Python objects built in native
-    memory, so the replay below is ordinary attribute access (#8789)."""
     import jaclang.compiler.frontend.npy_bridge as _npy;
     br = _npy.ensure_loaded();
     if br is None {

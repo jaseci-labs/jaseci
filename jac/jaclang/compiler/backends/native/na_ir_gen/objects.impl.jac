@@ -3431,7 +3431,9 @@ impl NaIRGenObjects._emit_dispatched_field_ptr(
     _fp_t = ftype.as_pointer();
     b = self.builder;
     _df_vpp = b.gep(
-        obj_val, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="df.vt.pp"
+        obj_val,
+        [ir.Constant(i32, 0), ir.Constant(i32, self._npy_vt_slot(type_name))],
+        name="df.vt.pp"
     );
     _df_vtp = b.load(_df_vpp, name="df.vt");
     _df_fnc = b.block.function;
@@ -3599,7 +3601,11 @@ impl NaIRGenObjects._codegen_class_const_read(
 
     i32 = ir.IntType(32);
     b = self.builder;
-    _cc_vpp = b.gep(_recv, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="cc.vt.pp");
+    _cc_vpp = b.gep(
+        _recv,
+        [ir.Constant(i32, 0), ir.Constant(i32, self._npy_vt_slot(type_name))],
+        name="cc.vt.pp"
+    );
     _cc_vtp = b.load(_cc_vpp, name="cc.vt");
     _cc_fn = b.block.function;
     _cc_done = _cc_fn.append_basic_block(name=f"cc.{field_name}.done");
@@ -4184,7 +4190,8 @@ impl NaIRGenObjects._emit_class_routed_call(
 
 
 impl NaIRGenObjects._emit_npy_helpers -> None {
-    if self.npy_type_table is not None {
+    _mkey = id(self.llvm_module);
+    if _mkey in self.npy_mod_tables {
         return;
     }
     if self.rc_alloc_fn is None {
@@ -4196,43 +4203,44 @@ impl NaIRGenObjects._emit_npy_helpers -> None {
     i8p = i8.as_pointer();
     cap = 1024;
 
+    # Every module that needs them defines the tables and entry points
+    # identically as linkonce_odr; the linker keeps one of each, so no
+    # cross-module bookkeeping is involved.
     tt = ir.GlobalVariable(
         self.llvm_module, ir.ArrayType(i8p, cap), name="__npy_type_table"
     );
-    tt.linkage = "internal";
-    tt.initializer = ir.Constant(ir.ArrayType(i8p, cap), None);
-    self.npy_type_table = tt;
     st = ir.GlobalVariable(
         self.llvm_module, ir.ArrayType(i64, cap), name="__npy_size_table"
     );
-    st.linkage = "internal";
-    st.initializer = ir.Constant(ir.ArrayType(i64, cap), None);
-    self.npy_size_table = st;
     gt = ir.GlobalVariable(
         self.llvm_module, ir.ArrayType(i64, cap), name="__npy_tag_table"
     );
-    gt.linkage = "internal";
-    gt.initializer = ir.Constant(ir.ArrayType(i64, cap), None);
-    self.npy_tag_table = gt;
     ot = ir.GlobalVariable(
         self.llvm_module, ir.ArrayType(i64, cap), name="__npy_tagoff_table"
     );
-    ot.linkage = "internal";
+    tt.initializer = ir.Constant(ir.ArrayType(i8p, cap), None);
+    st.initializer = ir.Constant(ir.ArrayType(i64, cap), None);
+    gt.initializer = ir.Constant(ir.ArrayType(i64, cap), None);
     ot.initializer = ir.Constant(
         ir.ArrayType(i64, cap), [ir.Constant(i64, -1) for _ in range(cap)]
     );
-    self.npy_tagoff_table = ot;
+    for _g in [tt, st, gt, ot] {
+        _g.linkage = "linkonce_odr";
+    }
+    self.npy_mod_tables[_mkey] = (tt, st, gt, ot);
 
-    _saved = self._builder;
-
-    # npy_register_kind(kind, type_ptr, size, tag, tag_off): the installer
-    # feeds every per-kind table from the emitted layout sidecar, so no
-    # module-init ordering is involved anywhere.
     reg = ir.Function(
         self.llvm_module,
         ir.FunctionType(i64, [i64, i8p, i64, i64, i64]),
         name="npy_register_kind"
     );
+    al = ir.Function(
+        self.llvm_module, ir.FunctionType(i8p, [i64]), name="npy_alloc"
+    );
+    reg.linkage = "linkonce_odr";
+    al.linkage = "linkonce_odr";
+
+    _saved = self._builder;
     self._builder = ir.IRBuilder(reg.append_basic_block("entry"));
     b = self.builder;
     (_kind, _tp, _sz, _tag, _toff) = (
@@ -4244,13 +4252,6 @@ impl NaIRGenObjects._emit_npy_helpers -> None {
     b.store(_toff, b.gep(ot, [ir.Constant(i32, 0), _kind], name="npy.ot"));
     b.ret(ir.Constant(i64, 0));
 
-    # npy_alloc(kind): arena allocation for Python-side construction
-    # (tp_new). Zeroed payload, immortal RC header, PyObject header, OSP
-    # tag stamped at its registered byte offset. No vtable: Python-created
-    # nodes are only ever dispatched from Python.
-    al = ir.Function(
-        self.llvm_module, ir.FunctionType(i8p, [i64]), name="npy_alloc"
-    );
     self._builder = ir.IRBuilder(al.append_basic_block("entry"));
     b = self.builder;
     _k = al.args[0];
@@ -4295,10 +4296,11 @@ impl NaIRGenObjects._emit_npy_helpers -> None {
 
 impl NaIRGenObjects._emit_pyobj_header(obj_ptr: ir.Value, arch_name: str) -> None {
     kind = self.pyobj_kind.get(arch_name);
-    if kind is None {
+    if kind is None or not self._npy_struct_has_header(arch_name) {
         return;
     }
     self._emit_npy_helpers();
+    (tt, _st, _gt, _ot) = self.npy_mod_tables[id(self.llvm_module)];
     b = self.builder;
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
@@ -4312,8 +4314,6 @@ impl NaIRGenObjects._emit_pyobj_header(obj_ptr: ir.Value, arch_name: str) -> Non
             name="npy.hdr.refcnt"
         )
     );
-    tt = self.npy_type_table;
-    assert tt is not None , "npy helpers are emitted before header stamping";
     _tp = b.load(
         b.gep(tt, [ir.Constant(i32, 0), ir.Constant(i64, kind)]), name="npy.hdr.tp"
     );
@@ -4335,9 +4335,9 @@ impl NaIRGenObjects._emit_pyobj_header(obj_ptr: ir.Value, arch_name: str) -> Non
     );
 }
 
+"""x86-64/AArch64 ABI offsets for the struct's fields: every scalar is
+size-aligned, aggregates recurse; returns (offsets, total_size)."""
 impl NaIRGenObjects._npy_abi_offsets(field_types: list) -> tuple {
-    """x86-64/AArch64 ABI offsets for the struct's fields: every scalar is
-    size-aligned, aggregates recurse; returns (offsets, total_size)."""
     offsets: list[int] = [];
     off = 0;
     for ft in field_types {
@@ -4395,8 +4395,22 @@ impl NaIRGenObjects._build_npy_layout -> str {
             if fname in enum_map {
                 code = "enum";
                 aux = enum_map[fname];
-            } elif self?._str_desc_ty is not None and ft == self._str_desc_ty {
+            } elif (
+                isinstance(ft, ir.PointerType)
+                and isinstance(ft.pointee, ir.IntType)
+                and ft.pointee.width == 8
+            ) {
                 code = "str";
+            } elif (
+                hasattr(ft, "elements")
+                and ft.elements is not None
+                and len(ft.elements) == 2
+                and isinstance(ft.elements[0], ir.IntType)
+                and isinstance(ft.elements[1], ir.PointerType)
+            ) {
+                code = "optref";
+                _opn = getattr(ft.elements[1].pointee, "name", "") or "";
+                aux = _opn;
             } elif isinstance(ft, ir.IntType) {
                 code = "bool" if ft.width == 1 else "int";
             } elif isinstance(ft, ir.DoubleType) {
@@ -4440,8 +4454,29 @@ impl NaIRGenObjects._build_npy_layout -> str {
 }
 
 
+"""Whether this struct really carries the PyObject header. The kind and
+struct registries are name-keyed unit-wide, so a non-scope class sharing a
+name with a scope class must not get header stores aimed at it."""
+impl NaIRGenObjects._npy_struct_has_header(arch_name: str) -> bool {
+    if arch_name not in self.pyobj_kind {
+        return False;
+    }
+    st = self.struct_types.get(arch_name);
+    if st is None or st?.elements is None or len(st.elements) < 3 {
+        return False;
+    }
+    e0 = st.elements[0];
+    if not (isinstance(e0, ir.IntType) and e0.width == 64) {
+        return False;
+    }
+    return (
+        isinstance(st.elements[1], ir.PointerType)
+        and isinstance(st.elements[2], ir.PointerType)
+    );
+}
+
+"""The vtable pointer's field index: PyObject-headed classes carry
+{ob_refcnt, ob_type, __dict__} ahead of it."""
 impl NaIRGenObjects._npy_vt_slot(arch_name: str) -> int {
-    """The vtable pointer's field index: PyObject-headed classes carry
-    {ob_refcnt, ob_type, __dict__} ahead of it."""
-    return 3 if arch_name in self.pyobj_kind else 0;
+    return 3 if self._npy_struct_has_header(arch_name) else 0;
 }

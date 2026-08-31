@@ -11,13 +11,24 @@ type slots the installer builds from the layout sidecar.
 
 import from c { def PyList_New(n: int) -> int;  }
 import from c { def PyList_SetItem(l: int, i: int, v: int) -> int;  }
+import from c { def memcpy(dst: bytes, src: int, n: u64) -> int;  }
+import from c {
+    def osp_conn(
+        src: int,
+        tgt: int,
+        eobj: int,
+        undirected: int,
+        edge_tag: int,
+        rgn_src: int,
+        rgn_tgt: int
+    ) -> int;
+}
+import from c { def osp_refs(origin: int, dir: int, edge_tag: int, edges_only: int) -> int;  }
+import from c { def osp_disconn_between(src: int, tgt: int, dir: int, edge_tag: int) -> int;  }
 
 import from jaclang.compiler.frontend.parser.parser { parse_program }
 import from jaclang.compiler.frontend.parser.tokens { SrcDiag, CommentData }
 import from jaclang.compiler.frontend.unitree { UniNode, Module, nu_role_shape }
-import from jaclang.runtime.osp_graph {
-    osp_conn, osp_refs, osp_disconn_between
-}
 
 obj NpState {
     has mod: (Module | None) = None,
@@ -62,14 +73,14 @@ def:pub np_err_count -> int {
     return _NP.p_errs;
 }
 
+"""A PyList of header-carrying unit objects: the element addresses are
+already PyObject pointers, and immortality makes the stolen references
+PyList_SetItem takes a no-op."""
 def:pub np_lex_errs -> int {
     return _NP.lex_errs;
 }
 
 def _pyobj_list(items: list) -> int {
-    """A PyList of header-carrying unit objects: the element addresses are
-    already PyObject pointers, and immortality makes the stolen references
-    PyList_SetItem takes a no-op."""
     out = PyList_New(len(items));
     i = 0;
     for it in items {
@@ -87,17 +98,28 @@ def:pub np_lexdiags -> int {
     return _pyobj_list(_NP.lex_diags);
 }
 
+"""One adjacency read as a PyList of nodes. dir: 1 = in, 2 = out."""
 def:pub np_comments -> int {
     return _pyobj_list(_NP.comments);
 }
 
+def _read_i64(addr: int) -> int {
+    buf = bytes(8);
+    memcpy(buf, addr, 8);
+    return int.from_bytes(buf, "little");
+}
+
 def:pub npy_adj(nd: int, tag: int, dir: int) -> int {
-    """One adjacency read as a PyList of nodes. dir: 1 = in, 2 = out."""
-    peers = osp_refs(nd, dir, tag, 0);
-    out = PyList_New(len(peers));
+    h = osp_refs(nd, dir, tag, 0);
+    if h == 0 {
+        return PyList_New(0);
+    }
+    n = _read_i64(h);
+    data = _read_i64(h + 16);
+    out = PyList_New(n);
     i = 0;
-    for p in peers {
-        PyList_SetItem(out, i, p);
+    while i < n {
+        PyList_SetItem(out, i, _read_i64(data + (i * 8)));
         i += 1;
     }
     return out;
@@ -112,14 +134,22 @@ def:pub npy_disconn(src: int, tgt: int, dir: int, tag: int) -> int {
 }
 
 def:pub npy_role_clear(nd: int, dir: int, tag: int) -> int {
-    peers = osp_refs(nd, dir, tag, 0);
+    h = osp_refs(nd, dir, tag, 0);
+    if h == 0 {
+        return 0;
+    }
+    cnt = _read_i64(h);
+    data = _read_i64(h + 16);
     n = 0;
-    for p in peers {
+    i = 0;
+    while i < cnt {
+        p = _read_i64(data + (i * 8));
         if dir == 2 {
             n += osp_disconn_between(nd, p, 2, tag);
         } else {
             n += osp_disconn_between(p, nd, 2, tag);
         }
+        i += 1;
     }
     return n;
 }

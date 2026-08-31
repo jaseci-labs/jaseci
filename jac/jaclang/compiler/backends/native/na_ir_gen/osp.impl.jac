@@ -187,6 +187,29 @@ impl NaIRGenOsp._osp_rc_new(struct_name: str) -> (ir.Value | None) {
     return struct_ptr;
 }
 
+"""The OSP tag of a node given only its address. PyObject-headed nodes
+(#8789) keep the tag behind the {ob_refcnt, ob_type, __dict__} header; a
+header node is recognized by the immortal refcount pattern in word 0,
+which CPython never mutates, while a bare OSP node always carries a
+vtable pointer there."""
+impl NaIRGenOsp._osp_emit_tag_read(hp: ir.Value) -> ir.Value {
+    b = self.builder;
+    i64 = ir.IntType(64);
+    _w0 = b.load(
+        b.bitcast(hp, i64.as_pointer(), name="tagr.w0p"), name="tagr.w0"
+    );
+    _is_hdr = b.icmp_unsigned(
+        "==", _w0, ir.Constant(i64, 4294967295), name="tagr.ishdr"
+    );
+    _off = b.select(
+        _is_hdr, ir.Constant(i64, 32), ir.Constant(i64, 8), name="tagr.off"
+    );
+    _tp = b.bitcast(
+        b.gep(hp, [_off], name="tagr.p"), i64.as_pointer(), name="tagr.p64"
+    );
+    return b.load(_tp, name="tagr.tag");
+}
+
 impl NaIRGenOsp._osp_make_immortal(ptr: ir.Value) -> None {
     if self._nogc_headerless() {
         return;
@@ -320,12 +343,7 @@ impl NaIRGenOsp._osp_emit_callbacks -> dict {
     self._builder = ir.IRBuilder(_tf.append_basic_block("entry"));
     _pl = self.builder.extract_value(_tf.args[0], 1, name="h.payload");
     _hp = self.builder.inttoptr(_pl, i8p, name="h.ptr");
-    _tp = self.builder.bitcast(
-        self.builder.gep(_hp, [ir.Constant(i64, 8)], name="h.tagp"),
-        i64.as_pointer(),
-        name="h.tagp64"
-    );
-    self.builder.ret(self.builder.load(_tp, name="h.tag"));
+    self.builder.ret(self._osp_emit_tag_read(_hp));
     out["tag_of"] = _tf;
 
     out["is_a"] = self.func_symtab.get("osp_is_a");
@@ -1372,14 +1390,7 @@ impl NaIRGenOsp._osp_type_pair(ntag: int) -> (ir.Value | None) {
     _saved = self._builder;
     self._builder = ir.IRBuilder(_tf.append_basic_block("entry"));
     _p = self.builder.inttoptr(_tf.args[0], i8p, name="typep.p");
-    _tag = self.builder.load(
-        self.builder.bitcast(
-            self.builder.gep(_p, [ir.Constant(i64, 8)], name="typep.tagp"),
-            i64.as_pointer(),
-            name="typep.tagp64"
-        ),
-        name="typep.tag"
-    );
+    _tag = self._osp_emit_tag_read(_p);
     _iargs = _isa_fn.function_type.args;
     _r = self.builder.call(
         _isa_fn,

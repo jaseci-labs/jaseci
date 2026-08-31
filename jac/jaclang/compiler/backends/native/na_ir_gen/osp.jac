@@ -15,6 +15,7 @@ obj NaIRGenOsp(NaIRGenState) {
     def _emit_osp_setup -> None;
     def _osp_rc_new(struct_name: str) -> (ir.Value | None);
     def _osp_make_immortal(ptr: ir.Value) -> None;
+    def _osp_emit_tag_read(hp: ir.Value) -> ir.Value;
     def _osp_build_slot(trig_tag: int, thunk: ir.Function) -> (ir.Value | None);
     def _osp_build_descriptor(
         struct_name: str, type_tag: int, entry_slots: list, exit_slots: list

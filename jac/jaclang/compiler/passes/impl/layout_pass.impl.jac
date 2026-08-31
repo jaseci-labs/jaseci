@@ -293,7 +293,13 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
     }
     _pyo_mod = arch.find_parent_of_type(Module);
     _pyo_path = _pyo_mod.loc.mod_path if _pyo_mod is not None else "";
-    if _pyo_armed() and _pyo_in_scope(_pyo_path or "") {
+    import os as _pyo_os;
+    if (
+        _pyo_armed() and _pyo_in_scope(_pyo_path or "")
+    ) or (
+        _pyo_os.environ.get("JAC_NPY_FORCE")
+        and "jaclang" not in (_pyo_path or "")
+    ) {
         # {ob_refcnt, ob_type, instance __dict__} -- the dict slot gives
         # Python-side passes their scratch attributes via tp_dictoffset.
         pyobj_header_slots = 3;

@@ -55,6 +55,7 @@ obj NaIRGenObjects(NaIRGenState) {
     def _emit_npy_helpers -> None;
     def _emit_pyobj_header(obj_ptr: ir.Value, arch_name: str) -> None;
     def _npy_vt_slot(arch_name: str) -> int;
+    def _npy_struct_has_header(arch_name: str) -> bool;
     def _build_npy_layout -> str;
     def _register_static_fields(arch_name: str, archhas: uni.ArchHas) -> None;
     def _register_class_consts(

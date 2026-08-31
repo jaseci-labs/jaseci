@@ -345,24 +345,43 @@ class NpyBridge:
         for fname, f in fields.items():
             code, off = f["code"], f["offset"]
             if code == "str":
+                # A jac string field is one pointer to a NUL-terminated,
+                # RC-managed buffer (confirmed by memory probe).
 
                 def sget(self, _off=off):
-                    a = _addr(self) + _off
-                    data = cast(a + 8, POINTER(c_void_p))[0]
-                    ln = cast(a + 16, POINTER(c_ulonglong))[0]
+                    data = cast(_addr(self) + _off, POINTER(c_void_p))[0]
                     if not data:
                         return ""
-                    return string_at(data, ln).decode()
+                    return string_at(data).decode()
 
                 def sset(self, value, _off=off):
                     b = (value or "").encode()
                     p = lib.jac_str_new(b, len(b))
-                    a = _addr(self) + _off
-                    cast(a, POINTER(c_void_p))[0] = p
-                    cast(a + 8, POINTER(c_void_p))[0] = p
-                    cast(a + 16, POINTER(c_ulonglong))[0] = len(b)
+                    cast(_addr(self) + _off, POINTER(c_void_p))[0] = p
 
                 setattr(t, fname, property(sget, sset))
+            elif code == "optref":
+                # An optional node ref is {flag: i8, ptr}: present iff the
+                # flag byte is set; the target is itself a PyObject.
+
+                def oget(self, _off=off):
+                    a = _addr(self) + _off
+                    flag = cast(a, POINTER(ctypes.c_uint8))[0]
+                    if not flag:
+                        return None
+                    ptr = cast(a + 8, POINTER(c_void_p))[0]
+                    return cast(ptr, py_object).value if ptr else None
+
+                def oset(self, value, _off=off):
+                    a = _addr(self) + _off
+                    if value is None:
+                        cast(a, POINTER(ctypes.c_uint8))[0] = 0
+                        cast(a + 8, POINTER(c_void_p))[0] = None
+                    else:
+                        cast(a, POINTER(ctypes.c_uint8))[0] = 1
+                        cast(a + 8, POINTER(c_void_p))[0] = _addr(value)
+
+                setattr(t, fname, property(oget, oset))
             elif code == "enum":
                 enum_name = f["aux"]
 

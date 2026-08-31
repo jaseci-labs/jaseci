@@ -1135,6 +1135,14 @@ impl NativeCompilePass._compile_and_link_native_imports(
             linked_modules[real_path] = mod_info;
             module.gen.interop_manifest.native_module_imports[source_mod_path] = mod_info;
         } except Exception as e {
+            import os as _dbg_os;
+            if _dbg_os.environ.get("JAC_NPY_DUMP_BAD_IR") {
+                _dbg_dir = _dbg_os.environ["JAC_NPY_DUMP_BAD_IR"];
+                _dbg_name = _dbg_os.path.basename(str(full_path)) + ".bad.ll";
+                with open(_dbg_os.path.join(_dbg_dir, _dbg_name), "w") as _dbg_f {
+                    _dbg_f.write(str(imported_llvm_str));
+                }
+            }
             self.emit(E5025, path=full_path, error=str(e));
         }
     }

@@ -2873,8 +2873,22 @@ impl NaIRGenCalls._emit_isinstance_mixed(
         }
     } else {
         i8_pp = i8.as_pointer().as_pointer();
+        i64 = ir.IntType(64);
+        _mix_w0 = self.builder.load(
+            self.builder.inttoptr(payload, i64.as_pointer(), name="isinst.mix.w0p"),
+            name="isinst.mix.w0"
+        );
+        _mix_hdr = self.builder.icmp_unsigned(
+            "==", _mix_w0, ir.Constant(i64, 4294967295), name="isinst.mix.ishdr"
+        );
+        _mix_off = self.builder.select(
+            _mix_hdr, ir.Constant(i64, 24), ir.Constant(i64, 0),
+            name="isinst.mix.off"
+        );
         slot_pp = self.builder.inttoptr(
-            payload, i8_pp.as_pointer(), name="isinst.mix.slot"
+            self.builder.add(payload, _mix_off, name="isinst.mix.addr"),
+            i8_pp.as_pointer(),
+            name="isinst.mix.slot"
         );
         vptr = self.builder.load(slot_pp, name="isinst.mix.vptr");
         for vt in target_vtables {
@@ -2962,7 +2976,17 @@ impl NaIRGenCalls._emit_isinstance_user(
 
     self.builder.position_at_end(nonnull_bb);
     i8_pp = i8.as_pointer().as_pointer();
-    op_as = self.builder.bitcast(operand, i8_pp.as_pointer(), name="isinst.obj");
+    _iu_off = self._npy_vt_slot(struct_name or "") * 8;
+    _iu_raw = self.builder.bitcast(
+        operand, i8.as_pointer(), name="isinst.obj.raw"
+    );
+    op_as = self.builder.bitcast(
+        self.builder.gep(
+            _iu_raw, [ir.Constant(ir.IntType(64), _iu_off)], name="isinst.obj.vpp"
+        ),
+        i8_pp.as_pointer(),
+        name="isinst.obj"
+    );
     vptr = self.builder.load(op_as, name="isinst.vptr");
     cmp: (ir.Value | None) = None;
     for vt in target_vtables {
