@@ -690,7 +690,7 @@ impl UnparsePass.exit_ctrl_stmt with uni.CtrlStmt exit {
 }
 
 impl UnparsePass.exit_delete_stmt with uni.DeleteStmt exit {
-    here.gen.jac = "delete " + here.target.gen.jac + ";";
+    here.gen.jac = "delete " + ", ".join([t.gen.jac for t in here.targets]) + ";";
 }
 
 impl UnparsePass.exit_report_stmt with uni.ReportStmt exit {

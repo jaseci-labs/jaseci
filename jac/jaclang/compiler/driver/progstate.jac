@@ -37,13 +37,13 @@ obj ModuleHub {
 
     def evict(resolved_path: str) {
         if resolved_path in self.mod.hub {
-            del (self.mod.hub[resolved_path], );
+            self.mod.hub.pop(resolved_path);
         }
         if resolved_path in self.stamps {
-            del (self.stamps[resolved_path], );
+            del self.stamps[resolved_path];
         }
         if resolved_path in self.artifacts {
-            del (self.artifacts[resolved_path], );
+            del self.artifacts[resolved_path];
         }
     }
 

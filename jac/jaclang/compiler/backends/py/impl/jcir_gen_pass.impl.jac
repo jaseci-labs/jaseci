@@ -2957,46 +2957,144 @@ impl JcirGenPass.exit_ctrl_stmt with CtrlStmt exit {
     }
 }
 
-impl JcirGenPass._delete_targets(nd: DeleteStmt) -> list[CgNode] {
-    if (isinstance(nd.target, TupleVal) and nd.target.values) {
-        return [self.val(i) for i in nd.target.values];
-    }
-    return [
-        i
-        for i in self.outs(nd.target)
-        if isinstance(i, CgNode)
-    ];
+impl JcirGenPass._del_ctx_target(target: Expr, ctx_cls: str) -> CgNode {
+    cgn = self.val(target);
+    return self._with_ctx(cgn, ctx_cls) if cgn.hasf('ctx') else cgn;
 }
 
-impl JcirGenPass._delete_ctx_targets(
-    targets: list[CgNode], ctx_cls: str
-) -> list[CgNode] {
-    items: list[CgNode] = targets;
-    head = items[0] if items else None;
-    if (head is not None and head.cls in ('List', 'Tuple')) {
-        items = [
-            i
-            for i in head.get('elts')
-            if isinstance(i, CgNode)
-        ];
-    }
-    result: list[CgNode] = [];
-    for target in items {
-        result.append(
-            self._with_ctx(target, ctx_cls) if target.hasf('ctx') else target
+impl JcirGenPass._destroy_call(value: CgNode, strict: bool) -> CgNode {
+    keywords: list[CgNode] = [];
+    if strict {
+        keywords.append(
+            self.nod('keyword', ['arg', 'value'], ['strict', self.const_of(True)])
         );
     }
-    return result;
+    return self.nod(
+        'Expr',
+        ['value'],
+        [
+            self.nod(
+                'Call',
+                ['func', 'args', 'keywords'],
+                [self.jaclib_obj('destroy'), [value], keywords]
+            )
+        ]
+    );
+}
+
+impl JcirGenPass._del_is_trivial(cgn: CgNode) -> bool {
+    if cgn.cls in ('Name', 'Constant') {
+        return True;
+    }
+    if cgn.cls == 'Slice' {
+        return all(
+            (part is None) or (isinstance(part, CgNode) and self._del_is_trivial(part))
+            for part in (cgn.get('lower'), cgn.get('upper'), cgn.get('step'))
+        );
+    }
+    return False;
+}
+
+impl JcirGenPass._del_slice_value(value: CgNode, nd: DeleteStmt) -> CgNode {
+    if value.cls != 'Slice' {
+        return value;
+    }
+    return self.nod(
+        'Call',
+        ['func', 'args', 'keywords'],
+        [
+            self.name_load('slice', jac_node=nd),
+            [
+                part if isinstance(part, CgNode) else self.const_of(None)
+                for part in (value.get('lower'), value.get('upper'), value.get('step'))
+            ],
+            []
+        ]
+    );
+}
+
+impl JcirGenPass._del_bind_temp(
+    value: CgNode, name: str, stmts: list[CgItem], nd: DeleteStmt
+) -> CgNode {
+    bound = self._del_slice_value(value, nd);
+    stmts.append(
+        self.nod(
+            'Assign',
+            ['targets', 'value'],
+            [
+                [self.nod('Name', ['id', 'ctx'], [name, self.nod('Store', [], [])])],
+                bound
+            ],
+            jac_node=nd
+        )
+    );
+    return self.name_load(name, jac_node=nd);
+}
+
+impl JcirGenPass._del_location(
+    target: Expr, nd: DeleteStmt, ordinal: int
+) -> list[CgItem] {
+    stmts: list[CgItem] = [];
+    if isinstance(target, Name) {
+        stmts.append(self._destroy_call(self._del_ctx_target(target, 'Load'), False));
+        stmts.append(
+            self.nod('Delete', ['targets'], [[self._del_ctx_target(target, 'Del')]])
+        );
+        return stmts;
+    }
+    loaded = self._del_ctx_target(target, 'Load');
+    prefix = f"_jac_del_{nd.loc.first_line}_{nd.loc.col_start}_{ordinal}";
+    container = loaded.get('value');
+    if not self._del_is_trivial(container) {
+        container = self._del_bind_temp(container, prefix + "_c", stmts, nd);
+    }
+    del_ctx = self.nod('Del', [], []);
+    if loaded.cls == 'Attribute' {
+        attr = loaded.get('attr');
+        peek_call = self.nod(
+            'Call',
+            ['func', 'args', 'keywords'],
+            [self.jaclib_obj('peek_attr'), [container, self.const_of(attr)], []]
+        );
+        del_target = self.nod(
+            'Attribute', ['value', 'attr', 'ctx'], [container, attr, del_ctx]
+        );
+    } else {
+        key = loaded.get('slice');
+        if not self._del_is_trivial(key) {
+            key = self._del_bind_temp(key, prefix + "_k", stmts, nd);
+        }
+        peek_call = self.nod(
+            'Call',
+            ['func', 'args', 'keywords'],
+            [
+                self.jaclib_obj('peek_item'),
+                [container, self._del_slice_value(key, nd)],
+                []
+            ]
+        );
+        del_target = self.nod(
+            'Subscript', ['value', 'slice', 'ctx'], [container, key, del_ctx]
+        );
+    }
+    stmts.append(self._destroy_call(peek_call, False));
+    stmts.append(self.nod('Delete', ['targets'], [[del_target]]));
+    return stmts;
 }
 
 impl JcirGenPass.exit_delete_stmt with DeleteStmt exit {
-    tgt = here.target;
-    if isinstance(tgt, EdgeRefTrailer) {
-        simple = self._simple_hop(tgt) if tgt.edges_only else None;
-        if simple is not None {
-            self.set_out(
-                here,
-                [
+    stmts: list[CgItem] = [];
+    ordinal = 0;
+    for target in here.leaf_targets() {
+        if DeleteStmt.is_location(target) {
+            stmts.extend(self._del_location(target, here, ordinal));
+        } else {
+            simple = None;
+            if isinstance(target, EdgeRefTrailer) and target.edges_only {
+                simple = self._simple_hop(target);
+            }
+            if simple is not None {
+                stmts.append(
                     self.nod(
                         'Expr',
                         ['value'],
@@ -3008,60 +3106,16 @@ impl JcirGenPass.exit_delete_stmt with DeleteStmt exit {
                             )
                         ]
                     )
-                ]
-            );
-            return;
+                );
+            } else {
+                stmts.append(
+                    self._destroy_call(self._del_ctx_target(target, 'Load'), True)
+                );
+            }
         }
-        self.set_out(
-            here,
-            [
-                self.nod(
-                    'Expr',
-                    ['value'],
-                    [
-                        self.nod(
-                            'Call',
-                            ['func', 'args', 'keywords'],
-                            [self.jaclib_obj('destroy'), [self.val(tgt)], []]
-                        )
-                    ]
-                )
-            ]
-        );
-        return;
+        ordinal += 1;
     }
-    destroy_expr = self.nod(
-        'Expr',
-        ['value'],
-        [
-            self.nod(
-                'Call',
-                ['func', 'args', 'keywords'],
-                [
-                    self.jaclib_obj('destroy'),
-                    [
-                        self.nod(
-                            'List',
-                            ['elts', 'ctx'],
-                            [
-                                self._delete_ctx_targets(
-                                    self._delete_targets(here), 'Load'
-                                ),
-                                self.nod('Load', [], [])
-                            ]
-                        )
-                    ],
-                    []
-                ]
-            )
-        ]
-    );
-    delete_stmt = self.nod(
-        'Delete',
-        ['targets'],
-        [self._delete_ctx_targets(self._delete_targets(here), 'Del')]
-    );
-    self.set_out(here, [destroy_expr, delete_stmt]);
+    self.set_out(here, stmts);
 }
 
 impl JcirGenPass.exit_report_stmt with ReportStmt exit {
