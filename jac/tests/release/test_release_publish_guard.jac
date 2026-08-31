@@ -24,52 +24,50 @@ glob REPO_ROOT: Path = Path(__file__).resolve().parents[3],
      VTAG: str = "v0.37.1";
 
 glob FAKE_GH: str = '#!/usr/bin/env bash\n'
-    + 'printf \'%s\\n\' "$*" >> "$GH_LOG"\n'
-    + 'if [ "${GH_VIEW_FAILS:-}" = "1" ]; then\n'
-    + '    echo "HTTP 502: simulated release API error" >&2\n'
-    + '    exit 1\n'
-    + 'fi\n'
-    + 'case "$1" in\n'
-    + '    release)\n'
-    + '        case "$2" in\n'
-    + '            view)\n'
-    + '                if printf \'%s\' "$*" | grep -q isDraft; then\n'
-    + '                    cat "$GH_ISDRAFT"\n'
-    + '                else\n'
-    + '                    cat "$GH_ASSETS"\n'
-    + '                fi\n'
-    + '                ;;\n'
-    + '            edit)\n'
-    + '                echo "edited $3"\n'
-    + '                ;;\n'
-    + '            *)\n'
-    + '                echo "fake gh: unexpected release subcommand $2" >&2\n'
-    + '                exit 1\n'
-    + '                ;;\n'
-    + '        esac\n'
-    + '        ;;\n'
-    + '    api)\n'
-    + '        [ -s "$GH_LATEST" ] || exit 1\n'
-    + '        cat "$GH_LATEST"\n'
-    + '        ;;\n'
-    + '    *)\n'
-    + '        echo "fake gh: unexpected command $1" >&2\n'
-    + '        exit 1\n'
-    + '        ;;\n'
-    + 'esac\n';
+         + 'printf \'%s\\n\' "$*" >> "$GH_LOG"\n'
+         + 'if [ "${GH_VIEW_FAILS:-}" = "1" ]; then\n'
+         + '    echo "HTTP 502: simulated release API error" >&2\n'
+         + '    exit 1\n'
+         + 'fi\n'
+         + 'case "$1" in\n'
+         + '    release)\n'
+         + '        case "$2" in\n'
+         + '            view)\n'
+         + '                if printf \'%s\' "$*" | grep -q isDraft; then\n'
+         + '                    cat "$GH_ISDRAFT"\n'
+         + '                else\n'
+         + '                    cat "$GH_ASSETS"\n'
+         + '                fi\n'
+         + '                ;;\n'
+         + '            edit)\n'
+         + '                echo "edited $3"\n'
+         + '                ;;\n'
+         + '            *)\n'
+         + '                echo "fake gh: unexpected release subcommand $2" >&2\n'
+         + '                exit 1\n'
+         + '                ;;\n'
+         + '        esac\n'
+         + '        ;;\n'
+         + '    api)\n'
+         + '        [ -s "$GH_LATEST" ] || exit 1\n'
+         + '        cat "$GH_LATEST"\n'
+         + '        ;;\n'
+         + '    *)\n'
+         + '        echo "fake gh: unexpected command $1" >&2\n'
+         + '        exit 1\n'
+         + '        ;;\n'
+         + 'esac\n';
 
 glob ALL_PLATFORMS: list[str] = [
-    "linux-x86_64",
-    "linux-aarch64",
-    "macos-aarch64",
-    "macos-x86_64"
-];
+         "linux-x86_64",
+         "linux-aarch64",
+         "macos-aarch64",
+         "macos-x86_64"
+     ];
 
 """A stub `gh` on PATH plus the files that drive what it answers."""
 def scaffold(
-    assets: list[str],
-    is_draft: str = "true",
-    latest: str = ""
+    assets: list[str], is_draft: str = "true", latest: str = ""
 ) -> dict[(str, str)] {
     base = tempfile.mkdtemp(prefix="jac-release-publish-guard-");
     bindir = os.path.join(base, "bin");
@@ -103,7 +101,9 @@ def assets_for(platforms: list[str]) -> list[str] {
     return out;
 }
 
-def run_guard(fx: dict[(str, str)], required: list[str]) -> any {
+def run_guard(
+    fx: dict[(str, str)], required: list[str]
+) -> subprocess.CompletedProcess[str] {
     env = dict(os.environ);
     env["PATH"] = fx["bin"] + os.pathsep + env["PATH"];
     env["GH_LOG"] = fx["log"];
@@ -172,7 +172,8 @@ test "a non-required platform missing: publish the release without it" {
         assert res.returncode == 0 , "a platform left off the required list must not hold the release: "
             + out;
         call = publish_call(fx);
-        assert ("--draft=false" in call) , "the release must still be revealed: " + call;
+        assert ("--draft=false" in call) , "the release must still be revealed: "
+            + call;
     } finally {
         shutil.rmtree(fx["base"], ignore_errors=True);
     }
@@ -209,7 +210,8 @@ test "an already-published release is left exactly as it is" {
     try {
         res = run_guard(fx, ALL_PLATFORMS);
         out = res.stdout + res.stderr;
-        assert res.returncode == 0 , "a re-run over a published release must converge: " + out;
+        assert res.returncode == 0 , "a re-run over a published release must converge: "
+            + out;
         assert publish_call(fx) == "" , "a published release's latest pointer must not be re-flipped";
     } finally {
         shutil.rmtree(fx["base"], ignore_errors=True);
