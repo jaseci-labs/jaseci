@@ -749,17 +749,16 @@ impl NaIRGenExpr._codegen_kernel_spawn(
     );
 
     _ks_model = self.ir_in.gen.osp_model;
-    _wtag = _ks_model.local_index(walker_name) if (_ks_model is not None) else -1;
-    if _wtag < 0 {
-        _wtag = 0;
+    _wtag = _ks_model.tags.get(walker_name, 0) if (_ks_model is not None) else 0;
+    _nd_fn = self.func_symtab.get("osp_node_desc");
+    if _nd_fn is None {
+        return walker_val;
     }
-    _descp = self.builder.load(
-        self.builder.gep(
-            self._osp_desc_global,
-            [ir.Constant(i32, 0), ir.Constant(i32, _wtag)],
-            name="spawn.descp"
-        ),
-        name="spawn.desc.i8"
+    _nd_args = _nd_fn.function_type.args;
+    _descp = self.builder.call(
+        _nd_fn,
+        [self._coerce_type(ir.Constant(i64, _wtag), _nd_args[0])],
+        name="spawn.descp"
     );
     _dead_fn = self.func_symtab.get("osp_is_dead");
     if _dead_fn is not None {
