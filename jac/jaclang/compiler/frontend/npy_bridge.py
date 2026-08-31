@@ -318,6 +318,8 @@ class NpyBridge:
         self._install_field_props(t, name, fields)
         self._install_natlist_props(t, fields)
         self._install_overlay_props(t, name, fields)
+        for _f in fields:
+            self._alias_mangled(t, _f)
         self._install_role_props(t, name, fields)
         self._install_parent(t)
         self._install_anchorless_overrides(t, name)
@@ -343,10 +345,66 @@ class NpyBridge:
                 except (TypeError, AttributeError):
                     pass
 
+    def _alias_mangled(self, t: type, fname: str) -> None:
+        """Twin bytecode reaches a __-prefixed field through its compile-time
+        mangled name (_DeclaringClass__field); alias the accessor under every
+        MRO class's mangling so whichever twin method reads it resolves."""
+        if not (fname.startswith("__") and not fname.endswith("__")):
+            return
+        descr = t.__dict__.get(fname)
+        if descr is None:
+            return
+        for cls in t.__npy_twin__.__mro__:
+            if cls is object:
+                continue
+            try:
+                setattr(t, f"_{cls.__name__}{fname}", descr)
+            except (TypeError, AttributeError):
+                pass
+
     def _install_field_props(self, t: type, name: str, fields: dict) -> None:
+        import dataclasses
+        import re as _re
+
         lib = self.lib
+        try:
+            _dcf = {f.name: str(f.type) for f in dataclasses.fields(t.__npy_twin__)}
+        except TypeError:
+            _dcf = {}
         for fname, f in fields.items():
             code, off = f["code"], f["offset"]
+            if code == "opaque":
+                # An optional enum lowers to a {flag, ordinal} pair the
+                # layout can't name; the twin's annotation can.
+                _ann = _dcf.get(fname, "")
+                _m = _re.fullmatch(r"\(?\s*(\w+)\s*\|\s*None\s*\)?", _ann)
+                if _m:
+                    import jaclang.compiler.frontend.constant as _const
+
+                    _ecls = getattr(_const, _m.group(1), None)
+                    if isinstance(_ecls, type):
+
+                        def oeget(self, _off=off, _ec=_ecls):
+                            a = _addr(self) + _off
+                            if not cast(a, POINTER(ctypes.c_uint8))[0]:
+                                return None
+                            raw = cast(a + 8, POINTER(ctypes.c_int64))[0]
+                            return list(_ec)[raw]
+
+                        def oeset(self, value, _off=off, _ec=_ecls):
+                            a = _addr(self) + _off
+                            if value is None:
+                                cast(a, POINTER(ctypes.c_uint8))[0] = 0
+                                return
+                            cast(a, POINTER(ctypes.c_uint8))[0] = 1
+                            cast(a + 8, POINTER(ctypes.c_int64))[0] = (
+                                list(_ec).index(value)
+                                if isinstance(value, _ec)
+                                else int(value)
+                            )
+
+                        setattr(t, fname, property(oeget, oeset))
+                        continue
             if code == "str":
                 # A jac string field is one pointer to a NUL-terminated,
                 # RC-managed buffer (confirmed by memory probe).
@@ -363,6 +421,11 @@ class NpyBridge:
                     cast(_addr(self) + _off, POINTER(c_void_p))[0] = p
 
                 setattr(t, fname, property(sget, sset))
+            elif code == "optref" and f["aux"] not in self.layout:
+                # The optional's payload is not a PyObject (a native dict or
+                # erased aggregate): Python-side use of such fields is pure
+                # scratch, so they live in the instance dict instead.
+                continue
             elif code == "optref":
                 # An optional node ref is {flag: i8, ptr}: present iff the
                 # flag byte is set; the target is itself a PyObject.
@@ -389,12 +452,19 @@ class NpyBridge:
                 enum_name = f["aux"]
 
                 def eget(self, _f="__npy_raw_" + fname, _en=enum_name):
+                    # Native enum slots hold the member ORDINAL.
                     import jaclang.compiler.frontend.constant as constant
 
-                    return getattr(constant, _en)(getattr(self, _f))
+                    return list(getattr(constant, _en))[getattr(self, _f)]
 
-                def eset(self, value, _f="__npy_raw_" + fname):
-                    setattr(self, _f, int(getattr(value, "value", value)))
+                def eset(self, value, _f="__npy_raw_" + fname, _en=enum_name):
+                    import jaclang.compiler.frontend.constant as constant
+
+                    cls = getattr(constant, _en)
+                    if isinstance(value, cls):
+                        setattr(self, _f, list(cls).index(value))
+                    else:
+                        setattr(self, _f, int(value))
 
                 setattr(t, fname, property(eget, eset))
 
@@ -421,10 +491,10 @@ class NpyBridge:
 
     def _install_overlay_props(self, t: type, name: str, fields: dict) -> None:
         """Fields whose native storage Python has no view over (native
-        dicts, foreign pointers) live in the instance __dict__ on the
-        Python side, seeded from the twin dataclass default on first read.
-        Native code never shares these with Python by design; the overlay
-        keeps the twins' bytecode running unchanged."""
+        dicts, foreign pointers, non-object optionals) are plain instance
+        attributes: tp_dictoffset gives every node generic attribute
+        storage, and a __getattr__ seeds the twin's dataclass default on
+        first read. Mangled names alias the same defaults."""
         import dataclasses
 
         twin = t.__npy_twin__
@@ -432,47 +502,39 @@ class NpyBridge:
             dc_fields = {f.name: f for f in dataclasses.fields(twin)}
         except TypeError:
             dc_fields = {}
+        defaults: dict = {}
         for fname, f in fields.items():
-            if f["code"] not in ("ptr", "opaque"):
+            if f["code"] not in ("ptr", "opaque") and not (
+                f["code"] == "optref" and f["aux"] not in self.layout
+            ):
                 continue
-
             dcf = dc_fields.get(fname)
+            if dcf is not None and dcf.default_factory is not dataclasses.MISSING:
+                spec = dcf.default_factory
+            elif dcf is not None and dcf.default is not dataclasses.MISSING:
+                spec = (lambda _v=dcf.default: _v)
+            else:
+                spec = (lambda: None)
+            defaults[fname] = spec
+            if fname.startswith("__") and not fname.endswith("__"):
+                for cls in twin.__mro__:
+                    if cls is not object:
+                        defaults[f"_{cls.__name__}{fname}"] = spec
 
-            def oget(self, _n=fname, _dcf=dcf):
-                d = self.__dict__
-                if _n in d:
-                    return d[_n]
-                if _dcf is not None:
-                    if _dcf.default_factory is not dataclasses.MISSING:
-                        d[_n] = _dcf.default_factory()
-                        return d[_n]
-                    if _dcf.default is not dataclasses.MISSING:
-                        d[_n] = _dcf.default
-                        return d[_n]
-                raise AttributeError(_n)
+        if not defaults:
+            return
 
-            def oset(self, value, _n=fname):
-                self.__dict__[_n] = value
+        def __getattr__(self, attr, _d=defaults):
+            spec = _d.get(attr)
+            if spec is None:
+                raise AttributeError(
+                    f"{type(self).__name__!r} object has no attribute {attr!r}"
+                )
+            val = spec()
+            setattr(self, attr, val)
+            return val
 
-            setattr(t, fname, property(oget, oset))
-
-    def _install_parent(self, t: type) -> None:
-        """parent is the one hand-written adjacency getter: last Kid-in
-        holder, else last Role-in holder, else the _ctx_parent slot."""
-        lib = self.lib
-        kid_tag = _stable_tag("Kid")
-        role_tag = _stable_tag("Role")
-
-        def pget(self):
-            found = lib.npy_adj(_addr(self), kid_tag, 1)
-            if found:
-                return found[-1]
-            holders = lib.npy_adj(_addr(self), role_tag, 1)
-            if holders:
-                return holders[-1]
-            return getattr(self, "_ctx_parent", None)
-
-        setattr(t, "parent", property(pget))
+        t.__getattr__ = __getattr__
 
     def _roles(self):
         if self._role_map is None:
@@ -525,6 +587,24 @@ class NpyBridge:
                 setattr(t, fname, property(rget, rset))
 
     _KID_TAG = None
+
+    def _install_parent(self, t: type) -> None:
+        """parent is the one hand-written adjacency getter: last Kid-in
+        holder, else last Role-in holder, else the _ctx_parent slot."""
+        lib = self.lib
+        kid_tag = _stable_tag("Kid")
+        role_tag = _stable_tag("Role")
+
+        def pget(self):
+            found = lib.npy_adj(_addr(self), kid_tag, 1)
+            if found:
+                return found[-1]
+            holders = lib.npy_adj(_addr(self), role_tag, 1)
+            if holders:
+                return holders[-1]
+            return getattr(self, "_ctx_parent", None)
+
+        setattr(t, "parent", property(pget))
 
     def _install_anchorless_overrides(self, t: type, name: str) -> None:
         """Twin methods that introspect Python edge anchors have no anchors
