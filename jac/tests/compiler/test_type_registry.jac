@@ -160,9 +160,18 @@ test "literal_fits checks a literal against a sized type" {
     assert not JAC_TYPE_REGISTRY.literal_fits("u8", -1);
     assert JAC_TYPE_REGISTRY.literal_fits("i8", -128);
     assert not JAC_TYPE_REGISTRY.literal_fits("i8", -129);
-    assert JAC_TYPE_REGISTRY.literal_fits("f32", 10 ** 40);
     assert JAC_TYPE_REGISTRY.literal_fits("f64", 0.1);
     assert not JAC_TYPE_REGISTRY.literal_fits("u8", 1.5);
+    assert JAC_TYPE_REGISTRY.literal_fits("f32", 0.1) , (
+        "precision loss inside the range stays accepted"
+    );
+    assert JAC_TYPE_REGISTRY.literal_fits("f32", 3.4e38);
+    assert not JAC_TYPE_REGISTRY.literal_fits("f32", 10 ** 40) , (
+        "a literal past the largest finite f32 would arrive as inf"
+    );
+    assert not JAC_TYPE_REGISTRY.literal_fits("f32", 1e60);
+    assert JAC_TYPE_REGISTRY.literal_fits("f64", 1e300);
+    assert not JAC_TYPE_REGISTRY.literal_fits("f64", 10 ** 400);
 }
 
 test "widens_to is the value-preserving lattice" {
@@ -170,15 +179,24 @@ test "widens_to is the value-preserving lattice" {
     assert W("u8", "u8") and W("int", "int") and W("f32", "f32");
     assert W("i8", "i16") and W("i16", "i32") and W("i32", "i64") and W("i64", "int");
     assert W("i8", "int");
-    assert W("u8", "u16") and W("u16", "u32") and W("u32", "u64") and W("u64", "int");
+    assert W("u8", "u16") and W("u16", "u32") and W("u32", "u64");
+    assert not W("u64", "int") , (
+        "u64 -> int must be refused: `int` is a signed 64-bit machine type "
+        "natively, so a u64 above 2^63 crosses as a negative there while the "
+        "server keeps it positive"
+    );
     assert W("u8", "i16") and W("u16", "i32") and W("u32", "i64");
     assert not W("u64", "i64") and not W("u8", "i8") and not W("i8", "u8");
-    assert not W("i16", "i8") and not W("int", "i64") and not W("int", "u8");
+    assert not W("i16", "i8") and not W("int", "u8");
+    assert W("int", "i64") , "int and i64 are the same machine type";
     assert not W("i64", "i32") and not W("u64", "u32");
     assert W("i8", "f32") and W("u8", "f32") and W("i16", "f32") and W("u16", "f32");
     assert not W("i32", "f32") and not W("u32", "f32") and not W("i64", "f32");
     assert W("i32", "f64") and W("u32", "f64") and W("i16", "f64");
-    assert not W("i64", "f64") and not W("u64", "f64") and not W("int", "f64");
+    assert W("i64", "f64") and W("u64", "f64") and W("int", "f64") , (
+        "a 64-bit int widens into a 64-bit float the same way it widens into "
+        "`float`; both lanes lose the same precision above 2^53"
+    );
     assert W("f32", "f64") and W("f64", "float") and W("float", "f64");
     assert W("f32", "float");
     assert not W("f64", "f32") and not W("float", "f32");
@@ -189,13 +207,37 @@ test "widens_to is the value-preserving lattice" {
     assert not W("str", "int") and not W("int", "str") and not W("list", "u8");
 }
 
+test "int and i64 are one type in the lattice, as are float and f64" {
+    W = JAC_TYPE_REGISTRY.widens_to;
+    names = JAC_TYPE_REGISTRY.sized_scalar_names() + ["int", "float", "bool"];
+    drift: list[str] = [];
+    for pair in [("int", "i64"), ("float", "f64")] {
+        (alias, sized) = pair;
+        for other in names {
+            if other in pair {
+                continue;
+            }
+            if W(other, alias) != W(other, sized) {
+                drift.append(f"{other} -> {alias} vs {other} -> {sized}");
+            }
+            if W(alias, other) != W(sized, other) {
+                drift.append(f"{alias} -> {other} vs {sized} -> {other}");
+            }
+        }
+    }
+    assert not drift , (
+        "the lattice answers differently depending on how the same machine "
+        f"type is spelled: {drift}"
+    );
+}
+
 test "unify picks the wider lattice member or refuses" {
     U = JAC_TYPE_REGISTRY.unify;
     assert U("i8", "i8") == "i8";
     assert U("i8", "i64") == "i64" and U("i64", "i8") == "i64";
     assert U("u8", "i16") == "i16";
     assert U("i16", "f32") == "f32";
-    assert U("u64", "int") == "int" and U("int", "u64") == "int";
+    assert U("u64", "int") is None and U("int", "u64") is None;
     assert U("f32", "float") == "float";
     assert U("bool", "u8") == "u8";
     assert U("i8", "u8") is None;
@@ -217,14 +259,14 @@ test "the sized names, widths and signedness are defined in one table only" {
     # runtime's `__all__` is an export manifest, not a type list: the parity
     # test pins it to the checker stub and the emitter registry.
     owners = {
-        "jac0core/scalars.jac",
-        "runtimelib/builtin.jac",
-        "jac0core/constant.jac",
-        "jac0core/parser/tokens.jac",
-        "jac0core/parser/parser.jac",
-        "jac0core/parser/impl/parser.impl.jac",
-        "jac0core/parser/seed_lexer.jac",
-        "jac0core/parser/jac_lexer.jac"
+        "runtime/scalars.jac",
+        "runtime/builtin.jac",
+        "compiler/frontend/constant.jac",
+        "compiler/frontend/parser/tokens.jac",
+        "compiler/frontend/parser/parser.jac",
+        "compiler/frontend/parser/impl/parser.impl.jac",
+        "compiler/frontend/parser/seed_lexer.jac",
+        "compiler/frontend/parser/jac_lexer.jac"
     };
     # The unsigned spellings above eight bits can only ever be a language-type
     # name: LLVM spells widths as iN, `list_types["u8"]` is the native

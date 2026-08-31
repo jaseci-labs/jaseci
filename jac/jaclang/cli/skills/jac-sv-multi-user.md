@@ -69,7 +69,7 @@ def share_with(tweet_id: str, target_root: str) {
 }
 ```
 
-`target_root` is the other user's root id - the `root_id` field of their `/user/login` response, or `jid(root)` captured server-side. Like `grant`, it's per-node, not per-subtree. The `jac:ignore[E1053]` is needed because the checker doesn't yet accept node types for the `archetype: Archetype` parameter (runtime is fine - verified live); alternatively cast `t as Archetype` with `import from jaclang.jac0core.archetype { Archetype }`.
+`target_root` is the other user's root id - the `root_id` field of their `/user/login` response, or `jid(root)` captured server-side. Like `grant`, it's per-node, not per-subtree. The `jac:ignore[E1053]` is needed because the checker doesn't yet accept node types for the `archetype: Archetype` parameter (runtime is fine - verified live); alternatively cast `t as Archetype` with `import from jaclang.runtime.archetype { Archetype }`.
 
 ## root.shared - the public commons
 
@@ -133,6 +133,43 @@ def admin_only_action() -> str {
 ```
 
 Read-only `allroots()` fan-outs don't need gating - grants already filter what each caller can see (public trending/explore feeds are ungated reads in practice). Gate cross-user WRITES behind a check like this - `allroots()` itself does no authorization.
+
+## Invitation tokens: app_tokens
+
+Never hand-roll invitation tokens with a `used: bool` flag on a node - a
+read-then-write flag lets two concurrent accepts both win. The platform's token
+store does this correctly (raw value shown once, only the sha256 persisted,
+server-side expiry, atomic single-winner consume) and is exposed for app flows:
+
+```jac
+import from jaclang.scale.identity.app_tokens {
+    token_create, token_peek, token_consume, token_revoke
+}
+
+def invite(role: str) -> dict {
+    # subject groups tokens for revocation; payload rides along to the redeemer
+    tok = token_create(
+        "org-invite", subject=jid(root), ttl_seconds=86400,
+        payload={"role": role}
+    );
+    return {"token": tok};   # shown once; never stored raw
+}
+
+def accept(token: str) -> dict {
+    got = token_consume("org-invite", token);   # exactly one caller wins
+    if got is None { return {"ok": False}; }    # invalid, expired, or lost race
+    return {"ok": True, "role": got["payload"]["role"]};
+}
+
+def cancel_invites -> dict {
+    return {"revoked": token_revoke("org-invite", jid(root))};
+}
+```
+
+`token_peek` inspects without consuming. Purposes are namespaced internally
+(`app:` prefix), so they cannot collide with the identity endpoints' own
+`verify`/`reset` tokens, and two different purposes never redeem each other's
+tokens.
 
 ## Pitfalls
 

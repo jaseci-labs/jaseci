@@ -9,7 +9,7 @@ import from pathlib { Path }
 import from urllib.request { urlopen }
 import from urllib.error { HTTPError }
 import from jaclang.scale.injector.bundle { TOOLCHAIN_SUBDIR }
-import from jaclang.runtimelib.utils { release_arch, host_arch, host_os }
+import from jaclang.runtime.graph_utils { release_arch, host_arch, host_os }
 
 glob logger = logging.getLogger(__name__);
 
@@ -242,6 +242,46 @@ def resolve_deploy_version(project_dir: str, channel: str) -> str {
         return "";
     }
     return resolve_pinned_version(project_dir);
+}
+
+
+def deploy_generation_refusal(
+    project_dir: str, channel: str = "", offline: bool = False
+) -> str {
+    import from jaclang.cli.manifest_route { resolve_cli_version }
+    import from jaclang.project.config { JacConfig, find_project_root }
+    import from jaclang.scale.config.dev_config { Channel, resolve_dev_channel }
+    channel = channel or resolve_dev_channel(project_dir).value;
+    if offline {
+        found = find_project_root(Path(project_dir));
+        pinned = (
+            _exact_of(str(JacConfig.load(found[1]).project.jac_version or ""))
+                if found is not None and channel == Channel.STABLE.value
+                else ""
+        );
+    } else {
+        try {
+            pinned = resolve_deploy_version(project_dir, channel);
+        } except RuntimeError {
+            return "";
+        }
+    }
+    running = resolve_cli_version().strip();
+    if not pinned or not running {
+        return "";
+    }
+    (pin_major, pin_minor, _) = _ver_key(pinned);
+    (run_major, run_minor, _) = _ver_key(running);
+    if (pin_major, pin_minor) == (run_major, run_minor) {
+        return "";
+    }
+    return (
+        f"this deployer is jac {running} and cannot deploy an app pinned to "
+        f"{pinned}. the deploying jac renders the manifests and provisions the "
+        "database, so a different minor line stands up a backend the pod "
+        f"cannot use. upgrade the deployer, or pin [project] jac-version to "
+        f"{run_major}.{run_minor}."
+    );
 }
 
 

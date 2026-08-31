@@ -127,7 +127,7 @@ version = "1.0.0"
 client_kind = "mobui"          # THE switch - without it it's a web app and HTML is allowed
 entry-point = "main.jac"
 
-[plugins.client]
+[client]
 
 [dependencies.npm]
 react = "^18.2.0"
@@ -149,7 +149,7 @@ jac build --client react-native --platform android # APK (gradle or EAS)
 jac build --client react-native --platform ios     # .app / .ipa (xcodebuild on macOS, or EAS)
 ```
 
-**Iterate on `jac run --dev main.jac`** - the web (react-native-web) target renders `View`→`div`, `Text`→`span` and hot-reloads in a browser. Native needs Metro + a device/simulator and can't render in a plain iframe. Optional native config lives under `[plugins.client.react_native]` (`project_dir`, `default_platform`, `android_builder`/`ios_builder` = `gradle`/`xcodebuild`/`eas`, `eas_profile`, OTA `eas_update*`).
+**Iterate on `jac run --dev main.jac`** - the web (react-native-web) target renders `View`→`div`, `Text`→`span` and hot-reloads in a browser. Native needs Metro + a device/simulator and can't render in a plain iframe. Optional native config lives under `[client.react_native]` (`project_dir`, `default_platform`, `android_builder`/`ios_builder` = `gradle`/`xcodebuild`/`eas`, `eas_profile`, OTA `eas_update*`).
 
 ## Cross-platform icons & native modules
 

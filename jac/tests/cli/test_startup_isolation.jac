@@ -1,6 +1,6 @@
 """Import isolation checks for manifest-backed CLI fast paths.
 
-Jac bootstrap (including jac0core.runtime) is accepted as the startup floor.
+Jac bootstrap (including runtime.runtime) is accepted as the startup floor.
 These tests assert that lightweight informational paths do not eagerly import
 command implementations or optional feature packages.
 """
@@ -16,7 +16,7 @@ import from tests.support { JAC_ROOT }
 glob _HEAVY_IMPORTS: set[str] = {
          "jaclang.compiler",
          "jaclang.cli.commands",
-         "jaclang.runtimelib.client",
+         "jaclang.client",
          "jaclang.scale",
          "jaclang.byllm",
 
@@ -104,7 +104,7 @@ test "unknown command avoids heavy imports" {
 }
 
 test "hidden commands dispatch via manifest" {
-    for argv in (["gen-uni-dispatch", "--help"], ["nacompile", "--help"]) {
+    for argv in (["nacompile", "--help"], ) {
         (code, err) = _probe(argv, blocked=set());
         assert code == 0 , f"jac {' '.join(argv)} failed: {err}";
     }
@@ -122,7 +122,7 @@ test "purge avoids heavy imports" {
 # import stays cheap is tracked separately in PLAN.md "Slim eager package
 # initializers".)
 glob _FEATURE_FAMILIES: set[str] = {
-         "jaclang.runtimelib.client",
+         "jaclang.client",
          "jaclang.scale",
          "jaclang.byllm",
          "jaclang.cli.shadcn"
@@ -150,8 +150,8 @@ test "feature command help stays within its own family" {
     # Each feature command's help may load its own family but must not leak into
     # a sibling feature family.
     owners: dict[str, str] = {
-        "setup": "jaclang.runtimelib.client",
-        "build": "jaclang.runtimelib.client",
+        "setup": "jaclang.client",
+        "build": "jaclang.client",
         "scale": "jaclang.scale",
         "model": "jaclang.byllm",
         "retheme": "jaclang.cli.shadcn"

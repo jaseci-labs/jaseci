@@ -1,9 +1,9 @@
 ---
 name: jac-sv-deploy
-description: Running a Jac server in production - jac run flags, database backends (SQLite/Mongo/Redis), secrets, Kubernetes deploys (jac scale deploy, TLS, autoscaling, jac scale status/destroy), webhooks, WebSockets, S3 storage, metrics, distributed locks. Load when moving a server beyond local dev or wiring external services in. Pair with `jac-sv-endpoints`, `jac-sv-microservices` (multi-service k8s), `jac-config`.
+description: Running a Jac server in production - jac run flags, the Postgres database (embedded locally, JAC_DB_URL for external), secrets, Kubernetes deploys (jac scale deploy, TLS, autoscaling, jac scale status/destroy), webhooks, WebSockets, S3 storage, metrics. Load when moving a server beyond local dev or wiring external services in. Pair with `jac-sv-endpoints`, `jac-sv-microservices` (multi-service k8s), `jac-config`.
 ---
 
-Production serving is the built-in `scale` subsystem's job. Scale ships inside `jaclang` -- there is no `jac-scale` package to install and no plugin to enable. Its optional heavier deps (pymongo, redis, kubernetes, docker, prometheus-client, ...) are pulled per-project: declare the matching `[scale.*]` config in `jac.toml`, then run `jac install` to resolve them into `.jac/venv` (a `jac scale deploy` also resolves its deps on first run).
+Production serving is the built-in `scale` subsystem's job. Scale ships inside `jaclang` -- there is no `jac-scale` package to install and no plugin to enable. Its optional heavier deps (kubernetes, docker, prometheus-client, opentelemetry-sdk, ...) are pulled per-project: declare the matching `[scale.*]` config in `jac.toml`, then run `jac install` to resolve them into `.jac/venv` (a `jac scale deploy` also resolves its deps on first run).
 
 ## jac run
 
@@ -30,7 +30,7 @@ JWT_SECRET = "${JWT_SECRET}"        # see jac-sv-auth: the default JWT secret MU
 ```bash
 jac scale deploy app.jac --dry-run    # lint config + print the plan; nothing applied. Use before every deploy.
 jac scale deploy app.jac              # deploy (no image build: source ships into the cluster on a PVC)
-jac scale status app.jac              # component health table (app, Mongo, Redis, Grafana)
+jac scale status app.jac              # component health table (app, Postgres, Prometheus, Grafana)
 jac scale destroy app.jac             # DELETES THE NAMESPACE INCLUDING PERSISTENT VOLUMES - all data is lost
 ```
 
@@ -49,7 +49,7 @@ cert_manager_email = "you@example.com"
 ingress_limit_rps = 20             # per-IP rate limit at the ingress; excess gets 429
 ```
 
-HTTPS is a **two-step**: deploy plain (`jac scale deploy`), point your domain's CNAME at the printed NLB hostname, then `jac scale deploy app.jac --enable-tls` (cert-manager + Let's Encrypt, patches the live ingress - no redeploy). Mongo/Redis are auto-provisioned as StatefulSets; everything is labeled `managed=jac-scale`. Multi-service stacks: `jac-sv-microservices`.
+HTTPS is a **two-step**: deploy plain (`jac scale deploy`), point your domain's CNAME at the printed NLB hostname, then `jac scale deploy app.jac --enable-tls` (cert-manager + Let's Encrypt, patches the live ingress - no redeploy). Postgres is auto-provisioned as a StatefulSet; everything is labeled `managed=jac-scale`. Multi-service stacks: `jac-sv-microservices`.
 
 ## Webhooks (external callbacks in)
 
@@ -61,7 +61,7 @@ curl -X POST $HOST/webhook/PaymentReceived -H "X-API-Key: $API_KEY" \
   -H "X-Webhook-Signature: $SIG" -H "Content-Type: application/json" -d "$PAYLOAD"
 ```
 
-Keys are durable only with MongoDB configured - in-memory otherwise (a restart invalidates them all).
+Keys live in the shared Postgres store, so they survive restarts; only if the store is unreachable do they fall back to in-memory (a restart then invalidates them all).
 
 ## WebSockets
 
@@ -79,12 +79,11 @@ bucket = "my-app-uploads"      # region, prefix, endpoint_url (non-AWS), public_
 
 `storage.get_url(path, expires_in=600)` returns a presigned URL on private S3 (permanent public URL if `public_read = true`, `file://` locally). Upload endpoints: `jac-sv-endpoints`.
 
-## Observability and coordination
+## Observability
 
 - `/health`, `/ready` - built-in probe endpoints; `/healthz` variants also exist.
 - **Prometheus**: `[scale.monitoring] enabled = true` registers `/metrics` - **admin-token-gated** (403 otherwise); `walker_metrics = true` adds per-walker timing. Visual dashboard in the admin portal.
 - **CORS**: single-process `jac run` hardwires `allow_origins=['*']` - no knob. Only the microservice gateway has configurable CORS (`[scale.microservices.cors]`). Don't ship a `:pub`-heavy API assuming you can lock origins down in single-process mode.
-- **Distributed locks** (Redis only - raises `NotImplementedError` on Mongo): `kvstore(db_name=..., db_type='redis')` exposes `set_nx_with_ttl(key, value, ttl)` (atomic acquire, TTL mandatory) + `delete_if_equals(key, fence)` (compare-and-delete release). `threading.Lock` only serializes one process - it silently fails to protect anything once you have 2+ replicas.
 
 ## Pitfalls
 

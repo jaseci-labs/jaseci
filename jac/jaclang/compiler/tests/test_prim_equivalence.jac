@@ -1,5 +1,5 @@
 import ctypes;
-import from jaclang.runtimelib.test { parametrize }
+import from jaclang.testing.test { parametrize }
 import from jaclang.compiler.tests.xbackend_equiv {
     run_with_both,
     run_py_fixture,
@@ -11,7 +11,71 @@ import from jaclang.compiler.tests.xbackend_equiv {
 }
 
 # (case, fixture, py fn, cl fn, na fn, [backends that must run])
-glob EQUIV_CASES: list[tuple] = [
+"""Rows `prim_str`'s native lane does not produce yet.
+
+Declared here rather than absorbed silently: `run_with_both` compares the
+intersection of the two lanes' keys, so a lane that returns fewer rows used to
+narrow the comparison without saying so. Every name below is a string method
+the native lane has no lowering for; deleting one from this list is how the
+suite starts covering it, and the harness fails if a name here is one the
+lane now produces.
+"""
+glob STR_NA_GAPS: list = [
+         "casefold",
+         "enc1",
+         "enc2",
+         "endswith_f",
+         "endswith_t",
+         "eq_f",
+         "eq_t",
+         "et1",
+         "et2",
+         "et3",
+         "fm1",
+         "fm2",
+         "fmt_pos_args",
+         "fmt_repeat",
+         "fmt_single",
+         "ge",
+         "gt",
+         "isalnum_t",
+         "isalpha_f",
+         "isalpha_t",
+         "isascii_t",
+         "isdecimal_f",
+         "isdecimal_t",
+         "isdigit_f",
+         "isdigit_t",
+         "isidentifier_f",
+         "isidentifier_t",
+         "islower_f",
+         "islower_t",
+         "isnumeric_empty",
+         "isnumeric_f",
+         "isnumeric_t",
+         "isprintable_t",
+         "isspace_f",
+         "isspace_t",
+         "isupper_f",
+         "isupper_t",
+         "join",
+         "le",
+         "ljust",
+         "lstrip",
+         "lt",
+         "mod1",
+         "mod2",
+         "ne_t",
+         "replace",
+         "rfind",
+         "rjust",
+         "rstrip",
+         "split",
+         "startswith_f",
+         "startswith_t",
+         "tr1"
+     ],
+     EQUIV_CASES: list[tuple] = [
          ("int", "prim_int.jac", "int_py", "int_cl", "int_na"),
          (
              "dict ctor",
@@ -46,7 +110,7 @@ glob EQUIV_CASES: list[tuple] = [
              "complex_ops_cl",
              "complex_ops_na"
          ),
-         ("str", "prim_str.jac", "str_py", "str_cl", "str_na", ["na"]),
+         ("str", "prim_str.jac", "str_py", "str_cl", "str_na", ["na"], STR_NA_GAPS),
          (
              "string escapes",
              "cl_string_escapes.jac",
@@ -575,7 +639,10 @@ glob EQUIV_CASES: list[tuple] = [
 
 def _equiv_case(row: tuple) {
     require = row[5] if len(row) > 5 else [];
-    run_with_both(row[1], row[2], row[3], row[4], require=require);
+    waived = row[6] if len(row) > 6 else None;
+    run_with_both(
+        row[1], row[2], row[3], row[4], require=require, allow_missing=waived
+    );
 }
 
 with entry {
@@ -619,6 +686,21 @@ test "native call resolves bundled stdlib signature, not typeshed (#7037)" {
     kw_len = kw();
     assert pos_len == 4 , f"positional dumps len {pos_len}";
     assert kw_len == 4 , f"keyword dumps len {kw_len}";
+}
+
+test "native call fills omitted defaults from the bundled stdlib signature" {
+    (eng, _) = compile_native("bundled_stdlib_defaults.jac");
+    adler = get_func(eng, "adler32_default_seed", ctypes.c_int64);
+    hex_len = get_func(eng, "token_hex_default_len", ctypes.c_int64);
+    adler_val = adler();
+    hex_val = hex_len();
+    assert adler_val == 103547413 , (
+        f"adler32(b'hello') with the default seed: na={adler_val}, CPython=103547413 "
+        f"(a zero-filled seed gives 103219732)"
+    );
+    assert hex_val == 64 , (
+        f"token_hex() with the default nbytes=32: na={hex_val} chars, CPython=64"
+    );
 }
 
 test "exception hierarchy" {

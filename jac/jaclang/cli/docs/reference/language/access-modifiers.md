@@ -8,7 +8,7 @@ The essential rule is that **the same three keywords mean different things depen
 |---|---|---|
 | [Member encapsulation](#member-encapsulation) | `has` / `def` declared **inside an archetype** | who may reference the member in source |
 | [Module and project visibility](#module-and-project-visibility) | top-level `glob` / `obj` / `def` / `enum` / `walker` | which modules may reference the symbol in source |
-| [Service auth](#service-auth) | served `def` / `walker` endpoints (`jac serve`) | whether an HTTP caller must authenticate |
+| [Service auth](#service-auth) | served `def` / `walker` endpoints (`jac run`) | whether an HTTP caller must authenticate |
 
 The first two are **compile-time reference rules** enforced by `AccessCheckPass`. The third is a **runtime auth rule** applied by the server. They are independent: a single tag on a top-level `walker` is read by *both* the visibility rule and the auth rule, but they ask different questions.
 
@@ -67,7 +67,7 @@ A reference from the same module is always allowed regardless of tag.
 
 ## Service auth
 
-When a top-level `def` or `walker` is served via `jac serve` / `jac run`, the modifier additionally decides whether an HTTP caller must authenticate. This axis is **secure-by-default** and only distinguishes `:pub` from everything else:
+When a top-level `def` or `walker` is served via `jac run` (or `jac run --serve` to force serving), the modifier additionally decides whether an HTTP caller must authenticate. This axis is **secure-by-default** and only distinguishes `:pub` from everything else:
 
 | tag on a served `def` / `walker` | auth required? | notes |
 |---|---|---|

@@ -453,9 +453,13 @@ test "serve on_conflict default and normalization" {
 
 test "dev section parsing" {
     config_mod._config = None;
-    # Absent -> defaults (test_jobs 'auto', jaclang_source empty).
+    # Absent -> every knob is empty. An empty jobs knob means "unset": the
+    # per-command test_jobs/check_jobs/fmt_jobs fall through to the shared
+    # [dev] jobs, then to the environment, then to auto in resolve_jobs. A
+    # non-empty default here would shadow the shared knob.
     base = JacConfig.from_toml_str("\n[project]\nname = \"x\"\n");
-    assert base.dev.test_jobs == "auto";
+    assert base.dev.test_jobs == "";
+    assert base.dev.jobs == "";
     assert base.dev.jaclang_source == "";
 
     # Explicit string values pass through.
@@ -488,7 +492,7 @@ test "parse build native_closure_cap" {
 }
 
 test "closure cap override resolves through effective_native_closure_cap" {
-    import from jaclang.jac0core.codeinfo {
+    import from jaclang.compiler.frontend.codeinfo {
         set_native_closure_cap,
         effective_native_closure_cap
     }

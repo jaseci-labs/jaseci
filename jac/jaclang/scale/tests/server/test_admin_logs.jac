@@ -28,7 +28,7 @@ test "register_logs_endpoints adds /admin/logs, /admin/logs/services, /admin/log
 
 
 test "all logs endpoints are GET (read-only surface)" {
-    import from jaclang.runtimelib.serving.endpoint { HTTPMethod }
+    import from jaclang.server.serving.endpoint { HTTPMethod }
 
     host = LogsHost();
     host.server = NativeJServer();

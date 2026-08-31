@@ -53,12 +53,12 @@ jac run --port 8000 --profile prod
 
 ### Default Persistence
 
-When running locally (that is, not deployed with `jac scale deploy`), Jac uses **SQLite** for graph persistence by default. You'll see `"Using SQLite for persistence"` in the server output. No external database setup is required for development.
+When running locally (that is, not deployed with `jac scale deploy`), Jac uses the **embedded Postgres** store by default: it boots lazily on first graph access, keeping one database per project in the shared embedded cluster under the machine-wide jac cache (`~/.cache/jac/pg/main`). No external database setup is required for development; set `JAC_DB_URL` (or `[scale.database] url`) to point at an external Postgres instead.
 
 Persistence is Postgres-native everywhere: the same store serves local `jac run`, served projects, and `jac scale deploy` deployments, with full schema-migration support (fingerprints, drift repair, and the quarantine sidecar). See [CLI -> Database Operations](../cli/index.md#database-operations) and [Persistence & Schema Migration](../persistence.md) for the full model.
 
 ```bash
-# Inspect a live Mongo-backed deployment.
+# Inspect a live deployment's database.
 jac db inspect --app app.jac
 
 # Operator rescue: register a class-rename alias in production without redeploying.
@@ -82,8 +82,9 @@ Set `suppress_health_check_logs = true` to suppress access log entries for healt
 
 ### CORS Configuration
 
-In single-process `jac run` mode the FastAPI app installs a permissive
-CORS middleware (`allow_origins=['*']`, all methods/headers); there is
+In single-process `jac run` mode the server installs a permissive
+CORS middleware (`allow_origins=['*']`, methods `GET`/`POST`/`PUT`/`OPTIONS`,
+headers `Content-Type`/`Authorization`); there is
 no `[scale.cors]` knob to tune it.
 
 In **microservice mode** (on whenever `[scale.microservices.routes]`
@@ -518,7 +519,7 @@ Registration does **not** return a token. Use `/user/login` after registration t
 | Allowed value types | `str`, `int`, `float`, `bool` |
 | Key pattern | `^[a-zA-Z][a-zA-Z0-9_]{0,63}$` |
 
-The key pattern blocks MongoDB operator injection (`$where`), dot-path traversal, and JS prototype pollution (`__proto__`). Profile is stored under the `profile` sub-document, never spread into the user-doc root, so a profile key cannot collide with `role` / `user_id` / etc.
+The key pattern blocks operator-style key injection (`$where`), dot-path traversal, and JS prototype pollution (`__proto__`). Profile is stored under the `profile` key of the user document, never spread into the document root, so a profile key cannot collide with `role` / `user_id` / etc.
 
 ### User Login
 
@@ -762,19 +763,11 @@ curl -L http://localhost:8000/sso/google/login
 curl -L http://localhost:8000/sso/github/login
 ```
 
-### Legacy User Migration
+### Legacy Credentials
 
-If you are upgrading from an older version of jac-scale that used flat username/password user documents, the MongoDB backend automatically migrates legacy users on server startup. This migration:
+User records live in the Postgres identity store in the identity + credential format from the start -- there is no automatic startup migration. Passwords are **scrypt**-hashed; a stored hash in the older bcrypt format can never verify, and a login attempt against one logs a warning telling the operator what to do.
 
-1. Converts flat `username`/`email`/`password_hash` fields into the identity + credential array format
-2. **Progressively rehashes** old SHA-256 passwords to bcrypt on the next successful login (no user action required)
-3. Handles **case collisions** -- if normalization causes two legacy usernames to collide, the duplicate is marked as `disabled`
-4. Preserves existing `root_id`, `role`, and other fields
-
-The migration runs once during `UserManager` initialization and is idempotent. SQLite deployments do not need migration since they use the new format from the start.
-
-!!! note
-    The legacy SHA-256 migration code is marked as removable. Once all users have logged in at least once (triggering the bcrypt rehash), the migration path can be safely removed in a future release.
+The recovery path is an admin action: `POST /admin/users/expire-legacy-credentials` (admin-token-gated; pass `username` to target one user, omit it to sweep everyone) flags every user whose password hash predates the scrypt scheme with `requires_password_reset`. Affected users then go through the normal [password reset](#forgot-password) flow; `root_id`, `role`, and all other fields are preserved.
 
 ### Get Current User
 
@@ -840,7 +833,7 @@ In addition to the static identities supplied at registration, users can attach 
 - **SHA256-hashed at rest** so the raw token never lives in the database.
 - **Single-use**: consumed on first successful redeem, all other outstanding reset tokens for the same user are revoked on a successful password reset.
 - **TTL-bounded**: defaults are 24h for verify, 30min for reset; both configurable.
-- Stored in MongoDB with a TTL index when MongoDB is configured, in-process otherwise.
+- Stored in the Postgres `kv_state` table with a row expiry (`expires_at`) when the store is reachable, in-process otherwise.
 
 Configure TTLs and the URLs the emails should point at:
 
@@ -1441,7 +1434,7 @@ This walker will be accessible at `POST /webhook/PaymentReceived`.
 
 Webhook endpoints require API key authentication. Users must first create an API key before calling webhook endpoints.
 
-> **Note:** API key metadata is stored persistently in MongoDB (in the `webhook_api_keys` collection), so keys survive server restarts. Previously, keys were held in memory only.
+> **Note:** API key metadata is stored persistently in the Postgres store (in the `jac_docs` table under the `webhook_api_keys` collection), so keys survive server restarts. If the store is unreachable, keys fall back to in-memory only.
 
 #### Creating an API Key
 
@@ -1725,7 +1718,7 @@ Automatic startup only applies to `jac run`. `jac run` is for one-shot scripts a
 
 For each imported routes-table provider, the consumer resolves it in this order. The first match wins:
 
-1. **Test client** -- if tests have wired up an in-process `TestClient` for the provider, calls go through it with no HTTP. See [Testing](#testing).
+1. **Test client** -- if tests have wired up an in-process `JacTestClient` for the provider, calls go through it with no HTTP. See [Testing](#testing).
 2. **Explicit URL** -- a URL the consumer was handed programmatically (e.g. by a custom orchestrator). See the [sv_client API](#sv_client-api-reference).
 3. **`JAC_SV_<MODULE>_URL` environment variable** -- automatically consulted using the upper-cased module name. This is the knob to reach for when the provider lives on a different host.
 4. **Automatic spawn** -- jac-scale brings up the provider as a sibling inside the consumer process. This is the path that lets `jac run consumer.jac` run the whole cluster from one command.
@@ -1779,17 +1772,19 @@ Alternatively, omit the env vars entirely and run `jac run order_service.jac` on
 
 ### Testing
 
-To test cross-service behavior without real network I/O, wire each provider up as an in-process `TestClient` before constructing the consumer. `sv_client.register_test_client(module_name, client)` routes the consumer's calls through the registered client directly; no sockets, no port allocation, no background threads.
+To test cross-service behavior without real network I/O, wire each provider up as an in-process test client before constructing the consumer. `sv_client.register_test_client(module_name, client)` routes the consumer's calls through the registered client directly; no sockets, no port allocation, no background threads.
+
+`JacTestClient.from_file` (see [Testing -> JacTestClient](../testing.md#jactestclient)) builds a whole service in-process from its `.jac` file:
 
 ```jac
-import from jaclang.runtimelib { sv_client }
-import from starlette.testclient { TestClient }
+import from jaclang.server { sv_client }
+import from jaclang.testing.testing { JacTestClient }
 
 test "consumer reaches provider" {
     sv_client.clear_test_clients();
 
-    prov_client: TestClient = ...;  # build a TestClient over the provider app
-    cons_client: TestClient = ...;  # build a TestClient over the consumer app
+    prov_client = JacTestClient.from_file("inventory_service.jac");
+    cons_client = JacTestClient.from_file("order_service.jac");
     sv_client.register_test_client("inventory_service", prov_client);
 
     # Calls from the consumer into inventory_service now route through prov_client
@@ -1801,19 +1796,19 @@ test "consumer reaches provider" {
 }
 ```
 
-The two builder steps marked `...` are the boilerplate of standing up a consumer and provider in-process and wrapping each one in a `starlette.testclient.TestClient`. That scaffolding currently leans on hands-on use of jac-scale's server-construction APIs. The sv-to-sv test suite in the jac-scale source tree has a worked example that copies fixture files into a temp directory and brings both services up end-to-end; start there if you need a runnable harness.
+The sv-to-sv test suite in the scale source tree has a worked example that copies fixture files into a temp directory and brings both services up end-to-end; start there if you need a runnable harness.
 
 Always call `sv_client.clear_test_clients()` between tests to avoid bleed-over from a previous test's registrations.
 
 ### sv_client API Reference
 
-`jaclang.runtimelib.sv_client` exposes a small control surface for telling the runtime where to find providers. You rarely need it under normal use -- `JAC_SV_<MODULE>_URL` covers most production wiring, and automatic startup covers single-host setups. Reach for these functions when you are writing tests or a custom orchestrator.
+`jaclang.server.sv_client` exposes a small control surface for telling the runtime where to find providers. You rarely need it under normal use -- `JAC_SV_<MODULE>_URL` covers most production wiring, and automatic startup covers single-host setups. Reach for these functions when you are writing tests or a custom orchestrator.
 
 | Function | Purpose |
 |---|---|
 | `register(module_name: str, url: str)` | Point a provider name at a URL programmatically. Takes precedence over the env var path. |
 | `unregister(module_name: str)` | Remove a registration made via `register`. |
-| `register_test_client(module_name, client)` | Route calls to a provider through an in-process `TestClient` (tests only). See [Testing](#testing). |
+| `register_test_client(module_name, client)` | Route calls to a provider through an in-process `JacTestClient` (tests only). See [Testing](#testing). |
 | `unregister_test_client(module_name: str)` | Remove a test-client registration. |
 | `clear_test_clients()` | Drop all test-client registrations. Call between tests to avoid bleed-over. |
 | `resolve_url(module_name: str) -> str` | Look up the URL the consumer would use for a provider (either from `register` or from `JAC_SV_<MOD>_URL`). Returns a string or raises if nothing is registered. |

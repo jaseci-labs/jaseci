@@ -9,14 +9,14 @@ retracting one context's region leaves another context's live topology and
 anchor identity untouched.
 """
 
-import jaclang.jac0core.osp_graph as _g;
-import jaclang.jac0core.osp_graph_sv as _sv;
+import jaclang.runtime.osp_graph as _g;
+import jaclang.runtime.osp_graph_sv as _sv;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.jac0core.archetype { EdgeAnchor }
-import from jaclang.jac0core.osp_graph_sv { handle_of, sv_conn, sv_live_edges }
-import from jaclang.jac0core.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
+import from jaclang.runtime.archetype { EdgeAnchor }
+import from jaclang.runtime.osp_graph_sv { handle_of, sv_conn, sv_live_edges }
+import from jaclang.runtime.runtime { JacRuntime }
+import from jaclang.runtime.context { ExecutionContext }
 
 def _as_any(v: any) -> any {
     return v;
@@ -29,7 +29,7 @@ node LifeNode {
 edge LifeEdge {}
 
 def _live_rows -> int {
-    return len(_g._r_src) - len(_g._row_free);
+    return len(_g.DEFAULT_GRAPH.rows) - len(_g.DEFAULT_GRAPH.free_rows);
 }
 
 def _mk_ctx(dirpath: str, name: str) -> ExecutionContext {
@@ -64,10 +64,10 @@ test "closing a context retracts its rows and recycles its handles" {
                 ctx.close();
                 assert _live_rows() == pre_rows , "close left rows behind";
                 if i == 0 {
-                    cap_rows = len(_g._r_src);
+                    cap_rows = len(_g.DEFAULT_GRAPH.rows);
                     cap_handles = len(_sv._obj_of_h);
                 } else {
-                    assert len(_g._r_src) == cap_rows , "row table grew across contexts";
+                    assert len(_g.DEFAULT_GRAPH.rows) == cap_rows , "row table grew across contexts";
                     assert len(_sv._obj_of_h) == cap_handles , "handle table grew across contexts";
                 }
             }

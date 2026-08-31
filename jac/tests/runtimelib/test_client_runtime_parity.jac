@@ -16,31 +16,31 @@ revives #8023. The last test reads the compiled body instead.
 import re;
 import jaclang;
 import from pathlib { Path }
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { run_pass }
-import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
-import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
-import from jaclang.compiler.passes.ecmascript.backends.solid { SolidBackend }
-import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.pass_driver { run_pass }
+import from jaclang.compiler.backends.es { EsastGenPass }
+import from jaclang.compiler.backends.es.es_unparse { es_to_js }
+import from jaclang.compiler.backends.es.backends.react { ReactBackend }
+import from jaclang.compiler.backends.es.backends.solid { SolidBackend }
+import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
 
 def _as_any(v: any) -> any {
     return v;
 }
 
-glob _RT = Path(jaclang.__file__).parent / "runtimelib",
+glob _RT = Path(jaclang.__file__).parent / "client",
      # The three router/component runtimes: one public surface, three targets.
      _ROUTER_RUNTIMES: dict[str, Path] = {
          "react": _RT / "client_runtime.jac",
          "solid": _RT / "solid_runtime.jac",
-         "react-native": _RT / "client" / "client_runtime_native.jac"
+         "react-native": _RT / "client_runtime_native.jac"
      },
      # The two cores underneath them (auth, walker calls, form plumbing).
      _RUNTIME_CORES: dict[str, Path] = {
          "web": _RT / "client_runtime_core.jac",
-         "native": _RT / "client" / "client_runtime_core.jac"
+         "native": _RT / "client_react_core.jac"
      },
      # `target -> (backend, no-children fallback)` for the compiled-body test.
      # react-native rides the React backend. Solid's fallback is None: its entry

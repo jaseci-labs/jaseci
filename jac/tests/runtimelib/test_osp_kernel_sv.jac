@@ -1,13 +1,13 @@
 """Parity tests: the portable OSP kernel driven with server-derived dispatch
-descriptors (jaclang.jac0core.osp_kernel_sv) must reproduce the live server
+descriptors (jaclang.runtime.osp_kernel_sv) must reproduce the live server
 `spawn` engine on real archetypes — same walker state, same subtyping and
 untyped-entry semantics. This validates the descriptor-emission model before it
 replaces per-backend dispatch."""
 
 import asyncio;
-import jaclang.jac0core.osp_kernel as _kernel;
-import from jaclang.jac0core.osp_kernel { osp_spawn }
-import from jaclang.jac0core.osp_kernel_sv { make_sv_runtime, desc_for }
+import jaclang.runtime.osp_kernel as _kernel;
+import from jaclang.runtime.osp_kernel { osp_spawn }
+import from jaclang.runtime.osp_kernel_sv { make_sv_runtime, desc_for, osp_spawn_async }
 
 def _as_any(v: any) -> any {
     return v;
@@ -73,15 +73,29 @@ test "kernel parity: typed ability does not fire on an unrelated type" {
     assert via_kernel.total == real.total;
 }
 
+test "async driver parity: osp_spawn_async runs the same next_slot engine" {
+    # Since step 4 the async host is a thin driver over OspEngine.next_slot,
+    # so dispatch, plan caching and ordering are the sync engine's by
+    # construction; this pins the driver wiring (begin/next_slot/finish and
+    # the coroutine await path for plain sync abilities).
+    rt = make_sv_runtime();
+    real = Acc();
+    real spawn Sub(v=7);
+    via = Acc();
+    asyncio.run(_as_any(osp_spawn_async(rt, via, desc_for(Acc), [Sub(v=7)])));
+    assert via.total == real.total;
+}
+
 test "sv walk-scope stack is isolated across concurrent asyncio tasks" {
-    # The sv binding swaps `osp_kernel._walk_stack` for a ContextVar-backed
-    # proxy so concurrent spawns (different requests / asyncio tasks) get
-    # isolated scope stacks. Regression guard: a ContextVar only isolates on
-    # `.set()`, so a proxy that mutated the `.get()`-ed list in place would let
-    # gather() tasks -- created under a context where the stack was already
-    # populated -- share one list and clobber each other's scopes (reports then
-    # bubble to the wrong walk). Poison the root context first to expose it.
-    stack = _kernel._walk_stack;
+    # The sv binding swaps the engine's stack (`osp_kernel.DEFAULT.stack`) for
+    # a ContextVar-backed proxy so concurrent spawns (different requests /
+    # asyncio tasks) get isolated scope stacks. Regression guard: a ContextVar
+    # only isolates on `.set()`, so a proxy that mutated the `.get()`-ed list
+    # in place would let gather() tasks -- created under a context where the
+    # stack was already populated -- share one list and clobber each other's
+    # scopes (reports then bubble to the wrong walk). Poison the root context
+    # first to expose it.
+    stack = _kernel.DEFAULT.stack;
     _as_any(stack).append("root");
     stack.pop();
 

@@ -9,9 +9,9 @@ import from contextlib { suppress }
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 
-import from jaclang.runtimelib.hmr { HotReloader }
-import from jaclang.runtimelib.testing { JacTestClient }
-import from jaclang.runtimelib.watcher { JacFileWatcher }
+import from jaclang.server.hmr { HotReloader }
+import from jaclang.testing.testing { JacTestClient }
+import from jaclang.server.watcher { JacFileWatcher }
 
 
 def _as_any(v: any) -> any {
@@ -484,7 +484,7 @@ test "jacjsx import added in real compilation" {
         assert "import {__jacJsx" in content or "import{__jacJsx" in content , "__jacJsx is used but import statement is missing";
         # --- build error: reported out-of-band, never via _entry.js ---
         entry_file = unique_dir / ".jac" / "client" / "compiled" / "_entry.js";
-        error_file = unique_dir / ".jac" / "client" / ".jac-build-error.json";
+        error_file = unique_dir / ".jac" / "client" / ".jac-status.json";
         bad_file = unique_dir / "app.jac";
         bad_file.write_text(
             "    def app() -> any {\n"
@@ -493,11 +493,14 @@ test "jacjsx import added in real compilation" {
         );
         reloader._recompile_client_code(str(bad_file));
         assert not entry_file.exists() , "_entry.js must not be created just to display an error";
-        assert error_file.exists() , "build error must be mirrored to .jac-build-error.json for the Vite overlay";
+        assert error_file.exists() , "build error must be mirrored to .jac-status.json for the Vite overlay";
         import json;
         error_data = json.loads(error_file.read_text());
-        assert error_data["message"] , "mirrored build error must carry a non-empty message";
-        assert "app.jac" in str(error_data["message"]) , "mirrored error must reference the failing source location";
+        assert error_data["status"] == "error";
+        first = error_data["diagnostics"][0];
+        assert first["message"] , "mirrored build error must carry a non-empty message";
+        assert first["file"].endswith("app.jac") , "mirrored error must name the failing .jac file";
+        assert first["line"] > 0 , "mirrored error must name the failing line";
         assert reloader.build_status()["status"] == "error";
         # --- fix the error: recovery clears the mirrored error ---
         bad_file.write_text(
@@ -505,7 +508,7 @@ test "jacjsx import added in real compilation" {
         );
         reloader._recompile_client_code(str(bad_file));
         reloader.record_ok();  # _process_change settles to ok after a clean rebuild
-        assert not error_file.exists() , ".jac-build-error.json must be removed on recovery";
+        assert not error_file.exists() , ".jac-status.json must be removed on recovery";
         assert reloader.build_status()["status"] == "ok";
     }
 }
@@ -813,7 +816,7 @@ test "dependency compiled when imported file recompiled" {
 # The unified path routes HMR through the boot ViteCompiler so file-based
 # routing artifacts (_routes.js, router _entry.js) stay live across changes.
 def _make_unified_reloader(unique_dir: Path) -> tuple {
-    import from jaclang.runtimelib.client.vite_client_bundle { ViteClientBundleBuilder }
+    import from jaclang.client.vite_client_bundle { ViteClientBundleBuilder }
     configs_dir = unique_dir / ".jac" / "client" / "configs";
     configs_dir.mkdir(parents=True, exist_ok=True);
     package_json = configs_dir / "package.json";
@@ -892,7 +895,7 @@ test "router entry survives an error then fix cycle" {
         reloader._recompile_client_code(str(index_file));
         reloader._refresh_routing(str(index_file));
         entry_file = compiled_dir / "_entry.js";
-        error_file = compiled_dir.parent / ".jac-build-error.json";
+        error_file = compiled_dir.parent / ".jac-status.json";
         assert "BrowserRouter" in entry_file.read_text();
         # Break the page: the app entry is untouched; the error goes out-of-band
         entry_mtime = entry_file.stat().st_mtime_ns;
@@ -904,13 +907,16 @@ test "router entry survives an error then fix cycle" {
         assert entry_file.stat().st_mtime_ns == entry_mtime , "a build error must not touch _entry.js";
         assert "BrowserRouter" in entry_file.read_text() , "router entry must survive a build error";
         assert error_file.exists() , "build error must be mirrored for the Vite overlay";
-        # The mirror must carry the real compiler message, not just exist
+        # The mirror must carry the real compiler diagnostics, not just exist
         # (the removed bespoke overlay had regressed to rendering empty)
         import json;
         error_data = json.loads(error_file.read_text());
-        assert "index.jac" in str(error_data["file"]) , "mirrored error must name the failing file";
-        assert "Failed to compile" in str(error_data["message"])
-            and "index.jac" in str(error_data["message"]) , "mirrored error must carry the actual compiler message";
+        assert error_data["status"] == "error";
+        located = error_data["diagnostics"][0];
+        assert "index.jac" in str(located["file"]) , "mirrored error must name the failing file";
+        assert located["line"] > 0 , "mirrored error must name the failing line";
+        assert located["message"] , "mirrored error must carry the actual compiler message";
+        assert "index.jac" in located["rendered"] , "the rendered diagnostic must name the .jac source";
         # Fix the page: router still intact, mirrored error cleared
         index_file.write_text(good_source);
         reloader._recompile_client_code(str(index_file));
@@ -950,7 +956,7 @@ test "asset deletion removes the copy without touching the entry" {
         # Deletion is not an error and must not touch the app
         assert entry_file.stat().st_mtime_ns == entry_mtime , "asset deletion must not touch _entry.js";
         assert reloader.build_status()["status"] == "ok" , "asset deletion must not be reported as a build error";
-        assert not (compiled_dir.parent / ".jac-build-error.json").exists();
+        assert not (compiled_dir.parent / ".jac-status.json").exists();
     }
 }
 
@@ -1033,7 +1039,7 @@ def _routed_project(tmpdir: str, extra_pages: dict[str, str] = {}) -> tuple {
 test "directory moves drive the routing lifecycle" {
     with TemporaryDirectory() as tmpdir {
         (reloader, compiled_dir, pages_dir) = _routed_project(
-            tmpdir, {"blog/post.jac": "Post"}
+            str(tmpdir), {"blog/post.jac": "Post"}
         );
         entry_file = compiled_dir / "_entry.js";
         routes_file = compiled_dir / "_routes.js";
@@ -1065,7 +1071,7 @@ test "directory moves drive the routing lifecycle" {
 
 test "renaming a page moves its route" {
     with TemporaryDirectory() as tmpdir {
-        (reloader, compiled_dir, pages_dir) = _routed_project(tmpdir);
+        (reloader, compiled_dir, pages_dir) = _routed_project(str(tmpdir));
         routes_file = compiled_dir / "_routes.js";
         assert "PagesIndex" in routes_file.read_text();
         # Rename: the watcher synthesizes DELETED(old) + CREATED(new); replay
@@ -1088,7 +1094,7 @@ test "renaming a page moves its route" {
 test "hyphenated page filenames sanitize to valid JS identifiers in _routes.js" {
     with TemporaryDirectory() as tmpdir {
         (reloader, compiled_dir, pages_dir) = _routed_project(
-            tmpdir, extra_pages={"features/about-connections.jac": "About"}
+            str(tmpdir), extra_pages={"features/about-connections.jac": "About"}
         );
         routes = (compiled_dir / "_routes.js").read_text();
         assert "PagesFeaturesAboutConnections" in routes;

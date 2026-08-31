@@ -15,8 +15,8 @@ materialised into Python.
 
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.jac0core.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
+import from jaclang.runtime.runtime { JacRuntime }
+import from jaclang.runtime.context { ExecutionContext }
 
 node FBoard {
     has name: str = "";

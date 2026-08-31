@@ -12,9 +12,12 @@ manager rendering it verbatim, and failures staying retryable.
 """
 
 import os;
+import tempfile;
 import unittest.mock;
 import jaclang.scale.persistence.pg as pg_mod;
+import from jaclang.scale.config.config_loader { get_scale_config, reset_scale_config }
 import from jaclang.scale.identity.user_manager { JacScaleUserManager }
+import from pathlib { Path }
 
 glob _DEAD_URL = 'postgresql://jac:jac@127.0.0.1:1/jac';
 
@@ -91,7 +94,7 @@ test "a store that connects but cannot set up the schema says so" {
     # went wrong, and the operator has to be told which of the two it was.
     _arm(_DEAD_URL);
     try {
-        with unittest.mock.patch('jaclang.runtimelib.store.PgStore', _schema_failing) {
+        with unittest.mock.patch('jaclang.data.store.PgStore', _schema_failing) {
             assert pg_mod.shared_store() is None;
             reason: str = str(pg_mod.shared_store_failure() or '');
             assert 'schema' in reason , (
@@ -159,7 +162,7 @@ test "a failed store is retried, not pinned for the process lifetime" {
     _arm(_DEAD_URL);
     try {
         with unittest.mock.patch(
-            'jaclang.runtimelib.store.PgStore', side_effect=RuntimeError('transient')
+            'jaclang.data.store.PgStore', side_effect=RuntimeError('transient')
         ) as fake {
             assert pg_mod.shared_store() is None;
             assert pg_mod.shared_store() is None;
@@ -194,4 +197,31 @@ test "a configured [scale.database] url is a real source, not just a message" {
     } finally {
         _disarm();
     }
+}
+
+
+test "in a cluster with no url, the store refuses to embed a database" {
+    # #8766: with no url resolved, shared_store() provisioned a server inside
+    # the pod. One per replica, on the pod filesystem, gone on restart, at
+    # debug level. In a cluster that is data loss, so it has to fail instead.
+    # Off-cluster the embedded server is the point, hence the env scoping.
+    _arm('');
+    prior = os.environ.get('KUBERNETES_SERVICE_HOST');
+    os.environ['KUBERNETES_SERVICE_HOST'] = '10.96.0.1';
+    try {
+        assert pg_mod._in_cluster();
+        assert pg_mod.shared_store() is None;
+        assert pg_mod.shared_store_failure() == pg_mod.NO_DATABASE_IN_CLUSTER;
+    } finally {
+        if prior is None {
+            os.environ.pop('KUBERNETES_SERVICE_HOST', None);
+        } else {
+            os.environ['KUBERNETES_SERVICE_HOST'] = prior;
+        }
+        _disarm();
+    }
+    assert not pg_mod._in_cluster() , (
+        'off-cluster this must stay false, or every laptop run loses its '
+        'embedded database'
+    );
 }

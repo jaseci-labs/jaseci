@@ -4,7 +4,7 @@ import from jaclang.cli.commands.cli_helpers { proc_file as _proc_file }
 
 impl tool(tool: str, args: list = []) -> int {
     import importlib;
-    import from jaclang.utils.lang_tools { AstTool }
+    import from jaclang.compiler.tools.lang_tools { AstTool }
     if tool in ("jac2py", "py2jac", "jac2js") {
         _transform = importlib.import_module("jaclang.cli.commands.transform");
         if not args {
@@ -75,8 +75,8 @@ impl dot(
     to_screen: bool = False,
     format: str = "dot"
 ) -> int {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
-    import from jaclang.runtimelib.builtin { printgraph }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.builtin { printgraph }
     (base, mod, jac_machine) = _proc_file(filename);
     if filename.endswith('.jac') {
         Jac.jac_import(target=mod, base_path=base, override_name='__main__');
@@ -119,7 +119,7 @@ impl dot(
 }
 
 impl lsp -> int {
-    import from jaclang.langserve.server { run_lang_server }
+    import from jaclang.lsp.server.server { run_lang_server }
     try {
         run_lang_server();
         return 0;
@@ -131,9 +131,12 @@ impl lsp -> int {
 
 impl completions(shell: str = "bash", install: bool = False) -> int {
     import from jaclang.cli.jaccomplete { static_shellcode as shellcode }
-    import from jaclang.cli.registry { get_registry }
-    import from jaclang.cli.command { ArgKind }
-    code = shellcode(_extract_commands(get_registry()), executable="jac", shell=shell);
+    import from jaclang.cli.manifest { iter_command_meta }
+    code = shellcode(
+        _extract_commands(iter_command_meta(include_hidden=True)),
+        executable="jac",
+        shell=shell
+    );
     if install {
         return _install_completion(shell, code);
     }
@@ -141,10 +144,11 @@ impl completions(shell: str = "bash", install: bool = False) -> int {
     return 0;
 }
 
-def _extract_commands(registry: any) -> list {
+def _extract_commands(specs: list) -> list {
     import from jaclang.cli.command { ArgKind }
     commands = [];
-    for (name, spec) in sorted(registry.commands.items()) {
+    for spec in sorted(specs, key=lambda (s: any) { s.name; }) {
+        name = spec.name;
         flags = [];
         value_opts = [];
         has_file_positional = False;
@@ -260,43 +264,4 @@ def _install_completion(shell: str, code: str) -> int {
         console.error(f"Error writing config: {e}");
         return 1;
     }
-}
-
-impl gen_uni_dispatch(verify: bool = False) -> int {
-    import from jaclang.jac0core.gen_uni_dispatch { write_all, verify_all }
-    if verify {
-        stale = verify_all();
-        for rel in stale {
-            console.error(f"Dispatch annex OUT OF DATE: {rel}");
-        }
-        if stale {
-            console.error("Run `jac gen-uni-dispatch` to update.");
-            return 1;
-        }
-        console.print("All dispatch annexes are up to date.");
-        return 0;
-    }
-    for msg in write_all() {
-        console.print(msg);
-    }
-    return 0;
-}
-
-impl gen_cli_manifest(verify: bool = False) -> int {
-    import from jaclang.cli.gen_cli_manifest { write_routes, verify_drift }
-    if verify {
-        drift = verify_drift();
-        for msg in drift {
-            console.error(f"{msg}");
-        }
-        if drift {
-            console.error("Run `jac gen-cli-manifest` to update.");
-            return 1;
-        }
-        console.print("Manifest route table is up to date.");
-        return 0;
-    }
-    out = write_routes();
-    console.print(f"Generated {out}");
-    return 0;
 }

@@ -11,8 +11,8 @@ import from unittest.mock { MagicMock }
 
 import watchdog;
 
-import from jaclang.runtimelib.hmr { HotReloader, get_build_status }
-import from jaclang.runtimelib.watcher { ChangeType, FileChangeEvent, JacFileWatcher }
+import from jaclang.server.hmr { HotReloader, get_build_status }
+import from jaclang.server.watcher { ChangeType, FileChangeEvent, JacFileWatcher }
 
 def _as_any(v: any) -> any {
     return v;
@@ -208,79 +208,58 @@ test "build status records errors and recovers" {
             base_path=str(temp_dir), module_name="test", watcher=watcher
         );
         # Fresh reloader is healthy
-        assert reloader.build_status() == {"status": "ok", "error": None};
-        # An error carries the failing file, message and layer
-        reloader.record_error("app.jac", "Missing ';'");
+        assert reloader.build_status() == {"status": "ok", "diagnostics": []};
+        # An error carries a located, rendered diagnostic value
+        reloader.record_error("app.jac", "Missing ';'", line=2, column=9);
         status = reloader.build_status();
         assert status["status"] == "error";
-        assert status["error"]
-            == {"file": "app.jac", "message": "Missing ';'", "source": "jac"};
+        assert len(status["diagnostics"]) == 1;
+        diag = status["diagnostics"][0];
+        assert diag["file"] == "app.jac";
+        assert diag["line"] == 2 and diag["column"] == 9;
+        assert "Missing ';'" in diag["message"];
+        assert diag["channel"] == "jac";
+        assert diag["code"] == "E7005";
         # Recovery clears the error completely
         reloader.record_ok();
-        assert reloader.build_status() == {"status": "ok", "error": None};
+        assert reloader.build_status() == {"status": "ok", "diagnostics": []};
     }
 }
 
-test "build status folds in vite and browser-load layers with jac precedence" {
-    import json;
+test "build status folds in client events, with jac precedence" {
     with tempfile.TemporaryDirectory() as tmp {
         temp_dir = Path(tmp);
         watcher = JacFileWatcher(watch_paths=[str(temp_dir)]);
         reloader = HotReloader(
             base_path=str(temp_dir), module_name="test", watcher=watcher
         );
-        status_dir = temp_dir / ".jac" / "client";
-        status_dir.mkdir(parents=True);
-        status_file = status_dir / ".jac-dev-status.json";
-        # A Vite resolve failure recorded by the dev-status plugin surfaces
-        # even though the Jac transpile layer is clean (#7286)
-        status_file.write_text(
-            json.dumps(
-                {
-                    "vite": {
-                        "message": 'Failed to resolve import "totally-missing-pkg"',
-                        "file": "compiled/pages/index.js"
-                    },
-                    "client": None
-                }
-            )
+        (temp_dir / ".jac" / "client" / "compiled").mkdir(parents=True);
+        # A Vite resolve failure forwarded raw by the dev plugin surfaces even
+        # though the Jac transpile layer is clean (#7286)
+        reloader.record_client_event(
+            "vite",
+            {
+                "message": 'Failed to resolve import "totally-missing-pkg"',
+                "id": "compiled/pages/index.js",
+                "plugin": "vite:import-analysis"
+            }
         );
         status = reloader.build_status();
         assert status["status"] == "error";
-        assert status["error"]["source"] == "vite";
-        assert "totally-missing-pkg" in status["error"]["message"];
-        # Browser-load slot surfaces when it is the only failure
-        status_file.write_text(
-            json.dumps(
-                {
-                    "vite": None,
-                    "client": {
-                        "message": "does not provide an export named 'nope'",
-                        "file": "/compiled/pages/index.js"
-                    }
-                }
-            )
-        );
-        assert reloader.build_status()["error"]["source"] == "client";
-        # Vite outranks client; a Jac error outranks both (most upstream cause)
-        status_file.write_text(
-            json.dumps(
-                {
-                    "vite": {"message": "vite broke", "file": ""},
-                    "client": {"message": "load broke", "file": ""}
-                }
-            )
-        );
-        assert reloader.build_status()["error"]["source"] == "vite";
+        assert status["diagnostics"][0]["channel"] == "vite";
+        assert "totally-missing-pkg" in status["diagnostics"][0]["message"];
+        # A Jac build failure outranks the layers downstream of it
         reloader.record_error("app.jac", "syntax");
-        assert reloader.build_status()["error"]["source"] == "jac";
+        assert reloader.build_status()["diagnostics"][0]["channel"] == "jac";
         reloader.record_ok();
-        assert reloader.build_status()["error"]["source"] == "vite";
-        # Recovery: plugin removes the file -> healthy; corrupt file is ignored
-        status_file.unlink();
-        assert reloader.build_status() == {"status": "ok", "error": None};
-        status_file.write_text("{not json");
-        assert reloader.build_status() == {"status": "ok", "error": None};
+        assert reloader.build_status()["diagnostics"][0]["channel"] == "vite";
+        # Recovery: the plugin sends a null payload for the slot it cleared
+        reloader.record_client_event("vite", None);
+        assert reloader.build_status() == {"status": "ok", "diagnostics": []};
+        # An unknown slot or a payload with no message is ignored
+        reloader.record_client_event("nonsense", {"message": "x"});
+        reloader.record_client_event("vite", {"message": ""});
+        assert reloader.build_status() == {"status": "ok", "diagnostics": []};
     }
 }
 
@@ -288,7 +267,7 @@ test "get build status reflects the active reloader" {
     with tempfile.TemporaryDirectory() as tmp {
         temp_dir = Path(tmp);
         # No reloader running (non-dev mode) -> unavailable
-        assert get_build_status() == {"status": "unavailable", "error": None};
+        assert get_build_status() == {"status": "unavailable", "diagnostics": []};
         watcher = JacFileWatcher(watch_paths=[str(temp_dir)]);
         reloader = HotReloader(
             base_path=str(temp_dir), module_name="test", watcher=watcher
@@ -300,7 +279,7 @@ test "get build status reflects the active reloader" {
         assert get_build_status()["status"] == "error";
         reloader.stop();
         # Stopped -> unavailable again
-        assert get_build_status() == {"status": "unavailable", "error": None};
+        assert get_build_status() == {"status": "unavailable", "diagnostics": []};
     }
 }
 
@@ -316,13 +295,13 @@ test "process change settles to ok unless an error was recorded" {
         reloader.record_error("app.jac", "old failure");
         reloader._dispatch_change = lambda (p, d) { None; };
         reloader._process_change("app.jac");
-        assert reloader.build_status() == {"status": "ok", "error": None};
+        assert reloader.build_status() == {"status": "ok", "diagnostics": []};
         # A change whose rebuild records an error stays broken.
         reloader._dispatch_change = lambda (p, d) { reloader.record_error(p, "boom"); };
         reloader._process_change("app.jac");
         status = reloader.build_status();
         assert status["status"] == "error";
-        assert status["error"]["file"] == "app.jac";
+        assert status["diagnostics"][0]["file"] == "app.jac";
     }
 }
 
@@ -427,7 +406,7 @@ test "recompile signals a full reload only when the export set changes" {
 }
 
 test "reloading a broken module reports its errors once per reload" {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from jaclang.meta_importer { _module_scoped_alerts }
     with tempfile.TemporaryDirectory() as tmp {
         temp_dir = Path(tmp);
