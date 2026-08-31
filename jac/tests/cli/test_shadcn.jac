@@ -497,14 +497,23 @@ test "every declared cn-* rule is parseable in every style" {
     # `len > 0` and a `cn-bubble` substring pass even when a style silently
     # drops a rule (a stray comment before @apply, a missing semicolon). The
     # invariant that actually holds: every `.cn-*` selector in the file must
-    # come back out of parse_style_css.
+    # come back out of parse_style_css. `declared` is derived by splitting
+    # rule blocks first, independent of the selector shape parse_style_css
+    # keys on, so a selector list (`.cn-a, .cn-b { @apply ... }`) that the
+    # parser only half-sees still fails the assertion.
     import from jaclang.cli.shadcn.shadcn_handler { _registry_dir }
     import re;
     styles_dir = _registry_dir() / "styles";
     for style in ["lyra", "maia", "mira", "nova", "vega", "luma", "rhea", "sera"] {
         css = (styles_dir / f"style-{style}.css").read_text();
         css = re.sub(r'/\*.*?\*/', "", css, flags=re.DOTALL);
-        declared = set(re.findall(r'\.(cn-[\w-]+)\s*\{', css));
+        declared = set();
+        for (sel, body) in re.findall(r'([^{}]*)\{([^{}]*)\}', css) {
+            if "@apply" in body {
+                declared |= set(re.findall(r'\.(cn-[\w-]+)', sel));
+                assert body.count("@apply") == 1 , f"{style}: {sel.strip()} has >1 @apply, only the first resolves";
+            }
+        }
         parsed = set(parse_style_css(style).keys());
         assert declared == parsed , f"{style}: unparsed {declared - parsed}";
     }
