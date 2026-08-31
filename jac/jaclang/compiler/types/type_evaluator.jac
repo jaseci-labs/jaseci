@@ -75,6 +75,9 @@ import from jaclang.compiler.frontend.unitree {
     MultiString,
     Name,
     NameAtom,
+    is_client_destined,
+    kind_has_runtime_binding,
+    resolved_decl_of,
     Null,
     OpenStmt,
     ParamKind as UniParamKind,
@@ -106,6 +109,8 @@ import from jaclang.compiler.frontend.unitree {
 }
 import from jaclang.compiler.frontend.constant {
     TOKEN_MAP,
+    BindingKind,
+    CodeContext,
     SymbolType,
     Tokens as Tok,
     EdgeDir,
@@ -185,7 +190,8 @@ import from jaclang.compiler.types.ts_decl_parser {
     TsTypeKind,
     TsDeclKind,
     TsAccess,
-    TsMember
+    TsMember,
+    ts_decl_binding_kind
 }
 
 import from jaclang.compiler.frontend.diagnostics {
@@ -234,6 +240,7 @@ import from jaclang.compiler.frontend.diagnostics {
     E1120,
     E1121,
     E1129,
+    E1131,
     E0049,
     E5094,
     W1050,
@@ -408,9 +415,26 @@ walker TypeEvaluator {
         from_loc: ModulePath, item_name: str
     ) -> (TypeBase | None);
 
+    def _ts_decl_path(from_loc: ModulePath) -> (str | None);
     def _ts_declared_type_from_file(
         dts_path: str, item_name: str
     ) -> (TypeBase | None);
+
+    def _ts_declared_kind_from_file(
+        dts_path: str, item_name: str
+    ) -> (BindingKind | None);
+
+    def _ts_declared_kind(
+        from_loc: ModulePath, item_name: str
+    ) -> (BindingKind | None);
+
+    def _apply_import_binding_kind(
+        node_: ModuleItem,
+        binding: Name,
+        kind: BindingKind,
+        module: str,
+        target_decl: (NameAtom | None) = None
+    ) -> None;
 
     def _load_ts_declarations(dts_path: str) -> (dict[str, TsDecl] | None);
     def _map_ts_decl(

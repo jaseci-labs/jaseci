@@ -192,6 +192,13 @@ def _lse_sym(nm: str) -> list[str] {
     return [f"  .weak {nm}", f"  .hidden {nm}", f"  .type {nm},%function", f"{nm}:"];
 }
 
+def init_object_codegen {
+    import jaclang.compiler.backends.native.llvm.binding as llvm;
+    llvm.initialize_all_targets();
+    llvm.initialize_all_asmprinters();
+    llvm.initialize_all_asmparsers();
+}
+
 def aarch64_floor_atomics_ir(triple: str, clib_paths: list[str]) -> str {
     import from jaclang.runtime.graph_utils { triple_arch }
     if not clib_paths or triple_arch(triple) != "aarch64" {
@@ -242,10 +249,7 @@ def emit_shared_library(
     init_funcs: list[str] = ["__jac_shared_init"] if auto_init else [];
 
     import jaclang.compiler.backends.native.llvm.binding as llvm;
-    llvm.initialize_all_targets();
-    llvm.initialize_all_asmprinters();
-
-    llvm.initialize_native_asmparser();
+    init_object_codegen();
 
     triple = llvm.get_default_triple();
     assert isinstance(triple, str);

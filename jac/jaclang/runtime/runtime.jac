@@ -5,15 +5,14 @@ import json;
 import os;
 import sys;
 import types;
-import from collections { OrderedDict }
-import from collections.abc { Callable, Coroutine, Mapping, Sequence }
+import from collections { OrderedDict, deque }
+import from collections.abc { Callable, Coroutine, Iterable, Mapping, Sequence }
 import from concurrent.futures { Future, ThreadPoolExecutor }
 import from contextvars { ContextVar }
 import dataclasses;
 import from dataclasses { dataclass, field }
 import from inspect { getfile }
 import from logging { getLogger }
-import from pathlib { Path }
 import from typing { TYPE_CHECKING, Literal, ParamSpec, Protocol, TypeAlias, TypeVar }
 import from uuid { UUID }
 import from jaclang.runtime.archetype {
@@ -218,7 +217,10 @@ class JacPersistence {
     static async def aget_object(id: str) -> (Archetype | None);
     static def object_ref(`obj: Archetype) -> str;
     static def save(`obj: (Archetype | Anchor)) -> None;
-    static def destroy(objs: Archetype | Anchor | list[(Archetype | Anchor)]) -> None;
+    static def destroy(objs: any, strict: bool = False) -> None;
+    static def _destroy_anchors(objs: any, strict: bool) -> list[Anchor];
+    static def peek_attr(`obj: any, name: str) -> any;
+    static def peek_item(container: any, key: any) -> any;
     static def get_user_manager(base_path: str) -> UserManager;
     static def store(base_path: str = './storage', create_dirs: bool = True) -> any;
     static def get_persistent_memory(config: dict) -> any;
@@ -449,10 +451,6 @@ class JacServe {
     static def build_client_bundle(
         module: types.ModuleType, force: bool = False
     ) -> ClientBundle;
-
-    static def format_build_error(
-        error_output: str, project_dir: Path, config: object = None
-    ) -> str;
 
     static def get_api_server_class -> type;
     static def ensure_sv_service(module_name: str, base_path: str) -> None;

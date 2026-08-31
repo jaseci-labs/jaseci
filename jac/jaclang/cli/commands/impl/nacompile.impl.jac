@@ -497,8 +497,8 @@ impl nacompile(
     console.print("  LLVM IR generated successfully.");
 
     import jaclang.compiler.backends.native.llvm.binding as llvm;
-    llvm.initialize_all_targets();
-    llvm.initialize_all_asmprinters();
+    import from jaclang.compiler.backends.native.shared_emit { init_object_codegen }
+    init_object_codegen();
 
     triple = (options.native_target or "") or str(llvm.get_default_triple());
     console.print(f"  Target: {triple}");

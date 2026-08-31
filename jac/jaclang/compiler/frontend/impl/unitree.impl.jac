@@ -574,6 +574,27 @@ impl Symbol.symbol_table.getter -> (UniScopeNode | None) {
     return None;
 }
 
+impl Symbol.binding_kind.getter -> BindingKind {
+    for cur in import_chain_of(self) {
+        decl = cur.decl;
+        item = decl.parent if isinstance(decl.parent, ModuleItem) else None;
+        if item is not None and item.from_parent.is_typed {
+            return BindingKind.TYPE;
+        }
+        if cur._binding_kind is not None {
+            return cur._binding_kind;
+        }
+        if item is None {
+            return binding_kind_of_decl(decl);
+        }
+    }
+    return BindingKind.VALUE;
+}
+
+impl Symbol.binding_kind.setter(binding_kind: BindingKind) -> None {
+    self._binding_kind = binding_kind;
+}
+
 impl Symbol.storage.getter -> SymbolStorage {
     owner = self.parent_tab;
     while (owner is not None and not UniScopeNode.is_python_scoping(owner)) {
@@ -2192,6 +2213,100 @@ impl DeleteStmt.postinit -> None {
 }
 
 
+impl DeleteStmt.leaf_targets -> list[Expr] {
+    leaves: list[Expr] = [];
+    pending: list[Expr] = `list(self.targets);
+    pending.reverse();
+    while pending {
+        inner = DeleteStmt.unwrap_target(pending.pop());
+        if isinstance(inner, (TupleVal, ListVal)) {
+            elems = [
+                el
+                for el in inner.values
+                if isinstance(el, Expr)
+            ];
+            elems.reverse();
+            pending.extend(elems);
+        } else {
+            leaves.append(inner);
+        }
+    }
+    return leaves;
+}
+
+
+impl DeleteStmt.unwrap_target(target: Expr) -> Expr {
+    inner: Expr = target;
+    while isinstance(inner, AtomUnit) and isinstance(inner.value, Expr) {
+        inner = inner.value;
+    }
+    return inner;
+}
+
+
+impl DeleteStmt.is_location(target: Expr) -> bool {
+    inner = DeleteStmt.unwrap_target(target);
+    if isinstance(inner, Name) {
+        return True;
+    }
+    return isinstance(inner, AtomTrailer)
+        and (inner.is_attr or isinstance(inner.right, IndexSlice));
+}
+
+
+impl DeleteStmt.type_may_hold_graph(t: (TypeBase | None)) -> bool {
+    import from jaclang.compiler.types.types { ClassType, UnionType }
+
+    def never_graph(ty: any) -> bool {
+        if isinstance(ty, UnionType) {
+            return all(never_graph(m) for m in ty.types);
+        }
+        if not isinstance(ty, ClassType) {
+            return False;
+        }
+        if ty.is_any_type()
+            or ty.is_node_type()
+            or ty.is_edge_type()
+            or ty.is_walker_type()
+            or not ty.is_builtin() {
+            return False;
+        }
+        class_name = ty.shared.class_name;
+        if class_name
+            in (
+                "int",
+                "float",
+                "complex",
+                "str",
+                "bytes",
+                "bytearray",
+                "bool",
+                "None",
+                "NoneType"
+            ) {
+            return True;
+        }
+        type_args = ty.private.type_args;
+        if type_args is None or len(type_args) == 0 {
+            return False;
+        }
+        if class_name in ("list", "tuple", "set", "frozenset") {
+            return all(never_graph(a) for a in type_args);
+        }
+        if class_name == "dict" {
+            return len(type_args) == 2 and never_graph(type_args[1]);
+        }
+        return False;
+    }
+    return not never_graph(t);
+}
+
+
+impl DeleteStmt.target_may_hold_graph(target: Expr) -> bool {
+    return DeleteStmt.type_may_hold_graph(target.type);
+}
+
+
 impl ReportStmt.postinit -> None {
     UniNode.postinit(self);
     CodeBlockStmt.postinit(self);
@@ -3222,6 +3337,113 @@ impl ability_of_symbol(sym: (Symbol | None)) -> (Ability | None) {
         }
     }
     return decl;
+}
+
+impl binding_kind_of_decl(decl: NameAtom) -> BindingKind {
+    owner = decl.name_of;
+    if isinstance(owner, (Archetype, Enum, TypeAlias)) {
+        return BindingKind.BOTH;
+    }
+    if isinstance(owner, TypeParam) {
+        return BindingKind.TYPE;
+    }
+    return BindingKind.VALUE;
+}
+
+impl import_chain_of(sym: Symbol) -> list[Symbol] {
+    seen: set[int] = set();
+    chain: list[Symbol] = [];
+    cur: Symbol = sym;
+    while True {
+        if id(cur) in seen or not cur.defn {
+            return chain;
+        }
+        seen.add(id(cur));
+        chain.append(cur);
+        decl = cur.decl;
+        if not isinstance(decl.parent, ModuleItem) {
+            return chain;
+        }
+        nxt = decl.sym;
+        if nxt is None or nxt is cur {
+            return chain;
+        }
+        cur = nxt;
+    }
+}
+
+impl resolved_decl_of(sym: Symbol) -> (NameAtom | None) {
+    for cur in import_chain_of(sym) {
+        decl = cur.decl;
+        if not isinstance(decl.parent, ModuleItem) {
+            return decl;
+        }
+    }
+    return None;
+}
+
+impl kind_has_runtime_binding(
+    kind: BindingKind, decl: (NameAtom | None), space: CodeContext
+) -> bool {
+    if not kind.denotes_value() {
+        return False;
+    }
+    if space != CodeContext.CLIENT {
+        return True;
+    }
+    return decl is None or not isinstance(decl.name_of, TypeAlias);
+}
+
+impl has_runtime_binding(sym: Symbol, space: CodeContext) -> bool {
+    return kind_has_runtime_binding(sym.binding_kind, resolved_decl_of(sym), space);
+}
+
+impl is_client_destined(nd: UniNode) -> bool {
+    cur: (UniNode | None) = nd;
+    while cur is not None {
+        if isinstance(cur, ContextAwareNode) {
+            return (cur.code_context == CodeContext.CLIENT) or cur.codespace_dual;
+        }
+        cur = cur.parent;
+    }
+    return False;
+}
+
+impl type_only_import_of(nd: NameAtom) -> (ModuleItem | None) {
+    sym = nd.sym;
+    if sym is None or not sym.imported or not sym.defn {
+        return None;
+    }
+    found: (ModuleItem | None) = None;
+    for d in sym.defn {
+        if d is nd or not isinstance(d.parent, ModuleItem) {
+            return None;
+        }
+        if not d.parent.from_parent.is_typed {
+            return None;
+        }
+        found = d.parent;
+    }
+    return found;
+}
+
+impl in_type_position(nd: UniNode) -> bool {
+    cur: UniNode = nd;
+    parent = cur.parent;
+    while parent is not None {
+        if isinstance(parent, (SubTag, TypeAlias, TypeParam, IndexSlice)) {
+            return True;
+        }
+        if isinstance(parent, CastExpr) and parent.cast_type is cur {
+            return True;
+        }
+        if isinstance(parent, FuncSignature) and parent.return_type is cur {
+            return True;
+        }
+        cur = parent;
+        parent = cur.parent;
+    }
+    return False;
 }
 
 impl bind_assignment_targets(nd: Assignment) -> None {

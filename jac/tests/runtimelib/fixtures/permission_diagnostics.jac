@@ -88,6 +88,18 @@ walker try_field_write {
     }
 }
 
+walker try_field_write_then_read {
+    has target_id: str,
+        new_tag: str;
+
+    can enter with Root entry {
+        target = &(self.target_id);
+        target.tag = self.new_tag;
+        print("TAG:" + target.tag);
+        _print_diagnostics();
+    }
+}
+
 walker try_delete {
     has target_id: str;
 

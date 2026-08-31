@@ -240,6 +240,13 @@ test "read barrier hashes only dirty anchors, not the whole session" {
         try {
             ranch = _root(ctx);
             items = [_attach(ctx, ranch, f"i{n}") for n in range(5)];
+            # Field writes now resolve access, which resolves the context's
+            # roots on first use - and root resolution persists a freshly
+            # materialized super-root the first time it runs (session.impl.jac
+            # _resolve_roots -> mem.put). A real request always resolves roots
+            # during auth, long before its first write; force that here too so
+            # this commit - not the counted read barrier below - absorbs it.
+            _ = ctx.user_root;
             ctx.mem.commit();
 
             smod._persist_hash = counting_hash;

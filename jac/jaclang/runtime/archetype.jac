@@ -81,6 +81,7 @@ obj Anchor {
         `root: (UUID | None) = field(`init=False, `default=None),
         access: (Permission | None) = field(`init=False, `default=None),
         _persistent: bool = field(`init=False, `default=False),
+        destroyed: bool = field(`init=False, `default=False),
         hash: int = field(`init=False, `default=0);
 
     has persistent: bool { getter; setter(persistent: bool); }
@@ -576,18 +577,25 @@ def light_edge_views(
 }
 
 def _dirty_setattr(self: any, name: str, value: any) -> None {
-    object.__setattr__(self, name, value);
     an = self.__dict__.get('__jac__');
     if an is None or not an.persistent {
+        object.__setattr__(self, name, value);
         return;
     }
     import from jaclang.runtime.runtime { JacRuntime }
     ctx = JacRuntime.exec_ctx;
-    if ctx is not None {
-        md = ctx.mem?.mark_dirty;
-        if md is not None {
-            md(an);
-        }
+    if ctx is None {
+        object.__setattr__(self, name, value);
+        return;
+    }
+    import from jaclang { JacRuntimeInterface }
+    if not JacRuntimeInterface.check_write_access(an, op_hint="field_write") {
+        return;
+    }
+    object.__setattr__(self, name, value);
+    md = ctx.mem?.mark_dirty;
+    if md is not None {
+        md(an);
     }
 }
 
