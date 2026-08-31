@@ -24,7 +24,9 @@ import from jaclang.compiler.backends.native.macho_linker { MachOLinker }
 import jaclang.compiler.backends.native.llvm.binding as llvm;
 
 glob MACHO_TRIPLE = "arm64-apple-darwin",
-     LC_DYLD_INFO_ONLY = 0x80000022;
+     MACHO_TRIPLE_X86 = "x86_64-apple-darwin",
+     LC_DYLD_INFO_ONLY = 0x80000022,
+     MH_PIE = 0x200000;
 
 
 """IR with one unmapped extern (PyDict_New) and one mapped one (malloc)."""
@@ -244,4 +246,103 @@ test "internal GOT slots are keyed by symbol, not by private symbol name" {
             "must keep their own slot"
         );
     }
+}
+
+
+"""The mach header's flags word of a linked image."""
+def header_flags(img: bytes) -> int {
+    assert struct.unpack_from("<I", img, 0)[0] == 0xFEEDFACF , "not a 64-bit Mach-O";
+    return struct.unpack_from("<I", img, 24)[0];
+}
+
+
+"""How many absolute 64-bit relocations the object aims at a placed __TEXT
+section.
+
+These are the sites an executable link patches with a hard-coded image
+address. __TEXT is mapped read-only + executable and no rebase opcode can
+reach it, so an image carrying even one of them cannot be slid.
+Both ARM64_RELOC_UNSIGNED and X86_64_RELOC_UNSIGNED are relocation type 0.
+"""
+def absolute_text_relocs(relobj: bytes) -> int {
+    lk = MachOLinker(
+        obj_data=relobj, sections=[], symbols=[], relocations=[], needed_libs=[]
+    );
+    lk.parse_object();
+    placed: set[str] = set();
+    for sec in lk.sections {
+        if sec.segname == "__TEXT"
+            and (not sec.name.startswith("__debug"))
+            and sec.name != "__eh_frame" {
+            placed.add(f"{sec.segname}:{sec.name}");
+        }
+    }
+    n = 0;
+    for rel in lk.relocations {
+        if rel.rtype == 0 and rel.length == 3 and rel.target_sec in placed {
+            n += 1;
+        }
+    }
+    return n;
+}
+
+
+"""Link an executable the way `jac nacompile` does; return (object, image)."""
+def link_exec(triple: str) -> tuple {
+    relobj = emit_large_object(
+        literal_ir(triple, "exec-literal", "jac_exec_ptr"), triple
+    );
+    d = tempfile.mkdtemp();
+    out = os.path.join(d, "probe_exec");
+    ok = MachOLinker.link(
+        obj_bytes=relobj,
+        output_path=out,
+        needed_libs=["/usr/lib/libSystem.B.dylib"],
+        shared=False
+    );
+    assert ok , f"{triple}: MachOLinker.link(shared=False) returned False";
+    with open(out, "rb") as f {
+        img = f.read();
+    }
+    return (relobj, img);
+}
+
+
+test "an x86_64 executable whose text holds absolute addresses is not PIE" {
+    # `nacompile` builds executables with the large code model (#6819), and on
+    # x86_64 that is absolute code: every global, literal and callee is
+    # materialized with `movabsq $imm64`, landing as X86_64_RELOC_UNSIGNED in
+    # __TEXT. Nothing can rebase those -- __TEXT is r-x and the rebase stream
+    # only reaches __DATA -- so claiming MH_PIE hands dyld permission to slide
+    # an image whose every code-side address is then stale. That is a SIGSEGV
+    # before `main` can print anything (#8800).
+    (relobj, img) = link_exec(MACHO_TRIPLE_X86);
+    n_abs = absolute_text_relocs(relobj);
+    assert n_abs > 0 , (
+        "premise gone: the x86_64 large code model no longer puts absolute "
+        "addresses in __TEXT, so this test pins nothing"
+    );
+    flags = header_flags(img);
+    assert (flags & MH_PIE) == 0 , (
+        f"x86_64 executable carries {n_abs} absolute address(es) in read-only "
+        f"__TEXT but sets MH_PIE (flags={hex(flags)}): dyld slides the image "
+        "and every one of those addresses goes stale"
+    );
+}
+
+
+test "an arm64 executable is position-independent and stays PIE" {
+    # arm64 code is PAGE21/PAGEOFF12/BRANCH26 -- no absolute address reaches
+    # __TEXT -- and arm64 macOS refuses a non-PIE main executable, so the flag
+    # must survive the x86_64 fix.
+    (relobj, img) = link_exec(MACHO_TRIPLE);
+    assert absolute_text_relocs(relobj) == 0 , (
+        "arm64 object put an absolute address in __TEXT; an arm64 main "
+        "executable must be PIE, so that image could not be linked at all"
+    );
+    flags = header_flags(img);
+    assert (flags & MH_PIE) != 0 , (
+        f"arm64 executable lost MH_PIE (flags={hex(flags)}); arm64 macOS "
+        "refuses a non-PIE main executable"
+    );
 }

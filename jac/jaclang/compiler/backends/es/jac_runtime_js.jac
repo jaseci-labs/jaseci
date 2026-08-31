@@ -1898,15 +1898,19 @@ def build_osp_driver_js -> str {
 if (!globalThis.__jacOspCore) {
   globalThis.__jacOspCore = {
     O: [null], H: new Map(),
-    osp_conn, osp_refs, osp_refs_many, osp_wrap1, osp_destroy, osp_is_dead,
-    osp_disconn_between, osp_edge_peer,
+    osp_conn, osp_conn_many, osp_refs, osp_refs_many, osp_refs_edge_pred,
+    osp_wrap1, osp_destroy, osp_is_dead,
+    osp_disconn_between, osp_disconn_between_many, osp_disconn_between_pred,
+    osp_edge_peer,
     osp_spawn, osp_visit, osp_report, osp_disengage, osp_forget,
+    osp_register_type, osp_register_desc, osp_node_desc, osp_is_a,
     WalkerDesc, NodeDesc, Slot, OspRuntime
   };
 }
 var __ospC = globalThis.__jacOspCore;
 var __ospO = __ospC.O;
 var __ospH = __ospC.H;
+var __ospGenericEdge = globalThis.__jacOspGenericEdge ??= class __ospGenericEdge {};
 function __ospId(o) {
   if (o == null) return 0;
   let h = __ospH.get(o);
@@ -1916,10 +1920,12 @@ function __ospId(o) {
 function __ospConnW(src, tgt, mkEdge, undirected, tag = -1) {
   const srcs = Array.isArray(src) ? src : [src];
   const tgts = Array.isArray(tgt) ? tgt : [tgt];
-  for (const s of srcs) for (const t of tgts) {
-    const r = __ospC.osp_conn(__ospId(s), __ospId(t), __ospId(mkEdge()), undirected ? 1 : 0, tag, 0, 0);
-    if (r < 0) throw new Error("cannot connect a destroyed node");
-  }
+  const sh = srcs.map(__ospId);
+  const th = tgts.map(__ospId);
+  const eh = [];
+  for (let i = 0; i < sh.length * th.length; i++) eh.push(__ospId(mkEdge()));
+  const r = __ospC.osp_conn_many(sh, th, eh, undirected ? 1 : 0, tag, 0, 0);
+  if (r < 0) throw new Error("cannot connect a destroyed node");
   return tgts.length === 1 ? tgts[0] : tgts;
 }
 function __ospRefsW(origin, dir, tag = -1, edgesOnly = 0, pred = null) {
@@ -1927,34 +1933,19 @@ function __ospRefsW(origin, dir, tag = -1, edgesOnly = 0, pred = null) {
   if (pred === null) {
     return __ospC.osp_refs(oh, dir, tag, edgesOnly ? 1 : 0).map((h) => __ospO[h]);
   }
-  if (edgesOnly) {
-    return __ospC.osp_refs(oh, dir, tag, 1).map((h) => __ospO[h]).filter(pred);
-  }
-  const inv = dir === 1 ? 2 : (dir === 2 ? 1 : 3);
-  const mine = __ospC.osp_refs(oh, dir, tag, 1);
-  const out = [];
-  for (const th of __ospC.osp_refs(oh, dir, tag, 0)) {
-    const theirs = new Set(__ospC.osp_refs(th, inv, tag, 1));
-    for (const eh of mine) {
-      if (theirs.has(eh) && pred(__ospO[eh])) { out.push(__ospO[th]); break; }
-    }
-  }
-  return out;
+  return __ospC.osp_refs_edge_pred(
+    [oh], dir, tag, edgesOnly ? 1 : 0, (eh) => !!pred(__ospO[eh])
+  ).map((h) => __ospO[h]);
 }
 function __ospRefsManyW(objs, dir, tag = -1, edgesOnly = 0, pred = null) {
+  const hs = [];
+  for (const o of objs) hs.push(__ospId(o));
   if (pred === null) {
-    const hs = [];
-    for (const o of objs) hs.push(__ospId(o));
     return __ospC.osp_refs_many(hs, dir, tag, edgesOnly ? 1 : 0).map((h) => __ospO[h]);
   }
-  const out = [];
-  const seen = new Set();
-  for (const o of objs) {
-    for (const r of __ospRefsW(o, dir, tag, edgesOnly, pred)) {
-      if (!seen.has(r)) { seen.add(r); out.push(r); }
-    }
-  }
-  return out;
+  return __ospC.osp_refs_edge_pred(
+    hs, dir, tag, edgesOnly ? 1 : 0, (eh) => !!pred(__ospO[eh])
+  ).map((h) => __ospO[h]);
 }
 function __ospDestroyW(x, strict = false) {
   // `del` on a value target: flatten through arrays, sets, map values and
@@ -1992,11 +1983,14 @@ function __ospLiveStarts(starts) {
   return starts;
 }
 function __ospDiscBetweenW(a, b, dir, tag = -1) {
-  return __ospC.osp_disconn_between(__ospId(a), __ospId(b), dir, tag);
+  const as = Array.isArray(a) ? a : [a];
+  const bs = Array.isArray(b) ? b : [b];
+  return __ospC.osp_disconn_between_many(as.map(__ospId), bs.map(__ospId), dir, tag);
 }
-function __ospIsA(t, b) {
-  const s = (typeof __ospISA !== 'undefined') && __ospISA[t];
-  return s ? s.has(b) : t === b;
+function __ospDiscBetweenPredW(a, b, dir, tag, pred) {
+  return __ospC.osp_disconn_between_pred(
+    __ospId(a), __ospId(b), dir, tag, (eh) => !!pred(__ospO[eh])
+  );
 }
 """;
 }
