@@ -4316,7 +4316,7 @@ impl NaIRGenObjects._emit_npy_helpers -> None {
     b.call(memset_fn, [_raw, ir.Constant(i32, 0), _size]);
     self._osp_make_immortal(_raw);
     _rc_slot = b.bitcast(_raw, i64.as_pointer(), name="npy.ob_refcnt");
-    b.store(ir.Constant(i64, 4294967295), _rc_slot);
+    b.store(ir.Constant(i64, 3221225472), _rc_slot);
     _tp_slot = b.bitcast(
         b.gep(_raw, [ir.Constant(i64, 8)], name="npy.ob_type.raw"),
         i8p.as_pointer(),
@@ -4356,10 +4356,11 @@ impl NaIRGenObjects._emit_pyobj_header(obj_ptr: ir.Value, arch_name: str) -> Non
     b = self.builder;
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
-    # ob_refcnt: CPython's 64-bit immortal pattern (lower 32 bits all-ones);
-    # incref/decref saturate and the object is never freed by Python.
+    # ob_refcnt: CPython 3.14's immortal pattern (_Py_IMMORTAL_INITIAL_REFCNT
+    # = 3 << 30); refcount ops are 32-bit on the low word, so any other
+    # pattern wraps and lets Python deallocate arena memory.
     b.store(
-        ir.Constant(i64, 4294967295),
+        ir.Constant(i64, 3221225472),
         b.gep(
             obj_ptr,
             [ir.Constant(i32, 0), ir.Constant(i32, 0)],
@@ -4450,6 +4451,10 @@ impl NaIRGenObjects._build_npy_layout -> str {
             if fname in enum_map {
                 code = "enum";
                 aux = enum_map[fname];
+            } elif fname in self.struct_field_erased_tv.get(arch_name, {}) {
+                # An erased type-parameter field lowers to i8* like a jac
+                # string, but it holds a node: expose it as an object ref.
+                code = "obj";
             } elif (
                 isinstance(ft, ir.PointerType)
                 and isinstance(ft.pointee, ir.IntType)

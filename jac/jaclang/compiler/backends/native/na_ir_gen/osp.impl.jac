@@ -199,7 +199,7 @@ impl NaIRGenOsp._osp_emit_tag_read(hp: ir.Value) -> ir.Value {
         b.bitcast(hp, i64.as_pointer(), name="tagr.w0p"), name="tagr.w0"
     );
     _is_hdr = b.icmp_unsigned(
-        "==", _w0, ir.Constant(i64, 4294967295), name="tagr.ishdr"
+        "==", _w0, ir.Constant(i64, 3221225472), name="tagr.ishdr"
     );
     _off = b.select(
         _is_hdr, ir.Constant(i64, 32), ir.Constant(i64, 8), name="tagr.off"

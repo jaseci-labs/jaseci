@@ -312,6 +312,13 @@ impl JacWalker.`spawn(
     def assign(
         `walker: WalkerAnchor, t: (Archetype | list[Archetype])
     ) -> (NodeAnchor | EdgeAnchor) {
+        if getattr(`type(t), "__npy_native__", False) {
+            # A PyObject-unitree node (#8789): not an archetype subclass,
+            # but its lazily built anchor walks the same way.
+            nd = t.__jac__;
+            `walker.next = [nd];
+            return nd;
+        }
         if isinstance(t, NodeArchetype) {
             nd = t.__jac__;
             `walker.next = [nd];

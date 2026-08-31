@@ -2879,7 +2879,7 @@ impl NaIRGenCalls._emit_isinstance_mixed(
             name="isinst.mix.w0"
         );
         _mix_hdr = self.builder.icmp_unsigned(
-            "==", _mix_w0, ir.Constant(i64, 4294967295), name="isinst.mix.ishdr"
+            "==", _mix_w0, ir.Constant(i64, 3221225472), name="isinst.mix.ishdr"
         );
         _mix_off = self.builder.select(
             _mix_hdr, ir.Constant(i64, 24), ir.Constant(i64, 0),

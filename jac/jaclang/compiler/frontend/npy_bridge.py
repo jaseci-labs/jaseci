@@ -96,6 +96,22 @@ def _addr(obj) -> int:
     return id(obj)
 
 
+def _generic_get_dict(self):
+    api = ctypes.pythonapi
+    api.PyObject_GenericGetDict.restype = py_object
+    api.PyObject_GenericGetDict.argtypes = [py_object, c_void_p]
+    return api.PyObject_GenericGetDict(self, None)
+
+
+class NpyBase:
+    """Root base for native types: contributes no storage, only the
+    __dict__ descriptor FromSpec types otherwise lack (cached_property
+    and vars() want it), backed by CPython's own generic dict access."""
+
+    __slots__ = ()
+    __dict__ = property(_generic_get_dict)
+
+
 class NativeList:
     """A mutable view over a jac native list of node pointers. Elements are
     PyObject-headed nodes, so reads come back as the objects themselves."""
@@ -231,12 +247,24 @@ class NpyBridge:
         Called from the meta-importer as each scope module finishes
         executing, before anything imports names out of it.
         """
+        mod_name = getattr(module, "__name__", "")
         for name in list(vars(module)):
             twin = getattr(module, name)
-            if isinstance(twin, type) and name in self.layout:
+            if (
+                isinstance(twin, type)
+                and name in self.layout
+                and getattr(twin, "__module__", "") == mod_name
+            ):
+                # Only classes this module DECLARES: re-exported imports
+                # (e.g. the runtime's TreeWalker) must keep their identity.
                 self._twins.setdefault(name, twin)
         for name in list(vars(module)):
-            if name in self.layout and name in self._twins:
+            twin = getattr(module, name)
+            if (
+                name in self.layout
+                and isinstance(twin, type)
+                and self._twins.get(name) is twin
+            ):
                 setattr(module, name, self._type_for(name))
 
     def _type_for(self, name: str):
@@ -244,8 +272,8 @@ class NpyBridge:
         if t is not None:
             return t
         twin = self._twins[name]
-        base: type | None = None
-        for anc in twin.__mro__[1:]:
+        bases: list[type] = []
+        for anc in twin.__bases__:
             if (
                 anc.__name__ in self.layout
                 and anc.__name__ != name
@@ -253,9 +281,17 @@ class NpyBridge:
             ):
                 # Identity check: a runtime class sharing a name with a laid-
                 # out unitree class (e.g. Archetype) must not become a base.
-                base = self._type_for(anc.__name__)
-                break
-        t = self._build_type(name, twin, base)
+                bases.append(self._type_for(anc.__name__))
+        if not bases:
+            for anc in twin.__mro__[1:]:
+                if (
+                    anc.__name__ in self.layout
+                    and anc.__name__ != name
+                    and self._twins.get(anc.__name__) is anc
+                ):
+                    bases.append(self._type_for(anc.__name__))
+                    break
+        t = self._build_type(name, twin, bases)
         self.types[name] = t
         info = self.layout[name]
         self.kind_of_type[t] = _stable_tag(name)
@@ -268,7 +304,7 @@ class NpyBridge:
         )
         return t
 
-    def _build_type(self, name: str, twin: type, base: type | None):
+    def _build_type(self, name: str, twin: type, bases_in):
         info = self.layout[name]
         fields = info["fields"]
 
@@ -299,8 +335,14 @@ class NpyBridge:
 
         tname = ("jaclang.native." + name).encode()
         self._keep.append(tname)
+        # Only chain roots declare CPython storage; every derived type
+        # inherits, so all native types share their root as solid base and
+        # multiple inheritance can never conflict. True instance sizes are
+        # the native allocator's business, and the member tables address
+        # fields by explicit offset regardless of tp_basicsize.
+        basicsize = 0 if bases_in else info["size"]
         spec = PyType_Spec(
-            tname, info["size"], 0, Py_TPFLAGS_BASETYPE, slots
+            tname, basicsize, 0, Py_TPFLAGS_BASETYPE, slots
         )
         self._keep.append(spec)
 
@@ -309,7 +351,7 @@ class NpyBridge:
         pythonapi.PyType_FromSpecWithBases.argtypes = [
             POINTER(PyType_Spec), py_object,
         ]
-        bases = (base,) if base is not None else (object,)
+        bases = tuple(bases_in) if bases_in else (NpyBase,)
         t = pythonapi.PyType_FromSpecWithBases(ctypes.byref(spec), bases)
 
         t.__npy_native__ = True
@@ -326,10 +368,47 @@ class NpyBridge:
         self._install_new(t, name)
         return t
 
+    def _rebind_class_cell(self, fn, owner_native: type):
+        """A zero-arg super() in twin bytecode resolves through the
+        function's __class__ cell, which points at the twin. Native
+        instances are not twin subclasses, so the cell is rebound to the
+        native counterpart of the defining class -- the native MRO mirrors
+        the twin MRO, so super() chains identically."""
+        import types
+
+        code = getattr(fn, "__code__", None)
+        if code is None or "__class__" not in code.co_freevars:
+            return fn
+        idx = code.co_freevars.index("__class__")
+        closure = list(fn.__closure__)
+        closure[idx] = types.CellType(owner_native)
+        out = types.FunctionType(
+            code, fn.__globals__, fn.__name__, fn.__defaults__, tuple(closure)
+        )
+        out.__kwdefaults__ = fn.__kwdefaults__
+        out.__dict__.update(fn.__dict__)
+        return out
+
+    def _flatten_member(self, v, owner_native: type):
+        import types
+
+        if isinstance(v, types.FunctionType):
+            return self._rebind_class_cell(v, owner_native)
+        if isinstance(v, (classmethod, staticmethod)):
+            return type(v)(self._rebind_class_cell(v.__func__, owner_native))
+        if isinstance(v, property):
+            return property(
+                v.fget and self._rebind_class_cell(v.fget, owner_native),
+                v.fset and self._rebind_class_cell(v.fset, owner_native),
+                v.fdel and self._rebind_class_cell(v.fdel, owner_native),
+            )
+        return v
+
     def _flatten_twin(self, t: type, twin: type) -> None:
         """Every method/property the twins define, flattened base-first so
         overrides land last. Python functions bind to any instance, so the
-        twins' bytecode runs unchanged over native storage."""
+        twins' bytecode runs unchanged over native storage; __class__ cells
+        are rebound so super() works."""
         skip = {
             "__dict__", "__weakref__", "__module__", "__qualname__",
             "__slots__", "__dictoffset__", "__basicsize__", "__new__",
@@ -337,11 +416,18 @@ class NpyBridge:
         for cls in reversed(twin.__mro__):
             if cls is object:
                 continue
+            owner_native = t
+            if (
+                cls is not twin
+                and cls.__name__ in self.layout
+                and self._twins.get(cls.__name__) is cls
+            ):
+                owner_native = self._type_for(cls.__name__)
             for k, v in vars(cls).items():
                 if k in skip:
                     continue
                 try:
-                    setattr(t, k, v)
+                    setattr(t, k, self._flatten_member(v, owner_native))
                 except (TypeError, AttributeError):
                     pass
 
@@ -514,7 +600,21 @@ class NpyBridge:
             elif dcf is not None and dcf.default is not dataclasses.MISSING:
                 spec = (lambda _v=dcf.default: _v)
             else:
-                spec = (lambda: None)
+                # Same rule the store-era schema settled on: a nullable
+                # annotation means None is the meaningful unset state, and
+                # only non-nullable containers seed fresh-empty.
+                ann = str(dcf.type) if dcf is not None else ""
+                parts = [x.strip(" ()") for x in ann.split("|")]
+                if "None" in parts:
+                    spec = (lambda: None)
+                elif ann.lstrip("(").strip().startswith("dict"):
+                    spec = dict
+                elif ann.lstrip("(").strip().startswith("list"):
+                    spec = list
+                elif ann.lstrip("(").strip().startswith("set"):
+                    spec = set
+                else:
+                    spec = (lambda: None)
             defaults[fname] = spec
             if fname.startswith("__") and not fname.endswith("__"):
                 for cls in twin.__mro__:
@@ -646,7 +746,13 @@ class NpyBridge:
         kind = self.layout[name]["kind"]
 
         def __new__(cls, *args, **kwargs):
-            k = self.kind_of_type.get(cls) or _stable_tag(cls.__name__)
+            k = self.kind_of_type.get(cls)
+            if k is None:
+                # A Python-defined subclass of a native type (pass walkers
+                # extending TreeWalker): an ordinary heap instance -- the
+                # layout-compatible struct region is zero-initialized and
+                # native code never handles these.
+                return object.__new__(cls)
             ptr = lib.npy_alloc(k)
             return cast(ptr, py_object).value
 
