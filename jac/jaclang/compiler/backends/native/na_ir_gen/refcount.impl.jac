@@ -1,5 +1,6 @@
 glob _NOGC_OSP_ENGINE_STRUCTS: tuple = (
          "Slot",
+         "Plan",
          "WalkerDesc",
          "NodeDesc",
          "WalkScope",

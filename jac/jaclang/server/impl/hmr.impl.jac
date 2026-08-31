@@ -11,6 +11,11 @@ import from jaclang.cli.console { console }
 
 glob logger = logging.getLogger(__name__);
 
+def _syntax_error_line(file_path: str, err: SyntaxError) -> str {
+    where = f":{err.lineno}" if err?.lineno and err.lineno else "";
+    return f"Syntax error in {file_path}{where}: {err?.msg or str(err)}";
+}
+
 impl HotReloader.start -> None {
     if self._running {
         return;
@@ -38,90 +43,122 @@ impl HotReloader.stop -> None {
 }
 
 impl HotReloader.build_status -> dict {
-    dev_error = self._dev_status_error();
+    diags = self.diagnostics();
+    if diags {
+        return {
+            "status": BuildStatus.ERROR.value,
+            "diagnostics": [diag.to_dict() for diag in diags]
+        };
+    }
+    return {"status": self._build_status.value, "diagnostics": []};
+}
+
+impl HotReloader.diagnostics -> list {
     with HotReloader._build_lock {
-        status = self._build_status;
-        if status is BuildStatus.ERROR {
-            return {
-                "status": status.value,
-                "error": {
-                    "file": self._build_error_file,
-                    "message": self._build_error,
-                    "source": "jac"
-                }
-            };
+        if self._build_status is BuildStatus.ERROR {
+            return list(self._diagnostics);
         }
-        if status is BuildStatus.OK and dev_error {
-            return {"status": BuildStatus.ERROR.value, "error": dev_error};
+        if self._build_status is not BuildStatus.OK {
+            return [];
         }
-        return {"status": status.value, "error": None};
+        return list(self._vite_diagnostics) + list(self._client_diagnostics);
     }
 }
 
-impl HotReloader._dev_status_error -> (dict | None) {
-    status_file = self._error_file_path().parent / '.jac-dev-status.json';
-    try {
-        data = json.loads(status_file.read_text(encoding='utf-8'));
-    } except (OSError, ValueError) {
-        return None;
+impl HotReloader.attach_client_bundler(bundler: any) -> None {
+    if bundler is None {
+        return;
     }
-    if not isinstance(data, dict) {
-        return None;
+    bundler.on_client_event = self.record_client_event;
+}
+
+impl HotReloader.record_client_event(slot: str, payload: (dict | None)) -> None {
+    import from jaclang.client.client_diagnostics { classify_client_payload }
+    import from jaclang.client.source_mapping { _error_rate_limiter }
+    if slot not in ('vite', 'client', 'runtime', 'ready') {
+        return;
     }
-    for source in ('vite', 'client') {
-        slot = data.get(source);
-        if isinstance(slot, dict) and slot.get('message') {
-            return {
-                "file": str(slot.get('file') or ''),
-                "message": str(slot['message']),
-                "source": source
-            };
+    fresh: list = [];
+    if slot != 'ready' and isinstance(payload, dict) and payload.get('message') {
+        channel = 'vite' if slot == 'vite' else 'browser';
+        try {
+            fresh = [classify_client_payload(self.base_path, payload, channel)];
+        } except Exception as e {
+            logger.debug(f"Could not classify client event: {e}");
+            return;
         }
     }
-    return None;
+    with HotReloader._build_lock {
+        if slot == 'ready' {
+            self._client_diagnostics = [];
+            self._runtime_diagnostics = [];
+        } elif slot == 'vite' {
+            self._vite_diagnostics = fresh;
+        } elif slot == 'client' {
+            self._client_diagnostics = fresh;
+        } else {
+            self._runtime_diagnostics = fresh;
+        }
+    }
+    for diag in fresh {
+        if _error_rate_limiter.should_log(diag.key()) {
+            console.error(diag.render());
+        }
+    }
+    self._sync_status_file();
 }
 
 impl HotReloader.record_ok -> None {
     with HotReloader._build_lock {
         self._build_status = BuildStatus.OK;
-        self._build_error_file = "";
-        self._build_error = "";
+        self._diagnostics = [];
     }
-    self._sync_error_file();
+    self._sync_status_file();
 }
 
-impl HotReloader.record_error(file_path: str, message: str) -> None {
+impl HotReloader.record_error(
+    file_path: str,
+    message: str,
+    alerts: (list | None) = None,
+    line: int = 0,
+    column: int = 0
+) -> None {
+    import from jaclang.client.client_diagnostics {
+        build_failure_diagnostic,
+        diagnostics_from_alerts
+    }
+    diags = diagnostics_from_alerts(alerts, self.base_path) if alerts else [];
+    if not diags {
+        diags = [
+            build_failure_diagnostic(self.base_path, file_path, message, line, column)
+        ];
+    }
     with HotReloader._build_lock {
         self._build_status = BuildStatus.ERROR;
-        self._build_error_file = file_path;
-        self._build_error = message;
+        self._diagnostics = diags;
     }
-    self._sync_error_file();
+    self._sync_status_file();
 }
 
-impl HotReloader._error_file_path -> Path {
+impl HotReloader._status_file_path -> Path {
     if self.client_compiler {
         try {
             compiled = Path(str(self.client_compiler.jac_client_compiler.compiled_dir));
-            return compiled.parent / '.jac-build-error.json';
+            return compiled.parent / '.jac-status.json';
         } except Exception { }
     }
-    return Path(self.base_path) / '.jac' / 'client' / '.jac-build-error.json';
+    return Path(self.base_path) / '.jac' / 'client' / '.jac-status.json';
 }
 
-impl HotReloader._sync_error_file -> None {
+impl HotReloader._sync_status_file -> None {
     try {
-        with HotReloader._build_lock {
-            is_error = self._build_status is BuildStatus.ERROR;
-            payload = {"file": self._build_error_file, "message": self._build_error};
-        }
-        error_file = self._error_file_path();
-        if is_error {
-            if error_file.parent.is_dir() {
-                error_file.write_text(json.dumps(payload), encoding='utf-8');
-            }
-        } elif error_file.exists() {
-            error_file.unlink();
+        payload = self.build_status();
+        status_file = self._status_file_path();
+        if payload["status"] == BuildStatus.ERROR.value {
+            status_file.parent.mkdir(parents=True, exist_ok=True);
+            status_file.write_text(json.dumps(payload), encoding='utf-8');
+        } elif status_file.exists() {
+            status_file.unlink();
         }
     } except OSError { }
 }
@@ -129,7 +166,7 @@ impl HotReloader._sync_error_file -> None {
 impl get_build_status -> dict {
     reloader = HotReloader._active;
     if not reloader {
-        return {"status": BuildStatus.UNAVAILABLE.value, "error": None};
+        return {"status": BuildStatus.UNAVAILABLE.value, "diagnostics": []};
     }
     return reloader.build_status();
 }
@@ -349,12 +386,15 @@ impl HotReloader._reload_server_module(file_path: str) -> None {
         );
         console.print(f"[HMR] Reloaded: {file_path}");
     } except SyntaxError as e {
-        line_info = f":{e.lineno}" if e?.lineno and e.lineno else "";
         console.error(
-            f"Syntax error in {file_path}{line_info}: {e?.msg or str(e)}",
-            hint="Fix the error and save to retry"
+            _syntax_error_line(file_path, e), hint="Fix the error and save to retry"
         );
-        self.record_error(file_path, f"Syntax error{line_info}: {e?.msg or str(e)}");
+        self.record_error(
+            file_path,
+            f"Syntax error: {e?.msg or str(e)}",
+            line=int(e.lineno or 0),
+            column=int(e.offset or 0)
+        );
     } except ImportError as e {
         console.error(f"Import error in {file_path}: {e}");
         self.record_error(file_path, f"Import error: {e}");
@@ -390,6 +430,7 @@ impl HotReloader._recompile_client_unified(file_path: str) -> None {
             }
         }
         jcc = self.client_compiler.jac_client_compiler;
+        mark = len(program.errors_had) if program is not None else 0;
         jcc.compile_dependencies_recursively(
             source_path, source_root=Path(self.base_path).resolve(), skip_existing=True
         );
@@ -411,7 +452,11 @@ impl HotReloader._recompile_client_unified(file_path: str) -> None {
         base_prefix = str(Path(self.base_path).resolve()) + '/';
         errors = str(e).replace(base_prefix, '');
         console.error(f"Compile error in {file_path}:\n{errors}");
-        self.record_error(file_path, errors);
+        self.record_error(
+            file_path,
+            errors,
+            alerts=(program.errors_had[mark:] if program is not None else None)
+        );
     } except Exception as e {
         console.error(f"Compile error in {file_path}: {e}");
         self.record_error(file_path, str(e));
@@ -454,7 +499,7 @@ impl HotReloader._extract_js_exports(js_path: Path) -> set[str] {
 
 impl HotReloader._signal_full_reload -> None {
     self._reload_nonce += 1;
-    signal_file = self._error_file_path().parent / '.jac-force-reload';
+    signal_file = self._status_file_path().parent / '.jac-force-reload';
     try {
         if signal_file.parent.is_dir() {
             signal_file.write_text(str(self._reload_nonce), encoding='utf-8');
@@ -519,7 +564,7 @@ impl HotReloader._recompile_client_code(
                     str(err).replace(base_prefix, '') for err in new_errors
                 );
                 console.error(f"Compile error in {file_path}:\n{errors}");
-                self.record_error(file_path, errors);
+                self.record_error(file_path, errors, alerts=new_errors);
             } else {
                 console.warning(f"Errors compiling dependency {file_path}, skipping");
             }
@@ -598,9 +643,7 @@ impl HotReloader._classify_declarations(file_path: str) -> tuple[bool, bool] {
             has_server = True;
         }
     } except SyntaxError as e {
-        line_info = f" at line {e.lineno}" if e?.lineno and e.lineno else "";
-        console.error(f"Syntax error in {file_path}{line_info}: {e?.msg or str(e)}");
-
+        console.error(_syntax_error_line(file_path, e));
         has_server = True;
     } except Exception as e {
         error_type = type(e).__name__;

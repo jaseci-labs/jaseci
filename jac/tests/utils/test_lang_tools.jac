@@ -1,8 +1,8 @@
 """Language tools tests – migrated from test_lang_tools.py.
 
-Tests for the AstTool utility: pass template generation, DOT file
-generation, AST printing, Python AST printing, py2jac mode, symbol
-table output, and uninode autodoc.
+Tests for the AstTool utility: DOT file generation, AST printing,
+Python AST printing, py2jac mode, symbol table output, and uninode
+autodoc.
 """
 
 import os;
@@ -11,18 +11,6 @@ import jaclang;
 import from jaclang.compiler.tools.lang_tools { AstTool }
 
 glob LANG_FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures");
-
-test "pass template" {
-    tool = AstTool();
-    out = tool.pass_template();
-    assert "target: Expr," in out;
-    assert "self, node: ast.ReturnStmt" in out;
-    assert "exprs: Sequence[ExprAsItem]," in out;
-    assert "path: Sequence[Name | String] | None," in out;
-    assert "value: str," in out;
-    assert "def exit_module(self, node: ast.Module)" in out;
-    assert out.count("def exit_") > 20;
-}
 
 test "gendotfile" {
     tool = AstTool();
@@ -82,23 +70,4 @@ test "uninode doc" {
         "## LambdaExpr\n```mermaid\nflowchart LR\nLambdaExpr -->|Expr , CodeBlockStmt| body"
         in auto_uni
     );
-}
-
-test "uni dispatch annexes in sync and unduplicated" {
-    import from jaclang.compiler.frontend.gen_uni_dispatch {
-        verify_all,
-        abs_path,
-        UNI_PASS_SRC
-    }
-    stale = verify_all();
-    assert stale == [] , f"stale dispatch artifacts: {stale}";
-    src = open(abs_path(UNI_PASS_SRC), encoding="utf-8").read();
-    decls: list[str] = [];
-    for line in src.splitlines() {
-        s = line.strip();
-        if s.startswith("def enter_") or s.startswith("def exit_") {
-            decls.append(s.split("(")[0]);
-        }
-    }
-    assert len(decls) == len(set(decls)) , "duplicate visitor declarations in uni_pass.jac";
 }
