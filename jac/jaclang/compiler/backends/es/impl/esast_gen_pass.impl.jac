@@ -5905,7 +5905,7 @@ impl EsastGenPass._build_osp_setup_js -> str {
         exit_js = self._osp_slots_js(exit_by_owner.get(name, []), tags);
         lines.append(
             f"__ospC.osp_register_desc({tag}, new {desc_cls}"
-            + f"({{type_tag: {tag}, entry: {entry_js}, exit: {exit_js}}}));"
+                + f"({{type_tag: {tag}, entry: {entry_js}, exit: {exit_js}}}));"
         );
     }
     lines.append(
@@ -5964,9 +5964,7 @@ impl EsastGenPass.exit_visit_stmt with uni.VisitStmt exit {
     }
     visit_call = self.sync_loc(
         es.CallExpression(
-            callee=self.sync_loc(
-                es.Identifier(name='__ospC.osp_visit'), jac_node=here
-            ),
+            callee=self.sync_loc(es.Identifier(name='__ospC.osp_visit'), jac_node=here),
             arguments=[target, insert]
         ),
         jac_node=here
@@ -5975,9 +5973,7 @@ impl EsastGenPass.exit_visit_stmt with uni.VisitStmt exit {
         here.gen.es_ast = self.sync_loc(
             es.IfStatement(
                 `test=self.sync_loc(
-                    es.UnaryExpression(
-                        operator='!', argument=visit_call, prefix=True
-                    ),
+                    es.UnaryExpression(operator='!', argument=visit_call, prefix=True),
                     jac_node=here
                 ),
                 consequent=cast(es.Statement, here.else_body.gen.es_ast),

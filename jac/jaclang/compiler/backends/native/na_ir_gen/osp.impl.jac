@@ -409,7 +409,12 @@ impl NaIRGenOsp._emit_osp_setup -> None {
             return;
         }
     }
-    for _rfn in ["osp_is_a", "osp_node_desc", "osp_register_type", "osp_register_desc"] {
+    for _rfn in [
+        "osp_is_a",
+        "osp_node_desc",
+        "osp_register_type",
+        "osp_register_desc"
+    ] {
         if _rfn not in self.func_symtab {
             return;
         }
@@ -1273,9 +1278,7 @@ impl NaIRGenOsp._osp_pred_pair(
         self.builder.store(
             _v,
             self.builder.gep(
-                _env,
-                [ir.Constant(i32, 0), ir.Constant(i32, _ci)],
-                name="predp.envslot"
+                _env, [ir.Constant(i32, 0), ir.Constant(i32, _ci)], name="predp.envslot"
             )
         );
     }
@@ -1298,9 +1301,7 @@ impl NaIRGenOsp._osp_pred_pair(
         }
         _rv = self.builder.load(
             self.builder.gep(
-                _envp,
-                [ir.Constant(i32, 0), ir.Constant(i32, _ci)],
-                name="predp.rvp"
+                _envp, [ir.Constant(i32, 0), ir.Constant(i32, _ci)], name="predp.rvp"
             ),
             name="predp.rv"
         );

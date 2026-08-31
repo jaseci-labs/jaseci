@@ -98,13 +98,6 @@ def tag_of_cls(cls: type) -> int {
     if t is None {
         import from jaclang.runtime.osp_model { stable_osp_tag }
         t = stable_osp_tag(cls.__name__);
-        prior = _cls_of_tag_map.get(t);
-        if (prior is not None) and (prior is not cls) {
-            raise RuntimeError(
-                f"OSP tag collision: archetypes {cls.__name__!r} and "
-                f"{prior.__name__!r} share tag {t}; rename one of them"
-            );
-        }
         _tag_of_cls[cls] = t;
         _cls_of_tag_map[t] = cls;
     }

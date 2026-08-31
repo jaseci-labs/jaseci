@@ -214,9 +214,7 @@ obj OspGraph {
         return eobj in self.row_of;
     }
 
-    def _row_alloc(
-        src: int, tgt: int, tag: int, eobj: int, undirected: bool
-    ) -> int {
+    def _row_alloc(src: int, tgt: int, tag: int, eobj: int, undirected: bool) -> int {
         if self.free_rows {
             rid: int = self.free_rows.pop();
             row: EdgeRow = self.rows[rid];
@@ -452,9 +450,7 @@ obj OspGraph {
         return out;
     }
 
-    def filter_handles(
-        hs: list[int], pred: Callable[([int], bool)]
-    ) -> list[int] {
+    def filter_handles(hs: list[int], pred: Callable[([int], bool)]) -> list[int] {
         out: list[int] = [];
         for h in hs {
             if pred(h) {
@@ -806,9 +802,7 @@ obj OspGraph {
 }
 
 def _new_graph -> OspGraph {
-    return OspGraph(
-        adj={}, rows=[], free_rows=[], row_of={}, dead={}, regions={}
-    );
+    return OspGraph(adj={}, rows=[], free_rows=[], row_of={}, dead={}, regions={});
 }
 
 glob DEFAULT_GRAPH: OspGraph = _new_graph();
@@ -848,9 +842,7 @@ def osp_refs_edge_pred(
     edges_only: int,
     pred: Callable[([int], bool)]
 ) -> list[int] {
-    return DEFAULT_GRAPH.refs_edge_pred(
-        origins, dir, edge_tag, edges_only != 0, pred
-    );
+    return DEFAULT_GRAPH.refs_edge_pred(origins, dir, edge_tag, edges_only != 0, pred);
 }
 
 def osp_filter(hs: list[int], pred: Callable[([int], bool)]) -> list[int] {

@@ -19,15 +19,15 @@ import from jaclang.runtime.osp_kernel {
     osp_register_desc
 }
 
-glob T_BASE: int = 9100100;
-glob T_SUB: int = 9100101;
-glob T_OTHER: int = 9100102;
+glob T_BASE: int = 9100100,
+     T_SUB: int = 9100101,
+     T_OTHER: int = 9100102;
 
 def _noop_ability(a: any, b: any) -> None {
     return;
 }
 
-def _fresh_graph -> None {
+def _fresh_graph {
     _g.DEFAULT_GRAPH.adj.clear();
     _g.DEFAULT_GRAPH.rows.clear();
     _g.DEFAULT_GRAPH.free_rows.clear();
