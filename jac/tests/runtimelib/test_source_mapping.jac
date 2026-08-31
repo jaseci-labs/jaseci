@@ -103,8 +103,8 @@ def _create_test_source_map(tmpdir: str) -> str {
 
 test "resolve to jac file" {
     with TemporaryDirectory() as tmpdir {
-        _create_test_source_map(tmpdir);
-        mapper = SourceMapper.from_bundle(tmpdir);
+        _create_test_source_map(str(tmpdir));
+        mapper = SourceMapper.from_bundle(str(tmpdir));
         loc = mapper.resolve(1, 0);
         assert loc is not None;
         assert "main.jac" in loc.file;
@@ -114,8 +114,8 @@ test "resolve to jac file" {
 
 test "resolve second source" {
     with TemporaryDirectory() as tmpdir {
-        _create_test_source_map(tmpdir);
-        mapper = SourceMapper.from_bundle(tmpdir);
+        _create_test_source_map(str(tmpdir));
+        mapper = SourceMapper.from_bundle(str(tmpdir));
         loc = mapper.resolve(5, 0);
         assert loc is not None;
         assert "feed.jac" in loc.file;
@@ -125,8 +125,8 @@ test "resolve second source" {
 
 test "resolve returns none for invalid line" {
     with TemporaryDirectory() as tmpdir {
-        _create_test_source_map(tmpdir);
-        mapper = SourceMapper.from_bundle(tmpdir);
+        _create_test_source_map(str(tmpdir));
+        mapper = SourceMapper.from_bundle(str(tmpdir));
         assert mapper.resolve(9999, 0) is None;
         assert mapper.resolve(0, 0) is None;
     }
@@ -157,12 +157,12 @@ def _create_mapper_with_map(tmpdir: str) -> SourceMapper {
         "mappings": "AAAA"
     };
     (dist_dir / "client.hash.js.map").write_text(json.dumps(source_map));
-    return SourceMapper.from_bundle(tmpdir);
+    return SourceMapper.from_bundle(str(tmpdir));
 }
 
 test "resolve stack trace to jac files" {
     with TemporaryDirectory() as tmpdir {
-        mapper = _create_mapper_with_map(tmpdir);
+        mapper = _create_mapper_with_map(str(tmpdir));
         stack = "TypeError: Cannot read property\n"
             + "    at MyComponent (http://localhost:8001/static/client.js:1:0)\n"
             + "    at React.render (http://localhost:8001/static/client.js:1:100)";
@@ -212,12 +212,12 @@ def _create_mapper_with_artifact_and_node_modules(tmpdir: str) -> SourceMapper {
         "mappings": "AAAA;ACAA;ACAA"
     };
     (dist_dir / "client.hash.js.map").write_text(json.dumps(source_map));
-    return SourceMapper.from_bundle(tmpdir);
+    return SourceMapper.from_bundle(str(tmpdir));
 }
 
 test "non-source frames are dropped by default, .jac frames kept" {
     with TemporaryDirectory() as tmpdir {
-        mapper = _create_mapper_with_artifact_and_node_modules(tmpdir);
+        mapper = _create_mapper_with_artifact_and_node_modules(str(tmpdir));
         stack = "    at foo (http://x/client.js:1:0)\n"
             + "    at bar (http://x/client.js:2:0)\n"
             + "    at baz (http://x/client.js:3:0)";
@@ -235,7 +235,7 @@ test "non-source frames are dropped by default, .jac frames kept" {
 
 test "verbose mode keeps all resolved frames" {
     with TemporaryDirectory() as tmpdir {
-        mapper = _create_mapper_with_artifact_and_node_modules(tmpdir);
+        mapper = _create_mapper_with_artifact_and_node_modules(str(tmpdir));
         stack = "    at foo (http://x/client.js:1:0)\n"
             + "    at bar (http://x/client.js:2:0)\n"
             + "    at baz (http://x/client.js:3:0)";
@@ -249,7 +249,7 @@ test "verbose mode keeps all resolved frames" {
 
 test "unresolvable frames pass through unchanged in default mode" {
     with TemporaryDirectory() as tmpdir {
-        mapper = _create_mapper_with_artifact_and_node_modules(tmpdir);
+        mapper = _create_mapper_with_artifact_and_node_modules(str(tmpdir));
         # Line 9999 has no mapping, so resolve() returns None and the line
         # is preserved (signals the mapper failed rather than silently
         # dropping diagnostic information).
@@ -314,12 +314,16 @@ test "es compiler produces exact line mapping for function body statements" {
         assert mod.gen.es_ast is not None , "No ES AST generated";
         # Get JS code and line map
         import from jaclang.compiler.backends.es.es_unparse { es_to_js_with_map }
-        (js_code, line_map) = es_to_js_with_map(_as_any(mod.gen.es_ast));
-        assert len(line_map) > 0 , "No line mappings generated";
-        # Build a lookup: output_line -> jac_line
+        (js_code, segments) = es_to_js_with_map(_as_any(mod.gen.es_ast));
+        assert len(segments) > 0 , "No mappings generated";
+        # Build a lookup: output_line -> jac_line. Segments are column
+        # granular, so take the leftmost one on each generated line, which is
+        # the line-granular question these assertions ask.
         out_to_jac: dict[int, int] = {};
-        for (out_line, src_line, src_col) in line_map {
-            out_to_jac[out_line] = src_line;
+        for (out_line, out_col, src_line, src_col, name) in sorted(segments) {
+            if out_line not in out_to_jac {
+                out_to_jac[out_line] = src_line;
+            }
         }
         # Find the JS output lines that contain our known statements
         js_lines = js_code.split('\n');
@@ -351,9 +355,9 @@ test "es compiler produces exact line mapping for function body statements" {
 # =============================================================================
 test "source mapper caches results" {
     with TemporaryDirectory() as tmpdir {
-        _create_test_source_map(tmpdir);
-        mapper1 = SourceMapper.from_bundle(tmpdir);
-        mapper2 = SourceMapper.from_bundle(tmpdir);
+        _create_test_source_map(str(tmpdir));
+        mapper1 = SourceMapper.from_bundle(str(tmpdir));
+        mapper2 = SourceMapper.from_bundle(str(tmpdir));
         # Same base_path should return cached mapper (same object references)
         assert mapper1._source_map is mapper2._source_map;
     }
@@ -362,15 +366,15 @@ test "source mapper caches results" {
 test "source mapper invalidates on file change" {
     import time;
     with TemporaryDirectory() as tmpdir {
-        _create_test_source_map(tmpdir);
-        mapper1 = SourceMapper.from_bundle(tmpdir);
+        _create_test_source_map(str(tmpdir));
+        mapper1 = SourceMapper.from_bundle(str(tmpdir));
         # Modify a .map file to invalidate cache
         time.sleep(0.1);
         dist_dir = Path(tmpdir) / ".jac" / "client" / "dist";
         for f in dist_dir.`glob("*.js.map") {
             f.write_text(f.read_text());  # touch to change mtime
         }
-        mapper2 = SourceMapper.from_bundle(tmpdir);
+        mapper2 = SourceMapper.from_bundle(str(tmpdir));
         # Should have reloaded (different object)
         assert mapper1._source_map is not mapper2._source_map;
     }
@@ -407,29 +411,39 @@ test "rate limiter enforces window cap" {
 # =============================================================================
 test "generate source map json produces valid map" {
     import from jaclang.client.source_mapping { generate_source_map_json }
+    # Segments are (generated line, generated column, jac line, jac column,
+    # name); a non-empty name lands in the map's `names` array.
     map_json = generate_source_map_json(
         source_file="test.jac",
         output_file="test.js",
-        line_map=[(1, 5, 0), (2, 6, 4), (3, 10, 0)]
+        segments=[(1, 0, 5, 1, ""), (2, 2, 6, 5, "y"), (3, 0, 10, 1, "")]
     );
     data = json.loads(map_json);
     assert data["version"] == 3;
     assert data["sources"] == ["test.jac"];
     assert len(data["mappings"]) > 0;
+    assert data["names"] == ["y"];
     # Verify round-trip resolution
     index = _parse_mappings(data["mappings"]);
-    sm = SourceMap(sources=data["sources"], source_comments={}, _index=index);
+    sm = SourceMap(
+        sources=data["sources"], source_comments={}, _index=index, names=data["names"]
+    );
     loc = sm.resolve(1, 0);
     assert loc is not None;
     assert loc.line == 5;
+    assert loc.column == 1;
+    assert sm.name_at(2, 2) == "y";
 }
 
-test "generate source map json handles empty line map" {
+test "generate source map json handles an empty segment list" {
     import from jaclang.client.source_mapping { generate_source_map_json }
     map_json = generate_source_map_json("test.jac", "test.js", []);
     data = json.loads(map_json);
     assert data["mappings"] == "";
-    assert data["sources"] == [];
+    assert data["names"] == [];
+    # The map still declares the source it belongs to, so a consumer that
+    # chains it knows which file produced no mappings.
+    assert data["sources"] == ["test.jac"];
 }
 
 # =============================================================================
@@ -450,7 +464,7 @@ test "two-layer resolution chains bundle and per-file maps" {
         per_file_map = generate_source_map_json(
             source_file="/project/app.jac",
             output_file="app.js",
-            line_map=[(1, 10, 0), (2, 20, 5), (3, 42, 8)]
+            segments=[(1, 0, 10, 1, ""), (2, 0, 20, 6, ""), (3, 0, 42, 9, "")]
         );
         (compiled_dir / "app.js.map").write_text(per_file_map);
         # Create bundle .map: bundle line 1 -> app.js line 3
@@ -463,7 +477,7 @@ test "two-layer resolution chains bundle and per-file maps" {
             "mappings": ";;AAEA"
         };
         (dist_dir / "client.hash.js.map").write_text(json.dumps(bundle_map));
-        mapper = SourceMapper.from_bundle(tmpdir);
+        mapper = SourceMapper.from_bundle(str(tmpdir));
         # Bundle line 3 -> app.js line 3 -> app.jac line 42
         loc = mapper.resolve(3, 0);
         assert loc is not None;

@@ -58,25 +58,30 @@ impl JcirGenPass._refuse(nd: (UniNode | None), construct: str) -> None {
     );
 }
 
-impl JcirGenPass.enter_node(nd: UniNode) -> None {
-    if (isinstance(nd, Module) and (nd is not self.ir_in)) {
-        self.prune();
+impl JcirGenPass.enter_walk with UniNode entry {
+    if self.is_canceled() or here.ct_pruned {
+        osp_skip_rest();
         return;
     }
-    if isinstance(nd, (Ability, Import)) and nd.is_comptime {
-        self.prune();
+    self.cur_node = here;
+    if (isinstance(here, Module) and (here is not self.ir_in)) {
+        osp_skip_rest();
+        return;
+    }
+    if isinstance(here, (Ability, Import)) and here.is_comptime {
+        osp_skip_rest();
         return;
     }
     if (
-        isinstance(nd, ContextAwareNode)
-        and (nd.code_context == CodeContext.NATIVE)
-        and ((nd.parent is None) or isinstance(nd.parent, Module))
-        and not isinstance(nd, (Import, Test))
+        isinstance(here, ContextAwareNode)
+        and (here.code_context == CodeContext.NATIVE)
+        and ((here.parent is None) or isinstance(here.parent, Module))
+        and not isinstance(here, (Import, Test))
         and not self._is_native_ext_module()
     ) {
         first_native = True;
         for sib in self.ir_in.body {
-            if sib is nd {
+            if sib is here {
                 break;
             }
             if (
@@ -89,71 +94,84 @@ impl JcirGenPass.enter_node(nd: UniNode) -> None {
             }
         }
         if first_native {
-            self._interop_stub_node = nd;
+            self._interop_stub_node = here;
         }
-        self.prune();
+        osp_skip_rest();
         return;
     }
     if (
-        isinstance(nd, ContextAwareNode)
-        and (nd.code_context == CodeContext.CLIENT)
-        and not nd.codespace_dual
-        and ((nd.parent is None) or isinstance(nd.parent, Module))
+        isinstance(here, ContextAwareNode)
+        and (here.code_context == CodeContext.CLIENT)
+        and not here.codespace_dual
+        and ((here.parent is None) or isinstance(here.parent, Module))
     ) {
-        self.prune();
+        osp_skip_rest();
         return;
     }
     if (
-        isinstance(nd, Import)
-        and nd.code_context == CodeContext.NATIVE
-        and (not nd.items)
+        isinstance(here, Import)
+        and here.code_context == CodeContext.NATIVE
+        and (not here.items)
     ) {
-        self.prune();
+        osp_skip_rest();
         return;
     }
-    super.enter_node(nd);
 }
 
-impl JcirGenPass.exit_node(nd: UniNode) -> None {
-    if (isinstance(nd, Module) and (nd is not self.ir_in)) {
+impl JcirGenPass.exit_walk with UniNode exit {
+    if here.ct_pruned {
+        osp_skip_rest();
         return;
     }
-    if isinstance(nd, (Ability, Import)) and nd.is_comptime {
-        self.set_out(nd, []);
+    self.cur_node = here;
+    if self.is_canceled() {
+        osp_skip_rest();
+        return;
+    }
+    if (isinstance(here, Module) and (here is not self.ir_in)) {
+        osp_skip_rest();
+        return;
+    }
+    if isinstance(here, (Ability, Import)) and here.is_comptime {
+        self.set_out(here, []);
+        osp_skip_rest();
         return;
     }
     if (
-        isinstance(nd, ContextAwareNode)
-        and (nd.code_context == CodeContext.CLIENT)
-        and not nd.codespace_dual
-        and ((nd.parent is None) or isinstance(nd.parent, Module))
+        isinstance(here, ContextAwareNode)
+        and (here.code_context == CodeContext.CLIENT)
+        and not here.codespace_dual
+        and ((here.parent is None) or isinstance(here.parent, Module))
     ) {
+        osp_skip_rest();
         return;
     }
     if (
-        isinstance(nd, ContextAwareNode)
-        and (nd.code_context == CodeContext.NATIVE)
-        and ((nd.parent is None) or isinstance(nd.parent, Module))
-        and not isinstance(nd, (Import, Test))
+        isinstance(here, ContextAwareNode)
+        and (here.code_context == CodeContext.NATIVE)
+        and ((here.parent is None) or isinstance(here.parent, Module))
+        and not isinstance(here, (Import, Test))
         and not self._is_native_ext_module()
     ) {
+        osp_skip_rest();
         return;
     }
     if (
-        isinstance(nd, Import)
-        and nd.code_context == CodeContext.NATIVE
-        and (not nd.items)
+        isinstance(here, Import)
+        and here.code_context == CodeContext.NATIVE
+        and (not here.items)
     ) {
+        osp_skip_rest();
         return;
     }
-    super.exit_node(nd);
-    if isinstance(nd, Expr) {
-        if nd.fw is not None or isinstance(nd, FuncCall) {
-            self._apply_fw(nd);
-        }
-        if nd.coerce_to is not None {
-            self._apply_coercion(nd);
-        }
+}
+
+impl JcirGenPass.finish_expr with Expr exit {
+    if here.fw is not None or isinstance(here, FuncCall) {
+        self._apply_fw(here);
+    }
+    if here.coerce_to is not None {
+        self._apply_coercion(here);
     }
 }
 
@@ -1336,15 +1354,15 @@ impl JcirGenPass.ir_bytes -> bytes {
     return module_container_bytes(self._module_path, self._module_root);
 }
 
-impl JcirGenPass.exit_sub_tag(nd: SubTag) -> None {
-    tag_node = nd.tag;
+impl JcirGenPass.exit_sub_tag with SubTag exit {
+    tag_node = here.tag;
     if isinstance(tag_node, UniNode) {
-        self.set_out(nd, self.outs(tag_node));
+        self.set_out(here, self.outs(tag_node));
     }
 }
 
-impl JcirGenPass.exit_module(nd: Module) -> None {
-    mod_path = nd.loc.mod_path;
+impl JcirGenPass.exit_module with Module exit {
+    mod_path = here.loc.mod_path;
     is_builtin_module = (
         (mod_path.endswith('builtin.jac') or mod_path.endswith('builtin.py'))
         and ('runtime' in mod_path)
@@ -1413,7 +1431,7 @@ impl JcirGenPass.exit_module(nd: Module) -> None {
             )
         );
     }
-    mod_path_norm = nd.loc.mod_path.replace('\\', '/');
+    mod_path_norm = here.loc.mod_path.replace('\\', '/');
     is_jaclib_module = (
         mod_path_norm.endswith('/jaclang/lib.jac')
         or mod_path_norm.endswith('/jaclang/lib.py')
@@ -1439,11 +1457,11 @@ impl JcirGenPass.exit_module(nd: Module) -> None {
             )
         );
     }
-    merged_body = self._merge_module_bodies(nd);
+    merged_body = self._merge_module_bodies(here);
     body_items: list[CgItem] = [];
-    if nd.doc {
+    if here.doc {
         body_items.append(
-            self.nod('Expr', ['value'], [self.val(nd.doc)], jac_node=nd.doc)
+            self.nod('Expr', ['value'], [self.val(here.doc)], jac_node=here.doc)
         );
     }
     body_items.extend(self.preamble);
@@ -1473,32 +1491,32 @@ impl JcirGenPass.exit_module(nd: Module) -> None {
     }
     new_body = self._flatten_ast_list(body_items);
     module = self.nod('Module', ['body', 'type_ignores'], [new_body, []]);
-    self.set_out(nd, [module]);
+    self.set_out(here, [module]);
     self._module_root = module;
-    self._module_path = nd.loc.mod_path;
-    nd.gen.jcir = module_container_bytes(self._module_path, module);
+    self._module_path = here.loc.mod_path;
+    here.gen.jcir = module_container_bytes(self._module_path, module);
 }
 
-impl JcirGenPass.exit_type_param(nd: TypeParam) -> None {
-    if nd.is_comptime {
-        self.set_out(nd, []);
+impl JcirGenPass.exit_type_param with TypeParam exit {
+    if here.is_comptime {
+        self.set_out(here, []);
         return;
     }
-    bound_ast = self.val(nd.bound) if nd.bound else None;
+    bound_ast = self.val(here.bound) if here.bound else None;
     self.set_out(
-        nd, [self.nod('TypeVar', ['name', 'bound'], [nd.name.value, bound_ast])]
+        here, [self.nod('TypeVar', ['name', 'bound'], [here.name.value, bound_ast])]
     );
 }
 
-impl JcirGenPass.exit_type_alias(nd: TypeAlias) -> None {
+impl JcirGenPass.exit_type_alias with TypeAlias exit {
     type_param_asts: list[CgNode] = [];
-    for tp in nd.type_params {
+    for tp in here.type_params {
         if self.outs(tp) {
             type_param_asts.append(self.val(tp));
         }
     }
-    value_ast = self.val(nd.value);
-    if nd.is_distinct {
+    value_ast = self.val(here.value);
+    if here.is_distinct {
         assign = self.nod(
             'Assign',
             ['targets', 'value'],
@@ -1507,13 +1525,13 @@ impl JcirGenPass.exit_type_alias(nd: TypeAlias) -> None {
                     self.nod(
                         'Name',
                         ['id', 'ctx'],
-                        [nd.name.sym_name, self.nod('Store', [], [])]
+                        [here.name.sym_name, self.nod('Store', [], [])]
                     )
                 ],
                 value_ast
             ]
         );
-        self.set_out(nd, [assign]);
+        self.set_out(here, [assign]);
         return;
     }
     type_alias = self.nod(
@@ -1521,37 +1539,37 @@ impl JcirGenPass.exit_type_alias(nd: TypeAlias) -> None {
         ['name', 'type_params', 'value'],
         [
             self.nod(
-                'Name', ['id', 'ctx'], [nd.name.sym_name, self.nod('Store', [], [])]
+                'Name', ['id', 'ctx'], [here.name.sym_name, self.nod('Store', [], [])]
             ),
             type_param_asts,
             value_ast
         ]
     );
-    self.set_out(nd, [type_alias]);
+    self.set_out(here, [type_alias]);
 }
 
-impl JcirGenPass.exit_global_vars(nd: GlobalVars) -> None {
-    assigns_ast = self._flatten_ast_list([self.outs(a) for a in nd.assignments]);
-    if nd.doc {
-        doc = self.nod('Expr', ['value'], [self.val(nd.doc)], jac_node=nd.doc);
-        self.set_out(nd, [doc] + assigns_ast);
+impl JcirGenPass.exit_global_vars with GlobalVars exit {
+    assigns_ast = self._flatten_ast_list([self.outs(a) for a in here.assignments]);
+    if here.doc {
+        doc = self.nod('Expr', ['value'], [self.val(here.doc)], jac_node=here.doc);
+        self.set_out(here, [doc] + assigns_ast);
     } else {
-        self.set_out(nd, assigns_ast);
+        self.set_out(here, assigns_ast);
     }
 }
 
-impl JcirGenPass.enter_test(nd: Test) -> None {
+impl JcirGenPass.enter_test with Test entry {
     self._push_hoist_frame();
 }
 
-impl JcirGenPass.exit_test(nd: Test) -> None {
-    test_name = nd.name.sym_name;
-    if nd.code_context == CodeContext.NATIVE {
-        body_stmts = self._native_test_shim_stmts(nd);
+impl JcirGenPass.exit_test with Test exit {
+    test_name = here.name.sym_name;
+    if here.code_context == CodeContext.NATIVE {
+        body_stmts = self._native_test_shim_stmts(here);
     } else {
-        body_stmts = self.resolve_stmt_block(nd.body, doc=nd.doc);
+        body_stmts = self.resolve_stmt_block(here.body, doc=here.doc);
     }
-    test_directives = self.scope_directive_stmts([nd]);
+    test_directives = self.scope_directive_stmts([here]);
     if test_directives {
         insert_at = self._docstring_offset(body_stmts);
         body_stmts = [
@@ -1565,8 +1583,8 @@ impl JcirGenPass.exit_test(nd: Test) -> None {
         self._hoist_frames = [[]];
     }
     test_sig_roots: list[UniNode] = [];
-    if nd.decorators {
-        for d in nd.decorators {
+    if here.decorators {
+        for d in here.decorators {
             if d {
                 test_sig_roots.append(d);
             }
@@ -1608,19 +1626,19 @@ impl JcirGenPass.exit_test(nd: Test) -> None {
                 [[], [], [], None, None, [], []]
             ),
             body_stmts,
-            [self.val(i) for i in nd.decorators] if nd.decorators else [],
+            [self.val(i) for i in here.decorators] if here.decorators else [],
             self.const_of(None),
             None,
             []
         ]
     );
     jac_test_keywords: list[CgNode] = [];
-    if nd.description {
+    if here.description {
         jac_test_keywords.append(
             self.nod(
                 'keyword',
                 ['arg', 'value'],
-                ['description', self.const_of(nd.description.lit_value)]
+                ['description', self.const_of(here.description.lit_value)]
             )
         );
     }
@@ -1631,7 +1649,7 @@ impl JcirGenPass.exit_test(nd: Test) -> None {
             [self.jaclib_obj('jac_test'), [], jac_test_keywords]
         )
     );
-    if jcir_is_test_path(nd.loc.mod_path) {
+    if jcir_is_test_path(here.loc.mod_path) {
         func.get('decorator_list').append(
             self.nod(
                 'Call',
@@ -1643,19 +1661,19 @@ impl JcirGenPass.exit_test(nd: Test) -> None {
                         self.nod(
                             'keyword',
                             ['arg', 'value'],
-                            ['file_loc', self.const_of(nd.loc.mod_path)]
+                            ['file_loc', self.const_of(here.loc.mod_path)]
                         )
                     ]
                 ]
             )
         );
     }
-    self.set_out(nd, [func]);
+    self.set_out(here, [func]);
 }
 
-impl JcirGenPass.exit_module_code(nd: ModuleCode) -> None {
-    stmts = self.resolve_stmt_block(nd.body, doc=nd.doc);
-    if nd.name {
+impl JcirGenPass.exit_module_code with ModuleCode exit {
+    stmts = self.resolve_stmt_block(here.body, doc=here.doc);
+    if here.name {
         stmts = [
             self.nod(
                 'If',
@@ -1667,7 +1685,7 @@ impl JcirGenPass.exit_module_code(nd: ModuleCode) -> None {
                         [
                             self.name_load('__name__'),
                             [self.nod('Eq', [], [])],
-                            [self.const_of(nd.name.sym_name)]
+                            [self.const_of(here.name.sym_name)]
                         ]
                     ),
                     stmts,
@@ -1676,13 +1694,13 @@ impl JcirGenPass.exit_module_code(nd: ModuleCode) -> None {
             )
         ];
     }
-    self.set_out(nd, stmts);
+    self.set_out(here, stmts);
 }
 
-impl JcirGenPass.exit_py_inline_code(nd: PyInlineCode) -> None {
-    if nd.doc {
-        doc = self.nod('Expr', ['value'], [self.val(nd.doc)], jac_node=nd.doc);
-        shift = nd.loc.first_line;
+impl JcirGenPass.exit_py_inline_code with PyInlineCode exit {
+    if here.doc {
+        doc = self.nod('Expr', ['value'], [self.val(here.doc)], jac_node=here.doc);
+        shift = here.loc.first_line;
         inner = doc.get('value');
         doc.l1 = doc.l1 + shift;
         doc.l2 = doc.l2 + shift;
@@ -1690,51 +1708,52 @@ impl JcirGenPass.exit_py_inline_code(nd: PyInlineCode) -> None {
             inner.l1 = inner.l1 + shift;
             inner.l2 = inner.l2 + shift;
         }
-        self.set_out(nd, [doc, CgSplice(src=nd.code.value, offset=shift)]);
+        self.set_out(here, [doc, CgSplice(src=here.code.value, offset=shift)]);
     } else {
         self.set_out(
-            nd, [CgSplice(src=textwrap.dedent(nd.code.value), offset=nd.loc.first_line)]
+            here,
+            [CgSplice(src=textwrap.dedent(here.code.value), offset=here.loc.first_line)]
         );
     }
 }
 
-impl JcirGenPass.exit_import(nd: Import) -> None {
+impl JcirGenPass.exit_import with Import exit {
     import from jaclang.compiler.driver.boundary_classify { import_binds_client_native }
     if (
-        import_binds_client_native(nd, self.ir_in.gen.interop_manifest)
-        or nd.native_only_drop
+        import_binds_client_native(here, self.ir_in.gen.interop_manifest)
+        or here.native_only_drop
     ) {
-        self.set_out(nd, []);
+        self.set_out(here, []);
         return;
     }
-    if (nd.from_loc and nd.from_loc.path) {
+    if (here.from_loc and here.from_loc.path) {
         module_parts = [
             p.value
-            for p in nd.from_loc.path
+            for p in here.from_loc.path
             if p?.value
         ];
         if (module_parts == ['__future__']) {
-            self.set_out(nd, []);
+            self.set_out(here, []);
             return;
         }
     }
     if (
-        nd.from_loc
-        and nd.items
-        and nd.is_service_import
-        and nd.code_context != CodeContext.CLIENT
-        and self._generate_sv_to_sv_stubs(nd)
+        here.from_loc
+        and here.items
+        and here.is_service_import
+        and here.code_context != CodeContext.CLIENT
+        and self._generate_sv_to_sv_stubs(here)
     ) {
         return;
     }
     py_nodes: list[CgNode] = [];
-    if nd.doc {
+    if here.doc {
         py_nodes.append(
-            self.nod('Expr', ['value'], [self.val(nd.doc)], jac_node=nd.doc)
+            self.nod('Expr', ['value'], [self.val(here.doc)], jac_node=here.doc)
         );
     }
-    if nd.is_absorb {
-        source = nd.items[0];
+    if here.is_absorb {
+        source = here.items[0];
         if not isinstance(source, ModulePath) {
             raise RuntimeError(self.ice());
         }
@@ -1746,25 +1765,25 @@ impl JcirGenPass.exit_import(nd: Import) -> None {
                 ['module', 'names', 'level'],
                 [
                     module_name,
-                    [self.nod('alias', ['name'], ['*'], jac_node=nd)],
+                    [self.nod('alias', ['name'], ['*'], jac_node=here)],
                     source.level
                 ],
-                jac_node=nd
+                jac_node=here
             )
         );
-    } elif not nd.from_loc {
+    } elif not here.from_loc {
         mod_paths = [
             k
-            for k in nd.kid
+            for k in here.kid
             if isinstance(k, ModulePath)
         ];
         names_list = [x for p in mod_paths for x in self.outs(p)]
             if mod_paths
-            else [x for item in nd.items for x in self.outs(item)];
+            else [x for item in here.items for x in self.outs(item)];
         py_nodes.append(self.nod('Import', ['names'], [names_list]));
     } else {
-        module_name_parts = [p.value for p in nd.from_loc.path]
-            if nd.from_loc.path
+        module_name_parts = [p.value for p in here.from_loc.path]
+            if here.from_loc.path
             else [];
         module_name = '.'.join(module_name_parts) if module_name_parts else None;
         py_nodes.append(
@@ -1773,13 +1792,13 @@ impl JcirGenPass.exit_import(nd: Import) -> None {
                 ['module', 'names', 'level'],
                 [
                     module_name,
-                    [i for item in nd.items for i in self.outs(item)],
-                    nd.from_loc.level
+                    [i for item in here.items for i in self.outs(item)],
+                    here.from_loc.level
                 ]
             )
         );
     }
-    if nd.is_typed {
+    if here.is_typed {
         self.typing_imports.add('TYPE_CHECKING');
         body_stmts = [
             stmt
@@ -1795,86 +1814,90 @@ impl JcirGenPass.exit_import(nd: Import) -> None {
             py_nodes = [wrapped];
         }
     }
-    self.set_out(nd, py_nodes);
+    self.set_out(here, py_nodes);
 }
 
-impl JcirGenPass.exit_module_path(nd: ModulePath) -> None {
-    if nd.string_path_value is not None {
-        import_node = nd.parent_of_type(Import);
+impl JcirGenPass.exit_module_path with ModulePath exit {
+    if here.string_path_value is not None {
+        import_node = here.parent_of_type(Import);
         if (import_node and (import_node.code_context != CodeContext.CLIENT)) {
-            self.emit(E5001, node_override=nd, path=str(nd.string_path_value));
+            self.emit(E5001, node_override=here, path=str(here.string_path_value));
         }
     }
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'alias',
                 ['name', 'asname'],
-                [str(nd.dot_path_str), nd.alias.sym_name if nd.alias else None]
+                [str(here.dot_path_str), here.alias.sym_name if here.alias else None]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_module_item(nd: ModuleItem) -> None {
-    if (isinstance(nd.name, Token) and (nd.name.value in ['default', '*'])) {
-        import_node = nd.from_parent;
+impl JcirGenPass.exit_module_item with ModuleItem exit {
+    if (isinstance(here.name, Token) and (here.name.value in ['default', '*'])) {
+        import_node = here.from_parent;
         if (import_node.code_context != CodeContext.CLIENT) {
-            import_type = 'Default' if (nd.name.value == 'default') else 'Namespace';
+            import_type = 'Default' if (here.name.value == 'default') else 'Namespace';
             self.emit(
                 E5002,
-                node_override=nd,
+                node_override=here,
                 import_type=import_type,
-                name=str(nd.name.value)
+                name=str(here.name.value)
             );
-            self.set_out(nd, []);
+            self.set_out(here, []);
             return;
         }
     }
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'alias',
                 ['name', 'asname'],
                 [
-                    (nd.name.sym_name if isinstance(nd.name, Name) else nd.name.value),
-                    nd.alias.sym_name if nd.alias else None
+                    (
+                        here.name.sym_name
+                            if isinstance(here.name, Name)
+                            else here.name.value
+                    ),
+                    here.alias.sym_name if here.alias else None
                 ]
             )
         ]
     );
 }
 
-impl JcirGenPass.enter_archetype(nd: Archetype) -> None {
-    if isinstance(nd.body, ImplDef) {
-        self.traverse(nd.body);
+impl JcirGenPass.enter_archetype with Archetype entry {
+    if isinstance(here.body, ImplDef) {
+        self.traverse(here.body);
     }
 }
 
-impl JcirGenPass.exit_archetype(nd: Archetype) -> None {
+impl JcirGenPass.exit_archetype with Archetype exit {
     inner:
         (
             Sequence[UniNode] | Sequence[CodeBlockStmt] | Sequence[EnumBlockStmt] | None
         ) = None;
-    if isinstance(nd.body, ImplDef) {
-        inner = nd.body.body if not isinstance(nd.body.body, Expr) else None;
-    } elif isinstance(nd.body, list) {
-        inner = nd.body;
+    if isinstance(here.body, ImplDef) {
+        inner = here.body.body if not isinstance(here.body.body, Expr) else None;
+    } elif isinstance(here.body, list) {
+        inner = here.body;
     }
-    decorators = [self.val(i) for i in nd.decorators] if nd.decorators else [];
-    body: list = self.resolve_stmt_block(inner, doc=nd.doc);
-    if (not body and not isinstance(nd.body, Expr)) {
-        self.emit(E5003, node_override=nd);
-        body = [self.nod('Pass', [], [], jac_node=nd)];
+    decorators = [self.val(i) for i in here.decorators] if here.decorators else [];
+    body: list = self.resolve_stmt_block(inner, doc=here.doc);
+    if (not body and not isinstance(here.body, Expr)) {
+        self.emit(E5003, node_override=here);
+        body = [self.nod('Pass', [], [], jac_node=here)];
     }
-    ct_fields = self._ct_param_fields(nd);
+    ct_fields = self._ct_param_fields(here);
     if ct_fields {
-        insert_at = 1 if nd.doc else 0;
+        insert_at = 1 if here.doc else 0;
         body[insert_at:insert_at] = ct_fields;
     }
-    if nd.is_async {
+    if here.is_async {
         body.insert(
             0,
             self.nod(
@@ -1888,104 +1911,104 @@ impl JcirGenPass.exit_archetype(nd: Archetype) -> None {
                             ['__jac_async__', self.nod('Store', [], [])]
                         )
                     ],
-                    self.const_of(nd.is_async)
+                    self.const_of(here.is_async)
                 ]
             )
         );
     }
-    if (sem_decorator := self._get_sem_decorator(nd)) {
+    if (sem_decorator := self._get_sem_decorator(here)) {
         decorators.append(sem_decorator);
     }
-    base_classes = [self.val(i) for i in nd.base_classes];
-    if (nd.arch_type.name != Tok.KW_CLASS) {
-        base_classes.append(self.jaclib_obj(nd.arch_type.value.capitalize()));
+    base_classes = [self.val(i) for i in here.base_classes];
+    if (here.arch_type.name != Tok.KW_CLASS) {
+        base_classes.append(self.jaclib_obj(here.arch_type.value.capitalize()));
     }
     type_param_asts: list[CgNode] = [];
-    if nd.type_params {
-        for tp in nd.type_params {
+    if here.type_params {
+        for tp in here.type_params {
             if self.outs(tp) {
                 type_param_asts.append(self.val(tp));
             }
         }
     }
-    keywords = [self.val(k) for k in nd.keywords] if nd.keywords else [];
+    keywords = [self.val(k) for k in here.keywords] if here.keywords else [];
     class_def = self.nod(
         'ClassDef',
         ['name', 'bases', 'keywords', 'body', 'decorator_list', 'type_params'],
-        [nd.name.sym_name, base_classes, keywords, body, decorators, type_param_asts]
+        [here.name.sym_name, base_classes, keywords, body, decorators, type_param_asts]
     );
-    self.set_out(nd, [class_def]);
+    self.set_out(here, [class_def]);
 }
 
-impl JcirGenPass.enter_enum(nd: Enum) -> None {
-    if isinstance(nd.body, ImplDef) {
-        self.traverse(nd.body);
+impl JcirGenPass.enter_enum with Enum entry {
+    if isinstance(here.body, ImplDef) {
+        self.traverse(here.body);
     }
 }
 
-impl JcirGenPass.exit_enum(nd: Enum) -> None {
+impl JcirGenPass.exit_enum with Enum exit {
     inner:
         (
             Sequence[UniNode] | Sequence[CodeBlockStmt] | Sequence[EnumBlockStmt] | None
         ) = None;
-    if isinstance(nd.body, ImplDef) {
-        inner = nd.body.body if not isinstance(nd.body.body, Expr) else None;
-    } elif isinstance(nd.body, list) {
-        inner = nd.body;
+    if isinstance(here.body, ImplDef) {
+        inner = here.body.body if not isinstance(here.body.body, Expr) else None;
+    } elif isinstance(here.body, list) {
+        inner = here.body;
     }
-    decorators = [self.val(i) for i in nd.decorators] if nd.decorators else [];
-    body = self.resolve_stmt_block(inner, doc=nd.doc);
-    if (sem_decorator := self._get_sem_decorator(nd)) {
+    decorators = [self.val(i) for i in here.decorators] if here.decorators else [];
+    body = self.resolve_stmt_block(inner, doc=here.doc);
+    if (sem_decorator := self._get_sem_decorator(here)) {
         decorators.append(sem_decorator);
     }
     trailing_kind: str = "Enum";
     extra_bases: list[CgNode] = [];
-    if nd.value_type {
-        if (isinstance(nd.value_type, Name) and nd.value_type.value == "int") {
+    if here.value_type {
+        if (isinstance(here.value_type, Name) and here.value_type.value == "int") {
             trailing_kind = "IntEnum";
-        } elif (isinstance(nd.value_type, Name) and nd.value_type.value == "str") {
+        } elif (isinstance(here.value_type, Name) and here.value_type.value == "str") {
             trailing_kind = "StrEnum";
         } else {
-            extra_bases.append(self.val(nd.value_type));
+            extra_bases.append(self.val(here.value_type));
         }
     }
     self.needs_enum_kind(trailing_kind);
-    base_classes = extra_bases + [self.val(i) for i in nd.base_classes];
+    base_classes = extra_bases + [self.val(i) for i in here.base_classes];
     base_classes.append(self.builtin_name(trailing_kind));
     class_def = self.nod(
         'ClassDef',
         ['name', 'bases', 'keywords', 'body', 'decorator_list', 'type_params'],
-        [nd.name.sym_name, base_classes, [], body, decorators, []]
+        [here.name.sym_name, base_classes, [], body, decorators, []]
     );
-    self.set_out(nd, [class_def]);
+    self.set_out(here, [class_def]);
 }
 
-impl JcirGenPass.enter_ability(nd: Ability) -> None {
+impl JcirGenPass.enter_ability with Ability entry {
     self._push_hoist_frame();
-    if isinstance(nd.body, ImplDef) {
-        self.traverse(nd.body);
+    if isinstance(here.body, ImplDef) {
+        self.traverse(here.body);
     }
 }
 
-impl JcirGenPass.exit_ability(nd: Ability) -> None {
-    func_type = 'AsyncFunctionDef' if nd.is_async else 'FunctionDef';
+impl JcirGenPass.exit_ability with Ability exit {
+    func_type = 'AsyncFunctionDef' if here.is_async else 'FunctionDef';
     has_by_in_return = (
-        isinstance(nd.signature, FuncSignature)
-        and nd.signature.return_type
-        and isinstance(nd.signature.return_type, BinaryExpr)
-        and isinstance(nd.signature.return_type.op, Token)
-        and (nd.signature.return_type.op.name == Tok.KW_BY)
+        isinstance(here.signature, FuncSignature)
+        and here.signature.return_type
+        and isinstance(here.signature.return_type, BinaryExpr)
+        and isinstance(here.signature.return_type.op, Token)
+        and (here.signature.return_type.op.name == Tok.KW_BY)
     );
     scope_frame = self._hoist_frames.pop() if self._hoist_frames else [];
     if not self._hoist_frames {
         self._hoist_frames = [[]];
     }
     sig_roots: list[UniNode] = [];
-    if nd.signature {
-        sig_roots.append(nd.signature);
+    if here.signature {
+        sig_roots.append(here.signature);
     }
-    if nd.decorators {
-        for d in nd.decorators {
+    if here.decorators {
+        for d in here.decorators {
             if d {
                 sig_roots.append(d);
             }
@@ -1995,47 +2018,49 @@ impl JcirGenPass.exit_ability(nd: Ability) -> None {
     if enclosing_hoists {
         self._hoist_frames[-1].extend(enclosing_hoists);
     }
-    is_prop_acc = nd.accessor_kind != "";
+    is_prop_acc = here.accessor_kind != "";
     prop_owner_name: str | None = None;
     if is_prop_acc {
-        hv = nd.find_parent_of_type(HasVar);
+        hv = here.find_parent_of_type(HasVar);
         if (hv and isinstance(hv.name, Name)) {
             prop_owner_name = hv.name.value;
         }
     }
-    body_loc_node: (UniNode | None) = nd.body if isinstance(nd.body, UniNode) else None;
+    body_loc_node: (UniNode | None) = here.body
+        if isinstance(here.body, UniNode)
+        else None;
     stmt_body:
         (
             Sequence[UniNode] | Sequence[CodeBlockStmt] | Sequence[EnumBlockStmt] | None
         ) = None;
-    if isinstance(nd.body, ImplDef) and not isinstance(nd.body.body, Expr) {
-        stmt_body = nd.body.body;
-    } elif isinstance(nd.body, list) {
-        stmt_body = nd.body;
+    if isinstance(here.body, ImplDef) and not isinstance(here.body.body, Expr) {
+        stmt_body = here.body.body;
+    } elif isinstance(here.body, list) {
+        stmt_body = here.body;
     }
-    body = self.gen_llm_body(nd)
+    body = self.gen_llm_body(here)
         if (
-            isinstance(nd.body, Expr)
-            or (isinstance(nd.body, ImplDef) and isinstance(nd.body.body, Expr))
+            isinstance(here.body, Expr)
+            or (isinstance(here.body, ImplDef) and isinstance(here.body.body, Expr))
             or has_by_in_return
         )
         else [
-            self.nod('Expr', ['value'], [self.val(nd.doc)], jac_node=nd.doc),
+            self.nod('Expr', ['value'], [self.val(here.doc)], jac_node=here.doc),
             self.nod('Pass', [], [], jac_node=body_loc_node)
         ]
-            if (nd.doc and nd.is_abstract)
+            if (here.doc and here.is_abstract)
             else [self.nod('Pass', [], [], jac_node=body_loc_node)]
-                if nd.is_abstract
-                else self.resolve_stmt_block(stmt_body, doc=nd.doc);
-    if (nd.is_abstract and nd.body) {
-        self.emit(E5004, node_override=nd, name=str(nd.sym_name));
+                if here.is_abstract
+                else self.resolve_stmt_block(stmt_body, doc=here.doc);
+    if (here.is_abstract and here.body) {
+        self.emit(E5004, node_override=here, name=str(here.sym_name));
     }
-    decorator_list = [self.val(i) for i in nd.decorators] if nd.decorators else [];
-    if (sem_decorator := self._get_sem_decorator(nd)) {
+    decorator_list = [self.val(i) for i in here.decorators] if here.decorators else [];
+    if (sem_decorator := self._get_sem_decorator(here)) {
         decorator_list.append(sem_decorator);
     }
-    if isinstance(nd.signature, EventSignature) {
-        event_sig = nd.signature;
+    if isinstance(here.signature, EventSignature) {
+        event_sig = here.signature;
         decorator_list.append(
             self.jaclib_obj(
                 'on_entry' if (event_sig.event.name == Tok.KW_ENTRY) else 'on_exit'
@@ -2084,35 +2109,35 @@ impl JcirGenPass.exit_ability(nd: Ability) -> None {
             )
         );
     }
-    if isinstance(nd.body, ImplDef) {
+    if isinstance(here.body, ImplDef) {
         decorator_list.append(
             self.nod(
                 'Call',
                 ['func', 'args', 'keywords'],
                 [
                     self.jaclib_obj('impl_patch_filename'),
-                    [self.const_of(nd.body.loc.mod_path)],
+                    [self.const_of(here.body.loc.mod_path)],
                     []
                 ]
             )
         );
     }
-    if nd.is_abstract {
+    if here.is_abstract {
         decorator_list.append(self.builtin_name('abstractmethod'));
     }
-    if nd.is_override {
+    if here.is_override {
         decorator_list.append(self.builtin_name('override'));
     }
-    if nd.is_static {
+    if here.is_static {
         decorator_list.insert(0, self.name_load('staticmethod'));
     }
-    if nd.is_classmethod {
+    if here.is_classmethod {
         decorator_list.insert(0, self.name_load('classmethod'));
     }
     if (is_prop_acc and (prop_owner_name is not None)) {
-        if nd.accessor_kind == "property" {
+        if here.accessor_kind == "property" {
             decorator_list.insert(0, self.name_load('property'));
-        } elif nd.accessor_kind == "setter" {
+        } elif here.accessor_kind == "setter" {
             decorator_list.insert(
                 0,
                 self.nod(
@@ -2125,7 +2150,7 @@ impl JcirGenPass.exit_ability(nd: Ability) -> None {
                     ]
                 )
             );
-        } elif nd.accessor_kind == "deleter" {
+        } elif here.accessor_kind == "deleter" {
             decorator_list.insert(
                 0,
                 self.nod(
@@ -2140,53 +2165,53 @@ impl JcirGenPass.exit_ability(nd: Ability) -> None {
             );
         }
     }
-    if (not body and not isinstance(nd.body, Expr)) {
-        self.emit(E5005, node_override=nd);
-        body = [self.nod('Pass', [], [], jac_node=nd)];
+    if (not body and not isinstance(here.body, Expr)) {
+        self.emit(E5005, node_override=here);
+        body = [self.nod('Pass', [], [], jac_node=here)];
     }
     if body_hoists {
         body = [*body_hoists, *body];
     }
     directive_stmts = self.scope_directive_stmts(
-        [nd, nd.body if isinstance(nd.body, ImplDef) else None]
+        [here, here.body if isinstance(here.body, ImplDef) else None]
     );
     if directive_stmts {
         insert_at = self._docstring_offset(body);
         body = [*body[:insert_at], *directive_stmts, *body[insert_at:]];
     }
     ast_returns: CgNode = self.const_of(None);
-    if (isinstance(nd.signature, FuncSignature) and nd.signature.return_type) {
+    if (isinstance(here.signature, FuncSignature) and here.signature.return_type) {
         if (
-            isinstance(nd.signature.return_type, BinaryExpr)
-            and isinstance(nd.signature.return_type.op, Token)
-            and (nd.signature.return_type.op.name == Tok.KW_BY)
+            isinstance(here.signature.return_type, BinaryExpr)
+            and isinstance(here.signature.return_type.op, Token)
+            and (here.signature.return_type.op.name == Tok.KW_BY)
         ) {
-            ast_returns = self.val(nd.signature.return_type.left);
+            ast_returns = self.val(here.signature.return_type.left);
         } else {
-            ast_returns = self.val(nd.signature.return_type);
+            ast_returns = self.val(here.signature.return_type);
         }
     }
     if (
         is_prop_acc
-        and (nd.accessor_kind == "property")
-        and (nd.signature is None)
+        and (here.accessor_kind == "property")
+        and (here.signature is None)
         and (prop_owner_name is not None)
     ) {
-        hv2 = nd.find_parent_of_type(HasVar);
+        hv2 = here.find_parent_of_type(HasVar);
         if (hv2 and hv2.type_tag) {
             ast_returns = self.val(hv2.type_tag);
         }
     }
-    name_ref_node = nd.name_ref;
+    name_ref_node = here.name_ref;
     func_name_out = (
         prop_owner_name
             if (is_prop_acc and (prop_owner_name is not None))
             else self._py_name(name_ref_node) if name_ref_node is not None else ""
     );
     func_args_out: CgNode;
-    if (is_prop_acc and (nd.signature is None)) {
+    if (is_prop_acc and (here.signature is None)) {
         acc_args = [self.nod('arg', ['arg', 'annotation'], ['self', None])];
-        if nd.accessor_kind == "setter" {
+        if here.accessor_kind == "setter" {
             acc_args.append(self.nod('arg', ['arg', 'annotation'], ['value', None]));
         }
         func_args_out = self.nod(
@@ -2202,8 +2227,8 @@ impl JcirGenPass.exit_ability(nd: Ability) -> None {
             ],
             [[], acc_args, None, [], [], None, []]
         );
-    } elif nd.signature {
-        func_args_out = self.val(nd.signature);
+    } elif here.signature {
+        func_args_out = self.val(here.signature);
     } else {
         func_args_out = self.nod(
             'arguments',
@@ -2219,7 +2244,7 @@ impl JcirGenPass.exit_ability(nd: Ability) -> None {
             [
                 [],
                 [self.nod('arg', ['arg', 'annotation'], ['self', None])]
-                    if nd.is_method and not nd.is_static and not nd.is_classmethod
+                    if here.is_method and not here.is_static and not here.is_classmethod
                     else [],
                 None,
                 [],
@@ -2234,55 +2259,55 @@ impl JcirGenPass.exit_ability(nd: Ability) -> None {
         ['name', 'args', 'body', 'decorator_list', 'returns', 'type_params'],
         [func_name_out, func_args_out, body, decorator_list, ast_returns, []]
     );
-    self.set_out(nd, [func_def]);
+    self.set_out(here, [func_def]);
 }
 
-impl JcirGenPass.exit_impl_def(nd: ImplDef) -> None {
+impl JcirGenPass.exit_impl_def with ImplDef exit {
     ;
 }
 
-impl JcirGenPass.exit_sem_def(nd: SemDef) -> None {
+impl JcirGenPass.exit_sem_def with SemDef exit {
     ;
 }
 
-impl JcirGenPass.exit_func_signature(nd: FuncSignature) -> None {
-    posonlyargs = [self.val(i) for i in nd.posonly_params];
-    vararg = self.val(nd.varargs) if nd.varargs else None;
-    kwarg = self.val(nd.kwargs) if nd.kwargs else None;
+impl JcirGenPass.exit_func_signature with FuncSignature exit {
+    posonlyargs = [self.val(i) for i in here.posonly_params];
+    vararg = self.val(here.varargs) if here.varargs else None;
+    kwarg = self.val(here.kwargs) if here.kwargs else None;
     params = [self.nod('arg', ['arg', 'annotation'], ['cls', None])]
         if (
-            (abl := nd.parent)
+            (abl := here.parent)
             and isinstance(abl, Ability)
             and abl.is_method
             and abl.is_classmethod
-            and not nd.is_in_py_class
+            and not here.is_in_py_class
         )
         else [self.nod('arg', ['arg', 'annotation'], ['self', None])]
             if (
-                (abl := nd.parent)
+                (abl := here.parent)
                 and isinstance(abl, Ability)
                 and abl.is_method
-                and not nd.is_static
+                and not here.is_static
                 and not abl.is_cls_method
-                and not nd.is_in_py_class
+                and not here.is_in_py_class
             )
             else [];
     if posonlyargs {
         posonlyargs = params + posonlyargs;
-        params = [self.val(i) for i in nd.params];
+        params = [self.val(i) for i in here.params];
     } else {
-        params = params + [self.val(i) for i in nd.params];
+        params = params + [self.val(i) for i in here.params];
     }
     defaults: list[CgNode] = [];
-    all_params: list[UniNode] = list(nd.posonly_params) + list(nd.params);
+    all_params: list[UniNode] = list(here.posonly_params) + list(here.params);
     for i in all_params {
         if (isinstance(i, ParamVar) and i.value) {
             defaults.append(self.val(i.value));
         }
     }
-    kwonly_args = [self.val(i) for i in nd.kwonlyargs];
+    kwonly_args = [self.val(i) for i in here.kwonlyargs];
     kw_defaults: list[CgNode | None] = [];
-    for i in nd.kwonlyargs {
+    for i in here.kwonlyargs {
         if isinstance(i, ParamVar) and i.value {
             kw_defaults.append(self.val(i.value));
         } else {
@@ -2290,7 +2315,7 @@ impl JcirGenPass.exit_func_signature(nd: FuncSignature) -> None {
         }
     }
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'arguments',
@@ -2309,12 +2334,12 @@ impl JcirGenPass.exit_func_signature(nd: FuncSignature) -> None {
     );
 }
 
-impl JcirGenPass.exit_event_signature(nd: EventSignature) -> None {
-    arch_kw = Con.HERE.value if nd.from_walker else Con.VISITOR.value;
+impl JcirGenPass.exit_event_signature with EventSignature exit {
+    arch_kw = Con.HERE.value if here.from_walker else Con.VISITOR.value;
     annotation: (CgNode | None) = None;
-    if nd.arch_tag_info {
-        tag_recipe = self.val(nd.arch_tag_info);
-        if (tag_recipe.cls == 'Tuple' and isinstance(nd.arch_tag_info, TupleVal)) {
+    if here.arch_tag_info {
+        tag_recipe = self.val(here.arch_tag_info);
+        if (tag_recipe.cls == 'Tuple' and isinstance(here.arch_tag_info, TupleVal)) {
             telts = tag_recipe.get('elts');
             if (len(telts) > 1) {
                 annotation = telts[0];
@@ -2339,10 +2364,10 @@ impl JcirGenPass.exit_event_signature(nd: EventSignature) -> None {
         'arg',
         ['arg', 'annotation'],
         [f"{arch_kw}", annotation],
-        jac_node=nd.arch_tag_info or nd
+        jac_node=here.arch_tag_info or here
     );
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'arguments',
@@ -2358,7 +2383,9 @@ impl JcirGenPass.exit_event_signature(nd: EventSignature) -> None {
                 [
                     [],
                     [self.nod('arg', ['arg', 'annotation'], ['self', None]), arch_arg]
-                        if ((abl := nd.find_parent_of_type(Ability)) and abl.is_method)
+                        if (
+                            (abl := here.find_parent_of_type(Ability)) and abl.is_method
+                        )
                         else [arch_arg],
                     [],
                     None,
@@ -2393,63 +2420,63 @@ impl JcirGenPass._recipe_contains_root(v: any) -> bool {
     return False;
 }
 
-impl JcirGenPass.exit_param_var(nd: ParamVar) -> None {
-    if self.val(nd.name).cls == 'Name' {
-        name = self.val(nd.name).get('id');
+impl JcirGenPass.exit_param_var with ParamVar exit {
+    if self.val(here.name).cls == 'Name' {
+        name = self.val(here.name).get('id');
         self.set_out(
-            nd,
+            here,
             [
                 self.nod(
                     'arg',
                     ['arg', 'annotation'],
-                    [name, self.val(nd.type_tag) if nd.type_tag else None]
+                    [name, self.val(here.type_tag) if here.type_tag else None]
                 )
             ]
         );
     }
 }
 
-impl JcirGenPass.exit_arch_has(nd: ArchHas) -> None {
-    vars_py = self._flatten_ast_list([self.outs(v) for v in nd.vars]);
-    if nd.doc {
-        doc = self.nod('Expr', ['value'], [self.val(nd.doc)], jac_node=nd.doc);
-        self.set_out(nd, [doc] + vars_py);
+impl JcirGenPass.exit_arch_has with ArchHas exit {
+    vars_py = self._flatten_ast_list([self.outs(v) for v in here.vars]);
+    if here.doc {
+        doc = self.nod('Expr', ['value'], [self.val(here.doc)], jac_node=here.doc);
+        self.set_out(here, [doc] + vars_py);
     } else {
-        self.set_out(nd, vars_py);
+        self.set_out(here, vars_py);
     }
 }
 
-impl JcirGenPass.exit_has_var(nd: HasVar) -> None {
-    annotation = self.val(nd.type_tag) if nd.type_tag else None;
-    if ((nd.accessors is not None) and (len(nd.accessors) > 0)) {
+impl JcirGenPass.exit_has_var with HasVar exit {
+    annotation = self.val(here.type_tag) if here.type_tag else None;
+    if ((here.accessors is not None) and (len(here.accessors) > 0)) {
         result_stmts: list[CgItem] = [];
-        for acc in nd.accessors {
+        for acc in here.accessors {
             for stmt in self.outs(acc) {
                 result_stmts.append(stmt);
             }
         }
-        self.set_out(nd, result_stmts);
+        self.set_out(here, result_stmts);
         return;
     }
     is_static_var = (
-        (haspar := nd.find_parent_of_type(ArchHas)) and haspar and haspar.is_static
+        (haspar := here.find_parent_of_type(ArchHas)) and haspar and haspar.is_static
     );
     is_in_class = (
-        (archpar := nd.find_parent_of_type(Archetype))
+        (archpar := here.find_parent_of_type(Archetype))
         and archpar
         and (archpar.arch_type.name == Tok.KW_CLASS)
     );
     value = None;
     if is_in_class {
-        value = self.val(nd.value) if nd.value else None;
+        value = self.val(here.value) if here.value else None;
     } elif is_static_var {
         annotation = self.nod(
             'Subscript',
             ['value', 'slice', 'ctx'],
             [self.builtin_name('ClassVar'), annotation, self.nod('Load', [], [])]
         );
-        value = self.val(nd.value) if nd.value else None;
-    } elif nd.defer {
+        value = self.val(here.value) if here.value else None;
+    } elif here.defer {
         value = self.nod(
             'Call',
             ['func', 'args', 'keywords'],
@@ -2459,8 +2486,8 @@ impl JcirGenPass.exit_has_var(nd: HasVar) -> None {
                 [self.nod('keyword', ['arg', 'value'], ['init', self.const_of(False)])]
             ]
         );
-    } elif nd.value {
-        value_expr = self.val(nd.value);
+    } elif here.value {
+        value_expr = self.val(here.value);
         if value_expr.cls == 'Constant' {
             value = value_expr;
         } else {
@@ -2507,19 +2534,19 @@ impl JcirGenPass.exit_has_var(nd: HasVar) -> None {
         'AnnAssign',
         ['target', 'annotation', 'value', 'simple'],
         [
-            self.val(nd.name),
+            self.val(here.name),
             annotation or self.const_of(None),
             value,
-            int(isinstance(nd.name, Name))
+            int(isinstance(here.name, Name))
         ]
     );
-    self.set_out(nd, [ann_assign]);
+    self.set_out(here, [ann_assign]);
 }
 
-impl JcirGenPass.exit_typed_ctx_block(nd: TypedCtxBlock) -> None {
-    loc = self.name_load(Con.HERE.value if nd.from_walker else Con.VISITOR.value);
+impl JcirGenPass.exit_typed_ctx_block with TypedCtxBlock exit {
+    loc = self.name_load(Con.HERE.value if here.from_walker else Con.VISITOR.value);
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'If',
@@ -2528,9 +2555,13 @@ impl JcirGenPass.exit_typed_ctx_block(nd: TypedCtxBlock) -> None {
                     self.nod(
                         'Call',
                         ['func', 'args', 'keywords'],
-                        [self.name_load('isinstance'), [loc, self.val(nd.type_ctx)], []]
+                        [
+                            self.name_load('isinstance'),
+                            [loc, self.val(here.type_ctx)],
+                            []
+                        ]
                     ),
-                    self.resolve_stmt_block(nd.body),
+                    self.resolve_stmt_block(here.body),
                     []
                 ]
             )
@@ -2538,10 +2569,10 @@ impl JcirGenPass.exit_typed_ctx_block(nd: TypedCtxBlock) -> None {
     );
 }
 
-impl JcirGenPass.exit_open_stmt(nd: OpenStmt) -> None {
+impl JcirGenPass.exit_open_stmt with OpenStmt exit {
     self.builtin_imports.add("_jac_region_open");
     self.builtin_imports.add("_jac_region_close");
-    _tmp = f"_jac_region_{nd.loc.first_line}_{nd.loc.col_start}";
+    _tmp = f"_jac_region_{here.loc.first_line}_{here.loc.col_start}";
     assign_stmt = self.nod(
         'Assign',
         ['targets', 'value'],
@@ -2550,13 +2581,13 @@ impl JcirGenPass.exit_open_stmt(nd: OpenStmt) -> None {
                 self.nod(
                     'Name',
                     ['id', 'ctx'],
-                    [_tmp, self.nod('Store', [], [], jac_node=nd)],
-                    jac_node=nd
+                    [_tmp, self.nod('Store', [], [], jac_node=here)],
+                    jac_node=here
                 )
             ],
-            self.val(nd.target)
+            self.val(here.target)
         ],
-        jac_node=nd.target
+        jac_node=here.target
     );
     open_stmt = self.nod(
         'Expr',
@@ -2566,14 +2597,14 @@ impl JcirGenPass.exit_open_stmt(nd: OpenStmt) -> None {
                 'Call',
                 ['func', 'args', 'keywords'],
                 [
-                    self.name_load('_jac_region_open', jac_node=nd),
-                    [self.name_load(_tmp, jac_node=nd)],
+                    self.name_load('_jac_region_open', jac_node=here),
+                    [self.name_load(_tmp, jac_node=here)],
                     []
                 ],
-                jac_node=nd
+                jac_node=here
             )
         ],
-        jac_node=nd
+        jac_node=here
     );
     close_stmt = self.nod(
         'Expr',
@@ -2583,14 +2614,14 @@ impl JcirGenPass.exit_open_stmt(nd: OpenStmt) -> None {
                 'Call',
                 ['func', 'args', 'keywords'],
                 [
-                    self.name_load('_jac_region_close', jac_node=nd),
-                    [self.name_load(_tmp, jac_node=nd)],
+                    self.name_load('_jac_region_close', jac_node=here),
+                    [self.name_load(_tmp, jac_node=here)],
                     []
                 ],
-                jac_node=nd
+                jac_node=here
             )
         ],
-        jac_node=nd
+        jac_node=here
     );
     clear_stmt = self.nod(
         'Assign',
@@ -2600,25 +2631,25 @@ impl JcirGenPass.exit_open_stmt(nd: OpenStmt) -> None {
                 self.nod(
                     'Name',
                     ['id', 'ctx'],
-                    [_tmp, self.nod('Store', [], [], jac_node=nd)],
-                    jac_node=nd
+                    [_tmp, self.nod('Store', [], [], jac_node=here)],
+                    jac_node=here
                 )
             ],
-            self.const_of(None, jac_node=nd)
+            self.const_of(None, jac_node=here)
         ],
-        jac_node=nd
+        jac_node=here
     );
-    body_stmts: list = self._flatten_ast_list([self.outs(item) for item in nd.body]);
+    body_stmts: list = self._flatten_ast_list([self.outs(item) for item in here.body]);
     if not body_stmts {
-        body_stmts = [self.nod('Pass', [], [], jac_node=nd)];
+        body_stmts = [self.nod('Pass', [], [], jac_node=here)];
     }
     try_stmt = self.nod(
         'Try',
         ['body', 'handlers', 'orelse', 'finalbody'],
         [body_stmts, [], [], [close_stmt, clear_stmt]],
-        jac_node=nd
+        jac_node=here
     );
-    self.set_out(nd, [assign_stmt, open_stmt, try_stmt]);
+    self.set_out(here, [assign_stmt, open_stmt, try_stmt]);
 }
 
 impl JcirGenPass._comptime_if_out(nd: IfStmt) -> bool {
@@ -2633,67 +2664,70 @@ impl JcirGenPass._comptime_if_out(nd: IfStmt) -> bool {
     return True;
 }
 
-impl JcirGenPass.exit_if_stmt(nd: IfStmt) -> None {
-    if self._comptime_if_out(nd) {
+impl JcirGenPass.exit_if_stmt with IfStmt exit {
+    if here.__class__ is not IfStmt {
+        return;
+    }
+    if self._comptime_if_out(here) {
         return;
     }
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'If',
                 ['test', 'body', 'orelse'],
                 [
-                    self.val(nd.condition),
-                    self.resolve_stmt_block(nd.body),
-                    self.outs(nd.else_body) if nd.else_body else []
+                    self.val(here.condition),
+                    self.resolve_stmt_block(here.body),
+                    self.outs(here.else_body) if here.else_body else []
                 ]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_else_if(nd: ElseIf) -> None {
-    if self._comptime_if_out(nd) {
+impl JcirGenPass.exit_else_if with ElseIf exit {
+    if self._comptime_if_out(here) {
         return;
     }
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'If',
                 ['test', 'body', 'orelse'],
                 [
-                    self.val(nd.condition),
-                    self.resolve_stmt_block(nd.body),
-                    self.outs(nd.else_body) if nd.else_body else []
+                    self.val(here.condition),
+                    self.resolve_stmt_block(here.body),
+                    self.outs(here.else_body) if here.else_body else []
                 ]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_else_stmt(nd: ElseStmt) -> None {
-    self.set_out(nd, self.resolve_stmt_block(nd.body));
+impl JcirGenPass.exit_else_stmt with ElseStmt exit {
+    self.set_out(here, self.resolve_stmt_block(here.body));
 }
 
-impl JcirGenPass.exit_expr_stmt(nd: ExprStmt) -> None {
-    expr_stmt = self.nod('Expr', ['value'], [self.val(nd.expr)])
-        if not nd.in_fstring
+impl JcirGenPass.exit_expr_stmt with ExprStmt exit {
+    expr_stmt = self.nod('Expr', ['value'], [self.val(here.expr)])
+        if not here.in_fstring
         else self.nod(
             'FormattedValue',
             ['value', 'conversion', 'format_spec'],
-            [self.val(nd.expr), -1, None]
+            [self.val(here.expr), -1, None]
         );
-    self.set_out(nd, [expr_stmt]);
+    self.set_out(here, [expr_stmt]);
 }
 
-impl JcirGenPass.exit_concurrent_expr(nd: ConcurrentExpr) -> None {
+impl JcirGenPass.exit_concurrent_expr with ConcurrentExpr exit {
     func = '';
-    if nd.tok {
-        if nd.tok.value == 'flow' {
+    if here.tok {
+        if here.tok.value == 'flow' {
             func = 'thread_run';
-        } elif nd.tok.value == 'wait' {
+        } elif here.tok.value == 'wait' {
             func = 'thread_wait';
         }
     }
@@ -2714,19 +2748,21 @@ impl JcirGenPass.exit_concurrent_expr(nd: ConcurrentExpr) -> None {
                         ],
                         [[], [], [], [], []]
                     ),
-                    self.val(nd.target)
+                    self.val(here.target)
                 ]
             )
         ];
         self.set_out(
-            nd,
+            here,
             [
                 self.nod(
                     'Call',
                     ['func', 'args', 'keywords'],
                     [
                         self.jaclib_obj(func),
-                        lambda_ex if (func == 'thread_run') else [self.val(nd.target)],
+                        lambda_ex
+                            if (func == 'thread_run')
+                            else [self.val(here.target)],
                         []
                     ]
                 )
@@ -2735,262 +2771,356 @@ impl JcirGenPass.exit_concurrent_expr(nd: ConcurrentExpr) -> None {
     }
 }
 
-impl JcirGenPass.exit_try_stmt(nd: TryStmt) -> None {
+impl JcirGenPass.exit_try_stmt with TryStmt exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'Try',
                 ['body', 'handlers', 'orelse', 'finalbody'],
                 [
-                    self.resolve_stmt_block(nd.body),
-                    [self.val(i) for i in nd.excepts],
-                    self.outs(nd.else_body) if nd.else_body else [],
-                    self.outs(nd.finally_body) if nd.finally_body else []
+                    self.resolve_stmt_block(here.body),
+                    [self.val(i) for i in here.excepts],
+                    self.outs(here.else_body) if here.else_body else [],
+                    self.outs(here.finally_body) if here.finally_body else []
                 ]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_except(nd: Except) -> None {
+impl JcirGenPass.exit_except with Except exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'ExceptHandler',
                 ['type', 'name', 'body'],
                 [
-                    self.val(nd.ex_type) if nd.ex_type else None,
-                    nd.name.sym_name if nd.name else None,
-                    self.resolve_stmt_block(nd.body)
+                    self.val(here.ex_type) if here.ex_type else None,
+                    here.name.sym_name if here.name else None,
+                    self.resolve_stmt_block(here.body)
                 ]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_finally_stmt(nd: FinallyStmt) -> None {
-    self.set_out(nd, self.resolve_stmt_block(nd.body));
+impl JcirGenPass.exit_finally_stmt with FinallyStmt exit {
+    self.set_out(here, self.resolve_stmt_block(here.body));
 }
 
-impl JcirGenPass.exit_iter_for_stmt(nd: IterForStmt) -> None {
+impl JcirGenPass.exit_iter_for_stmt with IterForStmt exit {
     py_nodes: list[CgNode] = [];
-    body = self.resolve_stmt_block(nd.body);
-    body = body + [self.val(nd.count_by)];
-    py_nodes.append(self.val(nd.iter));
+    body = self.resolve_stmt_block(here.body);
+    body = body + [self.val(here.count_by)];
+    py_nodes.append(self.val(here.iter));
     py_nodes.append(
         self.nod(
             'While',
             ['test', 'body', 'orelse'],
             [
-                self.val(nd.condition),
+                self.val(here.condition),
                 body,
-                self.outs(nd.else_body) if nd.else_body else []
+                self.outs(here.else_body) if here.else_body else []
             ]
         )
     );
-    self.set_out(nd, py_nodes);
+    self.set_out(here, py_nodes);
 }
 
-impl JcirGenPass.exit_in_for_stmt(nd: InForStmt) -> None {
+impl JcirGenPass.exit_in_for_stmt with InForStmt exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
-                'AsyncFor' if nd.is_async else 'For',
+                'AsyncFor' if here.is_async else 'For',
                 ['target', 'iter', 'body', 'orelse'],
                 [
-                    self.val(nd.target),
-                    self.val(nd.collection),
-                    self.resolve_stmt_block(nd.body),
-                    self.outs(nd.else_body) if nd.else_body else []
+                    self.val(here.target),
+                    self.val(here.collection),
+                    self.resolve_stmt_block(here.body),
+                    self.outs(here.else_body) if here.else_body else []
                 ]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_while_stmt(nd: WhileStmt) -> None {
+impl JcirGenPass.exit_while_stmt with WhileStmt exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'While',
                 ['test', 'body', 'orelse'],
                 [
-                    self.val(nd.condition),
-                    self.resolve_stmt_block(nd.body),
-                    self.outs(nd.else_body) if nd.else_body else []
+                    self.val(here.condition),
+                    self.resolve_stmt_block(here.body),
+                    self.outs(here.else_body) if here.else_body else []
                 ]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_forever_stmt(nd: ForeverStmt) -> None {
+impl JcirGenPass.exit_forever_stmt with ForeverStmt exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'While',
                 ['test', 'body', 'orelse'],
-                [self.const_of(True), self.resolve_stmt_block(nd.body), []]
+                [self.const_of(True), self.resolve_stmt_block(here.body), []]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_with_stmt(nd: WithStmt) -> None {
+impl JcirGenPass.exit_with_stmt with WithStmt exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
-                'AsyncWith' if nd.is_async else 'With',
+                'AsyncWith' if here.is_async else 'With',
                 ['items', 'body'],
                 [
-                    [self.val(item) for item in nd.exprs],
-                    self.resolve_stmt_block(nd.body)
+                    [self.val(item) for item in here.exprs],
+                    self.resolve_stmt_block(here.body)
                 ]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_expr_as_item(nd: ExprAsItem) -> None {
+impl JcirGenPass.exit_expr_as_item with ExprAsItem exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'withitem',
                 ['context_expr', 'optional_vars'],
-                [self.val(nd.expr), self.val(nd.alias) if nd.alias else None]
+                [self.val(here.expr), self.val(here.alias) if here.alias else None]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_raise_stmt(nd: RaiseStmt) -> None {
+impl JcirGenPass.exit_raise_stmt with RaiseStmt exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'Raise',
                 ['exc', 'cause'],
                 [
-                    self.val(nd.cause) if nd.cause else None,
-                    self.val(nd.from_target) if nd.from_target else None
+                    self.val(here.cause) if here.cause else None,
+                    self.val(here.from_target) if here.from_target else None
                 ]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_assert_stmt(nd: AssertStmt) -> None {
-    if nd.is_comptime {
-        self.set_out(nd, []);
+impl JcirGenPass.exit_assert_stmt with AssertStmt exit {
+    if here.is_comptime {
+        self.set_out(here, []);
         return;
     }
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'Assert',
                 ['test', 'msg'],
                 [
-                    self.val(nd.condition),
-                    self.val(nd.error_msg) if nd.error_msg else None
+                    self.val(here.condition),
+                    self.val(here.error_msg) if here.error_msg else None
                 ]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_ctrl_stmt(nd: CtrlStmt) -> None {
-    if (nd.ctrl.name == Tok.KW_BREAK) {
-        self.set_out(nd, [self.nod('Break', [], [])]);
-    } elif (nd.ctrl.name == Tok.KW_CONTINUE) {
-        if (iter_for_parent := nd.find_parent_of_type(IterForStmt)) {
+impl JcirGenPass.exit_ctrl_stmt with CtrlStmt exit {
+    if (here.ctrl.name == Tok.KW_BREAK) {
+        self.set_out(here, [self.nod('Break', [], [])]);
+    } elif (here.ctrl.name == Tok.KW_CONTINUE) {
+        if (iter_for_parent := here.find_parent_of_type(IterForStmt)) {
             count_by = iter_for_parent.count_by;
-            self.set_out(nd, [self.val(count_by), self.nod('Continue', [], [])]);
+            self.set_out(here, [self.val(count_by), self.nod('Continue', [], [])]);
         } else {
-            self.set_out(nd, [self.nod('Continue', [], [])]);
+            self.set_out(here, [self.nod('Continue', [], [])]);
         }
-    } elif (nd.ctrl.name == Tok.KW_SKIP) {
-        self.set_out(nd, [self.nod('Return', ['value'], [None])]);
+    } elif (here.ctrl.name == Tok.KW_SKIP) {
+        self.set_out(here, [self.nod('Return', ['value'], [None])]);
     }
 }
 
-impl JcirGenPass._delete_targets(nd: DeleteStmt) -> list[CgNode] {
-    if (isinstance(nd.target, TupleVal) and nd.target.values) {
-        return [self.val(i) for i in nd.target.values];
-    }
-    return [
-        i
-        for i in self.outs(nd.target)
-        if isinstance(i, CgNode)
-    ];
+impl JcirGenPass._del_ctx_target(target: Expr, ctx_cls: str) -> CgNode {
+    cgn = self.val(target);
+    return self._with_ctx(cgn, ctx_cls) if cgn.hasf('ctx') else cgn;
 }
 
-impl JcirGenPass._delete_ctx_targets(
-    targets: list[CgNode], ctx_cls: str
-) -> list[CgNode] {
-    items: list[CgNode] = targets;
-    head = items[0] if items else None;
-    if (head is not None and head.cls in ('List', 'Tuple')) {
-        items = [
-            i
-            for i in head.get('elts')
-            if isinstance(i, CgNode)
-        ];
-    }
-    result: list[CgNode] = [];
-    for target in items {
-        result.append(
-            self._with_ctx(target, ctx_cls) if target.hasf('ctx') else target
+impl JcirGenPass._destroy_call(value: CgNode, strict: bool) -> CgNode {
+    keywords: list[CgNode] = [];
+    if strict {
+        keywords.append(
+            self.nod('keyword', ['arg', 'value'], ['strict', self.const_of(True)])
         );
     }
-    return result;
-}
-
-impl JcirGenPass.exit_delete_stmt(nd: DeleteStmt) -> None {
-    destroy_expr = self.nod(
+    return self.nod(
         'Expr',
         ['value'],
         [
             self.nod(
                 'Call',
                 ['func', 'args', 'keywords'],
-                [
-                    self.jaclib_obj('destroy'),
-                    [
-                        self.nod(
-                            'List',
-                            ['elts', 'ctx'],
-                            [
-                                self._delete_ctx_targets(
-                                    self._delete_targets(nd), 'Load'
-                                ),
-                                self.nod('Load', [], [])
-                            ]
-                        )
-                    ],
-                    []
-                ]
+                [self.jaclib_obj('destroy'), [value], keywords]
             )
         ]
     );
-    delete_stmt = self.nod(
-        'Delete',
-        ['targets'],
-        [self._delete_ctx_targets(self._delete_targets(nd), 'Del')]
-    );
-    self.set_out(nd, [destroy_expr, delete_stmt]);
 }
 
-impl JcirGenPass.exit_report_stmt(nd: ReportStmt) -> None {
+impl JcirGenPass._del_is_trivial(cgn: CgNode) -> bool {
+    if cgn.cls in ('Name', 'Constant') {
+        return True;
+    }
+    if cgn.cls == 'Slice' {
+        return all(
+            (part is None) or (isinstance(part, CgNode) and self._del_is_trivial(part))
+            for part in (cgn.get('lower'), cgn.get('upper'), cgn.get('step'))
+        );
+    }
+    return False;
+}
+
+impl JcirGenPass._del_slice_value(value: CgNode, nd: DeleteStmt) -> CgNode {
+    if value.cls != 'Slice' {
+        return value;
+    }
+    return self.nod(
+        'Call',
+        ['func', 'args', 'keywords'],
+        [
+            self.name_load('slice', jac_node=nd),
+            [
+                part if isinstance(part, CgNode) else self.const_of(None)
+                for part in (value.get('lower'), value.get('upper'), value.get('step'))
+            ],
+            []
+        ]
+    );
+}
+
+impl JcirGenPass._del_bind_temp(
+    value: CgNode, name: str, stmts: list[CgItem], nd: DeleteStmt
+) -> CgNode {
+    bound = self._del_slice_value(value, nd);
+    stmts.append(
+        self.nod(
+            'Assign',
+            ['targets', 'value'],
+            [
+                [self.nod('Name', ['id', 'ctx'], [name, self.nod('Store', [], [])])],
+                bound
+            ],
+            jac_node=nd
+        )
+    );
+    return self.name_load(name, jac_node=nd);
+}
+
+impl JcirGenPass._del_location(
+    target: Expr, nd: DeleteStmt, ordinal: int
+) -> list[CgItem] {
+    stmts: list[CgItem] = [];
+    if isinstance(target, Name) {
+        stmts.append(self._destroy_call(self._del_ctx_target(target, 'Load'), False));
+        stmts.append(
+            self.nod('Delete', ['targets'], [[self._del_ctx_target(target, 'Del')]])
+        );
+        return stmts;
+    }
+    loaded = self._del_ctx_target(target, 'Load');
+    prefix = f"_jac_del_{nd.loc.first_line}_{nd.loc.col_start}_{ordinal}";
+    container = loaded.get('value');
+    if not self._del_is_trivial(container) {
+        container = self._del_bind_temp(container, prefix + "_c", stmts, nd);
+    }
+    del_ctx = self.nod('Del', [], []);
+    if loaded.cls == 'Attribute' {
+        attr = loaded.get('attr');
+        peek_call = self.nod(
+            'Call',
+            ['func', 'args', 'keywords'],
+            [self.jaclib_obj('peek_attr'), [container, self.const_of(attr)], []]
+        );
+        del_target = self.nod(
+            'Attribute', ['value', 'attr', 'ctx'], [container, attr, del_ctx]
+        );
+    } else {
+        key = loaded.get('slice');
+        if not self._del_is_trivial(key) {
+            key = self._del_bind_temp(key, prefix + "_k", stmts, nd);
+        }
+        peek_call = self.nod(
+            'Call',
+            ['func', 'args', 'keywords'],
+            [
+                self.jaclib_obj('peek_item'),
+                [container, self._del_slice_value(key, nd)],
+                []
+            ]
+        );
+        del_target = self.nod(
+            'Subscript', ['value', 'slice', 'ctx'], [container, key, del_ctx]
+        );
+    }
+    stmts.append(self._destroy_call(peek_call, False));
+    stmts.append(self.nod('Delete', ['targets'], [[del_target]]));
+    return stmts;
+}
+
+impl JcirGenPass.exit_delete_stmt with DeleteStmt exit {
+    stmts: list[CgItem] = [];
+    ordinal = 0;
+    for target in here.leaf_targets() {
+        if DeleteStmt.is_location(target) {
+            stmts.extend(self._del_location(target, here, ordinal));
+        } else {
+            simple = None;
+            if isinstance(target, EdgeRefTrailer) and target.edges_only {
+                simple = self._simple_hop(target);
+            }
+            if simple is not None {
+                stmts.append(
+                    self.nod(
+                        'Expr',
+                        ['value'],
+                        [
+                            self.nod(
+                                'Call',
+                                ['func', 'args', 'keywords'],
+                                [self.jaclib_obj('clear_edges'), simple, []]
+                            )
+                        ]
+                    )
+                );
+            } else {
+                stmts.append(
+                    self._destroy_call(self._del_ctx_target(target, 'Load'), True)
+                );
+            }
+        }
+        ordinal += 1;
+    }
+    self.set_out(here, stmts);
+}
+
+impl JcirGenPass.exit_report_stmt with ReportStmt exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'Expr',
@@ -2999,7 +3129,7 @@ impl JcirGenPass.exit_report_stmt(nd: ReportStmt) -> None {
                     self.nod(
                         'Call',
                         ['func', 'args', 'keywords'],
-                        [self.jaclib_obj('log_report'), self.outs(nd.expr), []]
+                        [self.jaclib_obj('log_report'), self.outs(here.expr), []]
                     )
                 ]
             )
@@ -3007,47 +3137,49 @@ impl JcirGenPass.exit_report_stmt(nd: ReportStmt) -> None {
     );
 }
 
-impl JcirGenPass.exit_return_stmt(nd: ReturnStmt) -> None {
+impl JcirGenPass.exit_return_stmt with ReturnStmt exit {
     self.set_out(
-        nd, [self.nod('Return', ['value'], [self.val(nd.expr) if nd.expr else None])]
+        here,
+        [self.nod('Return', ['value'], [self.val(here.expr) if here.expr else None])]
     );
 }
 
-impl JcirGenPass.exit_yield_expr(nd: YieldExpr) -> None {
-    if not nd.with_from {
+impl JcirGenPass.exit_yield_expr with YieldExpr exit {
+    if not here.with_from {
         self.set_out(
-            nd, [self.nod('Yield', ['value'], [self.val(nd.expr) if nd.expr else None])]
+            here,
+            [self.nod('Yield', ['value'], [self.val(here.expr) if here.expr else None])]
         );
     } else {
         self.set_out(
-            nd,
+            here,
             [
                 self.nod(
                     'YieldFrom',
                     ['value'],
-                    [self.val(nd.expr) if nd.expr else self.const_of(None)]
+                    [self.val(here.expr) if here.expr else self.const_of(None)]
                 )
             ]
         );
     }
 }
 
-impl JcirGenPass.exit_visit_stmt(nd: VisitStmt) -> None {
-    loc = self.name_load('self' if nd.from_walker else Con.VISITOR.value);
+impl JcirGenPass.exit_visit_stmt with VisitStmt exit {
+    loc = self.name_load('self' if here.from_walker else Con.VISITOR.value);
     visit_call = self.nod(
         'Call',
         ['func', 'args', 'keywords'],
-        [self.jaclib_obj('visit'), [loc, self.val(nd.target)], []]
+        [self.jaclib_obj('visit'), [loc, self.val(here.target)], []]
     );
-    if (nd.insert_loc is not None) {
+    if (here.insert_loc is not None) {
         visit_call.get('keywords').append(
             self.nod(
-                'keyword', ['arg', 'value'], ['insert_loc', self.val(nd.insert_loc)]
+                'keyword', ['arg', 'value'], ['insert_loc', self.val(here.insert_loc)]
             )
         );
     }
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'If',
@@ -3058,20 +3190,20 @@ impl JcirGenPass.exit_visit_stmt(nd: VisitStmt) -> None {
                         ['op', 'operand'],
                         [self.nod('Not', [], []), visit_call]
                     ),
-                    self.outs(nd.else_body),
+                    self.outs(here.else_body),
                     []
                 ]
             )
         ]
-            if nd.else_body
+            if here.else_body
             else [self.nod('Expr', ['value'], [visit_call])]
     );
 }
 
-impl JcirGenPass.exit_disengage_stmt(nd: DisengageStmt) -> None {
-    loc = self.name_load('self' if nd.from_walker else Con.VISITOR.value);
+impl JcirGenPass.exit_disengage_stmt with DisengageStmt exit {
+    loc = self.name_load('self' if here.from_walker else Con.VISITOR.value);
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'Expr',
@@ -3089,48 +3221,48 @@ impl JcirGenPass.exit_disengage_stmt(nd: DisengageStmt) -> None {
     );
 }
 
-impl JcirGenPass.exit_await_expr(nd: AwaitExpr) -> None {
-    self.set_out(nd, [self.nod('Await', ['value'], [self.val(nd.target)])]);
+impl JcirGenPass.exit_await_expr with AwaitExpr exit {
+    self.set_out(here, [self.nod('Await', ['value'], [self.val(here.target)])]);
 }
 
-impl JcirGenPass.exit_cast_expr(nd: CastExpr) -> None {
-    self.set_out(nd, self.outs(nd.value));
+impl JcirGenPass.exit_cast_expr with CastExpr exit {
+    self.set_out(here, self.outs(here.value));
 }
 
-impl JcirGenPass.exit_assignment(nd: Assignment) -> None {
+impl JcirGenPass.exit_assignment with Assignment exit {
     value: (CgNode | None) = None;
-    init_cv = nd.value.ct_value if nd.value else None;
-    if nd.value
-        and nd.is_comptime
+    init_cv = here.value.ct_value if here.value else None;
+    if here.value
+        and here.is_comptime
         and init_cv is not None
-        and self._ct_concrete(nd.value) {
-        value = self._materialize(init_cv.v, nd.value);
+        and self._ct_concrete(here.value) {
+        value = self._materialize(init_cv.v, here.value);
         if value is None {
-            value = self.val(nd.value);
+            value = self.val(here.value);
         }
-    } elif nd.value {
-        value = self.val(nd.value);
-    } elif nd.is_enum_stmt {
+    } elif here.value {
+        value = self.val(here.value);
+    } elif here.is_enum_stmt {
         value = self.nod(
             'Call', ['func', 'args', 'keywords'], [self.name_load('auto'), [], []]
         );
-    } elif not nd.type_tag {
+    } elif not here.type_tag {
         raise RuntimeError(
             self.ice('assignment has no value, no enum default and no type tag')
         );
     }
-    targets_ast = [self.val(t) for t in nd.target];
+    targets_ast = [self.val(t) for t in here.target];
     class_body_ct = (
-        nd.is_comptime
-        and isinstance(nd.parent, GlobalVars)
-        and isinstance(nd.parent.parent, Archetype)
+        here.is_comptime
+        and isinstance(here.parent, GlobalVars)
+        and isinstance(here.parent.parent, Archetype)
     );
-    ct_val0 = nd.value;
+    ct_val0 = here.value;
     if class_body_ct and ct_val0 is not None and not self._ct_concrete(ct_val0) {
-        tgt0 = nd.target[0] if nd.target else None;
+        tgt0 = here.target[0] if here.target else None;
         if isinstance(tgt0, Name) {
             self.set_out(
-                nd,
+                here,
                 [
                     self.nod(
                         'FunctionDef',
@@ -3163,33 +3295,33 @@ impl JcirGenPass.exit_assignment(nd: Assignment) -> None {
                                     'Return',
                                     ['value'],
                                     [self.val(ct_val0)],
-                                    jac_node=nd
+                                    jac_node=here
                                 )
                             ],
-                            [self.name_load('property', nd)],
+                            [self.name_load('property', here)],
                             None
                         ],
-                        jac_node=nd
+                        jac_node=here
                     )
                 ]
             );
             return;
         }
     }
-    if nd.type_tag and not class_body_ct {
+    if here.type_tag and not class_body_ct {
         assignment_stmt = self.nod(
             'AnnAssign',
             ['target', 'annotation', 'value', 'simple'],
             [
                 targets_ast[0],
-                self.val(nd.type_tag),
-                value if nd.value else None,
+                self.val(here.type_tag),
+                value if here.value else None,
                 int(isinstance(targets_ast[0], CgNode) and targets_ast[0].cls == 'Name')
             ]
         );
-    } elif nd.aug_op {
+    } elif here.aug_op {
         _fw_aug = self._fw_aug_assign(
-            nd, targets_ast[0], value if isinstance(value, CgNode) else None
+            here, targets_ast[0], value if isinstance(value, CgNode) else None
         );
         assignment_stmt = _fw_aug
             if _fw_aug is not None
@@ -3198,7 +3330,7 @@ impl JcirGenPass.exit_assignment(nd: Assignment) -> None {
                 ['target', 'op', 'value'],
                 [
                     targets_ast[0],
-                    self.val(nd.aug_op),
+                    self.val(here.aug_op),
                     value if isinstance(value, CgNode) else self.const_of(None)
                 ]
             );
@@ -3209,44 +3341,44 @@ impl JcirGenPass.exit_assignment(nd: Assignment) -> None {
             [targets_ast, value if isinstance(value, CgNode) else self.const_of(None)]
         );
     }
-    self.set_out(nd, [assignment_stmt]);
+    self.set_out(here, [assignment_stmt]);
 }
 
-impl JcirGenPass.exit_binary_expr(nd: BinaryExpr) -> None {
-    if isinstance(nd.op, ConnectOp) {
-        left = self.val(nd.right)
-            if (nd.op.edge_dir == EdgeDir.IN)
-            else self.val(nd.left);
-        right = self.val(nd.left)
-            if (nd.op.edge_dir == EdgeDir.IN)
-            else self.val(nd.right);
+impl JcirGenPass.exit_binary_expr with BinaryExpr exit {
+    if isinstance(here.op, ConnectOp) {
+        left = self.val(here.right)
+            if (here.op.edge_dir == EdgeDir.IN)
+            else self.val(here.left);
+        right = self.val(here.left)
+            if (here.op.edge_dir == EdgeDir.IN)
+            else self.val(here.right);
         keywords = [
             self.nod('keyword', ['arg', 'value'], ['left', left]),
             self.nod('keyword', ['arg', 'value'], ['right', right])
         ];
-        if nd.op.conn_type {
+        if here.op.conn_type {
             keywords.append(
                 self.nod(
-                    'keyword', ['arg', 'value'], ['edge', self.val(nd.op.conn_type)]
+                    'keyword', ['arg', 'value'], ['edge', self.val(here.op.conn_type)]
                 )
             );
         }
-        if (nd.op.edge_dir == EdgeDir.ANY) {
+        if (here.op.edge_dir == EdgeDir.ANY) {
             keywords.append(
                 self.nod('keyword', ['arg', 'value'], ['undir', self.const_of(True)])
             );
         }
-        if nd.op.conn_assign {
+        if here.op.conn_assign {
             keywords.append(
                 self.nod(
                     'keyword',
                     ['arg', 'value'],
-                    ['conn_assign', self.val(nd.op.conn_assign)]
+                    ['conn_assign', self.val(here.op.conn_assign)]
                 )
             );
         }
         self.set_out(
-            nd,
+            here,
             [
                 self.nod(
                     'Call',
@@ -3255,12 +3387,12 @@ impl JcirGenPass.exit_binary_expr(nd: BinaryExpr) -> None {
                 )
             ]
         );
-    } elif isinstance(nd.op, DisconnectOp) {
+    } elif isinstance(here.op, DisconnectOp) {
         keywords = [
-            self.nod('keyword', ['arg', 'value'], ['left', self.val(nd.left)]),
-            self.nod('keyword', ['arg', 'value'], ['right', self.val(nd.right)])
+            self.nod('keyword', ['arg', 'value'], ['left', self.val(here.left)]),
+            self.nod('keyword', ['arg', 'value'], ['right', self.val(here.right)])
         ];
-        if (nd.op.edge_spec.edge_dir != EdgeDir.OUT) {
+        if (here.op.edge_spec.edge_dir != EdgeDir.OUT) {
             keywords.append(
                 self.nod(
                     'keyword',
@@ -3272,7 +3404,7 @@ impl JcirGenPass.exit_binary_expr(nd: BinaryExpr) -> None {
                             ['value', 'attr', 'ctx'],
                             [
                                 self.jaclib_obj('EdgeDir'),
-                                EDGE_DIR_NAMES[int(nd.op.edge_spec.edge_dir)],
+                                EDGE_DIR_NAMES[int(here.op.edge_spec.edge_dir)],
                                 self.nod('Load', [], [])
                             ]
                         )
@@ -3280,17 +3412,17 @@ impl JcirGenPass.exit_binary_expr(nd: BinaryExpr) -> None {
                 )
             );
         }
-        if nd.op.edge_spec.filter_cond {
+        if here.op.edge_spec.filter_cond {
             keywords.append(
                 self.nod(
                     'keyword',
                     ['arg', 'value'],
-                    ['filter', self.val(nd.op.edge_spec.filter_cond)]
+                    ['filter', self.val(here.op.edge_spec.filter_cond)]
                 )
             );
         }
         self.set_out(
-            nd,
+            here,
             [
                 self.nod(
                     'Call',
@@ -3299,44 +3431,44 @@ impl JcirGenPass.exit_binary_expr(nd: BinaryExpr) -> None {
                 )
             ]
         );
-    } elif (nd.op.name in [Tok.KW_AND.value, Tok.KW_OR.value]) {
+    } elif (here.op.name in [Tok.KW_AND.value, Tok.KW_OR.value]) {
         self.set_out(
-            nd,
+            here,
             [
                 self.nod(
                     'BoolOp',
                     ['op', 'values'],
-                    [self.val(nd.op), [self.val(nd.left), self.val(nd.right)]]
+                    [self.val(here.op), [self.val(here.left), self.val(here.right)]]
                 )
             ]
         );
-    } elif ((nd.op.name in [Tok.WALRUS_EQ]) and self.val(nd.left).cls == 'Name') {
-        self.val(nd.left).setf('ctx', self.nod('Store', [], []));
+    } elif ((here.op.name in [Tok.WALRUS_EQ]) and self.val(here.left).cls == 'Name') {
+        self.val(here.left).setf('ctx', self.nod('Store', [], []));
         self.set_out(
-            nd,
+            here,
             [
                 self.nod(
                     'NamedExpr',
                     ['target', 'value'],
-                    [self.val(nd.left), self.val(nd.right)]
+                    [self.val(here.left), self.val(here.right)]
                 )
             ]
         );
-    } elif ((nd.op.name in [Tok.WALRUS_EQ]) and not isinstance(nd.left, Name)) {
-        self.set_out(nd, [self.val(nd.right)]);
-    } elif self.outs(nd.op) {
+    } elif ((here.op.name in [Tok.WALRUS_EQ]) and not isinstance(here.left, Name)) {
+        self.set_out(here, [self.val(here.right)]);
+    } elif self.outs(here.op) {
         self.set_out(
-            nd,
+            here,
             [
                 self.nod(
                     'BinOp',
                     ['left', 'op', 'right'],
-                    [self.val(nd.left), self.val(nd.op), self.val(nd.right)]
+                    [self.val(here.left), self.val(here.op), self.val(here.right)]
                 )
             ]
         );
     } else {
-        self.set_out(nd, self.translate_jac_bin_op(nd));
+        self.set_out(here, self.translate_jac_bin_op(here));
     }
 }
 
@@ -3355,8 +3487,10 @@ impl JcirGenPass.translate_jac_bin_op(nd: BinaryExpr) -> list {
             genai_call=None,
             kid=nd.kid
         );
-        func_node.parent = nd.parent;
-        self.exit_func_call(func_node);
+        if nd.parent is not None {
+            func_node.set_parent(nd.parent);
+        }
+        self._exit_func_call_impl(func_node);
         return self.outs(func_node);
     } elif (nd.op.name in [Tok.KW_SPAWN]) {
         return [
@@ -3375,8 +3509,10 @@ impl JcirGenPass.translate_jac_bin_op(nd: BinaryExpr) -> list {
             genai_call=None,
             kid=nd.kid
         );
-        func_node.parent = nd.parent;
-        self.exit_func_call(func_node);
+        if nd.parent is not None {
+            func_node.set_parent(nd.parent);
+        }
+        self._exit_func_call_impl(func_node);
         return self.outs(func_node);
     } elif (nd.op.name in [Tok.KW_BY]) {
         return [
@@ -3398,88 +3534,88 @@ impl JcirGenPass.translate_jac_bin_op(nd: BinaryExpr) -> list {
     return [];
 }
 
-impl JcirGenPass.exit_compare_expr(nd: CompareExpr) -> None {
+impl JcirGenPass.exit_compare_expr with CompareExpr exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'Compare',
                 ['left', 'ops', 'comparators'],
                 [
-                    self.val(nd.left),
-                    [self.val(i) for i in nd.ops],
-                    [self.val(i) for i in nd.rights]
+                    self.val(here.left),
+                    [self.val(i) for i in here.ops],
+                    [self.val(i) for i in here.rights]
                 ]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_cfg_expr(nd: CfgExpr) -> None {
-    self.set_out(nd, self.outs(nd.expr));
+impl JcirGenPass.exit_cfg_expr with CfgExpr exit {
+    self.set_out(here, self.outs(here.expr));
 }
 
-impl JcirGenPass.exit_bool_expr(nd: BoolExpr) -> None {
+impl JcirGenPass.exit_bool_expr with BoolExpr exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'BoolOp',
                 ['op', 'values'],
-                [self.val(nd.op), [self.val(i) for i in nd.values]]
+                [self.val(here.op), [self.val(i) for i in here.values]]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_lambda_expr(nd: LambdaExpr) -> None {
-    if isinstance(nd.body, list) {
-        tail = nd.tail_return_expr();
+impl JcirGenPass.exit_lambda_expr with LambdaExpr exit {
+    if isinstance(here.body, list) {
+        tail = here.tail_return_expr();
         if tail is not None {
-            self._emit_lambda_expr_body(nd, tail);
+            self._emit_lambda_expr_body(here, tail);
             return;
         }
-        if (nd.signature and self.outs(nd.signature)) {
-            arguments = self.val(nd.signature);
+        if (here.signature and self.outs(here.signature)) {
+            arguments = self.val(here.signature);
         } else {
             arguments = self.nod(
                 'arguments',
                 ['posonlyargs', 'args', 'kwonlyargs', 'kw_defaults', 'defaults'],
                 [[], [], [], [], []],
-                jac_node=nd
+                jac_node=here
             );
         }
-        body_stmts = self.resolve_stmt_block(nd.body, doc=None);
-        directive_stmts = self.scope_directive_stmts([nd]);
+        body_stmts = self.resolve_stmt_block(here.body, doc=None);
+        directive_stmts = self.scope_directive_stmts([here]);
         if directive_stmts {
             body_stmts = [*directive_stmts, *body_stmts];
         }
         if not body_stmts {
-            body_stmts = [self.nod('Pass', [], [], jac_node=nd)];
+            body_stmts = [self.nod('Pass', [], [], jac_node=here)];
         }
         func_name = self._next_lambda_name();
-        returns = self.val(nd.signature.return_type)
+        returns = self.val(here.signature.return_type)
             if (
-                nd.signature
-                and nd.signature.return_type
-                and self.outs(nd.signature.return_type)
+                here.signature
+                and here.signature.return_type
+                and self.outs(here.signature.return_type)
             )
             else None;
         func_def = self.nod(
             'FunctionDef',
             ['name', 'args', 'body', 'decorator_list', 'returns', 'type_params'],
             [func_name, arguments, body_stmts, [], returns, []],
-            jac_node=nd
+            jac_node=here
         );
-        self.set_out(nd, [self._function_expr_from_def(func_def, nd)]);
+        self.set_out(here, [self._function_expr_from_def(func_def, here)]);
         return;
     }
-    if not isinstance(nd.body, Expr) {
+    if not isinstance(here.body, Expr) {
         raise RuntimeError(
             self.ice('lambda statement body fell past the FunctionDef path')
         );
     }
-    self._emit_lambda_expr_body(nd, nd.body);
+    self._emit_lambda_expr_body(here, here.body);
 }
 
 impl JcirGenPass._emit_lambda_expr_body(nd: LambdaExpr, body_node: Expr) -> None {
@@ -3538,73 +3674,80 @@ impl JcirGenPass._emit_jobj_ref(nd: UnaryExpr) -> None {
     );
 }
 
-impl JcirGenPass.exit_unary_expr(nd: UnaryExpr) -> None {
-    if nd.ownership in (OwnershipKind.OWN, OwnershipKind.IMM) {
-        self.set_out(nd, [self.val(nd.operand)]);
+impl JcirGenPass.exit_unary_expr with UnaryExpr exit {
+    if here.ownership in (OwnershipKind.OWN, OwnershipKind.IMM) {
+        self.set_out(here, [self.val(here.operand)]);
         return;
     }
-    if nd.op.name == Tok.BW_AND {
-        if is_borrow_kind(nd.ownership) {
+    if here.op.name == Tok.BW_AND {
+        if is_borrow_kind(here.ownership) {
             self.set_out(
-                nd,
+                here,
                 [
                     self.nod(
                         'Call',
                         ['func', 'args', 'keywords'],
-                        [self.builtin_name('jref'), [self.val(nd.operand)], []]
+                        [self.builtin_name('jref'), [self.val(here.operand)], []]
                     )
                 ]
             );
         } else {
-            self._emit_jobj_ref(nd);
+            self._emit_jobj_ref(here);
         }
         return;
     }
-    op_name = nd.op.name;
+    op_name = here.op.name;
     op_cls = UNARY_CLS_BY_NAME[op_name] if op_name in UNARY_CLS_BY_NAME else '';
     if op_cls {
         self.set_out(
-            nd,
+            here,
             [
                 self.nod(
                     'UnaryOp',
                     ['op', 'operand'],
-                    [self.nod(op_cls, [], []), self.val(nd.operand)]
+                    [self.nod(op_cls, [], []), self.val(here.operand)]
                 )
             ]
         );
         return;
-    } elif (nd.op.name in [Tok.PIPE_FWD, Tok.KW_SPAWN, Tok.A_PIPE_FWD]) {
+    } elif (here.op.name in [Tok.PIPE_FWD, Tok.KW_SPAWN, Tok.A_PIPE_FWD]) {
         self.set_out(
-            nd,
+            here,
             [
                 self.nod(
-                    'Call', ['func', 'args', 'keywords'], [self.val(nd.operand), [], []]
+                    'Call',
+                    ['func', 'args', 'keywords'],
+                    [self.val(here.operand), [], []]
                 )
             ]
         );
-    } elif (nd.op.name in [Tok.STAR_MUL]) {
-        ctx_val = self.py_ctx(nd.operand)
-            if isinstance(nd.operand, AstSymbolNode)
+    } elif (here.op.name in [Tok.STAR_MUL]) {
+        ctx_val = self.py_ctx(here.operand)
+            if isinstance(here.operand, AstSymbolNode)
             else self.nod('Load', [], []);
         self.set_out(
-            nd, [self.nod('Starred', ['value', 'ctx'], [self.val(nd.operand), ctx_val])]
+            here,
+            [self.nod('Starred', ['value', 'ctx'], [self.val(here.operand), ctx_val])]
         );
-    } elif (nd.op.name in [Tok.STAR_POW]) {
-        self.set_out(nd, self.outs(nd.operand));
+    } elif (here.op.name in [Tok.STAR_POW]) {
+        self.set_out(here, self.outs(here.operand));
     } else {
-        raise RuntimeError(self.ice("Unknown Unary operator " + nd.op.value));
+        raise RuntimeError(self.ice("Unknown Unary operator " + here.op.value));
     }
 }
 
-impl JcirGenPass.exit_if_else_expr(nd: IfElseExpr) -> None {
+impl JcirGenPass.exit_if_else_expr with IfElseExpr exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'IfExp',
                 ['test', 'body', 'orelse'],
-                [self.val(nd.condition), self.val(nd.value), self.val(nd.else_value)]
+                [
+                    self.val(here.condition),
+                    self.val(here.value),
+                    self.val(here.else_value)
+                ]
             )
         ]
     );
@@ -3633,14 +3776,14 @@ impl JcirGenPass._multi_string_pieces(str_seq: Sequence[UniNode]) -> list {
     return pieces;
 }
 
-impl JcirGenPass.exit_multi_string(nd: MultiString) -> None {
-    lone = nd.strings[0] if (len(nd.strings) == 1) else None;
+impl JcirGenPass.exit_multi_string with MultiString exit {
+    lone = here.strings[0] if (len(here.strings) == 1) else None;
     if (isinstance(lone, FString) and self.outs(lone)) {
-        self.set_out(nd, self.outs(lone));
+        self.set_out(here, self.outs(lone));
         return;
     }
     combined_multi: list = [];
-    for item in self._multi_string_pieces(nd.strings) {
+    for item in self._multi_string_pieces(here.strings) {
         if (
             combined_multi
             and isinstance(item, str)
@@ -3679,17 +3822,17 @@ impl JcirGenPass.exit_multi_string(nd: MultiString) -> None {
         }
     }
     if not merged {
-        self.set_out(nd, [self.const_of('')]);
+        self.set_out(here, [self.const_of('')]);
     } elif (len(merged) == 1 and merged[0].cls == 'Constant') {
-        self.set_out(nd, [merged[0]]);
+        self.set_out(here, [merged[0]]);
     } else {
-        self.set_out(nd, [self.nod('JoinedStr', ['values'], [merged])]);
+        self.set_out(here, [self.nod('JoinedStr', ['values'], [merged])]);
     }
 }
 
-impl JcirGenPass.exit_f_string(nd: FString) -> None {
+impl JcirGenPass.exit_f_string with FString exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'JoinedStr',
@@ -3697,7 +3840,7 @@ impl JcirGenPass.exit_f_string(nd: FString) -> None {
                 [
                     [
                         self.val(part)
-                        for part in nd.parts
+                        for part in here.parts
                         if self.outs(part)
                     ]
                 ]
@@ -3706,102 +3849,104 @@ impl JcirGenPass.exit_f_string(nd: FString) -> None {
     );
 }
 
-impl JcirGenPass.exit_formatted_value(nd: FormattedValue) -> None {
+impl JcirGenPass.exit_formatted_value with FormattedValue exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'FormattedValue',
                 ['value', 'conversion', 'format_spec'],
                 [
-                    self.val(nd.format_part),
-                    nd.conversion,
-                    self.val(nd.format_spec) if nd.format_spec else None
+                    self.val(here.format_part),
+                    here.conversion,
+                    self.val(here.format_spec) if here.format_spec else None
                 ]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_list_val(nd: ListVal) -> None {
+impl JcirGenPass.exit_list_val with ListVal exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'List',
                 ['elts', 'ctx'],
-                [[self.val(v) for v in nd.values], self.py_ctx(nd)]
+                [[self.val(v) for v in here.values], self.py_ctx(here)]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_set_val(nd: SetVal) -> None {
-    self.set_out(nd, [self.nod('Set', ['elts'], [[self.val(i) for i in nd.values]])]);
+impl JcirGenPass.exit_set_val with SetVal exit {
+    self.set_out(
+        here, [self.nod('Set', ['elts'], [[self.val(i) for i in here.values]])]
+    );
 }
 
-impl JcirGenPass.exit_tuple_val(nd: TupleVal) -> None {
+impl JcirGenPass.exit_tuple_val with TupleVal exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'Tuple',
                 ['elts', 'ctx'],
-                [[self.val(i) for i in nd.values], self.py_ctx(nd)]
+                [[self.val(i) for i in here.values], self.py_ctx(here)]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_dict_val(nd: DictVal) -> None {
+impl JcirGenPass.exit_dict_val with DictVal exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'Dict',
                 ['keys', 'values'],
                 [
-                    [self.val(x.key) if x.key else None for x in nd.kv_pairs],
-                    [self.val(x.value) for x in nd.kv_pairs]
+                    [self.val(x.key) if x.key else None for x in here.kv_pairs],
+                    [self.val(x.value) for x in here.kv_pairs]
                 ]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_k_v_pair(nd: KVPair) -> None {
+impl JcirGenPass.exit_k_v_pair with KVPair exit {
     ;
 }
 
-impl JcirGenPass.exit_k_w_pair(nd: KWPair) -> None {
+impl JcirGenPass.exit_k_w_pair with KWPair exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'keyword',
                 ['arg', 'value'],
                 [
-                    nd.key.sym_name
-                        if (nd.key and self.val(nd.key).cls == 'Name')
+                    here.key.sym_name
+                        if (here.key and self.val(here.key).cls == 'Name')
                         else None,
-                    self.val(nd.value)
+                    self.val(here.value)
                 ]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_inner_compr(nd: InnerCompr) -> None {
+impl JcirGenPass.exit_inner_compr with InnerCompr exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'comprehension',
                 ['target', 'iter', 'ifs', 'is_async'],
                 [
-                    self.val(nd.target),
-                    self.val(nd.collection),
-                    [self.val(x) for x in nd.conditional] if nd.conditional else [],
+                    self.val(here.target),
+                    self.val(here.collection),
+                    [self.val(x) for x in here.conditional] if here.conditional else [],
                     0
                 ]
             )
@@ -3809,81 +3954,86 @@ impl JcirGenPass.exit_inner_compr(nd: InnerCompr) -> None {
     );
 }
 
-impl JcirGenPass.exit_list_compr(nd: ListCompr) -> None {
+impl JcirGenPass.exit_list_compr with ListCompr exit {
+    if here.__class__ is not ListCompr {
+        return;
+    }
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'ListComp',
                 ['elt', 'generators'],
-                [self.val(nd.out_expr), [self.val(i) for i in nd.compr]]
+                [self.val(here.out_expr), [self.val(i) for i in here.compr]]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_gen_compr(nd: GenCompr) -> None {
+impl JcirGenPass.exit_gen_compr with GenCompr exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'GeneratorExp',
                 ['elt', 'generators'],
-                [self.val(nd.out_expr), [self.val(i) for i in nd.compr]]
+                [self.val(here.out_expr), [self.val(i) for i in here.compr]]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_set_compr(nd: SetCompr) -> None {
+impl JcirGenPass.exit_set_compr with SetCompr exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'SetComp',
                 ['elt', 'generators'],
-                [self.val(nd.out_expr), [self.val(i) for i in nd.compr]]
+                [self.val(here.out_expr), [self.val(i) for i in here.compr]]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_dict_compr(nd: DictCompr) -> None {
+impl JcirGenPass.exit_dict_compr with DictCompr exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'DictComp',
                 ['key', 'value', 'generators'],
                 [
-                    self.val(nd.kv_pair.key) if nd.kv_pair.key else self.const_of(None),
-                    self.val(nd.kv_pair.value),
-                    [self.val(i) for i in nd.compr]
+                    self.val(here.kv_pair.key)
+                        if here.kv_pair.key
+                        else self.const_of(None),
+                    self.val(here.kv_pair.value),
+                    [self.val(i) for i in here.compr]
                 ]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_atom_trailer(nd: AtomTrailer) -> None {
-    if nd.is_genai {
-        self.set_out(nd, []);
+impl JcirGenPass.exit_atom_trailer with AtomTrailer exit {
+    if here.is_genai {
+        self.set_out(here, []);
     }
-    trailer_cv = nd.ct_value;
+    trailer_cv = here.ct_value;
     if (
-        nd.is_attr
+        here.is_attr
         and trailer_cv is not None
-        and self._ct_concrete(nd)
+        and self._ct_concrete(here)
         and self._ct_kind(trailer_cv.v) in ("scalar", "CtEnumMember")
-        and self._trailer_reaches_ct_class(nd)
+        and self._trailer_reaches_ct_class(here)
     ) {
-        folded = self._materialize(trailer_cv.v, nd);
+        folded = self._materialize(trailer_cv.v, here);
         if folded is not None {
-            self.set_out(nd, [folded]);
+            self.set_out(here, [folded]);
             return;
         }
     }
-    ct_slots = self._ct_ctor_slots(nd);
+    ct_slots = self._ct_ctor_slots(here);
     if ct_slots is not None {
         kws: list = [];
         for pair in ct_slots {
@@ -3892,34 +4042,34 @@ impl JcirGenPass.exit_atom_trailer(nd: AtomTrailer) -> None {
             kws.append(self.nod('keyword', ['arg', 'value'], [pname, self.val(pexpr)]));
         }
         self.set_out(
-            nd,
+            here,
             [
                 self.nod(
                     'Call',
                     ['func', 'args', 'keywords'],
                     [
-                        self._import_ref("jaclang.comptime", "specialize", nd),
-                        [self.val(nd.target)],
+                        self._import_ref("jaclang.comptime", "specialize", here),
+                        [self.val(here.target)],
                         kws
                     ],
-                    jac_node=nd
+                    jac_node=here
                 )
             ]
         );
         return;
     }
-    if nd.is_attr {
-        if isinstance(nd.right, AstSymbolNode) {
+    if here.is_attr {
+        if isinstance(here.right, AstSymbolNode) {
             self.set_out(
-                nd,
+                here,
                 [
                     self.nod(
                         'Attribute',
                         ['value', 'attr', 'ctx'],
                         [
-                            self.val(nd.target),
-                            self._py_name(nd.right),
-                            self.py_ctx(nd.right)
+                            self.val(here.target),
+                            self._py_name(here.right),
+                            self.py_ctx(here.right)
                         ]
                     )
                 ]
@@ -3927,10 +4077,10 @@ impl JcirGenPass.exit_atom_trailer(nd: AtomTrailer) -> None {
         } else {
             self.emit(E5008);
         }
-    } elif isinstance(nd.right, FilterCompr) {
-        if self._is_edge_ref_target(nd.target) {
-            target_py = self.val(nd.target);
-            narrow_kws = self._query_filter_kws(nd.right, 'nd', 'preds');
+    } elif isinstance(here.right, FilterCompr) {
+        if self._is_edge_ref_target(here.target) {
+            target_py = self.val(here.target);
+            narrow_kws = self._query_filter_kws(here.right, 'nd', 'preds');
             target_py.get('args')[0] = self.nod(
                 'Call',
                 ['func', 'args', 'keywords'],
@@ -3944,10 +4094,10 @@ impl JcirGenPass.exit_atom_trailer(nd: AtomTrailer) -> None {
                     narrow_kws
                 ]
             );
-            self.set_out(nd, [target_py]);
+            self.set_out(here, [target_py]);
         } else {
             self.set_out(
-                nd,
+                here,
                 [
                     self.nod(
                         'Call',
@@ -3959,12 +4109,12 @@ impl JcirGenPass.exit_atom_trailer(nd: AtomTrailer) -> None {
                                 self.nod(
                                     'keyword',
                                     ['arg', 'value'],
-                                    ['items', self.val(nd.target)]
+                                    ['items', self.val(here.target)]
                                 ),
                                 self.nod(
                                     'keyword',
                                     ['arg', 'value'],
-                                    ['func', self.val(nd.right)]
+                                    ['func', self.val(here.right)]
                                 )
                             ]
                         ]
@@ -3972,29 +4122,29 @@ impl JcirGenPass.exit_atom_trailer(nd: AtomTrailer) -> None {
                 ]
             );
         }
-    } elif isinstance(nd.right, AssignCompr) {
+    } elif isinstance(here.right, AssignCompr) {
         self.set_out(
-            nd,
+            here,
             [
                 self.nod(
                     'Call',
                     ['func', 'args', 'keywords'],
                     [
                         self.jaclib_obj('assign_all'),
-                        [self.val(nd.target), self.val(nd.right)],
+                        [self.val(here.target), self.val(here.right)],
                         []
                     ]
                 )
             ]
         );
     } elif (
-        isinstance(nd.right, IndexSlice)
-        and nd.right.is_range
-        and len(nd.right.slices) == 1
-        and self._is_edge_ref_target(nd.target)
+        isinstance(here.right, IndexSlice)
+        and here.right.is_range
+        and len(here.right.slices) == 1
+        and self._is_edge_ref_target(here.target)
     ) {
-        target_py = self.val(nd.target);
-        slc = nd.right.slices[0];
+        target_py = self.val(here.target);
+        slc = here.right.slices[0];
         start_ast = self.val(slc.start) if slc.start else self.const_of(None);
         stop_ast = self.val(slc.stop) if slc.stop else self.const_of(None);
         step_ast = self.val(slc.step) if slc.step else self.const_of(None);
@@ -4006,29 +4156,29 @@ impl JcirGenPass.exit_atom_trailer(nd: AtomTrailer) -> None {
         target_py.get('keywords').append(
             self.nod('keyword', ['arg', 'value'], ['slc', slice_call])
         );
-        self.set_out(nd, [target_py]);
+        self.set_out(here, [target_py]);
     } else {
         self.set_out(
-            nd,
+            here,
             [
                 self.nod(
                     'Subscript',
                     ['value', 'slice', 'ctx'],
                     [
-                        self.val(nd.target),
-                        self.val(nd.right),
-                        self.py_ctx(nd.right)
-                            if isinstance(nd.right, AstSymbolNode)
+                        self.val(here.target),
+                        self.val(here.right),
+                        self.py_ctx(here.right)
+                            if isinstance(here.right, AstSymbolNode)
                             else self.nod('Load', [], [])
                     ]
                 )
             ]
         );
-        if self.val(nd.right).hasf('ctx') {
-            self.val(nd.right).setf('ctx', self.nod('Load', [], []));
+        if self.val(here.right).hasf('ctx') {
+            self.val(here.right).setf('ctx', self.nod('Load', [], []));
         }
     }
-    if nd.is_null_ok {
+    if here.is_null_ok {
         walrus_assign = self.nod(
             'NamedExpr',
             ['target', 'value'],
@@ -4036,12 +4186,12 @@ impl JcirGenPass.exit_atom_trailer(nd: AtomTrailer) -> None {
                 self.nod(
                     'Name', ['id', 'ctx'], ['__jac_tmp', self.nod('Store', [], [])]
                 ),
-                self.val(nd.target)
+                self.val(here.target)
             ]
         );
         tmp_ref = self.name_load('__jac_tmp');
         none_const = self.const_of(None);
-        cur = self.val(nd);
+        cur = self.val(here);
         body_expr: CgNode;
         if cur.cls == 'Attribute' {
             body_expr = self.nod(
@@ -4090,7 +4240,7 @@ impl JcirGenPass.exit_atom_trailer(nd: AtomTrailer) -> None {
             body_expr = cur;
         }
         self.set_out(
-            nd,
+            here,
             [
                 self.nod(
                     'IfExp',
@@ -4110,16 +4260,16 @@ impl JcirGenPass.exit_atom_trailer(nd: AtomTrailer) -> None {
     }
 }
 
-impl JcirGenPass.exit_atom_unit(nd: AtomUnit) -> None {
+impl JcirGenPass.exit_atom_unit with AtomUnit exit {
     if (
-        isinstance(nd.value, Ability)
-        and self.outs(nd.value)
-        and self.val(nd.value).cls in ('FunctionDef', 'AsyncFunctionDef')
+        isinstance(here.value, Ability)
+        and self.outs(here.value)
+        and self.val(here.value).cls in ('FunctionDef', 'AsyncFunctionDef')
     ) {
-        self.set_out(nd, [self._function_expr_from_def(self.val(nd.value), nd)]);
+        self.set_out(here, [self._function_expr_from_def(self.val(here.value), here)]);
         return;
     }
-    self.set_out(nd, self.outs(nd.value));
+    self.set_out(here, self.outs(here.value));
 }
 
 impl JcirGenPass.gen_call_args(nd: FuncCall) -> tuple[(list, list)] {
@@ -4323,7 +4473,11 @@ impl JcirGenPass._final_hop_types(nd: EdgeRefTrailer) -> tuple[str, str] {
 }
 
 
-impl JcirGenPass.exit_func_call(nd: FuncCall) -> None {
+impl JcirGenPass.exit_func_call with FuncCall exit {
+    self._exit_func_call_impl(here);
+}
+
+impl JcirGenPass._exit_func_call_impl(nd: FuncCall) -> None {
     call_cv = nd.ct_value;
     if (
         nd.callee_decl is not None
@@ -4390,11 +4544,11 @@ impl JcirGenPass.exit_func_call(nd: FuncCall) -> None {
     );
 }
 
-impl JcirGenPass.exit_index_slice(nd: IndexSlice) -> None {
-    if nd.is_range {
-        if (len(nd.slices) > 1) {
+impl JcirGenPass.exit_index_slice with IndexSlice exit {
+    if here.is_range {
+        if (len(here.slices) > 1) {
             self.set_out(
-                nd,
+                here,
                 [
                     self.nod(
                         'Tuple',
@@ -4409,17 +4563,17 @@ impl JcirGenPass.exit_index_slice(nd: IndexSlice) -> None {
                                         self.val(slc.stop) if slc.stop else None,
                                         self.val(slc.step) if slc.step else None
                                     ]
-                                ) for slc in nd.slices
+                                ) for slc in here.slices
                             ],
                             self.nod('Load', [], [])
                         ]
                     )
                 ]
             );
-        } elif (len(nd.slices) == 1) {
-            slc = nd.slices[0];
+        } elif (len(here.slices) == 1) {
+            slc = here.slices[0];
             self.set_out(
-                nd,
+                here,
                 [
                     self.nod(
                         'Slice',
@@ -4433,32 +4587,32 @@ impl JcirGenPass.exit_index_slice(nd: IndexSlice) -> None {
                 ]
             );
         }
-    } elif ((len(nd.slices) > 0) and (nd.slices[0].start is not None)) {
-        self.set_out(nd, self.outs(nd.slices[0].start));
+    } elif ((len(here.slices) > 0) and (here.slices[0].start is not None)) {
+        self.set_out(here, self.outs(here.slices[0].start));
     } else {
-        self.set_out(nd, []);
+        self.set_out(here, []);
     }
 }
 
-impl JcirGenPass.exit_special_var_ref(nd: SpecialVarRef) -> None {
-    if (nd.name == Tok.KW_SUPER) {
+impl JcirGenPass.exit_special_var_ref with SpecialVarRef exit {
+    if (here.name == Tok.KW_SUPER) {
         self.set_out(
-            nd,
+            here,
             [
                 self.nod(
                     'Call',
                     ['func', 'args', 'keywords'],
                     [
-                        self.nod('Name', ['id', 'ctx'], ['super', self.py_ctx(nd)]),
+                        self.nod('Name', ['id', 'ctx'], ['super', self.py_ctx(here)]),
                         [],
                         []
                     ]
                 )
             ]
         );
-    } elif (nd.name == Tok.KW_ROOT) {
+    } elif (here.name == Tok.KW_ROOT) {
         self.set_out(
-            nd,
+            here,
             [
                 self.nod(
                     'Call',
@@ -4469,7 +4623,8 @@ impl JcirGenPass.exit_special_var_ref(nd: SpecialVarRef) -> None {
         );
     } else {
         self.set_out(
-            nd, [self.nod('Name', ['id', 'ctx'], [self._py_name(nd), self.py_ctx(nd)])]
+            here,
+            [self.nod('Name', ['id', 'ctx'], [self._py_name(here), self.py_ctx(here)])]
         );
     }
 }
@@ -4784,11 +4939,73 @@ impl JcirGenPass._traversal_consumed_now(nd: EdgeRefTrailer) -> bool {
 }
 
 
-impl JcirGenPass.exit_edge_ref_trailer(nd: EdgeRefTrailer) -> None {
+impl JcirGenPass._simple_hop(nd: EdgeRefTrailer) -> (list[CgNode] | None) {
+    if nd.is_async {
+        return None;
+    }
+    parent = nd.parent;
+    if isinstance(parent, VisitStmt) {
+        return None;
+    }
+    if isinstance(parent, AtomTrailer)
+        and parent.target is nd
+        and isinstance(parent.right, (FilterCompr, IndexSlice)) {
+        return None;
+    }
+    if isinstance(parent, FuncCall)
+        and isinstance(parent.target, Name)
+        and parent.target.sym_name == 'sorted'
+        and parent.params is not None
+        and len(parent.params) >= 1
+        and parent.params[0] is nd {
+        return None;
+    }
+    chain = nd.chain;
+    if len(chain) == 2
+        and not isinstance(chain[0], EdgeOpRef)
+        and isinstance(chain[1], EdgeOpRef) {
+        origin_ast = self.val(chain[0]);
+        hop = chain[1];
+    } elif len(chain) == 1 and isinstance(chain[0], EdgeOpRef) {
+        hop = chain[0];
+        origin_ast = self.val(hop);
+    } else {
+        return None;
+    }
+    type_ast = self.const_of(None);
+    fc = hop.filter_cond;
+    if fc is not None {
+        if fc.compares or fc.f_type is None {
+            return None;
+        }
+        type_ast = self.val(fc.f_type);
+    }
+    return [origin_ast, self.const_of(hop.edge_dir.value), type_ast];
+}
+
+impl JcirGenPass.exit_edge_ref_trailer with EdgeRefTrailer exit {
+    simple = self._simple_hop(here);
+    if simple is not None {
+        self.set_out(
+            here,
+            [
+                self.nod(
+                    'Call',
+                    ['func', 'args', 'keywords'],
+                    [
+                        self.jaclib_obj('hop'),
+                        [*simple, self.const_of(here.edges_only)],
+                        []
+                    ]
+                )
+            ]
+        );
+        return;
+    }
     origin: (CgNode | None) = None;
-    cur = nd.chain[0];
-    chomp = [*nd.chain[1:]];
-    from_visit = bool(isinstance(nd.parent, VisitStmt));
+    cur = here.chain[0];
+    chomp = [*here.chain[1:]];
+    from_visit = bool(isinstance(here.parent, VisitStmt));
     if not isinstance(cur, EdgeOpRef) {
         origin = self.val(cur);
         cur = chomp.pop(0);
@@ -4835,7 +5052,7 @@ impl JcirGenPass.exit_edge_ref_trailer(nd: EdgeRefTrailer) -> None {
         if hop_order and chomp {
             self.emit(
                 E5094,
-                node_override=nd,
+                node_override=here,
                 reason='ordering applies to the final hop of a traversal'
             );
             hop_order = [];
@@ -4871,7 +5088,7 @@ impl JcirGenPass.exit_edge_ref_trailer(nd: EdgeRefTrailer) -> None {
             )
         );
     }
-    if nd.edges_only {
+    if here.edges_only {
         gq_kws.append(
             self.nod('keyword', ['arg', 'value'], ['edges_only', self.const_of(True)])
         );
@@ -4896,7 +5113,7 @@ impl JcirGenPass.exit_edge_ref_trailer(nd: EdgeRefTrailer) -> None {
             ]
         );
     }
-    if nd.is_async {
+    if here.is_async {
         pynode = self.nod(
             'Call',
             ['func', 'args', 'keywords'],
@@ -4904,7 +5121,7 @@ impl JcirGenPass.exit_edge_ref_trailer(nd: EdgeRefTrailer) -> None {
         );
     } else {
         ref_kws: list[CgNode] = [];
-        if self._traversal_consumed_now(nd) {
+        if self._traversal_consumed_now(here) {
             ref_kws.append(
                 self.nod('keyword', ['arg', 'value'], ['lazy', self.const_of(True)])
             );
@@ -4915,20 +5132,22 @@ impl JcirGenPass.exit_edge_ref_trailer(nd: EdgeRefTrailer) -> None {
             [self.jaclib_obj('refs'), [pynode], ref_kws]
         );
     }
-    self.set_out(nd, [pynode]);
+    self.set_out(here, [pynode]);
 }
 
-impl JcirGenPass.exit_edge_op_ref(nd: EdgeOpRef) -> None {
-    self.set_out(nd, [self.name_load(Con.HERE.value if nd.from_walker else 'self')]);
-}
-
-impl JcirGenPass.exit_disconnect_op(nd: DisconnectOp) -> None {
-    self.set_out(nd, self.outs(nd.edge_spec));
-}
-
-impl JcirGenPass.exit_connect_op(nd: ConnectOp) -> None {
+impl JcirGenPass.exit_edge_op_ref with EdgeOpRef exit {
     self.set_out(
-        nd,
+        here, [self.name_load(Con.HERE.value if here.from_walker else 'self')]
+    );
+}
+
+impl JcirGenPass.exit_disconnect_op with DisconnectOp exit {
+    self.set_out(here, self.outs(here.edge_spec));
+}
+
+impl JcirGenPass.exit_connect_op with ConnectOp exit {
+    self.set_out(
+        here,
         [
             self.nod(
                 'Call',
@@ -4940,15 +5159,18 @@ impl JcirGenPass.exit_connect_op(nd: ConnectOp) -> None {
                         self.nod(
                             'keyword',
                             ['arg', 'value'],
-                            ['is_undirected', self.const_of(nd.edge_dir == EdgeDir.ANY)]
+                            [
+                                'is_undirected',
+                                self.const_of(here.edge_dir == EdgeDir.ANY)
+                            ]
                         ),
                         self.nod(
                             'keyword',
                             ['arg', 'value'],
                             [
                                 'conn_type',
-                                self.val(nd.conn_type)
-                                    if nd.conn_type
+                                self.val(here.conn_type)
+                                    if here.conn_type
                                     else self.const_of(None)
                             ]
                         ),
@@ -4957,8 +5179,8 @@ impl JcirGenPass.exit_connect_op(nd: ConnectOp) -> None {
                             ['arg', 'value'],
                             [
                                 'conn_assign',
-                                self.val(nd.conn_assign)
-                                    if nd.conn_assign
+                                self.val(here.conn_assign)
+                                    if here.conn_assign
                                     else self.const_of(None)
                             ]
                         )
@@ -4969,11 +5191,11 @@ impl JcirGenPass.exit_connect_op(nd: ConnectOp) -> None {
     );
 }
 
-impl JcirGenPass.exit_filter_compr(nd: FilterCompr) -> None {
+impl JcirGenPass.exit_filter_compr with FilterCompr exit {
     iter_name = 'i';
     comprs: list[CgNode] = [];
-    if nd.f_type {
-        f_type_recipe = self.val(nd.f_type);
+    if here.f_type {
+        f_type_recipe = self.val(here.f_type);
         cur_loc = self.nod('Pass', [], []);
         f_type_recipe.l1 = cur_loc.l1;
         f_type_recipe.c1 = cur_loc.c1;
@@ -4991,7 +5213,7 @@ impl JcirGenPass.exit_filter_compr(nd: FilterCompr) -> None {
             )
         );
     }
-    for x in nd.compares {
+    for x in here.compares {
         x_recipe = self.val(x);
         if x_recipe.cls != 'Compare' {
             continue;
@@ -5030,7 +5252,7 @@ impl JcirGenPass.exit_filter_compr(nd: FilterCompr) -> None {
     }
     if body {
         self.set_out(
-            nd,
+            here,
             [
                 self.nod(
                     'Lambda',
@@ -5055,10 +5277,10 @@ impl JcirGenPass.exit_filter_compr(nd: FilterCompr) -> None {
     }
 }
 
-impl JcirGenPass.exit_assign_compr(nd: AssignCompr) -> None {
+impl JcirGenPass.exit_assign_compr with AssignCompr exit {
     keys: list[CgNode] = [];
     values: list[CgNode] = [];
-    for i in nd.assigns {
+    for i in here.assigns {
         if i.key {
             keys.append(self.const_of(i.key.sym_name));
             values.append(self.val(i.value));
@@ -5067,7 +5289,7 @@ impl JcirGenPass.exit_assign_compr(nd: AssignCompr) -> None {
     key_tup = self.nod('Tuple', ['elts', 'ctx'], [keys, self.nod('Load', [], [])]);
     val_tup = self.nod('Tuple', ['elts', 'ctx'], [values, self.nod('Load', [], [])]);
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'Tuple', ['elts', 'ctx'], [[key_tup, val_tup], self.nod('Load', [], [])]
@@ -5076,79 +5298,80 @@ impl JcirGenPass.exit_assign_compr(nd: AssignCompr) -> None {
     );
 }
 
-impl JcirGenPass.exit_match_stmt(nd: MatchStmt) -> None {
+impl JcirGenPass.exit_match_stmt with MatchStmt exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'Match',
                 ['subject', 'cases'],
-                [self.val(nd.target), [self.val(x) for x in nd.cases]]
+                [self.val(here.target), [self.val(x) for x in here.cases]]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_match_case(nd: MatchCase) -> None {
+impl JcirGenPass.exit_match_case with MatchCase exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'match_case',
                 ['pattern', 'guard', 'body'],
                 [
-                    self.val(nd.pattern),
-                    self.val(nd.guard) if nd.guard else None,
-                    self.resolve_stmt_block(nd.body)
+                    self.val(here.pattern),
+                    self.val(here.guard) if here.guard else None,
+                    self.resolve_stmt_block(here.body)
                 ]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_match_or(nd: MatchOr) -> None {
+impl JcirGenPass.exit_match_or with MatchOr exit {
     self.set_out(
-        nd, [self.nod('MatchOr', ['patterns'], [[self.val(x) for x in nd.patterns]])]
+        here,
+        [self.nod('MatchOr', ['patterns'], [[self.val(x) for x in here.patterns]])]
     );
 }
 
-impl JcirGenPass.exit_match_as(nd: MatchAs) -> None {
+impl JcirGenPass.exit_match_as with MatchAs exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'MatchAs',
                 ['name', 'pattern'],
-                [nd.name.sym_name, self.val(nd.pattern) if nd.pattern else None]
+                [here.name.sym_name, self.val(here.pattern) if here.pattern else None]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_match_wild(nd: MatchWild) -> None {
-    self.set_out(nd, [self.nod('MatchAs', [], [])]);
+impl JcirGenPass.exit_match_wild with MatchWild exit {
+    self.set_out(here, [self.nod('MatchAs', [], [])]);
 }
 
-impl JcirGenPass.exit_match_value(nd: MatchValue) -> None {
-    self.set_out(nd, [self.nod('MatchValue', ['value'], [self.val(nd.value)])]);
+impl JcirGenPass.exit_match_value with MatchValue exit {
+    self.set_out(here, [self.nod('MatchValue', ['value'], [self.val(here.value)])]);
 }
 
-impl JcirGenPass.exit_match_singleton(nd: MatchSingleton) -> None {
-    self.set_out(nd, [self.nod('MatchSingleton', ['value'], [nd.value.lit_value])]);
+impl JcirGenPass.exit_match_singleton with MatchSingleton exit {
+    self.set_out(here, [self.nod('MatchSingleton', ['value'], [here.value.lit_value])]);
 }
 
-impl JcirGenPass.exit_match_sequence(nd: MatchSequence) -> None {
+impl JcirGenPass.exit_match_sequence with MatchSequence exit {
     self.set_out(
-        nd,
-        [self.nod('MatchSequence', ['patterns'], [[self.val(x) for x in nd.values]])]
+        here,
+        [self.nod('MatchSequence', ['patterns'], [[self.val(x) for x in here.values]])]
     );
 }
 
-impl JcirGenPass.exit_match_mapping(nd: MatchMapping) -> None {
+impl JcirGenPass.exit_match_mapping with MatchMapping exit {
     map_keys: list[CgNode] = [];
     map_patterns: list[CgNode] = [];
     rest: (str | None) = None;
-    for i in nd.values {
+    for i in here.values {
         if (
             isinstance(i, MatchKVPair)
             and isinstance(i.key, MatchValue)
@@ -5162,7 +5385,7 @@ impl JcirGenPass.exit_match_mapping(nd: MatchMapping) -> None {
         }
     }
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'MatchMapping',
@@ -5173,78 +5396,86 @@ impl JcirGenPass.exit_match_mapping(nd: MatchMapping) -> None {
     );
 }
 
-impl JcirGenPass.exit_match_k_v_pair(nd: MatchKVPair) -> None {
+impl JcirGenPass.exit_match_k_v_pair with MatchKVPair exit {
     ;
 }
 
-impl JcirGenPass.exit_match_star(nd: MatchStar) -> None {
-    self.set_out(nd, [self.nod('MatchStar', ['name'], [nd.name.sym_name])]);
+impl JcirGenPass.exit_match_star with MatchStar exit {
+    self.set_out(here, [self.nod('MatchStar', ['name'], [here.name.sym_name])]);
 }
 
-impl JcirGenPass.exit_match_arch(nd: MatchArch) -> None {
+impl JcirGenPass.exit_match_arch with MatchArch exit {
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'MatchClass',
                 ['cls', 'patterns', 'kwd_attrs', 'kwd_patterns'],
                 [
-                    self.val(nd.name),
-                    [self.val(x) for x in (nd.arg_patterns or [])],
+                    self.val(here.name),
+                    [self.val(x) for x in (here.arg_patterns or [])],
                     [
                         x.key.sym_name
-                        for x in (nd.kw_patterns or [])
+                        for x in (here.kw_patterns or [])
                         if isinstance(x.key, NameAtom)
                     ],
-                    [self.val(x.value) for x in (nd.kw_patterns or [])]
+                    [self.val(x.value) for x in (here.kw_patterns or [])]
                 ]
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_token(nd: Token) -> None {
-    if nd.name in TOKEN_CLS_BY_NAME {
-        self.set_out(nd, [self.nod(TOKEN_CLS_BY_NAME[nd.name], [], [])]);
+impl JcirGenPass.exit_token with Token exit {
+    if here.__class__ is not Token {
+        return;
+    }
+    if here.name in TOKEN_CLS_BY_NAME {
+        self.set_out(here, [self.nod(TOKEN_CLS_BY_NAME[here.name], [], [])]);
     }
 }
 
-impl JcirGenPass.exit_name(nd: Name) -> None {
-    name = nd.sym_name;
-    if self._is_ct_type_param(nd) and nd.expr_ctx == ExprCtx.LOAD {
+impl JcirGenPass.exit_name with Name exit {
+    if here.__class__ is not Name {
+        return;
+    }
+    name = here.sym_name;
+    if self._is_ct_type_param(here) and here.expr_ctx == ExprCtx.LOAD {
         self.set_out(
-            nd,
+            here,
             [
                 self.nod(
                     'Attribute',
                     ['value', 'attr', 'ctx'],
-                    [self.name_load('self', nd), name, self.nod('Load', [], [])],
-                    jac_node=nd
+                    [self.name_load('self', here), name, self.nod('Load', [], [])],
+                    jac_node=here
                 )
             ]
         );
         return;
     }
     if name == "Self" {
-        resolved = self._resolve_self_type(nd);
+        resolved = self._resolve_self_type(here);
         if resolved is not None {
-            self.set_out(nd, [resolved]);
+            self.set_out(here, [resolved]);
             return;
         }
     }
-    name_cv = nd.ct_value;
-    if name_cv is not None and self._ct_concrete(nd) and nd.expr_ctx == ExprCtx.LOAD {
+    name_cv = here.ct_value;
+    if name_cv is not None
+        and self._ct_concrete(here)
+        and here.expr_ctx == ExprCtx.LOAD {
         cv = name_cv.v;
-        if self._is_comptime_only_name(nd)
+        if self._is_comptime_only_name(here)
             or self._ct_kind(cv) in ("scalar", "CtEnumMember") {
-            folded = self._materialize(cv, nd);
+            folded = self._materialize(cv, here);
             if folded is not None {
-                self.set_out(nd, [folded]);
+                self.set_out(here, [folded]);
                 return;
             }
         }
     }
-    if not is_identifier_slot(nd) {
+    if not is_identifier_slot(here) {
         if (name in self._get_builtin_names()) {
             self.builtin_imports.add(name);
         }
@@ -5252,7 +5483,7 @@ impl JcirGenPass.exit_name(nd: Name) -> None {
             self.typing_imports.add(name);
         }
     }
-    self.set_out(nd, [self.nod('Name', ['id', 'ctx'], [name, self.py_ctx(nd)])]);
+    self.set_out(here, [self.nod('Name', ['id', 'ctx'], [name, self.py_ctx(here)])]);
 }
 
 impl JcirGenPass._resolve_self_type(nd: Name) -> (CgNode | None) {
@@ -5349,65 +5580,69 @@ impl JcirGenPass._is_descendant_of(nd: UniNode, ancestor: UniNode) -> bool {
     return False;
 }
 
-impl JcirGenPass.exit_float(nd: Float) -> None {
-    self.set_out(nd, [self.const_of(float(nd.value))]);
+impl JcirGenPass.exit_float with Float exit {
+    self.set_out(here, [self.const_of(float(here.value))]);
 }
 
-impl JcirGenPass.exit_int(nd: Int) -> None {
-    self.set_out(nd, [self.const_of(int(nd.value, 0))]);
+impl JcirGenPass.exit_int with Int exit {
+    self.set_out(here, [self.const_of(int(here.value, 0))]);
 }
 
-impl JcirGenPass.exit_string(nd: String) -> None {
-    self.set_out(nd, [self.const_of(nd.lit_value)]);
+impl JcirGenPass.exit_string with String exit {
+    self.set_out(here, [self.const_of(here.lit_value)]);
 }
 
-impl JcirGenPass.exit_bool(nd: Bool) -> None {
-    self.set_out(nd, [self.const_of(nd.value == 'True')]);
+impl JcirGenPass.exit_bool with Bool exit {
+    self.set_out(here, [self.const_of(here.value == 'True')]);
 }
 
-impl JcirGenPass.exit_builtin_type(nd: BuiltinType) -> None {
-    if nd.sym_name in self._get_builtin_names() {
-        self.builtin_imports.add(nd.sym_name);
+impl JcirGenPass.exit_builtin_type with BuiltinType exit {
+    if here.sym_name in self._get_builtin_names() {
+        self.builtin_imports.add(here.sym_name);
     }
-    if nd.sym_name == "any" {
-        parent = nd.parent;
+    if here.sym_name == "any" {
+        parent = here.parent;
         is_call_func = (
-            parent is not None and isinstance(parent, FuncCall) and parent.target is nd
+            parent is not None
+            and isinstance(parent, FuncCall)
+            and parent.target is here
         );
         if not is_call_func {
             self.typing_imports.add("Any");
             self.set_out(
-                nd, [self.nod('Name', ['id', 'ctx'], ["Any", self.py_ctx(nd)])]
+                here, [self.nod('Name', ['id', 'ctx'], ["Any", self.py_ctx(here)])]
             );
             return;
         }
     }
-    self.set_out(nd, [self.nod('Name', ['id', 'ctx'], [nd.sym_name, self.py_ctx(nd)])]);
+    self.set_out(
+        here, [self.nod('Name', ['id', 'ctx'], [here.sym_name, self.py_ctx(here)])]
+    );
 }
 
-impl JcirGenPass.exit_null(nd: Null) -> None {
-    self.set_out(nd, [self.const_of(None)]);
+impl JcirGenPass.exit_null with Null exit {
+    self.set_out(here, [self.const_of(None)]);
 }
 
-impl JcirGenPass.exit_ellipsis(nd: Ellipsis) -> None {
-    self.set_out(nd, [self.const_of(CgEllipsis())]);
+impl JcirGenPass.exit_ellipsis with Ellipsis exit {
+    self.set_out(here, [self.const_of(CgEllipsis())]);
 }
 
-impl JcirGenPass.exit_jsx_element(nd: JsxElement) -> None {
+impl JcirGenPass.exit_jsx_element with JsxElement exit {
     tag_arg: CgNode;
-    if nd.dynamic_tag is not None {
-        tag_arg = self.val(nd.dynamic_tag);
-    } elif (nd.is_fragment or not nd.name) {
-        tag_arg = self.const_of(None, jac_node=nd);
+    if here.dynamic_tag is not None {
+        tag_arg = self.val(here.dynamic_tag);
+    } elif (here.is_fragment or not here.name) {
+        tag_arg = self.const_of(None, jac_node=here);
     } else {
-        tag_arg = self.val(nd.name);
+        tag_arg = self.val(here.name);
     }
     attrs_expr: CgNode;
-    if not nd.attributes {
-        attrs_expr = self.nod('Dict', ['keys', 'values'], [[], []], jac_node=nd);
-    } elif any(isinstance(attr, JsxSpreadAttribute) for attr in nd.attributes) {
-        attrs_expr = self.nod('Dict', ['keys', 'values'], [[], []], jac_node=nd);
-        for attr in nd.attributes {
+    if not here.attributes {
+        attrs_expr = self.nod('Dict', ['keys', 'values'], [[], []], jac_node=here);
+    } elif any(isinstance(attr, JsxSpreadAttribute) for attr in here.attributes) {
+        attrs_expr = self.nod('Dict', ['keys', 'values'], [[], []], jac_node=here);
+        for attr in here.attributes {
             if isinstance(attr, JsxSpreadAttribute) {
                 attrs_expr = self.nod(
                     'Dict',
@@ -5431,7 +5666,7 @@ impl JcirGenPass.exit_jsx_element(nd: JsxElement) -> None {
     } else {
         dkeys: list = [];
         dvalues: list = [];
-        for attr in nd.attributes {
+        for attr in here.attributes {
             if isinstance(attr, JsxNormalAttribute) {
                 attr_tuple = self.val(attr);
                 dkeys.append(attr_tuple.get('elts')[0]);
@@ -5439,14 +5674,14 @@ impl JcirGenPass.exit_jsx_element(nd: JsxElement) -> None {
             }
         }
         attrs_expr = self.nod(
-            'Dict', ['keys', 'values'], [dkeys, dvalues], jac_node=nd
+            'Dict', ['keys', 'values'], [dkeys, dvalues], jac_node=here
         );
     }
     children_arg: CgNode;
-    if nd.children {
+    if here.children {
         kept_children = [
             c
-            for c in nd.children
+            for c in here.children
             if not isinstance(c, JsxComment)
                 and not (isinstance(c, JsxText) and not c.get_normalized_text())
         ];
@@ -5455,94 +5690,96 @@ impl JcirGenPass.exit_jsx_element(nd: JsxElement) -> None {
             ['elts', 'ctx'],
             [
                 [self.val(c) for c in kept_children],
-                self.nod('Load', [], [], jac_node=nd)
+                self.nod('Load', [], [], jac_node=here)
             ],
-            jac_node=nd
+            jac_node=here
         );
     } else {
         children_arg = self.nod(
             'List',
             ['elts', 'ctx'],
-            [[], self.nod('Load', [], [], jac_node=nd)],
-            jac_node=nd
+            [[], self.nod('Load', [], [], jac_node=here)],
+            jac_node=here
         );
     }
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'Call',
                 ['func', 'args', 'keywords'],
                 [self.jaclib_obj('jsx'), [tag_arg, attrs_expr, children_arg], []],
-                jac_node=nd
+                jac_node=here
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_jsx_element_name(nd: JsxElementName) -> None {
-    name_str = '.'.join(part.value for part in nd.parts);
-    if (nd.parts and nd.parts[0].value[0].isupper()) {
-        self.set_out(nd, [self.name_load(name_str, jac_node=nd)]);
+impl JcirGenPass.exit_jsx_element_name with JsxElementName exit {
+    name_str = '.'.join(part.value for part in here.parts);
+    if (here.parts and here.parts[0].value[0].isupper()) {
+        self.set_out(here, [self.name_load(name_str, jac_node=here)]);
     } else {
-        self.set_out(nd, [self.const_of(name_str, jac_node=nd)]);
+        self.set_out(here, [self.const_of(name_str, jac_node=here)]);
     }
 }
 
-impl JcirGenPass.exit_jsx_spread_attribute(nd: JsxSpreadAttribute) -> None {
-    self.set_out(nd, [self.val(nd.expr)]);
+impl JcirGenPass.exit_jsx_spread_attribute with JsxSpreadAttribute exit {
+    self.set_out(here, [self.val(here.expr)]);
 }
 
-impl JcirGenPass.exit_jsx_normal_attribute(nd: JsxNormalAttribute) -> None {
-    if not nd.name {
-        self.set_out(nd, []);
+impl JcirGenPass.exit_jsx_normal_attribute with JsxNormalAttribute exit {
+    if not here.name {
+        self.set_out(here, []);
         return;
     }
-    key_ast = self.const_of(nd.name.value, jac_node=nd.name);
+    key_ast = self.const_of(here.name.value, jac_node=here.name);
     value_ast: CgNode;
-    if (nd.value and isinstance(nd.value, String)) {
+    if (here.value and isinstance(here.value, String)) {
         import from html { unescape }
-        value_ast = self.const_of(unescape(nd.value.lit_value), jac_node=nd.value);
-    } elif (nd.value and self.outs(nd.value)) {
-        value_ast = self.val(nd.value);
+        value_ast = self.const_of(unescape(here.value.lit_value), jac_node=here.value);
+    } elif (here.value and self.outs(here.value)) {
+        value_ast = self.val(here.value);
     } else {
-        value_ast = self.const_of(True, jac_node=nd);
+        value_ast = self.const_of(True, jac_node=here);
     }
     self.set_out(
-        nd,
+        here,
         [
             self.nod(
                 'Tuple',
                 ['elts', 'ctx'],
-                [[key_ast, value_ast], self.nod('Load', [], [], jac_node=nd)],
-                jac_node=nd
+                [[key_ast, value_ast], self.nod('Load', [], [], jac_node=here)],
+                jac_node=here
             )
         ]
     );
 }
 
-impl JcirGenPass.exit_jsx_text(nd: JsxText) -> None {
+impl JcirGenPass.exit_jsx_text with JsxText exit {
     import from html { unescape }
-    self.set_out(nd, [self.const_of(unescape(nd.get_normalized_text()), jac_node=nd)]);
+    self.set_out(
+        here, [self.const_of(unescape(here.get_normalized_text()), jac_node=here)]
+    );
 }
 
-impl JcirGenPass.exit_jsx_expression(nd: JsxExpression) -> None {
-    self.set_out(nd, [self.val(nd.expr)]);
+impl JcirGenPass.exit_jsx_expression with JsxExpression exit {
+    self.set_out(here, [self.val(here.expr)]);
 }
 
-impl JcirGenPass.exit_jsx_slot(nd: JsxSlot) -> None {
-    self.set_out(nd, [self.const_of(None, jac_node=nd)]);
+impl JcirGenPass.exit_jsx_slot with JsxSlot exit {
+    self.set_out(here, [self.const_of(None, jac_node=here)]);
 }
 
-impl JcirGenPass.exit_jsx_comment(nd: JsxComment) -> None {
-    self.set_out(nd, []);
+impl JcirGenPass.exit_jsx_comment with JsxComment exit {
+    self.set_out(here, []);
 }
 
-impl JcirGenPass.exit_semi(nd: Semi) -> None {
+impl JcirGenPass.exit_semi with Semi exit {
     ;
 }
 
-impl JcirGenPass.exit_comment_token(nd: CommentToken) -> None {
+impl JcirGenPass.exit_comment_token with CommentToken exit {
     ;
 }
 

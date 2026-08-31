@@ -336,6 +336,34 @@ def is_native_by_location(file_path: str) -> bool {
     return ap.startswith(os.path.join(pkg, "runtime", "na_stdlib") + os.sep);
 }
 
+def bundled_stdlib_module_of(file_path: str) -> (str | None) {
+    import os;
+    import jaclang;
+    if not file_path or not jaclang?.__file__ {
+        return None;
+    }
+    ap = os.path.abspath(file_path);
+    pkg = os.path.dirname(os.path.abspath(str(jaclang.__file__)));
+    native_root = os.path.join(pkg, "runtime", "na_stdlib") + os.sep;
+    stub_root = os.path.join(pkg, "vendor", "typeshed", "stdlib") + os.sep;
+    if ap.startswith(native_root) and ap.endswith(".jac") {
+        rel = ap[len(native_root):-len(".jac")];
+        parts = rel.split(os.sep);
+
+        parts[-1] = parts[-1].split(".")[0];
+        return ".".join(parts);
+    }
+    if ap.startswith(stub_root) and ap.endswith(".pyi") {
+        rel = ap[len(stub_root):-len(".pyi")];
+        parts = rel.split(os.sep);
+        if parts[-1] == "__init__" {
+            parts = parts[:-1];
+        }
+        return ".".join(parts) if parts else None;
+    }
+    return None;
+}
+
 glob CLIENT_RUNTIME_SOURCE_PATHS: list[str] = [
          "client/client_runtime.jac",
          "client/client_runtime_core.jac",

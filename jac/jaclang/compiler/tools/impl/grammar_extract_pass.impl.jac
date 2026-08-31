@@ -774,8 +774,8 @@ impl GrammarExtractPass._stage_remove_unreachable(rules: list) -> list {
     return result;
 }
 
-impl GrammarExtractPass.enter_impl_def(nd: uni.ImplDef) -> None {
-    names = self.get_impl_target_names(nd);
+impl GrammarExtractPass.enter_impl_def with uni.ImplDef entry {
+    names = self.get_impl_target_names(here);
     if len(names) < 2 {
         return;
     }
@@ -784,21 +784,21 @@ impl GrammarExtractPass.enter_impl_def(nd: uni.ImplDef) -> None {
     if class_name != self.target_class {
         return;
     }
-    body = nd.body;
+    body = here.body;
     if not isinstance(body, list) and not isinstance(body, tuple) {
         return;
     }
     self._helper_bodies[method_name] = list(body);
     if not method_name.startswith("parse_") {
-        self.prune();
+        osp_skip_rest();
         return;
     }
     rule_name = method_name[6:];
-    if self._returns_none(nd) {
+    if self._returns_none(here) {
         self._none_returning[rule_name] = True;
     }
     self._parse_impls.append((rule_name, list(body)));
-    self.prune();
+    osp_skip_rest();
 }
 
 impl GrammarExtractPass.get_impl_target_names(nd: uni.ImplDef) -> list {
