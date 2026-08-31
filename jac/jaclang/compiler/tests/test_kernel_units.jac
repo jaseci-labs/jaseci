@@ -135,8 +135,36 @@ test "storing bytes already at an artifact key leaves the file untouched" {
 test "client kernel JS is deterministic and the rebuild is a warm artifact read" {
     _rtjs._OSP_CORE_JS_CACHE.clear();
     js1 = _rtjs.build_osp_core_js();
-    assert "osp_conn" in js1 , "kernel JS lost the graph store";
-    assert "osp_spawn" in js1 , "kernel JS lost the walk engine";
+    driver_names = [
+        "osp_conn",
+        "osp_conn_many",
+        "osp_refs",
+        "osp_refs_many",
+        "osp_refs_edge_pred",
+        "osp_wrap1",
+        "osp_destroy",
+        "osp_is_dead",
+        "osp_disconn_between",
+        "osp_disconn_between_many",
+        "osp_disconn_between_pred",
+        "osp_edge_peer",
+        "osp_spawn",
+        "osp_visit",
+        "osp_report",
+        "osp_disengage",
+        "osp_forget",
+        "osp_register_type",
+        "osp_register_desc",
+        "osp_node_desc",
+        "osp_is_a",
+        "WalkerDesc",
+        "NodeDesc",
+        "Slot",
+        "OspRuntime"
+    ];
+    for nm in driver_names {
+        assert nm in js1 , f"kernel JS lost the driver-referenced name {nm}";
+    }
     art = _sole_artifact(osp_core_unit_path('cl'), "mjs");
     mtime1 = os.path.getmtime(art);
     _rtjs._OSP_CORE_JS_CACHE.clear();
