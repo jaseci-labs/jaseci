@@ -13,9 +13,48 @@ import from jaclang.scale.runtime.routing {
     resolve_service_files
 }
 
+glob DELEGATED_ENV: str = "JAC_SCALE_PINNED_DEPLOY";
+
+
+def pinned_deploy_argv(
+    jac_bin: str, filename: str, target: str, enable_tls: bool = False
+) -> list[str] {
+    argv = [jac_bin, "scale", "deploy", filename, "--target", target];
+    if enable_tls {
+        argv.append("--enable-tls");
+    }
+    return argv;
+}
+
 
 obj KubernetesRealizer {
     has ms_config: dict[str, any];
+
+    def _deploy_on_pinned_jac(
+        filename: str, target: str, enable_tls: bool, dry_run: bool
+    ) -> (int | None) {
+        import subprocess;
+        import from jaclang.scale.injector.binary { host_toolchain_path }
+        import from jaclang.scale.injector.bundle { release_binary_env }
+        if dry_run or os.environ.get(DELEGATED_ENV) == "1" {
+            return None;
+        }
+        pinned = host_toolchain_path(os.path.dirname(filename) or ".");
+        if not pinned {
+            return None;
+        }
+        console.print(
+            "This app pins a jac release other than the one running here. "
+            f"Running the whole deploy on it, so the manifests and the "
+            f"database match the pod ({pinned}).",
+            style="cyan"
+        );
+        env = release_binary_env();
+        env[DELEGATED_ENV] = "1";
+        return subprocess.run(
+            pinned_deploy_argv(pinned, filename, target, enable_tls), env=env
+        ).returncode;
+    }
 
     def realize(
         filename: str,
@@ -57,6 +96,10 @@ obj KubernetesRealizer {
         }
         if not os.path.exists(filename) {
             raise FileNotFoundError(f"File not found: '{filename}'");
+        }
+        delegated = self._deploy_on_pinned_jac(filename, target, enable_tls, dry_run);
+        if delegated is not None {
+            return delegated;
         }
         code_folder = os.path.dirname(filename) or '.';
         load_project_env(code_folder);

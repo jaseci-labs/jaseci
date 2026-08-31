@@ -1,3 +1,4 @@
+import os;
 import json;
 import tempfile;
 import unittest.mock;
@@ -9,6 +10,11 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 import from jaclang.scale.deploy.target.kubernetes.target { KubernetesTarget }
+import from jaclang.scale.runtime.realizer.kubernetes_realizer {
+    DELEGATED_ENV,
+    KubernetesRealizer,
+    pinned_deploy_argv
+}
 import from jaclang.project.config { JacConfig }
 import from pathlib { Path }
 
@@ -406,4 +412,30 @@ test "a cross-generation deploy is refused before the cluster is contacted" {
     );
     assert result.success is False , "a cross-generation deploy must not proceed";
     assert resolve_cli_version().strip() in result.message;
+}
+
+
+test "the pinned jac is handed the same deploy, and cannot delegate again" {
+    # A dropped flag silently changes what the child does, and a child that
+    # delegates again forks forever, so both are pinned here.
+    assert pinned_deploy_argv("/jac", "app.jac", "kubernetes")
+        == ["/jac", "scale", "deploy", "app.jac", "--target", "kubernetes"];
+    assert pinned_deploy_argv("/jac", "a.jac", "aws", True)[-1] == "--enable-tls";
+
+    app = _project('[project]\nname = "x"\njac-version = "==0.1.0"\n') + "/main.jac";
+    r = KubernetesRealizer(ms_config={});
+    prior = os.environ.get(DELEGATED_ENV);
+    os.environ[DELEGATED_ENV] = "1";
+    try {
+        with unittest.mock.patch.object(binary_mod, "_http_get_bytes") as mock_http {
+            assert r._deploy_on_pinned_jac(app, "kubernetes", False, False) is None;
+            mock_http.assert_not_called();
+        }
+    } finally {
+        if prior is None {
+            os.environ.pop(DELEGATED_ENV, None);
+        } else {
+            os.environ[DELEGATED_ENV] = prior;
+        }
+    }
 }

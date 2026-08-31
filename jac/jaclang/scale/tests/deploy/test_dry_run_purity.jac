@@ -301,3 +301,23 @@ test "resolving the pod base image for a dry run makes no network probe" {
         assert image == "jaseci/jaclang:latest";
     }
 }
+
+
+test "--dry-run never hands the deploy to the pinned jac" {
+    # Delegating fetches the pinned release before it can run it, and --dry-run
+    # promises no downloads, so the plan stays on the local jac even when the
+    # app pins another line.
+    with tempfile.TemporaryDirectory() as tmpdir {
+        app = _write_app(tmpdir);
+        with open(os.path.join(tmpdir, "jac.toml"), "w") as f {
+            f.write('[project]\nname = "x"\njac-version = "==0.1.0"\n');
+        }
+        with unittest.mock.patch(
+            "jaclang.scale.injector.binary._http_get_bytes"
+        ) as mock_http {
+            r = KubernetesRealizer(ms_config={"enabled": True});
+            assert r._deploy_on_pinned_jac(app, "kubernetes", False, True) is None;
+            mock_http.assert_not_called();
+        }
+    }
+}
