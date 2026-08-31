@@ -393,7 +393,8 @@ assumed away.
    boundary at all, and stays.
 5. **`__jac_dirty_fields__`-adjacent emissions.** Verified: `pyast_gen`
    emits nothing dirty-field-related; that tracking lives at runtime in
-   `Archetype.__setattr__`. The adjacent codegen behaviors are the
+   the `track_writes` hook installed when an anchor becomes persistent.
+   The adjacent codegen behaviors are the
    `field()` wrappers (note 2) and `__jac_async__` class markers, both
    ordinary IR emission. Nothing crosses.
 6. **Module docstrings.** `nd.doc` becomes the first `Expr(Constant)`

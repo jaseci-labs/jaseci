@@ -28,7 +28,6 @@ comptime import from jaclang.cli.commands.project {
 comptime import from jaclang.cli.commands.tools {
     SPEC_COMPLETIONS,
     SPEC_DOT,
-    SPEC_GEN_UNI_DISPATCH,
     SPEC_LSP,
     SPEC_TOOL
 }
@@ -108,7 +107,6 @@ comptime ROUTES: list[CommandSpec] = [
          _route(SPEC_FIX),
          _route(SPEC_FORMAT),
          _route(SPEC_GEN_PARSER),
-         _route(SPEC_GEN_UNI_DISPATCH),
          _route(SPEC_GUIDE),
          _route(SPEC_INSTALL),
          _route(SPEC_LSP),

@@ -120,14 +120,6 @@ obj CodeLocInfo {
         self.last_tok = last_tok;
     }
 
-    def update_first_token(first_tok: Token) {
-        self.first_tok = first_tok;
-    }
-
-    def update_last_token(last_tok: Token) {
-        self.last_tok = last_tok;
-    }
-
     def __str__ -> str {
         return f"{self.first_line}:{self.col_start} - {self.last_line}:{self.col_end}";
     }

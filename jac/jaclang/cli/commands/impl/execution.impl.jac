@@ -590,9 +590,16 @@ def _exec_file(
                 _cfg_kind is not None
                 and (_cfg_kind.project.kind or '').strip() == 'cli-native'
             );
+            import from jaclang.compiler.driver.boundary_classify {
+                module_demoted_native as _na_demoted
+            }
             if (
                 _kind_forced
-                or (_default_codespace_is_native() and sys.stdout is sys.__stdout__)
+                or (
+                    _default_codespace_is_native()
+                    and sys.stdout is sys.__stdout__
+                    and not _na_demoted(filename)
+                )
             ) {
                 import ctypes;
                 import from jaclang.compiler.driver.compile_options {
@@ -1101,6 +1108,16 @@ def _start_vite_dev_server(base_path: str, vite_port: int, api_port: int) -> any
 
         if not (client_dir / 'configs' / 'package.json').exists() {
             bundler.create_package_json();
+        }
+
+        try {
+            import from jaclang.server.hmr { HotReloader }
+            reloader = HotReloader._active;
+            if reloader is not None {
+                reloader.attach_client_bundler(bundler);
+            }
+        } except Exception as e {
+            console.warning(f"Client error events will not reach the terminal: {e}");
         }
 
         process = bundler.start_dev_server(vite_port, suppress_initial_output=True);
