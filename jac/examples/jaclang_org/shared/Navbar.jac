@@ -25,7 +25,7 @@ def:pub Navbar -> JsxElement {
     useEffect(
         lambda {
             _ = freshen_installer();
-            return lambda { };
+            return lambda {};
         },
         []
     );

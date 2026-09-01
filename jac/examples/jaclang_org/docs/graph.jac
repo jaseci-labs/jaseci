@@ -125,7 +125,7 @@ walker trace_route {
 
     can name_page with DocPage entry;
     can climb_dir with DocDir entry;
-    can arrive with DocVersion entry { }
+    can arrive with DocVersion entry {}
 }
 
 def _route_up(target: object) -> str;

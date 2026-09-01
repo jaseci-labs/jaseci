@@ -26,11 +26,11 @@ def:pub FloatingSource(
         lambda {
             if always_float {
                 size_anim = True;
-                return lambda { };
+                return lambda {};
             }
             target = anchorRef.current;
             if not target {
-                return lambda { };
+                return lambda {};
             }
             obs: any = new(
                 IntersectionObserver,  # jac:ignore[E1053]

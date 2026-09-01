@@ -12,7 +12,7 @@ def:pub Reveal(
             target = el.current;
             if not target {
                 shown = True;
-                return lambda { };
+                return lambda {};
             }
             obs: any = new(
                 IntersectionObserver,  # jac:ignore[E1053]

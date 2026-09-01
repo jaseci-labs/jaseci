@@ -208,16 +208,16 @@ def _flush(sh: any) -> None {
 
 def _build_env(sh: any) -> dict {
     return {
-        "InitWindow": lambda (w: int, h: int, t: int) { },
+        "InitWindow": lambda (w: int, h: int, t: int) {},
         "WindowShouldClose": lambda { return 0; },
-        "CloseWindow": lambda { },
-        "SetTargetFPS": lambda (f: int) { },
+        "CloseWindow": lambda {},
+        "SetTargetFPS": lambda (f: int) {},
         "BeginDrawing": lambda { sh.gl.viewport(0, 0, 960, 600); },
-        "EndDrawing": lambda { },
+        "EndDrawing": lambda {},
         "EndMode3D": lambda { _flush(sh); },
         "GetFrameTime": lambda { return sh.dt; },
         "GetTime": lambda { return sh.time; },
-        "DrawFPS": lambda (x: int, y: int) { },
+        "DrawFPS": lambda (x: int, y: int) {},
         "IsKeyDown": lambda (k: int) { return sh.keys.get(k, 0); },
         "IsKeyPressed": lambda (k: int) { return sh.pressed.get(k, 0); },
         "GetMouseX": lambda { return sh.mouseX; },

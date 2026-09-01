@@ -100,7 +100,7 @@ def:pub CarouselDots(props: any) -> JsxElement {
     useEffect(
         lambda {
             if not api {
-                return lambda { };
+                return lambda {};
             }
             update = lambda (_a: any) {
                 count = len(api.scrollSnapList());

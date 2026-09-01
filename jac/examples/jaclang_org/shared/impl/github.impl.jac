@@ -37,7 +37,7 @@ impl fetch(
             if e.code < 500 {
                 return None;
             }
-        } except Exception { }
+        } except Exception {}
     }
     return None;
 }
@@ -132,7 +132,7 @@ impl download_tarball(
             if e.code < 500 {
                 return None;
             }
-        } except Exception { }
+        } except Exception {}
     }
     return None;
 }
