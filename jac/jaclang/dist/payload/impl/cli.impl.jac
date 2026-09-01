@@ -23,10 +23,6 @@ impl main(argv: list[str]) -> int {
         sys.stderr.flush();
         return 1;
     }
-
-    sys.stdout.flush();
-    sys.stderr.flush();
-    os._exit(0);
     return 0;
 }
 
