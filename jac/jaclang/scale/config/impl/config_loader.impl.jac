@@ -105,10 +105,10 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
             'k8s_metrics_enabled': True
         },
         'admin': {
-            'enabled': True,
+            'enabled': False,
             'username': 'admin',
             'email': 'admin@localhost',
-            'default_password': 'changeme',
+            'default_password': None,
             'session_expiry_hours': 24,
             'require_password_reset': True
         },
@@ -645,11 +645,24 @@ impl normalize_microservices_config(
 impl JacScaleConfig.get_admin_config(self: JacScaleConfig) -> dict[str, any] {
     config = self.load();
     admin_config = config.get('admin', {});
+
+    enabled: bool = bool(admin_config.get('enabled', False));
+    enabled_env: str | None = os.environ.get('JAC_ADMIN_ENABLED');
+    if enabled_env {
+        enabled = enabled_env.lower() in ("true", "1", "yes");
+    }
+
+    password: str | None = admin_config.get('default_password', None);
+    password_env: str | None = os.environ.get('JAC_ADMIN_PASSWORD');
+    if password_env {
+        password = password_env;
+    }
+
     return {
-        'enabled': admin_config.get('enabled', True),
+        'enabled': enabled,
         'username': admin_config.get('username', 'admin'),
         'email': admin_config.get('email', 'admin@localhost'),
-        'default_password': admin_config.get('default_password', 'changeme'),
+        'default_password': password,
         'session_expiry_hours': int(admin_config.get('session_expiry_hours', 24)),
         'require_password_reset': admin_config.get('require_password_reset', True)
     };

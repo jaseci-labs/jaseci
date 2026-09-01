@@ -121,6 +121,43 @@ test "admin list users requires auth" {
     }
 }
 
+test "bootstrap token cannot reach admin endpoints before the password reset" {
+    client = make_client();
+    try {
+        response = client.post(
+            "/admin/login",
+            json={"username": "admin", "password": DEFAULT_ADMIN_PASSWORD}
+        );
+        assert response.status_code == 200;
+        data = extract_data(response.json());
+        assert data.get("requires_password_reset") is True;
+        token = data["token"];
+
+        blocked = client.get(
+            "/admin/users", headers={"Authorization": f"Bearer {token}"}
+        );
+        assert blocked.status_code == 403;
+
+        reset = client.post(
+            "/admin/reset-password",
+            json={
+                "current_password": DEFAULT_ADMIN_PASSWORD,
+                "new_password": "TestAdmin123!"
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        );
+        assert reset.status_code == 200;
+        rotated = extract_data(reset.json())["token"];
+
+        allowed = client.get(
+            "/admin/users", headers={"Authorization": f"Bearer {rotated}"}
+        );
+        assert allowed.status_code == 200;
+    } finally {
+        client.close();
+    }
+}
+
 test "admin create user" {
     client = make_client();
     try {
