@@ -1070,9 +1070,6 @@ impl NaIRGenRefcount._emit_str_desc_helpers -> None {
     if self.str_len_fn is None {
         self._emit_str_len_helpers();
     }
-    if self.str_len_raw_fn is None {
-        self._emit_str_len_raw_helper();
-    }
     i8 = ir.IntType(8);
     i8p = i8.as_pointer();
     i32 = ir.IntType(32);
@@ -1083,15 +1080,13 @@ impl NaIRGenRefcount._emit_str_desc_helpers -> None {
     _di = _dfields.index("data");
     _li = _dfields.index("len");
     _z = ir.Constant(i32, 0);
-    for (fname, len_fn) in (
-        ("__jac_str_wrap", self.str_len_fn),
-        ("__jac_str_wrap_raw", self.str_len_raw_fn)
-    ) {
+
+    for fname in ("__jac_str_wrap", "__jac_str_wrap_raw") {
         wf = self._define_function(fname, ir.FunctionType(desc, [i8p]));
         wf.linkage = "private";
         wf.args[0].name = "s";
         wb = ir.IRBuilder(wf.append_basic_block("entry"));
-        wlen = wb.call(len_fn, [wf.args[0]], name="w.len");
+        wlen = wb.call(self.str_len_fn, [wf.args[0]], name="w.len");
         slot = wb.alloca(desc, name="w.slot");
         if not _hl {
             wb.store(
