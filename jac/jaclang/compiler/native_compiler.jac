@@ -48,7 +48,7 @@ def _enum_table(cls: any) -> (dict | None) {
     if not (isinstance(cls, `type) and issubclass(cls, _enum.Enum)) {
         return None;
     }
-    members = `list(cls);
+    members: list = `list(cls);
     if not members {
         return None;
     }
@@ -166,7 +166,8 @@ class NativeCompiler {
     def _register_fields(self: NativeCompiler, name: str, cls: any, tag: int) {
         info = self.layout[name];
         anns = self._field_annotations(cls);
-        for (fname, f) in info["fields"].items() {
+        fields: dict[str, dict[str, any]] = info["fields"];
+        for (fname, f) in fields.items() {
             if fname.startswith("__") and not fname.endswith("__") {
                 continue;
             }
@@ -176,7 +177,7 @@ class NativeCompiler {
             }
             code = f["code"];
             off = f["offset"];
-            aux = f.get("aux", "");
+            aux = str(f.get("aux", ""));
             nat_code = 0;
             aux_tag = 0;
             enum_h = 0;
@@ -275,7 +276,7 @@ class NativeCompiler {
                     kind = 0;
                 }
             }
-            self.lib.jc_reg_default(tag, self._intern(f.name), kind);
+            self.lib.jc_reg_default(tag, self._intern(str(f.name)), kind);
         }
     }
 
