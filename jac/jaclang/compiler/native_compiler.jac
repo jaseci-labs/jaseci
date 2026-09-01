@@ -82,8 +82,20 @@ class NativeCompiler {
         }
         self._keep = [];
         self.classes = {};
+        self._finishes = 0;
+        # Teardown policy for per-parse kernel state. The parse tree is
+        # cyclic in native RC terms (token/loc pairs, ctx-parent chains),
+        # so a wipe alone recovers only part of it and the decref churn
+        # feeds the threshold collector mid-parse. Until the parse gets a
+        # region arena, "leak" (the reference branch's behavior) keeps
+        # parses flat and lets memory ride for the life of the process;
+        # "collect" trades throughput for partial reclamation.
+        self.teardown = os.environ.get("JAC_COMPILER_TEARDOWN", "collect");
         self._bind();
         self._register();
+        if self.teardown == "leak" {
+            self.lib.jc_set_wipe(0);
+        }
     }
 
     def _bind(self: NativeCompiler) {
@@ -125,6 +137,8 @@ class NativeCompiler {
         L.jc_reg_edge.restype = c_int64;
         L.jc_reg_hint_tags.argtypes = [c_int64] * 2;
         L.jc_reg_hint_tags.restype = c_int64;
+        L.jc_set_wipe.argtypes = [c_int64];
+        L.jc_set_wipe.restype = c_int64;
     }
 
     def _hold(self: NativeCompiler, o: any) -> int {
@@ -395,7 +409,14 @@ class NativeCompiler {
     }
 
     def finish(self: NativeCompiler) -> any {
-        return self._take(self.lib.jc_finish());
+        out = self._take(self.lib.jc_finish());
+        self._finishes += 1;
+        if self.teardown != "leak" and self._finishes % 4 == 0 {
+            try {
+                self.lib.jac_gc_cycles();
+            } except AttributeError { }
+        }
+        return out;
     }
 
     def diags(self: NativeCompiler) -> list {

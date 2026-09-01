@@ -44,9 +44,21 @@ def:pub jc_probe -> int {
     return 44061;
 }
 
+glob _WIPE: list[int] = [1];
+
+def:pub jc_set_wipe(v: int) -> int {
+    if _WIPE {
+        _WIPE.pop();
+    }
+    _WIPE.append(v);
+    return 0;
+}
+
 def:pub jc_parse(src: str, path: str) -> int {
     _JC.mod = None;
-    jc_graph_wipe();
+    if _WIPE[0] != 0 {
+        jc_graph_wipe();
+    }
     (mod, p_errs, p_diags, comments, lex_diags, lex_errs) = parse_program(src, path);
     _JC.mod = mod;
     _JC.p_errs = p_errs;
@@ -89,26 +101,9 @@ def:pub jc_finish -> int {
     }
     jc_mz_dispose();
     _JC.mod = None;
-    jc_graph_wipe();
-    return out;
-}
-
-def:pub jc_finish_probe(mode: int) -> int {
-    mod = _JC.mod;
-    if mod is None {
-        return 0;
+    if _WIPE[0] != 0 {
+        jc_graph_wipe();
     }
-    out = 0;
-    if mode == 2 {
-        out = jc_mz_obj(id(mod), 0);
-    } else {
-        out = jc_mz_run(id(mod));
-        if mode == 0 and out != 0 {
-            _apply_shapes(mod);
-        }
-    }
-    jc_mz_dispose();
-    _JC.mod = None;
     return out;
 }
 
