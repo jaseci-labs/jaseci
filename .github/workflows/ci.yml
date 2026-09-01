@@ -411,6 +411,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     env:
+      JAC_TEST_JOBS: "2"
       JAC_NO_DEV_SOURCE: "1"
     strategy:
       fail-fast: false
@@ -453,6 +454,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     env:
+      JAC_TEST_JOBS: "2"
       JAC_NO_DEV_SOURCE: "1"
     steps:
       - uses: actions/checkout@v5
