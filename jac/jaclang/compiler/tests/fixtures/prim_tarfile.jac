@@ -53,11 +53,11 @@ def _extract(payload_path: str, dest: str) -> int {
 }
 
 
-def tarfile_extract_py() -> int {
+def tarfile_extract_py -> int {
     return _extract(_env("JAC_TARFILE_PAYLOAD"), _env("JAC_TARFILE_DEST_PY"));
 }
 
 
-def tarfile_extract_na() -> int {
+def tarfile_extract_na -> int {
     return _extract(_env("JAC_TARFILE_PAYLOAD"), _env("JAC_TARFILE_DEST_NA"));
 }

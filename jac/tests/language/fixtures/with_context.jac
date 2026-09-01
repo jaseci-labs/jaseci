@@ -22,8 +22,9 @@ impl init{
     print("init");
 }
 
+glob fruits = ["apple", "banana", "cherry"],
+     nums = [1, 2, 3, 4, 5, 6];
+
 with entry {
-    fruits = ["apple", "banana", "cherry"];
-    nums = [1, 2, 3, 4, 5, 6];
     print({fruit: nums[0:3] for (i, fruit) in enumerate(fruits)});
 }

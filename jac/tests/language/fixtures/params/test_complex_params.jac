@@ -9,10 +9,12 @@ def ultimate_signature(
     kw_opt: int = 100,
     **kwargs: any
 ) -> str {
-    return f"{pos_only}|{pos_def}|{reg_def}|{len(args)}|{kw_req}|{kw_opt}|{len(kwargs)}";
+    return f"{pos_only}|{pos_def}|{reg_def}|{len(args)}|{kw_req}|{kw_opt}|{len(
+        kwargs
+    )}";
 }
 
-def separators_only( / , * , x: int)  -> int {
+def separators_only(/, *, x: int) -> int {
     return x;
 }
 
@@ -43,7 +45,15 @@ with entry {
     print(
         "ULTIMATE_FULL:",
         ultimate_signature(
-            1, "custom", _as_any(3.14), False, 10, 20, kw_req="req", kw_opt=200, extra="data"
+            1,
+            "custom",
+            _as_any(3.14),
+            False,
+            10,
+            20,
+            kw_req="req",
+            kw_opt=200,
+            extra="data"
         )
     );
     print("SEPARATORS:", separators_only(x=42));

@@ -10,7 +10,7 @@ and that various archetype features work correctly with Self.
 
 """class def that doesn't use Self should still compile fine."""
 obj NoSelfUsage {
-    class def greeting() -> str {
+    class def greeting -> str {
         return "hello";
     }
 }
@@ -51,16 +51,16 @@ obj Outer {
     obj Inner {
         has b: int = 2;
 
-        class def make() -> Self {
+        class def make -> Self {
             return Self(b=10);
         }
 
-        def get_b() -> int {
+        def get_b -> int {
             return self.b;
         }
     }
 
-    class def make() -> Self {
+    class def make -> Self {
         return Self(a=20);
     }
 }
@@ -116,7 +116,7 @@ obj ListNode {
         return head;
     }
 
-    def to_list() -> list[int] {
+    def to_list -> list[int] {
         result: list[int] = [self.value];
         cur = self.next_node;
         while cur is not None {
@@ -156,9 +156,9 @@ obj TypeChecker {
 with entry:__main__ {
     tc = TypeChecker(data=42);
     tc2 = TypeChecker(data="hello");
-    print(f"E8.1: {tc.is_same_type(tc2)}");   # True
-    print(f"E8.2: {tc.is_same_type('nope')}"); # False
-    print(f"E8.3: {TypeChecker.check(tc)}");   # True
+    print(f"E8.1: {tc.is_same_type(tc2)}");  # True
+    print(f"E8.2: {tc.is_same_type('nope')}");  # False
+    print(f"E8.3: {TypeChecker.check(tc)}");  # True
     print(f"E8.4: {TypeChecker.check(123)}");  # False
 }
 
@@ -180,7 +180,7 @@ obj MixedMethods {
         return Self(x=x);
     }
 
-    def get_x() -> int {
+    def get_x -> int {
         return self.x;
     }
 }
@@ -199,7 +199,7 @@ with entry:__main__ {
 obj BaseFactory {
     has label: str = "base";
 
-    class def create() -> Self {
+    class def create -> Self {
         return Self();
     }
 }
@@ -207,7 +207,7 @@ obj BaseFactory {
 obj ChildFactory(BaseFactory) {
     has label: str = "child";
 
-    override class def create() -> Self {
+    override class def create -> Self {
         inst = Self();
         inst.label = "custom_child";
         return inst;

@@ -47,7 +47,7 @@ def _unopt(v: (int | None)) -> int {
 }
 
 
-def zstd_py() -> dict {
+def zstd_py -> dict {
     data = b"the quick brown fox jumps over the lazy dog. " * 400;
     c3 = compress(data, 3);
     c1 = compress(data, 1);
@@ -112,7 +112,7 @@ def zstd_py() -> dict {
 }
 
 
-def zstd_cl() -> dict {
+def zstd_cl -> dict {
     return {};
 }
 
@@ -129,7 +129,7 @@ def _digest_na(data: bytes) -> int {
 }
 
 
-def zstd_na() -> dict[str, any] {
+def zstd_na -> dict[str, any] {
     data = b"the quick brown fox jumps over the lazy dog. " * 400;
     c3 = compress(data, 3);
     c1 = compress(data, 1);

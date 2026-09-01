@@ -41,13 +41,17 @@ glob
 
 with entry {
     attribute_button = <button id="submit" disabled/>;
-    attr_with_expr = <div id={name} data-age={age}>User Info</div>;
+}
+glob attr_with_expr = <div id={name} data-age={age}>User Info</div>,
+     # Expressions embedded in JSX
+     greeting = <h1>{"Hello " + name + "!"}</h1>;
 
-    # Expressions embedded in JSX
-    greeting = <h1>{"Hello " + name + "!"}</h1>;
+with entry {
     button = <button id={name} count={count}>{"Click"}</button>;
-    computed = <div>{count + 10}</div>;
+}
+glob computed = <div>{count + 10}</div>;
 
+with entry {
     # Nested elements and layout
     card = <div>
         <h1>{"Title"}</h1>
@@ -97,4 +101,5 @@ glob layout = <div>
 with entry {
     spread_button = <button {...props} {...extraProps}>{"Click"}</button>;
 }
+
 glob spread_input = <input type="text" {...props} disabled/>;

@@ -1,5 +1,5 @@
 # Test failing positional-only parameter cases
-def strict_posonly( a: int , b: str , /)  -> str {
+def strict_posonly(a: int, b: str, /) -> str {
     return f"{a}: {b}";
 }
 
@@ -17,7 +17,7 @@ def edge_case_posonly(/, x: int) -> int {
     return x;
 }
 
-def no_regular_params( a: int , / , * , b: str)  -> str {
+def no_regular_params(a: int, /, *, b: str) -> str {
     return f"{a}: {b}";
 }
 

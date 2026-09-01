@@ -12,12 +12,11 @@ import from jaclang.byllm.types { StreamEvent }
 glob llm: MockLLM = MockLLM(
          model_name="mockllm",
          config={"outputs": ['{"schema_object_wrapper": ["GreenNode"]}']}
-     );
-
-glob streamed_chunks: list = [];
+     ),
+     streamed_chunks: list = [];
 
 """Collect the routing call's streamed tokens, the way the UI firehose does."""
-def route_sink(ev: StreamEvent) -> None {
+def route_sink(ev: StreamEvent) {
     if ev.event_type == "chunk" {
         streamed_chunks.append(str(ev.data.get("content", "")));
     }

@@ -26,9 +26,9 @@ with entry {
 
     # A production checker should flag these assignments rather than
     # silently accepting them.
-    bad1: int = unknown_val;        # Should warn/error: Unknown -> int
-    bad2: str = unknown_val;        # Should warn/error: Unknown -> str
+    bad1: int = unknown_val;  # Should warn/error: Unknown -> int
+    bad2: str = unknown_val;  # Should warn/error: Unknown -> str
     bad3: list[int] = unknown_val;  # Should warn/error: Unknown -> list
-    bad4: bool = unknown_val;       # Should warn/error: Unknown -> bool
-    bad5: float = unknown_val;      # Should warn/error: Unknown -> float
+    bad4: bool = unknown_val;  # Should warn/error: Unknown -> bool
+    bad5: float = unknown_val;  # Should warn/error: Unknown -> float
 }

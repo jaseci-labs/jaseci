@@ -35,7 +35,7 @@ with entry {
     unknown_val = UnBox()[0];
 
     # Passing Unknown to typed parameters should not pass silently
-    process_int(unknown_val);      # Error: Unknown -> int param
-    process_str(unknown_val);      # Error: Unknown -> str param
-    process_list(unknown_val);     # Error: Unknown -> list[int] param
+    process_int(unknown_val);  # Error: Unknown -> int param
+    process_str(unknown_val);  # Error: Unknown -> str param
+    process_list(unknown_val);  # Error: Unknown -> list[int] param
 }

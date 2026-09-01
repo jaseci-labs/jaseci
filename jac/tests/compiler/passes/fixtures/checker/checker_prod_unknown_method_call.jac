@@ -23,10 +23,10 @@ with entry {
     unknown_val = UnBox()[0];
 
     # Calling arbitrary methods on Unknown should NOT pass silently.
-    unknown_val.nonexistent();       # Error: no such method
-    unknown_val.strip();             # Error: Unknown has no .strip
-    unknown_val.append(1);           # Error: Unknown has no .append
+    unknown_val.nonexistent();  # Error: no such method
+    unknown_val.strip();  # Error: Unknown has no .strip
+    unknown_val.append(1);  # Error: Unknown has no .append
 
     # Indexing Unknown should also not pass
-    val = unknown_val[0];            # Error: Unknown not subscriptable
+    val = unknown_val[0];  # Error: Unknown not subscriptable
 }
