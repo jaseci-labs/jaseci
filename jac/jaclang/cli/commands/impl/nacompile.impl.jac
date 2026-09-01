@@ -204,6 +204,36 @@ def _inject_entry_pe(llvm_ir_str: str) -> str {
 }
 
 
+def _finalize_native_ir(
+    llvm_ir_str: str,
+    triple: str,
+    clib_paths: list[str],
+    manifest: any,
+    shared: bool,
+    is_windows: bool,
+    is_macos: bool,
+    static_musl: bool
+) -> tuple[str, list[str]] {
+    import from jaclang.compiler.backends.native.shared_emit {
+        aarch64_floor_atomics_ir,
+        inject_shared_init
+    }
+    extra_exports: list[str] = [];
+    if shared {
+        (llvm_ir_str, extra_exports) = inject_shared_init(llvm_ir_str, manifest);
+    } elif is_windows {
+        llvm_ir_str = _inject_entry_pe(llvm_ir_str);
+    } elif is_macos {
+        llvm_ir_str = _inject_entry_macho(llvm_ir_str);
+    } elif static_musl {
+        llvm_ir_str = _inject_entry_elf_static(llvm_ir_str);
+    } else {
+        llvm_ir_str = _inject_entry_elf(llvm_ir_str, triple);
+    }
+    return (llvm_ir_str + aarch64_floor_atomics_ir(triple, clib_paths), extra_exports);
+}
+
+
 impl nacompile(
     filename: str,
     output: str = "",
@@ -467,8 +497,8 @@ impl nacompile(
     console.print("  LLVM IR generated successfully.");
 
     import jaclang.compiler.backends.native.llvm.binding as llvm;
-    llvm.initialize_all_targets();
-    llvm.initialize_all_asmprinters();
+    import from jaclang.compiler.backends.native.shared_emit { init_object_codegen }
+    init_object_codegen();
 
     triple = (options.native_target or "") or str(llvm.get_default_triple());
     console.print(f"  Target: {triple}");
@@ -522,12 +552,17 @@ impl nacompile(
     _is_linux_exec = (not shared) and (not is_windows) and (not is_macos);
     _static_musl = _is_linux_exec and (len(needed_libs) == 0);
 
+    (llvm_ir_str, _extra_exports) = _finalize_native_ir(
+        llvm_ir_str,
+        triple,
+        clib_paths or [],
+        ir_module.gen.interop_manifest,
+        shared,
+        is_windows,
+        is_macos,
+        _static_musl
+    );
     if shared {
-        _mf = ir_module.gen.interop_manifest;
-        import from jaclang.compiler.backends.native.shared_emit {
-            inject_shared_init as _inject_shared_init
-        }
-        (llvm_ir_str, _extra_exports) = _inject_shared_init(llvm_ir_str, _mf);
         init_funcs = ["__jac_shared_init"];
         for _s in ir_module.gen._exported_symbols {
             if _s not in export_symbols {
@@ -550,14 +585,6 @@ impl nacompile(
             f"  Exporting {len(export_symbols)} C-ABI symbol(s): "
                 + ", ".join(export_symbols)
         );
-    } elif is_windows {
-        llvm_ir_str = _inject_entry_pe(llvm_ir_str);
-    } elif is_macos {
-        llvm_ir_str = _inject_entry_macho(llvm_ir_str);
-    } elif _static_musl {
-        llvm_ir_str = _inject_entry_elf_static(llvm_ir_str);
-    } else {
-        llvm_ir_str = _inject_entry_elf(llvm_ir_str, triple);
     }
 
     if (shared or (_is_linux_exec and not _static_musl))

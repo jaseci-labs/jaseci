@@ -1173,7 +1173,7 @@ test "vite config generation" {
             build_config_content = build_config_path.read_text();
             assert "globalThis.__JAC_API_BASE_URL__" in build_config_content;
             assert "https://api.example.com" in build_config_content;
-            assert "jacSourceMapper()" in build_config_content;  # Build-specific plugin
+            assert "jacSourceMapChain()" in build_config_content;  # Build-specific plugin
             assert "tailwindcss()" in build_config_content;  # Tailwind plugin
             assert "@tailwindcss/vite" in build_config_content;  # Tailwind import
 

@@ -412,7 +412,7 @@ obj CodeIntelligence {
         ];
         self._file_set.discard(real);
         if real in self._compiled {
-            del self._compiled[real];
+            self._compiled.pop(real);
         }
         self._dir_sig = self._dir_signature();
     }

@@ -338,9 +338,7 @@ impl _serve_in_background(server_entry: str, base_path: str) -> Iterator[int] {
             try {
                 probe.connect(("127.0.0.1", port));
                 connected = True;
-            } except OSError {
-                ;
-            } finally {
+            } except OSError {} finally {
                 probe.close();
             }
             if connected {
@@ -578,7 +576,7 @@ impl module_is_client(filepath: str) -> bool {
                     "utf-8", "replace"
                 )
             );
-        } except OSError { }
+        } except OSError {}
         result = False;
     }
     _COLOR_CACHE[path] = result;

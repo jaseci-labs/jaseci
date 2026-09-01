@@ -185,7 +185,5 @@ def install_signal_drain(server: any, timeout_s: float = 10.0) {
     try {
         signal.signal(int(signal.SIGTERM), _drain_and_stop);
         signal.signal(int(signal.SIGINT), _drain_and_stop);
-    } except ValueError {
-        ;
-    }
+    } except ValueError {}
 }

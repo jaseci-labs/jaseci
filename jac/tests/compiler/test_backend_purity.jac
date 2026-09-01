@@ -125,6 +125,16 @@ glob FORBIDDEN: dict[str, str] = {
              "monomorphization solution - the template is uninstantiated, "
              "so the declared annotations are the only TypeVar surface"
          ),
+         ("native/na_ir_gen/generics.impl.jac", "type_evaluator"): (
+             1,
+             "_ct_eval reads the program's CtEvaluator, the central "
+             "compile-time evaluation service, to evaluate expressions that "
+             "depend on a comptime parameter under one instantiation's "
+             "bindings. The bindings exist only while that instantiation "
+             "is being stamped, so no earlier pass can precompute them; "
+             "every binding-free comptime value is consumed from the "
+             "stamped Expr.ct_value"
+         ),
          ("native/na_ir_gen/calls.impl.jac", "symbol_utils"): (
              2,
              "classify_call as the shadowing-aware builtin test for the "
