@@ -11,6 +11,14 @@ name: happy-path
 # only the published install script, the released binary it fetches, and a
 # plain git clone -- the same three moves the site's finale tells visitors to
 # make.
+#
+# No pull_request trigger, also on purpose: this lane exercises the RELEASED
+# binary against MAIN's tree, neither of which a PR can change, so a PR run
+# can only ever validate yesterday's world (and goes red whenever the
+# quickstart's target has not shipped yet). PR-time coverage of the same
+# journey lives in ci.yml's pack-smoke job, which runs the PR's own tree on
+# the PR's own sealed kit. Expect this lane red between merging a
+# quickstart-affecting change and the release that ships it.
 
 on:
   workflow_dispatch:
@@ -20,10 +28,6 @@ on:
     branches: [main]
     paths:
       - "scripts/install.sh"
-      - "scripts/site-browse-journey.sh"
-      - ".github/workflows/happy-path.yml"
-  pull_request:
-    paths:
       - "scripts/site-browse-journey.sh"
       - ".github/workflows/happy-path.yml"
 
