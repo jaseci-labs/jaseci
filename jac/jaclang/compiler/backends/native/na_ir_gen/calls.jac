@@ -1,5 +1,7 @@
 import from jaclang.compiler.backends.native.llvm { ir }
 import from jaclang.compiler.backends.native.na_ir_gen.state { NaIRGenState }
+import from jaclang.runtime.scalars { ScalarShape }
+import from jaclang.compiler.intrinsic_registry { IntrinsicEntry }
 import from jaclang.compiler.frontend.codeinfo { HDR_TAG_OFF }
 import from jaclang.compiler.frontend.constant { Tokens as Tok }
 import from jaclang.compiler.frontend.diagnostics { E5092, E5095, E9001 }
@@ -12,22 +14,28 @@ obj NaIRGenCalls(NaIRGenState) {
         nd: uni.FuncCall, func_name: (str | None), call_kind: str
     ) -> (ir.Value | None);
 
-    def _codegen_intrinsic(nd: uni.FuncCall, intr: object) -> (ir.Value | None);
-    def _emit_intrinsic_misuse(nd: uni.FuncCall, intr: object, reason: str) -> None;
+    def _codegen_intrinsic(
+        nd: uni.FuncCall, intr: IntrinsicEntry
+    ) -> (ir.Value | None);
+
+    def _emit_intrinsic_misuse(
+        nd: uni.FuncCall, intr: IntrinsicEntry, reason: str
+    ) -> None;
+
     def _intrinsic_operand(
-        nd: uni.FuncCall, intr: object, arg: uni.Expr, spec: str
+        nd: uni.FuncCall, intr: IntrinsicEntry, arg: uni.Expr, spec: str
     ) -> (ir.Value | None);
 
     def _emit_intrinsic_rc_runtime(
-        nd: uni.FuncCall, intr: object, args: list
+        nd: uni.FuncCall, intr: IntrinsicEntry, args: list
     ) -> (ir.Value | None);
 
     def _emit_intrinsic_float_bits(
-        nd: uni.FuncCall, intr: object, args: list
+        nd: uni.FuncCall, intr: IntrinsicEntry, args: list
     ) -> (ir.Value | None);
 
     def _emit_intrinsic_bits_float(
-        nd: uni.FuncCall, intr: object, args: list
+        nd: uni.FuncCall, intr: IntrinsicEntry, args: list
     ) -> (ir.Value | None);
 
     def _native_module_call_target(nd: uni.FuncCall) -> (tuple | None);
@@ -71,7 +79,11 @@ obj NaIRGenCalls(NaIRGenState) {
 
     def _jacval_tags_for_type(name: str) -> list[int];
     def _erased_generic_ctor(nd: uni.FuncCall) -> (str | None);
-    def _callee_sig_of(nd: uni.FuncCall) -> (uni.FuncSignature | None);
+    def _linked_callee_decl(func: (ir.Function | None)) -> (uni.Ability | None);
+    def _callee_sig_of(
+        nd: uni.FuncCall, func: (ir.Function | None) = None
+    ) -> (uni.FuncSignature | None);
+
     def _arch_init_sig_of(type_name: str) -> (uni.FuncSignature | None);
     def _codegen_call_args(nd: uni.FuncCall) -> list;
     def _coerce_narrowed_arg(

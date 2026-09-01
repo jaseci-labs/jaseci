@@ -13,8 +13,8 @@ a select or unbox that drops the payload still yields a well-typed value
 and still compiles. So every assertion reads the payload back -- a field
 off the object, the member value, or the negated length of a container --
 and every function is additionally checked against the sv/bytecode result
-of the same fixture, the parity idiom `test_sealed_native_parser` uses on
-the whole parser.
+of the same fixture -- the parity idiom the native lowering tests here
+share.
 
 Refs #8062
 """
