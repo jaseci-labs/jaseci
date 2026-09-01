@@ -21,6 +21,7 @@ glob MAGIC = b"JIR\x00",
      SEC_DEBUG_SRC: int = 0x09,
      SEC_PLACEMENT: int = 0x0A,
      SEC_ENVKEY: int = 0x0B,
+     SEC_CTDEPS: int = 0x0C,
      SEC_TERMINATOR: int = 0xFF,
      FLAG_PRECOMPILED: int = 0x02,
      PRECOMPILE_SENTINEL: str = "__PKG_ROOT__",
@@ -131,6 +132,25 @@ def _related_files(source_path: str) -> list[tuple[str, str]] {
 
 glob _client_kind_probe: dict = {"active": False};
 
+def is_compiler_tree_path(source_path: str) -> bool {
+    try {
+        resolved = str(Path(source_path).resolve());
+    } except OSError {
+        return False;
+    }
+    base = _jaclang_pkg_dir + os.sep;
+    if not resolved.startswith(base) {
+        return False;
+    }
+    rel = resolved[len(base):].replace(os.sep, "/");
+    for digest_root in COMPILER_DIGEST_ROOTS {
+        if rel == digest_root or rel.startswith(digest_root + "/") {
+            return True;
+        }
+    }
+    return False;
+}
+
 def is_compiler_source_path(source_path: str) -> bool {
     try {
         resolved = str(Path(source_path).resolve());
@@ -182,7 +202,7 @@ glob COMPILER_DIGEST_ROOTS: tuple = (
      ),
      COMPILER_DIGEST_SUFFIXES: tuple = (".jac", ".py"),
      COMPILER_DIGEST_SKIP_DIRS: tuple = ("tests", "test", "__pycache__"),
-     COMPILER_DIGEST_SKIP: tuple = ("compiler/native_materialize.jac", );
+     COMPILER_DIGEST_SKIP: tuple = ();
 
 def compiler_source_files(pkg_dir: str) -> list[str] {
     base = str(Path(pkg_dir));
@@ -238,9 +258,23 @@ glob _COMPILER_DIGEST_CACHE: list = [];
 
 def running_compiler_digest -> str {
     if not _COMPILER_DIGEST_CACHE {
-        _COMPILER_DIGEST_CACHE.append(compiler_source_digest(_jaclang_pkg_dir));
+        pinned = os.environ.get("JAC_COMPILER_DIGEST_PIN", "").strip();
+        _COMPILER_DIGEST_CACHE.append(
+            f"pin:{pinned}" if pinned else compiler_source_digest(_jaclang_pkg_dir)
+        );
     }
     return _COMPILER_DIGEST_CACHE[0];
+}
+
+glob _COMPILER_GENERATION_CACHE: list = [];
+
+def compiler_generation -> str {
+    if not _COMPILER_GENERATION_CACHE {
+        _COMPILER_GENERATION_CACHE.append(
+            hashlib.sha256(running_compiler_digest().encode()).hexdigest()[:16]
+        );
+    }
+    return _COMPILER_GENERATION_CACHE[0];
 }
 
 glob _JAC_VERSION_CACHE: list = [];
@@ -336,6 +370,51 @@ def read_envkey(data: bytes) -> (str | None) {
     return _read_key_section(data, SEC_ENVKEY);
 }
 
+def read_ct_deps(data: bytes) -> list[tuple[(str, float)]] {
+    raw = _read_key_section(data, SEC_CTDEPS);
+    out: list[tuple[(str, float)]] = [];
+    if not raw {
+        return out;
+    }
+    for line in raw.split("\n") {
+        if "\t" not in line {
+            continue;
+        }
+        (path, _sep, stamp) = line.partition("\t");
+        try {
+            out.append((path, float(stamp), ));
+        } except ValueError {
+            continue;
+        }
+    }
+    return out;
+}
+
+def ct_deps_section(paths: list[str]) -> bytes {
+    lines: list[str] = [];
+    for path in paths {
+        try {
+            lines.append(f"{path}\t{os.path.getmtime(path)}");
+        } except OSError {
+            lines.append(f"{path}\t0");
+        }
+    }
+    return "\n".join(lines).encode("utf-8");
+}
+
+def ct_deps_fresh(data: bytes) -> bool {
+    for (path, stamp) in read_ct_deps(data) {
+        try {
+            if os.path.getmtime(path) != stamp {
+                return False;
+            }
+        } except OSError {
+            return False;
+        }
+    }
+    return True;
+}
+
 def compute_stub_module_key(source_path: str) -> str {
     h = hashlib.sha256();
     h.update(_toolchain_env_fingerprint().encode());
@@ -407,7 +486,7 @@ glob _jaclang_pkg_dir: str = str(
          Path(str(__file__)).resolve().parent.parent.parent
      );
 
-def _get_module_cache_dir(source_path: str) -> Path {
+def _module_cache_root(source_path: str) -> Path {
     resolved = Path(source_path).resolve();
     resolved_str = str(resolved);
 
@@ -417,7 +496,7 @@ def _get_module_cache_dir(source_path: str) -> Path {
     try {
         resolved.relative_to(sys.prefix);
         return get_jir_cache_dir() / 'modules';
-    } except ValueError { }
+    } except ValueError {}
 
     try {
         config_mod = __import__("jaclang.project.config", fromlist=["get_config"]);
@@ -426,13 +505,17 @@ def _get_module_cache_dir(source_path: str) -> Path {
             try {
                 resolved.relative_to(cfg.project_root);
                 return cfg.get_cache_dir();
-            } except ValueError { }
+            } except ValueError {}
 
             return get_jir_cache_dir() / 'modules';
         }
-    } except Exception { }
+    } except Exception {}
 
     return resolved.parent / ".jac" / "cache";
+}
+
+def _get_module_cache_dir(source_path: str) -> Path {
+    return _module_cache_root(source_path) / compiler_generation();
 }
 
 def get_module_cache_path(source_path: str) -> Path {
@@ -442,6 +525,104 @@ def get_module_cache_path(source_path: str) -> Path {
     (major, minor) = (sys.version_info.major, sys.version_info.minor);
     return cache_dir / f"{source.stem}.{path_hash}.cpython-{major}{minor}.jir";
 }
+
+glob GENERATION_TTL_DAYS: float = 14.0,
+     _SWEPT_ROOTS: set[str] = set();
+
+def generation_ttl_seconds -> float {
+    raw = os.environ.get("JAC_CACHE_GENERATION_TTL_DAYS", "").strip();
+    if not raw {
+        return GENERATION_TTL_DAYS * 86400.0;
+    }
+    try {
+        return max(0.0, float(raw)) * 86400.0;
+    } except ValueError {
+        return GENERATION_TTL_DAYS * 86400.0;
+    }
+}
+
+def _is_generation_name(name: str) -> bool {
+    if len(name) != 16 {
+        return False;
+    }
+    for ch in name {
+        if ch not in "0123456789abcdef" {
+            return False;
+        }
+    }
+    return True;
+}
+
+def sweep_stale_generations(cache_root: Path, keep: str) -> int {
+    import shutil;
+    import time;
+    ttl = generation_ttl_seconds();
+    if ttl <= 0.0 {
+        return 0;
+    }
+    now = time.time();
+    removed = 0;
+    try {
+        items = list(cache_root.iterdir());
+    } except OSError {
+        return 0;
+    }
+    for item in items {
+        name = item.name;
+        is_dir = item.is_dir();
+        if is_dir {
+            if name == keep or not (_is_generation_name(name) or name == "native") {
+                continue;
+            }
+        } elif not name.endswith(".jir") {
+            continue;
+        }
+        try {
+            if now - item.stat().st_mtime <= ttl {
+                continue;
+            }
+        } except OSError {
+            continue;
+        }
+        if is_dir {
+            shutil.rmtree(item, ignore_errors=True);
+        } else {
+            try {
+                item.unlink();
+            } except OSError {
+                continue;
+            }
+        }
+        removed += 1;
+    }
+    return removed;
+}
+
+def _sweep_once(cache_root: Path) {
+    key = str(cache_root);
+    if key in _SWEPT_ROOTS {
+        return;
+    }
+    _SWEPT_ROOTS.add(key);
+    try {
+        sweep_stale_generations(cache_root, compiler_generation());
+    } except Exception {}
+}
+
+glob _na_ir_cache_region: dict[str, bool] = {"suspended": False};
+
+
+def native_ir_cache_suspended -> bool {
+    return _na_ir_cache_region["suspended"];
+}
+
+
+def native_ir_cache_set_suspended(value: bool) -> bool {
+    prev = _na_ir_cache_region["suspended"];
+    _na_ir_cache_region["suspended"] = value;
+    return prev;
+}
+
 
 def get_native_cache_dir(source_path: str) -> Path {
     return _get_module_cache_dir(source_path) / "native";
@@ -506,9 +687,7 @@ def read_sections(data: (bytes | memoryview), start_pos: int) -> dict[int, bytes
             result[sec_type] = bytes(data[pos:pos + sec_len]);
             pos += sec_len;
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return result;
 }
 
@@ -589,6 +768,9 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
         if not jir_env_matches(data, source_path) {
             return False;
         }
+        if not ct_deps_fresh(data) {
+            return False;
+        }
         cache_mtime = os.path.getmtime(cache_path);
 
         related = discover_annex_files(source_path, '.impl.jac')
@@ -635,6 +817,7 @@ def write_module_cache(
             return False;
         }
         cache_path.parent.mkdir(parents=True, exist_ok=True);
+        _sweep_once(_module_cache_root(resolved_path));
         sections: dict[int, bytes] = module_jir_key_sections(resolved_path);
         if extra_sections is not None {
             for (k, v) in extra_sections.items() {

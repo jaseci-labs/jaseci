@@ -165,11 +165,11 @@ test "a raw append cannot install a hook that skips the back-fill" {
     try {
         hooks.append(recorder);
         installed = True;
-    } except AttributeError { } finally {
+    } except AttributeError {} finally {
         if installed {
             try {
                 hooks.remove(recorder);
-            } except Exception { }
+            } except Exception {}
         }
     }
     assert not installed , (

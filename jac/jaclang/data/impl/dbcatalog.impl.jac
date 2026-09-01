@@ -394,7 +394,7 @@ def _heartbeat_once(info: ConnInfo, database: str) -> bool {
         if conn is not None {
             try {
                 conn.close();
-            } except Exception { }
+            } except Exception {}
         }
     }
 }

@@ -224,40 +224,6 @@ impl AstTool.py_uni_nodes -> str {
     return output;
 }
 
-impl AstTool.pass_template -> str {
-    output = 'import jaclang.compiler.frontend.unitree as ast\nfrom jaclang.compiler.passes import Pass\n\nclass SomePass(Pass):\n';
-    """Emit to output.""";
-    def emit(to_append: str) {
-        output += '\n    ' + to_append;
-    }
-    for cls in self.ast_classes {
-        emit(f"def exit_{cls.class_name_snake}(self, node: ast.{cls.name}) -> None:");
-        emit('    """Sub objects.\n');
-        for kid in cls.kids {
-            emit(
-                f"    {kid.name}: {kid.typ}{(' =' + str(kid.`default))
-                    if kid.`default
-                    else ''},"
-            );
-        }
-        emit('    """\n');
-    }
-    output = output.replace('jaclang.compiler.frontend.unitree.', '').replace(
-        'typing.', ''
-    ).replace(
-        "<enum '", ''
-    ).replace(
-        "'>", ''
-    ).replace(
-        "<class '", ''
-    ).replace(
-        "ForwardRef('", ''
-    ).replace(
-        "')", ''
-    );
-    return output;
-}
-
 impl AstTool.init -> None {
     module = sys.modules[uni.__name__];
     source_code = inspect.getsource(module);

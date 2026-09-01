@@ -258,7 +258,7 @@ def is_ambient_provider_module(mod_path: str) -> bool {
         and "runtime" in mod_path;
 }
 
-obj StaticAnalysisPass(Transform) {
+walker StaticAnalysisPass(Transform) {
     has prog: JacProgram,
         ir_in: Module,
         cancel_token: any = None,
@@ -269,6 +269,8 @@ obj StaticAnalysisPass(Transform) {
 
     def postinit -> None;
     def transform(ir_in: Module) -> Module;
+    def _run_impl(ir_in: Module) -> Module;
+    can run_walk with Module entry;
     def _check_unused_symbols(scope: UniScopeNode) -> None;
     def _is_write_target(nd: NameAtom) -> bool;
     def _has_genuine_read(sym: Symbol) -> bool;

@@ -700,14 +700,15 @@ test "guardrail: foreign import used as a runtime value is still rejected" {
     )}";
 }
 
-# Scalar edge disconnect (`a del --> b` / `a del ->:E:-> b`) now lowers
-# natively through the central osp_disconn_between store call; behavioral
-# coverage lives in jaclang/compiler/tests/test_osp_equivalence.jac
-# (osp_disconn_between fixture). A LIST-valued endpoint is the residual
-# unlowered shape: the store call takes single node handles, so a list
-# operand would coerce to a meaningless address and silently disconnect
-# nothing. Codegen rejects it with a structured E5092 instead.
-test "guardrail: edge disconnect with a list endpoint is rejected" {
+# Edge disconnect lowers natively for scalar AND list-valued endpoints:
+# scalars through osp_disconn_between, list operands through
+# osp_disconn_between_many (a scalar side wrapped with osp_wrap1), and
+# attribute predicates through osp_disconn_between_pred (#8775 step 3).
+# The residual unlowered shape is a LIST operand combined with attribute
+# predicates - one kernel call does not carry both today - and codegen
+# rejects that with a structured E5092 instead of silently disconnecting
+# nothing.
+test "guardrail: list-endpoint disconnect lowers; list plus predicate stays loud" {
     prog = compile_na_inline(
         "disconnect",
         "node N {}\n"
@@ -718,8 +719,22 @@ test "guardrail: edge disconnect with a list endpoint is rejected" {
         "}\n"
         "with entry { W() spawn N(); }\n"
     );
-    assert has_error_code(prog, "E5092") , f"Expected E5092 for list-endpoint DisconnectOp, got: {fmt_errors(
+    assert not prog.errors_had , f"a list-endpoint disconnect must lower via osp_disconn_between_many, got: {fmt_errors(
         prog
+    )}";
+    prog2 = compile_na_inline(
+        "disconnect_pred_list",
+        "edge E { has w: int = 0; }\n"
+        "node N {}\n"
+        "walker W {\n"
+        "    can go with N entry {\n"
+        "        here del ->:E:w>1:-> [-->];\n"
+        "    }\n"
+        "}\n"
+        "with entry { W() spawn N(); }\n"
+    );
+    assert has_error_code(prog2, "E5092") , f"Expected E5092 for a list-endpoint DisconnectOp with predicates, got: {fmt_errors(
+        prog2
     )}";
 }
 

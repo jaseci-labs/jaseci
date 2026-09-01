@@ -20,6 +20,7 @@ glob GATEWAY_API_SEGMENTS: tuple = (
          "openapi.json",
          "docs"
      ),
+     GATEWAY_PAGE_SEGMENTS: tuple = ("docs", ),
      GATEWAY_DISCOVERY_SEGMENTS: tuple = ("jobs", GATEWAY_CLIENT_SEGMENT),
      GATEWAY_REPLICATED_SEGMENTS: tuple = ("user", "sso", "api-key", "graph"),
      _RESERVED_SEGMENTS: set[str] = (
@@ -112,22 +113,32 @@ def guard_route_prefix(name: str, prefix: str) {
 }
 
 
-def ensure_main_service(
-    routes: dict[str, str], service_files: dict[str, str], entry_file: str = ''
-) -> None {
+def needs_main_service(routes: dict[str, str]) -> bool {
     if 'main' in routes {
-        return;
+        return False;
     }
     for prefix in routes.values() {
         if prefix in ('/', '/__main__') {
-            return;
+            return False;
         }
+    }
+    return True;
+}
+
+
+def ensure_main_service(
+    routes: dict[str, str], service_files: dict[str, str], entry_file: str = ''
+) -> None {
+    if not needs_main_service(routes) {
+        return;
     }
     if not entry_file {
         try {
             import from jaclang.project.config { get_config }
             cfg = get_config();
-            entry_file = str((cfg.project.entry_point if cfg else '') or 'main.jac');
+            entry_file = str(
+                (cfg.project.entry_point if cfg is not None else '') or 'main.jac'
+            );
         } except Exception {
             entry_file = 'main.jac';
         }

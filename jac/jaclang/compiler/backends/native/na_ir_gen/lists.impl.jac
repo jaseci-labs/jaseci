@@ -28,7 +28,8 @@ impl NaIRGenLists._emit_list_helpers(elem_type_name: str, elem_type: ir.Type) ->
         _rel_fn_name = f"__rc_release_list_{elem_type_name}";
         _rel_fnty = ir.FunctionType(ir.VoidType(), [list_ptr_type]);
         try {
-            _rel_fn_decl = self.llvm_module.get_global(_rel_fn_name);
+            _found = self.llvm_module.get_global(_rel_fn_name);
+            _rel_fn_decl = _found if isinstance(_found, ir.Function) else None;
         } except KeyError {
             _rel_fn_decl = ir.Function(self.llvm_module, _rel_fnty, name=_rel_fn_name);
             _rel_fn_decl.linkage = "private";
@@ -372,7 +373,9 @@ impl NaIRGenLists._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
                 if nd.loc
                 else 0}"
         );
-        if _clos_elem is not None and first_val.type != _decl_elem {
+        if _clos_elem is not None
+            and _decl_elem is not None
+            and first_val.type != _decl_elem {
             first_val = self._coerce_type(first_val, _decl_elem);
         }
     }
@@ -384,7 +387,7 @@ impl NaIRGenLists._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         and _decl_elem is not None
         and isinstance(_decl_elem, (ir.IntType, ir.DoubleType)) {
         elem_type = _decl_elem;
-        elem_type_name = _lit_spec;
+        elem_type_name = _lit_spec or "i64";
     } else {
         elem_type = first_val.type
             if first_val is not None
@@ -438,6 +441,9 @@ impl NaIRGenLists._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         );
     } else {
         first_val = self._nogc_elem_prep(nd.values[0], first_val);
+        if first_val is None {
+            return None;
+        }
         if self._reject_ptr_into_raw_slot(
             nd, first_val, helpers["elem_type"], "list element"
         ) {
@@ -515,10 +521,15 @@ impl NaIRGenLists._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         }
         _orig_val = val;
         val = self._box_value_tuple(val, loc=_linit_loc);
-        if _clos_elem is not None and val.type != _decl_elem {
+        if _clos_elem is not None
+            and _decl_elem is not None
+            and val.type != _decl_elem {
             val = self._coerce_type(val, _decl_elem);
         }
         val = self._nogc_elem_prep(nd.values[i], val);
+        if val is None {
+            return None;
+        }
         _boxed_val = val;
         if self._reject_ptr_into_raw_slot(
             nd, val, helpers["elem_type"], "list element"
@@ -624,7 +635,11 @@ impl NaIRGenLists._codegen_any_len(jacval: ir.Value) -> ir.Value {
 impl NaIRGenLists._codegen_index_set(
     target_val: ir.Value, index_val: ir.Value, value: ir.Value, elem_type_name: str
 ) -> None {
-    value = self._str_norm(value);
+    _normed = self._str_norm(value);
+    if _normed is None {
+        return;
+    }
+    value = _normed;
     helpers = self.list_helpers.get(elem_type_name);
     if helpers is None {
         return;

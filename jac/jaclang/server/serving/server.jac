@@ -13,6 +13,7 @@ import from jaclang.server.serving.datatypes {
     parse_query_string
 }
 import from jaclang.server.serving.ws { WebSocket, compute_accept_key }
+import from jaclang.server.net { PortInUseError }
 
 
 glob ACCESS_LOGGER_NAME: str = "jaclang.serving.access";
@@ -89,10 +90,14 @@ obj ServingServer {
                 );
                 break;
             } except OSError as e {
-                if e.errno in ERRNO_ADDR_IN_USE and attempt < port_retries {
-                    attempt += 1;
-                    chosen += 1;
-                    continue;
+                if e.errno in ERRNO_ADDR_IN_USE {
+                    if attempt < port_retries {
+                        attempt += 1;
+                        chosen += 1;
+                        continue;
+                    }
+
+                    raise PortInUseError(chosen) from None;
                 }
                 raise;
             }
@@ -116,9 +121,7 @@ obj ServingServer {
                 await asyncio.wait_for(
                     self._server.wait_closed(), timeout=CLOSE_TIMEOUT_SECONDS
                 );
-            } except asyncio.TimeoutError {
-                ;
-            }
+            } except asyncio.TimeoutError {}
             await self.app.shutdown();
         }
     }
@@ -165,9 +168,7 @@ obj ServingServer {
         main_coro: any = self._serve(on_ready=on_ready, port_retries=port_retries);
         try {
             asyncio.run(main_coro);
-        } except KeyboardInterrupt {
-            ;
-        }
+        } except KeyboardInterrupt {}
     }
 
     def serve_background(
@@ -206,18 +207,14 @@ obj ServingServer {
         self._active.add(task);
         try {
             await self._connection_loop(reader, writer);
-        } except (ConnectionError, asyncio.IncompleteReadError, TimeoutError) {
-            ;
-        } except Exception {
+        } except (ConnectionError, asyncio.IncompleteReadError, TimeoutError) {} except Exception {
             _logger.exception("connection handler failed");
         } finally {
             self._active.discard(task);
             self._busy.discard(task);
             try {
                 writer.close();
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
     }
 
@@ -553,8 +550,6 @@ obj ServingServer {
         try {
             writer.write(blob + body);
             await writer.drain();
-        } except (ConnectionError, OSError) {
-            ;
-        }
+        } except (ConnectionError, OSError) {}
     }
 }
