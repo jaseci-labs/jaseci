@@ -4,7 +4,7 @@ import asyncio;
 import os;
 import tempfile;
 
-import from jaclang.lsp.types {
+import from jaclang.lsp.protocol.types {
     DidChangeTextDocumentParams,
     DidOpenTextDocumentParams,
     DidSaveTextDocumentParams,
@@ -17,14 +17,19 @@ import from jaclang.lsp.types {
     VersionedTextDocumentIdentifier
 }
 
-import from jaclang.langserve.engine { JacLangServer }
-import from jaclang.langserve.server { formatting }
-import from jaclang.lsp.uris { from_fs_path }
-import from jaclang.lsp.server { Workspace }
+import from jaclang.lsp.server.engine { JacLangServer }
+import from jaclang.lsp.server.server { formatting }
+import from jaclang.lsp.protocol.uris { from_fs_path }
+import from jaclang.lsp.protocol.server { Workspace }
 
 glob _test_tmp_dir: str = tempfile.mkdtemp(prefix="jac_test_lsp_");
 
 # --- Utility functions inlined from utils.py ---
+"""Identity helper that erases static type info for checker-safe casts."""
+def _as_any(v: any) -> any {
+    return v;
+}
+
 """Create a temporary Jac file with optional initial content and return its path."""
 def create_temp_jac_file(initial_content: str = "") -> str {
     with tempfile.NamedTemporaryFile(
@@ -89,7 +94,7 @@ obj LanguageServerTestHelper {
         test_file: JacTestFile;
 
     def open_document {
-        import from jaclang.langserve.server { did_open }
+        import from jaclang.lsp.server.server { did_open }
 
         open_params = DidOpenTextDocumentParams(
             text_document=TextDocumentItem(
@@ -104,7 +109,7 @@ obj LanguageServerTestHelper {
     }
 
     def save_document(code: str | None = None) {
-        import from jaclang.langserve.server { did_save }
+        import from jaclang.lsp.server.server { did_save }
 
         content = code if code is not None else self.test_file.code;
         version = self.test_file.increment_version();
@@ -116,12 +121,12 @@ obj LanguageServerTestHelper {
         save_params = DidSaveTextDocumentParams(
             text_document=TextDocumentIdentifier(uri=self.test_file.uri), text=content
         );
-        asyncio.run(did_save(self.ls, save_params));
+        asyncio.run(did_save(self.ls, _as_any(save_params)));
         self.ls.wait_till_idle_sync(self.test_file.uri);
     }
 
     def change_document(code: str) {
-        import from jaclang.langserve.server { did_change }
+        import from jaclang.lsp.server.server { did_change }
 
         version = self.test_file.increment_version();
         self._update_workspace(code, version);
@@ -130,7 +135,7 @@ obj LanguageServerTestHelper {
             text_document=VersionedTextDocumentIdentifier(
                 uri=self.test_file.uri, version=version
             ),
-            content_changes=[{"text": code}]
+            content_changes=_as_any([{"text": code}])
         );
         asyncio.run(did_change(self.ls, change_params));
         self.ls.wait_till_idle_sync(self.test_file.uri);
@@ -215,6 +220,7 @@ test "open save and formatting" {
     test_file = create_test_file(CIRCLE_TEMPLATE);
     test_file_err = create_test_file(CIRCLE_TEMPLATE, "error");
     (uri, ls) = create_ls_with_workspace(test_file.path);
+    assert uri is not None;
     test_file.uri = uri;
     uri_err = from_fs_path(test_file_err.path);
     if uri_err {
@@ -269,8 +275,10 @@ test "did open and did change" {
     test_file = create_test_file(CIRCLE_TEMPLATE);
     test_file2 = create_test_file(CIRCLE_TEMPLATE);
     (uri, ls) = create_ls_with_workspace(test_file.path);
+    assert uri is not None;
     test_file.uri = uri;
     uri2 = from_fs_path(test_file2.path);
+    assert uri2 is not None;
     test_file2.uri = uri2;
     helper = LanguageServerTestHelper(ls=ls, test_file=test_file);
     helper2 = LanguageServerTestHelper(ls=ls, test_file=test_file2);

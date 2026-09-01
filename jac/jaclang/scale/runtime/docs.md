@@ -106,12 +106,20 @@ authoritative service cut. There is no discovery from source: a module
 becomes a service by being listed (`jac scale split <module>` adds an
 entry), and imports of a listed module compile to RPC stubs.
 `[scale.microservices.services.<name>].file` overrides the service's entry
-file (default `<name>.jac`).
+file. Without it, a `--scale` deploy resolves the service against the
+shipped bundle: root `<name>.jac` wins, else the single shipped module with
+that basename anywhere in the tree (test fixtures included); zero or several
+candidates fail the pack, so set `file` to disambiguate. The implicit
+`main` service boots the `[project] entry-point` module at its exact path;
+the path is read relative to the directory holding `jac.toml` and
+re-expressed against the deployed tree when the deploy starts from a
+subdirectory (an entry module outside that tree fails the deploy).
+Local microservice mode runs `<name>.jac` from the project root as-is.
 
 ### 3. Start
 
 ```bash
-jac start main.jac
+jac run main.jac
 ```
 
 Runtime automatically:
@@ -146,8 +154,8 @@ jac scale logs products_app              # view logs
 jac scale destroy                        # stop everything
 
 # Preview before applying (no cluster contact, no docker build)
-jac start main.jac --scale --dry-run               # per-service plan + lint
-jac start main.jac --scale --dry-run --show-yaml   # + raw multi-doc YAML
+jac scale deploy main.jac --dry-run                # per-service plan + lint
+jac scale deploy main.jac --dry-run --show-yaml    # + raw multi-doc YAML
 ```
 
 `--dry-run` runs the same manifest generation as the real deploy but
@@ -295,7 +303,7 @@ No manual token passing. The hook reads it from the execution context.
 
 Same code, different deployer:
 
-| | Local | K8s (`--scale`) |
+| | Local | K8s (`jac scale deploy`) |
 |-|-------|-----------------|
 | Spawning | Subprocess per service | Pod per service |
 | URLs | `http://127.0.0.1:18xxx` | `http://svc.ns.svc.cluster.local:8000` |
@@ -306,7 +314,7 @@ Same code, different deployer:
 
 ## Kubernetes Deployment
 
-`jac start <file>.jac --scale` with services declared in
+`jac scale deploy <file>.jac` with services declared in
 `[scale.microservices.routes]`
 auto-routes to the microservice K8s target: one image built and pushed,
 then per-service `Deployment` + `ClusterIP Service` + autoscaler (HPA or KEDA `ScaledObject`) + PDB applied
@@ -327,7 +335,7 @@ code changes from local mode.
 | `cpu_request`/`cpu_limit` | unset | `"100m"`, `"2000m"` |
 | `memory_request`/`memory_limit` | unset | `"128Mi"`, `"4Gi"` |
 | `env` | `{}` | extra env vars |
-| `rpc_timeout` | `10.0` | service RPC httpx timeout (s) |
+| `rpc_timeout` | `10.0` | service RPC timeout (s) |
 | `http_forward_timeout` | `30.0` | gateway-to-service forward (s) |
 | `hpa.enabled` / `min` / `max` / `cpu_target` | `true` / `1` / `3` / `50` | autoscaler bounds (applies to both `"hpa"` and `"keda"` engines) |
 | `hpa.behavior` | `{}` | Raw HPA `behavior` fragment (`scaleUp`/`scaleDown`) deep-merged over the generated scale-rate defaults - same merge rules as `deployment_overlay`. Applies to both engines; for `keda` it only governs scaling while replicas are above zero - the drop to zero is still controlled by `autoscaler_cooldown` (the ScaledObject's `cooldownPeriod`). See example below. |
@@ -433,7 +441,15 @@ kubectl delete deployment,service,hpa,pdb,ingress -l managed=jac-scale -n <ns>
 
 Every pod runs the same image, only needs `jac` + `jac-scale[deploy]`.
 The pod-spec's `command`/`args` reads `JAC_SV_NAME` and dispatches:
-`<svc>` -> `jac start <svc>.jac`, `__gateway__` -> `jac scale gateway`.
+`__gateway__` -> `jac scale gateway`; any other service runs
+`jac run --serve "$JAC_SV_FILE"`, where the deploy resolved every service's
+file host-side against the set of sources the bundle ships (explicit
+`[scale.microservices.services.NAME] file` > root `NAME.jac` > the unique
+same-named module anywhere in the tree; the implicit `main` boots the
+`[project] entry-point` module) and pinned it in the pod env. A missing,
+parked, or ambiguous module fails the deploy, `--dry-run` included, before
+anything is downloaded or sealed. The pod refuses to boot a file the
+extracted bundle does not contain.
 `JAC_SV_SIBLING=1` is set so the JacScalePlugin pre-hook skips the
 local-mode orchestrator.
 
@@ -493,8 +509,9 @@ Default is 10s. Override for LLM / generation / long-running services:
 rpc_timeout = 120.0
 ```
 
-The override is read on every service RPC and passed through to
-`httpx.Client(timeout=...)`.
+The override is read on every service RPC and applied as the
+transport timeout for connection setup and for reads while waiting
+on the response head.
 
 ### Streaming sv-to-sv RPC (generator returns)
 
@@ -529,21 +546,25 @@ and re-raise as a `RuntimeError` out of the consumer's iterator
 (so a normal `for ... in` loop sees the failure rather than a
 silently-truncated stream).
 
-Lifecycle: the consumer's generator owns the underlying httpx
+Lifecycle: the consumer's generator owns the underlying
 connection. Exhausting the iterator OR letting it go out of scope
 closes the connection cleanly. Dropping mid-stream (consumer
 disconnects) closes too - the producer's `finally` blocks run.
 
-`rpc_timeout` semantics on streaming: the timeout applies to
-*establishing* the connection and to each blocking read between
-events. A long, idle stream that sends no events for `rpc_timeout`
-seconds will time out, matching the behavior we want for a hung
-producer; a fast-stepping stream of any total duration is fine.
+`rpc_timeout` semantics on streaming: the timeout bounds
+*establishing* the connection and the wait for the response head.
+Once the head has arrived, reads of the event body are not bounded
+by `rpc_timeout`: a producer that stalls between events holds the
+consumer's iterator open until the connection drops (see #8429).
+A fast-stepping stream of any total duration is fine.
 
-Retries are skipped once the stream is open: an in-flight stream
-cannot be replayed without losing already-consumed events. Connect-
-time failures (DNS, refused) still retry + count against the breaker
-as they would for a non-streaming RPC.
+Retries happen only for connect-phase failures (DNS, refused,
+connect timeout), where the request provably never reached the peer.
+Any failure after the request is sent - a read timeout, a dropped
+connection, an HTTP error - fails fast without a replay, because the
+peer may already have executed the call. Every failed round trip in
+either phase records one circuit-breaker failure. This applies to
+streaming and non-streaming RPC alike.
 
 ### WebSockets + SSE proxy at the gateway
 
@@ -584,11 +605,17 @@ per_ip_rpm        = 600
 per_user_rpm      = 120        # 0 disables per-user tier
 burst_multiplier  = 2.0        # capacity = rpm * burst / 60
 exempt_paths      = ["/health", "/healthz", "/metrics"]
+trusted_proxies   = []         # IPs/CIDRs allowed to set X-Forwarded-For
 ```
 
-Per-IP key falls back from `X-Forwarded-For` (first hop) to
-`request.client.host`. Per-user key is `sha256(Authorization)[:32]`. 429
-responses carry the standard envelope + `Retry-After` header.
+Per-IP key is the TCP peer address. `X-Forwarded-For` is honored only
+when the peer is listed in `trusted_proxies` (IPs or CIDRs); the key is
+then the rightmost forwarded hop not itself trusted, so clients cannot
+forge their way into fresh buckets. Deployments behind a proxy or
+ingress must list it in `trusted_proxies`, otherwise every request keys
+on the proxy's address and all clients share one bucket. Per-user key
+is `sha256(Authorization)[:32]`. 429 responses carry the standard
+envelope + `Retry-After` header.
 
 ### Observability
 

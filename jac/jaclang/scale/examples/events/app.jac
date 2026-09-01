@@ -1,5 +1,5 @@
 """Minimal jac-scale event-streaming example.
-`jac start app.jac` and POST to /walker/place_order. With no database URL resolved this runs on LocalEventStream; with a Postgres URL ([scale.events].url, [scale.database].url, or JAC_DB_URL) events stream durably cross-pod.
+`jac run --serve app.jac` and POST to /walker/place_order. With no database URL resolved this runs on LocalEventStream; with a Postgres URL ([scale.events].url, [scale.database].url, or JAC_DB_URL) events stream durably cross-pod.
 """
 
 import logging;

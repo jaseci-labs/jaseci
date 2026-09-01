@@ -68,7 +68,7 @@ impl print_final_summary(passed_count: int, failed_count: int, elapsed: float) -
     console.print(separator(", ".join(parts) + f" in {elapsed:.2f}s"));
 }
 
-def _census_relpath(path: str) -> str {
+def _coverage_relpath(path: str) -> str {
     import os;
     try {
         return os.path.relpath(path);
@@ -77,22 +77,22 @@ def _census_relpath(path: str) -> str {
     }
 }
 
-impl print_native_census(census: dict) -> None {
+impl print_native_coverage(coverage: dict[str, dict[str, any]]) -> None {
     import from jaclang.cli.console { console }
-    import from jaclang.jac0core.codeinfo { effective_default_codespace }
+    import from jaclang.compiler.frontend.codeinfo { effective_default_codespace }
     console.print("");
-    console.print(separator("native census"));
+    console.print(separator("native coverage"));
     console.print(f"default codespace: {effective_default_codespace()}");
     counts: dict[str, int] = {};
-    for rec in census.values() {
+    for rec in coverage.values() {
         counts[rec['outcome']] = counts.get(rec['outcome'], 0) + 1;
     }
     console.print(
         ", ".join(f"{counts.get(k, 0)} {k}" for k in ('native', 'demoted', 'server'))
     );
     native_paths = sorted(
-        _census_relpath(p)
-        for (p, rec) in census.items()
+        _coverage_relpath(p)
+        for (p, rec) in coverage.items()
         if rec['outcome'] == 'native'
     );
     if native_paths {
@@ -103,8 +103,8 @@ impl print_native_census(census: dict) -> None {
         }
     }
     seamed = sorted(
-        (_census_relpath(p), rec)
-        for (p, rec) in census.items()
+        (_coverage_relpath(p), rec)
+        for (p, rec) in coverage.items()
         if rec['outcome'] == 'native' and rec.get('seams')
     );
     if seamed {
@@ -119,13 +119,13 @@ impl print_native_census(census: dict) -> None {
     }
     demoted = [
         (p, rec)
-        for (p, rec) in census.items()
+        for (p, rec) in coverage.items()
         if rec['outcome'] == 'demoted'
     ];
     if demoted {
         console.print("");
         console.print("demotions (ranked by first error code):");
-        by_code: dict[str, list] = {};
+        by_code: dict[str, list[tuple[str, dict[str, any]]]] = {};
         for (p, rec) in demoted {
             by_code.setdefault(rec['code'] or '<uncoded>', []).append((p, rec));
         }
@@ -133,19 +133,19 @@ impl print_native_census(census: dict) -> None {
         for (code, entries) in ranked {
             console.print(f"  {code}  ({len(entries)})");
             for (p, rec) in sorted(entries) {
-                console.print(f"    {_census_relpath(p)}  {rec['detail']}");
+                console.print(f"    {_coverage_relpath(p)}  {rec['detail']}");
             }
         }
     }
     server = [
         (p, rec)
-        for (p, rec) in census.items()
+        for (p, rec) in coverage.items()
         if rec['outcome'] == 'server'
     ];
     if server {
         console.print("");
         console.print("server modules (ranked by classifier signal):");
-        by_reason: dict[str, list] = {};
+        by_reason: dict[str, list[str]] = {};
         for (p, rec) in server {
             by_reason.setdefault(rec['detail'] or '<unknown>', []).append(p);
         }
@@ -155,20 +155,20 @@ impl print_native_census(census: dict) -> None {
         for (reason, paths) in ranked_r {
             console.print(f"  {reason}  ({len(paths)})");
             for p in sorted(paths) {
-                console.print(f"    {_census_relpath(p)}");
+                console.print(f"    {_coverage_relpath(p)}");
             }
         }
     }
     seamed = [
         (p, rec)
-        for (p, rec) in census.items()
+        for (p, rec) in coverage.items()
         if rec['seams']
     ];
     if seamed {
         console.print("");
         console.print("native modules with demoted methods (seams):");
         for (p, rec) in sorted(seamed) {
-            console.print(f"  {_census_relpath(p)}");
+            console.print(f"  {_coverage_relpath(p)}");
             for s in rec['seams'] {
                 console.print(f"    {s}");
             }
@@ -176,7 +176,7 @@ impl print_native_census(census: dict) -> None {
     }
 }
 
-impl print_placement_report(rows_by_module: dict) -> None {
+impl print_placement_report(rows_by_module: dict[str, dict[str, any]]) -> None {
     import from jaclang.cli.console { console }
     console.print("");
     console.print(separator("placements"));
@@ -207,7 +207,7 @@ impl print_placement_report(rows_by_module: dict) -> None {
     for path in sorted(rows_by_module.keys()) {
         `entry = rows_by_module[path];
         decided = `entry['decided'];
-        rel = _census_relpath(path);
+        rel = _coverage_relpath(path);
         suffix = '';
         if decided {
             suffix = f"  [decided {decided}]";
@@ -215,7 +215,7 @@ impl print_placement_report(rows_by_module: dict) -> None {
         console.print("");
         console.print(rel + suffix);
         for row in `entry['rows'] {
-            row_space = row['space'];
+            row_space: str = row['space'];
             if row['dual'] {
                 row_space = row_space + ' (dual)';
             }
@@ -227,35 +227,5 @@ impl print_placement_report(rows_by_module: dict) -> None {
                 console.print("      - " + note);
             }
         }
-    }
-}
-
-impl print_compile_stats -> None {
-    import from jaclang.cli.console { console }
-    import from jaclang.jac0core.prefix_flip {
-        prefix_clause_help,
-        prefix_fallbacks_by_clause,
-        prefix_report_lines,
-        prefix_stats_lines
-    }
-    console.print("");
-    console.print(separator("compile stats"));
-    for line in prefix_stats_lines() {
-        console.print(line);
-    }
-    by_clause = prefix_fallbacks_by_clause();
-    if not by_clause {
-        return;
-    }
-    console.print("");
-    console.print("staged fallbacks (ranked by clause):");
-    ranked = sorted(by_clause.items(), key=lambda (x: tuple) { (-x[1], x[0]); });
-    for (clause, count) in ranked {
-        console.print(f"  {clause}  ({count})  -- {prefix_clause_help(clause)}");
-    }
-    console.print("");
-    console.print("per module:");
-    for line in prefix_report_lines() {
-        console.print(line);
     }
 }

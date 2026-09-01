@@ -20,10 +20,10 @@ Before diving into the patterns themselves, let us first understand *why* this s
 
 When declarations live in their own files, every `.jac` file in a package reads like an **API specification**. You can open any declaration file and immediately see: what types exist, what fields they carry, what methods they expose, and what signatures those methods have -- all without wading through hundreds of lines of logic. The *architecture* of a system becomes visible from the file tree alone.
 
-To illustrate this, consider the Jac compiler's [type system](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/compiler/type_system):
+To illustrate this, consider the Jac compiler's [type system](https://github.com/jaseci-labs/jac/tree/main/jac/jaclang/compiler/types):
 
 ```
-compiler/type_system/
+compiler/types/
 ├── types.jac                  # What types exist in the type system
 ├── type_utils.jac             # What utility operations are available
 ├── type_evaluator.jac         # What the evaluator can do (256 lines of signatures)
@@ -48,15 +48,15 @@ This dual benefit is worth keeping in mind as you design your own modules. Ask y
 The `impl` system enables decomposition at a finer grain than files or classes alone can provide. Consider this: a single object with 80 methods does not need to live in one monolithic file. Its implementations can be split by *feature domain*:
 
 ```
-na_ir_gen_pass.jac              # One object, 80+ method signatures
-na_ir_gen_pass.impl/
-    tuples.impl.jac             # Just the tuple-related methods
-    exceptions.impl.jac         # Just the exception-handling methods
-    dicts.impl.jac              # Just the dictionary methods
-    ...19 files total
+type_evaluator.jac                  # One object, 200+ method signatures
+type_evaluator.impl/
+    construct_types.impl.jac        # Just the type-construction methods
+    parameter_type_check.impl.jac   # Just the parameter-checking methods
+    jsx_type_check.impl.jac         # Just the JSX-checking methods
+    ...7 files total
 ```
 
-([Browse this example on GitHub](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/compiler/passes/native))
+([Browse this example on GitHub](https://github.com/jaseci-labs/jac/tree/main/jac/jaclang/compiler/types))
 
 Each impl file becomes a focused, self-contained unit. A developer working on tuple code generation opens `tuples.impl.jac` and nothing else. They do not need to scroll past 2,000 lines of unrelated code, and their changes will not produce merge conflicts with a colleague working on exception handling in a different file. In a collaborative setting, this kind of isolation is invaluable.
 
@@ -78,11 +78,11 @@ Now that we understand the motivation, let us survey the five organizational pat
 
 | Pattern | File Layout | When to Use | Compiler Example |
 |---------|-------------|-------------|------------------|
-| **Inline** | Single `.jac` file, declarations + `impl` blocks together | Small modules (<100 lines) | [`langserve/rwlock.jac`](https://github.com/Jaseci-Labs/jaseci/blob/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/langserve/rwlock.jac) |
+| **Inline** | Single `.jac` file, declarations + `impl` blocks together | Small modules (<100 lines) | [`lsp/server/rwlock.jac`](https://github.com/jaseci-labs/jac/blob/main/jac/jaclang/lsp/server/rwlock.jac) |
 | **Side-by-Side** | `mod.jac` + `impl/mod.impl.jac` | Medium modules, clean interface/impl split | [`cli/command.jac`](https://github.com/Jaseci-Labs/jaseci/blob/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/cli/command.jac) |
 | **Shared impl/ Directory** | Multiple `.jac` files + one `impl/` directory | Package-level organization | [`cli/commands/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/cli/commands) |
-| **`.impl/` Directory** | `mod.jac` + `mod.impl/*.impl.jac` | Very large modules, many concerns | [`na_ir_gen_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/compiler/passes/native/na_ir_gen_pass.jac) |
-| **Pure Declarations** | `.jac` file with only type/object definitions | Data models, re-exports | [`estree.jac`](https://github.com/Jaseci-Labs/jaseci/blob/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/compiler/passes/ecmascript/estree.jac) |
+| **`.impl/` Directory** | `mod.jac` + `mod.impl/*.impl.jac` | Very large modules, many concerns | [`type_evaluator.jac`](https://github.com/jaseci-labs/jac/blob/main/jac/jaclang/compiler/types/type_evaluator.jac) |
+| **Pure Declarations** | `.jac` file with only type/object definitions | Data models, re-exports | [`estree.jac`](https://github.com/jaseci-labs/jac/blob/main/jac/jaclang/compiler/backends/es/estree.jac) |
 
 ---
 
@@ -125,7 +125,7 @@ Notice how the declaration block at the top still reads like a concise API summa
 
 ### Real example
 
-**[`jaclang/langserve/rwlock.jac`](https://github.com/Jaseci-Labs/jaseci/blob/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/langserve/rwlock.jac)** -- A read-write lock in 94 lines. The declaration block (lines 1-29) reads like an API summary, and the `impl` blocks follow immediately. At this size, introducing a second file would be unnecessary overhead.
+**[`jaclang/lsp/server/rwlock.jac`](https://github.com/jaseci-labs/jac/blob/main/jac/jaclang/lsp/server/rwlock.jac)** -- A read-write lock in 94 lines. The declaration block (lines 1-29) reads like an API summary, and the `impl` blocks follow immediately. At this size, introducing a second file would be unnecessary overhead.
 
 ### When to use
 
@@ -226,14 +226,17 @@ cli/commands/
 
 ### Real example
 
-**[`jaclang/cli/commands/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/cli/commands)** -- Six command group files, each declaring functions with rich decorator metadata (command names, argument specs, help text, usage examples). The [`impl/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/cli/commands/impl) directory holds the actual command logic.
+**[`jaclang/cli/commands/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/cli/commands)** -- The command group files, each declaring functions next to a `comptime` command spec (command name, argument specs, help text, usage examples). The [`impl/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/cli/commands/impl) directory holds the actual command logic.
 
 The declaration file functions as a **command catalog** -- study this example carefully:
 
 ```jac
 """Execution commands: run, enter, serve, debug."""
 
-@registry.command(
+import from jaclang.cli.command { Arg, ArgKind, CommandSpec }
+import from jaclang.comptime { name as ct_name }
+
+comptime SPEC_RUN: CommandSpec = CommandSpec(
     name="run",
     help="Run a Jac program",
     args=[
@@ -243,10 +246,13 @@ The declaration file functions as a **command catalog** -- study this example ca
     examples=[
         ("jac run hello.jac", "Run a simple program"),
     ],
-    group="execution"
-)
+    group="execution",
+    handler_name=ct_name(run)
+);
 def run(filename: str, main: bool = True, cache: bool = True) -> int;
 ```
+
+The spec is a compile-time value: `jaclang/cli/manifest.jac` imports every `SPEC_*` binding with `comptime import` and folds them into one `ROUTES` table, so the CLI's help, completions, and dispatch all read a table that was computed while the manifest compiled.
 
 The impl file then provides the body:
 
@@ -267,14 +273,14 @@ To appreciate how pervasive this pattern is, here is a sampling from across the 
 
 | Package | Declaration Files | impl/ Contents |
 |---------|-------------------|----------------|
-| [`cli/commands/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/cli/commands) | 6 command group files | 6 matching impl files |
-| [`compiler/passes/main/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/compiler/passes/main) | 6 compiler pass files | 6 matching impl files |
-| [`compiler/passes/tool/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/compiler/passes/tool) | 8 tool pass files | 8 matching impl files |
-| [`jac0core/passes/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/jac0core/passes) | 8 pass files | 8 matching impl files |
-| [`jac0core/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/jac0core) | `unitree.jac`, `program.jac`, `runtime.jac`, etc. | Matching impl files |
-| [`langserve/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/langserve) | `server.jac`, `engine.jac`, `utils.jac`, etc. | Matching impl files |
-| [`runtimelib/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/runtimelib) | `context.jac`, `memory.jac`, `server.jac`, etc. | Matching impl files |
-| [`project/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/project) | `config.jac`, `dependencies.jac`, etc. | Matching impl files |
+| [`cli/commands/`](https://github.com/jaseci-labs/jac/tree/main/jac/jaclang/cli/commands) | Command group files (`execution.jac`, `build.jac`, `project.jac`, etc.) | Matching impl files |
+| [`compiler/passes/`](https://github.com/jaseci-labs/jac/tree/main/jac/jaclang/compiler/passes) | The shared analysis passes (`sym_tab_build_pass.jac`, `semantic_analysis_pass.jac`, etc.) | Matching impl files |
+| [`compiler/tools/`](https://github.com/jaseci-labs/jac/tree/main/jac/jaclang/compiler/tools) | Formatter, linter, and doc tooling passes | Matching impl files |
+| [`compiler/frontend/`](https://github.com/jaseci-labs/jac/tree/main/jac/jaclang/compiler/frontend) | `unitree.jac`, `diagnostics.jac`, etc. | Matching impl files |
+| [`compiler/driver/`](https://github.com/jaseci-labs/jac/tree/main/jac/jaclang/compiler/driver) | `program.jac`, `compiler.jac`, etc. | Matching impl files |
+| [`lsp/server/`](https://github.com/jaseci-labs/jac/tree/main/jac/jaclang/lsp/server) | `server.jac`, `engine.jac`, `utils.jac`, etc. | Matching impl files |
+| [`runtime/`](https://github.com/jaseci-labs/jac/tree/main/jac/jaclang/runtime) | `context.jac`, `archetype.jac`, `runtime.jac`, etc. | Matching impl files |
+| [`project/`](https://github.com/jaseci-labs/jac/tree/main/jac/jaclang/project) | `config.jac`, `capabilities.jac`, etc. | Matching impl files |
 
 ### When to use
 
@@ -293,76 +299,48 @@ This is, in a sense, the most powerful pattern -- it allows a single type's impl
 ### What it looks like
 
 ```
-compiler/passes/native/
-├── na_ir_gen_pass.jac                    # All declarations (277 lines)
-└── na_ir_gen_pass.impl/
-    ├── core.impl.jac                     # init, transform, main pass
-    ├── stmt.impl.jac                     # statement codegen
-    ├── expr.impl.jac                     # expression codegen
-    ├── func.impl.jac                     # function/ability codegen
-    ├── calls.impl.jac                    # function call codegen
-    ├── objects.impl.jac                  # archetype/class codegen
-    ├── vtable.impl.jac                   # virtual dispatch tables
-    ├── tuples.impl.jac                   # tuple codegen
-    ├── lists.impl.jac                    # list codegen
-    ├── dicts.impl.jac                    # dictionary codegen
-    ├── sets.impl.jac                     # set codegen
-    ├── enums.impl.jac                    # enum codegen
-    ├── builtins.impl.jac                 # builtin functions
-    ├── globals.impl.jac                  # global variables
-    ├── comprehensions.impl.jac           # list/dict/set comprehensions
-    ├── exceptions.impl.jac               # try/catch/raise
-    ├── file_io.impl.jac                  # file I/O
-    ├── context_mgr.impl.jac             # with statements
-    └── types.impl.jac                    # type resolution helpers
+compiler/types/
+├── type_evaluator.jac                    # All declarations (739 lines)
+└── type_evaluator.impl/
+    ├── type_evaluator.impl.jac           # Core evaluation entry points
+    ├── evaluator_util_methods.impl.jac   # Shared evaluator helpers
+    ├── parameter_type_check.impl.jac     # Call-site parameter checking
+    ├── construct_types.impl.jac          # Type construction from decls
+    ├── ts_declarations.impl.jac          # TypeScript-style declarations
+    ├── imported.impl.jac                 # Imported-symbol resolution
+    └── jsx_type_check.impl.jac           # JSX element type checking
 ```
 
 ### Real example
 
-**[`jaclang/compiler/passes/native/na_ir_gen_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/compiler/passes/native/na_ir_gen_pass.jac)** -- The LLVM IR generation pass. Let us examine how the declaration file defines a single `NaIRGenPass` object with 80+ method signatures, carefully organized by compiler phase:
+**[`jaclang/compiler/types/type_evaluator.jac`](https://github.com/jaseci-labs/jac/blob/main/jac/jaclang/compiler/types/type_evaluator.jac)** -- The type evaluator. Let us examine how the declaration file defines a single `TypeEvaluator` object with 200+ method signatures, carefully organized by concern:
 
 ```jac
-"""Native LLVM IR generation pass."""
-
-obj NaIRGenPass(Transform) {
-    def init(ir_in: uni.Module, prog: object) -> None;
-    # Main pass logic
-    def transform(ir_in: uni.Module) -> uni.Module;
-    # Body / statement codegen
-    def _codegen_body(stmts: (list | tuple)) -> None;
-    def _codegen_stmt(nd: uni.UniNode) -> None;
-    def _codegen_if(nd: uni.IfStmt) -> None;
-    def _codegen_while(nd: uni.WhileStmt) -> None;
-    # Expression codegen
-    def _codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None);
-    def _codegen_binary(nd: uni.BinaryExpr) -> (ir.Value | None);
-    # Phase 9: Tuples
-    def _codegen_tuple_val(nd: uni.TupleVal) -> (ir.Value | None);
-    # ... 80+ more methods across 16 phases
+obj TypeEvaluator {
+    def postinit -> None;
+    def _read_dunder_all(path: str) -> (set[str] | None);
+    def _extract_type_params(node_: Archetype) -> list[TypeVarType];
+    def _is_class_scoped_type_param(node_: TypeParam) -> bool;
+    def _is_mobui_module(nd: UniNode) -> bool;
+    def _get_intrinsic_props_type(tag_name: str) -> ClassType | None;
 }
 ```
 
-Each impl file then handles one domain. Here, for instance, is how the tuple-related methods are isolated:
+Each impl file then handles one domain. Here, for instance, is how the JSX-related methods are isolated:
 
 <!-- jac-skip -->
 ```jac
-# tuples.impl.jac
-"""Tuple codegen and unpacking."""
-
-impl NaIRGenPass._codegen_tuple_val(nd: uni.TupleVal) -> (ir.Value | None) {
-    # ... tuple codegen logic
+impl TypeEvaluator._is_mobui_module(nd: UniNode) -> bool {
 }
 
-impl NaIRGenPass._codegen_tuple_unpack(targets: list, ...) -> None {
-    # ... unpacking logic
+impl TypeEvaluator._get_intrinsic_props_type(tag_name: str) -> ClassType | None {
 }
 
-impl NaIRGenPass._get_struct_size(struct_type: ir.LiteralStructType) -> int {
-    # ... size calculation
+impl TypeEvaluator._resolve_intrinsic_jsx_tag(part: Name, tag_name: str) -> None {
 }
 ```
 
-**Also worth studying:** [`jaclang/compiler/type_system/type_evaluator.jac`](https://github.com/Jaseci-Labs/jaseci/blob/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/compiler/type_system/type_evaluator.jac) + [`type_evaluator.impl/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/compiler/type_system/type_evaluator.impl) (5 files: core evaluation, type construction, utilities, imports, parameter checking).
+**Also worth studying:** [`jaclang/compiler/backends/native/na_ir_gen/`](https://github.com/jaseci-labs/jac/tree/main/jac/jaclang/compiler/backends/native/na_ir_gen) -- the native backend takes the next step past this pattern, splitting one 764-method object into 43 sibling modules that a composing `obj NaIRGenPass(...)` inherits, so each concern is its own compilation unit rather than one woven module.
 
 ### When to use
 
@@ -379,7 +357,7 @@ Some modules are primarily -- or entirely -- composed of declarations: type defi
 
 ### What it looks like
 
-**[`estree.jac`](https://github.com/Jaseci-Labs/jaseci/blob/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/compiler/passes/ecmascript/estree.jac)** -- 580 lines of ESTree AST node type definitions:
+**[`estree.jac`](https://github.com/jaseci-labs/jac/blob/main/jac/jaclang/compiler/backends/es/estree.jac)** -- 580 lines of ESTree AST node type definitions:
 
 ```jac
 """ESTree AST Node Definitions for ECMAScript."""
@@ -403,15 +381,15 @@ obj Identifier(Node) {
 # ... 60+ more node types
 ```
 
-Its impl file ([`impl/estree.impl.jac`](https://github.com/Jaseci-Labs/jaseci/blob/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/compiler/passes/ecmascript/impl/estree.impl.jac)) is only 33 lines -- a single utility function. The vast majority of the module's value is in the declarations themselves.
+Its impl file ([`impl/estree.impl.jac`](https://github.com/jaseci-labs/jac/blob/main/jac/jaclang/compiler/backends/es/impl/estree.impl.jac)) is only 33 lines -- a single utility function. The vast majority of the module's value is in the declarations themselves.
 
-**[`constructs.jac`](https://github.com/Jaseci-Labs/jaseci/blob/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/jac0core/constructs.jac)** -- A 35-line re-export barrel:
+**[`constructs.jac`](https://github.com/jaseci-labs/jac/blob/main/jac/jaclang/runtime/constructs.jac)** -- A 35-line re-export barrel:
 
 <!-- jac-skip -->
 ```jac
 """Core constructs for Jac Language - re-exports."""
 
-import from jaclang.jac0core.archetype {
+import from jaclang.runtime.archetype {
     AccessLevel, Anchor, Archetype, Root, ...
 }
 

@@ -20,18 +20,19 @@ glob llm = Model(
              "outputs": [
                  "alpha beta gamma from a copied context",
                  "alpha beta gamma from a worker thread",
+
              ]
          }
      );
 
 """Stream a short answer."""
-def stream_answer() -> str by llm(stream=True);
+def stream_answer -> str by llm(stream=True);
 
 # Module-level sentinel so end-of-stream is detected by identity (cleaner than
 # sniffing the chunk's type).
 glob _STOP = object();
 
-def _next_or_stop(gen: object) -> object {
+def _next_or_stop(gen: any) -> object {
     try {
         return next(gen);
     } except StopIteration {
@@ -40,15 +41,15 @@ def _next_or_stop(gen: object) -> object {
 }
 
 # Path A: consume the whole generator inside a fresh, foreign Context.
-def consume_in_copied_context() -> list {
+def consume_in_copied_context -> list {
     gen = stream_answer();
     ctx = contextvars.copy_context();
     return ctx.run(list, gen);
 }
 
-# Path B: drive each next() on a thread-pool worker — the exact asyncio +
+# Path B: drive each next() on a thread-pool worker -- the exact asyncio +
 # run_in_executor shape the scale backend's SSE microservice uses.
-async def consume_in_thread_pool() -> list {
+async def consume_in_thread_pool -> list {
     gen = stream_answer();
     loop = asyncio.get_event_loop();
     chunks = [];
@@ -64,12 +65,12 @@ async def consume_in_thread_pool() -> list {
 
 
 with entry {
-    # Path A — pre-fix this line raises ValueError ("different Context").
+    # Path A -- pre-fix this line raises ValueError ("different Context").
     chunks_a = consume_in_copied_context();
     assert chunks_a , "copied-Context iteration produced no chunks";
     assert "copied context" in "".join(chunks_a) , f"missing content: {chunks_a}";
 
-    # Path B — thread-pool executor.
+    # Path B -- thread-pool executor.
     chunks_b = asyncio.run(consume_in_thread_pool());
     assert chunks_b , "thread-pool iteration produced no chunks";
     assert "worker thread" in "".join(chunks_b) , f"missing content: {chunks_b}";

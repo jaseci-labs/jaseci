@@ -68,7 +68,7 @@ def:pub TracesPage -> JsxElement {
                 errorMsg = "";
             } elif result["error"] {
                 errorMsg = getErrorMessage(result, "Failed to load traces");
-                if "unavailable" in (errorMsg or "").toLowerCase() {
+                if "unavailable" in (errorMsg or "").lower() {
                     backendOffline = True;
                 }
             }
@@ -145,10 +145,11 @@ def:pub TracesPage -> JsxElement {
         hash: int = 0;
         i: int = 0;
         while i < len(name) {
-            hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
+            hash = ((hash << 5) - hash + ord(name[i])) | 0;
             i += 1;
         }
-        return palette[Math.abs(hash) % len(palette)];
+        magnitude: int = hash if hash >= 0 else -hash;
+        return palette[magnitude % len(palette)];
     }
 
     # Span depth from the parent_span_id chain, so the waterfall can
@@ -234,9 +235,7 @@ def:pub TracesPage -> JsxElement {
             </select>
             <select
                 value={String(filterMinDuration)}
-                onChange={lambda (e: any) { filterMinDuration = Number(
-                    e.target.value
-                ); }}
+                onChange={lambda (e: any) { filterMinDuration = int(e.target.value); }}
                 className="bg-surface border border-line rounded px-2 py-1.5 text-sm text-fg"
             >
                 <option value="0">Any duration</option>

@@ -3,8 +3,6 @@ import contextlib;
 import gc;
 import glob;
 import json;
-import re;
-import select;
 import socket;
 import subprocess;
 import from jaclang.scale.runtime.context.util { jac_executable }
@@ -12,7 +10,7 @@ import time;
 import uuid;
 import shutil;
 import requests;
-import from jaclang.runtimelib.serving.authcrypt {
+import from jaclang.server.serving.authcrypt {
     jwt_decode as _jwt_decode,
     jwt_encode as _jwt_encode
 }
@@ -27,6 +25,10 @@ import from jaclang.scale.tests.server_support {
     get_free_port,
     _cleanup_db_files,
     _extract_transport_response_data
+}
+
+def _as_any(v: any) -> any {
+    return v;
 }
 
 def register_payload(username: str, password: str) -> dict[str, any] {
@@ -69,10 +71,11 @@ def _start_server(
 ) -> subprocess.Popen {
     cmd = [
         jac_executable(),
-        "start",
-        test_file.name if not extra_args else str(test_file),
+        "run",
+        "--serve",
         "--port",
-        str(port)
+        str(port),
+        test_file.name if not extra_args else str(test_file)
     ];
     if extra_args {
         cmd.extend(extra_args);
@@ -205,7 +208,9 @@ test "static and schema endpoints" {
         assert "cross-origin-embedder-policy" in response.headers;
         assert response.headers["cross-origin-embedder-policy"] == "require-corp";
 
-        openapi_spec = client._server.server.app.openapi();
+        srv = client._server;
+        assert srv is not None , "server must be running";
+        openapi_spec = srv.server.app.openapi();
         paths = openapi_spec.get("paths", {});
 
         assert "/user/refresh-token" in paths;
@@ -1193,7 +1198,7 @@ test "user management operations" {
 }
 
 test "websocket functionality" {
-    import from jaclang.runtimelib.serving.client { aws_connect }
+    import from jaclang.server.serving.client { aws_connect }
     sp = setup_serve_server();
     try {
         async def test_echo {
@@ -1509,7 +1514,6 @@ test "websocket functionality" {
 
 glob dm_fixtures_dir: Path = Path(__file__).parent.parent / "fixtures",
      dm_test_file: Path = dm_fixtures_dir / "test_api.jac",
-     dm_vite_port: int = get_free_port(),
      dm_api_port: int = get_free_port(),
      dm_base_url: str = f"http://localhost:{dm_api_port}";
 
@@ -1531,15 +1535,18 @@ def setup_dev_mode_server -> subprocess.Popen {
     }
     _cleanup_db_files(dm_fixtures_dir);
 
+    # Only --api_port is pinned: that is the one this suite talks to, and a
+    # pinned port is now a contract that fails rather than relocating. The app
+    # port is left unset so it may still relocate, which is what this harness
+    # always relied on after reserving ports at import time.
     cmd = [
         jac_executable(),
-        "start",
-        str(dm_test_file),
-        "--port",
-        str(dm_vite_port),
-        "--api_port",
+        "run",
+        "--serve",
+        "--api-port",
         str(dm_api_port),
-        "--dev"
+        "--dev",
+        str(dm_test_file)
     ];
 
     server_process = subprocess.Popen(
@@ -1739,7 +1746,7 @@ test "dev mode operations" {
         content = "";
         for chunk in response.iter_content(chunk_size=1024, decode_unicode=True) {
             if chunk {
-                content += chunk;
+                content += _as_any(chunk);
             }
         }
 
@@ -1767,7 +1774,7 @@ test "dev mode operations" {
         content = "";
         for chunk in response.iter_content(chunk_size=1024, decode_unicode=True) {
             if chunk {
-                content += chunk;
+                content += _as_any(chunk);
             }
         }
 
@@ -1836,13 +1843,16 @@ test "dev mode named endpoints and HMR refresh" {
     }
 }
 
-import from jaclang.scale.server.serve {
-    _find_available_port,
-    _get_network_ips,
+import from jaclang.scale.server.serve { _get_network_ips }
+import from jaclang.server.net {
+    find_available_port as _find_available_port,
+    PortInUseError,
     PORT_RETRY_LIMIT,
     ERRNO_ADDR_IN_USE_LINUX,
+    ERRNO_ADDR_IN_USE_MACOS,
     ERRNO_ADDR_IN_USE_WINDOWS
 }
+import from jaclang.cli.commands.execution { _find_free_port }
 
 test "port fallback - available port returns same port" {
     free_port = get_free_port();
@@ -1893,6 +1903,90 @@ test "port fallback - skips multiple blocked ports" {
     }
 }
 
+def _assert_refuses(label: str, port: int, err: OSError | None) {
+    assert err is not None , (
+        f"{label}: a pinned port was relocated instead of failing, which is what "
+        "silently strands a proxy pointed at it"
+    );
+    assert str(port) in str(err) , (
+        f"{label}: the error must name the port that was asked for, got: {err}"
+    );
+}
+
+
+test "an explicitly requested port is never relocated" {
+    # Both selections a user's -p reaches: the API port, and in dev mode the
+    # app port Vite serves. The second is the one the incident in #8387 moved.
+    blocked = get_free_port();
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s {
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
+        s.bind(('0.0.0.0', blocked));
+        s.listen(1);
+        api_err: OSError | None = None;
+        try {
+            _find_available_port(blocked, strict=True);
+        } except OSError as e {
+            api_err = e;
+        }
+        _assert_refuses("api port", blocked, api_err);
+        app_err: OSError | None = None;
+        try {
+            _find_free_port(blocked, 0, True);
+        } except OSError as e {
+            app_err = e;
+        }
+        _assert_refuses("app port", blocked, app_err);
+        collide_err: OSError | None = None;
+        try {
+            _find_free_port(blocked, blocked, True);
+        } except OSError as e {
+            collide_err = e;
+        }
+        _assert_refuses("app port equal to the api port", blocked, collide_err);
+    }
+}
+
+
+test "a refused port reaches the CLI as a mapped error, not a traceback" {
+    # The refusal crosses two paths that report failures differently: the plain
+    # one catches it itself, the gateway one lets it reach the CLI executor.
+    # Carrying a type rather than a message is what lets errmap render both the
+    # same way, so an unmapped error's raw Python traceback stops being the
+    # gateway's answer to a busy port.
+    import from jaclang.cli.errmap { humanize_error }
+
+    blocked = get_free_port();
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s {
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
+        s.bind(('0.0.0.0', blocked));
+        s.listen(1);
+        err: OSError | None = None;
+        try {
+            _find_available_port(blocked, strict=True);
+        } except OSError as e {
+            err = e;
+        }
+        assert isinstance(err, PortInUseError) , (
+            f"a strict refusal must raise PortInUseError, got {type(err).__name__}"
+        );
+        assert err.port == blocked , (
+            f"the error must carry the port asked for, got {err.port}"
+        );
+        assert isinstance(err, OSError) , (
+            "PortInUseError must stay an OSError so existing handlers still catch it"
+        );
+        mapped = humanize_error(err);
+        assert mapped is not None , (
+            "an unmapped error is what makes the CLI print a raw traceback"
+        );
+        assert str(blocked) in mapped[0] , (
+            f"the mapped message must name the port: {mapped[0]!r}"
+        );
+        assert mapped[1] , "the mapped error should carry a hint";
+    }
+}
+
+
 test "port fallback - raises error when no ports available" {
     start_port = get_free_port();
     sockets: list[socket.socket] = [];
@@ -1942,10 +2036,11 @@ test "network IPs - returns valid IP list" {
 test "port constants - values are correct" {
     assert PORT_RETRY_LIMIT == 10 , "PORT_RETRY_LIMIT should be 10";
     assert ERRNO_ADDR_IN_USE_LINUX == 98 , "ERRNO_ADDR_IN_USE_LINUX should be 98";
+    assert ERRNO_ADDR_IN_USE_MACOS == 48 , "ERRNO_ADDR_IN_USE_MACOS should be 48";
     assert ERRNO_ADDR_IN_USE_WINDOWS == 10048 , "ERRNO_ADDR_IN_USE_WINDOWS should be 10048";
 }
 
-test "server startup - port fallback integration" {
+test "server startup - a second server refuses an already-taken explicit port" {
     port1 = get_free_port();
     sp1: subprocess.Popen | None = None;
     sp2: subprocess.Popen | None = None;
@@ -1958,7 +2053,15 @@ test "server startup - port fallback integration" {
         response = requests.get(f"http://localhost:{port1}/healthz", timeout=5);
         assert response.status_code == 200 , "First server should be running";
 
-        cmd = [jac_executable(), "start", sv_test_file.name, "--port", str(port1)];
+        cmd = [
+            jac_executable(),
+            "run",
+            "--serve",
+            "--port",
+            str(port1),
+            "--no-client",
+            sv_test_file.name
+        ];
 
         sp2 = subprocess.Popen(
             cmd,
@@ -1968,38 +2071,17 @@ test "server startup - port fallback integration" {
             cwd=str(sv_fixtures_dir)
         );
 
-        actual_port = port1;
-        max_wait = 60;
-        start_time = time.time();
+        (output, _unused) = sp2.communicate(timeout=120);
 
-        while time.time() - start_time < max_wait {
-            if sp2.stdout and select.select([sp2.stdout], [], [], 0.5)[0] {
-                line = sp2.stdout.readline();
-                if line and "using port" in line {
-                    port_match = re.search(r'using port (\d+)', line);
-                    if port_match {
-                        actual_port = int(port_match.group(1));
-                    }
-                }
-            }
-
-            for test_port in range(port1 + 1, port1 + 5) {
-                try {
-                    resp = requests.get(
-                        f"http://localhost:{test_port}/healthz", timeout=1
-                    );
-                    if resp.status_code == 200 {
-                        actual_port = test_port;
-                        break;
-                    }
-                } except Exception { }
-            }
-            if actual_port > port1 {
-                break;
-            }
-        }
-
-        assert actual_port > port1 , f"Second server should use port > {port1}, got {actual_port}";
+        assert sp2.returncode != 0 , (
+            "a second server asked for a port the first one holds must exit "
+            f"non-zero rather than relocating, got {sp2.returncode}"
+        );
+        assert str(port1) in output , (
+            f"the failure must name the port that was asked for, got: {output[-300:]!r}"
+        );
+        survivor = requests.get(f"http://localhost:{port1}/healthz", timeout=5);
+        assert survivor.status_code == 200 , "the first server must be undisturbed";
     } finally {
         if sp2 {
             sp2.terminate();
@@ -2046,7 +2128,7 @@ test "health check filter is disabled by default" {
 test "health check filter suppresses health endpoint log records" {
     import logging;
     import from jaclang.scale.server.native_server { HealthCheckFilter }
-    import from jaclang.runtimelib.serving.server { ACCESS_LOGGER_NAME }
+    import from jaclang.server.serving.server { ACCESS_LOGGER_NAME }
 
     def make_record(msg: str) -> logging.LogRecord {
         return logging.LogRecord(
@@ -2092,7 +2174,7 @@ test "health check filter suppresses health endpoint log records" {
 test "health check filter blocks records when attached to a handler" {
     import logging;
     import from jaclang.scale.server.native_server { HealthCheckFilter }
-    import from jaclang.runtimelib.serving.server { ACCESS_LOGGER_NAME }
+    import from jaclang.server.serving.server { ACCESS_LOGGER_NAME }
 
     class _CapturingHandler(logging.Handler) {
         has captured: list = [];
@@ -2162,7 +2244,16 @@ theme_color = "#000000"
 '''
         );
         server = subprocess.Popen(
-            [jac_executable(), "start", "--client", "pwa", "main.jac", "-p", str(port)],
+            [
+                jac_executable(),
+                "run",
+                "--serve",
+                "--client",
+                "pwa",
+                "-p",
+                str(port),
+                "main.jac"
+            ],
             cwd=temp_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

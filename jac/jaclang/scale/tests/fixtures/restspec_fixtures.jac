@@ -1,6 +1,6 @@
 """Test API fixture for restspec decorator tests."""
 
-import from jaclang.runtimelib.builtin { restspec }
+import from jaclang.runtime.builtin { restspec }
 import from http { HTTPMethod }
 
 # ============================================================================
@@ -157,7 +157,7 @@ walker:pub CreateUserProfile {
         here ++> profile;
         report {
             "message": "UserProfile created",
-            "node_id": str(profile.__jac__.id),
+            "node_id": str(profile.__jac__.ensure_id()),
             "user_id": profile.user_id,
             "name": profile.name
         };
@@ -168,7 +168,7 @@ walker:pub LoadUserProfile {
     can load_profile with UserProfile entry {
         report {
             "message": "LoadUserProfile executed on node",
-            "node_id": str(here.__jac__.id),
+            "node_id": str(here.__jac__.ensure_id()),
             "user_id": here.user_id,
             "name": here.name
         };

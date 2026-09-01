@@ -11,8 +11,12 @@ import from unittest.mock { MagicMock }
 
 import watchdog;
 
-import from jaclang.runtimelib.hmr { HotReloader, get_build_status }
-import from jaclang.runtimelib.watcher { ChangeType, FileChangeEvent, JacFileWatcher }
+import from jaclang.server.hmr { HotReloader, get_build_status }
+import from jaclang.server.watcher { ChangeType, FileChangeEvent, JacFileWatcher }
+
+def _as_any(v: any) -> any {
+    return v;
+}
 
 # --- TestJacFileWatcher ---
 test "watcher can be instantiated" {
@@ -55,9 +59,9 @@ test "callback registration" {
         temp_dir = Path(tmp);
         watcher = JacFileWatcher(watch_paths=[str(temp_dir)]);
         callback = MagicMock();
-        watcher.add_callback(callback);
+        watcher.add_callback(_as_any(callback));
         assert callback in watcher._callbacks;
-        watcher.remove_callback(callback);
+        watcher.remove_callback(_as_any(callback));
         assert callback not in watcher._callbacks;
     }
 }
@@ -111,7 +115,9 @@ test "file change detection" {
         watcher.stop();
         # Should have detected the change
         assert len(events) >= 1 , "File change was not detected";
-        assert "test.jac" in events[0].path;
+        assert any("test.jac" in e.path for e in events) , (
+            f"no event named the changed file: {[e.path for e in events]}"
+        );
     }
 }
 
@@ -421,7 +427,7 @@ test "recompile signals a full reload only when the export set changes" {
 }
 
 test "reloading a broken module reports its errors once per reload" {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from jaclang.meta_importer { _module_scoped_alerts }
     with tempfile.TemporaryDirectory() as tmp {
         temp_dir = Path(tmp);
@@ -447,7 +453,7 @@ test "reloading a broken module reports its errors once per reload" {
         } finally {
             # Long-lived global program: do not leak this file's alerts into
             # whatever else runs in this worker.
-            Jac.program.drop_module_alerts(resolved);
+            _as_any(Jac.program).drop_module_alerts(resolved);
         }
     }
 }

@@ -14,10 +14,10 @@ import tempfile;
 import from pathlib { Path }
 import from tempfile { NamedTemporaryFile }
 import jaclang;
-import from jaclang.jac0core.parser.frontend { parse }
-import from jaclang.jac0core.passes.ast_validation_pass { ASTValidationPass }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compiler { run_pass }
+import from jaclang.compiler.frontend.parser.frontend { parse }
+import from jaclang.compiler.passes.ast_validation_pass { ASTValidationPass }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.pass_driver { run_pass }
 
 glob _test_tmp_dir: str = tempfile.mkdtemp(prefix="jac_test_new_builtin_"),
      _client_tmp_dir: str = os.path.join(_test_tmp_dir, "client");
@@ -32,7 +32,7 @@ with entry {
 """Compile inline Jac source through a fresh JacProgram and return module."""
 def compile_inline(
     code: str, prog: JacProgram | None = None, client: bool = False
-) -> object {
+) -> any {
     with NamedTemporaryFile(
         mode="w",
         suffix=".jac",
@@ -168,20 +168,20 @@ test "cl: new with multiple args produces a JS array of args" {
 # ─────────────────────────────────────────────────────────────────────
 #  Server (Python) backend: `new(...)` works as an ambient builtin
 # ─────────────────────────────────────────────────────────────────────
-test "server: new is auto-imported from runtimelib.builtin" {
+test "server: new is auto-imported from runtime.builtin" {
     code = "with entry { x = new(list, [1, 2, 3]); print(x); }\n";
     mod = compile_inline(code);
     py = mod.gen.py;
-    assert "from jaclang.runtimelib.builtin import" in py , (
+    assert "from jaclang.runtime.builtin import" in py , (
         "Expected builtin import preamble; got:\n" + py
     );
     assert "new" in py , "Expected `new` to appear in generated Python";
 }
 
 test "server: new(Cls, *args) returns Cls(*args) at runtime" {
-    import from jaclang.runtimelib.builtin { new }
+    import from jaclang.runtime.builtin { new }
     class Box {
-        def init(self, x: int, y: int) {
+        def init(self: Box, x: int, y: int) {
             self.x = x;
             self.y = y;
         }
@@ -192,7 +192,7 @@ test "server: new(Cls, *args) returns Cls(*args) at runtime" {
 }
 
 test "server: new with builtin types works end-to-end" {
-    import from jaclang.runtimelib.builtin { new }
+    import from jaclang.runtime.builtin { new }
     assert new(list, [1, 2, 3]) == [1, 2, 3];
     assert new(dict, {"a": 1}) == {"a": 1};
     assert new(set, [1, 2, 2, 3]) == {1, 2, 3};
@@ -203,7 +203,7 @@ test "server: new with builtin types works end-to-end" {
 #  Diagnostic: E0012 should now point at `new(...)`, not `Reflect.construct`
 # ─────────────────────────────────────────────────────────────────────
 test "E0012 message mentions new(...) idiom" {
-    import from jaclang.jac0core.diagnostics { E0012 }
+    import from jaclang.compiler.frontend.diagnostics { E0012 }
     msg = E0012.message_template;
     assert "new(" in msg , (
         "E0012 should recommend `new(target, ...args)`; current template: " + msg

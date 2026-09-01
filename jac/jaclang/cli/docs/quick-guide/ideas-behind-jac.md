@@ -82,7 +82,7 @@ Concretely, substrate transparency is why:
   [byLLM](../reference/plugins/byllm.md).
 - **The deployment is not the program.** One user or many, one machine or
   many, transient or persistent: the program text does not change (`jac run`
-  -> `jac start` -> `jac start --scale`). This property is *scale invariance*,
+  -> `jac run` -> `jac scale deploy`). This property is *scale invariance*,
   and deployment shape is a runtime concern, the way garbage collection is a
   runtime concern. See
   [the scale-invariance contract](../reference/plugins/jac-scale.md#the-scale-invariance-contract).

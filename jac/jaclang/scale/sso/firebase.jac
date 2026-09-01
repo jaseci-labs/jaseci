@@ -1,5 +1,5 @@
 import json;
-import from jaclang.runtimelib.serving.datatypes { Request, Response }
+import from jaclang.server.serving.datatypes { Request, Response }
 import from jaclang.scale.sso.provider { SSOProvider, SSOUserInfo }
 import from jaclang.scale.config.firebase_env { firebase_project_id_env_hint }
 import from jaclang.scale._optdeps.optional_deps { require_optional }

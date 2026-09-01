@@ -21,6 +21,7 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
     with_config_revision,
+    CONFIG_REVISION_ANNOTATION,
     ManifestBuilder,
     GATEWAY_NAME,
     k8s_safe_name
@@ -38,8 +39,133 @@ import from jaclang.scale.deploy.autoscale.autoscaler {
 }
 import from jaclang.scale.deploy.target.kubernetes.monitoring { MonitoringDeployer }
 import from jaclang.scale.config.config_loader { get_scale_config }
+import from jaclang.scale.injector.pvc_injector { bundle_keys_from_pod_spec }
 
-glob logger = logging.getLogger(__name__);
+glob logger = logging.getLogger(__name__),
+     REVISION_ANNOTATION: str = "deployment.kubernetes.io/revision",
+     FLEET_SELECTOR: str = "managed=jac-scale,jac-scale.role in (microservice,gateway)";
+
+
+def _revision_sort_key(item: dict[str, any]) -> int {
+    return int(item.get("revision", 0));
+}
+
+
+def fleet_revert_order(names: list[str]) -> list[str] {
+    gateway = f"{k8s_safe_name(GATEWAY_NAME)}-deployment";
+    services: list[str] = [];
+    has_gateway = False;
+    for name in sorted(set(names)) {
+        if str(name) == gateway {
+            has_gateway = True;
+        } else {
+            services.append(str(name));
+        }
+    }
+    return services + ([gateway] if has_gateway else []);
+}
+
+
+def app_bundle_digest(bundle_keys: list[str]) -> str {
+    for key in bundle_keys {
+        text = str(key);
+        if text.startswith("bundles/") and text.endswith(".jab") {
+            return text.rsplit("/", 1)[-1][:-len(".jab")];
+        }
+    }
+    return "";
+}
+
+
+def releases_from_revisions(entries: list[dict[str, any]]) -> list[dict[str, any]] {
+    by_digest: dict[str, dict[str, any]] = {};
+    for item in entries {
+        digest = str(item.get("bundle_digest", "") or "");
+        if not digest {
+            continue;
+        }
+        name = str(item.get("deployment", "") or "");
+        revision = int(item.get("revision", 0) or 0);
+        if digest not in by_digest {
+            by_digest[digest] = {
+                "bundle_digest": digest,
+                "revision": revision,
+                "created": str(item.get("created", "") or ""),
+                "deployments": {}
+            };
+        }
+        release = by_digest[digest];
+        if revision > int(release["deployments"].get(name, 0) or 0) {
+            release["deployments"][name] = revision;
+        }
+        if revision > int(release["revision"]) {
+            release["revision"] = revision;
+            release["created"] = str(item.get("created", "") or "");
+        }
+    }
+    return sorted(by_digest.values(), key=_revision_sort_key, reverse=True);
+}
+
+
+def fleet_targets_for_release(
+    releases: list[dict[str, any]], revision: int, expected: list[str]
+) -> dict[str, any] {
+    for release in releases {
+        if int(release.get("revision", 0) or 0) != int(revision) {
+            continue;
+        }
+        held = dict(release.get("deployments", {}) or {});
+        missing = [
+            name
+            for name in expected
+            if name not in held
+        ];
+        if missing {
+            return {"ok": False, "missing": sorted(missing), "targets": {}};
+        }
+        return {"ok": True, "missing": [], "targets": held};
+    }
+    return {"ok": False, "missing": list(expected), "targets": {}};
+}
+
+
+def deployment_rollout_complete(dep: any) -> bool {
+    try {
+        status = dep.status;
+        if status is None {
+            return False;
+        }
+        if int(status.observed_generation or 0) < int(dep.metadata.generation or 0) {
+            return False;
+        }
+        desired = dep.spec.replicas;
+        wanted = int(desired) if desired is not None else 1;
+        updated = int(status.updated_replicas or 0);
+        current = int(status.replicas or 0);
+        available = int(status.available_replicas or 0);
+    } except Exception {
+        return False;
+    }
+    return updated >= wanted and current <= updated and available >= updated;
+}
+
+
+def restorable_pod_template(template: dict[str, any]) -> dict[str, any] {
+    cleaned = dict(template);
+    metadata = dict(cleaned.get("metadata") or {});
+    labels = dict(metadata.get("labels") or {});
+    labels.pop("pod-template-hash", None);
+    annotations = dict(metadata.get("annotations") or {});
+    annotations.pop(CONFIG_REVISION_ANNOTATION, None);
+    metadata["labels"] = labels;
+    if annotations {
+        metadata["annotations"] = annotations;
+    } else {
+        metadata.pop("annotations", None);
+    }
+    cleaned["metadata"] = metadata;
+    return cleaned;
+}
 
 
 obj KubernetesTarget(KubernetesTargetBase) {
@@ -185,7 +311,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 f"{success_msg} "
                 f"NOTE: observability stack deploy failed - "
                 f"`{observability_err}`. The app is running but pod logs "
-                f"are not being shipped to Loki. Re-run `jac start --scale` "
+                f"are not being shipped to Loki. Re-run `jac scale deploy <file.jac>` "
                 f"once the underlying issue is fixed."
             );
         }
@@ -373,7 +499,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
         return True;
     }
 
-    def _wait_for_fleet_rollout(bundle: dict[str, any], timeout: int = 1200) -> None {
+    def _wait_for_fleet_rollout(
+        bundle: dict[str, any], timeout: int = 1200, require_full: bool = False
+    ) -> None {
         import time;
         import sys;
         import from kubernetes { client }
@@ -437,7 +565,10 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 for name in names {
                     try {
                         d = apps_v1.read_namespaced_deployment(name=name, namespace=ns);
-                        if (d.status.ready_replicas or 0) >= 1 {
+                        complete = deployment_rollout_complete(d)
+                            if require_full
+                            else (d.status.ready_replicas or 0) >= 1;
+                        if complete {
                             ready += 1;
                         }
                     } except Exception {
@@ -471,7 +602,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                     crash_pod = recheck["crash_pod"];
                 }
 
-                pulls = scan["pulls"];
+                pulls: dict[str, tuple[str, str, any]] = scan["pulls"];
                 imagepull_streak = {k: imagepull_streak.get(k, 0) + 1 for k in pulls};
                 pull_failure = "";
                 pull_pod = None;
@@ -495,7 +626,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                         break;
                     }
                 }
-                creating_now = scan.get("creating", {});
+                creating_now: dict[str, any] = scan.get("creating", {});
                 creating_streak = {
                     k: creating_streak.get(k, 0) + 1 for k in creating_now
                 };
@@ -607,11 +738,16 @@ obj KubernetesTarget(KubernetesTargetBase) {
         return detail;
     }
 
-    def _deploy_observability(app_name: str) -> None {
+    def _observability_requested -> bool {
         logs_cfg = self._read_microservices_logs_config();
         tracing_cfg = self._read_microservices_tracing_config();
-        if not logs_cfg.get("enabled", False)
-            and not tracing_cfg.get("enabled", False) {
+        return bool(self.k8s_config.monitoring_enabled)
+            or bool(logs_cfg.get("enabled", False))
+            or bool(tracing_cfg.get("enabled", False));
+    }
+
+    def _deploy_observability(app_name: str) -> None {
+        if not self._observability_requested() {
             return;
         }
 
@@ -726,8 +862,6 @@ obj KubernetesTarget(KubernetesTargetBase) {
 
     def _build_observability_config -> KubernetesConfig {
         overrides: dict[str, any] = dict(self.k8s_config.to_dict());
-        overrides["monitoring_enabled"] = True;
-
         overrides["loki_enabled"] = self._read_microservices_logs_config().get(
             "enabled", False
         );
@@ -804,7 +938,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
     def _resolve_service_triggers(svc_name: str, cfg: dict[str, any]) -> list[Trigger] {
         is_gateway = svc_name == GATEWAY_NAME;
         has_memory_request = bool(cfg.get("has_memory_request", True));
-        effective_extra = self.k8s_config.extra_triggers if is_gateway else [];
+        effective_extra: list[dict[str, any]] = self.k8s_config.extra_triggers
+            if is_gateway
+            else [];
         triggers: list[Trigger] = [];
         if not cfg.get("triggers", []) and not effective_extra {
             triggers = [
@@ -832,7 +968,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 );
             }
         }
-        for raw in cfg.get("triggers", []) + effective_extra {
+        raw_triggers: list[dict[str, any]] = cfg.get("triggers", []) or [];
+        for raw in raw_triggers + effective_extra {
             t = Trigger(
                 type=str(raw.get("type", "")),
                 metadata=dict(raw.get("metadata", {})),
@@ -849,7 +986,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 }
                 continue;
             }
-            raw_auth = raw.get("auth");
+            raw_auth: dict[str, any] = raw.get("auth") or {};
             if raw_auth {
                 t.auth = TriggerAuth(secret_refs=dict(raw_auth.get("secret_refs", {})));
             }
@@ -882,18 +1019,19 @@ obj KubernetesTarget(KubernetesTargetBase) {
 
     def render_autoscaler_manifests(bundle: dict[str, any]) -> list[dict[str, any]] {
         out: list[dict[str, any]] = [];
-        for (svc_name, cfg_raw) in bundle.get("autoscalers", {}).items() {
+        autoscalers: dict[str, any] = bundle.get("autoscalers", {}) or {};
+        for (svc_name, cfg_raw) in autoscalers.items() {
             cfg = dict(cfg_raw or {});
             autoscaler = AutoscalerFactory.create(
                 self.k8s_config.autoscaler_engine, self.k8s_config.to_dict(), None
             );
-            built = autoscaler._build_manifests(
-                self._autoscaler_spec(
-                    svc_name, cfg, autoscaler, self.k8s_config.namespace
+            out.extend(
+                autoscaler._build_manifests(
+                    self._autoscaler_spec(
+                        svc_name, cfg, autoscaler, self.k8s_config.namespace
+                    )
                 )
             );
-
-            out.append(built["body"] if "body" in built else built);
         }
         return out;
     }
@@ -927,7 +1065,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
             self._apply_ops_rbac(namespace, ops_rbac);
         }
 
-        for (pvc_name, pvc_manifest) in bundle.get("pvcs", {}).items() {
+        pvcs: dict[str, dict[str, any]] = bundle.get("pvcs", {}) or {};
+        for (pvc_name, pvc_manifest) in pvcs.items() {
             self._apply_or_replace_pvc(core_v1, namespace, pvc_manifest);
             if self.logger {
                 self.logger.info(
@@ -975,7 +1114,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
             }
         }
 
-        for (svc_name, svc_manifest) in bundle["services"].items() {
+        services: dict[str, dict[str, any]] = bundle["services"];
+        for (svc_name, svc_manifest) in services.items() {
             self._apply_or_replace(
                 core_v1,
                 "read_namespaced_service",
@@ -992,7 +1132,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
             }
         }
 
-        for (svc_name, raw_manifest) in bundle["deployments"].items() {
+        deployments: dict[str, dict[str, any]] = bundle["deployments"];
+        for (svc_name, raw_manifest) in deployments.items() {
             dep_manifest = with_config_revision(raw_manifest, config_revision);
             self._apply_or_replace(
                 apps_v1,
@@ -1030,7 +1171,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
             }
         }
 
-        for (svc_name, pdb_manifest) in bundle.get("pdbs", {}).items() {
+        pdbs: dict[str, dict[str, any]] = bundle.get("pdbs", {}) or {};
+        for (svc_name, pdb_manifest) in pdbs.items() {
             self._apply_or_replace(
                 policy_v1,
                 "read_namespaced_pod_disruption_budget",
@@ -1184,6 +1326,282 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
     }
 
+    def _fleet_deployment_names(apps_v1: any, namespace: str) -> list[str] {
+        names: list[str] = [];
+        try {
+            listed = apps_v1.list_namespaced_deployment(
+                namespace=namespace, label_selector=FLEET_SELECTOR
+            );
+            for dep in list(listed?.items or []) {
+                try {
+                    names.append(str(dep.metadata.name));
+                } except Exception {
+                    continue;
+                }
+            }
+        } except Exception {
+            return [];
+        }
+        return fleet_revert_order(names);
+    }
+
+    def _owned_replica_sets(
+        apps_v1: any, namespace: str, strict: bool = False
+    ) -> list[any] {
+        owned: list[str] = self._fleet_deployment_names(apps_v1, namespace);
+        try {
+            listed = list(
+                apps_v1.list_namespaced_replica_set(
+                    namespace=namespace, label_selector="managed=jac-scale"
+                ).items
+            );
+            scoped: list[any] = [];
+            for rs in listed {
+                rs_any: any = rs;
+                try {
+                    owners = list(rs_any.metadata.owner_references or []);
+                } except Exception {
+                    continue;
+                }
+                if owners and str(owners[0].name) in owned {
+                    scoped.append(rs_any);
+                }
+            }
+            return scoped;
+        } except Exception as e {
+            if strict {
+                raise;
+            }
+            if self.logger {
+                self.logger.warn(
+                    f"Could not list ReplicaSets: {e}", {"namespace": namespace}
+                );
+            }
+            return [];
+        }
+    }
+
+    def _revision_entries(strict: bool = False) -> list[dict[str, any]] {
+        self._load_cluster_config();
+        apps_v1 = client.AppsV1Api();
+        namespace: str = self.k8s_config.namespace;
+        serializer = client.ApiClient();
+        revisions: list[dict[str, any]] = [];
+
+        for rs in self._owned_replica_sets(apps_v1, namespace, strict=strict) {
+            try {
+                annotations = dict(rs.metadata.annotations or {});
+                raw_revision = annotations.get(REVISION_ANNOTATION);
+                if raw_revision is None {
+                    continue;
+                }
+                owners = list(rs.metadata.owner_references or []);
+                deployment = str(owners[0].name) if owners else "";
+                pod_spec = serializer.sanitize_for_serialization(rs.spec.template.spec);
+                created = rs.metadata.creation_timestamp;
+                revisions.append(
+                    {
+                        "deployment": deployment,
+                        "revision": int(raw_revision),
+                        "replica_set": str(rs.metadata.name),
+                        "bundle_keys": bundle_keys_from_pod_spec(dict(pod_spec)),
+                        "bundle_digest": app_bundle_digest(
+                            bundle_keys_from_pod_spec(dict(pod_spec))
+                        ),
+                        "created": created.isoformat() if created else "",
+                        "replicas": int(rs.spec.replicas or 0)
+                    }
+                );
+            } except Exception {
+                continue;
+            }
+        }
+        return revisions;
+    }
+
+    def _assert_own_app(app_name: str) {
+        mine = str(self.k8s_config.app_name or "");
+        if app_name and mine and str(app_name) != mine {
+            detail = f"configured for '{mine}', asked about '{app_name}'";
+            raise ValueError(
+                "This target cannot report or revert another app's revisions "
+                    + f"({detail}). Build a target for that app."
+            );
+        }
+    }
+
+    def list_revisions(app_name: str) -> list[dict[str, any]] {
+        self._assert_own_app(app_name);
+        return releases_from_revisions(self._revision_entries());
+    }
+
+    def referenced_bundle_keys(app_name: str) -> set[str] {
+        self._assert_own_app(app_name);
+        keys: set[str] = set();
+        for item in self._revision_entries(strict=True) {
+            for key in item.get("bundle_keys", []) {
+                keys.add(str(key));
+            }
+        }
+        return keys;
+    }
+
+    def _restore_templates(
+        apps_v1: any, namespace: str, names: list[str], undo: dict[str, any]
+    ) -> list[str] {
+        stranded: list[str] = [];
+        for name in reversed(names) {
+            template = undo.get(name);
+            if template is None {
+                continue;
+            }
+            try {
+                apps_v1.patch_namespaced_deployment(
+                    name=name,
+                    namespace=namespace,
+                    body=[
+                        {"op": "replace", "path": "/spec/template", "value": template}
+                    ]
+                );
+            } except Exception {
+                stranded.append(name);
+            }
+        }
+        return stranded;
+    }
+
+    def rollback_to(app_name: str, revision: int) -> DeploymentResult {
+        self._assert_own_app(app_name);
+        self._load_cluster_config();
+        apps_v1 = client.AppsV1Api();
+        namespace: str = self.k8s_config.namespace;
+        serializer = client.ApiClient();
+
+        expected: list[str] = self._fleet_deployment_names(apps_v1, namespace);
+        resolved = fleet_targets_for_release(
+            self.list_revisions(app_name), revision, expected
+        );
+        if not resolved.get("ok", False) {
+            missing = list(resolved.get("missing", []));
+            return DeploymentResult(
+                success=False,
+                message=(
+                    f"Cannot roll '{app_name}' back to revision {revision} in "
+                    f"'{namespace}': no retained revision for "
+                    f"{', '.join(missing)}. It is older than "
+                    f"revision_history_limit "
+                    f"({self.k8s_config.revision_history_limit}), was never "
+                    "deployed, or the service set changed between releases."
+                ),
+                details={"missing": missing}
+            );
+        }
+
+        wanted: dict[str, any] = dict(resolved.get("targets", {}) or {});
+        by_name: dict[str, any] = {};
+        for rs in self._owned_replica_sets(apps_v1, namespace) {
+            try {
+                owners = list(rs.metadata.owner_references or []);
+                ann = dict(rs.metadata.annotations or {});
+            } except Exception {
+                continue;
+            }
+            if not owners {
+                continue;
+            }
+            name = str(owners[0].name);
+            if name in wanted and ann.get(REVISION_ANNOTATION) == str(wanted[name]) {
+                by_name[name] = rs;
+            }
+        }
+        targets = by_name;
+
+        if len(targets) != len(wanted) {
+            return DeploymentResult(
+                success=False,
+                message=(
+                    f"Refusing a partial rollback of '{app_name}': "
+                    f"{len(targets)} of {len(wanted)} deployment(s) resolved. "
+                    "A half reverted app serves two versions at once."
+                )
+            );
+        }
+
+        reverted: list[str] = [];
+        undo: dict[str, any] = {};
+        selectors: dict[str, any] = {};
+        for name in expected {
+            if name not in targets {
+                continue;
+            }
+            rs = targets[name];
+            template = restorable_pod_template(
+                dict(serializer.sanitize_for_serialization(rs.spec.template))
+            );
+            try {
+                live = apps_v1.read_namespaced_deployment(
+                    name=name, namespace=namespace
+                );
+                undo[name] = dict(
+                    serializer.sanitize_for_serialization(live.spec.template)
+                );
+                selectors[name] = dict(
+                    serializer.sanitize_for_serialization(live.spec.selector)
+                );
+                apps_v1.patch_namespaced_deployment(
+                    name=name,
+                    namespace=namespace,
+                    body=[
+                        {"op": "replace", "path": "/spec/template", "value": template}
+                    ]
+                );
+            } except Exception as e {
+                stranded = self._restore_templates(apps_v1, namespace, reverted, undo);
+                detail = (
+                    f" {len(stranded)} deployment(s) are still on revision "
+                    f"{revision} and the app is serving two versions: "
+                    f"{', '.join(stranded)}."
+                        if stranded
+                        else " The already reverted deployments were put back."
+                );
+                return DeploymentResult(
+                    success=False,
+                    message=(
+                        f"Reverting '{name}' to revision {revision} failed: {e}."
+                        f"{detail}"
+                    ),
+                    details={"reverted": reverted, "stranded": stranded}
+                );
+            }
+            reverted.append(name);
+        }
+
+        wait_bundle: dict[str, any] = {"deployments": {}};
+        for name in reverted {
+            wait_bundle["deployments"][name] = {
+                "metadata": {"name": name},
+                "spec": {"selector": selectors.get(name, {})}
+            };
+        }
+        try {
+            self._wait_for_fleet_rollout(wait_bundle, require_full=True);
+        } except Exception as e {
+            return DeploymentResult(
+                success=False,
+                message=(
+                    f"Reverted {len(reverted)} deployment(s) to revision "
+                    f"{revision}, but the fleet did not come back: {e}"
+                ),
+                details={"reverted": reverted, "revision": revision}
+            );
+        }
+        return DeploymentResult(
+            success=True,
+            message=(f"Reverted {len(reverted)} deployment(s) to revision {revision}"),
+            details={"reverted": reverted, "revision": revision}
+        );
+    }
+
     def _apply_or_replace(
         api: any,
         read: str,
@@ -1215,7 +1633,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 self.logger.info(
                     f"PVC '{name}' already exists; skipping patch. To apply "
                     f"size/storage-class changes, delete the PVC manually or "
-                    f"run `jac start --scale --destroy`."
+                    f"run `jac scale destroy <file.jac>`."
                 );
             }
         } except ApiException as e {
@@ -1245,7 +1663,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         networking_v1 = client.NetworkingV1Api();
         namespace: str = self.k8s_config.namespace;
 
-        selector: str = "managed=jac-scale,jac-scale.role in (microservice,gateway)";
+        selector: str = FLEET_SELECTOR;
         ms_selector: str = "managed=jac-scale";
 
         try {
@@ -1296,7 +1714,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
             services = core_v1.list_namespaced_service(
                 namespace=namespace, label_selector=ms_selector
             );
-            for svc in services.items {
+            service_items: list[any] = services.items;
+            for svc in service_items {
                 try {
                     core_v1.delete_namespaced_service(
                         name=svc.metadata.name, namespace=namespace

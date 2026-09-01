@@ -29,7 +29,7 @@ app_name = "My Jac App"        # display name           (default "Jac App")
 app_id = "com.example.myapp"   # reverse-DNS id, both stores (default "com.jac.app")
 release = false                # true = release variant instead of debug
 bundle = false                 # true = AAB instead of APK (Android)
-default_platform = "android"   # default for jac start --client mobile
+default_platform = "android"   # default for jac run --client mobile
 ios_sdk = "iphonesimulator"    # "iphoneos" for device builds
 ios_destination = "platform=iOS Simulator,name=iPhone 16,OS=latest"
 ```
@@ -39,9 +39,9 @@ Values feed `capacitor.config.json` and the native build commands automatically.
 ## Dev loop
 
 ```bash
-jac start main.jac --client mobile --dev                  # live reload on device/emulator
-jac start main.jac --client mobile --dev --platform ios   # force iOS
-jac start main.jac --client mobile --dev --host 192.168.1.25   # only when auto host fails
+jac run --client mobile --dev main.jac                    # live reload on device/emulator
+jac run --client mobile --dev --platform ios main.jac     # force iOS
+jac run --client mobile --dev --host 192.168.1.25 main.jac     # only when auto host fails
 ```
 
 Runs `cap sync` + `cap run`. Host selection is automatic; on Android, jac-client auto-attempts `adb reverse` for the Vite and API ports before launching Capacitor, so manual port forwarding is usually unnecessary. If the app loads blank: check the printed host/port, confirm `adb devices` shows the target as authorized, and fall back to manual `adb reverse tcp:5173 tcp:5173` / `tcp:8000 tcp:8000`.

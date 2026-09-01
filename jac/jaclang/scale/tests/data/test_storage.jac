@@ -6,7 +6,7 @@ import shutil;
 import from tempfile { mkdtemp }
 import from pathlib { Path }
 
-import from jaclang.runtimelib.storage { LocalStorage }
+import from jaclang.data.storage { LocalStorage }
 
 """Create a temporary directory and LocalStorage instance."""
 def make_temp_storage -> tuple[str, LocalStorage] {

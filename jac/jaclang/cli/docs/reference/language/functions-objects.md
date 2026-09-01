@@ -188,6 +188,8 @@ with entry {
 }
 ```
 
+A parameter prefixed with `comptime` (`def repeat(comptime n: int, msg: str)`) must receive a compile-time-known argument at every call site; inside the body it is a comptime value, so `comptime for _ in range(n)` unrolls. See [Compile-Time Evaluation](comptime.md#comptime-parameters).
+
 ### 4 `can` vs `def`
 
 Jac has two keywords for defining callable behavior: `def` for standard functions/methods and `can` for event-driven abilities on archetypes. Use `def` when you want explicit calling; use `can` when behavior should trigger automatically based on walker/node context.
@@ -994,7 +996,7 @@ def hypotenuse(a: f64, b: f64) -> f64 {
 
 Declarations inside the braces are body-less function signatures that become LLVM `declare` (extern) statements. The shared library is loaded automatically at JIT time, and symbols are resolved by name.
 
-**Type mapping:** Jac's `int` maps to `i64` and `float` maps to `f64` in native code. Use fixed-width types (`i8`, `i16`, `i32`, `u8`, `u16`, `u32`, `f32`, etc.) when C functions expect specific sizes. The compiler automatically coerces between standard and fixed-width types at call boundaries.
+**Type mapping:** Jac's `int` maps to `i64` and `float` maps to `f64` in native code. Declare extern parameters with the fixed-width types the C signature uses (`i8`, `i16`, `i32`, `u8`, `u16`, `u32`, `f32`, etc.); the checker then enforces the call site like any other call, so an `int` value flowing into an `i32` parameter needs the explicit cast `i32(n)` (a checked conversion that raises `OverflowError` out of range). Widening conversions such as `u8 -> i32` or `f32 -> f64` stay implicit. See [Fixed-width semantics](types-and-values.md#fixed-width-semantics).
 
 **Example -- calling raylib from Jac:**
 

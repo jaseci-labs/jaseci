@@ -12,14 +12,26 @@ instead of pinning SIREAD reclamation for the whole cluster.
 import os;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.runtimelib.pgembed { PgRuntime }
-import from jaclang.runtimelib.session { Session, shared_pg_data_dir, project_db_name }
-import from jaclang.runtimelib.store { PgStore, TxnIsolation }
-import from jaclang.runtimelib.pgwire { PgWireError }
+import from jaclang.data.pgembed { PgRuntime }
+import from jaclang.server.session { Session, shared_pg_data_dir, project_db_name }
+import from jaclang.data.store { PgStore, Store, TxnIsolation }
+import from jaclang.data.pgwire { PgWireError }
 
 
 def _mk_session(td: str) -> Session {
     return Session(base_path=td, target_path=str(Path(td) / 'app.jac'));
+}
+
+
+def _as_any(v: any) -> any {
+    return v;
+}
+
+
+def _store(s: Session) -> Store {
+    st = s.store;
+    assert st is not None;
+    return st;
 }
 
 
@@ -30,21 +42,23 @@ test "uow: last unit out closes the store transaction" {
             s.unit_enter();
             s.unit_enter();  # overlapping request on the shared session
             s.read_barrier();  # opens the serializable txn
-            assert s.store.in_txn() , 'txn must be open inside a unit';
+            assert _store(s).in_txn() , 'txn must be open inside a unit';
             s.unit_exit();
-            assert s.store.in_txn() , 'txn must survive while a unit is active';
+            assert _store(s).in_txn() , 'txn must survive while a unit is active';
             s.unit_exit();
-            assert not s.store.in_txn() , (
+            assert not _store(s).in_txn() , (
                 'last unit out must commit and close the transaction'
             );
-            backend_pid = int(s.store.rows('SELECT pg_backend_pid()', {})[0][0]);
-            import from jaclang.vendor.pgload { connect as pg_connect }
-            info = s.store.conninfo;
-            probe = pg_connect(
-                info.user,
-                unix_socket_dir=info.unix_socket_dir,
-                port=info.port,
-                database=info.database
+            backend_pid = int(_store(s).rows('SELECT pg_backend_pid()', {})[0][0]);
+            import from jaclang.data.pgload { connect as pg_connect }
+            info = _as_any(s.store).conninfo;
+            probe = _as_any(
+                pg_connect(
+                    info.user,
+                    unix_socket_dir=info.unix_socket_dir,
+                    port=info.port,
+                    database=info.database
+                )
             );
             try {
                 rows = probe.run(
@@ -94,7 +108,7 @@ test "uow: read-only transactions take zero SIREAD predicate locks" {
 
 
 test "uow: embedded server carries the idle-in-transaction backstop" {
-    import from jaclang.runtimelib.pgembed { PG_MAX_CONNECTIONS }
+    import from jaclang.data.pgembed { PG_MAX_CONNECTIONS }
     rt = PgRuntime(data_dir=shared_pg_data_dir(), database='postgres');
     opts = rt._server_opts();
     assert 'idle_in_transaction_session_timeout' in opts , (
@@ -107,7 +121,7 @@ test "uow: embedded server carries the idle-in-transaction backstop" {
 
 
 test "uow: idle-in-transaction disconnect heals like a dead connection" {
-    import from jaclang.runtimelib.store { _conn_dead }
+    import from jaclang.data.store { _conn_dead }
     assert _conn_dead(
         PgWireError(
             {

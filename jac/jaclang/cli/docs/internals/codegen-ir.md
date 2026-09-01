@@ -1,11 +1,10 @@
 # Compact Codegen IR (JCIR)
 
 Status: shipped. This format is the compiler's only Python codegen. The
-emitter (`jac0core/passes/jcir_gen_pass.jac`) produces it from the
+emitter (`compiler/backends/py/jcir_gen_pass.jac`) produces it from the
 annotated unitree for the whole language, the shim seat
-(`jac0core/passes/jcir_bc_gen_pass.jac`) turns the bytes back into
-CPython code objects, and the seal ships the emitter as a native
-artifact. The Python-AST emitter it was measured against
+(`compiler/backends/py/jcir_bc_gen_pass.jac`) turns the bytes back into
+CPython code objects. The Python-AST emitter it was measured against
 (`pyast_gen_pass`), its bytecode pass, and the `JAC_CODEGEN` flag that
 chose between them were deleted at the cutover, which is where the
 two-codegen era ends. Sections 1 through 8 are the design record and
@@ -19,6 +18,15 @@ remains ahead of it is the mega-arc's own work -- per-node dispatch, and
 retiring the Python shim seat for a generated native transcriber, which
 must conform to the bytes specified here.
 
+Status note (#8732): the native seal, the fused `libjac_compiler` build,
+the pass-serving binder, and the `mat_parse` materializer crossing that
+this document refers to were removed. The compiler modules served natively
+are now listed in `compiler/native_scope.jac`, empty until a native pass
+can share the tree with a bytecode pass. The sealed-lane paragraphs below
+(sections 2, 9 and 11) are the record of what was measured before the
+removal and the precedent the next crossing builds on; the tests and
+waiver tables they name no longer exist.
+
 Note on location: the task brief suggested `docs/community/internals/`; the
 corpus's actual home for internal design docs is `docs/internals/` (beside
 `compiler_architecture.md`, `interop.md`, `ownership-checker-spec.md`), so
@@ -28,10 +36,10 @@ this document lives there.
 
 Today codegen is two passes at the end of the pipeline:
 
-- `jac0core/passes/pyast_gen_pass.jac` (+impl, about 4,500 lines, 169
-  methods; census 2026-08-14: 137 of 169 methods are `ast3`-bound) walks the
+- `compiler/passes/pyast_gen_pass.jac` (+impl, about 4,500 lines, 169
+  methods; measured 2026-08-14: 137 of 169 methods are `ast3`-bound) walks the
   annotated unitree and builds a CPython `ast` tree per module.
-- `jac0core/passes/pybc_gen_pass.jac` (3 methods) calls `compile()` on each
+- `compiler/passes/pybc_gen_pass.jac` (3 methods) calls `compile()` on each
   `ast.Module` and `marshal.dumps` the code object.
 
 `pyast_gen` interleaves two very different kinds of work:
@@ -62,9 +70,9 @@ diagnostics out. Full annotated trees never cross in production.
 ## 2. The crossing, by analogy to the parser materializer
 
 The proven pattern is the `mat_parse` crossing
-(`jac0core/parser/materialize.jac` on the Python side,
+(`compiler/frontend/parser/materialize.jac` on the Python side,
 `compiler/native_materialize.jac` generated at seal time by
-`utils/gen_native_materialize.jac` on the native side):
+`dist/gen_native_materialize.jac` on the native side):
 
 - one GIL-held `PYFUNCTYPE` entry per crossing, returning a fully
   Python-owned result;
@@ -93,7 +101,7 @@ construction, with two deliberate simplifications:
 2. **The construction recipe crosses as data.** The native side does not
    hardcode ast shapes; it emits a byte stream. The transcriber that walks
    the stream and constructs `ast.*` objects exists twice, by design:
-   - the **Python reference shim** (`jac0core/codegen_shim.jac`, this
+   - the **Python reference shim** (`compiler/backends/py/codegen_shim.jac`, this
      change): consumes IR bytes with plain `import ast`, used by the dev
      lane, tooling, and tests, and serves as the executable specification;
    - the **generated native transcriber** (future): the evolution of
@@ -118,7 +126,7 @@ instead of 4,500 lines of hand-written crossing code.
 
 ## 3. Container format
 
-The container is versioned like the JIR container (`jac0core/jir.jac`):
+The container is versioned like the JIR container (`compiler/driver/jir.jac`):
 magic plus format version, refuse mismatched, no migration attempts.
 
 ```
@@ -323,7 +331,7 @@ production:
 - **`py_ast` caches on unitree nodes**: `nd.gen.py_ast` is scaffolding of
   the current pass structure, not part of the crossing contract.
 
-## 8. pyast_gen behavior census: IR emission vs shim transcription
+## 8. pyast_gen behavior coverage: IR emission vs shim transcription
 
 "IR emission" means the behavior becomes producer logic whose output is
 ordinary JCIR instructions. "Shim transcription" means the behavior is
@@ -482,8 +490,8 @@ assumed away.
   the closure, never be waived. `decode_ops` was the latter: it decodes
   into heterogeneous tuples, does not lower, and now lives in
   `codegen_shim` where the reader belonged anyway.
-  `test_sealed_demotion_audit.jac` and `test_jcir_seal_census.jac` fail
-  on such a waiver now, so the finding surfaces in a census rather than
+  `test_sealed_demotion_audit.jac` and `test_jcir_seal_baseline.jac` fail
+  on such a waiver now, so the finding surfaces in the coverage report rather than
   three minutes into a link.
 - **Nested functions and the emitter's internal refusal.** Two emitter
   methods refused with an emitter-internal error rather than a named gap.
@@ -495,12 +503,13 @@ assumed away.
 
 ## 11. Module placement
 
-- `jac0core/codegen_ir.jac`: the format module sits in jac0core beside
-  `jir.jac`, its container sibling, because it is a leaf (imports only
+- `compiler/backends/py/codegen_ir.jac`: the format module is
+  bootstrap-tier (covered by `bootstrap_manifest.py`) like `jir.jac`, its
+  container sibling in `compiler/driver/`, because it is a leaf (imports only
   `struct`/`sys`), both lanes need it (the seal-time emitter generator
   consumes the same constants), and the consumer must load in the runtime
   core without the full compiler.
-- `jac0core/codegen_shim.jac`: the Python-side consumer, beside the format
+- `compiler/backends/py/codegen_shim.jac`: the Python-side consumer, beside the format
   it consumes, mirroring how `parser/materialize.jac` sits beside the
   parser it binds. It uses `import ast` freely: the shim IS the Python
   side, and this module is never sealed. `decode_ops` lives here rather
@@ -509,12 +518,14 @@ assumed away.
   function it cannot be waived (section 10). `codegen_ir` keeps
   `read_container`, which does lower, so the writer and the container
   reader both reach zero seams.
-- One bootstrap-dialect note: jac0core is compiled by the jac0 bootstrap,
+- One bootstrap-dialect note: the bootstrap tier (the seed modules
+  declared in `bootstrap_manifest.py`, the shim included) is compiled by
+  the jac0 bootstrap,
   which has no `**kwargs` call splat, so the shim builds its single
   keyword-apply trampoline through one `eval` of a two-argument lambda at
   first use. The generated native transcriber has no such constraint (it
   builds a kwargs dict through the C API).
-- `jac0core/passes/jcir_gen_pass.jac` (+impl): the emitter pass.
+- `compiler/backends/py/jcir_gen_pass.jac` (+impl): the emitter pass.
   Lane-portable jac with no CPython ast import anywhere; it ports
   `pyast_gen`'s decisions method by method into recipe construction
   (`CgNode` trees: class name, field names, field values, one normalized
@@ -575,24 +586,22 @@ assumed away.
   sha-incremental reuse a warm seal of an unchanged tree costs about
   2.2s in a fresh process, nearly all of it (about 2.08s) re-deriving
   the materializer root through `generate_materialize_root`, which is
-  the next thing worth caching. `seal_native_artifacts` builds
-  `libjac_jcir_gen_pass.so` with an eight-module closure
-  (`codegen_ir`, `constant`, `diagnostics`, `jcir_facts`, `srcloc`,
-  `unitree`, the `textwrap` shim, and the emitter), and the artifact
-  passes a load canary and a container crossing canary before it is
-  accepted. `test_jcir_seal_census.jac` pins the closure and the seam
-  set; the residual seams are waived by family in
+  the next thing worth caching. `seal_native_artifacts` builds the one
+  fused `libjac_compiler` library whose closure carries the emitter
+  (`codegen_ir`, `jcir_facts`, and the rest of the compiler closure),
+  and the artifact passes a load canary and a container crossing canary
+  before it is accepted. `test_jcir_seal_baseline.jac` pins the
+  emitter's clean members; the residual seams are waived by family in
   `NATIVE_SEAL_WAIVER_FAMILIES`, each naming what clears it, and
   `test_sealed_demotion_audit.jac` holds the whole seal to that,
-  refused roots included: withholding the artifact does not withhold
-  the accounting. `NATIVE_SEAL_REFUSED_ROOTS` is empty again, and the
-  mechanism stays for the next root that needs it.
+  refused modules included: withholding a module from the fused root
+  does not withhold the accounting (`NATIVE_SEAL_REFUSED_MODULES`).
 
   The sealed-versus-source byte comparison C2 could not run still
   cannot. This paragraph once said the pass-serving binder is the
   crossing, so that `JcirGenPass.ir_bytes()` executes inside the
   artifact once `native_artifact_for` reports it. The #8288 M1 crossing
-  census measured otherwise: `_bind_one` opens, verifies and probes the
+  measurement said otherwise: the binder opens, verifies and probes the
   artifact and then retains the engine and **no function pointer**, and
   `_require_native_pass_tier` falls through to the pass's bytecode body.
   Both sides of that comparison are the source lane.
@@ -604,7 +613,7 @@ assumed away.
   perturb it. Its last test pins the limitation as a mechanism rather
   than as prose, by observing that the Python body still runs; it fails
   the day the artifact serves the pass, which is M1 rung 3's acceptance.
-- `jac0core/passes/jcir_bc_gen_pass.jac` (+impl): the shim-seat pipeline
+- `compiler/backends/py/jcir_bc_gen_pass.jac` (+impl): the shim-seat pipeline
   pass. Reads `gen.jcir`, transcribes through the reference shim into
   `gen.py_ast`, unparses the tree into `gen.py` (so tooling consumers of
   the Python-source view keep working under the flag), and compiles into
@@ -620,11 +629,11 @@ assumed away.
   lanes and asserts exact `ast.dump(include_attributes=True)` equality,
   recursive code-object equality after `compile()`, and behavioral
   equality under `exec`, including one real compiler source file
-  (`jac0core/srcloc.jac`) end to end.
+  (`compiler/frontend/srcloc.jac`) end to end.
 
 ### 11.1 The codegen tail, after the cutover
 
-`get_py_code_gen` (jac0core/compiler.jac) returns one Python codegen
+`get_py_code_gen` (compiler/driver/compiler.jac) returns one Python codegen
 tail and there is nothing to select between:
 
 - `JcirGenPass`, `JcirBytecodeGenPass`
@@ -697,7 +706,7 @@ JCIR is stable across sealed and dev lanes by construction: the codegen
 decision pass emits the same bytes whether it runs natively or in Python,
 so lane parity is byte equality on the container, and end-to-end parity is
 code object plus diagnostics equality against the bytecode pipeline, per
-the epic's canary. The pass census, waiver discipline, and payload-lane
-proofs of #8139 carry forward unchanged; this format is the piece that
-lets Steps 3 and 4 execute as one program with nothing throwaway in
-between.
+the epic's canary. The waiver discipline and payload-lane proofs of #8139
+were retired with the seal (#8732); the format itself is unchanged, and
+it is the piece that lets a native emitter and a bytecode transcriber
+share one contract.

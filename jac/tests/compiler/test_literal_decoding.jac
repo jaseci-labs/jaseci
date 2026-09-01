@@ -28,11 +28,11 @@ import os;
 import warnings;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
-import from jaclang.jac0core.parser { parse as rd_parse }
-import from jaclang.jac0core.parser.lexer { tokenize, tokenize_full }
-import from jaclang.jac0core.parser.tokens { TokenKind }
-import from jaclang.jac0core.unitree { decode_string_literal }
-import jaclang.jac0core.unitree as uni;
+import from jaclang.compiler.frontend.parser { parse as rd_parse }
+import from jaclang.compiler.frontend.parser.lexer { tokenize, tokenize_full }
+import from jaclang.compiler.frontend.parser.tokens { TokenKind }
+import from jaclang.compiler.frontend.unitree { decode_string_literal }
+import jaclang.compiler.frontend.unitree as uni;
 
 """Every prefix spelling `Parser.parse_multistring` splices onto a STRING."""
 glob LITERAL_PREFIXES: tuple = (
@@ -208,7 +208,12 @@ def _harvest -> list[tuple[(str, str)]] {
     out: list[tuple[(str, str)]] = [];
     for path in sorted(Path(JAC_ROOT).rglob("*.jac")) {
         text_path = str(path);
-        if ("node_modules" in text_path or "/.jac/" in text_path) {
+        if (
+            "node_modules" in text_path
+            or "/.jac/" in text_path
+            or "/.zig-cache/" in text_path
+            or not path.is_file()
+        ) {
             continue;
         }
         try {

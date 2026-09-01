@@ -7,7 +7,9 @@ impl WebhookUtils.verify_signature(
 ) -> bool {
     expected_signature = WebhookUtils.generate_signature(payload, secret);
 
-    return hmac.compare_digest(signature.lower(), expected_signature.lower());
+    provided = signature.lower().encode('utf-8');
+    expected = expected_signature.lower().encode('utf-8');
+    return hmac.compare_digest(provided, expected);
 }
 
 impl WebhookUtils.generate_api_key -> str {
@@ -89,7 +91,11 @@ impl ApiKeyManager.postinit -> None {
 }
 
 impl ApiKeyManager._ensure_indexes -> None {
-    self._db.rows(
+    db = self._db;
+    if db is None {
+        return;
+    }
+    db.rows(
         'CREATE INDEX IF NOT EXISTS jac_docs_user_id_idx ON jac_docs '
         "(collection, (doc->>'user_id'))",
         {}

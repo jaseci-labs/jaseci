@@ -19,7 +19,7 @@ ui/
 Start the development server:
 
 ```bash
-jac start main.jac
+jac run main.jac
 ```
 
 ## Components
