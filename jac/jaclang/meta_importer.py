@@ -313,6 +313,7 @@ class JacMetaImporter(MetaPathFinder, Loader):
             code = frozen[0].bootstrap_code(module.__name__)
             if code is not None:
                 exec(code, module.__dict__)  # noqa: S102
+                _npy_post_exec(module)
                 return
 
         with open(file_path, encoding="utf-8") as f:
