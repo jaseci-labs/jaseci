@@ -160,16 +160,17 @@ impl JacCompiler.get_bytecode(
     if (not rebuild) and is_module_cache_valid(full_target, cache_path) {
         try {
             jir_data = cache_path.read_bytes();
-            bc = read_bytecode_only(jir_data);
+            magic_bytes: any = SECTIONS_MAGIC;
+            sec_pos = jir_data.find(magic_bytes, HEADER_SIZE);
+            secs: dict[int, bytes] = (
+                read_sections(jir_data, sec_pos + len(magic_bytes))
+                    if sec_pos >= 0
+                    else {}
+            );
+            bc = secs.get(SEC_BYTECODE);
             if bc is not None {
-                magic_bytes: any = SECTIONS_MAGIC;
-                sec_pos = jir_data.find(magic_bytes, HEADER_SIZE);
-                _had_native_secs = False;
-                if sec_pos >= 0 {
-                    secs = read_sections(jir_data, sec_pos + len(magic_bytes));
-                    self._restore_sections(full_target, actual_program, secs);
-                    _had_native_secs = SEC_NATIVE_OBJ in secs or SEC_LLVM_IR in secs;
-                }
+                self._restore_sections(full_target, actual_program, secs);
+                _had_native_secs = SEC_NATIVE_OBJ in secs or SEC_LLVM_IR in secs;
                 if (
                     _had_native_secs
                     and full_target not in actual_program.hub.artifacts
@@ -186,7 +187,9 @@ impl JacCompiler.get_bytecode(
                     return marshal.loads(bc);
                 }
             } else {
-                cache_path.unlink(missing_ok=True);
+                if SEC_IFACE not in secs {
+                    cache_path.unlink(missing_ok=True);
+                }
                 actual_program.invalidate_module(full_target);
                 symtab_only_recovery = True;
             }
@@ -197,26 +200,7 @@ impl JacCompiler.get_bytecode(
     precompiled_bc = self._get_precompiled_jir_bytecode(full_target, allow_unsealed);
     if precompiled_bc is not None {
         try {
-            import from jaclang.compiler.driver.jir {
-                write_precompiled_jir,
-                module_jir_key_sections,
-                FLAG_PRECOMPILED
-            }
-            jir_bytes = write_precompiled_jir(
-                precompiled_bc,
-                flags=FLAG_PRECOMPILED,
-                extra_sections=module_jir_key_sections(full_target)
-            );
-            cache_path.parent.mkdir(parents=True, exist_ok=True);
-
-            import os as _os;
-            tmp_path = cache_path.with_suffix(f'.{_os.getpid()}.tmp');
-            try {
-                tmp_path.write_bytes(jir_bytes);
-                tmp_path.rename(cache_path);
-            } finally {
-                tmp_path.unlink(missing_ok=True);
-            }
+            write_module_cache(full_target, precompiled_bc, flags=FLAG_PRECOMPILED);
         } except Exception {}
         return marshal.loads(precompiled_bc);
     }
@@ -1283,7 +1267,11 @@ impl JacCompiler._persist_module_cache(
         is_module_cache_valid
     }
     try {
-        if is_module_cache_valid(full_target, get_module_cache_path(full_target)) {
+        _pmc_path = get_module_cache_path(full_target);
+        if (
+            is_module_cache_valid(full_target, _pmc_path)
+            and read_section_bytes(_pmc_path.read_bytes(), SEC_BYTECODE) is not None
+        ) {
             return;
         }
     } except Exception {
@@ -1389,6 +1377,9 @@ impl JacCompiler._compile_once(
     if _prev_opts is not None and not options.default_codespace {
         options.default_codespace = _prev_opts.default_codespace;
     }
+    if _prev_opts is not None and _prev_opts.need_full_ast {
+        options.need_full_ast = True;
+    }
     actual_program.options = options;
     if options.default_codespace {
         import from jaclang.compiler.frontend.codeinfo {
@@ -1396,6 +1387,47 @@ impl JacCompiler._compile_once(
         }
         set_effective_default_codespace(options.default_codespace);
     }
+
+    _iface_reg: any = None;
+    _iface_target = "";
+    if use_str is None {
+        _iface_target = os.path.realpath(str(file_path));
+        _reg_probe = actual_program.iface_registry();
+        if _reg_probe.eligible(self, _iface_target, options) {
+            _served = _reg_probe.serve(self, _iface_target, options);
+            if _served is not None {
+                return _served;
+            }
+            _iface_reg = _reg_probe;
+        }
+    }
+    if _iface_reg is None {
+        return self._compile_pipeline(file_path, actual_program, use_str, options);
+    }
+    _err_start = len(actual_program.errors_had);
+    _warn_start = len(actual_program.warnings_had);
+    _iface_reg.frame_push(_iface_target);
+    _mod_out: (uni.Module | None) = None;
+    try {
+        _mod_out = self._compile_pipeline(file_path, actual_program, use_str, options);
+        try {
+            _iface_reg.persist_after_compile(
+                _iface_target, _mod_out, options, _err_start, _warn_start
+            );
+        } except Exception {}
+    } finally {
+        _iface_reg.frame_pop();
+    }
+    assert _mod_out is not None;
+    return _mod_out;
+}
+
+impl JacCompiler._compile_pipeline(
+    file_path: str,
+    actual_program: JacProgram,
+    use_str: (str | None) = None,
+    options: CompileOptions = CompileOptions()
+) -> uni.Module {
     keep_str = use_str or read_file_with_encoding(file_path);
     had_parse_errors = len(actual_program.errors_had);
     mod_targ = self.parse_str(
