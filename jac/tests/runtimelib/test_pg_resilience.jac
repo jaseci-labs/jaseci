@@ -108,10 +108,10 @@ def _hold_write(peer: any) {
 def _release(peer: any) {
     try {
         peer.run('ROLLBACK');
-    } except Exception { }
+    } except Exception {}
     try {
         peer.close();
-    } except Exception { }
+    } except Exception {}
 }
 
 

@@ -1,8 +1,8 @@
 //! Bootstrap seed for the jac build: fetch the pinned python-build-standalone
-//! CPython. This is the ONE build step that must run before any Python exists,
-//! so it stays in Zig (std.http + std.crypto + std.compress.zstd + std.tar --
-//! no host tools). Every later step is the Jac payload tool (`jaclang.dist.payload`)
-//! running on the interpreter this fetches.
+//! CPython. One of the two steps that must run before any Python exists (the
+//! other is `fetch_typeshed.zig`), so it stays in Zig (std.http + std.crypto +
+//! std.compress.zstd + std.tar -- no host tools). Every later step is the Jac
+//! payload tool (`jaclang.dist.payload`) running on the interpreter this fetches.
 //!
 //!     fetch_pbs <os-arch> <dest-dir> <pins.json>
 //!
@@ -13,6 +13,12 @@
 //! (which produces the byte-identical tree for any other platform).
 
 const std = @import("std");
+const seed = @import("seed.zig");
+const die = seed.die;
+const log = seed.log;
+const fileExists = seed.fileExists;
+const httpGetAlloc = seed.httpGetAlloc;
+const sha256Hex = seed.sha256Hex;
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const zstd = std.compress.zstd;
@@ -135,48 +141,6 @@ fn findSumLine(sums: []const u8, asset: []const u8) ?[]const u8 {
         if (std.mem.eql(u8, name, asset)) return hex;
     }
     return null;
-}
-
-fn httpGetAlloc(io: Io, gpa: Allocator, url: []const u8) ![]u8 {
-    var client: std.http.Client = .{ .allocator = gpa, .io = io };
-    defer client.deinit();
-    var aw: Io.Writer.Allocating = .init(gpa);
-    errdefer aw.deinit();
-    const res = client.fetch(.{
-        .location = .{ .url = url },
-        .response_writer = &aw.writer,
-        .redirect_behavior = @enumFromInt(10),
-    }) catch |err| die("http fetch failed for {s}: {s}", .{ url, @errorName(err) });
-    if (res.status != .ok) die("http {d} for {s}", .{ @intFromEnum(res.status), url });
-    var list = aw.toArrayList();
-    return list.toOwnedSlice(gpa);
-}
-
-fn sha256Hex(bytes: []const u8) [64]u8 {
-    var digest: [32]u8 = undefined;
-    std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
-    var hex: [64]u8 = undefined;
-    const chars = "0123456789abcdef";
-    for (digest, 0..) |b, i| {
-        hex[i * 2] = chars[b >> 4];
-        hex[i * 2 + 1] = chars[b & 0xf];
-    }
-    return hex;
-}
-
-fn fileExists(io: Io, path: []const u8) bool {
-    const f = Io.Dir.cwd().openFile(io, path, .{}) catch return false;
-    f.close(io);
-    return true;
-}
-
-fn die(comptime fmt: []const u8, args: anytype) noreturn {
-    std.debug.print(fmt ++ "\n", args);
-    std.process.exit(1);
-}
-
-fn log(comptime fmt: []const u8, args: anytype) void {
-    std.debug.print(fmt ++ "\n", args);
 }
 
 test "findSumLine picks the matching asset" {

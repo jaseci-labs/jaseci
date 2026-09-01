@@ -435,6 +435,7 @@ impl TypeEvaluator.get_type_of_ability(node_: Ability) -> TypeBase {
                 is_self=is_self_param,
                 is_cls=is_cls_param,
                 param_kind=_convert_param_kind(param.param_kind),
+                is_comptime=param.is_comptime,
             )
         );
     }
@@ -575,19 +576,22 @@ impl TypeEvaluator.get_type_of_class(node_: Archetype) -> ClassType {
         enum_members = build_enum_members(node_, self, enum_value_type);
     }
     cls_type = ClassType(
-        _shared=ClassDetailsShared(
-            class_name=node_.name_spec.sym_name,
-            symbol_table=node_,
-            type_params=type_params,
-            base_classes=base_classes,
-            is_builtin_class=is_builtin_class,
-            is_from_stdlib_stub=is_from_stdlib_stub,
-            is_data_class=is_data_class,
-            is_namedtuple=is_namedtuple,
-            is_typeddict=is_typeddict,
-            is_enum_class=is_enum_class,
-            enum_value_type=enum_value_type,
-            enum_members=enum_members,
+        _shared=self._intern_shared(
+            ClassDetailsShared(
+                class_name=node_.name_spec.sym_name,
+                symbol_table=node_,
+                type_params=type_params,
+                ct_params=self._extract_ct_params(node_),
+                base_classes=base_classes,
+                is_builtin_class=is_builtin_class,
+                is_from_stdlib_stub=is_from_stdlib_stub,
+                is_data_class=is_data_class,
+                is_namedtuple=is_namedtuple,
+                is_typeddict=is_typeddict,
+                is_enum_class=is_enum_class,
+                enum_value_type=enum_value_type,
+                enum_members=enum_members,
+            )
         ),
         flags=TypeFlags.Instantiable,
     );
@@ -632,17 +636,19 @@ impl TypeEvaluator.get_type_of_enum(node_: Enum) -> ClassType {
         parent_module.loc.mod_path if parent_module and parent_module.loc else ""
     );
     cls_type = ClassType(
-        _shared=ClassDetailsShared(
-            class_name=node_.name_spec.sym_name,
-            symbol_table=node_,
-            type_params=None,
-            base_classes=base_classes,
-            is_builtin_class=mod_flags.is_builtin_stub,
-            is_from_stdlib_stub=mod_flags.is_stdlib_stub,
-            is_data_class=False,
-            is_enum_class=True,
-            enum_value_type=enum_value_type,
-            enum_members=enum_members,
+        _shared=self._intern_shared(
+            ClassDetailsShared(
+                class_name=node_.name_spec.sym_name,
+                symbol_table=node_,
+                type_params=None,
+                base_classes=base_classes,
+                is_builtin_class=mod_flags.is_builtin_stub,
+                is_from_stdlib_stub=mod_flags.is_stdlib_stub,
+                is_data_class=False,
+                is_enum_class=True,
+                enum_value_type=enum_value_type,
+                enum_members=enum_members,
+            )
         ),
         flags=TypeFlags.Instantiable,
     );

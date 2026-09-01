@@ -19,7 +19,7 @@ def _check_command_available(
         if result.returncode == 0 {
             return (True, result.stdout.strip());
         }
-    } except Exception { }
+    } except Exception {}
     return (False, None);
 }
 

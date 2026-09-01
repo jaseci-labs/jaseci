@@ -220,7 +220,7 @@ obj PgEventStream(EventStreamBroker) {
         }
     }
 
-    def ack(event: Event) { }
+    def ack(event: Event) {}
     def _send_to_dlq(topic: str, event: Event, retry: RetryPolicy) {
         try {
             self.publish(topic + retry.dead_letter_suffix, event);

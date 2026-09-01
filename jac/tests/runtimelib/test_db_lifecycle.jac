@@ -75,7 +75,7 @@ def _start_cluster -> Cluster {
 def _stop_cluster(cluster: Cluster) {
     try {
         cluster.rt.stop();
-    } except Exception { }
+    } except Exception {}
     shutil.rmtree(cluster.cache_home, ignore_errors=True);
 }
 

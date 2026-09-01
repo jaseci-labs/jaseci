@@ -70,7 +70,7 @@ impl IdentityStorage.create_user(
     user_root = Root();
     Jac.save(user_root);
     Jac.commit(user_root);
-    root_id = user_root.__jac__.id.hex;
+    root_id = user_root.__jac__.ensure_id().hex;
 
     user_doc = {
         'user_id': user_id,
@@ -108,7 +108,7 @@ impl IdentityStorage.ensure_user_by_id(user_id: str) -> str | None {
     user_root = Root();
     Jac.save(user_root);
     Jac.commit(user_root);
-    root_id = user_root.__jac__.id.hex;
+    root_id = user_root.__jac__.ensure_id().hex;
     now = datetime.now(UTC).isoformat();
     try {
         self._store_user(
@@ -145,7 +145,7 @@ impl IdentityStorage.reset_root(user_id: str) -> str | None {
     user_root = Root();
     Jac.save(user_root);
     Jac.commit(user_root);
-    root_id = user_root.__jac__.id.hex;
+    root_id = user_root.__jac__.ensure_id().hex;
     now = datetime.now(UTC).isoformat();
     self._update_fields(user_id, {'root_id': root_id, 'updated_at': now});
     return root_id;

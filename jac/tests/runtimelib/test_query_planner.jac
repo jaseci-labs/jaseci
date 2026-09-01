@@ -65,7 +65,7 @@ def _seed(ctx: ExecutionContext) -> UUID {
     banch.edges.append(e2);
     ctx.mem.put(banch);
     ctx.mem.put(e2);
-    return ranch.id;
+    return ranch.ensure_id();
 }
 
 
@@ -230,7 +230,7 @@ test "overlay: uncommitted writes are visible, both directions" {
             )[0];
             victim: (EdgeAnchor | None) = None;
             for stub in ranch.edges {
-                loaded = ctx2.mem.get(stub.id);
+                loaded = ctx2.mem.get(stub.ensure_id());
                 if isinstance(loaded, EdgeAnchor)
                     and loaded.is_populated()
                     and loaded.target.id == two_anchor.id {
