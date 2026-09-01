@@ -33,7 +33,7 @@ def:pub app -> JsxElement {
         }
         try {
             return JSON.parse(raw);
-        } except Exception { }
+        } except Exception {}
         return [];
     }
 

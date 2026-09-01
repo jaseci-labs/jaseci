@@ -165,13 +165,37 @@ impl QHop.only_ids -> (set | None) {
     if self.only is None {
         return None;
     }
-    sel = self.only if isinstance(self.only, (list, tuple, set)) else [self.only];
     out: set = set();
+    for anch in self.only_anchors() {
+        if anch.id is not None {
+            out.add(anch.id);
+        }
+    }
+    return out;
+}
+
+impl QHop.only_anchors -> list[Anchor] {
+    if self.only is None {
+        return [];
+    }
+    sel = self.only if isinstance(self.only, (list, tuple, set)) else [self.only];
+    out: list[Anchor] = [];
     for item in sel {
         anch = item?.__jac__;
         if isinstance(anch, Anchor) {
-            out.add(anch.id);
+            out.append(anch);
         }
+    }
+    return out;
+}
+
+impl QHop.only_keys -> (set | None) {
+    if self.only is None {
+        return None;
+    }
+    out: set = set();
+    for anch in self.only_anchors() {
+        out.add(anchor_key(anch));
     }
     return out;
 }

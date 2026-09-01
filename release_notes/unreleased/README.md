@@ -6,8 +6,9 @@ Every PR that changes package code must include a release note fragment file.
 
 1. Create a file at `release_notes/unreleased/<package>/<PR#>.<category>.md`
    - **Packages**: `jaclang`, `byllm`, `jac-scale`, `jac-mcp` (the former `jac-client` / `jac-desktop` plugins are now part of `jaclang` core -- file their fragments under `jaclang`)
-   - **Categories**: `feature`, `bugfix`, `breaking`, `refactor`, or `docs`
+   - **Categories**: `feature`, `bugfix`, or `breaking`
    - **Example**: `release_notes/unreleased/jaclang/1234.bugfix.md`
+   - `refactor` and `docs` are not accepted (see [Skipping](#skipping))
 
 2. Add one or more bullet points in the file.
 
@@ -43,18 +44,6 @@ assembled page.
 - **Breaking: Brief title**: What changed and what users need to do.
 ```
 
-**Refactor** (`release_notes/unreleased/jaclang/1234.refactor.md`):
-
-```markdown
-- **Refactor: Brief title**: Description of the internal change.
-```
-
-**Documentation** (`release_notes/unreleased/jaclang/1234.docs.md`):
-
-```markdown
-- **Docs: Brief title**: Description of the documentation update.
-```
-
 ## Example PR
 
 See [#5573](https://github.com/jaseci-labs/jaseci/pull/5573) for a real example of a PR with a release note fragment.
@@ -62,3 +51,9 @@ See [#5573](https://github.com/jaseci-labs/jaseci/pull/5573) for a real example 
 ## Skipping
 
 To skip this check, add the `skip-release-notes-check` label to your PR.
+
+That label is also the answer for refactors and docs. Release notes carry
+user-facing changes only, so `<PR#>.refactor.md` and `<PR#>.docs.md` fragments
+are rejected by the Contribution Checks lane. If the change has nothing to tell
+a user, file no fragment and add the label; if it does, write it up under
+`feature`, `bugfix`, or `breaking`.

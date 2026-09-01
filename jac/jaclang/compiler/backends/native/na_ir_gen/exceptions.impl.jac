@@ -50,7 +50,7 @@ impl NaIRGenExceptions._declare_exception_runtime -> None {
 }
 
 impl NaIRGenExceptions._emit_exc_push_helper -> None {
-    exc_state_type = self._exc_state_type;
+    exc_state_type = self._get_exception_state_type();
     exc_state_ptr = exc_state_type.as_pointer();
     i8p = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
@@ -86,7 +86,7 @@ impl NaIRGenExceptions._emit_exc_push_helper -> None {
 }
 
 impl NaIRGenExceptions._emit_exc_pop_helper -> None {
-    exc_state_type = self._exc_state_type;
+    exc_state_type = self._get_exception_state_type();
     exc_state_ptr = exc_state_type.as_pointer();
     i8p = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
@@ -110,7 +110,7 @@ impl NaIRGenExceptions._emit_exc_pop_helper -> None {
 }
 
 impl NaIRGenExceptions._emit_exc_raise_helper -> None {
-    exc_state_type = self._exc_state_type;
+    exc_state_type = self._get_exception_state_type();
     exc_state_ptr = exc_state_type.as_pointer();
     i8p = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
@@ -309,6 +309,9 @@ impl NaIRGenExceptions._codegen_raise(nd: uni.RaiseStmt) -> None {
     }
     exc_msg = self._str_norm(exc_msg);
     exc_payload = self._str_norm(exc_payload);
+    if exc_msg is None {
+        return;
+    }
 
     if isinstance(exc_msg.type, ir.PointerType) and exc_msg.type != i8p {
         exc_msg = self.builder.bitcast(exc_msg, i8p, name="exc.msg.cast");
@@ -348,7 +351,7 @@ impl NaIRGenExceptions._codegen_try(nd: uni.TryStmt) -> None {
     if self._exc_raise_fn is None {
         self._declare_exception_runtime();
     }
-    exc_state_type = self._exc_state_type;
+    exc_state_type = self._get_exception_state_type();
     exc_state_ptr = exc_state_type.as_pointer();
     func = self.builder.function;
     _gc = self._gen_ctx;
@@ -438,6 +441,7 @@ impl NaIRGenExceptions._codegen_try(nd: uni.TryStmt) -> None {
             handler_bb = func.append_basic_block(name=f"except.handler.{i}");
             is_last = i == len(nd.excepts) - 1;
 
+            next_dispatch_bb: ir.Block | None = None;
             if not is_last {
                 next_dispatch_bb = func.append_basic_block(
                     name=f"except.dispatch.{i + 1}"

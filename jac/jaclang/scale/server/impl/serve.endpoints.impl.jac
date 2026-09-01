@@ -423,7 +423,7 @@ impl JacAPIServerEndpoints.create_webhook_callback(
                 if int(content_length) > max_body_bytes {
                     return _too_large();
                 }
-            } except Exception { }
+            } except Exception {}
         }
 
         raw_body = request.body;

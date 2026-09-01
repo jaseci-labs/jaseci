@@ -29,12 +29,8 @@ run only when JAC_CLIENT_INTEGRATION is set (and are covered by jac-client's own
 suite); core CI skips them.
 """
 def _require_client_integration {
-    if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        testskip(
-            "client render requires the Vite/Bun toolchain; "
-            "set JAC_CLIENT_INTEGRATION=1 to run"
-        );
-    }
+    import from jaclang.testing.requires { require_tool }
+    require_tool("bun");
 }
 
 def fixture_abs_path(filename: str) -> str {
@@ -1217,7 +1213,7 @@ test "serve render client page returns html" {
         response = client.get("/cl/client_page");
         html = response.text;
         assert "<!DOCTYPE html>" in html;
-        assert '<div id="__jac_root">' in html;
+        assert '<div id="root">' in html;
         assert "/static/client.js?hash=" in html;
         # Check __jac_init__ script contains expected data
         init_match = re.search(
@@ -1226,7 +1222,12 @@ test "serve render client page returns html" {
         assert init_match is not None;
         payload = json.loads(init_match.group(1)) if init_match else {};
         assert payload.get("function") == "client_page";
-        assert payload.get("globals", {}).get("API_LABEL") == "Runtime Test";
+        # Client globals ride the compiled bundle now, not the hydration
+        # payload; the value must reach the browser through the JS artifact.
+        hash_match = re.search(r'/static/client\.js\?hash=([a-f0-9]+)', html);
+        assert hash_match is not None;
+        bundle_js = client.get(f"/static/client.js?hash={hash_match.group(1)}").text;
+        assert "Runtime Test" in bundle_js;
         client.close();
     }
 }
@@ -1252,7 +1253,7 @@ test "serve client page html and bundle" {
         html = response.text;
         # HTML skeleton
         assert "<!DOCTYPE html>" in html;
-        assert '<div id="__jac_root">' in html;
+        assert '<div id="root">' in html;
         assert "/static/client.js?hash=" in html;
         # Hydration payload targets the right function
         init_match = re.search(
@@ -1619,7 +1620,7 @@ test "serve spa catchall serves html for clean urls" {
         assert response.status_code == 200;
         html = response.text;
         assert "<!DOCTYPE html>" in html;
-        assert '<div id="__jac_root">' in html;
+        assert '<div id="root">' in html;
         assert "/static/client.js?hash=" in html;
         spa.close();
     }
@@ -1633,7 +1634,7 @@ test "serve spa catchall root serves html" {
         assert response.ok;
         html = response.text;
         assert "<!DOCTYPE html>" in html;
-        assert '<div id="__jac_root">' in html;
+        assert '<div id="root">' in html;
         spa.close();
     }
 }
@@ -1673,7 +1674,7 @@ test "serve spa catchall cl route still works" {
         assert response.ok;
         html = response.text;
         assert "<!DOCTYPE html>" in html;
-        assert '<div id="__jac_root">' in html;
+        assert '<div id="root">' in html;
         spa.close();
     }
 }
@@ -1727,9 +1728,10 @@ test "serve sync skips write access check on unchanged anchors" {
         # Seed the session exactly as a load would: identity-mapped, flushed
         # hash recorded, not dirty -- i.e. an unchanged anchor.
         sess = cast(Session, ctx.mem);
-        sess.__mem__[sys_root.id] = sys_root;
-        sess._flushed_hash[sys_root.id] = sys_root.hash;
-        sess._dirty.pop(sys_root.id, None);
+        sys_root_id = sys_root.ensure_id();
+        sess.__mem__[sys_root_id] = sys_root;
+        sess._flushed_hash[sys_root_id] = sys_root.hash;
+        sess._dirty.pop(sys_root_id, None);
         # Capture logs
         logger = logging.getLogger("jaclang.runtime.runtime");
         cap = capture_log_start(logger);
@@ -1915,30 +1917,32 @@ test "Session async mirrors (aget/aput/adelete/ahas/acommit) work" {
     with TemporaryDirectory() as tmpdir {
         # Store-less session (pure in-memory).
         vol = Session();
-        anchor = NodeAnchor(id=uuid4(), archetype=Root(), edges=[]);
+        anchor = NodeAnchor(archetype=Root(), edges=[]);
+        aid = anchor.ensure_id();
         async def exercise_volatile -> bool {
             await vol.aput(anchor);
-            assert await vol.ahas(anchor.id);
-            got = await vol.aget(anchor.id);
+            assert await vol.ahas(aid);
+            got = await vol.aget(aid);
             assert got is anchor;
             await vol.acommit(anchor);
-            await vol.adelete(anchor.id);
-            assert not await vol.ahas(anchor.id);
+            await vol.adelete(aid);
+            assert not await vol.ahas(aid);
             return True;
         }
         assert asyncio.run(exercise_volatile());
         # Postgres-backed session on the project database.
         sess = Session(base_path=tmpdir);
-        persist_anchor = NodeAnchor(id=uuid4(), archetype=Root(), edges=[]);
+        persist_anchor = NodeAnchor(archetype=Root(), edges=[]);
         persist_anchor.persistent = True;
+        pid = persist_anchor.ensure_id();
         async def exercise_store -> bool {
             await sess.aput(persist_anchor);
-            assert await sess.ahas(persist_anchor.id);
-            got = await sess.aget(persist_anchor.id);
+            assert await sess.ahas(pid);
+            got = await sess.aget(pid);
             assert got is not None;
-            assert got.id == persist_anchor.id;
+            assert got.id == pid;
             await sess.acommit(persist_anchor);
-            await sess.adelete(persist_anchor.id);
+            await sess.adelete(pid);
             return True;
         }
         assert asyncio.run(exercise_store());
@@ -1970,7 +1974,8 @@ test "Session concurrent commits from worker threads do not race" {
         # below knows exactly what to expect.
         anchor_ids = [uuid4() for _ in range(n_threads)];
         def worker(idx: int) {
-            a = NodeAnchor(id=anchor_ids[idx], archetype=Root(), edges=[]);
+            a = NodeAnchor(archetype=Root(), edges=[]);
+            a.id = anchor_ids[idx];
             a.persistent = True;
             mem.put(a);
             mem.commit(a);
@@ -2247,7 +2252,7 @@ test "ensure_bundle retries a missing-bun failure and a build error alike" {
         try {
             intro.ensure_bundle();
             assert False , "ensure_bundle should raise while bun is missing";
-        } except ClientBundleError { }
+        } except ClientBundleError {}
     }
     assert bun_missing.build.call_count == 2 , "missing bun must be re-checked on every call, not memoized";
 
@@ -2260,7 +2265,7 @@ test "ensure_bundle retries a missing-bun failure and a build error alike" {
         try {
             intro2.ensure_bundle();
             assert False , "ensure_bundle should raise for a broken build";
-        } except ClientBundleError { }
+        } except ClientBundleError {}
     }
     assert broken.build.call_count == 2 , (
         "a build failure must be retried on the next call: the serving core builds "
@@ -2447,7 +2452,7 @@ test "serve spa fallback 404s unknown paths but still serves the app html" {
         assert response.status_code == 404 , f"expected 404, got {response.status_code}";
         html = response.text;
         assert "<!DOCTYPE html>" in html , "404 should still serve the app shell";
-        assert '<div id="__jac_root">' in html;
+        assert '<div id="root">' in html;
         spa.server.introspector._spa_route_patterns = ["/about"];
         response = spa.get("/");
         assert response.status_code == 404 , f"index-less root: expected 404, got {response.status_code}";

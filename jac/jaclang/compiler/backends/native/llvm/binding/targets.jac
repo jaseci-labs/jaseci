@@ -233,7 +233,7 @@ class Target(ffi.ObjectRef) {
         Create a Target instance for the default triple.
         """
     @classmethod
-    def from_default_triple(cls: any) -> object {
+    def from_default_triple(cls: any) -> Target {
         triple = get_default_triple();
         return cls.from_triple(triple);
     }

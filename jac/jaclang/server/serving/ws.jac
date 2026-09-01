@@ -122,9 +122,7 @@ obj WebSocket {
         if not self.accepted and not self.is_client_side and code != 1000 {
             try {
                 await self.accept();
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
         self.closed = True;
         self.close_code = code;
@@ -147,14 +145,10 @@ obj WebSocket {
                 );
             }
             await self.writer.drain();
-        } except Exception {
-            ;
-        }
+        } except Exception {}
         try {
             self.writer.close();
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
 
     async def _send_raw(opcode: int, payload: bytes) {
@@ -193,9 +187,7 @@ obj WebSocket {
                 );
                 await self.writer.drain();
                 self.writer.close();
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
         raise WebSocketDisconnect(code=code);
     }

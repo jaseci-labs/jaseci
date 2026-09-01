@@ -7,7 +7,7 @@ impl LayoutPass.postinit -> None {
     super.postinit();
 }
 
-impl LayoutPass.transform(ir_in: Module) -> Module {
+impl LayoutPass._run_impl(ir_in: Module) -> Module {
     module = self.ir_in;
 
     self._build_enum_layouts(module);
@@ -358,6 +358,33 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
         );
         fields.append(new_field);
         field_index[fname] = current_idx;
+        current_idx += 1;
+    }
+
+    for tp in (arch.type_params or []) {
+        if not tp.is_comptime {
+            continue;
+        }
+        pname = tp.name.value;
+        if pname in seen_fields {
+            continue;
+        }
+        seen_fields.add(pname);
+        tnode = tp.bound;
+        ptag = (unparse_node(tnode) or str(tnode)) if tnode is not None else "int";
+        fields.append(
+            FieldInfo(
+                name=pname,
+                index=current_idx,
+                type_tag=ptag,
+                type_node=tnode,
+                default_expr=None,
+                owner=aname,
+                is_func_ptr=False,
+                decl_node=tp
+            )
+        );
+        field_index[pname] = current_idx;
         current_idx += 1;
     }
 
@@ -867,4 +894,16 @@ impl LayoutPass._is_layout_compatible_type(
         }
     }
     return False;
+}
+
+impl LayoutPass.transform(ir_in: Module) -> Module {
+    self.ir_out = ir_in;
+    ir_in spawn self;
+    out = self.ir_out;
+    assert isinstance(out, Module);
+    return out;
+}
+
+impl LayoutPass.run_walk with Module entry {
+    self.ir_out = self._run_impl(here);
 }

@@ -12,9 +12,11 @@ import jaclang.compiler.frontend.unitree as uni;
 import os;
 import sys;
 
-obj NaIRGenCore(NaIRGenState) {
+walker NaIRGenCore(NaIRGenState) {
     def postinit -> None;
     def transform(ir_in: uni.Module) -> uni.Module;
+    def _run_impl(ir_in: uni.Module) -> uni.Module;
+    can run_walk with uni.Module entry;
     def _register_imported_struct_types -> None;
     def _permuted_walk_order(mods: list) -> list;
     def _extract_import_module_name(imp: uni.Import) -> (str | None);
@@ -32,6 +34,7 @@ obj NaIRGenCore(NaIRGenState) {
         nd: uni.Ability, unavailable: (set | None) = None, imp_layout: any = None
     ) -> None;
 
+    def _record_linked_decl(func: (ir.Function | None), decl: uni.Ability) -> None;
     def _ensure_dep_inference(dep_mod: uni.Module) -> None;
     def _imported_function_demotions(imported_mod: uni.Module) -> (set | None);
     def _predemote_capability_unit(
@@ -67,4 +70,5 @@ obj NaIRGenCore(NaIRGenState) {
     ) -> (ir.Value | None);
 
     def _split_call_kwargs(nd: uni.FuncCall) -> dict;
+    def _ct_ctor_slots(target: uni.UniNode) -> list[tuple];
 }

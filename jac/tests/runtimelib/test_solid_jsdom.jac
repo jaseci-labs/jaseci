@@ -769,14 +769,10 @@ console.log(`\\n${failures.length ? "FAILED" : "OK"}: ${failures.length} failure
 process.exit(failures.length ? 1 : 0);
 """;
 
-"""Skip unless the bun/npm client toolchain is opted in (mirrors preact e2e)."""
+"""Skip unless the bun/npm client toolchain is present (mirrors preact e2e)."""
 def _require_client_integration {
-    if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        testskip(
-            "Solid jsdom test needs bun + a real npm install; "
-            "set JAC_CLIENT_INTEGRATION=1 to run"
-        );
-    }
+    import from jaclang.testing.requires { require_tool }
+    require_tool("bun");
 }
 
 """Compile a `.jac` to JS with the Solid backend; type errors are non-fatal."""

@@ -1,7 +1,17 @@
 import logging;
 import from uuid { UUID }
-import from jaclang.runtime.archetype { Anchor, EdgeAnchor, NodeAnchor }
-import from jaclang.runtime.graph_query { GraphQuery, QHop, QPred }
+import from jaclang.runtime.archetype { Anchor, EdgeAnchor, anchor_key }
+import from jaclang.runtime.graph_query { GraphQuery, QPred }
+import from jaclang.runtime.graph_walk {
+    access_gated,
+    acl_read_ok,
+    needs_store,
+    origin_anchors,
+    pred_subject,
+    walk,
+    walk_edges,
+    walk_nodes
+}
 import from jaclang.server.session { Session }
 import from jaclang.data.sqlcompile { compile_query }
 
@@ -16,32 +26,12 @@ glob logger = logging.getLogger(__name__),
      ];
 
 
-def _origin_anchors(q: GraphQuery) -> list[Anchor];
-
-
 def _sql_pairs(
     mem: Session, origin_ids: list[UUID], q: GraphQuery, upto: int
 ) -> tuple[list[tuple[(UUID | None), (UUID | None)]], list[QPred]];
 
 
-def _edge_pair_for(e: EdgeAnchor, cur: Anchor, hop: QHop) -> (Anchor | None);
-
-
-def _walk_memory(
-    origins: list[Anchor], q: GraphQuery, upto: int
-) -> list[tuple[Anchor, (EdgeAnchor | None)]];
-
-
-def _hop_matches_node(anchor: Anchor, hop: QHop) -> bool;
-
-
 def resolve_query_prefix(mem: Session, q: GraphQuery, upto: int) -> list[UUID];
-
-
-def _acl_gated -> bool;
-
-
-def _acl_read_ok(anchor: Anchor) -> bool;
 
 
 def resolve_query(mem: Session, q: GraphQuery) -> list[Anchor];

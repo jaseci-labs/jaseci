@@ -124,7 +124,7 @@ impl ViteCompiler.create_entry_file(self: ViteCompiler, module_path: Path) -> No
             and entry_file.read_text(encoding='utf-8') == entry_content {
             return;
         }
-    } except OSError { }
+    } except OSError {}
     entry_file.write_text(entry_content, encoding='utf-8');
 }
 
