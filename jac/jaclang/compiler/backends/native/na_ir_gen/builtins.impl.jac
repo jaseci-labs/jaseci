@@ -206,7 +206,7 @@ impl NaIRGenBuiltins._codegen_multistring(nd: uni.MultiString) -> (ir.Value | No
         return self._codegen_string(part);
     }
 
-    result = None;
+    result: (ir.Value | None) = None;
     for part in nd.strings {
         if isinstance(part, uni.FString) {
             val = self._codegen_fstring(part);
@@ -216,18 +216,22 @@ impl NaIRGenBuiltins._codegen_multistring(nd: uni.MultiString) -> (ir.Value | No
         if val is None {
             continue;
         }
-        if result is None {
-            result = val;
-        } else {
-            _ms_old = result;
-            _ms_val = val;
-            result = self._emit_binary_op(Tok.PLUS, _ms_old, _ms_val);
-            if self._is_owned(_ms_old) {
-                self._emit_rc_release_typed(_ms_old, op="mstr_old", loc="");
-            }
-            if self._is_owned(_ms_val) {
-                self._emit_rc_release_typed(_ms_val, op="mstr_val", loc="");
-            }
+        _ms_val: ir.Value = val;
+        _ms_old = result;
+        if _ms_old is None {
+            result = _ms_val;
+            continue;
+        }
+        _joined = self._emit_binary_op(Tok.PLUS, _ms_old, _ms_val);
+        if _joined is None {
+            return None;
+        }
+        result = _joined;
+        if self._is_owned(_ms_old) {
+            self._emit_rc_release_typed(_ms_old, op="mstr_old", loc="");
+        }
+        if self._is_owned(_ms_val) {
+            self._emit_rc_release_typed(_ms_val, op="mstr_val", loc="");
         }
     }
     return result;
@@ -431,12 +435,13 @@ impl NaIRGenBuiltins._emit_optional_str(
     self.builder.cbranch(_set, _some_bb, _merge_bb);
     self.builder.position_at_start(_some_bb);
     _pv = self.builder.extract_value(val, 1, name="opt.str.pv");
-    _s: (ir.Value | None) = _pv;
+    _s: ir.Value = _pv;
     if _pt != i8p {
-        _s = self._emit_obj_str(_pv);
-        if _s is None {
+        _built = self._emit_obj_str(_pv);
+        if _built is None {
             return None;
         }
+        _s = _built;
     }
     _some_end = self.builder.basic_block;
     self.builder.branch(_merge_bb);
@@ -454,8 +459,8 @@ impl NaIRGenBuiltins._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
     obj_strs: list[ir.Value] = [];
     for part in nd.parts {
         if isinstance(part, uni.String) {
-            text = part.lit_value;
-
+            _lit = part.lit_value;
+            text = _lit if isinstance(_lit, str) else _lit.decode("utf-8");
             text = text.replace("%", "%%");
             fmt_parts.append(text);
         } elif isinstance(part, uni.FormattedValue) {
@@ -888,7 +893,7 @@ impl NaIRGenBuiltins._codegen_string_slice(
         _v_data = self.builder.gep(_data, [start_val], name="s.view.data");
         _i32v = ir.IntType(32);
         _zv = ir.Constant(_i32v, 0);
-        _v_slot = self._entry_alloca(self._str_desc_ty, "s.view.slot");
+        _v_slot = self._entry_alloca(self._str_desc_type(), "s.view.slot");
         if _hl {
             self.builder.store(
                 _v_data,
@@ -1041,7 +1046,7 @@ impl NaIRGenBuiltins._codegen_str_strip_chars(
     func = self.builder.function;
     slen = self._call_str_len(self.builder, str_val, name="strip.len");
 
-    final_start = ir.Constant(i64, 0);
+    final_start: ir.Value = ir.Constant(i64, 0);
     if do_left {
         start_alloca = self.builder.alloca(i64, name="strip.start");
         self.builder.store(ir.Constant(i64, 0), start_alloca);
@@ -1221,21 +1226,19 @@ impl NaIRGenBuiltins._emit_sys_argv -> (ir.Value | None) {
         return None;
     }
 
-    if "__jac_argc" not in self.extern_funcs {
-        argc_global = ir.GlobalVariable(self.llvm_module, i32, name="__jac_argc");
-        argc_global.initializer = ir.Constant(i32, 0);
-        self.extern_funcs["__jac_argc"] = argc_global;
+    if "__jac_argc" not in self.llvm_module.globals {
+        _argc_gv = ir.GlobalVariable(self.llvm_module, i32, name="__jac_argc");
+        _argc_gv.initializer = ir.Constant(i32, 0);
     }
-    if "__jac_argv" not in self.extern_funcs {
-        argv_global = ir.GlobalVariable(
+    if "__jac_argv" not in self.llvm_module.globals {
+        _argv_gv = ir.GlobalVariable(
             self.llvm_module, i8p.as_pointer(), name="__jac_argv"
         );
-        argv_global.initializer = ir.Constant(i8p.as_pointer(), None);
-        self.extern_funcs["__jac_argv"] = argv_global;
+        _argv_gv.initializer = ir.Constant(i8p.as_pointer(), None);
     }
 
-    argc_global = self.extern_funcs["__jac_argc"];
-    argv_global = self.extern_funcs["__jac_argv"];
+    argc_global = self.llvm_module.get_global("__jac_argc");
+    argv_global = self.llvm_module.get_global("__jac_argv");
 
     argc_i32 = self.builder.load(argc_global, name="argc.i32");
     argc = self.builder.sext(argc_i32, i64, name="argc");
@@ -1295,22 +1298,22 @@ impl NaIRGenBuiltins._emit_sys_stream(stream: str) -> (ir.Value | None) {
     if _plat.system() == "Darwin" {
         libc_name = "__stdoutp" if stream == "stdout" else "__stderrp";
     }
-    if libc_name not in self.extern_funcs {
-        libc_gv = ir.GlobalVariable(self.llvm_module, i8p, name=libc_name);
-        libc_gv.linkage = "external";
-        if "windows" in str(self.llvm_module.triple or "") {
-            libc_gv.storage_class = "dllimport";
-        }
-        self.extern_funcs[libc_name] = libc_gv;
-    }
-    libc_gv = self.extern_funcs[libc_name];
 
-    sing_key = f"__jac_sys_{stream}";
-    if sing_key not in self.extern_funcs {
+    if libc_name not in self.llvm_module.globals {
+        _libc_new = ir.GlobalVariable(self.llvm_module, i8p, name=libc_name);
+        _libc_new.linkage = "external";
+        if "windows" in str(self.llvm_module.triple or "") {
+            _libc_new.storage_class = "dllimport";
+        }
+    }
+    libc_gv = self.llvm_module.get_global(libc_name);
+
+    sing_key = f".sys.{stream}";
+    if sing_key not in self.llvm_module.globals {
         hdr_ty = ir.LiteralStructType([i64, i64, file_st]);
-        sing = ir.GlobalVariable(self.llvm_module, hdr_ty, name=f".sys.{stream}");
-        sing.linkage = "private";
-        sing.initializer = ir.Constant(
+        _sing_new = ir.GlobalVariable(self.llvm_module, hdr_ty, name=sing_key);
+        _sing_new.linkage = "private";
+        _sing_new.initializer = ir.Constant(
             hdr_ty,
             [
                 ir.Constant(i64, RC_SENTINEL),
@@ -1326,9 +1329,9 @@ impl NaIRGenBuiltins._emit_sys_stream(stream: str) -> (ir.Value | None) {
                 )
             ]
         );
-        self.extern_funcs[sing_key] = sing;
     }
-    sing = self.extern_funcs[sing_key];
+
+    sing = self.llvm_module.get_global(sing_key);
 
     z32 = ir.Constant(i32, 0);
     file_ptr = self.builder.gep(
@@ -1421,8 +1424,13 @@ impl NaIRGenBuiltins._emit_dyn_spec_format(
     val: ir.Value, spec_val: ir.Value, part: uni.FormattedValue
 ) -> (ir.Value | None) {
     i8p = ir.IntType(8).as_pointer();
-    val = self._str_norm(val);
-    spec_val = self._str_norm(spec_val);
+    _nval = self._str_norm(val);
+    _nspec = self._str_norm(spec_val);
+    if _nval is None or _nspec is None {
+        return None;
+    }
+    val = _nval;
+    spec_val = _nspec;
     kname: (str | None) = None;
     sval = val;
     if isinstance(val.type, ir.IntType) and val.type.width == 1 {

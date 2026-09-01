@@ -1,4 +1,5 @@
 import from jaclang.compiler.backends.native.llvm { ir }
+import from jaclang.runtime.scalars { ScalarShape }
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
 
@@ -11,7 +12,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         _jacval_type: (ir.Type | None) = None,
         _builder: (ir.IRBuilder | None) = None,
         func_symtab: dict[str, ir.Function] = {},
-        local_vars: dict[str, ir.AllocaInstr] = {},
+        local_vars: dict[str, ir.Value] = {},
         param_vars: set[str] = set(),
         _unlowered_locals: dict[str, set[str]] = {},
         flow_future_meta: dict = {},
@@ -94,15 +95,11 @@ obj NaIRGenState(ModuleCodegenPass) {
         imported_osp_archs: dict[str, tuple] = {},
         _osp_kernel_mod: (object | None) = None,
         _fmt_kernel_mod: (object | None) = None,
-        _osp_desc_global: (ir.GlobalVariable | None) = None,
         _osp_rt_global: (ir.GlobalVariable | None) = None,
         _osp_setup_fn: (ir.Function | None) = None,
         _osp_ensure_fn: (ir.Function | None) = None,
         _osp_kernel_inited_gv: (ir.GlobalVariable | None) = None,
         _osp_kernel_glob_init_fn: (ir.Function | None) = None,
-        _osp_filter_fn: (ir.Function | None) = None,
-        _osp_h2i_fn: (ir.Function | None) = None,
-        _osp_is_a_fn: (ir.Function | None) = None,
         tuple_types: dict[str, ir.LiteralStructType] = {},
         global_vars: dict[str, ir.GlobalVariable] = {},
         global_var_types: dict[str, ir.Type] = {},
@@ -166,7 +163,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         str_wrap_fn: (ir.Function | None) = None,
         str_wrap_raw_fn: (ir.Function | None) = None,
         str_unwrap_fn: (ir.Function | None) = None,
-        _str_desc_ty: object = None,
+        _str_desc_ty: (ir.Type | None) = None,
         rc_roots_buf_gv: object = None,
         rc_roots_cap_gv: object = None,
         rc_roots_count_gv: object = None,
@@ -220,7 +217,8 @@ obj NaIRGenState(ModuleCodegenPass) {
         _di_current_sp: object = None,
         _func_loc: dict[str, int] = {},
         _func_def_mod: dict[str, str] = {},
-        _pyb_base_memo: dict[str, object] = {},
+        _linked_fn_decls: dict[int, tuple] = {},
+        _pyb_base_memo: dict[str, tuple | None] = {},
         _pyb_helper_fns: dict[str, ir.Function] = {},
         lambda_captures: dict[str, list[tuple]] = {},
         _pending_lambda_captures: (list[tuple] | None) = None,
@@ -233,6 +231,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         _mono_fns: dict[str, ir.Function] = {},
         _mono_solution: (dict | None) = None,
         _mono_mangle_map: (dict | None) = None,
+        _ct_bindings: dict = {},
         _gen_ctx: (dict | None) = None,
         _gen_try_stack: list = [],
         decorated_fns: dict[str, tuple] = {},
@@ -260,7 +259,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _register_region_handle_var(nd: uni.Assignment, var_name: str) -> None abst;
     def _region_alloc(size: ir.Value, name: str = "region.alloc") -> ir.Value abst;
     def _region_log_dtor_if_needed(obj_i8: ir.Value, type_name: str) -> None abst;
-    def _emit_region_handle_drop(alloca: object, var_name: str) -> None abst;
+    def _emit_region_handle_drop(alloca: ir.Value, var_name: str) -> None abst;
     def _open_anon_region(gidx: int) -> None abst;
     def _close_anon_region(gidx: int) -> None abst;
     def _get_or_declare_extern(
@@ -285,11 +284,11 @@ obj NaIRGenState(ModuleCodegenPass) {
     ) -> (ir.Value | None) abst;
 
     def _codegen_list_slice(
-        target_val: ir.Value, slice_node: object, elem_type_name: str
+        target_val: ir.Value, slice_node: uni.Slice, elem_type_name: str
     ) -> (ir.Value | None) abst;
 
     def _codegen_string_slice(
-        target_val: ir.Value, slice_node: object, base_node: object = None
+        target_val: ir.Value, slice_node: uni.Slice, base_node: object = None
     ) -> (ir.Value | None) abst;
 
     def _emit_sys_argv -> (ir.Value | None) abst;
@@ -319,7 +318,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _is_bytes_value(v: ir.Value) -> bool abst;
     def _codegen_bytes_index(bv: ir.Value, idx: ir.Value) -> (ir.Value | None) abst;
     def _codegen_bytes_slice(
-        bv: ir.Value, slice_node: object
+        bv: ir.Value, slice_node: uni.Slice
     ) -> (ir.Value | None) abst;
 
     def _emit_bytes_eq(left: ir.Value, right: ir.Value, negate: bool) -> ir.Value abst;
@@ -425,7 +424,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         cont: ir.Value,
         layout: dict,
         tag: str,
-        body_cb: object,
+        body_cb: Callable[..., ir.IRBuilder],
         fields: (list | None) = None
     ) -> ir.IRBuilder abst;
 
@@ -626,12 +625,12 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _set_rc_ctx(op: str, loc: str) -> None abst;
     def _clear_rc_ctx -> None abst;
     def _emit_live_list_remove(
-        b: object,
-        target_ptr: object,
-        i8_ptr: object,
-        i64_ptr: object,
-        done_bb: object,
-        free_bb: object
+        b: ir.IRBuilder,
+        target_ptr: ir.Value,
+        i8_ptr: ir.Type,
+        i64_ptr: ir.Type,
+        done_bb: ir.Block,
+        free_bb: ir.Block
     ) -> None abst;
 
     def _emit_rc_live_dump -> None abst;
@@ -893,7 +892,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         nd: (uni.FuncCall | uni.Name),
         type_name: str,
         obj_ptr: ir.Value,
-        params: list,
+        params: Sequence[uni.Expr | uni.KWPair],
         native_fields: dict
     ) -> bool abst;
 

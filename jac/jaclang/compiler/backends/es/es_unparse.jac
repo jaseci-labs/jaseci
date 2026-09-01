@@ -5,11 +5,11 @@ obj JSCodeGenerator {
 
     has indent_str: str = '  ',
         indent_level: int = 0,
-        line_map: list[tuple[int, int, int]] = [],
-        _current_line: int = 1,
-        _line_to_src: dict[int, tuple[int, int]] = {};
+        _frames: list[list[tuple[es.Node, str, list]]] = [],
+        _root: list[tuple[es.Node, str, list]] = [];
 
     def indent -> str;
+    def build_segments(code: str) -> list[tuple[int, int, int, int, str]];
     def generate(nd: (es.Node | None)) -> str;
     def gen_program(nd: es.Program) -> str;
     def gen_expression_statement(nd: es.ExpressionStatement) -> str;
@@ -81,6 +81,10 @@ obj JSCodeGenerator {
 def es_to_js(nd: (es.Node | None), indent: str = '  ') -> str;
 def es_to_js_with_map(
     nd: (es.Node | None), indent: str = '  '
-) -> tuple[str, list[tuple[int, int, int]]];
+) -> tuple[str, list[tuple[int, int, int, int, str]]];
+
+def _line_starts(code: str) -> list[int];
+def _offset_to_pos(line_starts: list[int], offset: int) -> tuple[int, int];
+def _segment_name(nd: es.Node) -> str;
 
 def template_element_raw(text: str) -> str;
