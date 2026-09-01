@@ -71,8 +71,10 @@ test "assigning a concrete Jac value into a synthetic interface annotation error
         f = proj / "lib" / "dest_strict.jac";
         # Dest-side synthetic annotations must still reject incompatible Jac
         # values (str/int into Config). Leniency is only for external sources.
+        # `Config` is a d.ts interface, so it is a type-only export and rides
+        # in on `import type` (a plain import of it is E1131).
         f.write_text(
-            'import from "cfgpkg" { Config }\n\n'
+            'import type from "cfgpkg" { Config }\n\n'
             'def:pub bad() -> None {\n'
             '    c: Config = "hello";\n'
             '}\n'
@@ -91,9 +93,11 @@ test "interface imported directly as a type annotation resolves fields" {
         f = proj / "lib" / "annot.jac";
         # Config is imported and used directly as an annotation (type position),
         # not just inferred from a return type. Field access on the annotated
-        # local must resolve precisely.
+        # local must resolve precisely. The interface is a type-only export, so
+        # it rides in on its own `import type` beside the value import.
         f.write_text(
-            'import from "cfgpkg" { getConfig, Config }\n\n'
+            'import from "cfgpkg" { getConfig }\n'
+            'import type from "cfgpkg" { Config }\n\n'
             'def:pub use() -> str {\n'
             '    c: Config = getConfig();\n'
             '    theme: str = c.theme;\n'

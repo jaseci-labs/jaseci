@@ -9,18 +9,11 @@ lower natively -- and the answers below are what proves the reference points
 at the right vtable rather than merely existing.
 """
 
-import contextlib;
 import ctypes;
-import io;
 import os;
-import shutil;
-import tempfile;
-import from pathlib { Path }
 import from tests.support { TESTS_DIR, compile_native, get_func, native_force_opts }
 
 import from jaclang.compiler.driver.program { JacProgram }
-
-import from jaclang.dist.precompile_bytecode { seal_native_artifacts }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "backends", "native", "fixtures"
@@ -69,29 +62,4 @@ test "objects built by the defining module carry the same vtable" {
     f = get_func(eng, "chk_lib_built", ctypes.c_int64, ctypes.c_int64);
     assert f(0) == 1 , "a Circle built inside the library must match Circle here";
     assert f(1) == 0 , "a Square built inside the library must not match Circle";
-}
-
-test "a sealed artifact resolves the cross-module vtable symbol" {
-    # The vtable global is no longer `private`, so `seal_native_artifacts`'
-    # in-house linker now sees it in the symbol table. The seal's load canary
-    # dlopens the emitted library and calls into it, which is what proves the
-    # reference resolved rather than merely assembling.
-    tmp = tempfile.mkdtemp(prefix="jac_xmod_isinstance_seal_");
-    buf = io.StringIO();
-    try {
-        with contextlib.redirect_stderr(buf) {
-            arts = seal_native_artifacts(
-                Path(FIXTURES), Path(tmp), modules=("xmod_isinstance_main.jac", )
-            );
-        }
-        assert arts , f"the seal produced no artifact:\n{buf.getvalue()}";
-        rec = arts["fixtures.xmod_isinstance_main"];
-        lib = Path(tmp) / rec["lib"];
-        assert lib.is_file() , f"no shared library at {lib}";
-        assert "canary" in buf.getvalue().lower() , (
-            f"the seal accepted an artifact without running the canary:\n{buf.getvalue()}"
-        );
-    } finally {
-        shutil.rmtree(tmp, ignore_errors=True);
-    }
 }

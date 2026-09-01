@@ -112,8 +112,8 @@ impl NaIRGenComprehensions._codegen_dict_compr(nd: uni.DictCompr) -> (ir.Value |
 
     key_type_name = "i64";
     val_type_name = "i64";
-    key_type = ir.IntType(64);
-    val_type = ir.IntType(64);
+    key_type: ir.Type = ir.IntType(64);
+    val_type: ir.Type = ir.IntType(64);
     key_size = 0;
 
     if isinstance(key_expr, uni.TupleVal) {
@@ -188,7 +188,7 @@ impl NaIRGenComprehensions._codegen_set_compr(nd: uni.SetCompr) -> (ir.Value | N
     }
 
     elem_type_name = "i64";
-    elem_type = ir.IntType(64);
+    elem_type: ir.Type = ir.IntType(64);
     elem_size = 0;
     out_expr = nd.out_expr;
 
@@ -549,6 +549,9 @@ impl NaIRGenComprehensions._codegen_compr_range_walk(
     loop_target = inner.target;
     loop_var_name = self._get_name(loop_target);
     if loop_var_name is None {
+        return;
+    }
+    if not isinstance(collection, uni.FuncCall) {
         return;
     }
     params = collection.params or [];

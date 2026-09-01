@@ -1,5 +1,6 @@
 """AI Day Planner -- walker-based version with OSP."""
 
+import from jaclang.comptime { fields, get_field }
 import from frontend { app as ClientApp }
 
 def:pub app -> JsxElement {
@@ -110,13 +111,13 @@ walker:priv GenerateShoppingList {
         visit [-->];
         ingredients = generate_shopping_list(self.meal_description);
         for ing in ingredients {
-            here ++> ShoppingItem(
-                name=ing.name,
-                quantity=ing.quantity,
-                unit=str(ing.unit).split(".")[-1].lower(),
-                cost=ing.cost,
-                carby=ing.carby
-            );
+            item: dict[str, any] = {"unit": str(ing.unit).split(".")[-1].lower()};
+            comptime for f in fields(ShoppingItem) {
+                comptime if f.name != "unit" {
+                    item[f.name] = get_field(ing, f.name);
+                }
+            }
+            here ++> ShoppingItem(**item);
         }
         report [here-->][?:ShoppingItem];
     }

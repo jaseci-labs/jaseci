@@ -3,6 +3,9 @@ import from pathlib { Path }
 
 glob _CODE_GUIDE_MAP: dict[str, str] = {
          "E0077": "jac-impl-files",
+         "E0033": "jac-comptime",
+         "E0108": "jac-comptime",
+         "E0109": "jac-comptime",
          "W0060": "jac-core-cheatsheet",
          "W0061": "jac-sv-persistence",
          "E1050": "jac-walker-patterns",
@@ -53,6 +56,7 @@ glob GUIDE_GROUP_ORDER: list[str] = [
          "jac-project-kinds": "Start here",
          "jac-core-cheatsheet": "Start here",
          "jac-types": "Language",
+         "jac-comptime": "Language",
          "jac-has-fields": "Language",
          "jac-impl-files": "Language",
          "jac-python-interop": "Language",

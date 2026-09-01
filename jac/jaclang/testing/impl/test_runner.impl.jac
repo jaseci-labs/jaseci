@@ -234,9 +234,7 @@ impl _suite_source(filepath: str) -> str {
             if base {
                 return os.path.realpath(base);
             }
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
     return os.path.realpath(filepath);
 }
@@ -340,57 +338,6 @@ impl install_warning_filters -> None {
     }
 }
 
-impl default_jobs -> int {
-    cpus = os.cpu_count() or 1;
-    avail = 0;
-    try {
-        with open("/proc/meminfo", encoding="utf-8") as f {
-            for line in f {
-                if line.startswith("MemAvailable:") {
-                    avail = int(line.split()[1]) * 1024;
-                    break;
-                }
-            }
-        }
-    } except Exception {
-        avail = 0;
-    }
-    if not avail {
-        try {
-            avail = os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE");
-        } except Exception {
-            avail = 0;
-        }
-    }
-    cap = cpus;
-    if avail {
-        cap = max(1, int((avail * _MEM_HEADROOM) // _WORKER_MEM_BYTES));
-    }
-    return max(1, min(cpus, cap, _MAX_AUTO_JOBS));
-}
-
-impl resolve_jobs(requested: (str | int | None) = None) -> int {
-    raw = requested;
-    if (raw is None) or (raw == "") {
-        raw = os.environ.get("JAC_TEST_JOBS", "");
-    }
-    if (raw is None) or (raw == "") {
-        return default_jobs();
-    }
-    if isinstance(raw, int) {
-        return max(1, raw);
-    }
-    text = str(raw).strip().lower();
-    if text == "auto" {
-        return default_jobs();
-    }
-    try {
-        return max(1, int(text));
-    } except ValueError {
-        return default_jobs();
-    }
-}
-
 impl _cleanup_test_bases -> None {
     import shutil;
     while _TEST_BASES {
@@ -400,46 +347,9 @@ impl _cleanup_test_bases -> None {
         } else {
             try {
                 os.unlink(path);
-            } except OSError {
-                ;
-            }
+            } except OSError {}
         }
     }
-}
-
-impl _log_worker_footprint(
-    kid: dict[(str, any)], record: dict[(str, any)], files: list[str], done: any
-) -> None {
-    import sys;
-    if not os.environ.get("JAC_TEST_RSS_LOG", "") {
-        return;
-    }
-    rss = record.get("rss");
-    if rss is None {
-        return;
-    }
-    name = os.path.basename(files[done]) if isinstance(done, int) else "?";
-    sys.stderr.write(
-        f"[rss] slot={kid['slot']} served={record.get('served', 0)} "
-        f"rss={rss}MB{' retiring' if record.get('retire') else ''} {name}\n"
-    );
-    sys.stderr.flush();
-}
-
-impl _worker_rss_mb -> int {
-    import resource;
-    import sys;
-    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss;
-    return int(peak // (1024 * 1024))
-        if sys.platform == "darwin"
-        else int(peak // 1024);
-}
-
-impl _should_retire(served: int, recycle: int, rss_mb: int, rss_cap: int) -> bool {
-    if recycle > 0 and served >= recycle {
-        return True;
-    }
-    return rss_cap > 0 and rss_mb >= rss_cap;
 }
 
 impl _fresh_jac_state(clear_modules: bool = True) -> None {
@@ -471,9 +381,7 @@ impl _capture_begin -> dict[(str, any)] {
     for stream in (sys.stdout, sys.stderr) {
         try {
             stream.flush();
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
     sink: any = None;
     if _CRASH_LOG[0] {
@@ -505,9 +413,7 @@ impl _capture_end(state: dict[(str, any)]) -> str {
         try {
             stream.flush();
             stream.close();
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
     sys.stdout = state["sys_out"];
     sys.stderr = state["sys_err"];
@@ -526,9 +432,7 @@ impl _capture_end(state: dict[(str, any)]) -> str {
     }
     try {
         sink.close();
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return text;
 }
 
@@ -859,9 +763,7 @@ impl run_file(
         for `entry in injected {
             try {
                 sys.path.remove(`entry);
-            } except ValueError {
-                ;
-            }
+            } except ValueError {}
         }
     }
     return outcomes;
@@ -969,431 +871,6 @@ impl Reporter.summarize(elapsed: float) -> int {
     return self.failure_count();
 }
 
-impl ForkPool.postinit -> None {
-    self.kids = [];
-}
-
-impl ForkPool._should_stop -> bool {
-    if self.stopping {
-        return True;
-    }
-    fails = self.reporter.failure_count();
-    if self.xit and (fails > 0) {
-        self.stopping = True;
-        return True;
-    }
-    if self.maxfail and (fails >= self.maxfail) {
-        self.stopping = True;
-        return True;
-    }
-    return False;
-}
-
-impl ForkPool._spawn(slot: int) -> dict[(str, any)] {
-    (dispatch_r, dispatch_w) = os.pipe();
-    (result_r, result_w) = os.pipe();
-    pid = os.fork();
-    if pid == 0 {
-        try {
-            os.close(dispatch_w);
-            os.close(result_r);
-            for other in self.kids {
-                try {
-                    os.close(other["dispatch_fd"]);
-                } except OSError {
-                    ;
-                }
-                try {
-                    os.close(other["result_fd"]);
-                } except OSError {
-                    ;
-                }
-            }
-            self._worker_loop(dispatch_r, result_w);
-            _cleanup_test_bases();
-        } except BaseException {
-            ;
-        }
-        os._exit(0);
-    }
-    os.close(dispatch_r);
-    os.close(result_w);
-    import tempfile;
-    (log_fd, log_path) = tempfile.mkstemp(prefix="jac-test-crash-");
-    os.close(log_fd);
-    _TEST_BASES.append(log_path);
-    return {
-        "pid": pid,
-        "slot": slot,
-        "dispatch_fd": dispatch_w,
-        "result_fd": result_r,
-        "buf": b"",
-        "inflight": None,
-        "alive": True,
-        "crashlog": log_path
-    };
-}
-
-impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
-    import json;
-    install_warning_filters();
-
-    _recycle = 25;
-    try {
-        _recycle = int(os.environ.get("JAC_TEST_RECYCLE", "25") or "25");
-    } except ValueError {
-        _recycle = 25;
-    }
-    _rss_cap = 8192;
-    try {
-        _rss_cap = int(os.environ.get("JAC_TEST_RECYCLE_MB", "8192") or "8192");
-    } except ValueError {
-        _rss_cap = 8192;
-    }
-    _served = 0;
-    reader = os.fdopen(dispatch_fd, "r", encoding="utf-8");
-    while True {
-        line = reader.readline();
-        if not line {
-            break;
-        }
-        text = line.strip();
-        if not text or (text == "q") {
-            break;
-        }
-        try {
-            request = json.loads(text);
-        } except Exception {
-            break;
-        }
-        _CRASH_LOG[0] = str(request.get("crashlog", ""));
-        outcomes: list[TestOutcome] = [];
-        try {
-            outcomes = run_file(
-                request["path"],
-                self.selector,
-                bool(request.get("explicit")),
-                xit=self.xit,
-                maxfail=self.maxfail,
-                seen_failures=int(request.get("seen", 0))
-            );
-        } except BaseException as exc {
-            import from traceback { format_exception }
-            outcomes = [
-                TestOutcome(
-                    file=request["path"],
-                    name=os.path.basename(request["path"]),
-                    status=ERROR,
-                    message="".join(format_exception(exc)).rstrip()
-                )
-            ];
-        }
-        _served += 1;
-        _rss = _worker_rss_mb();
-        _retire = bool(request.get("isolate"))
-            or _should_retire(_served, _recycle, _rss, _rss_cap);
-        payload = json.dumps(
-            {
-                "idx": request["idx"],
-                "outcomes": [o.to_wire() for o in outcomes],
-                "retire": _retire,
-                "rss": _rss,
-                "served": _served
-            }
-        );
-        try {
-            os.write(result_fd, (payload + "\n").encode("utf-8"));
-        } except OSError {
-            break;
-        }
-        if _retire {
-            break;
-        }
-    }
-}
-
-impl ForkPool._dispatch(kid: dict[(str, any)]) -> bool {
-    import json;
-    if self._should_stop() or (self.cursor >= len(self.plan.files)) {
-        return False;
-    }
-    idx = self.cursor;
-    self.cursor += 1;
-    path = self.plan.files[idx];
-    kid["inflight"] = idx;
-    payload = json.dumps(
-        {
-            "idx": idx,
-            "path": path,
-            "explicit": path in self.plan.explicit,
-            "seen": self.reporter.failure_count(),
-            "crashlog": kid["crashlog"],
-            "isolate": path in (self.isolate or set())
-        }
-    );
-    try {
-        os.write(kid["dispatch_fd"], (payload + "\n").encode("utf-8"));
-    } except OSError {
-        kid["inflight"] = None;
-        return False;
-    }
-    return True;
-}
-
-impl ForkPool._handle_record(kid: dict[(str, any)], line: str) -> None {
-    import json;
-    text = line.strip();
-    if not text {
-        return;
-    }
-    try {
-        record = json.loads(text);
-    } except Exception {
-        return;
-    }
-    done = kid["inflight"];
-    kid["inflight"] = None;
-    _log_worker_footprint(kid, record, self.plan.files, done);
-    if done is not None {
-        self.reporter.file_done();
-    }
-    for item in record.get("outcomes", []) {
-        self.reporter.record(TestOutcome.from_wire(item));
-    }
-    if record.get("retire") {
-        kid["retired"] = True;
-        if not self._should_stop() and (self.cursor < len(self.plan.files)) {
-            replacement = self._spawn(kid["slot"]);
-            self.kids.append(replacement);
-            self._dispatch(replacement);
-        }
-        return;
-    }
-    self._dispatch(kid);
-}
-
-impl ForkPool._reap(kid: dict[(str, any)]) -> None {
-    if not kid["alive"] {
-        return;
-    }
-    kid["alive"] = False;
-    try {
-        os.close(kid["result_fd"]);
-    } except OSError {
-        ;
-    }
-    try {
-        os.close(kid["dispatch_fd"]);
-    } except OSError {
-        ;
-    }
-    status = 0;
-    try {
-        (_, status) = os.waitpid(kid["pid"], 0);
-    } except OSError {
-        status = 0;
-    }
-    idx = kid["inflight"];
-    if idx is not None {
-        kid["inflight"] = None;
-        detail = f"worker exited while running this file (wait status {status})";
-        spilled = "";
-        try {
-            with open(kid["crashlog"], "rb") as f {
-                spilled = f.read().decode("utf-8", "replace").strip();
-            }
-        } except Exception {
-            spilled = "";
-        }
-        if spilled {
-            detail += "\n--- output captured before the worker died ---\n" + spilled;
-        }
-        self.reporter.file_crashed(self.plan.files[idx], detail);
-    }
-    if (
-        not kid.get("retired")
-        and not self._should_stop()
-        and (self.cursor < len(self.plan.files))
-    ) {
-        replacement = self._spawn(kid["slot"]);
-        self.kids.append(replacement);
-        self._dispatch(replacement);
-    }
-}
-
-impl ForkPool.run -> None {
-    import select;
-    for slot in range(self.jobs) {
-        self.kids.append(self._spawn(slot));
-    }
-    try {
-        for kid in list(self.kids) {
-            self._dispatch(kid);
-        }
-        self._pump();
-    } finally {
-        self._shutdown();
-    }
-}
-
-impl ForkPool._pump -> None {
-    import select;
-    while True {
-        live = [
-            k
-            for k in self.kids
-            if k["alive"]
-        ];
-        if not live {
-            break;
-        }
-        busy = [
-            k
-            for k in live
-            if k["inflight"] is not None
-        ];
-        if not busy {
-            break;
-        }
-        fds = [k["result_fd"] for k in busy];
-        try {
-            (ready, _, _) = select.select(fds, [], []);
-        } except OSError {
-            break;
-        }
-        for fd in ready {
-            owners = [
-                k
-                for k in busy
-                if k["result_fd"] == fd
-            ];
-            if not owners {
-                continue;
-            }
-            kid = owners[0];
-            if not kid["alive"] {
-                continue;
-            }
-            chunk = b"";
-            try {
-                chunk = os.read(fd, 65536);
-            } except OSError {
-                chunk = b"";
-            }
-            if not chunk {
-                self._reap(kid);
-                continue;
-            }
-            buf: bytes = bytes(kid["buf"]) + chunk;
-            while b"\n" in buf {
-                (line, _, rest) = buf.partition(b"\n");
-                buf = rest;
-                self._handle_record(kid, line.decode("utf-8", "replace"));
-            }
-            kid["buf"] = buf;
-        }
-    }
-}
-
-impl ForkPool._shutdown -> None {
-    import signal;
-    import time;
-    for kid in self.kids {
-        if not kid["alive"] {
-            continue;
-        }
-        try {
-            os.write(kid["dispatch_fd"], b"q\n");
-        } except OSError {
-            ;
-        }
-    }
-    for kid in self.kids {
-        if not kid["alive"] {
-            continue;
-        }
-        kid["alive"] = False;
-        for fd_key in ("dispatch_fd", "result_fd") {
-            try {
-                os.close(kid[fd_key]);
-            } except OSError {
-                ;
-            }
-        }
-        reaped = False;
-        deadline = time.monotonic() + 2.0;
-        while time.monotonic() < deadline {
-            done = 0;
-            try {
-                (done, _) = os.waitpid(kid["pid"], os.WNOHANG);
-            } except OSError {
-                reaped = True;
-            }
-            if reaped or done {
-                reaped = True;
-                break;
-            }
-            time.sleep(0.02);
-        }
-        if not reaped {
-            try {
-                os.kill(int(kid["pid"]), int(signal.SIGKILL));
-            } except OSError {
-                ;
-            }
-            try {
-                os.waitpid(kid["pid"], 0);
-            } except OSError {
-                ;
-            }
-        }
-    }
-}
-
-impl _run_serial(
-    plan: TestPlan,
-    selector: (NameFilter | None),
-    reporter: Reporter,
-    xit: bool,
-    maxfail: (int | None)
-) -> None {
-    install_warning_filters();
-    for path in plan.files {
-        outcomes: list[TestOutcome] = [];
-        try {
-            outcomes = run_file(
-                path,
-                selector,
-                path in plan.explicit,
-                xit=xit,
-                maxfail=maxfail,
-                seen_failures=reporter.failure_count()
-            );
-        } except BaseException as exc {
-            import from traceback { format_exception }
-            outcomes = [
-                TestOutcome(
-                    file=path,
-                    name=os.path.basename(path),
-                    status=ERROR,
-                    message="".join(format_exception(exc)).rstrip()
-                )
-            ];
-        }
-        reporter.file_done();
-        for outcome in outcomes {
-            reporter.record(outcome);
-        }
-        fails = reporter.failure_count();
-        if xit and (fails > 0) {
-            break;
-        }
-        if maxfail and (fails >= maxfail) {
-            break;
-        }
-    }
-}
-
 impl _parse_pct_range(expr: str) -> tuple[(int, int)] {
     parts = expr.split("-");
     bad = ValueError(f"bad --range '{expr}': expected N-M, N-, or -M (percents)");
@@ -1434,9 +911,7 @@ impl _store_run_state(plan: TestPlan, reporter: Reporter) -> None {
     if not reporter.failure_count() {
         try {
             os.remove(path);
-        } except OSError {
-            ;
-        }
+        } except OSError {}
         return;
     }
     order = {p: i for (i, p) in enumerate(plan.files)};
@@ -1457,9 +932,7 @@ impl _store_run_state(plan: TestPlan, reporter: Reporter) -> None {
         with open(path, "w", encoding="utf-8") as f {
             json.dump({"first_failed": first}, f);
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
 }
 
 impl run_tests(
@@ -1554,7 +1027,9 @@ impl run_tests(
         and ((workers > 1) or bool(iso_set) or bool(ser_set))
         and (len(plan.files) > 1 or bool(iso_set) or bool(ser_set));
     if not use_pool {
-        _run_serial(plan, selector, reporter, xit, maxfail);
+        _run_plan(
+            plan, selector, reporter, xit, maxfail, jobs=1, isolate=None, inline=True
+        );
     } else {
         par_files = [
             f
@@ -1567,30 +1042,30 @@ impl run_tests(
             if f in ser_set
         ];
         if par_files {
-            pool = ForkPool(
-                plan=TestPlan(files=par_files, explicit=plan.explicit),
-                selector=selector,
-                reporter=reporter,
+            _run_plan(
+                TestPlan(files=par_files, explicit=plan.explicit),
+                selector,
+                reporter,
+                xit,
+                maxfail,
                 jobs=min(workers, len(par_files)),
-                xit=xit,
-                maxfail=maxfail,
-                isolate=iso_set
+                isolate=iso_set,
+                inline=False
             );
-            pool.run();
         }
         fails = reporter.failure_count();
         blocked = (xit and (fails > 0)) or (maxfail and (fails >= maxfail));
         if ser_files and not blocked {
-            tail = ForkPool(
-                plan=TestPlan(files=ser_files, explicit=plan.explicit),
-                selector=selector,
-                reporter=reporter,
+            _run_plan(
+                TestPlan(files=ser_files, explicit=plan.explicit),
+                selector,
+                reporter,
+                xit,
+                maxfail,
                 jobs=1,
-                xit=xit,
-                maxfail=maxfail,
-                isolate=set(ser_files)
+                isolate=set(ser_files),
+                inline=False
             );
-            tail.run();
         }
     }
     failures = reporter.summarize(time.perf_counter() - started);
@@ -1602,4 +1077,96 @@ impl run_tests(
         return EXIT_FAILED;
     }
     return EXIT_OK;
+}
+
+impl resolve_jobs(requested: (str | int | None) = None) -> int {
+    import from jaclang.cli.workpool { resolve_jobs as _resolve_pool_jobs }
+    return _resolve_pool_jobs(requested, env_var="JAC_TEST_JOBS");
+}
+
+impl _test_retire(served: int, rss_mb: int) -> bool {
+    import from jaclang.cli.workpool { env_int }
+    return _should_retire(
+        served,
+        env_int("JAC_TEST_RECYCLE", 25),
+        rss_mb,
+        env_int("JAC_TEST_RECYCLE_MB", 8192)
+    );
+}
+
+impl _run_plan(
+    plan: TestPlan,
+    selector: (NameFilter | None),
+    reporter: Reporter,
+    xit: bool,
+    maxfail: (int | None),
+    jobs: int,
+    isolate: (set[str] | None),
+    inline: bool
+) -> None {
+    def job(request: dict[(str, any)]) -> list[dict[(str, any)]] {
+        _CRASH_LOG[0] = str(request.get("crashlog", ""));
+        outcomes = run_file(
+            request["path"],
+            selector,
+            bool(request.get("explicit")),
+            xit=xit,
+            maxfail=maxfail,
+            seen_failures=int(request.get("seen", 0))
+        );
+        return [o.to_wire() for o in outcomes];
+    }
+    def request_extra(idx: int, path: str) -> dict[(str, any)] {
+        return {"explicit": path in plan.explicit, "seen": reporter.failure_count()};
+    }
+    def should_stop -> bool {
+        fails = reporter.failure_count();
+        if xit and (fails > 0) {
+            return True;
+        }
+        return bool(maxfail) and (fails >= int(maxfail or 0));
+    }
+    def on_record(idx: int, record: dict[(str, any)]) -> None {
+        path = plan.files[idx];
+        crash = record.get("crash");
+        if crash is not None {
+            reporter.file_crashed(path, str(crash));
+            return;
+        }
+        reporter.file_done();
+        error = record.get("error");
+        if error is not None {
+            reporter.record(
+                TestOutcome(
+                    file=path,
+                    name=os.path.basename(path),
+                    status=ERROR,
+                    message=str(error)
+                )
+            );
+            return;
+        }
+        for item in (record.get("result") or []) {
+            reporter.record(TestOutcome.from_wire(item));
+        }
+    }
+    pool = WorkPool(
+        items=list(plan.files),
+        job=job,
+        on_record=on_record,
+        jobs=jobs,
+        request_extra=request_extra,
+        should_stop=should_stop,
+        retire=_test_retire,
+        worker_init=install_warning_filters,
+        worker_exit=_cleanup_test_bases,
+        isolate=isolate,
+        rss_log_env="JAC_TEST_RSS_LOG",
+        crash_prefix="jac-test-crash-"
+    );
+    if inline {
+        pool.run_inline();
+    } else {
+        pool.run();
+    }
 }

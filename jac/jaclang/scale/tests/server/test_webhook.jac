@@ -57,7 +57,7 @@ test "webhook warning absent at boot without webhook walkers" {
             "Webhook durability warning fired at boot for an app with no "
             f"webhook walkers: {warnings}"
         );
-    } finally { }
+    } finally {}
 }
 
 test "webhook durability warning absent when the shared database is available" {

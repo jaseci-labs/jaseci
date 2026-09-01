@@ -37,19 +37,16 @@ import from jaclang.compiler.frontend.diagnostics {
 
 def inform_from_walker(nd: UniNode) -> None;
 
-class SemanticAnalysisPass(UniPass) {
-    def enter_archetype(self: SemanticAnalysisPass, nd: Archetype) -> None;
-    def _check_archetype(self: SemanticAnalysisPass, nd: Archetype) -> None;
-    def _property_type_names(
-        self: SemanticAnalysisPass, methods: list[Ability]
-    ) -> dict[str, str];
-
-    def _update_ctx(self: SemanticAnalysisPass, nd: UniNode) -> None;
-    def enter_has_var(self: SemanticAnalysisPass, nd: HasVar) -> None;
-    def enter_param_var(self: SemanticAnalysisPass, nd: ParamVar) -> None;
-    def enter_assignment(self: SemanticAnalysisPass, nd: Assignment) -> None;
-    def enter_in_for_stmt(self: SemanticAnalysisPass, nd: InForStmt) -> None;
-    def enter_expr_as_item(self: SemanticAnalysisPass, nd: ExprAsItem) -> None;
-    def enter_inner_compr(self: SemanticAnalysisPass, nd: InnerCompr) -> None;
-    def _change_atom_trailer_ctx(self: SemanticAnalysisPass, nd: AtomTrailer) -> None;
+walker SemanticAnalysisPass(UniPass) {
+    can enter_archetype with Archetype entry;
+    def _check_archetype(nd: Archetype) -> None;
+    def _property_type_names(methods: list[Ability]) -> dict[str, str];
+    def _update_ctx(nd: UniNode) -> None;
+    can enter_has_var with HasVar entry;
+    can enter_param_var with ParamVar entry;
+    can enter_assignment with Assignment entry;
+    can enter_in_for_stmt with InForStmt entry;
+    can enter_expr_as_item with ExprAsItem entry;
+    can enter_inner_compr with InnerCompr entry;
+    def _change_atom_trailer_ctx(nd: AtomTrailer) -> None;
 }

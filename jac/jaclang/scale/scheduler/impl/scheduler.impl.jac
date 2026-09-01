@@ -43,21 +43,21 @@ impl TriggerSpec.validate(
 }
 
 impl TriggerSpec.from_dict(d: dict) -> TriggerSpec {
-    return TriggerSpec(
-        trigger=d.get('trigger', 'interval'),
-        interval=d.get('interval'),
-        cron=d.get('cron'),
-        date=d.get('date')
-    );
+    kw: dict[str, any] = {'trigger': d.get('trigger', 'interval')};
+    comptime for f in fields(TriggerSpec) {
+        comptime if f.name != 'trigger' {
+            kw[f.name] = d.get(f.name);
+        }
+    }
+    return TriggerSpec(**kw);
 }
 
 impl TriggerSpec.to_dict -> dict {
-    return {
-        'trigger': self.trigger,
-        'interval': self.interval,
-        'cron': self.cron,
-        'date': self.date
-    };
+    out: dict[str, any] = {};
+    comptime for f in fields(TriggerSpec) {
+        out[f.name] = get_field(self, f.name);
+    }
+    return out;
 }
 
 impl TriggerSpec.apscheduler_kwargs -> dict {
@@ -68,8 +68,8 @@ impl TriggerSpec.apscheduler_kwargs -> dict {
         return {'seconds': float(self.interval)};
     }
     if self.trigger == 'cron' {
-        fields = (self.cron or '').strip().split();
-        (f_min, f_hour, f_day, f_month, f_weekday) = fields;
+        parts = (self.cron or '').strip().split();
+        (f_min, f_hour, f_day, f_month, f_weekday) = parts;
         return {
             'minute': f_min,
             'hour': f_hour,
@@ -786,7 +786,7 @@ impl JacScaleScheduler._on_jobs_changed(payload: str) -> None {
         try {
             self._apscheduler.remove_job(job_id);
             logger.debug(f"jobs-changed: removed local schedule for {job_id}");
-        } except Exception { }
+        } except Exception {}
         return;
     }
     try {
