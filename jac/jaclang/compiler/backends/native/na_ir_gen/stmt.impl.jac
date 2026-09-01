@@ -350,14 +350,11 @@ impl NaIRGenStmt._codegen_return(nd: uni.ReturnStmt) -> None {
         self.builder.ret(ir.Constant(ir.IntType(1), 0));
         return;
     }
-    # Guaranteed tail calls (jac/jaclang/NATIVE_TAILCALL_PLAN.md, T1):
-    # `return f(...)` in an eligible context emits `musttail call` + ret.
+
     if self._try_emit_musttail_return(nd) {
         return;
     }
-    # T5: `return <call> if c else <expr>` — each ternary arm is its own
-    # tail position; the eligible arm(s) musttail, the rest return
-    # normally in their branch.
+
     if self._try_emit_musttail_ternary(nd, nd.expr) {
         return;
     }

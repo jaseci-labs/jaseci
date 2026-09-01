@@ -7,7 +7,8 @@ def tc_boom(n: int) -> int {
     }
     return tc_boom(n - 1);
 }
-def tc_guarded() -> int {
+
+def tc_guarded -> int {
     try {
         return tc_boom(200);
     } except Exception as e {

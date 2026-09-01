@@ -4,6 +4,7 @@ plain value in its own branch."""
 def tc_tern(n: int, acc: int) -> int {
     return acc if n == 0 else tc_tern(n - 1, acc + n);
 }
+
 def tc_tern_drive(n: int) -> int {
     return tc_tern(n, 0);
 }

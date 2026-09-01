@@ -4,11 +4,16 @@ musttail — either way: no leak, no premature free. tc_owned_drive loops
 so a per-call leak is measurable via IR retain/release balance and
 behavior stays checkable at safe depth."""
 def tc_owned(n: int) -> int {
-    if n == 0 { return 0; }
+    if n == 0 {
+        return 0;
+    }
     junk: str = "x" + str(n);
-    if len(junk) < 0 { return -1; }
+    if len(junk) < 0 {
+        return -1;
+    }
     return tc_owned(n - 1);
 }
+
 def tc_owned_drive(iters: int, depth: int) -> int {
     acc: int = 0;
     i: int = 0;

@@ -11,8 +11,14 @@ import os;
 obj NaIRGenCalls(NaIRGenState) {
     def _codegen_call(nd: uni.FuncCall) -> (ir.Value | None);
     def _try_emit_musttail_return(nd: uni.ReturnStmt) -> bool;
-    def _try_emit_musttail_expr(nd: uni.ReturnStmt, expr: (uni.UniNode | None)) -> bool;
-    def _try_emit_musttail_ternary(nd: uni.ReturnStmt, e: (uni.UniNode | None)) -> bool;
+    def _try_emit_musttail_expr(
+        nd: uni.ReturnStmt, expr: (uni.UniNode | None)
+    ) -> bool;
+
+    def _try_emit_musttail_ternary(
+        nd: uni.ReturnStmt, e: (uni.UniNode | None)
+    ) -> bool;
+
     def _tailcall_enabled -> bool;
     def _tailcall_release_plan -> (object | None);
     def _tailcall_arg_pure(e: uni.UniNode) -> bool;

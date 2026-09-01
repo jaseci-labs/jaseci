@@ -3406,9 +3406,7 @@ impl NaIRGenCalls._tailcall_release_plan -> (object | None) {
             plan.append((var_name, alloca));
             continue;
         }
-        # Shapes main's _emit_scope_cleanup releases that this plan cannot
-        # reorder generically: headerless-nogc str descriptors (owned
-        # frees) and optional-payload structs. Block rather than reorder.
+
         if isinstance(alloca.type, ir.PointerType) {
             if self._nogc_headerless()
                 and self._str_desc_ty is not None
@@ -3491,22 +3489,24 @@ impl NaIRGenCalls._tailcall_collect_arg_names(e: uni.UniNode, names: set) -> Non
     }
 }
 
-impl NaIRGenCalls._tailcall_skip(fn_name: str, nd: uni.ReturnStmt, reason: str) -> None {
+impl NaIRGenCalls._tailcall_skip(
+    fn_name: str, nd: uni.ReturnStmt, reason: str
+) -> None {
     if os.environ.get("JAC_TAILCALL_DEBUG", "") != "2" {
         return;
     }
+    import sys as _tc_sys;
     _tl = nd.loc.first_line if nd.loc else 0;
     _cf = self.builder.function.name if self._builder is not None else "?";
-    print(f"[tailcall] skip {fn_name} <- {_cf} at line {_tl}: {reason}");
+    _tc_sys.stderr.write(
+        f"[tailcall] skip {fn_name} <- {_cf} at line {_tl}: {reason}\n"
+    );
 }
 
 impl NaIRGenCalls._try_emit_musttail_return(nd: uni.ReturnStmt) -> bool {
     return self._try_emit_musttail_expr(nd, nd.expr);
 }
 
-# T5: a ternary in return position makes EACH arm a tail position.
-# Emits cond + branch; every arm either musttails or returns normally in
-# its own block (nested ternaries recurse).
 impl NaIRGenCalls._try_emit_musttail_ternary(
     nd: uni.ReturnStmt, e: (uni.UniNode | None)
 ) -> bool {
@@ -3520,9 +3520,7 @@ impl NaIRGenCalls._try_emit_musttail_ternary(
     _then_arm = self._tailcall_unwrap(e.value);
     _else_arm = self._tailcall_unwrap(e.else_value);
     _arm_shapes = (uni.FuncCall, uni.IfElseExpr);
-    if not (
-        isinstance(_then_arm, _arm_shapes) or isinstance(_else_arm, _arm_shapes)
-    ) {
+    if not (isinstance(_then_arm, _arm_shapes) or isinstance(_else_arm, _arm_shapes)) {
         return False;
     }
     cond = self._codegen_expr(e.condition);
@@ -3577,9 +3575,7 @@ impl NaIRGenCalls._try_emit_musttail_expr(
         self._tailcall_skip(_cand, nd, "unresolvable callee name");
         return False;
     }
-    # Compiler intrinsics are lowered by special branches in _codegen_call
-    # that this fast path bypasses — emitting a real call to them is WRONG
-    # (e.g. a bit-cast intrinsic musttail'd as a function returns garbage).
+
     if func_name.startswith("__") {
         self._tailcall_skip(func_name, nd, "compiler intrinsic");
         return False;
@@ -3611,8 +3607,6 @@ impl NaIRGenCalls._try_emit_musttail_expr(
     clos_alloca: (object | None) = None;
     clos_struct: (str | None) = None;
     if func is None {
-        # T4: callee may be a local holding a {fn, env} closure value
-        # (raw functions stored in locals are clos.wrap'ed to this shape).
         _ca = self.local_vars.get(func_name);
         if _ca is not None and isinstance(_ca.type, ir.PointerType) {
             _cn = self._closure_struct_of(_ca.type.pointee);
@@ -3626,7 +3620,7 @@ impl NaIRGenCalls._try_emit_musttail_expr(
             return False;
         }
     }
-    # Exclusions: archetype constructors, C externs, generics-by-name.
+
     if func is not None
         and isinstance(call_nd.target, uni.Name)
         and call_nd.target.sym_name in self.arch_ast_map {
@@ -3637,18 +3631,12 @@ impl NaIRGenCalls._try_emit_musttail_expr(
         self._tailcall_skip(func_name, nd, "C extern");
         return False;
     }
-    # Predicate #1: never inside generator/resume machinery.
+
     if self._gen_ctx is not None {
         self._tailcall_skip(func_name, nd, "inside generator machinery");
         return False;
     }
-    # Predicate #2 (permanent): the enclosing try's armed exception frame
-    # (a setjmp jmp_buf alloca) lives in THIS function's stack frame — a
-    # musttail replaces that frame, so a raising callee would longjmp
-    # into reused stack. _gen_try_stack only tracks GENERATOR tries; for
-    # everything else the guard is syntactic: any lexical TryStmt
-    # ancestor of the return refuses musttail (body, handler, else, and
-    # finally alike — nested tries keep outer frames armed).
+
     if len(self._gen_try_stack) > 0 {
         self._tailcall_skip(
             func_name, nd, "inside generator try (frame must stay armed)"
@@ -3666,38 +3654,34 @@ impl NaIRGenCalls._try_emit_musttail_expr(
         }
         _anc = _anc.parent;
     }
-    # Predicate #3: musttail demands identical caller/callee prototypes
-    # (this also rules out any post-call coercion).
+
     cur_fn = self.builder.function;
     clos_fnty_env: (object | None) = None;
     clos_raw_fnty: (object | None) = None;
     if func is not None {
         if str(func.function_type) != str(cur_fn.function_type) {
             self._tailcall_skip(
-                func_name, nd,
+                func_name,
+                nd,
                 f"prototype mismatch: {func.function_type} vs {cur_fn.function_type}"
             );
             return False;
         }
-        # Predicate #7: no varargs.
+
         if func.function_type.var_arg or cur_fn.function_type.var_arg {
             self._tailcall_skip(func_name, nd, "varargs");
             return False;
         }
     } else {
-        # T4 (indirect): the closure convention appends env as the last
-        # argument, so the env-carrying prototype can never equal a raw
-        # caller's. The musttail is legal only on the env==null path
-        # (clos.wrap'ed raw functions), through the fn pointer cast to
-        # the ENV-LESS prototype — which must match the caller exactly.
         (_cst, clos_fnty_env) = self.closure_sig_registry[clos_struct];
         _declared = list(clos_fnty_env.args)[:-1];
         clos_raw_fnty = ir.FunctionType(clos_fnty_env.return_type, _declared);
         if str(clos_raw_fnty) != str(cur_fn.function_type) {
             self._tailcall_skip(
-                func_name, nd,
+                func_name,
+                nd,
                 f"indirect prototype mismatch: {clos_raw_fnty} vs "
-                + f"{cur_fn.function_type}"
+                    + f"{cur_fn.function_type}"
             );
             return False;
         }
@@ -3706,18 +3690,14 @@ impl NaIRGenCalls._try_emit_musttail_expr(
             return False;
         }
     }
-    # Predicate #8: musttail support is not assumed on wasm targets.
+
     try {
         if "wasm" in str(self.llvm_module.triple or "") {
             self._tailcall_skip(func_name, nd, "wasm target");
             return False;
         }
-    } except Exception {
-        # No triple attribute — host target; proceed.
-    }
-    # Predicate #4 (T2): compute the owed-release set. None = blocked
-    # (closure cells / region handles need epilogue machinery a tail
-    # call cannot reorder).
+    } except Exception { }
+
     plan = self._tailcall_release_plan();
     if plan is None {
         self._tailcall_skip(
@@ -3725,9 +3705,7 @@ impl NaIRGenCalls._try_emit_musttail_expr(
         );
         return False;
     }
-    # Predicate #5: argument purity (checked BEFORE any emission so a
-    # bail never leaves side effects behind) + identifier collection
-    # for the alias check below.
+
     arg_names: set = set();
     for p in (call_nd.params or []) {
         if not self._tailcall_arg_pure(p) {
@@ -3736,15 +3714,7 @@ impl NaIRGenCalls._try_emit_musttail_expr(
         }
         self._tailcall_collect_arg_names(p, arg_names);
     }
-    # T2 alias rule: a release may move BEFORE the call only when no
-    # argument can reference the released object.
-    #  - arg IS a plan local (ownership handoff): the reference must
-    #    outlive this frame, so the normal keep-alive epilogue wins.
-    #  - arg is a pointer-typed name that is neither a param nor in the
-    #    plan: a borrow (nogc alias) that may point INTO a plan local's
-    #    object — releasing early would dangle it.
-    #  - rebound pointer params are promoted out of param_vars into the
-    #    plan (param_promote), so the first rule covers them too.
+
     if len(plan) > 0 {
         plan_names: set = set();
         for (pn, _pa) in plan {
@@ -3753,9 +3723,10 @@ impl NaIRGenCalls._try_emit_musttail_expr(
         for an in arg_names {
             if an in plan_names {
                 self._tailcall_skip(
-                    func_name, nd,
+                    func_name,
+                    nd,
                     f"arg '{an}' is the owned local being handed off "
-                    + "(keep-alive epilogue wins)"
+                        + "(keep-alive epilogue wins)"
                 );
                 return False;
             }
@@ -3767,17 +3738,15 @@ impl NaIRGenCalls._try_emit_musttail_expr(
                 and isinstance(a_slot.type, ir.PointerType)
                 and isinstance(a_slot.type.pointee, ir.PointerType) {
                 self._tailcall_skip(
-                    func_name, nd,
+                    func_name,
+                    nd,
                     f"arg '{an}' is a pointer borrow (may alias a released local)"
                 );
                 return False;
             }
         }
     }
-    # Handoff guard for non-pointer RC carriers: an argument naming a
-    # local whose slot is a str descriptor or optional-payload struct is
-    # an ownership handoff — the reference must outlive this frame, so
-    # the normal keep-alive epilogue wins.
+
     for an in arg_names {
         if an in self.param_vars {
             continue;
@@ -3786,26 +3755,19 @@ impl NaIRGenCalls._try_emit_musttail_expr(
         if h_slot is None or not isinstance(h_slot.type, ir.PointerType) {
             continue;
         }
-        if (
-            self._str_desc_ty is not None
-            and h_slot.type.pointee == self._str_desc_ty
-        ) or self._opt_ptr_payload_of(h_slot.type.pointee) is not None {
+        if (self._str_desc_ty is not None and h_slot.type.pointee == self._str_desc_ty)
+            or self._opt_ptr_payload_of(h_slot.type.pointee) is not None {
             self._tailcall_skip(
-                func_name, nd,
+                func_name,
+                nd,
                 f"arg '{an}' is an owned RC-carrying local (handoff — "
-                + "keep-alive epilogue wins)"
+                    + "keep-alive epilogue wins)"
             );
             return False;
         }
     }
-    # ── Eligible: emit args → musttail call → ret ────────────────────────
+
     if clos_alloca is not None {
-        # T4 indirect emission. Load the closure ONCE, then branch on env:
-        #   env == null → clos.wrap'ed raw fn: release the plan (incl. the
-        #     closure box — fn/env are already in registers and the target
-        #     is static code) and musttail through the env-less prototype.
-        #   env != null → a real capturing closure: its env must outlive
-        #     the callee, so keep the plain call + normal epilogue.
         _i32 = ir.IntType(32);
         _i8p = ir.IntType(8).as_pointer();
         _declared = list(clos_fnty_env.args)[:-1];
@@ -3829,21 +3791,18 @@ impl NaIRGenCalls._try_emit_musttail_expr(
         }
         for _ia in _icoerced {
             if isinstance(_ia.type, ir.PointerType) and self._is_owned(_ia) {
-                # Should be unreachable given the purity gate; refuse the
-                # whole fast path rather than reason about owned handoff
-                # through an indirect callee.
                 self._tailcall_skip(func_name, nd, "indirect owned argument");
                 return False;
             }
         }
         _cv = self.builder.load(clos_alloca, name=f"tail.clos.{func_name}");
         _fn_slot = self.builder.gep(
-            _cv, [ir.Constant(_i32, 0), ir.Constant(_i32, 0)],
-            name="tail.icall.fn.slot"
+            _cv, [ir.Constant(_i32, 0), ir.Constant(_i32, 0)], name="tail.icall.fn.slot"
         );
         _fn_i64 = self.builder.load(_fn_slot, name="tail.icall.fn.i64");
         _env_slot = self.builder.gep(
-            _cv, [ir.Constant(_i32, 0), ir.Constant(_i32, 1)],
+            _cv,
+            [ir.Constant(_i32, 0), ir.Constant(_i32, 1)],
             name="tail.icall.env.slot"
         );
         _env = self.builder.load(_env_slot, name="tail.icall.env");
@@ -3863,11 +3822,12 @@ impl NaIRGenCalls._try_emit_musttail_expr(
             _fn_i64, clos_raw_fnty.as_pointer(), name="tail.icall.raw"
         );
         if os.environ.get("JAC_TAILCALL_DEBUG", "") in ("1", "2") {
+            import sys as _tc_sys;
             _tl = nd.loc.first_line if nd.loc else 0;
-            print(
+            _tc_sys.stderr.write(
                 f"[tailcall] musttail-indirect {func_name} <- {cur_fn.name} "
-                + f"at line {_tl} (env-null guarded, "
-                + f"reordered_releases={len(plan)})"
+                    + f"at line {_tl} (env-null guarded, "
+                    + f"reordered_releases={len(plan)})\n"
             );
         }
         if isinstance(clos_raw_fnty.return_type, ir.VoidType) {
@@ -3910,9 +3870,6 @@ impl NaIRGenCalls._try_emit_musttail_expr(
         coerced.append(_c);
     }
     if saw_owned {
-        # Purity pre-check should prevent this; if an owned value slipped
-        # through, degrade to a correct plain call with the normal
-        # post-call epilogue rather than leak or free early.
         _res = self.builder.call(func, coerced, name=f"call.{func_name}");
         self._release_owned_args(coerced, op="call_arg");
         self._emit_scope_cleanup(skip_var=None, loc="tailcall.degrade");
@@ -3923,18 +3880,19 @@ impl NaIRGenCalls._try_emit_musttail_expr(
         }
         return True;
     }
-    # T2: the owed releases are provably disjoint from every argument
-    # (argument values are already in registers) — emit them BEFORE the
-    # call so the epilogue is empty and musttail is legal.
+
     for (pn, pa) in plan {
         _pv = self.builder.load(pa, name=f"tail.cleanup.{pn}");
         self._emit_rc_release_typed(_pv, op="scope_exit", loc="tailcall.reorder");
         self.builder.store(ir.Constant(pa.type.pointee, None), pa);
     }
     if os.environ.get("JAC_TAILCALL_DEBUG", "") in ("1", "2") {
+        import sys as _tc_sys;
         _tl = nd.loc.first_line if nd.loc else 0;
         _rr = f" (reordered_releases={len(plan)})" if len(plan) > 0 else "";
-        print(f"[tailcall] musttail {func_name} <- {cur_fn.name} at line {_tl}{_rr}");
+        _tc_sys.stderr.write(
+            f"[tailcall] musttail {func_name} <- {cur_fn.name} at line {_tl}{_rr}\n"
+        );
     }
     if isinstance(cur_fn.function_type.return_type, ir.VoidType) {
         self.builder.call(func, coerced, tail="musttail");

@@ -9,6 +9,7 @@ def tc_boom_same(n: int) -> int {
     }
     return tc_boom_same(n - 1);
 }
+
 def tc_guarded_same(n: int) -> int {
     try {
         return tc_boom_same(n);
