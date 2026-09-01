@@ -6,11 +6,11 @@ impl BoundaryAnalysisPass.before_pass -> None {
     self._imported_native_modules = {};
     self._stamp_call_kinds = False;
     _su = sys.modules.get("jaclang.compiler.symbol_utils");
-    if _su is None or getattr(_su, "classify_call", None) is None {
+    if _su is None or _su?.classify_call is None {
         return;
     }
     _jl = sys.modules.get("jaclang");
-    _jl_file = getattr(_jl, "__file__", None) if _jl is not None else None;
+    _jl_file = _jl?.__file__ if _jl is not None else None;
     _mod_path = self.ir_in.loc.mod_path
         if (isinstance(self.ir_in, Module) and self.ir_in.loc)
         else "";
