@@ -15,6 +15,8 @@ import from c { def PyList_New(n: int) -> int;  }
 import from c { def PyList_SetItem(l: int, i: int, v: int) -> int;  }
 
 import from jaclang.compiler.jc_materialize {
+    hint_commentdata,
+    hint_srcdiag,
     jc_graph_wipe,
     jc_mz_dispose,
     jc_mz_obj,
@@ -26,16 +28,6 @@ import from jaclang.compiler.frontend.parser.parser { parse_program }
 import from jaclang.compiler.frontend.parser.tokens { SrcDiag, CommentData }
 import from jaclang.compiler.frontend.unitree { Module, UniNode }
 import from jaclang.compiler.frontend.roles { AccessorsRole, BodyRole, SpecRole }
-
-def _stable_tag(name: str) -> int {
-    # Mirrors jaclang.runtime.osp_tag.stable_osp_tag (FNV-1a, 53-bit mask);
-    # inlined because the kernel unit already owns that module's symbols.
-    h = 14695981039346656037;
-    for c in name {
-        h = ((h ^ ord(c)) * 1099511628211) & 18446744073709551615;
-    }
-    return h & 9007199254740991;
-}
 
 obj JcState {
     has mod: (Module | None) = None,
@@ -119,19 +111,19 @@ def _mz_list(items: list, hint: int) -> int {
 }
 
 def:pub jc_diags -> int {
-    out = _mz_list(_JC.p_diags, _stable_tag("SrcDiag"));
+    out = _mz_list(_JC.p_diags, hint_srcdiag());
     _JC.p_diags = [];
     return out;
 }
 
 def:pub jc_lexdiags -> int {
-    out = _mz_list(_JC.lex_diags, _stable_tag("SrcDiag"));
+    out = _mz_list(_JC.lex_diags, hint_srcdiag());
     _JC.lex_diags = [];
     return out;
 }
 
 def:pub jc_comments -> int {
-    out = _mz_list(_JC.comments, _stable_tag("CommentData"));
+    out = _mz_list(_JC.comments, hint_commentdata());
     _JC.comments = [];
     return out;
 }

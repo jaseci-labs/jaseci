@@ -811,12 +811,35 @@ def osp_adj_pairs(origin: int, dir: int) -> list[int] {
     out: list[int] = [];
     if origin in DEFAULT_GRAPH.adj {
         a: Adj = DEFAULT_GRAPH.adj[origin];
-        src = a.out if dir == 2 else a.inn;
-        for k in src {
-            peers: list[int] = src[k];
-            for t in peers {
-                out.append(k);
-                out.append(t);
+        if dir == 2 {
+            for rid in a.rows_out {
+                row: EdgeRow = DEFAULT_GRAPH.rows[rid];
+                if row.live {
+                    out.append(row.tag);
+                    out.append(row.tgt);
+                }
+            }
+            for k in a.out {
+                peers: list[int] = a.out[k];
+                for t in peers {
+                    out.append(k);
+                    out.append(t);
+                }
+            }
+        } else {
+            for rid in a.rows_in {
+                row: EdgeRow = DEFAULT_GRAPH.rows[rid];
+                if row.live {
+                    out.append(row.tag);
+                    out.append(row.src);
+                }
+            }
+            for k in a.inn {
+                srcs: list[int] = a.inn[k];
+                for t in srcs {
+                    out.append(k);
+                    out.append(t);
+                }
             }
         }
     }

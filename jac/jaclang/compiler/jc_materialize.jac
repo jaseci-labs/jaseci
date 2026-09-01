@@ -19,9 +19,8 @@ the run leaves behind until jc_mz_dispose.
 """
 
 import from c { def memcpy(dst: bytes, src: int, n: u64) -> int;  }
-import from c { def osp_adj_pairs(origin: int, dir: int) -> int;  }
+import from c { def osp_adj_pairs(origin: int, dir: int) -> list[int];  }
 import from c { def osp_graph_wipe() -> int;  }
-import from c { def jac_release(p: int) -> int;  }
 import from c { def PyType_GenericAlloc(t: int, n: int) -> int;  }
 import from c { def PyObject_SetAttr(o: int, k: int, v: int) -> int;  }
 import from c { def PyObject_GetAttr(o: int, k: int) -> int;  }
@@ -169,6 +168,22 @@ def:pub jc_reg_default(tag: int, key_h: int, kind: int) -> int {
 def:pub jc_reg_edge(tag: int, cls_h: int) -> int {
     _EDGE[tag] = cls_h;
     return 0;
+}
+
+glob _HINTS: list[int] = [0, 0];
+
+def:pub jc_reg_hint_tags(srcdiag_tag: int, commentdata_tag: int) -> int {
+    _HINTS[0] = srcdiag_tag;
+    _HINTS[1] = commentdata_tag;
+    return 0;
+}
+
+def hint_srcdiag -> int {
+    return _HINTS[0];
+}
+
+def hint_commentdata -> int {
+    return _HINTS[1];
 }
 
 def _ld64u(buf: bytes, off: int) -> int {
@@ -413,13 +428,12 @@ def _visit(m: Mz, h: int, hint: int) -> None {
 
 def _enqueue_adj(m: Mz, h: int, dir: int) -> None {
     po = osp_adj_pairs(h, dir);
-    n = _nlist_len(po);
+    n = len(po);
     i = 0;
     while i < n {
-        _enqueue(m, _nlist_get(po, i + 1), 0);
+        _enqueue(m, po[i + 1], 0);
         i += 2;
     }
-    jac_release(po);
 }
 
 def _patch_refs(m: Mz) -> None {
@@ -453,14 +467,14 @@ def _patch_refs(m: Mz) -> None {
 
 def _edge_dict_from_pairs(m: Mz, h: int, dir: int, weak: int) -> int {
     po = osp_adj_pairs(h, dir);
-    n = _nlist_len(po);
+    n = len(po);
     d = 0;
     cur_tag = 0;
     cur_pl = 0;
     i = 0;
     while i < n {
-        tg = _nlist_get(po, i);
-        t = _nlist_get(po, i + 1);
+        tg = po[i];
+        t = po[i + 1];
         i += 2;
         if tg not in _EDGE {
             continue;
@@ -507,7 +521,6 @@ def _edge_dict_from_pairs(m: Mz, h: int, dir: int, weak: int) -> int {
             PyList_Append(cur_pl, val);
         }
     }
-    jac_release(po);
     return d;
 }
 

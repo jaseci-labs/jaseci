@@ -123,6 +123,8 @@ class NativeCompiler {
         L.jc_reg_default.restype = c_int64;
         L.jc_reg_edge.argtypes = [c_int64] * 2;
         L.jc_reg_edge.restype = c_int64;
+        L.jc_reg_hint_tags.argtypes = [c_int64] * 2;
+        L.jc_reg_hint_tags.restype = c_int64;
     }
 
     def _hold(self: NativeCompiler, o: any) -> int {
@@ -344,6 +346,9 @@ class NativeCompiler {
             self._register_fields(name, cls, tag);
         }
         self._register_edges();
+        self.lib.jc_reg_hint_tags(
+            stable_osp_tag("SrcDiag"), stable_osp_tag("CommentData")
+        );
     }
 
     def _call_str2(self: NativeCompiler, name: str, a: str, b: str) -> int {
