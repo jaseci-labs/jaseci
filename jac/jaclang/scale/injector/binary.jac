@@ -316,6 +316,37 @@ def deploy_generation_refusal(
 }
 
 
+glob SCALE_DEPLOY_MIN: tuple[int, int] = (0, 37);
+
+
+def pinned_deploy_version(project_dir: str, channel: str = "") -> str {
+    import from jaclang.scale.config.dev_config { resolve_dev_channel }
+    channel = channel or resolve_dev_channel(project_dir).value;
+    try {
+        return resolve_deploy_version(project_dir, channel);
+    } except RuntimeError {
+        return "";
+    }
+}
+
+
+def pinned_deploy_argv(
+    jac_bin: str, pinned: str, filename: str, target: str, enable_tls: bool = False
+) -> list[str] {
+    (major, minor, _) = _ver_key(pinned);
+    argv = (
+        [jac_bin, "scale", "deploy", filename]
+            if (major, minor) >= SCALE_DEPLOY_MIN
+            else [jac_bin, "start", filename, "--scale"]
+    );
+    argv.extend(["--target", target]);
+    if enable_tls {
+        argv.append("--enable-tls");
+    }
+    return argv;
+}
+
+
 def reset_deploy_version_cache {
     _deploy_version_memo.clear();
 }

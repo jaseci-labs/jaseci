@@ -14,10 +14,10 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 import from jaclang.scale.deploy.target.kubernetes.target { KubernetesTarget }
+import from jaclang.scale.injector.binary { pinned_deploy_argv }
 import from jaclang.scale.runtime.realizer.kubernetes_realizer {
     DELEGATED_ENV,
-    KubernetesRealizer,
-    pinned_deploy_argv
+    KubernetesRealizer
 }
 import from pathlib { Path }
 
@@ -415,6 +415,7 @@ test "the child is handed every deploy parameter that can reach it" {
     };
     forwarded = set(inspect.signature(pinned_deploy_argv).parameters) - {
         "jac_bin",
+        "pinned",
         "filename"
     };
     assert accepted - forwarded == {"dry_run", "show_yaml"} , (
@@ -434,6 +435,8 @@ test "delegating runs the pinned binary with this deploy, and forwards its resul
     err = io.StringIO();
     with unittest.mock.patch.object(
         binary_mod, "host_toolchain_path", return_value=str(stub)
+    ), unittest.mock.patch.object(
+        binary_mod, "pinned_deploy_version", return_value="0.34.17"
     ), redirect_stderr(err) {
         rc = KubernetesRealizer(ms_config={})._deploy_on_pinned_jac(
             f"{d}/main.jac", "kubernetes", False, False
@@ -443,9 +446,9 @@ test "delegating runs the pinned binary with this deploy, and forwards its resul
     assert rc == 7 , f"the child exited 7; the deploy reported {rc}";
     argv = (Path(d) / "argv").read_text().split();
     assert argv == [
-        "scale",
-        "deploy",
+        "start",
         f"{d}/main.jac",
+        "--scale",
         "--target",
         "kubernetes"
     ] , argv;
@@ -455,4 +458,28 @@ test "delegating runs the pinned binary with this deploy, and forwards its resul
         "the child inherited the parent's dev source and would run its code"
     );
     assert "7" in err.getvalue() , "a failed delegated deploy said nothing";
+}
+
+
+test "the deploy verb follows the pinned release, not the deployer" {
+    # `jac start` was removed in 0.37 and `jac scale deploy` did not exist
+    # before it, so a single hardcoded verb is wrong for one side or the other.
+    for (pinned, expected) in [
+        ("0.34.17", ["start", "app.jac", "--scale"]),
+        ("0.35.1", ["start", "app.jac", "--scale"]),
+        ("0.36.1", ["start", "app.jac", "--scale"]),
+        ("0.37.1", ["scale", "deploy", "app.jac"]),
+        ("1.0.0", ["scale", "deploy", "app.jac"])
+    ] {
+        argv = pinned_deploy_argv("jac", pinned, "app.jac", "kubernetes");
+        assert argv == ["jac"] + expected + ["--target", "kubernetes"] , (
+            f"{pinned} would be deployed with {argv}"
+        );
+    }
+    assert "--enable-tls" in pinned_deploy_argv(
+        "jac", "0.34.17", "app.jac", "kubernetes", True
+    );
+    assert "--enable-tls" in pinned_deploy_argv(
+        "jac", "0.37.1", "app.jac", "kubernetes", True
+    );
 }

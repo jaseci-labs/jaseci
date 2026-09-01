@@ -12,17 +12,6 @@ import from jaclang.scale.runtime.discovery.route_policy { format_route_origin_l
 glob DELEGATED_ENV: str = "JAC_SCALE_PINNED_DEPLOY";
 
 
-def pinned_deploy_argv(
-    jac_bin: str, filename: str, target: str, enable_tls: bool = False
-) -> list[str] {
-    argv = [jac_bin, "scale", "deploy", filename, "--target", target];
-    if enable_tls {
-        argv.append("--enable-tls");
-    }
-    return argv;
-}
-
-
 obj KubernetesRealizer {
     has ms_config: dict[str, any];
 
@@ -30,12 +19,17 @@ obj KubernetesRealizer {
         filename: str, target: str, enable_tls: bool, dry_run: bool
     ) -> (int | None) {
         import subprocess;
-        import from jaclang.scale.injector.binary { host_toolchain_path }
+        import from jaclang.scale.injector.binary {
+            host_toolchain_path,
+            pinned_deploy_argv,
+            pinned_deploy_version
+        }
         import from jaclang.scale.injector.bundle { release_binary_env }
         if dry_run or os.environ.get(DELEGATED_ENV) == "1" {
             return None;
         }
-        pinned = host_toolchain_path(os.path.dirname(filename) or ".");
+        project_dir = os.path.dirname(filename) or ".";
+        pinned = host_toolchain_path(project_dir);
         if not pinned {
             return None;
         }
@@ -46,7 +40,10 @@ obj KubernetesRealizer {
         env = release_binary_env();
         env[DELEGATED_ENV] = "1";
         code = subprocess.run(
-            pinned_deploy_argv(pinned, filename, target, enable_tls), env=env
+            pinned_deploy_argv(
+                pinned, pinned_deploy_version(project_dir), filename, target, enable_tls
+            ),
+            env=env
         ).returncode;
         if code != 0 {
             console.error(
