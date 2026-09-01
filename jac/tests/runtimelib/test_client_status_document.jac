@@ -294,8 +294,18 @@ test "the /cl/__error__ endpoint logs a rendered diagnostic with a Jac location"
                 }
             );
             assert resp.ok , resp.status_code;
-            sink.flush();
-            logged = buf.getvalue();
+            # The endpoint logs the rendered diagnostic from its handler
+            # thread; the response can land first, so wait for the marker.
+            import time;
+            logged = "";
+            for _ in range(100) {
+                sink.flush();
+                logged = buf.getvalue();
+                if "error[E7003]" in logged {
+                    break;
+                }
+                time.sleep(0.1);
+            }
             assert "error[E7003]" in logged , logged;
             assert "--> app.jac:2" in logged , logged;
             # One classification, one renderer: the stack is resolved on the
