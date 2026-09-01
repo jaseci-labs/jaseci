@@ -219,6 +219,7 @@ walker TypeCheckPass(UniPass) {
     def _check_props_bundle_is_exclusive(
         nd: Ability, comp_params: list[ParamVar]
     ) -> None;
+
     def _check_pages_entry_renders_children(nd: Ability) -> None;
     def _check_event_trigger_archetype(nd: Ability) -> None;
     def _check_unresolved_lambda_params -> None;

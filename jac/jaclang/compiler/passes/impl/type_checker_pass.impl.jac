@@ -951,9 +951,7 @@ impl TypeCheckPass.exit_ability with Ability exit {
     self._check_pages_entry_renders_children(here);
 }
 
-impl TypeCheckPass._jsx_component_params(
-    nd: Ability
-) -> (list[ParamVar] | None) {
+impl TypeCheckPass._jsx_component_params(nd: Ability) -> (list[ParamVar] | None) {
     if (
         not isinstance(nd.signature, FuncSignature)
         or nd.find_parent_of_type(ImplDef) is not None
@@ -984,9 +982,7 @@ impl TypeCheckPass._check_props_bundle_is_exclusive(
     }
 }
 
-impl TypeCheckPass._check_pages_entry_renders_children(
-    nd: Ability
-) -> None {
+impl TypeCheckPass._check_pages_entry_renders_children(nd: Ability) -> None {
     if nd.name_spec.sym_name != "app" or nd.method_owner is not None {
         return;
     }
