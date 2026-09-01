@@ -96,6 +96,19 @@ def _addr(obj) -> int:
     return id(obj)
 
 
+def _enum_class(name: str):
+    """Resolve an enum class named in the layout sidecar: most live in
+    frontend.constant, the lexer's TokenKind in parser.tokens."""
+    import jaclang.compiler.frontend.constant as constant
+
+    cls = getattr(constant, name, None)
+    if cls is None:
+        import jaclang.compiler.frontend.parser.tokens as tokens
+
+        cls = getattr(tokens, name)
+    return cls
+
+
 def _enum_decode(cls, raw: int):
     """Native enum slots follow the backend's per-enum convention: int-valued
     enums store the member VALUE, string-valued enums store the ORDINAL
@@ -578,16 +591,10 @@ class NpyBridge:
                 enum_name = f["aux"]
 
                 def eget(self, _f="__npy_raw_" + fname, _en=enum_name):
-                    import jaclang.compiler.frontend.constant as constant
-
-                    return _enum_decode(
-                        getattr(constant, _en), getattr(self, _f)
-                    )
+                    return _enum_decode(_enum_class(_en), getattr(self, _f))
 
                 def eset(self, value, _f="__npy_raw_" + fname, _en=enum_name):
-                    import jaclang.compiler.frontend.constant as constant
-
-                    cls = getattr(constant, _en)
+                    cls = _enum_class(_en)
                     if isinstance(value, cls):
                         setattr(self, _f, _enum_encode(cls, value))
                     else:
