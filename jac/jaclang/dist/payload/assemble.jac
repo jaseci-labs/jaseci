@@ -30,13 +30,13 @@ glob PAYLOAD_ZSTD_LEVEL: int = 19,
      ),
      PRECOMPILE_BOOT_SRC: str = (
          "import os, sys\n"
-         "if len(sys.argv) > 2:\n"
+         "if len(sys.argv) > 1:\n"
          "    try:\n"
-         "        os.unlink(os.path.join(sys.argv[2], 'jaclang', '_precompiled', 'MANIFEST.json'))\n"
+         "        os.unlink(os.path.join(sys.argv[1], 'jaclang', '_precompiled', 'MANIFEST.json'))\n"
          "    except OSError:\n"
          "        pass\n"
          "import _jac_finder; _jac_finder.install()\n"
-         "sys.argv = ['jac', 'run'] + sys.argv[1:]\n"
+         "sys.argv = ['jac', 'precompile'] + sys.argv[1:]\n"
          "from jaclang.cli.cli_boot import start_cli\n"
          "start_cli()\n"
      ),
