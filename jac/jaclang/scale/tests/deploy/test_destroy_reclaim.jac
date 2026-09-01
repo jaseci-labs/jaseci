@@ -33,7 +33,9 @@ def _run_destroy(
     core_v1: any,
     on_delete_namespace: any,
     component: str = "",
-    monitoring: any = None
+    monitoring: any = None,
+    owned: bool = True,
+    logger: any = None
 ) {
     monitoring_deployer = unittest.mock.MagicMock();
     if monitoring is not None {
@@ -49,7 +51,7 @@ def _run_destroy(
     with unittest.mock.patch.multiple(
         target_mod,
         client=fake_client,
-        namespace_is_owned=unittest.mock.MagicMock(return_value=True),
+        namespace_is_owned=unittest.mock.MagicMock(return_value=owned),
         delete_namespace=on_delete_namespace,
         KEDAAutoscaler=unittest.mock.MagicMock(),
         MonitoringDeployer=monitoring_deployer
@@ -66,12 +68,36 @@ def _run_destroy(
             ) {
                 target = target_mod.KubernetesTarget(
                     config=KubernetesConfig(app_name=APP, namespace=NS),
-                    microservices_config={}
+                    microservices_config={},
+                    logger=logger
                 );
                 target.destroy(APP, component=component);
             }
         }
     }
+}
+
+
+def _co_tenant_apis -> tuple[any, any] {
+    apps_v1 = unittest.mock.MagicMock();
+    apps_v1.list_namespaced_stateful_set.return_value = SimpleNamespace(
+        items=[SimpleNamespace(metadata=SimpleNamespace(name=f"{CO_TENANT}-postgres"))]
+    );
+    core_v1 = unittest.mock.MagicMock();
+    core_v1.list_namespaced_service.return_value = SimpleNamespace(items=[]);
+    core_v1.list_namespaced_persistent_volume_claim.return_value = SimpleNamespace(
+        items=[]
+    );
+    return (apps_v1, core_v1);
+}
+
+
+def _warnings_naming_co_tenant(logger: any) -> list[str] {
+    return [
+        str(call[0][0])
+        for call in logger.warning.call_args_list
+        if CO_TENANT in str(call[0][0])
+    ];
 }
 
 
@@ -242,5 +268,67 @@ test "an app on an external database loses its connection-string secret" {
     assert f"{APP}-external-db" in deleted , (
         "the secret holding the external database connection string stayed in "
         "a namespace this destroy does not reclaim"
+    );
+}
+
+
+test "removing the application names the co-tenant whose workloads went too" {
+    (apps_v1, core_v1) = _co_tenant_apis();
+    logger = unittest.mock.MagicMock();
+
+    _run_destroy(
+        apps_v1,
+        core_v1,
+        unittest.mock.MagicMock(),
+        component="application",
+        logger=logger
+    );
+
+    assert _warnings_naming_co_tenant(logger) , (
+        f"'{CO_TENANT}' lost its deployments, autoscalers and disruption "
+        "budgets to the namespace-wide sweep without a word, so nobody knows "
+        "to redeploy it"
+    );
+}
+
+
+test "an adopted namespace still names the co-tenant whose workloads went too" {
+    (apps_v1, core_v1) = _co_tenant_apis();
+    logger = unittest.mock.MagicMock();
+
+    _run_destroy(
+        apps_v1, core_v1, unittest.mock.MagicMock(), owned=False, logger=logger
+    );
+
+    assert _warnings_naming_co_tenant(logger) , (
+        f"the namespace was not this app's to delete, but '{CO_TENANT}' still "
+        "lost its workloads to the sweep and was never named"
+    );
+}
+
+
+test "a namespace holding no other app warns about no co-tenant" {
+    apps_v1 = unittest.mock.MagicMock();
+    apps_v1.list_namespaced_stateful_set.return_value = SimpleNamespace(
+        items=[SimpleNamespace(metadata=SimpleNamespace(name=f"{APP}-postgres"))]
+    );
+    core_v1 = unittest.mock.MagicMock();
+    core_v1.list_namespaced_service.return_value = SimpleNamespace(items=[]);
+    core_v1.list_namespaced_persistent_volume_claim.return_value = SimpleNamespace(
+        items=[]
+    );
+    logger = unittest.mock.MagicMock();
+
+    _run_destroy(
+        apps_v1,
+        core_v1,
+        unittest.mock.MagicMock(),
+        component="application",
+        logger=logger
+    );
+
+    assert not _warnings_naming_co_tenant(logger) , (
+        "this app's own database read as another app's, so a solo deployment "
+        "is told to redeploy an app that does not exist"
     );
 }

@@ -2019,6 +2019,37 @@ obj KubernetesTarget(KubernetesTargetBase) {
         return found;
     }
 
+    def _co_tenants_best_effort(
+        app_name: str, namespace: str, apps_v1: any, core_v1: any
+    ) -> list[str] {
+        try {
+            return self._foreign_app_resources(app_name, namespace, apps_v1, core_v1);
+        } except ApiException {
+            return [];
+        }
+    }
+
+    def _warn_co_tenant_workloads_removed(
+        app_name: str, namespace: str, apps_v1: any, core_v1: any
+    ) {
+        if not self.logger {
+            return;
+        }
+        co_tenants: list[str] = self._co_tenants_best_effort(
+            app_name, namespace, apps_v1, core_v1
+        );
+        if not co_tenants {
+            return;
+        }
+        self.logger.warning(
+            f"Another app has resources in '{namespace}': "
+            f"{', '.join(co_tenants)}. Its data was kept, but this removed its "
+            f"deployments, autoscalers and disruption budgets along with this "
+            f"app's, so redeploy it to restore service.",
+            {"app_name": app_name}
+        );
+    }
+
     def _destroy_ops_rbac(app_name: str, namespace: str) {
         rbac_v1 = client.RbacAuthorizationV1Api();
         ms_selector: str = f"managed=jac-scale,app={app_name}";
@@ -2169,6 +2200,10 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 f"namespace were removed, so redeploy it to restore service.",
                 {"app_name": app_name}
             );
+        } elif not created_namespace {
+            self._warn_co_tenant_workloads_removed(
+                app_name, namespace, apps_v1, core_v1
+            );
         }
         self._destroy_in_shared_namespace(
             app_name, namespace, apps_v1, core_v1, sole_tenant
@@ -2187,6 +2222,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
         if component == 'application' {
             self._destroy_fleet_workloads(
                 namespace, apps_v1, core_v1, policy_v1, networking_v1
+            );
+            self._warn_co_tenant_workloads_removed(
+                app_name, namespace, apps_v1, core_v1
             );
         } elif component == 'database' {
             self._destroy_app_database(app_name, namespace, apps_v1, core_v1);
