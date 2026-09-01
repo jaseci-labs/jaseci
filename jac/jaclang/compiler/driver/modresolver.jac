@@ -18,8 +18,50 @@ def pop_import_base {
     }
 }
 
+def _finders_find_spec(name: str, search: (list[str] | None)) -> (ModuleSpec | None) {
+    for finder in `list(sys.meta_path) {
+        fs = getattr(finder, 'find_spec', None);
+        if fs is None {
+            continue;
+        }
+        try {
+            spec = fs(name, search, None);
+        } except (ImportError, AttributeError, ValueError, KeyError, TypeError) {
+            continue;
+        }
+        if isinstance(spec, ModuleSpec) {
+            return spec;
+        }
+    }
+    return None;
+}
+
 def _find_spec_no_exec(target: str) -> (ModuleSpec | None) {
     import from importlib.machinery { PathFinder }
+    loaded_target = sys.modules.get(target);
+    if loaded_target is not None {
+        tspec = getattr(loaded_target, '__spec__', None);
+        if isinstance(tspec, ModuleSpec) {
+            return tspec;
+        }
+    }
+    for finder in `list(sys.meta_path) {
+        if finder is PathFinder {
+            continue;
+        }
+        fs = getattr(finder, 'find_spec', None);
+        if fs is None {
+            continue;
+        }
+        try {
+            whole = fs(target, None, None);
+        } except (ImportError, AttributeError, ValueError, KeyError, TypeError) {
+            continue;
+        }
+        if isinstance(whole, ModuleSpec) {
+            return whole;
+        }
+    }
     parts = target.split('.');
     search: (list[str] | None) = None;
     spec: (ModuleSpec | None) = None;
@@ -33,11 +75,7 @@ def _find_spec_no_exec(target: str) -> (ModuleSpec | None) {
             lpath = getattr(loaded, '__path__', None);
             search = `list(lpath) if lpath is not None else None;
         } else {
-            try {
-                spec = PathFinder.find_spec(prefix, search);
-            } except (ImportError, AttributeError, ValueError, KeyError) {
-                spec = None;
-            }
+            spec = _finders_find_spec(prefix, search);
             if spec is None {
                 return None;
             }
