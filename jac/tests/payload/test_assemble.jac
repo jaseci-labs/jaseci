@@ -14,13 +14,17 @@ import from compression.zstd {
     compress,
     decompress
 }
+import from jaclang.compiler.backends.native.llvm.binding.ffi { _shim_name }
 import from jaclang.dist.payload.assemble {
+    MkPayloadOpts,
     PAYLOAD_WINDOW_LOG,
     TAR_DIRTYPE,
     TAR_PAX_FORMAT,
     TAR_REGTYPE,
+    assemble_site,
     collect_stage_entries,
     is_volatile_path,
+    shim_file_name,
     stage_floor,
     tar_stage,
     tar_zst_dir
@@ -77,6 +81,23 @@ def populate(stage: str) {
     wf(stage, "site/jaclang/mod.py", b"version = 1\n");
     wf(stage, "site/_jac_finder.py", b"finder\n");
     os.makedirs(os.path.join(stage, "site", "empty_dir"), exist_ok=True);
+}
+
+"""A repo_root just complete enough for assemble_site: the jaclang tree it
+copies, the loose files it stages beside it, a jac.toml for the dist-info, and
+an in-tree shim that skip_jaclang must leave behind."""
+def fake_repo(repo: str) {
+    wf(repo, "jaclang/__init__.py", b"");
+    wf(repo, "jaclang/dist/payload/__init__.py", b"");
+    wf(
+        repo,
+        "jaclang/compiler/backends/native/llvm/" + shim_file_name(),
+        b"in-tree-shim-bytes"
+    );
+    wf(repo, "bootstrap/pins.json", b"{}\n");
+    wf(repo, "_jac_finder.py", b"finder\n");
+    wf(repo, "sitecustomize.py", b"sitecustomize\n");
+    wf(repo, "jac.toml", b"version = \"0.0.0\"\n");
 }
 
 test "tar constants mirror the stdlib" {
@@ -320,6 +341,36 @@ test "stage_floor stages the floor allow-list + CA bundle, skips non-floor archi
         assert os.path.isfile(os.path.join(floor, osarch, "libssl.a"));
         assert os.path.isfile(os.path.join(floor, "cacert.pem"));
         assert not os.path.exists(os.path.join(floor, osarch, "libX11.a"));
+    } finally {
+        shutil.rmtree(base, ignore_errors=True);
+    }
+}
+
+test "assemble_site bundles a content-keyed shim under the canonical name" {
+    base = tempfile.mkdtemp(prefix="jac-payload-shim-");
+    try {
+        repo = os.path.join(base, "repo");
+        fake_repo(repo);
+
+        # What the release channel hands mkpayload: the deps-release asset,
+        # whose name embeds the platform and the shim-input hash.
+        ext = shim_file_name().rsplit(".", 1)[-1];
+        keyed = os.path.join(base, f"libjacllvm-{host_os_arch()}-deadbeefcafe.{ext}");
+        wf(base, os.path.basename(keyed), b"prebuilt-shim-bytes");
+
+        site = os.path.join(base, "site");
+        os.makedirs(site, exist_ok=True);
+        assemble_site(repo, site, MkPayloadOpts(shim_so=keyed));
+
+        # Exactly the path _find_shim() scans for on every sys.path entry.
+        llvm_dir = os.path.join(
+            site, "jaclang", "compiler", "backends", "native", "llvm"
+        );
+        staged = sorted(os.listdir(llvm_dir));
+        assert shim_file_name() == _shim_name() , "payload and loader must spell one shim name";
+        assert staged == [_shim_name()] , f"site shim dir holds {staged}";
+        shim = rf(os.path.join(llvm_dir, _shim_name()));
+        assert shim == b"prebuilt-shim-bytes" , "the --shim asset, not the in-tree copy";
     } finally {
         shutil.rmtree(base, ignore_errors=True);
     }

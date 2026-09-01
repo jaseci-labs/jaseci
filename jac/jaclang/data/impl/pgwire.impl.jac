@@ -453,9 +453,9 @@ impl PgWireConnection.close -> None {
     self._closed = True;
     try {
         self._send('X', b'');
-    } except Exception { }
+    } except Exception {}
     try {
         sock: any = self._sock;
         sock.close();
-    } except Exception { }
+    } except Exception {}
 }

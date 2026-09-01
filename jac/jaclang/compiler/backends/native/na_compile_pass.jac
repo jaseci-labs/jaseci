@@ -33,7 +33,8 @@ obj DepClibMeta {
         demoted_symbols: list[str] = [],
         transitive_deps: list[str] = [],
         options_fingerprint: str = "",
-        unverified_live_calls: dict[str, list[str]] = {};
+        unverified_live_calls: dict[str, list[str]] = {},
+        coverage: dict = {};
 
     def to_meta -> dict;
     static def from_meta(meta: dict) -> DepClibMeta;
@@ -62,12 +63,14 @@ def native_verdict_blast_guard(
 ) -> str;
 
 
-obj NativeCompilePass(Transform) {
+walker NativeCompilePass(Transform) {
     has prog: JacProgram;
     static has HOST_PASS: bool = True;
 
     def postinit -> None;
     def transform(ir_in: uni.Module) -> uni.Module;
+    def _run_impl(ir_in: uni.Module) -> uni.Module;
+    can run_walk with uni.Module entry;
     def _compile_and_link_native_imports(
         module: uni.Module,
         main_mod: ModuleRef,

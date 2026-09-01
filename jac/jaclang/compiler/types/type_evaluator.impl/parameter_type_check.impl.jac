@@ -34,6 +34,15 @@ impl TypeEvaluator.validate_arg_types(
         if isinstance(arg_type, UnknownType) and arg_type.is_incomplete {
             continue;
         }
+        if param.is_comptime and not checking_overload {
+            if self.ct_site_error(
+                value,
+                f"argument for comptime parameter '{param.name}'",
+                self.ct_demand(value)
+            ) {
+                has_errors = True;
+            }
+        }
 
         verdict = self.assign_expr(
             value,

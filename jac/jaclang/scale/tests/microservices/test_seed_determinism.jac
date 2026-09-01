@@ -49,7 +49,6 @@ def _stage_compiler_tree(where: str, codegen_body: str) -> str {
         "jac0.py",
         "compiler/driver/jir.jac",
         "compiler/backends/py/jcir_gen_pass.jac",
-        "compiler/native_materialize.jac",
         "compiler/backends/native/llvm/libjacllvm.so",
         "dist/precompile_bytecode.jac",
         "server/machine.jac",
@@ -97,7 +96,6 @@ test "the compiler digest ignores build artifacts and non-compiler modules" {
         a = _stage_compiler_tree(os.path.join(tmp, "base"), "emit(1);\n");
         base = compiler_source_digest(a);
         for (rel, text) in [
-            ("compiler/native_materialize.jac", "generated at seal time\n"),
             ("compiler/backends/native/llvm/libjacllvm.so", "relinked shim\n"),
             ("server/machine.jac", "runtime edit\n"),
             ("compiler/__pycache__/stale.py", "byte cache\n"),
@@ -170,7 +168,6 @@ test "the running compiler digest covers the real compiler tree" {
     assert len(rels) > 250;
     assert len(rels) == len(set(rels));
     assert rels == sorted(rels);
-    assert "compiler/native_materialize.jac" not in rels;
     for rel in rels {
         assert "/tests/" not in rel and not rel.startswith("tests/") , f"{rel} is test material and must not gate the seed";
         assert rel.endswith(".jac") or rel.endswith(".py");

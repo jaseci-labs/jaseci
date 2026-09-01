@@ -2256,7 +2256,7 @@ test "typed retry limit honors the config flow" {
     # Instance call_params on the MockLLM caps retries at 1 -> 2 attempts.
     try {
         mod.get_person_limited();
-    } except Exception { }
+    } except Exception {}
     assert len(mod.limited_llm.seen_prompts) == 2 , f"instance retries=1 should give 2 attempts, got {len(
         mod.limited_llm.seen_prompts
     )}";

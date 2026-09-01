@@ -186,7 +186,7 @@ test "npm provider rolls back the manifest when the install fails" {
         ) {
             try {
                 provider.add_package(config, "lodash", "^5.0.0", False, ctx);
-            } except RuntimeError { }
+            } except RuntimeError {}
         }
         assert 'lodash = "^4.17.0"' in config_path.read_text();
         # remove: a failed reinstall restores the removed dep.
@@ -197,7 +197,7 @@ test "npm provider rolls back the manifest when the install fails" {
         ) {
             try {
                 provider.remove_package(config, "lodash", False, ctx);
-            } except RuntimeError { }
+            } except RuntimeError {}
         }
         assert 'lodash = "^4.17.0"' in config_path.read_text();
     }
