@@ -59,7 +59,8 @@ walker BoundaryAnalysisPass(UniPass) {
         ),
         _imported_native_modules: dict[(str, tuple[(str, InteropContext)])] = field(
             default_factory=`dict
-        );
+        ),
+        _stamp_call_kinds: bool = False;
 
     def before_pass -> None;
     def _resolved_native_decl(name_node: (UniNode | None)) -> (Ability | None);
