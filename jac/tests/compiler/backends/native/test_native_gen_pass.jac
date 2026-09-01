@@ -39,6 +39,12 @@ import from tests.support {
 }
 import jaclang;
 import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.frontend.codeinfo {
+    native_glob_init_name,
+    native_manifest_add_source,
+    native_safe_sym,
+    InteropManifest
+}
 import from jaclang.runtime.runtime { JacRuntime }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 import jaclang.compiler.frontend.unitree as uni;
@@ -5057,8 +5063,8 @@ test "native_safe_sym disambiguates flat vs dotted path collision" {
     valid = re.compile(r'^[a-zA-Z0-9_]+$');
     assert valid.`match(sym_flat) , f"unsafe symbol: {sym_flat!r}";
     assert valid.`match(sym_dotted) , f"unsafe symbol: {sym_dotted!r}";
-    # Deterministic: same input → same output (emit and lookup sides agree).
     assert native_safe_sym(flat) == sym_flat , "native_safe_sym must be deterministic";
+    # Deterministic: same input → same output (emit and lookup sides agree).
     # The full glob-init symbols built from these must also differ.
     assert f"__jac_glob_init_{sym_flat}" != f"__jac_glob_init_{sym_dotted}";
     # The osp_kernel SENTINEL must bypass the hash and map to the bare slug: the
@@ -5072,6 +5078,34 @@ test "native_safe_sym disambiguates flat vs dotted path collision" {
             'osp_kernel'
         )!r}"
     );
+}
+
+# ─── native_glob_init_name: the single glob-init minter ──────────────
+# Every glob-init emission/link/rename site (entry codegen, kernel setup, the
+# osp/fmt link gates, dep renames) must mint names through
+# native_glob_init_name / native_glob_init_keyed_name in codeinfo.jac instead
+# of hand-building the `__jac_glob_init_` prefix. The minter prefers the
+# manifest's per-source key, so kernel sentinels must stay hash-free even when
+# other transitive deps carry hashed keys, and sources/keys must stay
+# index-aligned when a sentinel is registered mid-walk.
+test "native_glob_init_name keeps kernel sentinels hash-free alongside keyed deps" {
+    # No manifest: falls back to the raw source as key.
+    assert native_glob_init_name("osp_kernel", None) == "__jac_glob_init_osp_kernel";
+    manifest = InteropManifest();
+    # A keyed transitive dep registered by the core walk...
+    native_manifest_add_source(manifest, "lib.na");
+    manifest.native_transitive_keys[-1] = "lib:abc123";
+    # ...followed by the kernel sentinel, which must register with an empty key.
+    native_manifest_add_source(manifest, "osp_kernel");
+    assert len(manifest.native_transitive_sources)
+        == len(manifest.native_transitive_keys) , "sources/keys must stay index-aligned";
+    # Sentinel resolves hash-free; the keyed dep still gets its hashed name.
+    assert native_glob_init_name("osp_kernel", manifest)
+        == "__jac_glob_init_osp_kernel";
+    assert native_glob_init_name("fmt_kernel", manifest)
+        == "__jac_glob_init_fmt_kernel";
+    assert native_glob_init_name("lib.na", manifest)
+        == ("__jac_glob_init_" + native_safe_sym("lib:abc123"));
 }
 
 """del list item: length decrements after delete"""

@@ -79,6 +79,7 @@ walker NativeCompilePass(Transform) {
     ) -> None;
 
     def _jit_load_clib(lib_path: str) -> bool;
+    def _kernel_glob_init_name(kernel: str) -> (str | None);
     def _link_osp_kernel(main_mod: ModuleRef) -> None;
     def _references_undefined_osp_kernel(main_mod: ModuleRef) -> bool;
     def _link_fmt_kernel(main_mod: ModuleRef) -> None;

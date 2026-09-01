@@ -44,10 +44,8 @@ impl NaIRGenFmt._ensure_fmt_kernel -> bool {
     self._fmt_kernel_mod = kernel_mod;
 
     _manifest = self.ir_in.gen.interop_manifest if (self.ir_in?.gen) else None;
-    if (_manifest is not None)
-        and ("fmt_kernel" not in _manifest.native_transitive_sources) {
-        _manifest.native_transitive_sources.append("fmt_kernel");
-    }
+    import from jaclang.compiler.frontend.codeinfo { native_manifest_add_source }
+    native_manifest_add_source(_manifest, "fmt_kernel");
     return True;
 }
 
