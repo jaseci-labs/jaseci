@@ -14,6 +14,10 @@ node Profile {
     has tag: str = "";
 }
 
+def _as_node(v: any) -> Profile {
+    return v;
+}
+
 walker create_other_root {
     can enter with Root entry {
         other_root = Root().__jac__;
@@ -63,7 +67,7 @@ walker try_edge_write {
     has target_id: str;
 
     can enter with Root entry {
-        target = &(self.target_id);
+        target = _as_node(&(self.target_id));
         # Cross-user edge write: here = current user's root (writeable),
         # target = foreign Profile (denied without AccessLevel.CONNECT grant).
         here ++> target;
@@ -80,6 +84,18 @@ walker try_field_write {
         target.tag = self.new_tag;
         # Force commit so persist-time access check fires.
         Jac.commit();
+        _print_diagnostics();
+    }
+}
+
+walker try_field_write_then_read {
+    has target_id: str,
+        new_tag: str;
+
+    can enter with Root entry {
+        target = &(self.target_id);
+        target.tag = self.new_tag;
+        print("TAG:" + target.tag);
         _print_diagnostics();
     }
 }

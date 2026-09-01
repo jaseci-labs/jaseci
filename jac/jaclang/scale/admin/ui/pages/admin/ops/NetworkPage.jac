@@ -63,11 +63,15 @@ def:pub NetworkPage -> JsxElement {
     );
 
     def portsLabel(ports: list) -> str {
-        parts: list = [];
+        parts: list[str] = [];
         for p in ports {
-            parts.push(String(p["port"]) + "->" + String(p["target"]));
+            parts.append(String(p["port"]) + "->" + String(p["target"]));
         }
-        return parts.join(", ");
+        return ", ".join(parts);
+    }
+
+    def joinLabels(values: list) -> str {
+        return ", ".join([String(v) for v in values]);
     }
 
     def pvcPhaseCls(phase: str) -> str {
@@ -160,7 +164,7 @@ def:pub NetworkPage -> JsxElement {
                             {ing["name"]}
                         </span>
                         <span className="text-xs text-faint font-mono">
-                            {(ing["lb"] or []).join(", ") or "no LB address"}
+                            {joinLabels(ing["lb"] or []) or "no LB address"}
                         </span>
                     </div>
                     {[
@@ -211,7 +215,7 @@ def:pub NetworkPage -> JsxElement {
                                     {v["storage_class"]}
                                 </td>
                                 <td className="py-1.5 pr-3 text-faint text-xs">
-                                    {(v["claimants"] or []).join(", ") or "unmounted"}
+                                    {joinLabels(v["claimants"] or []) or "unmounted"}
                                 </td>
                             </tr> for v in pvcs
                         ]}

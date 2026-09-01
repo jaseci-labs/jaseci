@@ -1,13 +1,18 @@
 import enum;
 import re;
 import from dataclasses { fields, is_dataclass }
+import from types { UnionType }
 import from jaclang.byllm._optdeps.loguru { logger }
+import from jaclang.byllm.llm { BaseLLM }
+import from jaclang.compiler.driver.mtp { ClassInfo }
+import from jaclang.runtime.archetype { Anchor, Archetype, ObjectSpatialFunction }
 
 
-def _class_info(arch: object) -> object {
-    import from jaclang.jac0core.mtp { fetch_mtir }
+def _class_info(arch: object) -> (ClassInfo | None) {
+    import from jaclang.compiler.driver.mtp { fetch_mtir }
     try {
-        return fetch_mtir(type(arch));
+        info = fetch_mtir(type(arch));
+        return info if isinstance(info, ClassInfo) else None;
     } except Exception {
         return None;
     }
@@ -34,16 +39,19 @@ def _describe_arch(arch: object) -> str {
     }
     cls = type(arch);
     ci = _class_info(arch);
-    head = (ci.semstr if (ci is not None and ci.semstr) else "") or cls.__name__;
-    fsem: dict = {};
+    head = cls.__name__;
+    fsem: dict[str, str] = {};
     if ci is not None {
+        if ci.semstr {
+            head = ci.semstr;
+        }
         for fi in (ci.fields or []) {
             if fi.semstr {
                 fsem[fi.name] = fi.semstr;
             }
         }
     }
-    parts: list = [];
+    parts: list[str] = [];
     if is_dataclass(arch) {
         for f in fields(arch) {
             if f.name.startswith("_") {
@@ -61,8 +69,8 @@ def _describe_arch(arch: object) -> str {
 }
 
 
-def _ability_fires(osf: object, wkr: object) -> bool {
-    trig = None;
+def _ability_fires(osf: ObjectSpatialFunction, wkr: object) -> bool {
+    trig: (type | UnionType | tuple[((type | UnionType), ...)] | None) = None;
     try {
         trig = osf.trigger;
     } except Exception {
@@ -84,7 +92,7 @@ def _ability_fires(osf: object, wkr: object) -> bool {
 
 def _node_run_desc(node_arch: object, wkr: object) -> str {
     ci = _class_info(node_arch);
-    msem: dict = {};
+    msem: dict[str, str] = {};
     if ci is not None {
         for mi in (ci.methods or []) {
             if mi.semstr {
@@ -92,8 +100,11 @@ def _node_run_desc(node_arch: object, wkr: object) -> str {
             }
         }
     }
-    funcs = type(node_arch)?._jac_entry_funcs_ or [];
-    parts: list = [];
+    funcs: list[ObjectSpatialFunction] = [];
+    if isinstance(node_arch, Archetype) {
+        funcs = node_arch._jac_entry_funcs_ or [];
+    }
+    parts: list[str] = [];
     for osf in funcs {
         if not _ability_fires(osf, wkr) {
             continue;
@@ -129,14 +140,14 @@ def _first_field_value(arch: object) -> object {
 }
 
 
-def _make_handles(recs: list) -> list {
+def _make_handles(recs: list[dict[str, object]]) -> list[str] {
     bases = [_slugify(type(r["node"]).__name__) for r in recs];
-    counts: dict = {};
+    counts: dict[str, int] = {};
     for b in bases {
         counts[b] = counts.get(b, 0) + 1;
     }
-    handles: list = [];
-    used = set();
+    handles: list[str] = [];
+    used: set[str] = set();
     for (i, r) in enumerate(recs) {
         base = bases[i];
         if counts[base] == 1 {
@@ -160,9 +171,15 @@ def _make_handles(recs: list) -> list {
 }
 
 
-def _route_context -> tuple {
-    import from jaclang.jac0core.osp_kernel { _current_scope }
-    import from jaclang.jac0core.archetype { NodeAnchor, EdgeAnchor, WalkerAnchor }
+def _route_context -> tuple[object, (Anchor | None)] {
+    import from jaclang.runtime.osp_kernel { _current_scope }
+    import from jaclang.runtime.archetype {
+        EdgeAnchor,
+        EdgeArchetype,
+        NodeAnchor,
+        NodeArchetype,
+        WalkerAnchor
+    }
     scope = _current_scope();
     if scope is None {
         return (None, None);
@@ -172,13 +189,16 @@ def _route_context -> tuple {
     if isinstance(wkr, (NodeAnchor, EdgeAnchor, WalkerAnchor)) {
         wkr = wkr.archetype;
     }
-    here_anchor = scope.path[-1] if scope.path else None;
+    here_step = scope.path[-1] if scope.path else None;
+    here_anchor = here_step.__jac__
+        if isinstance(here_step, (NodeArchetype, EdgeArchetype))
+        else (here_step if isinstance(here_step, Anchor) else None);
     return (wkr, here_anchor);
 }
 
 
-def _candidate_for(item: object, here_anchor: object) -> tuple {
-    import from jaclang.jac0core.archetype {
+def _candidate_for(item: object, here_anchor: (Anchor | None)) -> tuple {
+    import from jaclang.runtime.archetype {
         EdgeAnchor,
         EdgeArchetype,
         NodeAnchor,
@@ -201,13 +221,12 @@ def _candidate_for(item: object, here_anchor: object) -> tuple {
     edge_arch = None;
     direction = "out";
     if isinstance(here_anchor, NodeAnchor) {
-        import from jaclang.jac0core.osp_graph_sv {
-            sv_live_edges,
-            sv_register_hydrated
-        }
+        import from jaclang.runtime.osp_graph_sv { sv_register_hydrated }
+        import from jaclang.runtime.runtime { JacRuntimeInterface }
         here_arch = here_anchor.archetype;
         sv_register_hydrated(here_anchor, fetch_stubs=True);
-        for ea in sv_live_edges(here_anchor, 3, None, True) {
+        for e in JacRuntimeInterface.hop(here_arch, 3, None, True) {
+            ea = e.__jac__;
             if not isinstance(ea, EdgeAnchor) {
                 continue;
             }
@@ -234,17 +253,19 @@ def _candidate_for(item: object, here_anchor: object) -> tuple {
 }
 
 
-def _resolve_choice(item: object, by_handle: dict, recs: list) -> object {
+def _resolve_choice(
+    item: object, by_handle: dict[object, object], recs: list[dict[str, object]]
+) -> object {
     if isinstance(item, bool) {
         return None;
     }
     if isinstance(item, int) {
         return recs[item]["node"] if 0 <= item < len(recs) else None;
     }
-    handle = None;
+    handle: (object | None) = None;
     if isinstance(item, str) {
         handle = item;
-    } elif hasattr(item, "value") {
+    } elif isinstance(item, enum.Enum) {
         handle = item.value;
     }
     if handle is not None and handle in by_handle {
@@ -254,10 +275,10 @@ def _resolve_choice(item: object, by_handle: dict, recs: list) -> object {
 }
 
 
-def route_visit(candidates: list, model: object) -> list {
+def route_visit(candidates: list[object], model: BaseLLM) -> list {
     import from jaclang.byllm.mtir { MTRuntime }
     import from jaclang.byllm.types { Message, MessageRole }
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
 
     if not candidates {
         return [];
@@ -274,7 +295,7 @@ def route_visit(candidates: list, model: object) -> list {
 
     (wkr, here_anchor) = _route_context();
 
-    recs: list = [];
+    recs: list[dict[str, object]] = [];
     for item in candidates {
         (edge_arch, node_arch, direction) = _candidate_for(item, here_anchor);
         recs.append(
@@ -285,7 +306,7 @@ def route_visit(candidates: list, model: object) -> list {
         recs[i]["handle"] = handle;
     }
 
-    lines: list = [];
+    lines: list[str] = [];
     for r in recs {
         node_txt = _describe_arch(r["node"]);
         runs = _node_run_desc(r["node"], wkr);
@@ -308,7 +329,7 @@ def route_visit(candidates: list, model: object) -> list {
     }
     candidates_block = "\n".join(lines);
 
-    user_parts: list = [];
+    user_parts: list[str] = [];
     if intent {
         user_parts.append(f"Goal: {intent}");
     }
@@ -335,7 +356,8 @@ def route_visit(candidates: list, model: object) -> list {
 
     handles = [r["handle"] for r in recs];
 
-    Choice = enum.Enum("RouteChoice", {h: h for h in handles}) if handles else None;
+    enum_factory: any = enum.Enum;
+    Choice = enum_factory("RouteChoice", {h: h for h in handles}) if handles else None;
     resp_type = list[Choice] if Choice is not None else list;
 
     api_params = {
@@ -361,7 +383,7 @@ def route_visit(candidates: list, model: object) -> list {
     selected = raw if isinstance(raw, list) else [raw];
     by_handle = {r["handle"]: r["node"] for r in recs};
     chosen: list = [];
-    seen_ids: set = set();
+    seen_ids: set[int] = set();
     for item in selected {
         picked = _resolve_choice(item, by_handle, recs);
         if picked is not None and id(picked) not in seen_ids {

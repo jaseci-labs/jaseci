@@ -27,8 +27,8 @@ def route_module_candidates(pages_dir: Path) -> list[Path] {
 }
 
 def declares_route(module_path: Path) -> bool {
-    import jaclang.jac0core.unitree as uni;
-    import from jaclang.jac0core.parser.frontend { parse as parse_jac }
+    import jaclang.compiler.frontend.unitree as uni;
+    import from jaclang.compiler.frontend.parser { parse as parse_jac }
 
     try {
         source = Path(module_path).read_text(encoding='utf-8');

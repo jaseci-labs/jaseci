@@ -16,9 +16,9 @@ import from jaclang { JacRuntime as Jac }
 import from jaclang { JacRuntimeInterface }
 import from jaclang.cli.commands { execution }
 import from jaclang.cli.commands { analysis }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compiler { JacCompiler }
-import from jaclang.jac0core.jir {
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compiler { JacCompiler }
+import from jaclang.compiler.driver.jir {
     get_module_cache_path,
     read_bytecode_only,
     SEC_LLVM_IR,
@@ -208,8 +208,13 @@ test "compiler separates internal from user modules" {
 
     old_compiler = Jac.compiler;
     old_program = Jac.program;
+    old_selfhost = Jac.selfhost;
     Jac.compiler = None;
     Jac.program = None;
+    # The self-host cache is process-wide; the separation assertions below
+    # inspect its hub, so this test scopes a fresh one and restores the
+    # shared cache afterward.
+    Jac.selfhost = None;
 
     try {
         captured_output = io.StringIO();
@@ -221,9 +226,9 @@ test "compiler separates internal from user modules" {
 
         compiler = Jac.get_compiler();
         user_program = Jac.get_program();
-        jaclang_root = compiler._get_jaclang_root();
+        jaclang_root = compiler.selfhost.jaclang_root();
 
-        internal_hub_paths = list(compiler.internal_program.mod.hub.keys());
+        internal_hub_paths = list(compiler.selfhost.program.mod.hub.keys());
         user_hub_paths = list(user_program.mod.hub.keys());
 
         assert len(user_hub_paths) > 0 , "User program hub should not be empty";
@@ -243,6 +248,7 @@ test "compiler separates internal from user modules" {
         os.unlink(user_file);
         Jac.compiler = old_compiler;
         Jac.program = old_program;
+        Jac.selfhost = old_selfhost;
     }
 }
 
@@ -308,8 +314,8 @@ test "pyi stubs derive identically in every process" {
         sym2 = mod2.sym_tab.lookup("Foo");
         assert sym2 is not None , "Foo symbol missing on second derivation";
 
-        import from jaclang.jac0core.unitree { Archetype }
-        import from jaclang.jac0core.constant { Tokens as Tok }
+        import from jaclang.compiler.frontend.unitree { Archetype }
+        import from jaclang.compiler.frontend.constant { Tokens as Tok }
         foo2: list = [];
         for a in mod2.get_all_sub_nodes(Archetype) {
             if a.name is not None and a.name.value == "Foo" {
@@ -350,24 +356,22 @@ test "pyi loads build via PyastBuildPass and never compile" {
     past = time.time() - 2;
     os.utime(stub_file, (past, past));
     compile_calls = 0;
-    orig_compile = JacProgram.compile;
+    orig_compile: any = JacProgram.compile;
     def counting_compile(
         self: JacProgram,
         file_path: str,
         use_str: (str | None) = None,
         no_cgen: bool = False,
-        type_check: bool = False,
         symtab_ir_only: bool = False,
-        cancel_token = None,
-        options = None
-    ) -> object {
+        cancel_token: any = None,
+        options: any = None
+    ) -> any {
         compile_calls += 1;
         return orig_compile(
             self,
             file_path,
             use_str=use_str,
             no_cgen=no_cgen,
-            type_check=type_check,
             symtab_ir_only=symtab_ir_only,
             cancel_token=cancel_token,
             options=options
@@ -391,7 +395,7 @@ test "pyi loads build via PyastBuildPass and never compile" {
 }
 
 test "resolve_import_source_module never compiles pyi stubs" {
-    import jaclang.jac0core.unitree as uni;
+    import jaclang.compiler.frontend.unitree as uni;
     import from jaclang.compiler.symbol_utils { resolve_import_source_module }
 
     with tempfile.TemporaryDirectory(dir=_test_tmp_dir) as d {
@@ -407,24 +411,22 @@ test "resolve_import_source_module never compiles pyi stubs" {
             f.write('import from "' + stub_name + '" { CacheProbe }\n');
         }
         compile_calls = 0;
-        orig_compile = JacProgram.compile;
+        orig_compile: any = JacProgram.compile;
         def counting_compile(
             self: JacProgram,
             file_path: str,
             use_str: (str | None) = None,
             no_cgen: bool = False,
-            type_check: bool = False,
             symtab_ir_only: bool = False,
-            cancel_token = None,
-            options = None
-        ) -> object {
+            cancel_token: any = None,
+            options: any = None
+        ) -> any {
             compile_calls += 1;
             return orig_compile(
                 self,
                 file_path,
                 use_str=use_str,
                 no_cgen=no_cgen,
-                type_check=type_check,
                 symtab_ir_only=symtab_ir_only,
                 cancel_token=cancel_token,
                 options=options
@@ -471,8 +473,8 @@ compared before the mtime fast path can accept the file.  #8181 shortened a
 NODE_SPECS entry by one field, which a fresh-mtime cache written under the old
 schema would then be decoded against, position by position."""
 test "fresh mtime does not admit a cache written under a different environment" {
-    import jaclang.jac0core.jir as jir;
-    import from jaclang.jac0core.jir { is_module_cache_valid }
+    import jaclang.compiler.driver.jir as jir;
+    import from jaclang.compiler.driver.jir { is_module_cache_valid }
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".jac", delete=False, dir=_test_tmp_dir
     ) as tmp {
@@ -534,7 +536,7 @@ test "fresh mtime does not admit a cache written under a different environment" 
 }
 
 def _cached_pins(jir_bytes: bytes) -> dict[str, str] {
-    import from jaclang.jac0core.placement { summary_from_bytes }
+    import from jaclang.compiler.placement.placement { summary_from_bytes }
     pos = jir_bytes.find(SECTIONS_MAGIC, HEADER_SIZE);
     if pos < 0 {
         return {};
@@ -552,7 +554,7 @@ def _cached_pins(jir_bytes: bytes) -> dict[str, str] {
 }
 
 test "editing placement pins in jac.toml invalidates the module cache" {
-    import from jaclang.jac0core.jir { is_module_cache_valid }
+    import from jaclang.compiler.driver.jir { is_module_cache_valid }
     with tempfile.TemporaryDirectory(dir=_test_tmp_dir) as proj {
         toml_path = os.path.join(proj, "jac.toml");
         jac_file = os.path.join(proj, "m.jac");
@@ -607,7 +609,7 @@ test "editing placement pins in jac.toml invalidates the module cache" {
 }
 
 test "stub module cache key is source focused" {
-    import from jaclang.jac0core.jir {
+    import from jaclang.compiler.driver.jir {
         compute_module_key,
         compute_stub_module_key,
         module_cache_key,
@@ -709,6 +711,7 @@ test "get_bytecode busts in-memory hub when .impl.jac changes" {
         prog = JacProgram();
         def tag_of -> int {
             code = compiler.get_bytecode(mod, prog);
+            assert code is not None , "get_bytecode returned None";
             ns: dict = {};
             exec(code, ns);
             return ns["Thing"]().get_tag();
@@ -754,18 +757,22 @@ test "release compile closure clears ASTs and evaluator but keeps stubs" {
         source_path = os.path.join(d, "source.jac");
         stub_path = os.path.join(d, "types.pyi");
         prog = JacProgram();
-        def source_ref -> object {
+        def source_ref -> any {
             source_mod = prog.parse_str("glob value = 1;\n", source_path);
             return weakref.ref(source_mod);
         }
         ast_ref = source_ref();
         prog.parse_str("value: int\n", stub_path);
         prog.get_type_evaluator();
-        prog.release_compile_closure(keep_stubs=True);
+        prog.release_compile_closure();
         gc.collect();
         assert ast_ref() is None , "released AST is still strongly referenced";
-        assert source_path not in prog.mod.hub;
-        assert stub_path in prog.mod.hub;
+        # The hub is keyed by the resolved path (JacProgram.hub_key), and
+        # find_module is the accessor that normalizes for you. Typeshed lives
+        # in the stub catalog and never enters the hub; a project .pyi loaded
+        # from source is retained across a release like any stub tree.
+        assert prog.find_module(source_path) is None;
+        assert prog.find_module(stub_path) is not None;
         assert prog.type_evaluator is None;
     }
 }
@@ -779,7 +786,7 @@ test "release compile closure honors no unit eviction" {
         os.environ["JAC_NO_UNIT_EVICT"] = "1";
         try {
             prog.release_compile_closure();
-            assert source_path in prog.mod.hub;
+            assert prog.find_module(source_path) is not None;
         } finally {
             if old_no_evict is None {
                 os.environ.pop("JAC_NO_UNIT_EVICT", None);
@@ -814,17 +821,19 @@ test "release compile closure keeps synthesized type identity stable" {
 
 test "internal get_bytecode evicts unit AST after compile" {
     # Cold bootstrap used to retain every jaclang module AST in
-    # internal_program.mod.hub. After the outermost successful compile+cache
+    # the self-host program hub. After the outermost successful compile+cache
     # write, non-stub ASTs must leave the hub so peak RSS stays near one import
     # closure (+ warm typeshed), not the union of every module ever compiled.
     compiler = JacCompiler();
     prog = JacProgram();
     # Two small, already-shipped jaclang modules (always under jaclang_root →
-    # resolve to internal_program). Force a fresh compile so we exercise the
+    # resolve to the self-host program). Force a fresh compile so we exercise the
     # post-compile eviction path rather than a disk-cache hit.
     samples = [
-        os.path.join(compiler._get_jaclang_root(), "jac0core", "log.jac"),
-        os.path.join(compiler._get_jaclang_root(), "jac0core", "constant.jac")
+        os.path.join(compiler.selfhost.jaclang_root(), "compiler", "driver", "log.jac"),
+        os.path.join(
+            compiler.selfhost.jaclang_root(), "compiler", "frontend", "constant.jac"
+        )
     ];
     for p in samples {
         assert os.path.isfile(p) , f"missing fixture {p}";
@@ -835,7 +844,7 @@ test "internal get_bytecode evicts unit AST after compile" {
         for p in samples {
             code = compiler.get_bytecode(p, prog);
             assert code is not None , f"compile failed for {p}";
-            hub = compiler.internal_program.mod.hub;
+            hub = compiler.selfhost.program.mod.hub;
             leftover_jac = [
                 k
                 for k in hub.keys()

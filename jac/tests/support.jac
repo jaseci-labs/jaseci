@@ -27,10 +27,8 @@ Forced placement keeps lowering failures loud (no server demotion), exactly
 like the old suffix.
 """
 def native_force_opts -> any {
-    import from jaclang.jac0core.compile_options { CompileOptions }
-    return CompileOptions(
-        type_check=False, force_codespace='native', force_target_program=True
-    );
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
+    return CompileOptions(force_codespace='native', force_target_program=True);
 }
 
 
@@ -41,9 +39,7 @@ class JacStrABI(ctypes.Structure) {
     ];
 }
 
-def native_str_func(
-    eng: object, name: str, restype: type | None, *argtypes: type
-) -> object {
+def native_str_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
     # descriptor-ABI JIT getter shared by native tests: a c_char_p
     # spelling means a Jac str (the by-value {root, data, len}
     # descriptor); LLVM decomposes the by-value param into three scalar
@@ -52,7 +48,7 @@ def native_str_func(
     # the payload NUL-bounded at data
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
-    real_res = JacStrABI if restype == ctypes.c_char_p else restype;
+    real_res: any = JacStrABI if restype == ctypes.c_char_p else restype;
     str_slots: list = [];
     real_args: list = [];
     for a in argtypes {
@@ -123,7 +119,7 @@ Previously lived in `tests/conftest.py`, which existed only for pytest.
 """
 def get_object(filename: str, id: str, main: bool = True) -> dict[(str, any)] {
     import from jaclang.cli.commands.cli_helpers { proc_file }
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
     (base, mod, mach) = proc_file(filename);
     try {
         Jac.jac_import(
@@ -137,4 +133,53 @@ def get_object(filename: str, id: str, main: bool = True) -> dict[(str, any)] {
     } finally {
         mach.close();
     }
+}
+
+
+# The native pass fixtures directory: the default corpus for `compile_native`.
+glob NATIVE_FIXTURES: str = str(
+         Path(__file__).resolve().parent
+             / "compiler"
+             / "backends"
+             / "native"
+             / "fixtures"
+     );
+
+"""Compile a .jac fixture into the native codespace and return (engine, module).
+
+`fixture_dir` defaults to the native pass fixtures directory, which is where
+all but one caller looks; pass it explicitly for a fixture that lives
+elsewhere. The engine is NOT cached across calls -- a JIT engine owns the
+module's mutable globals, so handing the same one to two tests would let the
+first test's writes reach the second. Tests that want a fixture compiled once
+should assert against it once, in a single test.
+"""
+def compile_native(fixture: str, fixture_dir: str = "") -> tuple {
+    import from jaclang.compiler.driver.program { JacProgram }
+    base = fixture_dir or NATIVE_FIXTURES;
+    prog = JacProgram();
+    ir = prog.compile(file_path=str(Path(base) / fixture), options=native_force_opts());
+    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
+    assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
+    eng = ir.gen.native_engine;
+    assert eng is not None , f"No native engine produced for {fixture}";
+    return (eng, ir);
+}
+
+"""Get a ctypes-callable function from a JIT engine."""
+def get_func(eng: any, name: str, restype: type | None, *argtypes: type) -> any {
+    addr = eng.get_function_address(name);
+    assert addr != 0 , f"Function '{name}' not found in JIT engine";
+    functype = ctypes.CFUNCTYPE(restype, *argtypes);
+    return functype(addr);
+}
+
+"""Return True if the program emitted at least one alert with the given code."""
+def has_error_code(prog: any, code: str) -> bool {
+    for alrt in prog.errors_had {
+        if alrt.code is not None and alrt.code.code == code {
+            return True;
+        }
+    }
+    return False;
 }

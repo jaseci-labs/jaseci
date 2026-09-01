@@ -4,7 +4,7 @@ Canonical, copy-paste-free versions of small utilities that several server,
 quarantine, and data tests need: allocating a free TCP port for a subprocess
 server, scrubbing leftover SQLite/shelf files between runs, unwrapping the
 TransportResponse envelope returned by the API, registering/logging in a test
-user, invoking walkers over HTTP, and starting a `jac start` subprocess.
+user, invoking walkers over HTTP, and starting a `jac run --serve` subprocess.
 
 Example:
     import from jaclang.scale.tests.server_support { get_free_port }
@@ -145,10 +145,10 @@ def call_walker(
     return res.json();
 }
 
-"""Start `jac start` in fixtures_dir and block until /healthz responds."""
+"""Start `jac run --serve` in fixtures_dir and block until /healthz responds."""
 def start_server(fixtures_dir: Path, jac_file: Path, port: int) -> subprocess.Popen {
     import from jaclang.scale.runtime.context.util { jac_executable }
-    cmd = [jac_executable(), "start", str(jac_file.name), "--port", str(port)];
+    cmd = [jac_executable(), "run", "--serve", "--port", str(port), str(jac_file.name)];
     env = os.environ.copy();
     server = subprocess.Popen(
         cmd,
@@ -159,7 +159,7 @@ def start_server(fixtures_dir: Path, jac_file: Path, port: int) -> subprocess.Po
         env=env
     );
     base_url = f"http://localhost:{port}";
-    for _ in range(30) {
+    for _ in range(120) {
         try {
             r = requests.get(f"{base_url}/healthz", timeout=1);
             if r.status_code == 200 {
@@ -168,7 +168,11 @@ def start_server(fixtures_dir: Path, jac_file: Path, port: int) -> subprocess.Po
         } except Exception {
             time.sleep(1);
         }
+        if server.poll() is not None {
+            break;
+        }
     }
-    (stdout, stderr) = server.communicate(timeout=2);
+    server.kill();
+    (stdout, stderr) = server.communicate(timeout=5);
     raise RuntimeError(f"server failed\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}");
 }

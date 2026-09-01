@@ -69,7 +69,42 @@ def share_with(tweet_id: str, target_root: str) {
 }
 ```
 
-`target_root` is the other user's root id - the `root_id` field of their `/user/login` response, or `jid(root)` captured server-side. Like `grant`, it's per-node, not per-subtree. The `jac:ignore[E1053]` is needed because the checker doesn't yet accept node types for the `archetype: Archetype` parameter (runtime is fine - verified live); alternatively cast `t as Archetype` with `import from jaclang.jac0core.archetype { Archetype }`.
+`target_root` is the other user's root id - the `root_id` field of their `/user/login` response, or `jid(root)` captured server-side. Like `grant`, it's per-node, not per-subtree. The `jac:ignore[E1053]` is needed because the checker doesn't yet accept node types for the `archetype: Archetype` parameter (runtime is fine - verified live); alternatively cast `t as Archetype` with `import from jaclang.runtime.archetype { Archetype }`.
+
+## Sharing with a group: `allow_group`
+
+`allow_root(obj, root_id, level)` writes one entry per grantee into that
+object's own permission map, so an audience of N costs N entries on every
+object and joining or leaving rewrites all of them. Name a **group** instead:
+the grant is one entry, and membership is an edge.
+
+```jac
+node Doc { has body: str; }
+node Team { has name: str; }
+edge MemberOf {}
+
+import from jaclang { JacRuntime as Jac }
+import from uuid { UUID }
+
+def share_with_team(doc: Doc, team: Team) {
+    Jac.allow_group(doc, UUID(jid(team)), AccessLevel.READ);  # jac:ignore[E1053]
+}
+
+def join_team(team: Team) {
+    root +>:MemberOf:+> team;   # joining: one edge, zero content writes
+}
+```
+
+- Membership is resolved through the edge at check time, so a join or a leave
+  touches no content row at all - which is what makes it O(1) rather than
+  proportional to the group's data.
+- Group grants compose with the rest: an existing per-root grant still
+  applies, and a group grant only ever raises the level.
+- The permission test compiles into the query for the standard model (owner,
+  granted-to-all, granted-to-you, granted-to-your-group), so a gated read
+  costs the rows you may see. An archetype overriding `__jac_access__` or
+  `__jac_access_for__` decides in Jac, which has no SQL form, and keeps the
+  object-space filter.
 
 ## root.shared - the public commons
 
@@ -134,11 +169,48 @@ def admin_only_action() -> str {
 
 Read-only `allroots()` fan-outs don't need gating - grants already filter what each caller can see (public trending/explore feeds are ungated reads in practice). Gate cross-user WRITES behind a check like this - `allroots()` itself does no authorization.
 
+## Invitation tokens: app_tokens
+
+Never hand-roll invitation tokens with a `used: bool` flag on a node - a
+read-then-write flag lets two concurrent accepts both win. The platform's token
+store does this correctly (raw value shown once, only the sha256 persisted,
+server-side expiry, atomic single-winner consume) and is exposed for app flows:
+
+```jac
+import from jaclang.scale.identity.app_tokens {
+    token_create, token_peek, token_consume, token_revoke
+}
+
+def invite(role: str) -> dict {
+    # subject groups tokens for revocation; payload rides along to the redeemer
+    tok = token_create(
+        "org-invite", subject=jid(root), ttl_seconds=86400,
+        payload={"role": role}
+    );
+    return {"token": tok};   # shown once; never stored raw
+}
+
+def accept(token: str) -> dict {
+    got = token_consume("org-invite", token);   # exactly one caller wins
+    if got is None { return {"ok": False}; }    # invalid, expired, or lost race
+    return {"ok": True, "role": got["payload"]["role"]};
+}
+
+def cancel_invites -> dict {
+    return {"revoked": token_revoke("org-invite", jid(root))};
+}
+```
+
+`token_peek` inspects without consuming. Purposes are namespaced internally
+(`app:` prefix), so they cannot collide with the identity endpoints' own
+`verify`/`reset` tokens, and two different purposes never redeem each other's
+tokens.
+
 ## Pitfalls
 
 - **A node is only reachable by other users if granted** (`grant`, `allow_root`, or living open on `root.shared`). Creating it under your root and connecting an edge is NOT enough - forgetting the grant is the #1 cause of "the other user's feed is empty" with no error. Grant at creation time, in the same function.
 - **Grants are per-node, not per-subtree.** Granting a `Profile` does not grant the `Tweet`s hanging off it.
-- **`allroots()` needs served context** (`jac start`). In a single-session `jac run` it returns only the one root - validate cross-user features with two real logged-in users, never a single-root script.
+- **`allroots()` needs served context** (`jac run`). In a single-session `jac run` it returns only the one root - validate cross-user features with two real logged-in users, never a single-root script.
 - **`allroots()` fan-outs can visit the same node twice** - a node reachable through more than one root (granted, shared) is surfaced once per path, so a bare per-visit tally double-counts. Dedupe with a `jid(here)`-keyed dict (littleX's trending walker keeps a `seen: dict[str, bool]`).
 - **`def:pub` is the wrong tool for shared data.** Anonymous callers land on the guest graph, token-holders on their own root - so a `:pub` "global graph" isn't even one graph. Keep endpoints authenticated and use `grant`/`root.shared`. See `jac-sv-auth`.
 - `jobj(id)` resolves any node by jid regardless of grants - don't treat a jid as a secret capability; enforce sharing decisions with grant levels and traversal, not id obscurity.

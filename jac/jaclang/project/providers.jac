@@ -267,7 +267,7 @@ obj PythonProvider(EcosystemProvider) {
         return [self.pip_spec(d) for d in deps];
     }
 
-    def _project_venv(config: JacConfig) -> Path {
+    def _project_venv(config: JacConfig | None) -> Path {
         if config is None {
             raise ValueError(
                 "No jac.toml found. Run 'jac create <name>' to create a project."
@@ -277,12 +277,14 @@ obj PythonProvider(EcosystemProvider) {
     }
 
     def _run_project_pip(
-        config: JacConfig, args: list[str], verbose: bool = False
+        config: JacConfig | None, args: list[str], verbose: bool = False
     ) -> tuple[int, str, str] {
         return run_pip(self._project_venv(config), args, verbose);
     }
 
-    def _snapshot_installed(config: JacConfig) -> tuple[bool, set[tuple[str, str]]] {
+    def _snapshot_installed(
+        config: JacConfig | None
+    ) -> tuple[bool, set[tuple[str, str]]] {
         import json;
         try {
             (rc, out, _) = self._run_project_pip(config, ["list", "--format=json"]);
@@ -297,7 +299,7 @@ obj PythonProvider(EcosystemProvider) {
     }
 
     def install_specs(
-        config: JacConfig, specs: list[str], ctx: InstallContext
+        config: JacConfig | None, specs: list[str], ctx: InstallContext
     ) -> bool {
         if not specs {
             return True;
@@ -636,7 +638,7 @@ def initialize_provider_registry -> None {
     registry = get_provider_registry();
 
     try {
-        import from jaclang.runtimelib.client.plugin_config { JacClientPluginConfig }
+        import from jaclang.client.plugin_config { JacClientPluginConfig }
     } except Exception {
         return;
     }

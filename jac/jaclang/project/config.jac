@@ -60,8 +60,7 @@ obj GcConfig {
 }
 
 obj BuildConfig {
-    has typecheck: bool = False,
-        dir: str = ".jac",
+    has dir: str = ".jac",
         default_codespace: str = "native",
         native_closure_cap: int = 256,
         native: NativeBuildConfig = NativeBuildConfig();
@@ -69,6 +68,9 @@ obj BuildConfig {
 
 obj TestConfig {
     has directory: str = "",
+        directories: list[str] = [],
+        isolate: list[str] = [],
+        serial: list[str] = [],
         filter: str = "",
         verbose: bool = False,
         fail_fast: bool = False,
@@ -88,10 +90,6 @@ obj ServeConfig {
 
 obj FormatConfig {
     has outfile: str = "";
-}
-
-obj PrecommitConfig {
-    has typecheck: bool = True;
 }
 
 obj LintConfig {
@@ -149,7 +147,10 @@ obj ClientConfig {
 
 obj DevConfig {
     has jaclang_source: str = "",
-        test_jobs: str = "auto";
+        jobs: str = "",
+        test_jobs: str = "",
+        check_jobs: str = "",
+        fmt_jobs: str = "";
 }
 
 def interpolate_env_vars(value: str) -> str;
@@ -170,7 +171,6 @@ obj JacConfig {
         `test: TestConfig = TestConfig(),
         serve: ServeConfig = ServeConfig(),
         format: FormatConfig = FormatConfig(),
-        precommit: PrecommitConfig = PrecommitConfig(),
         check: CheckConfig = CheckConfig(),
         dot: DotConfig = DotConfig(),
         cache: CacheConfig = CacheConfig(),
@@ -265,7 +265,7 @@ def get_config(
     start_path: Path | None = None, force_discover: bool = False
 ) -> JacConfig | None;
 
-def set_config(config: JacConfig) -> None;
+def set_config(config: JacConfig | None) -> None;
 
 def get_explicit_config -> JacConfig | None;
 

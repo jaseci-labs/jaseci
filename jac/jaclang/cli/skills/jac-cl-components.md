@@ -74,7 +74,7 @@ def:pub Card(title: str, children: any = None) -> JsxElement {
 
 **`children` parameter:** always declare it `children: any = None` with `= None` default. Omitting the default makes `children` a required prop - every call site that passes no nested content fails with `error[E1102]`. Use `{children}` in the JSX body to render it. Omitting the parameter entirely earns `W1053` at every call site that nests content in the component.
 
-**`props: Any` bundle:** `def:pub Comp(props: Any)` is allowed but emits `W5015` and disables per-prop type checking. Prefer named typed parameters.
+**`props: any` bundle:** `def:pub Comp(props: any)` is allowed but emits `W5015` and disables per-prop type checking. Prefer named typed parameters. Use lowercase `any` - capital `Any` is not a real Jac type; it resolves to Unknown and any attribute access on it (`props.title`) fails with a hard `error[E1032]`.
 
 **`{name}` shorthand:** when an attribute's value is a bare variable of the same name, `<BookCard {title} {onDelete} />` expands to `title={title} onDelete={onDelete}`. Pure sugar - the type-checker validates it per-attribute exactly like the explicit form. Distinct from the spread, which forwards a whole object: use `{**props}` (the canonical Jac form) - the JS-idiomatic `{...props}` also works but earns a `W0063` warning ("prefer `{**expr}`").
 

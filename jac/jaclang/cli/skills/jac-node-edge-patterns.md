@@ -42,9 +42,21 @@ with entry {
 - Direction variants: `[n -->]` outgoing, `[n <--]` incoming, `[n <-->]` either direction. Typed: `[n ->:E:->]` and `[n <-:E:<-]`. **There is no typed bidirectional form** - `[n <->:E:<->]` is a parse error; combine the two directed reads instead.
 - **Filters nest inside the reference** - the idiomatic form puts `[?...]` right after the arrow it filters: `[root-->[?:Profile]]`, with a field predicate `[root-->[?:Day, date == today]]`, after a typed edge `[me<-:Follow:<-[?:Profile]]`. Chaining outside the brackets - `[root-->][?:Profile]` - is equivalent (same nodes, same type narrowing), but nesting also composes per hop in multi-hop reads.
 - Multi-hop chains in one reference: `[a ->:Friend:-> ->:Friend:->]` = friends-of-friends; filter each hop by nesting: `[r-->[?:Profile]-->[?:Tweet]]` = the tweets under r's profiles. **Every hop takes its own edge predicate AND node filter**, directions may reverse mid-chain, and predicates AND together: `[me ->:Follows:since > 2020:-> [?:Person, age >= 18] ->:Follows:->]` (adult post-2020 follows' follows), `[me <-:Follows:<- ->:Posted:->]` (my followers' posts), `[->:Follows:since >= 2019, since <= 2022:->]` (range on one hop). The anchor may also be a *list* of nodes: `[friends ->:Follows:->]`.
-- **Reference semantics: deduplicated, ordered, eager.** One reference returns each destination once (parallel edges and diamond paths collapse); results come back in edge-creation order (the basis of deterministic traversal); and the reference is evaluated where it appears - nodes attached after the line are not in its result.
+- **Reference semantics: deduplicated, ordered, eager.** One reference returns each destination once (parallel edges and diamond paths collapse); results come back in edge-creation order unless an ordering term asks otherwise (see below); and the reference is evaluated where it appears - nodes attached after the line are not in its result. A traversal read *on the spot* (`len([a-->])`, `if [a-->]`) answers from the query without materialising the neighbourhood, which changes the cost, not the result.
+- **Order and bound inside the reference, not after it.** An ordering term is a bare field name (ascending) or its negation (descending), written in the same comma list as the predicates, in the position that says which side it reads: the hop slot names the edge, the filter bracket names the node. Ordering terms come after every predicate on that hop, and only the final hop of a chain may carry one.
+
+```
+[chan ->:Posted:-sent:-> [?:Msg]]           # by the carrying edge's field, descending
+[chan ->:Posted:-> [?:Msg, -at]]            # by the node's field, descending
+[chan ->:Posted:-> [?:Msg, at > 3, -at]]    # filter, then order
+[chan ->:Posted:-> [?:Msg, -at]][:50]       # ordering + bound resolve in one query
+```
+
+  Ordering by an *edge* field has no other spelling: the reference returns nodes, so no key over the result can name the edge that carried them. `sorted(<reference>, key=lambda (m: Msg) { -m.at; })` is equivalent for a node field and is folded into the same query, so existing sorts keep working and get faster; a key that computes something (`-(m.at + m.boost)`) cannot fold and sorts in object space.
+
+- **Keyset pagination needs a composite key.** Ordering on a timestamp alone drops or repeats rows when two share it, so page on a tuple: `[chan ->:Posted:-> [?:Msg, (at, seq) < (cur.at, cur.seq)]]`. Left of the operator is field names, right is ordinary scope; both sides must be tuples of the same arity.
 - **Edge types are values, but the hop's type slot takes a bare name only.** `t = Coin; visit [->:t:->];` works (dynamic dispatch via a dict of edge types); inline expressions like `[->:table[ev]:->]` are a parse error - assign to a variable first.
-- `[edge n -->]` returns the *edge objects* instead of destination nodes - the way to read edge `has` fields, not just a deletion idiom: `[e.since for e in [edge alice ->:Follows:->]]`.
+- `[edge n -->]` returns the *edge objects* instead of destination nodes - the way to read edge `has` fields, not just a deletion idiom: `[e.since for e in [edge alice ->:Follows:->]]`. Edge references are **not** deduplicated by endpoint: two parallel edges to the same node are two edges, so `len([edge n -->])` and `len([n -->])` legitimately differ.
 - Assign comprehensions bulk-update fields without a loop: `people(=verified=True)`; chainable after filters `[root -->[?:Person]](=done=True)`; multiple assignments `items(=status="done", count=0)`.
 - Visualize: `print(printgraph(root));` - `printgraph` *returns* a Graphviz DOT string (it does not print by itself).
 
@@ -74,19 +86,24 @@ for conn in [p ->:Connected:->] { print(conn.username); }
 for conn in [p ->:Connected:->[?:UserProfile]] { print(conn.username); }
 ```
 
-- **Deleting edges:** the `del -->` disconnect operator is **untyped-only**. To delete a specific typed edge, query it with `[edge ...]` (single arrows) and iterate-del. `a del-->:E: b;` is a parse error; `del [a ->:E:-> b];` passes `jac check` but fails at run time (E5043) - neither deletes a typed edge.
+- **Deleting edges:** the `del -->` disconnect operator is **untyped-only**, and `a del-->:E: b;` is a parse error. For a typed edge, `del` the `[edge ...]` query directly: `del` on any expression that is not a name, an attribute, or a subscript destroys exactly the graph objects the expression yields.
 
 ```
 # Untyped disconnect
 a del --> b;
 
-# Typed deletion - iterate edge objects and del each
-for e in [edge a ->:E:-> b] { del e; }
+# Typed deletion - del the edge query itself
+del [edge a ->:E:-> b];
 
 # Delete a node - cascades to ALL its edges (in and out).
 # Capture jid(n) BEFORE the del if you need to report what was removed.
 gone = jid(node_var);
 del node_var;
+
+# del on a container entry destroys the node it holds, then removes the entry.
+del index["alice"];
+# Rebind to drop a reference without destroying the node.
+index["alice"] = None;
 ```
 
 - A node needs `root` attachment (or a path from root) to be reachable later. A freshly constructed `Person(name="x")` with no incoming edge is unreachable from `[root -->]` reads - the node exists in memory but no walker or list-read can find it. Always attach: `root ++> person;`.

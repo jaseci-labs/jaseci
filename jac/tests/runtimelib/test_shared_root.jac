@@ -12,7 +12,11 @@ to the current context's root.
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from jaclang { JacRuntime as Jac }
-import from jaclang.runtimelib.testing { JacTestClient }
+import from jaclang.testing.testing { JacTestClient }
+
+def _as_any(v: any) -> any {
+    return v;
+}
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 
@@ -158,7 +162,7 @@ test "a cross-owner delete without a write grant no-ops with a warning" {
         client2.register_user("bob", "secret123");
         blocked = client2.post("/walker/clear_notes", json={});
         assert blocked.ok , "denied delete should still 200";
-        warnings = blocked.data.get("warnings") or [];
+        warnings = _as_any(blocked.data).get("warnings") or [];
         assert len(warnings) > 0 , "denied delete surfaced no warning";
         assert any(["delete" in str(w) for w in warnings]) , "warning does not name the delete";
         readback = client2.post("/walker/read_notes", json={});

@@ -1,8 +1,8 @@
 import asyncio;
-import from jaclang.runtimelib.serving.sse { sse_frame_stream }
+import from jaclang.server.serving.sse { sse_frame_stream }
 
 
-def _run(coro: object) -> object {
+def _run(coro: any) -> any {
     loop = asyncio.new_event_loop();
     try {
         return loop.run_until_complete(coro);
@@ -12,7 +12,7 @@ def _run(coro: object) -> object {
 }
 
 
-async def _collect(agen: object) -> list {
+async def _collect(agen: any) -> list {
     out: list = [];
     async for frame in agen {
         out.append(frame);
@@ -21,20 +21,20 @@ async def _collect(agen: object) -> list {
 }
 
 
-async def _async_producer -> AsyncIterator {
+async def _async_producer -> AsyncIterator[dict] {
     yield {"n": 0};
     yield {"n": 1};
     yield {"n": 2};
 }
 
 
-async def _raising_producer -> AsyncIterator {
+async def _raising_producer -> AsyncIterator[dict] {
     yield {"ok": 1};
     raise ValueError("boom");
 }
 
 
-def _sync_producer -> Iterator {
+def _sync_producer -> Iterator[dict] {
     yield {"a": 1};
     yield {"a": 2};
 }

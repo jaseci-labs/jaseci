@@ -147,9 +147,9 @@ def:pub LLMMetricsPage -> JsxElement {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-surface border border-line rounded-lg p-5">
                 <h3 className="text-lg font-semibold text-fg mb-4">Per Model</h3>
-                {modelKeys.length == 0
+                {len(modelKeys) == 0
                     and <div className="text-faint text-sm">No model data yet</div>}
-                {modelKeys.length > 0
+                {len(modelKeys) > 0
                     and <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
@@ -194,9 +194,9 @@ def:pub LLMMetricsPage -> JsxElement {
             </div>
             <div className="bg-surface border border-line rounded-lg p-5">
                 <h3 className="text-lg font-semibold text-fg mb-4">Per Caller</h3>
-                {callerKeys.length == 0
+                {len(callerKeys) == 0
                     and <div className="text-faint text-sm">No caller data yet</div>}
-                {callerKeys.length > 0
+                {len(callerKeys) > 0
                     and <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>

@@ -8,6 +8,7 @@ import subprocess;
 import sys;
 import time;
 import from pathlib { Path }
+import from http.client { HTTPResponse }
 import from urllib.request { urlopen }
 
 
@@ -261,7 +262,8 @@ impl _pid_alive(pid: int) -> bool {
 
 impl _http_json(port: int, path: str) -> any {
     url = f"http://127.0.0.1:{port}{path}";
-    with urlopen(url, timeout=5) as r {
+    opened: HTTPResponse = urlopen(url, timeout=5);
+    with opened as r {
         return json.loads(r.read());
     }
 }
@@ -293,7 +295,7 @@ impl load_state(session: str) -> (dict | None) {
     return None;
 }
 
-impl _parse_viewport(spec: str) -> tuple {
+impl _parse_viewport(spec: str) -> tuple[int, int] {
     m = re.fullmatch(r"(\d+)\s*[xX,]\s*(\d+)", spec.strip());
     if not m {
         raise ValueError(f"invalid viewport '{spec}' (expected WIDTHxHEIGHT)");
@@ -376,7 +378,7 @@ impl launch(session: str = "default", viewport: str = "1280x720") -> dict {
 
     port_file = profile / "DevToolsActivePort";
     port_file.unlink(missing_ok=True);
-    port = None;
+    port: (int | None) = None;
     for _ in range(100) {
         if port_file.exists() {
             port = int(port_file.read_text().splitlines()[0]);
@@ -450,7 +452,7 @@ impl _resolve_object_id(cdp: CDP, session: str, selector: str) -> (str | None) {
 impl _locate(cdp: CDP, session: str, selector: str, timeout: float = 10.0) -> tuple {
     cdp.call("DOM.enable");
     deadline = time.time() + timeout;
-    prev = None;
+    prev: (tuple[float, float] | None) = None;
     last_err = "element not found";
 
     while time.time() < deadline {
@@ -478,7 +480,7 @@ impl _locate(cdp: CDP, session: str, selector: str, timeout: float = 10.0) -> tu
         }
         st = res.get("result", {}).get("value") or {};
         if not st.get("ok") {
-            last_err = st.get("reason", "not actionable");
+            last_err = str(st.get("reason", "not actionable"));
             prev = None;
             time.sleep(0.1);
             continue;
@@ -491,12 +493,12 @@ impl _locate(cdp: CDP, session: str, selector: str, timeout: float = 10.0) -> tu
             time.sleep(0.1);
             continue;
         }
-        if prev is not None
-            and abs(st["x"] - prev[0]) < 1
-            and abs(st["y"] - prev[1]) < 1 {
-            return (st["x"], st["y"]);
+        cx = float(st["x"]);
+        cy = float(st["y"]);
+        if prev is not None and abs(cx - prev[0]) < 1 and abs(cy - prev[1]) < 1 {
+            return (cx, cy);
         }
-        prev = (st["x"], st["y"]);
+        prev = (cx, cy);
 
         time.sleep(0.15);
     }

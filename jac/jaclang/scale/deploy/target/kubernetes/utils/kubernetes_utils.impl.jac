@@ -237,52 +237,22 @@ impl resize_pvc_if_needed(
     core_v1.patch_namespaced_persistent_volume_claim(pvc_name, namespace, patch);
 }
 
-impl ensure_pvc_exists(
-    core_v1: client.CoreV1Api,
-    namespace: str,
-    pvc_name: str,
-    storage_size: str,
-    storage_class: (str | None) = None,
-    access_mode: str = 'ReadWriteOnce'
-) -> None {
-    try {
-        core_v1.read_namespaced_persistent_volume_claim(pvc_name, namespace);
-        return;
-    } except ApiException as exc {
-        if (exc.status != 404) {
-            raise;
-        }
-    }
-    pvc_body: dict[(str, any)] = {
-        'apiVersion': 'v1',
-        'kind': 'PersistentVolumeClaim',
-        'metadata': {'name': pvc_name, 'labels': {'managed': 'jac-scale'}},
-        'spec': {
-            'accessModes': [access_mode],
-            'resources': {'requests': {'storage': storage_size}}
-        }
-    };
-    if storage_class {
-        pvc_body['spec']['storageClassName'] = storage_class;
-    }
-    core_v1.create_namespaced_persistent_volume_claim(namespace, pvc_body);
-}
-
 impl cluster_type -> str {
     try {
         v1 = client.CoreV1Api();
         nodes = v1.list_node();
-        if not nodes.items {
+        node_items: list[any] = nodes.items;
+        if not node_items {
             return 'local';
         }
-        for nd in nodes.items {
-            provider_id = nd.spec.provider_id or '';
+        for nd in node_items {
+            provider_id: str = nd.spec.provider_id or '';
             if provider_id.startswith('aws://') {
                 return 'aws';
             }
         }
-        for nd in nodes.items {
-            labels = nd.metadata.labels or {};
+        for nd in node_items {
+            labels: dict[str, str] = nd.metadata.labels or {};
             if (
                 ('topology.kubernetes.io/region' in labels)
                 and any(
@@ -301,7 +271,17 @@ impl cluster_type -> str {
             }
         }
         return 'local';
-    } except Exception {
+    } except ApiException as exc {
+        console.print(
+            f"[warn] could not read cluster nodes to detect the provider "
+            f"(HTTP {exc.status} {exc.reason}). {_LOCAL_FALLBACK_NOTE}"
+        );
+        return 'local';
+    } except Exception as exc {
+        console.print(
+            f"[warn] provider detection failed "
+            f"({type(exc).__name__}: {exc}). {_LOCAL_FALLBACK_NOTE}"
+        );
         return 'local';
     }
 }
@@ -315,18 +295,18 @@ impl get_cluster_provider -> ClusterProvider {
 
 impl _resolve_current_rs_hashes(namespace: str, selector: str) -> set {
     apps_v1 = client.AppsV1Api();
-    rs_items = apps_v1.list_namespaced_replica_set(
+    rs_items: list[any] = apps_v1.list_namespaced_replica_set(
         namespace=namespace, label_selector=selector
     ).items;
-    best: dict = {};
+    best: dict[str, tuple[int, any]] = {};
     for rs in rs_items {
-        app_val = (rs.metadata.labels or {}).get("app", "");
+        rs_labels: dict[str, str] = rs.metadata.labels or {};
+        app_val = rs_labels.get("app", "");
         if not app_val {
             continue;
         }
-        rev_str = (rs.metadata.annotations or {}).get(
-            "deployment.kubernetes.io/revision", "0"
-        );
+        rs_annotations: dict[str, str] = rs.metadata.annotations or {};
+        rev_str = rs_annotations.get("deployment.kubernetes.io/revision", "0");
         try {
             rev = int(rev_str);
         } except (ValueError, TypeError) {
@@ -337,9 +317,10 @@ impl _resolve_current_rs_hashes(namespace: str, selector: str) -> set {
             best[app_val] = (rev, rs);
         }
     }
-    pending: set = set();
+    pending: set[str] = set();
     for (_, rs) in best.values() {
-        h = (rs.metadata.labels or {}).get("pod-template-hash");
+        best_labels: dict[str, str] = rs.metadata.labels or {};
+        h = best_labels.get("pod-template-hash");
         if h {
             pending.add(h);
         }
@@ -356,212 +337,6 @@ impl _refresh_rs_hashes(
         console.print(f"[warn] RS hash refresh failed, keeping prior hash set: {exc}");
         return current;
     }
-}
-
-impl check_pods_restarted(
-    namespace: str,
-    app_name: str,
-    _rs_hashes: (set | None) = None,
-    _skip_config_load: bool = False
-) -> bool {
-    if not _skip_config_load {
-        try {
-            config.load_kube_config();
-        } except ConfigException {
-            config.load_incluster_config();
-        }
-    }
-    v1 = client.CoreV1Api();
-    app_labels = [app_name + d[0] for d in COMPANION_DEFS];
-    selector = "app in ({})".format(", ".join(app_labels));
-
-    current_hashes: set = set();
-    if _rs_hashes is not None {
-        current_hashes = _rs_hashes;
-    } else {
-        try {
-            current_hashes = _resolve_current_rs_hashes(namespace, selector);
-        } except Exception as exc {
-            console.print(
-                f"[warn] RS hash lookup failed, falling back to broad pod scan: {exc}"
-            );
-        }
-    }
-
-    pods = v1.list_namespaced_pod(namespace=namespace, label_selector=selector);
-    for pod in pods.items {
-        if current_hashes {
-            pod_hash = (pod.metadata.labels or {}).get("pod-template-hash");
-            if pod_hash is not None and pod_hash not in current_hashes {
-                continue;
-            }
-        }
-        statuses = (pod.status.init_container_statuses or [])
-            + (pod.status.container_statuses or []);
-        if not statuses {
-            continue;
-        }
-
-        for container in statuses {
-            term = container.state.terminated if container.state else None;
-            completed_ok = term is not None and (term.exit_code or 0) == 0;
-            if container.restart_count > 0 and not completed_ok {
-                is_running = container.state and container.state.running;
-                if not is_running {
-                    reason = (
-                        container.state.waiting.reason
-                            if (container.state and container.state.waiting)
-                            else "unknown"
-                    );
-
-                    last_state = container.last_state;
-                    term_reason = "n/a";
-                    term_exit_code = "n/a";
-                    if last_state and last_state.terminated {
-                        term_reason = last_state.terminated.reason or "n/a";
-                        term_exit_code = (
-                            str(last_state.terminated.exit_code)
-                                if (last_state.terminated.exit_code is not None)
-                                else "n/a"
-                        );
-                    }
-                    console.print(
-                        f"Pod {pod.metadata.name} container "
-                        f"{container.name} restarted and is not running "
-                        f"(waiting={reason}, last_terminated={term_reason}, "
-                        f"exit_code={term_exit_code})"
-                    );
-
-                    try {
-                        prev_logs = v1.read_namespaced_pod_log(
-                            name=pod.metadata.name,
-                            namespace=namespace,
-                            container=container.name,
-                            previous=True,
-                            tail_lines=500
-                        );
-                        console.print(
-                            f"--- {pod.metadata.name}/{container.name} previous logs (last 500 lines) ---"
-                        );
-                        console.print(prev_logs);
-                        console.print(f"--- end of {pod.metadata.name} logs ---");
-                    } except Exception as log_err {
-                        console.print(
-                            f"(could not fetch previous logs for {pod.metadata.name}: {log_err})"
-                        );
-                    }
-
-                    try {
-                        field_sel = (
-                            f"involvedObject.name={pod.metadata.name}"
-                            f",involvedObject.namespace={namespace}"
-                        );
-                        events = v1.list_namespaced_event(
-                            namespace=namespace, field_selector=field_sel
-                        );
-                        if events.items {
-                            console.print(f"--- {pod.metadata.name} events ---");
-                            for ev in events.items {
-                                console.print(
-                                    f"  [{ev.type}] {ev.reason}: {ev.message}"
-                                );
-                            }
-                            console.print(f"--- end of {pod.metadata.name} events ---");
-                        }
-                    } except Exception as ev_err {
-                        console.print(
-                            f"(could not fetch events for {pod.metadata.name}: {ev_err})"
-                        );
-                    }
-                    return True;
-                }
-            }
-        }
-    }
-    return False;
-}
-
-impl check_deployment_status(
-    node_port: int,
-    path: str = '/docs',
-    interval: int = 15,
-    max_retries: int = 48,
-    nlb_url: (str | None) = None,
-    namespace: str = "default",
-    app_name: str = "jaseci"
-) -> tuple[bool, str] {
-    if nlb_url {
-        url = f"{nlb_url.rstrip('/')}{path}";
-    } else {
-        url = f"http://localhost:{node_port}{path}";
-    }
-    try {
-        config.load_kube_config();
-    } except ConfigException {
-        config.load_incluster_config();
-    }
-    _app_labels = [app_name + d[0] for d in COMPANION_DEFS];
-    _selector = "app in ({})".format(", ".join(_app_labels));
-    rs_hashes: (set | None) = None;
-    try {
-        rs_hashes = _resolve_current_rs_hashes(namespace, _selector);
-    } except Exception as exc {
-        console.print(
-            f"[warn] RS hash lookup failed, falling back to broad pod scan: {exc}"
-        );
-    }
-
-    for attempt in range(1, (max_retries + 1)) {
-        try {
-            try {
-                response = requests.get(url, timeout=10);
-            } except SSLError {
-                response = requests.get(url, timeout=10, verify=False);
-            }
-            if (response.status_code == 200) {
-                return (True, "Successful");
-            }
-
-            if check_pods_restarted(namespace, app_name, rs_hashes, True) {
-                rs_hashes = _refresh_rs_hashes(namespace, _selector, rs_hashes);
-                if check_pods_restarted(namespace, app_name, rs_hashes, True) {
-                    return (False, "Containers restarted");
-                }
-            }
-        } except RequestException as e {
-            if check_pods_restarted(namespace, app_name, rs_hashes, True) {
-                rs_hashes = _refresh_rs_hashes(namespace, _selector, rs_hashes);
-                if check_pods_restarted(namespace, app_name, rs_hashes, True) {
-                    return (False, "Containers restarted");
-                }
-            }
-
-            if (attempt == max_retries) {
-                console.print(f"Failed to connect to {url}: {e}");
-            }
-        }
-        if (attempt < max_retries) {
-            time.sleep(interval);
-        }
-    }
-
-    diag_v1 = client.CoreV1Api();
-    diag_labels = [app_name + d[0] for d in COMPANION_DEFS];
-    diag_selector = "app in ({})".format(", ".join(diag_labels));
-    try {
-        diag_pods = diag_v1.list_namespaced_pod(
-            namespace=namespace, label_selector=diag_selector
-        );
-        for p in diag_pods.items {
-            console.print(
-                f"timeout diagnostics: pod {p.metadata.name}"
-                    + describe_pod_status(diag_v1, namespace, p.metadata.name, p)
-            );
-        }
-    } except Exception as diag_err {
-        console.print(f"(timeout pod diagnostics unavailable: {diag_err})");
-    }
-    return (False, "Timeout reached");
 }
 
 impl delete_namespace(namespace: str) -> None {
@@ -666,33 +441,6 @@ impl delete_if_exists(
             raise;
         }
     }
-}
-
-impl check_K8s_status -> None {
-    try {
-        config.load_kube_config();
-    } except ConfigException {
-        try {
-            config.load_incluster_config();
-        } except ConfigException {
-            raise None from Exception('Kubernetes is not configured on this machine.');
-        }
-    }
-    try {
-        v1 = client.CoreV1Api();
-        v1.get_api_resources();
-    } except (ApiException, urllib3.exceptions.HTTPError, OSError) {
-        raise None from Exception(
-            'Unable to connect to kubernetes APi.Check whether kubernetes cluster is up'
-        );
-    }
-}
-
-impl load_env_variables(code_folder: str) -> list {
-    return [
-        {'name': key, 'value': value}
-        for (key, value) in read_project_env(code_folder).items()
-    ];
 }
 
 impl create_k8s_secret(

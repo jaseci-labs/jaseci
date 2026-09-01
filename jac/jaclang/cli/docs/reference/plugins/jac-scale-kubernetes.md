@@ -8,9 +8,9 @@
 
 | Mode | Command | Description |
 |------|---------|-------------|
-| **Deploy** | `jac start app.jac --scale` | Ship the project source into the cluster and deploy |
-| **Preview** | `jac start app.jac --scale --dry-run` | Print the manifests that would be applied; change nothing |
-| **Enable HTTPS** | `jac start app.jac --scale --enable-tls` | Enable TLS on a live deployment (no redeploy, run after CNAME propagates) |
+| **Deploy** | `jac scale deploy app.jac` | Ship the project source into the cluster and deploy |
+| **Preview** | `jac scale deploy app.jac --dry-run` | Print the manifests that would be applied; change nothing |
+| **Enable HTTPS** | `jac scale deploy app.jac --enable-tls` | Enable TLS on a live deployment (no redeploy, run after CNAME propagates) |
 
 There is no image-build step. `jac-scale` does not build, tag, or push a Docker
 image, and it needs no registry and no registry credentials: pods run a stock
@@ -38,7 +38,7 @@ Channel precedence is local, then experimental, then dev, then stable -- an `[ex
 
 ```bash
 export JAC_SCALE_BINARY_PATH=/path/to/jac
-jac start app.jac --scale
+jac scale deploy app.jac
 ```
 
 Use this for air-gapped clusters, to pin an exact build, or to deploy a binary you compiled locally. The driver checksum-caches downloaded release binaries per channel and architecture, so an unchanged `stable`/`dev` deploy does not re-download on every run.
@@ -257,7 +257,7 @@ cert_manager_email = "you@example.com"
 ```
 
 ```bash
-jac start app.jac --scale
+jac scale deploy app.jac
 ```
 
 After deploy, the external endpoint is printed along with the DNS record to create. The record type is detected automatically: an IP endpoint (e.g. a bare-metal or local cluster) prompts an `A` record, a hostname endpoint (e.g. an AWS NLB) prompts a `CNAME`:
@@ -270,7 +270,7 @@ Deployment complete! Service available at: http://k8s-default-...elb.amazonaws.c
     Name:  app.example.com
     Value: k8s-default-...elb.amazonaws.com
 
-  Then run: jac start app.jac --scale --enable-tls
+  Then run: jac scale deploy app.jac --enable-tls
 ```
 
 #### Step 2 - Add DNS record
@@ -282,7 +282,7 @@ Wait for DNS propagation (usually 1–15 minutes). Verify with `dig app.example.
 #### Step 3 - Enable TLS
 
 ```bash
-jac start app.jac --scale --enable-tls
+jac scale deploy app.jac --enable-tls
 ```
 
 This installs cert-manager, creates a Let's Encrypt `Issuer`, patches the live Ingress with TLS annotations, and updates all service URLs to HTTPS. No redeployment of your application occurs.
@@ -487,6 +487,98 @@ metadata = { queueName = "orders", mode = "QueueLength", value = "50", protocol 
 [scale.kubernetes.extra_triggers.auth.secret_refs]
 host = { name = "rabbitmq-secret", key = "host" }
 ```
+
+#### HTTP Add-on Activation (Scale-to-Zero on Request)
+
+The KEDA engine above scales on CPU, memory, or any KEDA trigger, but none of those triggers can wake a workload from zero replicas in response to an incoming HTTP request itself. There is nothing listening on the Service to observe traffic when replicas are at zero. The [KEDA HTTP Add-on](https://keda.sh/http-add-on/0.15/) closes that gap: it intercepts HTTP traffic bound for the target, holds the request while a zero-replica workload starts, and forwards it only once the workload is ready.
+
+!!! note
+    The KEDA HTTP Add-on installs separately from KEDA core. It ships as its own Helm chart:
+    ```bash
+    helm repo add kedacore https://kedacore.github.io/charts
+    helm repo update
+    helm install keda kedacore/keda -n keda --create-namespace --wait
+    helm install http-add-on kedacore/keda-add-ons-http -n keda --wait
+    ```
+    If the HTTP Add-on's CRDs are missing at deploy time, jac-scale logs a warning and skips creating the `InterceptorRoute`/`ScaledObject` rather than failing the deploy, matching the `"keda"` engine's own preflight fallback above.
+
+**Prerequisites**
+
+- KEDA core is installed on the cluster, as described above for the `"keda"` engine.
+- The KEDA HTTP Add-on is installed, per the note above.
+- The scale target exposes Kubernetes' `/scale` subresource. A `Deployment` or `StatefulSet` works out of the box; a standalone `Pod` is rejected with an error explaining the `/scale` requirement. A custom resource such as a `Rollout` also works, but only once `scale_target_plural` is set, so jac-scale can confirm it exists before applying anything.
+- The target's Deployment or StatefulSet, and its Service, already exist. This feature manages the `InterceptorRoute` and `ScaledObject` around an existing workload; it does not create the workload or the Service.
+- Exactly one of `target_port` or `target_port_name` is set, and at least one of `concurrency_target` or `request_rate_target` is set. Both are validated up front with an error that names the offending `jac.toml` key.
+
+**Interaction with the base autoscaler:** a target with `http_activation.enabled = true` is scaled entirely by its `ScaledObject` (min/max replicas, scale-to-zero). `jac start --scale` skips creating the base HPA/KEDA autoscaler for that same target automatically -- KEDA's admission webhook rejects a `ScaledObject` for a workload already managed by an HPA (or another `ScaledObject`), so both can't coexist on one target. This also means the deploy's usual post-deploy HTTP reachability check is skipped for that target (it may legitimately be sitting at 0 replicas with nothing to reach); a crash-loop check on the pods runs instead.
+
+**HTTP activation configuration (`[scale.kubernetes.http_activation]`):**
+
+| TOML Key | Default | Description |
+|----------|---------|-------------|
+| `enabled` | `false` | Master switch. Off by default. |
+| `min_replicas` | `0` | Replica floor while inactive. `0` enables true scale-to-zero. |
+| `max_replicas` | `1` | Replica ceiling once activated. |
+| `polling_interval` | `30` | Seconds between HTTP metric evaluations. |
+| `cooldown_period` | `300` | Seconds of inactivity before scaling back to `min_replicas`. |
+| `target_port` / `target_port_name` | `null` | Container port on the app's Service. Set exactly one. |
+| `concurrency_target` | `null` | In-flight-request concurrency target. Set this or `request_rate_target`. |
+| `request_rate_target` | `null` | Requests-per-window target, as an alternative to `concurrency_target`. |
+| `request_rate_window` / `request_rate_granularity` | `"1m"` / `"1s"` | Window and sampling granularity for `request_rate_target`. |
+| `[[rules]]` | `[]` | Routing rules: `hosts` (list), `paths` (list), `headers` (list of `{name, value}`, `value` omitted matches any). Fields within one rule are AND'd; separate rules are OR'd. **Leaving this empty means no traffic matches** -- the interceptor never forwards anything and the target never wakes. At least one rule is required; use `hosts = ["*"]` for an explicit catch-all. |
+| `cold_start_status_code` / `cold_start_body` / `cold_start_headers` | `503` / `null` / `{}` | Static placeholder response served while the target cold-starts. |
+| `cold_start_fallback_service` / `cold_start_fallback_port` | `null` | Service to forward to while cold-starting, as an alternative to a static placeholder. |
+| `timeout_readiness` / `timeout_request` / `timeout_response_header` | `null` | Duration strings (e.g. `"30s"`) the interceptor waits at each stage. |
+| `scale_target_kind` / `scale_target_api_version` / `scale_target_plural` | `"Deployment"` / `"apps/v1"` / `null` | Only needed when activating a non-Deployment/StatefulSet target. |
+
+**To configure in `jac.toml` (monolith deploy):**
+
+```toml
+[scale.kubernetes.http_activation]
+enabled = true
+target_port = 8000
+concurrency_target = 10
+min_replicas = 0
+max_replicas = 3
+cooldown_period = 300
+
+[[scale.kubernetes.http_activation.rules]]
+hosts = ["app.example.com"]
+```
+
+**Per-service, in microservice mode:** the same keys apply under `[scale.microservices.services.<name>.http_activation]`. The target Service is always the service's own generated Service; it is never user-set. Any key left unset falls back to `[scale.kubernetes.http_activation]`'s value.
+
+```toml
+[scale.microservices.services.jac_coder_sv.http_activation]
+enabled = true
+target_port = 8000
+concurrency_target = 5
+min_replicas = 0
+
+[[scale.microservices.services.jac_coder_sv.http_activation.rules]]
+paths = ["/coder"]
+```
+
+**Traffic topology**
+
+```mermaid
+graph TD
+    Client["Client"] -->|"HTTP request"| Interceptor["HTTP Add-on Interceptor<br/>(matches InterceptorRoute rules)"]
+    Interceptor -->|"pending request count"| Scaler["External Scaler"]
+    Scaler -->|"external-push metric"| Operator["KEDA Operator"]
+    Operator -->|"scale 0 to 1"| Target["Deployment (0 replicas)"]
+    Target -->|"pod Ready"| Interceptor
+    Interceptor -->|"forward held request"| Target
+    Target -->|"response"| Client
+```
+
+jac-scale always reconciles the `InterceptorRoute` before the `ScaledObject`, because the external scaler resolves the target Service and scaling metric from the route when KEDA evaluates the trigger. Reconciling in the other order would leave the `ScaledObject` unable to find its metric source.
+
+!!! warning "Route inbound traffic through the interceptor yourself"
+    jac-scale creates the `InterceptorRoute` and `ScaledObject`, but does **not** rewire the gateway or Ingress to the interceptor proxy -- they still resolve the app's own Service directly. With `min_replicas = 0`, a request that reaches the Service instead of the interceptor is refused and never wakes the pod. Only enable `http_activation` on a service whose inbound traffic you have already pointed at the KEDA HTTP interceptor proxy. The gateway is exempt and never inherits a shared `enabled = true` default.
+
+!!! note "Programmatic API for dynamic activation"
+    A control-plane process that creates and tears down workloads on demand (for example, an IDE-preview orchestrator spinning up a per-session preview) has no fixed target to put in `jac.toml`. For that case, `HTTPActivationSpec` (`jaclang.scale.deploy.autoscale.http_activation`) and `KEDAAutoscaler.apply_http_activation` / `destroy_http_activation` (`jaclang.scale.deploy.autoscale.keda_autoscaler`) remain available as a direct API, unchanged by the `jac.toml` surface above. Use whichever entry point matches your workload's lifecycle: `jac.toml` for a known, standing service; the programmatic API for one created and destroyed at runtime.
 
 ---
 
@@ -809,6 +901,7 @@ histogram_buckets = [0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0,
 | `{namespace}_http_request_duration_seconds` | Histogram | `method`, `path` | HTTP request latency in seconds |
 | `{namespace}_http_requests_in_progress` | Gauge | -- | Concurrent HTTP requests |
 | `{namespace}_walker_duration_seconds` | Histogram | `walker_name`, `success` | Walker execution duration (only when `walker_metrics=true`) |
+| `{namespace}_read_tier_retries_total` | Counter | `unit` | Requests re-run at SERIALIZABLE after a read-tier unit wrote; one per writing unit per replica per `JAC_DB_RO_WRITER_TTL_S` window (see [Persistence](../persistence.md#connections-and-isolation-tiers-under-jac-serve)) |
 | `{namespace}_ws_connections_active` | Gauge | -- | Active WebSocket connections |
 | `{namespace}_ws_broadcasts_total` | Counter | -- | WebSocket broadcasts sent |
 
@@ -895,7 +988,7 @@ Values using `${ENV_VAR}` syntax are resolved from the local environment at depl
 
 ### How It Works
 
-1. At `jac start app.jac --scale`, environment variable references (`${...}`) are resolved
+1. At `jac scale deploy app.jac`, environment variable references (`${...}`) are resolved
 2. A Kubernetes `Opaque` Secret named `{app_name}-secrets` is created (or updated if it already exists)
 3. The Secret is attached to the deployment pod spec via `envFrom.secretRef`
 4. All keys become environment variables inside the container
@@ -907,17 +1000,17 @@ Values using `${ENV_VAR}` syntax are resolved from the local environment at depl
 # jac.toml
 [scale.secrets]
 OPENAI_API_KEY = "${OPENAI_API_KEY}"
-MONGO_PASSWORD = "${MONGO_PASSWORD}"
+JAC_DB_URL = "${JAC_DB_URL}"
 JWT_SECRET = "${JWT_SECRET}"
 ```
 
 ```bash
 # Set local env vars, then deploy
 export OPENAI_API_KEY="sk-..."
-export MONGO_PASSWORD="secret123"
+export JAC_DB_URL="postgresql://jac:secret123@db.example.com:5432/jac"
 export JWT_SECRET="my-jwt-key"
 
-jac start app.jac --scale
+jac scale deploy app.jac
 ```
 
 This eliminates the need for manual `kubectl create secret` commands after deployment.
@@ -1011,11 +1104,11 @@ PVC mode and hostPath mode are mutually exclusive per entry. K-track applies PVC
 
 ## Microservice Mode in Kubernetes
 
-When `[scale.microservices].enabled = true` and you run `jac start --scale` against a Kubernetes cluster, every entry in `[scale.microservices.routes]` becomes its own Deployment + Service + HPA + PodDisruptionBudget. The gateway runs as a separate pod that fronts every microservice via its routes prefix.
+When `[scale.microservices].enabled = true` and you run `jac scale deploy` against a Kubernetes cluster, every entry in `[scale.microservices.routes]` becomes its own Deployment + Service + HPA + PodDisruptionBudget. The gateway runs as a separate pod that fronts every microservice via its routes prefix.
 
 ### Auto-Injected Peer URLs
 
-Outside Kubernetes, sv-to-sv calls find peer providers via auto-spawn (single-process mode) or `JAC_SV_<MODULE>_URL` env vars (manual multi-host setup). Inside `--scale` Kubernetes mode, K-track auto-injects those env vars on every pod, derived from the routes table:
+Outside Kubernetes, sv-to-sv calls find peer providers via auto-spawn (single-process mode) or `JAC_SV_<MODULE>_URL` env vars (manual multi-host setup). Inside `jac scale deploy` Kubernetes mode, K-track auto-injects those env vars on every pod, derived from the routes table:
 
 ```text
 JAC_SV_<PEER_MODULE>_URL=http://<peer>-service.<namespace>.svc.cluster.local:<container_port>
@@ -1025,7 +1118,7 @@ The env-var key uses the raw module name (the peer's key in `[scale.microservice
 
 Alongside the peer URLs, every pod also receives `JAC_SV_ROUTES` (the full routes map as JSON), `K8S_APP_NAME`, and `K8S_NAMESPACE`. Every pod's entrypoint (gateway included) also exports `JAC_SV_SIBLING=1` -- a shell export in the container command, not a PodSpec `env:` entry. (Sibling-only scoping of that variable exists only in local multi-process mode.)
 
-You do not write these env vars by hand in `--scale` K8s mode; K-track derives them from `[scale.microservices.routes]` and the configured namespace.
+You do not write these env vars by hand in deployed K8s mode; K-track derives them from `[scale.microservices.routes]` and the configured namespace.
 
 Per-service env overrides under `[scale.microservices.services.<name>.env]` cannot shadow these keys. A stale override would silently route sv-to-sv calls to a wrong backend. To point a peer at a non-cluster URL (e.g. a vendor SaaS), use a per-service `deployment_overlay` (which merges raw manifest fields, including env) or edit the Deployment env spec after deploy.
 
@@ -1036,9 +1129,10 @@ Each microservice entry takes optional per-service overrides under `[scale.micro
 | Field | Type | Description |
 |-------|------|-------------|
 | `replicas` | int | Initial replica count (default 1; HPA can scale higher). |
+| `file` | str | Module the service pod boots. Without it the deploy resolves root `<name>.jac`, else the single shipped module with that basename anywhere in the tree; zero or several candidates fail the deploy. The implicit `main` service boots the `[project] entry-point` module, read relative to the `jac.toml` directory even when the deploy starts from a subdirectory. |
 | `rpc_timeout` | float (seconds) | Per-service sv-to-sv RPC timeout. Default 10s, fine for CRUD; bump to 120-300s for LLM workers. |
 | `http_forward_timeout` | float (seconds) | Gateway-to-service HTTP forward timeout. |
-| `env` | dict | Extra env vars merged into the pod spec. `JAC_SV_NAME` and `JAC_SV_*_URL` are protected (cannot be overridden). |
+| `env` | dict | Extra env vars merged into the pod spec. `JAC_SV_NAME`, `JAC_SV_FILE`, and `JAC_SV_*_URL` are protected (cannot be overridden). |
 | `cpu_request` / `cpu_limit` | str | Per-service CPU request/limit (e.g. `"250m"`). |
 | `memory_request` / `memory_limit` | str | Per-service memory request/limit (e.g. `"256Mi"`). |
 | `hpa.enabled` | bool | Set to `false` to fix replicas at the configured `replicas` count. Applies to both `"hpa"` and `"keda"` engines. |
@@ -1095,7 +1189,7 @@ Microservice mode can deploy a Loki + Grafana Alloy log aggregation pipeline alo
 enabled = true
 ```
 
-When enabled, `jac start --scale` deploys:
+When enabled, `jac scale deploy` deploys:
 
 - **Loki** -- single-process log store (port 3100, ClusterIP). Uses filesystem/TSDB storage backed by `emptyDir` (logs are ephemeral and reset on pod restart; suitable for dev and staging).
 - **Grafana Alloy** -- DaemonSet on every node (tolerates `NoSchedule`). Tails `/var/log/pods`, labels each stream with `namespace`, `pod`, and `container`, and pushes to Loki via Kubernetes service discovery. River-syntax config; supersedes Promtail (EOL 2026-03-02).
@@ -1147,9 +1241,9 @@ mkdir -p ~/.kube && microk8s config > ~/.kube/config
 chmod 600 ~/.kube/config
 ```
 
-The last two steps are required, not cosmetic: `jac start --scale` reads `~/.kube/config` to reach the cluster and shells out to a real `kubectl` binary to seed the source bundle. A shell alias (`alias kubectl='microk8s kubectl'`) is not enough because subprocesses cannot see it. You do not need the MicroK8s `ingress` addon -- the deploy ships its own NGINX ingress controller.
+The last two steps are required, not cosmetic: `jac scale deploy` reads `~/.kube/config` to reach the cluster and shells out to a real `kubectl` binary to seed the source bundle. A shell alias (`alias kubectl='microk8s kubectl'`) is not enough because subprocesses cannot see it. You do not need the MicroK8s `ingress` addon -- the deploy ships its own NGINX ingress controller.
 
-After `jac start --scale`, the app is reachable at `http://localhost:30080` (see [Ports](#ports)).
+After `jac scale deploy`, the app is reachable at `http://localhost:30080` (see [Ports](#ports)).
 
 ### Docker Desktop
 
@@ -1241,7 +1335,7 @@ kubectl get events --sort-by='.lastTimestamp'
 ## Programmatic SDK
 
 A platform (a PaaS, a CI job, an ops daemon) can drive deploys in-process
-instead of shelling out to `jac start --scale` and parsing stdout. The SDK is
+instead of shelling out to `jac scale deploy` and parsing stdout. The SDK is
 `jaclang.scale.sdk`: a `ScaleClient` plus a `DeploySpec` that carries the whole
 deploy configuration in memory. `jac.toml` is never read, nothing prompts for
 input, and every call returns structured data. The CLI is unchanged and shares

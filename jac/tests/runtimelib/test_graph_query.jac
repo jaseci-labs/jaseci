@@ -1,5 +1,5 @@
 """Targeted tests for the closed, typed graph-query IR."""
-import from jaclang.jac0core.graph_query { GraphQuery, QHop, QPred }
+import from jaclang.runtime.graph_query { GraphQuery, QHop, QPred }
 
 node QA {
     has val: int = 0;
@@ -93,7 +93,9 @@ test "graphquery carries flags and is callable-free" {
     assert not q.from_visit;
     q.`visit();
     assert q.from_visit;
-    assert q.slc.stop == 25;
+    slc = q.slc;
+    assert slc is not None;
+    assert slc.stop == 25;
     assert q.hops[0].`edge is QE;
     assert q.hops[0].preds[0].matches(2);
     assert "0:25" in q.repr();

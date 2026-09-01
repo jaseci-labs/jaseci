@@ -13,9 +13,53 @@ import from jaclang.scale.runtime.routing {
     resolve_service_files
 }
 
+glob DELEGATED_ENV: str = "JAC_SCALE_PINNED_DEPLOY";
+
+
+def pinned_deploy_argv(
+    jac_bin: str, filename: str, target: str, enable_tls: bool = False
+) -> list[str] {
+    argv = [jac_bin, "scale", "deploy", filename, "--target", target];
+    if enable_tls {
+        argv.append("--enable-tls");
+    }
+    return argv;
+}
+
 
 obj KubernetesRealizer {
     has ms_config: dict[str, any];
+
+    def _deploy_on_pinned_jac(
+        filename: str, target: str, enable_tls: bool, dry_run: bool
+    ) -> (int | None) {
+        import subprocess;
+        import from jaclang.scale.injector.binary { host_toolchain_path }
+        import from jaclang.scale.injector.bundle { release_binary_env }
+        if dry_run or os.environ.get(DELEGATED_ENV) == "1" {
+            return None;
+        }
+        pinned = host_toolchain_path(os.path.dirname(filename) or ".");
+        if not pinned {
+            return None;
+        }
+        console.print(
+            "Deploying with the jac release this app pins, not the one "
+            f"running this deploy ({pinned})."
+        );
+        env = release_binary_env();
+        env[DELEGATED_ENV] = "1";
+        code = subprocess.run(
+            pinned_deploy_argv(pinned, filename, target, enable_tls), env=env
+        ).returncode;
+        if code != 0 {
+            console.error(
+                f"The deploy ran on the pinned jac ({pinned}) and exited {code}.",
+                emoji=False
+            );
+        }
+        return code;
+    }
 
     def realize(
         filename: str,
@@ -58,8 +102,20 @@ obj KubernetesRealizer {
         if not os.path.exists(filename) {
             raise FileNotFoundError(f"File not found: '{filename}'");
         }
+        delegated = self._deploy_on_pinned_jac(filename, target, enable_tls, dry_run);
+        if delegated is not None {
+            return delegated;
+        }
         code_folder = os.path.dirname(filename) or '.';
         load_project_env(code_folder);
+        if dry_run {
+            import from jaclang.scale.injector.binary { deploy_generation_refusal }
+            refusal = deploy_generation_refusal(code_folder, offline=True);
+            if refusal {
+                console.error(refusal, emoji=False);
+                return 2;
+            }
+        }
         scale_config = get_scale_config();
         logger = UtilityFactory.create_logger('standard');
 
@@ -71,6 +127,9 @@ obj KubernetesRealizer {
         deployment_target = DeploymentTargetFactory.create(
             target, target_config, logger, dry_run=dry_run
         );
+        import from jaclang.scale.deploy.target.kubernetes.kubernetes_target {
+            KubernetesTargetBase
+        }
 
         if enable_tls and dry_run {
             console.warning(
@@ -89,6 +148,11 @@ obj KubernetesRealizer {
                 );
             }
             app_name = target_config.get('app_name', 'jaseci');
+            if not isinstance(deployment_target, KubernetesTargetBase) {
+                raise ValueError(
+                    f"--enable-tls is only supported on kubernetes targets, not '{target}'."
+                );
+            }
             deployment_target.enable_tls(app_name);
             return 0;
         }
@@ -96,7 +160,9 @@ obj KubernetesRealizer {
         code_folder = os.path.relpath(code_folder);
         code_folder = pathlib.Path(code_folder).as_posix();
         base_file_path = os.path.basename(filename);
-        deployment_target.secrets = scale_config.get_secrets_config();
+        if isinstance(deployment_target, KubernetesTargetBase) {
+            deployment_target.secrets = scale_config.get_secrets_config();
+        }
 
         app_config = AppConfig(code_folder=code_folder, file_name=base_file_path);
         console.warning(

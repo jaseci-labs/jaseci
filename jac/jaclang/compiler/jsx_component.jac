@@ -1,5 +1,5 @@
-import from jaclang.jac0core.unitree { BinaryExpr, Expr, Name, Token }
-import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.compiler.frontend.unitree { BinaryExpr, Expr, Name, Token }
+import from jaclang.compiler.frontend.constant { Tokens as Tok }
 
 glob JSX_RETURN_TYPE_NAMES: list[str] = ["JsxElement", "JsxPage", "JsxLayout"],
      JSX_RUNTIME_PREFIX: str = "__jac";

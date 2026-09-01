@@ -14,21 +14,21 @@ into the anchor store as a **storage segment** and load it back.
   the handle and promotes the subgraph into the managed world. Pages
   stay live, teardown never runs. The seal is the membrane: after it,
   the subgraph traverses from the anchor like any managed graph.
-- **The anchor store** (`runtimelib/memory.jac`,
-  `runtimelib/impl/memory.impl.jac`): SQLite rows
-  `anchors(id, type, arch_module, arch_type, fingerprint, data,
-  format_version, updated_at)` plus a graph index
-  (`graph_edges(edge_id, src, dst, edge_type, undirected)`,
-  `graph_types`) that is the traversal contract (`hop_rows`,
-  `edge_endpoints`, `node_pages`). Writes go through changesets
-  (`runtimelib/changeset.jac`: `WriteOp.NODE_CREATE`, `EDGE_CREATE`,
-  `FIELD_UPDATE`, ... with `cas_version`).
+- **The anchor store** (`data/store.jac`,
+  `data/impl/store.impl.jac`): the Postgres `PgStore` with one
+  `anchors` table
+  `anchors(id, kind, arch_type, arch_module, fingerprint, root_id,
+  src, dst, undirected, props, format_version, version, updated_at,
+  seq)` holding nodes and edges alike -- an edge is a row with
+  `src`/`dst` set -- plus `graph_types` (the type-ancestry index) and
+  `kv_state`. Writes go through versioned upserts (the `version`
+  column; a lost race raises `WriteConflict`).
 - **Persistence by reachability** (`docs/reference/persistence.md`):
   what `root` reaches persists. A sealed subgraph becomes reachable
   through its seal anchor, so today it would persist as ordinary
   per-anchor rows -- one row and one UUID per node, all arena locality
   lost at the store boundary.
-- **The arena** (`na_ir_gen_pass.impl/arena.impl.jac`): a sealed
+- **The arena** (`na_ir_gen/arena.impl.jac`): a sealed
   region's memory is a chunk list of bump-allocated pages; objects
   reference each other by raw pointer. This is the locality the store
   currently throws away.
@@ -121,9 +121,10 @@ on commit, and a `jac db` introspection view for `segments`.
 
 `PersistentMemory` gains `get_segment(id)`, `put_segment(row)`,
 `delete_segment(id)` with the same must-own-graph-index stance as the
-existing contract. Mappings: SQLite as in section 3; Mongo/Firestore as
-a `segments` collection (manifest as subdocument, image as binary
-field); Redis as `seg:<id>` hash. `TieredMemory` treats a hydrated
+existing contract. Mapping: the Postgres store as in section 3 -- a
+`segments` table with `manifest` as `jsonb` and `image` as `bytea`.
+(This design predates the Postgres clean break, which retired the
+other backends this section once mapped.) `TieredMemory` treats a hydrated
 segment as an L1 population event keyed by every exported UUID.
 
 ## 7. Invariants and acceptance oracle (for the future code pass)

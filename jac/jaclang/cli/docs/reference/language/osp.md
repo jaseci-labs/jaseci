@@ -567,7 +567,7 @@ Jac provides two ways to expose server logic: `def:pub` functions and `walker` t
 
 ### Walkers as REST APIs
 
-Public walkers automatically become HTTP endpoints when you run `jac start`:
+Public walkers automatically become HTTP endpoints when you run `jac run`:
 
 ```jac
 node Todo {
@@ -594,11 +594,11 @@ walker list_todos {
 ```
 
 !!! note
-    `main.jac` is the default entry point. If your file has a different name (e.g., `app.jac`), pass it explicitly: `jac start app.jac`.
+    `main.jac` is the default entry point. If your file has a different name (e.g., `app.jac`), pass it explicitly: `jac run app.jac`.
 
 ```bash
 # Run as API server
-jac start
+jac run
 
 # Call via HTTP
 curl -X POST http://localhost:8000/walker/add_todo \
@@ -774,10 +774,8 @@ with entry {
     alice del --> bob;
 
     # Delete a specific TYPED edge: pin it by both endpoints with an
-    # [edge ...] reference, then del the edge objects
-    for e in [edge alice ->:Friend:-> bob] {
-        del e;
-    }
+    # [edge ...] reference and del the query itself
+    del [edge alice ->:Friend:-> bob];
 
     # Delete node
     del bob;
@@ -794,6 +792,52 @@ walker Cleanup {
     }
 }
 ```
+
+#### What `del` Means
+
+One rule: `del` destroys every graph object its target holds, then, when the
+target is a location, releases that location exactly as Python would. The
+shape of the target decides only whether there is something to release; what
+dies is decided by what the target holds.
+
+| Target | Destroys | Then releases |
+| --- | --- | --- |
+| a name, `del n` | what `n` holds | unbinds the name |
+| an attribute, `del o.x` | what `o.x` holds | `__delattr__` |
+| a subscript, `del d["k"]`, `del L[i]`, `del L[i:j]` | what the entry or slice holds | `__delitem__` |
+| a target list, `del (a, b)`, `del [a, b]`, `del a, b` | each target in turn | each target in turn |
+| any other expression: a call, an `[edge ...]` query, a traversal, a comprehension, a set literal | every graph object it yields | nothing, there is no location |
+
+A node held in a name, a slot, a dict entry or a list slice meets the same
+fate at each, and binding a query to a local does not change what `del` means:
+
+```jac
+with entry {
+    index = {"alice": alice};
+    del index["alice"];             # destroys alice, then removes the key
+    del [edge a ->:Friend:-> b];    # destroys those edges
+    del [a -->];                    # destroys every successor node
+    es = [edge a ->:Friend:->];
+    del es;                         # destroys the same edges, then unbinds es
+    del stale_edges(a);             # destroys whatever the call returned
+}
+```
+
+To drop a reference without destroying what it points at, rebind it:
+`index = {}` or `holder.slot = None`. **Rebind to drop, `del` to destroy.**
+
+On every target Python accepts, Jac does what Python does, in Python's order,
+with Python's exceptions. Jac adds three things: graph objects are destroyed;
+the forms Python rejects ("cannot delete function call") are accepted as
+destroy requests, and they are strict, so a value target that yields anything
+other than graph objects raises `TypeError` before destroying anything; and a
+location is read once before it is released, which only a side-effecting
+`__getitem__` or property could notice.
+
+A destroyed object is dead, not gone. Its fields still read, but it has no
+edges, it is not in the store, and it does not come back: connecting to it,
+spawning on it, or visiting it raises, and a walker whose queue already holds
+it skips it. `del root` is rejected.
 
 #### Cascade Deletion Pattern
 
@@ -1002,6 +1046,35 @@ walker FilteredWalker {
 
 !!! tip "Skip the `[?:Type]` filter"
     If an edge declares its endpoint node types (see [Typed Edge Endpoints](#4-typed-edge-endpoints)), a neighbour traversal already infers the concrete node type, so the trailing `[?:Type]` filter is only needed to narrow *further* to a subtype.
+
+#### Ordering and bounding a traversal
+
+A reference returns neighbours in edge-creation order. To ask for a different order, write an **ordering term** in the same comma list as the predicates -- a bare field name for ascending, its negation for descending. The position says which side the field is read from, exactly as it does for predicates: the hop slot names the edge, the filter bracket names the node.
+
+```jac
+def orderings(chan: Chan) -> list[Msg] {
+    by_edge = [chan ->:Posted:-sent:-> [?:Msg]];         # the edge's `sent`, descending
+    by_node = [chan ->:Posted:-> [?:Msg, -at]];          # the node's `at`, descending
+    narrowed = [chan ->:Posted:-> [?:Msg, at > 3, -at]]; # predicates first, then ordering
+    return [chan ->:Posted:-> [?:Msg, -at]][:50];        # ordering and bound, one query
+}
+```
+
+Ordering terms follow every predicate on their hop, and only the final hop of a multi-hop chain may carry one -- an earlier hop's ordering has no meaning for the result and is refused rather than silently applied to the wrong hop.
+
+Ordering by an **edge** field has no other spelling, because a reference returns nodes: no key over the result can name the edge that carried them. For a *node* field, `sorted(<reference>, key=lambda (m: Msg) { -m.at; })` is equivalent and resolves the same way.
+
+#### Paging with a composite key
+
+Ordering on a single field drops or repeats rows whenever two share a value, so a page boundary needs a tiebreak. A predicate may compare a tuple of field names against a tuple of the same arity:
+
+```jac
+def page_after(chan: Chan, cur: Cursor, n: int = 50) -> list[Msg] {
+    return [chan ->:Posted:-> [?:Msg, (at, seq) < (cur.at, cur.seq), -at, -seq]][:n];
+}
+```
+
+Left of the operator is field names; right is an ordinary expression evaluated where the reference is written.
 
 ### 3 Entry and Exit Events
 

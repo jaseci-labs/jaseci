@@ -22,11 +22,10 @@ import from jaclang.cli.commands {
     transform
 }
 import from jaclang.cli.commands { config as config_cmd }
-import from jaclang.cli.registry { get_registry }
-import from jaclang.jac0core.diagnostic_utils { resolve_diagnostic_tokens }
-import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
+import from jaclang.compiler.frontend.diagnostic_utils { resolve_diagnostic_tokens }
+import from jaclang.compiler.tools.unparse_pass { unparse_module }
 import from jaclang.project.config { set_config }
-import from jaclang.runtimelib.builtin { printgraph }
+import from jaclang.runtime.builtin { printgraph }
 
 glob FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures"),
      _template_state = {"initialized": False},
@@ -136,7 +135,7 @@ test "jac cli run" {
 }
 
 test "proc_file strips compound codespace suffixes to bare module stem" {
-    # Issue #6696: `jac run`/`jac start` failed on `.sv.jac` / `.jac`
+    # Issue #6696: `jac run`/`jac run --serve` failed on `.sv.jac` / `.jac`
     # entries because proc_file stripped only the trailing `.jac`, leaving
     # e.g. `main.sv`, which the meta-importer misread as the package `main.sv`
     # ("No module named 'main.sv'"). Every compound codespace suffix must
@@ -319,7 +318,7 @@ test "jac cli alert based err" {
     sys.stdout = captured_output;
     sys.stderr = captured_output;
     try {
-        execution.enter(fixture_path("err2.jac"), entrypoint="speak", args=[]);
+        execution.run(fixture_path("err2.jac"), entry_name="speak", args=[]);
     } except Exception as e {
         print(f"Error: {e}");
     }
@@ -394,14 +393,11 @@ test "jac cli alert based runtime err" {
 }
 
 test "jac impl err" {
-    if "jaclang.tests.fixtures.err" in sys.modules {
-        del sys.modules["jaclang.tests.fixtures.err"];
-    }
     captured_output = io.StringIO();
     sys.stdout = captured_output;
     sys.stderr = captured_output;
     try {
-        execution.enter(fixture_path("err.jac"), entrypoint="speak", args=[]);
+        execution.run(fixture_path("err.jac"), entry_name="speak", args=[]);
     } except Exception {
         traceback.print_exc();
     }
@@ -413,7 +409,7 @@ test "jac impl err" {
 }
 
 test "param name diff warns" {
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
     prog = JacProgram();
     prog.compile(fixture_path("decl_defn_param_name.jac"), no_cgen=True);
     warn_msgs = [str(w) for w in prog.warnings_had];
@@ -432,27 +428,13 @@ test "jac test err" {
     captured_output = io.StringIO();
     sys.stdout = captured_output;
     sys.stderr = captured_output;
-    analysis.`test(fixture_path("baddy.jac"));
+    analysis.`test([fixture_path("baddy.jac")]);
     sys.stdout = sys.__stdout__;
     sys.stderr = sys.__stderr__;
     stdout_value = captured_output.getvalue();
     # the runner points the failure at <file>:<line> -- the deliberate error is on
     # line 2 of the base module's test annex.
     assert "baddy.test.jac:2" in stdout_value;
-}
-
-test "jac ast tool pass template" {
-    captured = io.StringIO();
-    old_stdout = sys.stdout;
-    sys.stdout = captured;
-    try {
-        tools.tool("pass_template");
-    } finally {
-        sys.stdout = old_stdout;
-    }
-    stdout_value = captured.getvalue();
-    assert "Sub objects." in stdout_value;
-    assert stdout_value.count("def exit_") > 10;
 }
 
 test "ast print" {
@@ -505,7 +487,7 @@ test "del clean" {
     old_stdout = sys.stdout;
     sys.stdout = captured;
     try {
-        analysis.check(f"{fixture_path('del_clean.jac')}");
+        analysis.check([fixture_path("del_clean.jac")]);
     } finally {
         sys.stdout = old_stdout;
     }
@@ -518,7 +500,7 @@ test "run test" {
     old_stdout = sys.stdout;
     sys.stdout = captured;
     try {
-        analysis.`test(fixture_path("run_test.jac"), maxfail=2);
+        analysis.`test([fixture_path("run_test.jac")], maxfail=2);
         out = captured.getvalue();
     } finally {
         sys.stdout = old_stdout;
@@ -540,7 +522,7 @@ test "run test native codespace file" {
     old_stdout = sys.stdout;
     sys.stdout = captured;
     try {
-        analysis.`test(fixture_path("native_run_test.jac"), maxfail=2);
+        analysis.`test([fixture_path("native_run_test.jac")], maxfail=2);
         out = captured.getvalue();
     } finally {
         sys.stdout = old_stdout;
@@ -565,7 +547,7 @@ test "run test native broken import surfaces error" {
     old_stdout = sys.stdout;
     sys.stdout = captured;
     try {
-        rc = analysis.`test(fixture_path("native_broken_import_test.jac"));
+        rc = analysis.`test([fixture_path("native_broken_import_test.jac")]);
         out = captured.getvalue();
     } finally {
         sys.stdout = old_stdout;
@@ -584,7 +566,7 @@ test "directory discovery skips impl annexes and dedupes test annexes" {
     # Collection rules, asserted against the runner's discovery directly, on a
     # tree built for the purpose. The end-to-end CLI path for the same rules
     # lives in tests/cli/test_test_discovery.jac.
-    import from jaclang.runtimelib.test_runner { discover }
+    import from jaclang.testing.test_runner { discover }
     tree_root = tempfile.mkdtemp();
     try {
         Path(os.path.join(tree_root, "widget.jac")).write_text("def area -> int;\n");
@@ -701,7 +683,7 @@ test "run specific test only" {
     sys.stdout = captured;
     try {
         analysis.`test(
-            fixture_path("jactest_main.jac"), test_name="from 2 to 10", verbose=True
+            [fixture_path("jactest_main.jac")], test_name="from 2 to 10", verbose=True
         );
         out = captured.getvalue();
     } finally {
@@ -812,12 +794,15 @@ test "lambda self" {
 }
 
 test "param arg" {
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
 
     filename = fixture_path("params/test_complex_params.jac");
     captured = io.StringIO();
     old_stdout = sys.stdout;
     sys.stdout = captured;
+    # Bound before the try so a failure ahead of the temp-file write surfaces
+    # as itself rather than as an UnboundLocalError from the cleanup.
+    jac_file_path = "";
     try {
         transform.jac2py(f"{fixture_path('params/test_complex_params.jac')}");
         py_code = JacProgram().compile(file_path=filename).gen.py;
@@ -842,7 +827,9 @@ test "param arg" {
             execution.run(jac_file_path);
         } finally {
             os.remove(py_file_path);
-            os.remove(jac_file_path);
+            if jac_file_path {
+                os.remove(jac_file_path);
+            }
         }
     } finally {
         sys.stdout = old_stdout;
@@ -1049,7 +1036,7 @@ test "cli error exit codes" {
     # Test successful run returns exit code 0
     # Clear stale errors from previous sub-tests so only hello.jac's
     # own diagnostics affect the exit code.
-    _rt = __import__("jaclang.jac0core.runtime", fromlist=["JacRuntime"]);
+    _rt = __import__("jaclang.runtime.runtime", fromlist=["JacRuntime"]);
     _rt.JacRuntime.program.errors_had.clear();
     _rt.JacRuntime.program.warnings_had.clear();
     captured = io.StringIO();
@@ -1372,7 +1359,7 @@ test "install editable resolves config from cwd when given dot path" {
         }
 
         with patch(
-            "jaclang.publish.builder.WheelBuilder.install_editable",
+            "jaclang.dist.publish.builder.WheelBuilder.install_editable",
             fake_install_editable
         ) {
             result = project.install(editable=[["."]]);
@@ -1477,7 +1464,7 @@ test "jac install -e links all packages for space-separated and repeated flag fo
         }
 
         with patch(
-            "jaclang.publish.builder.WheelBuilder.install_editable",
+            "jaclang.dist.publish.builder.WheelBuilder.install_editable",
             fake_install_editable
         ) {
             # [[pkg_a, pkg_b], [pkg_c]] mirrors: -e pkg_a pkg_b -e pkg_c
@@ -2084,15 +2071,16 @@ test "error traceback shows source code" {
 }
 
 test "syntax error pretty print" {
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
 
     program = JacProgram();
     program.compile(fixture_path("test_syntax_err.jac"));
     # The trailing string before '}' is a semicolon-less tail expression
-    # (implicit return), so only the 'print "..."' juncture is a syntax
-    # error alongside the 'can'-signature error.
-    assert len(program.errors_had) == 2 , (
-        f"Expected 2 errors with improved error reporting, got {len(
+    # (implicit return), so the 'print "..."' juncture is a syntax error
+    # alongside the 'can'-signature error; with checking on the critical
+    # path the recovered tree also reports its missing return annotation.
+    assert len(program.errors_had) == 3 , (
+        f"Expected 3 errors with improved error reporting, got {len(
             program.errors_had
         )}"
     );
@@ -2222,7 +2210,9 @@ def _check_captured(
 test "jac check disable_error_code maps to check arg" {
     import from jaclang.cli.manifest { get_command_meta }
     import from jaclang.cli.manifest_parse { build_command_parser }
-    parser = build_command_parser(get_command_meta("check"));
+    check_meta = get_command_meta("check");
+    assert check_meta is not None;
+    parser = build_command_parser(check_meta);
     (args, _) = parser.parse_known_args(
         [fixture_path("warnings_only.jac"), "--disable-error-code", "E1030"]
     );
@@ -2271,19 +2261,21 @@ test "jac check disable_error_code warns on unknown diagnostics" {
     assert "E9999" in combined , "unknown warning should use canonical code casing";
 }
 
-test "jac check native-census flag maps to check arg" {
+test "jac check native-coverage flag maps to check arg" {
     import from jaclang.cli.manifest { get_command_meta }
     import from jaclang.cli.manifest_parse { build_command_parser }
-    parser = build_command_parser(get_command_meta("check"));
+    check_meta = get_command_meta("check");
+    assert check_meta is not None;
+    parser = build_command_parser(check_meta);
     (args, _) = parser.parse_known_args(
-        [fixture_path("warnings_only.jac"), "--native-census"]
+        [fixture_path("warnings_only.jac"), "--native-coverage"]
     );
-    assert getattr(args, "native_census", False) == True , (
-        "kebab flag should map to native_census dest"
+    assert getattr(args, "native_coverage", False) == True , (
+        "kebab flag should map to native_coverage dest"
     );
 }
 
-test "jac check native census ranks module outcomes" {
+test "jac check native coverage ranks module outcomes" {
     with tempfile.TemporaryDirectory() as td {
         with open(os.path.join(td, "pure.jac"), "w") as f {
             f.write("def add(a: int, b: int) -> int {\n    return a + b;\n}\n");
@@ -2305,14 +2297,14 @@ test "jac check native census ranks module outcomes" {
         (captured_stdout, captured_stderr, old_stdout, old_stderr) = _capture_output();
         _reset_config();
         try {
-            result = analysis.check([td], native_census=True);
+            result = analysis.check([td], native_coverage=True);
             combined = captured_stdout.getvalue() + captured_stderr.getvalue();
         } finally {
             _restore_output(old_stdout, old_stderr);
             set_config(None);
             _reset_config();
         }
-        assert "native census" in combined.lower() , "census header missing";
+        assert "native coverage" in combined.lower() , "coverage header missing";
         assert "native seams" in combined , (
             "a module whose callable demoted granularly must be reported "
             "under the native-seams section"
@@ -2327,7 +2319,7 @@ test "jac check native census ranks module outcomes" {
         assert "root access (persistent graph)" in combined , (
             "server reason strings must be real signal labels"
         );
-        assert result == 0 , "census seams must not flip exit code";
+        assert result == 0 , "coverage seams must not flip exit code";
     }
 }
 
@@ -2380,8 +2372,8 @@ test "bare lt in jsx content is treated as text" {
 }
 
 test "jac check reports errors for files inside jaclang source tree" {
-    # Regression: _resolve_program routed jaclang-internal files to
-    # internal_program, so errors were invisible to the caller's JacProgram.
+    # Regression: the self-host redirect routed jaclang-internal files to
+    # the self-host program, so errors were invisible to the caller's JacProgram.
     # force_target_program=True (set by jac check) fixes this. The fixture
     # is deliberately ill-typed so this test never depends on an incidental
     # compiler bug in a shared fixture.
@@ -2419,8 +2411,8 @@ test "jac check reports errors for files inside jaclang source tree" {
 
 """Regression: JIR cache must preserve Archetype.body for generic type inference."""
 test "generic type inference is identical across fresh processes" {
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.runtime { JacRuntime }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.runtime.runtime { JacRuntime }
 
     with tempfile.TemporaryDirectory() as tmpdir {
         with open(os.path.join(tmpdir, "lib.jac"), "w") as f {
@@ -2458,13 +2450,13 @@ JIR writer serialised the slices field as EXTERNAL_REF, reader discarded it,
 slices=[] on cache hit, list iteration type became Unknown.
 """
 test "list iteration type through IndexSlice is identical across runs" {
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.runtime { JacRuntime }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.runtime.runtime { JacRuntime }
 
     with tempfile.TemporaryDirectory() as tmpdir {
         with open(os.path.join(tmpdir, "main.jac"), "w") as f {
             f.write(
-                "import from jaclang.jac0core.archetype { NodeAnchor }\n"
+                "import from jaclang.runtime.archetype { NodeAnchor }\n"
                 "def check_iter(na: NodeAnchor) -> None {\n"
                 "    for a in na.edges { aid = a.id; }\n"
                 "}\n"
@@ -2497,8 +2489,8 @@ the archetype's symbol table by DeclImplMatchPass._populate_self_member_symbols.
 Since impl_mod is not serialized in JIR, these symbols were lost on cache reload.
 """
 test "impl defined instance variables resolve identically across runs" {
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.runtime { JacRuntime }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.runtime.runtime { JacRuntime }
 
     with tempfile.TemporaryDirectory() as tmpdir {
         # Create a class with __init__ declared in .jac, implemented in .impl.jac
@@ -2542,8 +2534,8 @@ The is_sub_class check must compute MRO on demand to properly recognize
 subtype relationships (e.g., ClassType extends TypeBase).
 """
 test "jir cache computes mro for subtype checking" {
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.runtime { JacRuntime }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.runtime.runtime { JacRuntime }
 
     with tempfile.TemporaryDirectory() as tmpdir {
         # Create a module with base and derived classes
@@ -2590,8 +2582,8 @@ accessors became [], so the property classifier saw a setter-less property and f
 raised E1005 on assignment.
 """
 test "field vs property accessor typing is identical across runs" {
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.runtime { JacRuntime }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.runtime.runtime { JacRuntime }
 
     with tempfile.TemporaryDirectory() as tmpdir {
         # Box has a plain field `data` next to a native getter/setter property `value`.
@@ -2635,8 +2627,8 @@ test "field vs property accessor typing is identical across runs" {
 
 """jac check on .impl.jac files should compile the base file and filter errors."""
 test "jac check on impl file redirects to base and filters errors" {
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.runtime { JacRuntime }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.runtime.runtime { JacRuntime }
 
     with tempfile.TemporaryDirectory() as tmpdir {
         # Create a base .jac file with a type error in the base
@@ -2677,8 +2669,8 @@ test "jac check on impl file redirects to base and filters errors" {
 
 """A directory walk skips annexes the base module in the same run already compiles."""
 test "jac check directory skips covered annexes" {
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.runtime { JacRuntime }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.runtime.runtime { JacRuntime }
 
     with tempfile.TemporaryDirectory() as tmpdir {
         with open(os.path.join(tmpdir, "mymod.jac"), "w") as f {

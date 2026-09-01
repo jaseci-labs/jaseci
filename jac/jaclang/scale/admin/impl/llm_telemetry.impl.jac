@@ -3,10 +3,11 @@ import threading;
 import time;
 import uuid;
 import from collections { OrderedDict }
-import from jaclang.runtimelib.serving.datatypes { Request }
-import from jaclang.runtimelib.serving.datatypes { JSONResponse }
-import from jaclang.runtimelib.transport { TransportResponse, Meta }
-import from jaclang.runtimelib.serving.endpoint {
+import from jaclang.server.serving.datatypes { Request }
+import from jaclang.server.serving.datatypes { JSONResponse }
+import from jaclang.server.transport { TransportResponse, Meta }
+import from jaclang.server.server { JsonValue }
+import from jaclang.server.serving.endpoint {
     HTTPMethod,
     JEndPoint,
     APIParameter,
@@ -32,7 +33,7 @@ obj LLMCallRecord {
         response: any = None,
         timestamp: float = 0;
 
-    def to_dict -> dict {
+    def to_dict -> dict[str, any] {
         safe_messages = self.messages;
         try {
             json_module.dumps(safe_messages);
@@ -67,23 +68,23 @@ obj Trace {
     has invocation_id: str = "",
         parent_invocation_id: str | None = None,
         caller_name: str = "unknown",
-        caller_args: dict = {},
+        caller_args: dict[str, JsonValue] = {},
         model: str = "unknown",
         user_prompt: str = "",
         agent_response: str = "",
-        conversation_history: list = [],
+        conversation_history: list[JsonValue] = [],
         total_latency_ms: float = 0,
         total_tokens: int = 0,
         total_cost: float = 0.0,
         llm_call_count: int = 0,
-        llm_calls: list = [],
+        llm_calls: list[LLMCallRecord] = [],
         status: str = "in_progress",
         error: str | None = None,
         completed: bool = False,
         timestamp: float = 0;
 
-    def to_dict(include_detail: bool = False) -> dict {
-        result = {
+    def to_dict(include_detail: bool = False) -> dict[str, JsonValue] {
+        result: dict[str, JsonValue] = {
             "invocation_id": self.invocation_id,
             "parent_invocation_id": self.parent_invocation_id,
             "caller_name": self.caller_name,
@@ -105,7 +106,7 @@ obj Trace {
             "timestamp": self.timestamp
         };
         if include_detail {
-            safe_history = self.conversation_history;
+            safe_history: (list[JsonValue] | str) = self.conversation_history;
             try {
                 json_module.dumps(safe_history);
             } except (TypeError, ValueError) {
@@ -121,17 +122,17 @@ obj Trace {
 
 obj TelemetryStore {
     has max_traces: int = 1000,
-        _lock: any = None,
-        _traces: any = None;
+        _lock: threading.Lock postinit,
+        _traces: OrderedDict[str, Trace] postinit;
 
     def postinit {
         self._lock = threading.Lock();
         self._traces = OrderedDict();
     }
 
-    def record_llm_event(event: dict) {
+    def record_llm_event(event: dict[str, any]) {
         with self._lock {
-            metadata = event.get("metadata", {}) or {};
+            metadata: dict[str, any] = event.get("metadata", {}) or {};
             inv_id = metadata.get("jac_invocation_id") or str(uuid.uuid4());
             if inv_id not in self._traces {
                 self._traces[inv_id] = Trace(
@@ -180,7 +181,7 @@ obj TelemetryStore {
         }
     }
 
-    def record_agent_completion(record: dict) {
+    def record_agent_completion(record: dict[str, any]) {
         with self._lock {
             inv_id = record.get("invocation_id");
             if inv_id and inv_id in self._traces {
@@ -272,7 +273,9 @@ obj TelemetryStore {
         }
     }
 
-    def _aggregate_descendants(trace_id: str, children_lookup: dict) -> dict {
+    def _aggregate_descendants(
+        trace_id: str, children_lookup: dict[str, list[Trace]]
+    ) -> dict[str, float] {
         agg_tokens = 0;
         agg_cost = 0.0;
         agg_calls = 0;
@@ -301,7 +304,7 @@ obj TelemetryStore {
         root_only: bool = False
     ) -> dict {
         with self._lock {
-            all_traces = list(reversed(self._traces.values()));
+            all_traces: list[Trace] = list(reversed(self._traces.values()));
             for t in all_traces {
                 self._backfill_streaming_response(t);
             }
@@ -336,7 +339,7 @@ obj TelemetryStore {
             total = len(all_traces);
             page = all_traces[offset:offset + limit];
             all_trace_values = list(self._traces.values());
-            children_lookup: dict = {};
+            children_lookup: dict[str, list[Trace]] = {};
             for tv in all_trace_values {
                 pid = tv.parent_invocation_id;
                 if pid is not None {
@@ -366,7 +369,7 @@ obj TelemetryStore {
         }
     }
 
-    def get_trace(invocation_id: str) -> dict | None {
+    def get_trace(invocation_id: str) -> dict[str, any] | None {
         with self._lock {
             trace = self._traces.get(invocation_id);
             if trace {
@@ -374,7 +377,7 @@ obj TelemetryStore {
                 result = trace.to_dict(include_detail=True);
 
                 all_vals = list(self._traces.values());
-                children_lookup: dict = {};
+                children_lookup: dict[str, list[Trace]] = {};
                 for tv in all_vals {
                     pid = tv.parent_invocation_id;
                     if pid is not None {
@@ -457,7 +460,7 @@ obj TelemetryStore {
                 for t in traces_list
                 if t.status == "error"
             );
-            per_model: dict = {};
+            per_model: dict[str, dict[str, float]] = {};
             for t in traces_list {
                 m = t.model or "unknown";
                 if m not in per_model {
@@ -470,7 +473,7 @@ obj TelemetryStore {
                     per_model[m]["errors"] += 1;
                 }
             }
-            per_caller: dict = {};
+            per_caller: dict[str, dict[str, float]] = {};
             for t in traces_list {
                 c = t.caller_name or "unknown";
                 if c not in per_caller {
@@ -645,6 +648,11 @@ impl JacAPIServerLLMTelemetry.register_llm_telemetry_endpoints -> None {
         logger.warning(f"LLM telemetry: failed to register byllm callback: {e}");
     }
 
+    server = self.server;
+    if server is None {
+        return;
+    }
+
     async def summary_handler(request: Request) -> JSONResponse {
         guard = self.require_admin_json(request.headers.get("Authorization"));
         if guard {
@@ -654,7 +662,7 @@ impl JacAPIServerLLMTelemetry.register_llm_telemetry_endpoints -> None {
         return JSONResponse(content={"ok": True, "data": data});
     }
 
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/llm/telemetry/summary",
@@ -686,7 +694,8 @@ impl JacAPIServerLLMTelemetry.register_llm_telemetry_endpoints -> None {
         model = qp.get("model") or None;
         status = qp.get("status") or None;
         caller = qp.get("caller") or None;
-        root_only = qp.get("root_only", "").lower() in ("true", "1", "yes");
+        root_only_raw: str = qp.get("root_only", "") or "";
+        root_only = root_only_raw.lower() in ("true", "1", "yes");
         data = store.get_traces(
             limit=limit,
             offset=offset,
@@ -698,7 +707,7 @@ impl JacAPIServerLLMTelemetry.register_llm_telemetry_endpoints -> None {
         return JSONResponse(content={"ok": True, "data": data});
     }
 
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/llm/telemetry/traces",
@@ -728,7 +737,7 @@ impl JacAPIServerLLMTelemetry.register_llm_telemetry_endpoints -> None {
         return JSONResponse(content={"ok": True, "data": data});
     }
 
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/llm/telemetry/traces/{invocation_id}",
@@ -759,7 +768,7 @@ impl JacAPIServerLLMTelemetry.register_llm_telemetry_endpoints -> None {
         return JSONResponse(content={"ok": True, "data": data});
     }
 
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/llm/telemetry/filters",

@@ -46,8 +46,8 @@ with entry {
     obj Outer {
         has b: Inner;
     }
-    a = Outer(b=Inner(c=[1, 2, 3], d=4));
-    print('a.b before delete :', a.b);
-    del a.b.c[1] ;
-    print('a.b after delete :', a.b);
+    outer_a = Outer(b=Inner(c=[1, 2, 3], d=4));
+    print('outer_a.b before delete :', outer_a.b);
+    del outer_a.b.c[1] ;
+    print('outer_a.b after delete :', outer_a.b);
 }
