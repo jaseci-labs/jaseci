@@ -192,7 +192,6 @@ impl JacCompiler.get_bytecode(
                         f"Cached native sections for {full_target} could "
                         f"not be restored; recompiling."
                     );
-
                     cache_path.unlink(missing_ok=True);
                 } else {
                     return marshal.loads(bc);

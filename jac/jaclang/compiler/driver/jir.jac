@@ -189,16 +189,6 @@ def _module_client_kind(source_path: str) -> str {
     }
 }
 
-"""Compiler identity is partitioned into producer cones: an artifact's cache
-key includes exactly the cone that determines its bytes.
-
-INTERNAL_TREE_ROOTS is the routing surface (which paths compile as internal
-modules) and the union identity a release seal captures. CODEGEN_CONE is the
-subset that determines emitted Python bytecode; the native backend is carved
-out because its edits cannot change bytecode (measured: 643/643 artifacts
-byte-identical across a native-backend edit). runtime/ and lib/ are in no
-produce-cone at all: emitted bytecode references them by name at run time,
-so recompiling after a runtime edit regenerates identical bytes."""
 glob INTERNAL_TREE_ROOTS: tuple = (
          "jac0.py",
          "bootstrap_manifest.py",
@@ -221,8 +211,8 @@ glob INTERNAL_TREE_ROOTS: tuple = (
          "project/tomlio.jac",
          "dist/precompile_bytecode.jac"
      ),
-     CODEGEN_CONE_EXCLUDES: tuple = ("compiler/backends/native",),
-     NATIVE_CONE_ROOTS: tuple = ("compiler/backends/native",),
+     CODEGEN_CONE_EXCLUDES: tuple = ("compiler/backends/native", ),
+     NATIVE_CONE_ROOTS: tuple = ("compiler/backends/native", ),
      COMPILER_DIGEST_SUFFIXES: tuple = (".jac", ".py"),
      COMPILER_DIGEST_SKIP_DIRS: tuple = ("tests", "test", "__pycache__");
 
@@ -266,8 +256,6 @@ def _cone_source_files(
     return sorted(rels);
 }
 
-"""Every file in the full internal tree (the union of all cones). Release
-seals and determinism checks use this set."""
 def compiler_source_files(pkg_dir: str) -> list[str] {
     return _cone_source_files(pkg_dir, INTERNAL_TREE_ROOTS);
 }
@@ -301,17 +289,13 @@ def _memo_cone_digest(kind: str, cone_roots: tuple, excludes: tuple = ()) -> str
         value = f"pin:{kind}:{pinned}";
     } else {
         value = _digest_files(
-            _jaclang_pkg_dir,
-            _cone_source_files(_jaclang_pkg_dir, cone_roots, excludes)
+            _jaclang_pkg_dir, _cone_source_files(_jaclang_pkg_dir, cone_roots, excludes)
         );
     }
     _CONE_DIGEST_CACHE[kind] = value;
     return value;
 }
 
-"""The cone that determines emitted Python bytecode. This is the digest in
-every module's env fingerprint: an edit outside it cannot invalidate cached
-bytecode."""
 def codegen_cone_digest -> str {
     return _memo_cone_digest("codegen", CODEGEN_CONE_ROOTS, CODEGEN_CONE_EXCLUDES);
 }
@@ -320,18 +304,12 @@ def native_cone_digest -> str {
     return _memo_cone_digest("native", NATIVE_CONE_ROOTS);
 }
 
-"""Union identity of the whole internal tree; release seals and payload keys
-capture everything."""
 def full_compiler_digest -> str {
     return _memo_cone_digest("full", INTERNAL_TREE_ROOTS);
 }
 
 glob _NATIVE_KEY_CACHE: list = [];
 
-"""Key for a jir's native sections: the native pathway's output depends on
-the frontend (codegen cone) and the native backend, so a mismatch means the
-cached object code is from a different native compiler and must be dropped
-even though the bytecode beside it is still fresh."""
 def native_pathway_key -> str {
     if not _NATIVE_KEY_CACHE {
         h = hashlib.sha256();

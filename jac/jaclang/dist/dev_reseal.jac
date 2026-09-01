@@ -1,23 +1,3 @@
-"""Dev-mode generation reseal.
-
-When the compiler source tree changes, every cached module jir goes stale at
-once (the compiler digest is part of every module's env fingerprint) and the
-module cache starts filling a fresh generation directory. Left alone, that
-refill happens lazily: one module at a time, serially, interleaved with
-whatever command the user actually ran.
-
-This module replaces the lazy avalanche with one batch rebuild at CLI
-dispatch: recent generation directories record exactly which modules this
-machine had warm, so we map those jirs back to their source files and
-recompile just that working set across forked workers, through the same
-compile-and-persist path a lazy miss would take. Modules never cached
-before stay lazy. A fresh machine has no previous generations and pays
-nothing.
-
-Correctness never depends on this pass: anything it skips or fails simply
-recompiles lazily as before. Disable with JAC_DEV_RESEAL=0.
-"""
-
 import json;
 import os;
 import sys;
@@ -41,10 +21,6 @@ glob _SKIP_COMMANDS: tuple = (
 
 glob _unit_program: list = [];
 
-"""One unit through the normal miss path: compile and persist to the module
-cache. Analyzed closures are retained across units (unit_retain), so later
-units in this worker reuse shared deps instead of re-analyzing them; the
-worker retire cap bounds the resulting RSS growth."""
 def _compile_unit(jac_path: str) -> (types.CodeType | None) {
     import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from jaclang.compiler.driver.program { JacProgram }
@@ -53,15 +29,10 @@ def _compile_unit(jac_path: str) -> (types.CodeType | None) {
     if not _unit_program {
         _unit_program.append(JacProgram());
     }
-    return compiler.get_bytecode(
-        full_target=jac_path, target_program=_unit_program[0]
-    );
+    return compiler.get_bytecode(full_target=jac_path, target_program=_unit_program[0]);
 }
 
-"""Retain analyzed closures across units for this process (and, via fork,
-its workers): with unit_retain set, get_bytecode's outermost evict_unit is
-skipped, so the hub accumulates instead of being rebuilt for every unit."""
-def _retain_units -> None {
+def _retain_units {
     import from jaclang.runtime.runtime { JacRuntime as Jac }
 
     Jac.get_compiler().unit_retain = True;
@@ -90,10 +61,6 @@ def _is_generation_name(name: str) -> bool {
     return True;
 }
 
-"""Generation directories other than the current one whose last activity
-falls inside the reseal window (default 7 days, JAC_DEV_RESEAL_WINDOW_DAYS).
-One generation exists per compiler state, so these together record every
-module this machine had warm recently."""
 def _recent_generations(cache_root: Path, current: str) -> list[Path] {
     window_raw = os.environ.get("JAC_DEV_RESEAL_WINDOW_DAYS", "").strip();
     window_days = 7.0;
@@ -130,12 +97,6 @@ def _recent_generations(cache_root: Path, current: str) -> list[Path] {
     return found;
 }
 
-"""Map recent generations' jir files back to source paths.
-
-Cache filenames are generation-independent (the generation is the directory),
-so a candidate source belonged to the recent working set iff its cache
-filename exists in any of those generations. Only jaclang-package modules are
-candidates; loose out-of-tree files stay lazy."""
 def _stale_working_set(prev_gens: list[Path]) -> list[str] {
     import from jaclang.compiler.driver.jir {
         _jaclang_pkg_dir,
@@ -173,7 +134,7 @@ def _stale_working_set(prev_gens: list[Path]) -> list[str] {
     return targets;
 }
 
-def _write_marker(gen_dir: Path, stats: dict[(str, any)]) -> None {
+def _write_marker(gen_dir: Path, stats: dict[(str, any)]) {
     import from jaclang.compiler.driver.jir { codegen_cone_digest }
 
     gen_dir.mkdir(parents=True, exist_ok=True);
@@ -190,8 +151,6 @@ def _write_marker(gen_dir: Path, stats: dict[(str, any)]) -> None {
     }
 }
 
-"""Compile the stale working set across forked workers, then stamp the
-generation. Returns the run's counters."""
 def _run_pool(targets: list[str]) -> dict[(str, any)] {
     import gc;
     import from jaclang.compiler.driver.compiler { COMPILE_GC_THRESHOLDS }
@@ -363,9 +322,6 @@ def _reseal_if_stale -> None {
     }
 }
 
-"""CLI-dispatch hook: batch-reseal the module cache when the compiler
-generation changed. Never raises; anything it cannot do falls back to the
-lazy path."""
 def maybe_reseal(raw_argv: list[str]) -> None {
     if os.environ.get("JAC_DEV_RESEAL", "1").strip().lower() in ("0", "off", "false") {
         return;

@@ -494,16 +494,16 @@ test "fresh mtime does not admit a cache written under a different environment" 
         );
         assert is_module_cache_valid(jac_file, cache_path) , "fresh cache should be valid";
 
-        saved = list(jir._COMPILER_DIGEST_CACHE);
+        saved = dict(jir._CONE_DIGEST_CACHE);
         try {
-            jir._COMPILER_DIGEST_CACHE.clear();
-            jir._COMPILER_DIGEST_CACHE.append("289:" + "0" * 64);
+            jir._CONE_DIGEST_CACHE.clear();
+            jir._CONE_DIGEST_CACHE["codegen"] = "289:" + "0" * 64;
             assert not is_module_cache_valid(jac_file, cache_path) , (
                 "a fresh mtime served a cache written under a different compiler"
             );
         } finally {
-            jir._COMPILER_DIGEST_CACHE.clear();
-            jir._COMPILER_DIGEST_CACHE.extend(saved);
+            jir._CONE_DIGEST_CACHE.clear();
+            jir._CONE_DIGEST_CACHE.update(saved);
         }
         assert is_module_cache_valid(jac_file, cache_path) , (
             "restoring the compiler digest should restore validity"
