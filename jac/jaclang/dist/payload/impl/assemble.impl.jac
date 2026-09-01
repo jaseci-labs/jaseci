@@ -151,6 +151,11 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
     );
     jc_src = os.path.join(repo_root, "jaclang", "compiler", "jc_unit.jac");
     jc_dst = os.path.join(site, "jaclang", "compiler", jc_name);
+    if not file_exists(jc_src) {
+        log("==> no compiler kernel unit in this tree; skipping kernel build");
+        _bundle_bun(site, opts);
+        return;
+    }
     log(f"==> building native compiler kernel (nacompile --shared {jc_src})");
     jc_boot = (
         "import os, sys\n"
@@ -185,6 +190,10 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
     copy_file(jc_dst, jc_tree);
     copy_file(jc_dst + ".layout.json", jc_tree + ".layout.json");
 
+    _bundle_bun(site, opts);
+}
+
+impl _bundle_bun(site: str, opts: MkPayloadOpts) {
     bb = opts.bun_bin;
     if bb is not None {
         bun_dir = os.path.join(site, "jaclang", "client", "_bun");
