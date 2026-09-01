@@ -1,4 +1,3 @@
-import importlib.util;
 import from importlib.machinery { ModuleSpec }
 import os;
 import sys;
@@ -17,6 +16,39 @@ def pop_import_base {
     if _import_base_stack {
         _import_base_stack.pop();
     }
+}
+
+def _find_spec_no_exec(target: str) -> (ModuleSpec | None) {
+    import from importlib.machinery { PathFinder }
+    parts = target.split('.');
+    search: (list[str] | None) = None;
+    spec: (ModuleSpec | None) = None;
+    prefix = '';
+    for (i, part) in enumerate(parts) {
+        prefix = part if i == 0 else f'{prefix}.{part}';
+        loaded = sys.modules.get(prefix);
+        if loaded is not None {
+            lspec = getattr(loaded, '__spec__', None);
+            spec = lspec if isinstance(lspec, ModuleSpec) else None;
+            lpath = getattr(loaded, '__path__', None);
+            search = `list(lpath) if lpath is not None else None;
+        } else {
+            try {
+                spec = PathFinder.find_spec(prefix, search);
+            } except (ImportError, AttributeError, ValueError, KeyError) {
+                spec = None;
+            }
+            if spec is None {
+                return None;
+            }
+            sub = spec.submodule_search_locations;
+            search = `list(sub) if sub is not None else None;
+        }
+        if search is None and i < (len(parts) - 1) {
+            return None;
+        }
+    }
+    return spec;
 }
 
 def find_project_root(start: (Path | None) = None) -> (tuple | None) {
@@ -351,7 +383,7 @@ def resolve_module(
 
     if not target.startswith('.') {
         try {
-            spec = importlib.util.find_spec(target);
+            spec = _find_spec_no_exec(target);
         } except (ImportError, AttributeError, ValueError) {
             spec = None;
         }
