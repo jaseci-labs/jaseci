@@ -898,9 +898,11 @@ jobs:
             exit 1
           fi
 
+      # Cold runner budget: embedded-postgres bootstrap plus the site's own
+      # compile and client bundle all happen before the port answers.
       - name: Wait for site server to be ready
         run: |
-          for i in $(seq 1 24); do
+          for i in $(seq 1 60); do
             if ! kill -0 ${{ env.SITE_PID }} 2>/dev/null; then
               echo "Server process exited unexpectedly"
               cat /tmp/site-server.log
@@ -910,10 +912,10 @@ jobs:
               echo "site server is ready (attempt $i)"
               exit 0
             fi
-            echo "Attempt $i/24: not ready, waiting 15s..."
+            echo "Attempt $i/60: not ready, waiting 15s..."
             sleep 15
           done
-          echo "Server failed to respond after 24 attempts"
+          echo "Server failed to respond after 60 attempts"
           tail -100 /tmp/site-server.log
           exit 1
 
