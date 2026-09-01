@@ -58,7 +58,7 @@ def _drop_module(path: str) -> None {
     try {
         program.invalidate_module(path);
         program.drop_module_alerts(path);
-    } except Exception { }
+    } except Exception {}
 }
 
 def _reloader(base: Path) -> HotReloader {
@@ -335,7 +335,7 @@ obj _FakeOut {
         self.written.append(text);
     }
 
-    def flush { }
+    def flush {}
 }
 
 obj _FakeSys {

@@ -630,7 +630,7 @@ impl Session._raise_ro_retry -> None {
     if self.store is not None {
         try {
             self.store.rollback();
-        } except Exception { }
+        } except Exception {}
     }
     raise ReadOnlyRetry(anchor_id=_UUID(int=0), unit_key=last);
 }
@@ -714,7 +714,7 @@ impl Session.read_scope_exit -> None {
             );
             try {
                 self.store.rollback();
-            } except Exception { }
+            } except Exception {}
         }
         self._drop_snapshot_reads();
     }
@@ -736,7 +736,7 @@ impl Session.unit_exit -> None {
             } except WriteConflict {
                 try {
                     self.store.rollback();
-                } except Exception { }
+                } except Exception {}
                 raise;
             } except Exception as e {
                 logger.warning(
@@ -744,7 +744,7 @@ impl Session.unit_exit -> None {
                 );
                 try {
                     self.store.rollback();
-                } except Exception { }
+                } except Exception {}
             }
         } finally {
             if self._unit_stack {
@@ -777,7 +777,7 @@ impl Session._recover_conflict -> None {
     if self.store is not None {
         try {
             self.store.rollback();
-        } except Exception { }
+        } except Exception {}
     }
     for id in list(self._txn_changed) {
         if id in self.__mem__ {

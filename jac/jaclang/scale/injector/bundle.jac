@@ -62,7 +62,8 @@ glob _EXCLUDE_ENV: set[str] = {
          "PYTHONHOME",
          "JAC_LLVM_SHIM",
          "JAC_DEV_SOURCE",
-         "JAC_NO_PRECOMPILE"
+         "JAC_NO_PRECOMPILE",
+         "JAC_EXECUTABLE"
      };
 
 
@@ -383,7 +384,7 @@ def _implicit_main_member(
         rel = None;
         try {
             rel = (proj_root / entry_path).resolve().relative_to(base.resolve());
-        } except ValueError { }
+        } except ValueError {}
         if rel is None {
             raise ValueError(
                 "The routed fleet also deploys an implicit 'main' service for "

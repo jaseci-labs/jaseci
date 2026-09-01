@@ -42,9 +42,7 @@ impl JacAccessValidation._check_access(
             try {
                 ctx = JacRuntimeInterface.get_context();
                 ctx.diagnostics.append(diag);
-            } except Exception {
-                ;
-            }
+            } except Exception {}
             if JacRuntime.strict_permissions {
                 raise PermissionError(diag.message());
             }
@@ -698,9 +696,7 @@ impl JacModule.impl_patch_filename(
                 code.co_cellvars
             );
             func.__code__ = new_code;
-        } except AttributeError {
-            ;
-        }
+        } except AttributeError {}
         return func;
     }
     return decorator;
@@ -1073,9 +1069,7 @@ impl JacGraph.refs(
     return _run(path);
 }
 
-impl JacGraph.arefs(path: GraphQuery | NodeArchetype | list[NodeArchetype]) -> None {
-    ;
-}
+impl JacGraph.arefs(path: GraphQuery | NodeArchetype | list[NodeArchetype]) -> None {}
 
 
 impl JacGraph.filter_on(
@@ -1693,9 +1687,7 @@ impl JacServe.sv_walker_call(
         if instance is not None and reports is not None {
             try {
                 instance.reports = reports;
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
         return instance;
     }
@@ -2103,9 +2095,7 @@ impl JacContext.thread_wait(future: any) -> None {
     return future.result();
 }
 
-impl JacConfig.on_config_loaded(config: dict[(str, any)]) -> None {
-    ;
-}
+impl JacConfig.on_config_loaded(config: dict[(str, any)]) -> None {}
 
 impl JacConfig.validate_config(config: dict[(str, any)]) -> list[str] {
     return [];
