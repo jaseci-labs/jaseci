@@ -22,7 +22,7 @@ import from jaclang.compiler.driver.jir {
     FORMAT_VERSION,
     compute_precompile_module_key,
     precompiled_jir_matches_source,
-    running_compiler_digest,
+    full_compiler_digest,
     PRECOMPILE_SENTINEL
 }
 import from jaclang.jac0core.sealed {
@@ -39,7 +39,7 @@ import from jaclang.jac0core.sealed {
 glob RESULT_NAME: str = "PRECOMPILE_RESULT.json";
 
 def compiler_identity -> str {
-    digest = running_compiler_digest();
+    digest = full_compiler_digest();
     if digest.startswith("0:") {
         raise RuntimeError(
             "Precompile aborted: no compiler sources found under the running "

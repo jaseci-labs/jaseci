@@ -11,7 +11,7 @@ import from jaclang.compiler.driver.jir {
     compute_precompile_module_key,
     module_cache_key,
     precompiled_jir_matches_source,
-    running_compiler_digest,
+    full_compiler_digest,
     write_precompiled_jir
 }
 
@@ -126,7 +126,7 @@ test "a compiler source edit changes the payload precompile module key" {
         assert compute_precompile_module_key(src, before)
             == compute_precompile_module_key(src, before);
         assert compute_precompile_module_key(src)
-            == compute_precompile_module_key(src, running_compiler_digest());
+            == compute_precompile_module_key(src, full_compiler_digest());
     }
 }
 
@@ -172,8 +172,8 @@ test "the running compiler digest covers the real compiler tree" {
         assert "/tests/" not in rel and not rel.startswith("tests/") , f"{rel} is test material and must not gate the seed";
         assert rel.endswith(".jac") or rel.endswith(".py");
     }
-    assert running_compiler_digest() == compiler_source_digest(pkg);
-    assert running_compiler_digest() == running_compiler_digest();
+    assert full_compiler_digest() == compiler_source_digest(pkg);
+    assert full_compiler_digest() == full_compiler_digest();
 }
 
 
@@ -186,15 +186,15 @@ test "the per-module JIR cache key stays compiler-agnostic" {
         payload = compute_precompile_module_key(src);
         assert compute_module_key(src) == local;
         assert payload != local;
-        saved = list(jir._COMPILER_DIGEST_CACHE);
+        saved = dict(jir._CONE_DIGEST_CACHE);
         try {
-            jir._COMPILER_DIGEST_CACHE.clear();
-            jir._COMPILER_DIGEST_CACHE.append("7:0123456789abcdef");
+            jir._CONE_DIGEST_CACHE.clear();
+            jir._CONE_DIGEST_CACHE["full"] = "7:0123456789abcdef";
             assert compute_precompile_module_key(src) != payload , "the payload key ignored the compiler it was built by";
             assert module_cache_key(src) == local , "compiler identity leaked into the local per-module cache key";
         } finally {
-            jir._COMPILER_DIGEST_CACHE.clear();
-            jir._COMPILER_DIGEST_CACHE.extend(saved);
+            jir._CONE_DIGEST_CACHE.clear();
+            jir._CONE_DIGEST_CACHE.update(saved);
         }
     }
 }

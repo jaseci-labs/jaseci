@@ -12,8 +12,10 @@ import from jaclang.compiler.driver.jir {
     SEC_LLVM_IR,
     SEC_INTEROP,
     SEC_NATIVE_OBJ,
+    SEC_NATIVEKEY,
     SEC_PLACEMENT,
     FLAG_PRECOMPILED,
+    native_pathway_key,
     get_module_cache_path,
     is_module_cache_valid,
     precompiled_jir_matches_source,
@@ -87,7 +89,8 @@ obj JacCompiler {
         _stub_catalog: any = None,
         _stub_catalog_tried: bool = False,
         stub_catalog_disabled: bool = False,
-        unit_collect: bool = True;
+        unit_collect: bool = True,
+        unit_retain: bool = False;
 
     has selfhost: SelfHostCache { getter; }
 

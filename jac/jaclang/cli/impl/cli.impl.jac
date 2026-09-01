@@ -15,6 +15,14 @@ impl start_cli -> None {
                 else f"[dev] jac dev mode - using compiler source at {dev_source}"
         );
         console.print(notice, style='info', file=sys.stderr);
+        try {
+            import from jaclang.dist.dev_reseal { maybe_reseal }
+            maybe_reseal(raw_argv);
+        } except Exception as e {
+            console.print(
+                f"jac: dev reseal unavailable ({e})", style='warn', file=sys.stderr
+            );
+        }
     }
 
     handle_manifest_route(raw_argv);

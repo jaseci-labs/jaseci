@@ -20,6 +20,7 @@ glob MAGIC = b"JIR\x00",
      SEC_MODKEY: int = 0x08,
      SEC_DEBUG_SRC: int = 0x09,
      SEC_PLACEMENT: int = 0x0A,
+     SEC_NATIVEKEY: int = 0x0D,
      SEC_ENVKEY: int = 0x0B,
      SEC_CTDEPS: int = 0x0C,
      SEC_TERMINATOR: int = 0xFF,
@@ -143,8 +144,8 @@ def is_compiler_tree_path(source_path: str) -> bool {
         return False;
     }
     rel = resolved[len(base):].replace(os.sep, "/");
-    for digest_root in COMPILER_DIGEST_ROOTS {
-        if rel == digest_root or rel.startswith(digest_root + "/") {
+    for tree_root in INTERNAL_TREE_ROOTS {
+        if rel == tree_root or rel.startswith(tree_root + "/") {
             return True;
         }
     }
@@ -188,7 +189,17 @@ def _module_client_kind(source_path: str) -> str {
     }
 }
 
-glob COMPILER_DIGEST_ROOTS: tuple = (
+"""Compiler identity is partitioned into producer cones: an artifact's cache
+key includes exactly the cone that determines its bytes.
+
+INTERNAL_TREE_ROOTS is the routing surface (which paths compile as internal
+modules) and the union identity a release seal captures. CODEGEN_CONE is the
+subset that determines emitted Python bytecode; the native backend is carved
+out because its edits cannot change bytecode (measured: 643/643 artifacts
+byte-identical across a native-backend edit). runtime/ and lib/ are in no
+produce-cone at all: emitted bytecode references them by name at run time,
+so recompiling after a runtime edit regenerates identical bytes."""
+glob INTERNAL_TREE_ROOTS: tuple = (
          "jac0.py",
          "bootstrap_manifest.py",
          "meta_importer.py",
@@ -200,17 +211,30 @@ glob COMPILER_DIGEST_ROOTS: tuple = (
          "project/tomlio.jac",
          "dist/precompile_bytecode.jac"
      ),
+     CODEGEN_CONE_ROOTS: tuple = (
+         "jac0.py",
+         "bootstrap_manifest.py",
+         "meta_importer.py",
+         "jac0core",
+         "compiler",
+         "cli/cli_boot.jac",
+         "project/tomlio.jac",
+         "dist/precompile_bytecode.jac"
+     ),
+     CODEGEN_CONE_EXCLUDES: tuple = ("compiler/backends/native",),
+     NATIVE_CONE_ROOTS: tuple = ("compiler/backends/native",),
      COMPILER_DIGEST_SUFFIXES: tuple = (".jac", ".py"),
-     COMPILER_DIGEST_SKIP_DIRS: tuple = ("tests", "test", "__pycache__"),
-     COMPILER_DIGEST_SKIP: tuple = ();
+     COMPILER_DIGEST_SKIP_DIRS: tuple = ("tests", "test", "__pycache__");
 
-def compiler_source_files(pkg_dir: str) -> list[str] {
+def _cone_source_files(
+    pkg_dir: str, cone_roots: tuple, excludes: tuple = ()
+) -> list[str] {
     base = str(Path(pkg_dir));
     rels: list[str] = [];
-    for `entry in COMPILER_DIGEST_ROOTS {
-        target = os.path.join(base, `entry.replace("/", os.sep));
+    for cone_root in cone_roots {
+        target = os.path.join(base, cone_root.replace("/", os.sep));
         if os.path.isfile(target) {
-            rels.append(`entry);
+            rels.append(cone_root);
             continue;
         }
         if not os.path.isdir(target) {
@@ -229,7 +253,10 @@ def compiler_source_files(pkg_dir: str) -> list[str] {
                 rel = os.path.relpath(os.path.join(walk_dir, name), base).replace(
                     os.sep, "/"
                 );
-                if rel in COMPILER_DIGEST_SKIP {
+                if any(
+                    rel == excluded or rel.startswith(excluded + "/")
+                    for excluded in excludes
+                ) {
                     continue;
                 }
                 rels.append(rel);
@@ -239,9 +266,13 @@ def compiler_source_files(pkg_dir: str) -> list[str] {
     return sorted(rels);
 }
 
-def compiler_source_digest(pkg_dir: str) -> str {
-    base = str(Path(pkg_dir));
-    rels = compiler_source_files(base);
+"""Every file in the full internal tree (the union of all cones). Release
+seals and determinism checks use this set."""
+def compiler_source_files(pkg_dir: str) -> list[str] {
+    return _cone_source_files(pkg_dir, INTERNAL_TREE_ROOTS);
+}
+
+def _digest_files(base: str, rels: list[str]) -> str {
     h = hashlib.sha256();
     for rel in rels {
         h.update(rel.encode());
@@ -254,16 +285,61 @@ def compiler_source_digest(pkg_dir: str) -> str {
     return f"{len(rels)}:{h.hexdigest()}";
 }
 
-glob _COMPILER_DIGEST_CACHE: list = [];
+def compiler_source_digest(pkg_dir: str) -> str {
+    return _digest_files(str(Path(pkg_dir)), compiler_source_files(pkg_dir));
+}
 
-def running_compiler_digest -> str {
-    if not _COMPILER_DIGEST_CACHE {
-        pinned = os.environ.get("JAC_COMPILER_DIGEST_PIN", "").strip();
-        _COMPILER_DIGEST_CACHE.append(
-            f"pin:{pinned}" if pinned else compiler_source_digest(_jaclang_pkg_dir)
+glob _CONE_DIGEST_CACHE: dict[str, str] = {};
+
+def _memo_cone_digest(kind: str, cone_roots: tuple, excludes: tuple = ()) -> str {
+    cached = _CONE_DIGEST_CACHE.get(kind);
+    if cached is not None {
+        return cached;
+    }
+    pinned = os.environ.get("JAC_COMPILER_DIGEST_PIN", "").strip();
+    if pinned {
+        value = f"pin:{kind}:{pinned}";
+    } else {
+        value = _digest_files(
+            _jaclang_pkg_dir,
+            _cone_source_files(_jaclang_pkg_dir, cone_roots, excludes)
         );
     }
-    return _COMPILER_DIGEST_CACHE[0];
+    _CONE_DIGEST_CACHE[kind] = value;
+    return value;
+}
+
+"""The cone that determines emitted Python bytecode. This is the digest in
+every module's env fingerprint: an edit outside it cannot invalidate cached
+bytecode."""
+def codegen_cone_digest -> str {
+    return _memo_cone_digest("codegen", CODEGEN_CONE_ROOTS, CODEGEN_CONE_EXCLUDES);
+}
+
+def native_cone_digest -> str {
+    return _memo_cone_digest("native", NATIVE_CONE_ROOTS);
+}
+
+"""Union identity of the whole internal tree; release seals and payload keys
+capture everything."""
+def full_compiler_digest -> str {
+    return _memo_cone_digest("full", INTERNAL_TREE_ROOTS);
+}
+
+glob _NATIVE_KEY_CACHE: list = [];
+
+"""Key for a jir's native sections: the native pathway's output depends on
+the frontend (codegen cone) and the native backend, so a mismatch means the
+cached object code is from a different native compiler and must be dropped
+even though the bytecode beside it is still fresh."""
+def native_pathway_key -> str {
+    if not _NATIVE_KEY_CACHE {
+        h = hashlib.sha256();
+        h.update(codegen_cone_digest().encode());
+        h.update(native_cone_digest().encode());
+        _NATIVE_KEY_CACHE.append(h.hexdigest());
+    }
+    return _NATIVE_KEY_CACHE[0];
 }
 
 glob _COMPILER_GENERATION_CACHE: list = [];
@@ -271,7 +347,7 @@ glob _COMPILER_GENERATION_CACHE: list = [];
 def compiler_generation -> str {
     if not _COMPILER_GENERATION_CACHE {
         _COMPILER_GENERATION_CACHE.append(
-            hashlib.sha256(running_compiler_digest().encode()).hexdigest()[:16]
+            hashlib.sha256(codegen_cone_digest().encode()).hexdigest()[:16]
         );
     }
     return _COMPILER_GENERATION_CACHE[0];
@@ -332,7 +408,7 @@ def module_env_fingerprint(source_path: str) -> str {
     } else {
         h.update(_full_env_fingerprint(source_path).encode());
     }
-    h.update(running_compiler_digest().encode());
+    h.update(codegen_cone_digest().encode());
     return h.hexdigest();
 }
 
@@ -456,7 +532,7 @@ def compute_precompile_module_key(source_path: str, compiler_digest: str = "") -
     h = hashlib.sha256();
     h.update(module_cache_key(source_path).encode());
     h.update(b"|compiler=");
-    h.update((compiler_digest or running_compiler_digest()).encode());
+    h.update((compiler_digest or full_compiler_digest()).encode());
     return h.hexdigest();
 }
 

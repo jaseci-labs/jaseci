@@ -165,12 +165,24 @@ impl JacCompiler.get_bytecode(
                 magic_bytes: any = SECTIONS_MAGIC;
                 sec_pos = jir_data.find(magic_bytes, HEADER_SIZE);
                 _had_native_secs = False;
+                _stale_native = False;
                 if sec_pos >= 0 {
                     secs = read_sections(jir_data, sec_pos + len(magic_bytes));
-                    self._restore_sections(full_target, actual_program, secs);
                     _had_native_secs = SEC_NATIVE_OBJ in secs or SEC_LLVM_IR in secs;
+                    _stale_native = (
+                        _had_native_secs
+                        and secs.get(SEC_NATIVEKEY)
+                            != native_pathway_key().encode('utf-8')
+                    );
+                    if not _stale_native {
+                        self._restore_sections(full_target, actual_program, secs);
+                    }
                 }
-                if (
+                if _stale_native {
+                    cache_path.unlink(missing_ok=True);
+                    actual_program.invalidate_module(full_target);
+                    symtab_only_recovery = True;
+                } elif (
                     _had_native_secs
                     and full_target not in actual_program.hub.artifacts
                     and not self.selfhost.is_selfhost(actual_program)
@@ -252,7 +264,7 @@ impl JacCompiler.get_bytecode(
         return None;
     } finally {
         if is_internal {
-            if self.selfhost.at_outermost_bytecode() {
+            if self.selfhost.at_outermost_bytecode() and not self.unit_retain {
                 self.selfhost.evict_unit(
                     full_target, result, collect=self.unit_collect
                 );
@@ -1337,6 +1349,9 @@ impl JacCompiler._persist_module_cache(
             if llvm_ir is not None {
                 sections[SEC_LLVM_IR] = zlib.compress(str(llvm_ir).encode('utf-8'), 6);
             }
+        }
+        if SEC_NATIVE_OBJ in sections or SEC_LLVM_IR in sections {
+            sections[SEC_NATIVEKEY] = native_pathway_key().encode('utf-8');
         }
         interop_dict = self._build_interop_dict(result);
         if interop_dict {
