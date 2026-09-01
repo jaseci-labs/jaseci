@@ -304,7 +304,7 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
     if pkg_dir.name != "jaclang" {
         return failed;
     }
-    import from jaclang.bootstrap_manifest { seed_abs_entries }
+    import from jaclang.bootstrap_manifest { seed_abs_entries, is_native_only_seed }
     (seed_dirs, seed_files) = seed_abs_entries(str(pkg_dir));
     seed_sources: list[Path] = [
         Path(p)
@@ -321,6 +321,11 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
         if any(
             part.startswith(".") or part == "__pycache__"
             for part in jac_file.relative_to(pkg_dir).parts
+        ) {
+            continue;
+        }
+        if is_native_only_seed(
+            str(jac_file.relative_to(pkg_dir)).replace(os.sep, "/")
         ) {
             continue;
         }
