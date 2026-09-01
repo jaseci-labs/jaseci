@@ -16,15 +16,26 @@ import from c { def PyList_SetItem(l: int, i: int, v: int) -> int;  }
 
 import from jaclang.compiler.jc_materialize {
     jc_graph_wipe,
+    jc_mz_dispose,
     jc_mz_obj,
-    jc_mz_run
+    jc_mz_run,
+    jc_mz_shapes3
 }
 
 import from jaclang.compiler.frontend.parser.parser { parse_program }
 import from jaclang.compiler.frontend.parser.tokens { SrcDiag, CommentData }
 import from jaclang.compiler.frontend.unitree { Module, UniNode }
 import from jaclang.compiler.frontend.roles { AccessorsRole, BodyRole, SpecRole }
-import from jaclang.runtime.osp_model { stable_osp_tag }
+
+def _stable_tag(name: str) -> int {
+    # Mirrors jaclang.runtime.osp_tag.stable_osp_tag (FNV-1a, 53-bit mask);
+    # inlined because the kernel unit already owns that module's symbols.
+    h = 14695981039346656037;
+    for c in name {
+        h = ((h ^ ord(c)) * 1099511628211) & 18446744073709551615;
+    }
+    return h & 9007199254740991;
+}
 
 obj JcState {
     has mod: (Module | None) = None,
@@ -81,6 +92,10 @@ def:pub jc_finish -> int {
         return 0;
     }
     out = jc_mz_run(id(mod));
+    if out != 0 {
+        _apply_shapes(mod);
+    }
+    jc_mz_dispose();
     _JC.mod = None;
     return out;
 }
@@ -104,19 +119,19 @@ def _mz_list(items: list, hint: int) -> int {
 }
 
 def:pub jc_diags -> int {
-    out = _mz_list(_JC.p_diags, stable_osp_tag("SrcDiag"));
+    out = _mz_list(_JC.p_diags, _stable_tag("SrcDiag"));
     _JC.p_diags = [];
     return out;
 }
 
 def:pub jc_lexdiags -> int {
-    out = _mz_list(_JC.lex_diags, stable_osp_tag("SrcDiag"));
+    out = _mz_list(_JC.lex_diags, _stable_tag("SrcDiag"));
     _JC.lex_diags = [];
     return out;
 }
 
 def:pub jc_comments -> int {
-    out = _mz_list(_JC.comments, stable_osp_tag("CommentData"));
+    out = _mz_list(_JC.comments, _stable_tag("CommentData"));
     _JC.comments = [];
     return out;
 }
@@ -134,21 +149,32 @@ def _shape_code(s: (str | None)) -> int {
     return 1;
 }
 
-def:pub jc_shape3(nd: UniNode) -> int {
+def _packed_shapes(nd: UniNode) -> int {
     shapes = nd._role_shapes;
     if shapes is None {
         return 0;
     }
     b = _shape_code(shapes.get(BodyRole));
-    s = _shape_code(shapes.get(SpecRole));
+    sp = _shape_code(shapes.get(SpecRole));
     a = _shape_code(shapes.get(AccessorsRole));
-    return b | (s << 4) | (a << 8);
+    return b | (sp << 4) | (a << 8);
 }
 
-def:pub jc_nlist_len(l: list[UniNode]) -> int {
-    return len(l);
-}
-
-def:pub jc_nlist_get(l: list[UniNode], i: int) -> UniNode {
-    return l[i];
+def _apply_shapes(mod: Module) -> None {
+    stack: list[UniNode] = [mod];
+    seen: set[int] = set();
+    while stack {
+        cur = stack.pop();
+        if id(cur) in seen {
+            continue;
+        }
+        seen.add(id(cur));
+        sc = _packed_shapes(cur);
+        if sc != 0 {
+            jc_mz_shapes3(id(cur), sc);
+        }
+        for k in cur._children() {
+            stack.append(k);
+        }
+    }
 }

@@ -807,6 +807,32 @@ def _new_graph -> OspGraph {
 
 glob DEFAULT_GRAPH: OspGraph = _new_graph();
 
+def osp_adj_pairs(origin: int, dir: int) -> list[int] {
+    out: list[int] = [];
+    if origin in DEFAULT_GRAPH.adj {
+        a: Adj = DEFAULT_GRAPH.adj[origin];
+        src = a.out if dir == 2 else a.inn;
+        for k in src {
+            peers: list[int] = src[k];
+            for t in peers {
+                out.append(k);
+                out.append(t);
+            }
+        }
+    }
+    return out;
+}
+
+def osp_graph_wipe -> int {
+    DEFAULT_GRAPH.adj = {};
+    DEFAULT_GRAPH.rows = [];
+    DEFAULT_GRAPH.free_rows = [];
+    DEFAULT_GRAPH.row_of = {};
+    DEFAULT_GRAPH.dead = {};
+    DEFAULT_GRAPH.regions = {};
+    return 0;
+}
+
 def osp_has_edge(eh: int) -> int {
     return 1 if DEFAULT_GRAPH.has_edge(eh) else 0;
 }

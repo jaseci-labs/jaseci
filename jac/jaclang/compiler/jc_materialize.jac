@@ -13,14 +13,15 @@ per-node index into the Python runtime's light-edge structures
 (out_light / in_light), so role semantics never need naming here: the
 graph is the data.
 
-Typed reads (role shapes, native list access) re-enter the typed world
-through jc_unit's exported helpers: a raw handle passed to a C-ABI export
-whose parameter is declared with the real type.
+Role shapes are the one typed read: jc_unit walks its typed tree after
+jc_mz_run and attaches them through jc_mz_shapes3, keyed by the handle map
+the run leaves behind until jc_mz_dispose.
 """
 
-import from jaclang.runtime.osp_graph { DEFAULT_GRAPH }
-
 import from c { def memcpy(dst: bytes, src: int, n: u64) -> int;  }
+import from c { def osp_adj_pairs(origin: int, dir: int) -> int;  }
+import from c { def osp_graph_wipe() -> int;  }
+import from c { def jac_release(p: int) -> int;  }
 import from c { def PyType_GenericAlloc(t: int, n: int) -> int;  }
 import from c { def PyObject_SetAttr(o: int, k: int, v: int) -> int;  }
 import from c { def PyObject_GetAttr(o: int, k: int) -> int;  }
@@ -37,9 +38,6 @@ import from c { def PySet_New(i: int) -> int;  }
 import from c { def PyWeakref_NewRef(o: int, cb: int) -> int;  }
 import from c { def Py_IncRef(o: int) -> int;  }
 import from c { def Py_DecRef(o: int) -> int;  }
-import from c { def jc_shape3(nd: int) -> int;  }
-import from c { def jc_nlist_len(l: int) -> int;  }
-import from c { def jc_nlist_get(l: int, i: int) -> int;  }
 
 glob CODE_SKIP: int = 0,
      CODE_INT: int = 1,
@@ -189,10 +187,24 @@ def _ld8(buf: bytes, off: int) -> int {
     return int.from_bytes(buf[off:off + 1], "little");
 }
 
-def _tag_at(h: int) -> int {
+def _peek64(addr: int) -> int {
     buf = b"\x00" * 8;
-    memcpy(buf, h + 8, u64(8));
+    memcpy(buf, addr, u64(8));
     return int.from_bytes(buf, "little");
+}
+
+def _tag_at(h: int) -> int {
+    return _peek64(h + 8);
+}
+
+# Native list ABI (same shape npy_adj read on the reference branch):
+# length at +0, element data pointer at +16, elements 8 bytes each.
+def _nlist_len(l: int) -> int {
+    return _peek64(l);
+}
+
+def _nlist_get(l: int, i: int) -> int {
+    return _peek64(_peek64(l + 16) + (i * 8));
 }
 
 obj Mz {
@@ -207,6 +219,8 @@ obj Mz {
         lst_t: list[int] = [],
         skipped: int = 0;
 }
+
+glob _LAST: list[Mz] = [];
 
 def _enqueue(m: Mz, h: int, hint: int) -> None {
     if h != 0 and h not in m.map {
@@ -324,12 +338,12 @@ def _copy_fields(m: Mz, row: ClassRow, h: int, o: int) -> None {
             }
         } elif code == CODE_NATLIST {
             p = _ld64u(buf, fr.off);
-            n = jc_nlist_len(p) if p != 0 else 0;
+            n = _nlist_len(p) if p != 0 else 0;
             pl = PyList_New(n);
             if pl != 0 {
                 i = 0;
                 while i < n {
-                    t = jc_nlist_get(p, i);
+                    t = _nlist_get(p, i);
                     m.lst_l.append(pl);
                     m.lst_i.append(i);
                     m.lst_t.append(t);
@@ -351,33 +365,6 @@ def _copy_fields(m: Mz, row: ClassRow, h: int, o: int) -> None {
             }
         }
     }
-}
-
-def _shape_entry(d: int, cls_h: int, code: int) -> None {
-    if code == 1 {
-        PyDict_SetItem(d, cls_h, _K.s_none);
-    } elif code == 2 {
-        PyDict_SetItem(d, cls_h, _K.s_one);
-    } elif code == 3 {
-        PyDict_SetItem(d, cls_h, _K.s_many);
-    }
-}
-
-def _copy_shapes(h: int, o: int) -> None {
-    sc = jc_shape3(h);
-    if sc == 0 {
-        return;
-    }
-    d = PyDict_New();
-    if d == 0 {
-        PyErr_Clear();
-        return;
-    }
-    _shape_entry(d, _K.body_h, sc & 15);
-    _shape_entry(d, _K.spec_h, (sc >> 4) & 15);
-    _shape_entry(d, _K.acc_h, (sc >> 8) & 15);
-    PyObject_SetAttr(o, _K.k_shapes, d);
-    Py_DecRef(d);
 }
 
 def _resolve_row(h: int, hint: int) -> int {
@@ -419,23 +406,20 @@ def _visit(m: Mz, h: int, hint: int) -> None {
     _fill_defaults(row, o);
     _copy_fields(m, row, h, o);
     if row.is_node != 0 {
-        _copy_shapes(h, o);
-        if h in DEFAULT_GRAPH.adj {
-            a = DEFAULT_GRAPH.adj[h];
-            for tg in a.out {
-                peers: list[int] = a.out[tg];
-                for t in peers {
-                    _enqueue(m, t, 0);
-                }
-            }
-            for tg in a.inn {
-                srcs: list[int] = a.inn[tg];
-                for t in srcs {
-                    _enqueue(m, t, 0);
-                }
-            }
-        }
+        _enqueue_adj(m, h, 2);
+        _enqueue_adj(m, h, 1);
     }
+}
+
+def _enqueue_adj(m: Mz, h: int, dir: int) -> None {
+    po = osp_adj_pairs(h, dir);
+    n = _nlist_len(po);
+    i = 0;
+    while i < n {
+        _enqueue(m, _nlist_get(po, i + 1), 0);
+        i += 2;
+    }
+    jac_release(po);
 }
 
 def _patch_refs(m: Mz) -> None {
@@ -467,85 +451,93 @@ def _patch_refs(m: Mz) -> None {
     }
 }
 
-def _edge_lists(m: Mz, h: int, o: int) -> None {
-    a = DEFAULT_GRAPH.adj[h];
-    d_out = 0;
-    for tg in a.out {
+def _edge_dict_from_pairs(m: Mz, h: int, dir: int, weak: int) -> int {
+    po = osp_adj_pairs(h, dir);
+    n = _nlist_len(po);
+    d = 0;
+    cur_tag = 0;
+    cur_pl = 0;
+    i = 0;
+    while i < n {
+        tg = _nlist_get(po, i);
+        t = _nlist_get(po, i + 1);
+        i += 2;
         if tg not in _EDGE {
             continue;
         }
-        peers: list[int] = a.out[tg];
-        pl = PyList_New(0);
-        if pl == 0 {
-            PyErr_Clear();
+        if t not in m.map {
             continue;
         }
-        for t in peers {
-            if t in m.map and m.map[t] != 0 {
-                PyList_Append(pl, m.map[t]);
-            }
-        }
-        if d_out == 0 {
-            d_out = PyDict_New();
-        }
-        if d_out != 0 {
-            PyDict_SetItem(d_out, _EDGE[tg], pl);
-        }
-        Py_DecRef(pl);
-    }
-    d_in = 0;
-    for tg in a.inn {
-        if tg not in _EDGE {
+        val = m.map[t];
+        if val == 0 {
             continue;
         }
-        srcs: list[int] = a.inn[tg];
-        wl = PyList_New(0);
-        if wl == 0 {
-            PyErr_Clear();
-            continue;
-        }
-        for t in srcs {
-            if t in m.map and m.map[t] != 0 {
-                w = PyWeakref_NewRef(m.map[t], 0);
-                if w != 0 {
-                    PyList_Append(wl, w);
-                    Py_DecRef(w);
-                } else {
+        if tg != cur_tag or cur_pl == 0 {
+            if d == 0 {
+                d = PyDict_New();
+                if d == 0 {
                     PyErr_Clear();
+                    break;
                 }
             }
-        }
-        if d_in == 0 {
-            d_in = PyDict_New();
-        }
-        if d_in != 0 {
-            PyDict_SetItem(d_in, _EDGE[tg], wl);
-        }
-        Py_DecRef(wl);
-    }
-    if d_out != 0 or d_in != 0 {
-        anchor = PyObject_GetAttr(o, _K.k_jac);
-        if anchor != 0 {
-            if d_out != 0 {
-                PyObject_SetAttr(anchor, _K.k_out, d_out);
+            ec = _EDGE[tg];
+            existing = PyDict_GetItem(d, ec);
+            if existing == 0 {
+                pl = PyList_New(0);
+                if pl == 0 {
+                    PyErr_Clear();
+                    break;
+                }
+                PyDict_SetItem(d, ec, pl);
+                Py_DecRef(pl);
+                existing = PyDict_GetItem(d, ec);
             }
-            if d_in != 0 {
-                PyObject_SetAttr(anchor, _K.k_in, d_in);
+            cur_pl = existing;
+            cur_tag = tg;
+        }
+        if weak != 0 {
+            w = PyWeakref_NewRef(val, 0);
+            if w != 0 {
+                PyList_Append(cur_pl, w);
+                Py_DecRef(w);
+            } else {
+                PyErr_Clear();
             }
-            Py_DecRef(anchor);
         } else {
-            PyErr_Clear();
+            PyList_Append(cur_pl, val);
         }
+    }
+    jac_release(po);
+    return d;
+}
+
+def _edge_lists(m: Mz, h: int, o: int) -> None {
+    d_out = _edge_dict_from_pairs(m, h, 2, 0);
+    d_in = _edge_dict_from_pairs(m, h, 1, 1);
+    if d_out == 0 and d_in == 0 {
+        return;
+    }
+    anchor = PyObject_GetAttr(o, _K.k_jac);
+    if anchor != 0 {
         if d_out != 0 {
-            Py_DecRef(d_out);
+            PyObject_SetAttr(anchor, _K.k_out, d_out);
         }
         if d_in != 0 {
-            Py_DecRef(d_in);
+            PyObject_SetAttr(anchor, _K.k_in, d_in);
         }
+        Py_DecRef(anchor);
+    } else {
+        PyErr_Clear();
+    }
+    if d_out != 0 {
+        Py_DecRef(d_out);
+    }
+    if d_in != 0 {
+        Py_DecRef(d_in);
     }
 }
 
-def _run(root: int, root_hint: int, do_edges: int) -> int {
+def _run(start_h: int, start_hint: int, do_edges: int) -> int {
     m = Mz(
         map={},
         q=[],
@@ -558,8 +550,8 @@ def _run(root: int, root_hint: int, do_edges: int) -> int {
         lst_t=[],
         skipped=0
     );
-    m.q.append(root);
-    m.q_hint.append(root_hint);
+    m.q.append(start_h);
+    m.q_hint.append(start_hint);
     while m.q {
         h = m.q.pop();
         hint = m.q_hint.pop();
@@ -568,14 +560,14 @@ def _run(root: int, root_hint: int, do_edges: int) -> int {
     _patch_refs(m);
     if do_edges != 0 {
         for h in m.map {
-            if m.map[h] != 0 and h in DEFAULT_GRAPH.adj {
+            if m.map[h] != 0 {
                 _edge_lists(m, h, m.map[h]);
             }
         }
     }
     out = 0;
-    if root in m.map {
-        out = m.map[root];
+    if start_h in m.map {
+        out = m.map[start_h];
     }
     if out != 0 {
         Py_IncRef(out);
@@ -587,11 +579,15 @@ def _run(root: int, root_hint: int, do_edges: int) -> int {
         }
     }
     _STATS[0] = m.skipped;
+    if _LAST {
+        _LAST.pop();
+    }
+    _LAST.append(m);
     return out;
 }
 
-def:pub jc_mz_run(root: int) -> int {
-    return _run(root, 0, 1);
+def:pub jc_mz_run(h: int) -> int {
+    return _run(h, 0, 1);
 }
 
 def:pub jc_mz_obj(h: int, hint: int) -> int {
@@ -602,12 +598,51 @@ def:pub jc_mz_skipped -> int {
     return _STATS[0];
 }
 
-def:pub jc_graph_wipe -> int {
-    DEFAULT_GRAPH.adj = {};
-    DEFAULT_GRAPH.rows = [];
-    DEFAULT_GRAPH.free_rows = [];
-    DEFAULT_GRAPH.row_of = {};
-    DEFAULT_GRAPH.dead = {};
-    DEFAULT_GRAPH.regions = {};
+def _shape_entry(d: int, cls_h: int, code: int) -> None {
+    if code == 1 {
+        PyDict_SetItem(d, cls_h, _K.s_none);
+    } elif code == 2 {
+        PyDict_SetItem(d, cls_h, _K.s_one);
+    } elif code == 3 {
+        PyDict_SetItem(d, cls_h, _K.s_many);
+    }
+}
+
+def:pub jc_mz_lookup(h: int) -> int {
+    if _LAST {
+        m: Mz = _LAST[0];
+        if h in m.map {
+            return m.map[h];
+        }
+    }
     return 0;
+}
+
+def:pub jc_mz_shapes3(h: int, packed: int) -> int {
+    o = jc_mz_lookup(h);
+    if o == 0 or packed == 0 {
+        return 1;
+    }
+    d = PyDict_New();
+    if d == 0 {
+        PyErr_Clear();
+        return 1;
+    }
+    _shape_entry(d, _K.body_h, packed & 15);
+    _shape_entry(d, _K.spec_h, (packed >> 4) & 15);
+    _shape_entry(d, _K.acc_h, (packed >> 8) & 15);
+    PyObject_SetAttr(o, _K.k_shapes, d);
+    Py_DecRef(d);
+    return 0;
+}
+
+def:pub jc_mz_dispose -> int {
+    if _LAST {
+        _LAST.pop();
+    }
+    return 0;
+}
+
+def:pub jc_graph_wipe -> int {
+    return osp_graph_wipe();
 }
