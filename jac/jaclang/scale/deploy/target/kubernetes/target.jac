@@ -1943,7 +1943,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
             self.logger.warning(
                 f"Kept shared volumes that name no app: {', '.join(names)}. They "
                 f"predate volume ownership, so another app in this namespace may "
-                f"own them. Redeploy that app to label them, or delete by hand.",
+                f"own them. Label one with 'jac-scale.owner' or delete it by hand.",
                 {"namespace": namespace}
             );
         }
@@ -2164,8 +2164,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
         } elif co_tenants and self.logger {
             self.logger.warning(
                 f"Keeping namespace '{namespace}': this app created it, but "
-                f"{', '.join(co_tenants)} in it belongs to another app. "
-                f"Removing only this app's resources.",
+                f"{', '.join(co_tenants)} in it belongs to another app. That "
+                f"app's database and volumes are kept, but workloads in this "
+                f"namespace were removed, so redeploy it to restore service.",
                 {"app_name": app_name}
             );
         }
