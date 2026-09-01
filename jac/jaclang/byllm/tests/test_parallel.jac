@@ -55,7 +55,7 @@ import from jaclang.byllm.config_loader { reset_byllm_config, get_byllm_config }
 # Helpers
 # ---------------------------------------------------------------------------
 """Noop callable — used as Tool.func stand-in so _is_async returns False."""
-def _noop { }
+def _noop {}
 
 
 # ---------------------------------------------------------------------------
@@ -301,13 +301,13 @@ test "sequential batch has no speedup" {
 # 10. _is_async detection
 # ---------------------------------------------------------------------------
 test "is async returns false for sync function" {
-    def sync_fn { }
+    def sync_fn {}
     assert _is_async(sync_fn) == False;
 }
 
 test "is async returns true for async function" {
     import asyncio;
-    async def async_fn { }
+    async def async_fn {}
     assert _is_async(async_fn) == True;
 }
 
@@ -351,14 +351,14 @@ test "timeout none means no timeout" {
 # 14. mark_serialize helper
 # ---------------------------------------------------------------------------
 test "mark serialize sets underscore serialize attribute" {
-    def my_func { }
+    def my_func {}
     assert not hasattr(my_func, '_serialize');
     mark_serialize(my_func);
     assert getattr(my_func, '_serialize') == True;
 }
 
 test "mark serialize returns the original function" {
-    def f { }
+    def f {}
     result = mark_serialize(f);
     assert result is f;
     assert getattr(result, '_serialize') == True;
@@ -438,8 +438,8 @@ test "mock tool call creates valid tool call with correct name" {
 # ---------------------------------------------------------------------------
 test "is async detects coroutine functions at runtime" {
     import asyncio;
-    def sync_fn { }
-    async def async_fn { }
+    def sync_fn {}
+    async def async_fn {}
     assert _is_async(sync_fn) == False;
     assert _is_async(async_fn) == True;
     assert callable(_is_async);

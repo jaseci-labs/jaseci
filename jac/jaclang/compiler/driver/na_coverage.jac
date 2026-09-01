@@ -46,6 +46,38 @@ def na_coverage_seam(path: str, reason: str) {
     rec['seams'].append(reason);
 }
 
+def na_coverage_capture(path: str) -> dict {
+    if not path {
+        return {};
+    }
+    rec = _na_coverage.get(os.path.realpath(path));
+    if rec is None {
+        return {};
+    }
+    return {
+        'outcome': rec['outcome'],
+        'code': rec['code'],
+        'detail': rec['detail'],
+        'seams': list(rec['seams'] or [])
+    };
+}
+
+def na_coverage_replay(path: str, rec: dict) {
+    if not _na_coverage_state["enabled"] or not path or not rec {
+        return;
+    }
+    key = os.path.realpath(path);
+    if key in _na_coverage {
+        return;
+    }
+    _na_coverage[key] = {
+        'outcome': rec.get('outcome') or 'native',
+        'code': rec.get('code') or '',
+        'detail': rec.get('detail') or '',
+        'seams': list(rec.get('seams') or [])
+    };
+}
+
 def na_coverage_end -> dict {
     snap = dict(_na_coverage);
     _na_coverage_state["enabled"] = False;
@@ -108,7 +140,5 @@ def _note_native_closure_cap(root_path: str, cap: int) {
             style="dim",
             file=sys.stderr
         );
-    } except Exception {
-        ;
-    }
+    } except Exception {}
 }

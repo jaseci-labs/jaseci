@@ -17,7 +17,7 @@ def _parse_entry_file(entry_file: Path) -> tuple[str, str] {
     return (base, mod);
 }
 
-impl WebTarget.setup(project_dir: Path) -> None { }
+impl WebTarget.setup(project_dir: Path) -> None {}
 
 impl WebTarget.dev(
     entry_file: Path, project_dir: Path, port: int = 8000, api_port: int = 0

@@ -383,7 +383,7 @@ def _parse_value(token: str) -> object {
     }
     try {
         return json.loads(t);
-    } except Exception { }
+    } except Exception {}
     if len(t) >= 2 and t[0] == "'" and t[-1] == "'" {
         return t[1:-1];
     }

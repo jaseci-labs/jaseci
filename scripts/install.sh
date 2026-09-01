@@ -27,6 +27,10 @@ INSTALL_DIR="${HOME}/.local/bin"
 # --- Defaults ---
 VERSION=""
 UNINSTALL=false
+# Filled in by resolve_release_metadata once the release is known: the jac
+# binary version its assets are named with, and every asset name it carries.
+ASSET_VERSION=""
+RELEASE_ASSETS=""
 
 # --- Colors and output helpers ---
 
@@ -219,7 +223,12 @@ get_latest_version() {
     echo "$tag"
 }
 
-resolve_jaclang_version_from_release() {
+# Reads the release once and leaves both answers in globals: ASSET_VERSION and
+# RELEASE_ASSETS. Globals rather than a printed value on purpose -- a caller
+# would have to run this in a command substitution to capture what it echoes,
+# and a subshell's assignments are gone the moment it exits, so the asset list
+# would silently arrive empty at every caller.
+resolve_release_metadata() {
     local release_tag="$1"
     local response
     response=$(api_curl "${GITHUB_API}/releases/tags/v${release_tag}" 2>/dev/null) || {
@@ -227,18 +236,90 @@ resolve_jaclang_version_from_release() {
         exit 1
     }
 
+    # Every asset name on that release, one per line. A platform's binary is
+    # either in here or the release genuinely has none, and the second case
+    # deserves a straight answer rather than a download that 404s.
+    RELEASE_ASSETS=$(echo "$response" | grep -o '"name":[[:space:]]*"[^"]*"' | sed -E 's/.*"([^"]*)"$/\1/')
+
     # Find a jac-<version>-<os>-<arch> asset to extract the jac binary version
     # (the jaclang version, which can differ from the jaseci release tag).
-    local jac_version
-    jac_version=$(echo "$response" | grep -o '"name":[[:space:]]*"jac-[^"]*"' | head -1 | grep -oE 'jac-[0-9]+\.[0-9]+\.[0-9]+' | sed 's/^jac-//')
+    ASSET_VERSION=$(echo "$response" | grep -o '"name":[[:space:]]*"jac-[^"]*"' | head -1 | grep -oE 'jac-[0-9]+\.[0-9]+\.[0-9]+' | sed 's/^jac-//')
 
-    if [[ -z "$jac_version" ]]; then
+    if [[ -z "$ASSET_VERSION" ]]; then
         err "Could not determine the jac binary version from release v${release_tag} assets."
         err "The native binary may not have been built yet for this release."
         exit 1
     fi
+}
 
-    echo "$jac_version"
+# Walks back through recent releases for the newest one that carries a binary
+# for this platform, so the message below can name a version instead of waving
+# at the releases page. Bounded: this only ever runs on an error path, and each
+# probe is one API call. Prints the version, or nothing if it finds none.
+#
+# The asset match insists on a jac-<major>.<minor>.<patch>-<platform> name, so
+# the rolling `dev` prerelease's jac-dev-* assets never answer for a release.
+find_last_release_with_platform() {
+    local list tags tag body probed=0
+
+    list=$(api_curl "${GITHUB_API}/releases?per_page=20" 2>/dev/null) || return 0
+    tags=$(echo "$list" | grep -o '"tag_name":[[:space:]]*"[^"]*"' | sed -E 's/.*"([^"]*)"$/\1/')
+
+    while read -r tag; do
+        [[ -n "$tag" ]] || continue
+        [[ "$tag" == v* ]] || continue
+        [[ "$tag" != "v${VERSION}" ]] || continue
+        if [[ $probed -ge 8 ]]; then
+            break
+        fi
+        probed=$((probed + 1))
+        body=$(api_curl "${GITHUB_API}/releases/tags/${tag}" 2>/dev/null) || continue
+        if echo "$body" | grep -qE "\"name\":[[:space:]]*\"jac-[0-9]+\.[0-9]+\.[0-9]+-${OS}-${ARCH}\""; then
+            echo "${tag#v}"
+            return 0
+        fi
+    done <<< "$tags"
+}
+
+# A release either carries this platform's binary or it does not, and the only
+# useful thing to do about "it does not" is say so. There is no fallback build
+# to hand an Intel Mac: the Apple Silicon binary is arm64 code that Intel
+# hardware cannot execute, and Rosetta translates x86_64 onto Apple Silicon,
+# not the other way round.
+require_platform_asset() {
+    local asset="$1"
+
+    if printf '%s\n' "$RELEASE_ASSETS" | grep -qxF "$asset"; then
+        return 0
+    fi
+
+    err "Release v${VERSION} ships no jac binary for ${OS}-${ARCH}."
+    err ""
+    if [[ "$OS" == "macos" && "$ARCH" == "x86_64" ]]; then
+        err "This release has no Intel macOS build, and there is nothing else here"
+        err "that will run on this machine: the macOS binary that did build is"
+        err "arm64 (Apple Silicon) code, and Rosetta translates in the opposite"
+        err "direction. So there is no way to install v${VERSION} on an Intel Mac."
+        err ""
+        info "Looking for the most recent release that does have one..."
+        local last
+        last=$(find_last_release_with_platform)
+        if [[ -n "$last" ]]; then
+            err "Install v${last} instead, the newest release with an Intel macOS build:"
+            err ""
+            err "  curl -fsSL https://raw.githubusercontent.com/${REPO}/main/scripts/install.sh | bash -s -- --version ${last}"
+            err ""
+            err "Stay on it until an Intel build ships again."
+        else
+            err "No recent release carries one either. See the release list for"
+            err "the last version that did:"
+            err ""
+            err "  https://github.com/${REPO}/releases"
+        fi
+    else
+        err "Pick a release that has one: https://github.com/${REPO}/releases"
+    fi
+    exit 1
 }
 
 # --- Binary installation ---
@@ -256,11 +337,16 @@ install_binary() {
     # The jac binary asset is named with the jaclang version, which can differ
     # from the jaseci release tag.
     info "Resolving jac binary version for release v${VERSION}..."
-    local asset_version
-    asset_version=$(resolve_jaclang_version_from_release "$VERSION")
-    info "jac binary version: ${asset_version}"
+    resolve_release_metadata "$VERSION"
+    info "jac binary version: ${ASSET_VERSION}"
 
-    local asset="jac-${asset_version}-${OS}-${ARCH}"
+    local asset="jac-${ASSET_VERSION}-${OS}-${ARCH}"
+
+    # Checked against the release's own asset list before downloading, so a
+    # platform this release did not build gets an explanation rather than a
+    # 404 and a list of guesses.
+    require_platform_asset "$asset"
+
     local download_url="https://github.com/${REPO}/releases/download/v${VERSION}/${asset}"
     local checksum_url="${download_url}.sha256"
 
@@ -278,10 +364,10 @@ install_binary() {
     if ! curl -fsSL -o "${tmpdir}/${asset}" "$download_url"; then
         err "Failed to download: ${download_url}"
         err ""
-        err "This could mean:"
-        err "  - The version '${VERSION}' does not exist"
-        err "  - A native binary is not available for ${OS}-${ARCH}"
-        err "  - Network issue"
+        # Not a missing-asset guess any more: require_platform_asset already
+        # confirmed the release lists this exact file.
+        err "Release v${VERSION} does list this asset, so this is most likely a"
+        err "network problem or a transient GitHub outage. Try again in a moment."
         exit 1
     fi
 

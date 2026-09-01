@@ -764,11 +764,13 @@ test "release compile closure clears ASTs and evaluator but keeps stubs" {
         ast_ref = source_ref();
         prog.parse_str("value: int\n", stub_path);
         prog.get_type_evaluator();
-        prog.release_compile_closure(keep_stubs=True);
+        prog.release_compile_closure();
         gc.collect();
         assert ast_ref() is None , "released AST is still strongly referenced";
         # The hub is keyed by the resolved path (JacProgram.hub_key), and
-        # find_module is the accessor that normalizes for you.
+        # find_module is the accessor that normalizes for you. Typeshed lives
+        # in the stub catalog and never enters the hub; a project .pyi loaded
+        # from source is retained across a release like any stub tree.
         assert prog.find_module(source_path) is None;
         assert prog.find_module(stub_path) is not None;
         assert prog.type_evaluator is None;

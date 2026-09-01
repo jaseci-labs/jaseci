@@ -52,7 +52,8 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
         _metrics: any = None,
         base_path: str = ".",
         route_table: ServiceRouteTable = ServiceRouteTable(),
-        _spec_crawl: any = None;
+        _spec_crawl: any = None,
+        port_pinned: bool = False;
 
     def setup -> ServingApp;
     def resolve_target_url(service_entry: ServiceEntry, path: str, query: str) -> str;
@@ -89,6 +90,7 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
     def handle_metrics -> Response;
     async def handle_openapi -> Response;
     def handle_docs -> Response;
+    def has_client_bundle -> bool;
     def build_forward_headers(request: Request) -> dict[str, str];
     def serve_static(file_path: str) -> Response | None;
     def serve_extra_static(local_dir: str, file_path: str) -> Response | None;
@@ -97,5 +99,5 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
     def bootstrap_admin_ui -> None;
     def _install_admin_api -> None;
     def serve_admin_asset(asset_path: str) -> Response | None;
-    def start -> None;
+    def start(on_ready: any = None) -> None;
 }

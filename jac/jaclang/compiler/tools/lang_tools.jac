@@ -44,7 +44,6 @@ obj AstTool {
     has ast_classes: list[UniNodeInfo] = [];
 
     def init -> None;
-    def pass_template -> str;
     def py_uni_nodes -> str;
     def ir(args: list[str]) -> str;
     def autodoc_uninode -> str;

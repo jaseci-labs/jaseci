@@ -229,7 +229,7 @@ def stop_dev_watcher(watcher: any) {
     if watcher {
         try {
             watcher.stop();
-        } except Exception { }
+        } except Exception {}
     }
 }
 
@@ -246,7 +246,7 @@ def terminate_dev_processes(
         } except Exception {
             try {
                 p.kill();
-            } except Exception { }
+            } except Exception {}
         }
     }
 }

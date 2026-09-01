@@ -112,10 +112,10 @@ def _race_round(td: str, racers: int) -> list[Exception] {
             if s._schema_stamp() {
                 stamped += 1;
             }
-        } except Exception { }
+        } except Exception {}
         try {
             s.close();
-        } except Exception { }
+        } except Exception {}
     }
     if not failures {
         assert stamped == racers , (
