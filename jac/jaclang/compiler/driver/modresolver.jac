@@ -130,6 +130,9 @@ def _candidate_from(base: str, parts: list[str]) -> (tuple[(str, str)] | None) {
 def _self_tree_candidate(
     base_dir: str, actual_parts: list[str]
 ) -> (tuple[(str, str)] | None) {
+    if not actual_parts {
+        return None;
+    }
     if actual_parts[0] == COMPILER_PACKAGE {
         return None;
     }
@@ -277,6 +280,9 @@ def is_path_alias_import(target: str, base_path: str) -> bool {
 def resolve_module(
     target: str, base_path: str, string_spec: bool = False
 ) -> tuple[(str, str)] {
+    if not target {
+        return ('', 'other');
+    }
     base_dir = os.path.dirname(base_path);
 
     jac_virtual = _resolve_jac_virtual_module(target);
@@ -399,7 +405,7 @@ def resolve_module(
         }
     }
     jacpath = os.getenv('JACPATH');
-    if jacpath {
+    if (jacpath and actual_parts) {
         res = _candidate_from(jacpath, actual_parts);
         if res {
             return res;
