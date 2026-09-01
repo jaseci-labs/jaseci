@@ -152,33 +152,32 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
     jc_src = os.path.join(repo_root, "jaclang", "compiler", "jc_unit.jac");
     jc_dst = os.path.join(site, "jaclang", "compiler", jc_name);
     log(f"==> building native compiler kernel (nacompile --shared {jc_src})");
-    import from jaclang.cli.commands.nacompile { nacompile as _nacompile }
-    _prev_shim = os.environ.get("JAC_LLVM_SHIM");
-    _prev_klib = os.environ.get("JAC_COMPILER_LIB");
-    os.environ["JAC_LLVM_SHIM"] = so;
-    os.environ["JAC_COMPILER_LIB"] = "off";
-    try {
-        jc_rc = _nacompile(jc_src, output=jc_dst, shared=True);
-    } finally {
-        if _prev_shim is None {
-            del os.environ["JAC_LLVM_SHIM"];
-        } else {
-            os.environ["JAC_LLVM_SHIM"] = _prev_shim;
-        }
-        if _prev_klib is None {
-            del os.environ["JAC_COMPILER_LIB"];
-        } else {
-            os.environ["JAC_COMPILER_LIB"] = _prev_klib;
-        }
-    }
+    jc_boot = (
+        "import os, sys\n"
+        + "root, src, dst = sys.argv[1], sys.argv[2], sys.argv[3]\n"
+        + "sys.path.insert(0, root)\n"
+        + "import _jac_finder\n"
+        + "_jac_finder.install()\n"
+        + "from jaclang.cli.commands.nacompile import nacompile\n"
+        + "rc = int(nacompile(src, output=dst, shared=True) or 0)\n"
+        + "sys.stdout.flush()\n"
+        + "sys.stderr.flush()\n"
+        + "os._exit(rc)\n"
+    );
+    jc_env = clone_env();
+    jc_env["JAC_LLVM_SHIM"] = os.path.abspath(so);
+    jc_env["JAC_COMPILER_LIB"] = "off";
+    jc_env["JAC_NO_DEV_SOURCE"] = "1";
+    jc_env["JAC_STUBCAT_BUILDING"] = "1";
+    jc_ok = run_child(
+        [sys.executable, "-I", "-c", jc_boot, repo_root, jc_src, jc_dst], jc_env, True
+    );
     if (
-        jc_rc != 0
-        or not file_exists(jc_dst)
-        or not file_exists(jc_dst + ".layout.json")
+        not jc_ok or not file_exists(jc_dst) or not file_exists(jc_dst + ".layout.json")
     ) {
         raise PayloadDie(
-            f"mkpayload: native compiler kernel build failed (rc={jc_rc}); the"
-            f" shipped binary requires {jc_dst} and its .layout.json sidecar."
+            f"mkpayload: native compiler kernel build failed; the shipped"
+            f" binary requires {jc_dst} and its .layout.json sidecar."
         );
     }
 
