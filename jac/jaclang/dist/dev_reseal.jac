@@ -7,11 +7,11 @@ refill happens lazily: one module at a time, serially, interleaved with
 whatever command the user actually ran.
 
 This module replaces the lazy avalanche with one batch rebuild at CLI
-dispatch: the newest previous generation directory records exactly which
-modules this machine had warm, so we map those jirs back to their source
-files and recompile just that working set across forked workers, through the
-same compile-and-persist path a lazy miss would take. Modules never cached
-before stay lazy. A fresh machine has no previous generation and pays
+dispatch: recent generation directories record exactly which modules this
+machine had warm, so we map those jirs back to their source files and
+recompile just that working set across forked workers, through the same
+compile-and-persist path a lazy miss would take. Modules never cached
+before stay lazy. A fresh machine has no previous generations and pays
 nothing.
 
 Correctness never depends on this pass: anything it skips or fails simply
@@ -42,38 +42,21 @@ glob _SKIP_COMMANDS: tuple = (
 glob _unit_program: list = [];
 
 """One unit through the normal miss path: compile and persist to the module
-cache. With keep=False the closure is dropped after so worker RSS stays
-flat; keep=True retains the analyzed hub so later units (and forked workers,
-via copy-on-write) reuse it instead of re-analyzing shared deps."""
-def _compile_unit(
-    jac_path: str, collect: bool, keep: bool = False
-) -> (types.CodeType | None) {
+cache. Analyzed closures are retained across units (unit_retain), so later
+units in this worker reuse shared deps instead of re-analyzing them; the
+worker retire cap bounds the resulting RSS growth."""
+def _compile_unit(jac_path: str) -> (types.CodeType | None) {
     import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from jaclang.compiler.driver.program { JacProgram }
-    import from jaclang.cli.workpool { maybe_malloc_trim }
 
     compiler = Jac.get_compiler();
     if not _unit_program {
         _unit_program.append(JacProgram());
     }
-    program = _unit_program[0];
-    compiler.unit_collect = collect;
-    code = compiler.get_bytecode(full_target=jac_path, target_program=program);
-    if not keep {
-        program.release_compile_closure(collect=collect);
-        compiler.selfhost.program.release_compile_closure(collect=collect);
-        maybe_malloc_trim();
-    }
-    return code;
+    return compiler.get_bytecode(
+        full_target=jac_path, target_program=_unit_program[0]
+    );
 }
-
-glob _WARM_ROOTS: tuple = (
-         "compiler/driver/compiler.jac",
-         "compiler/types/type_evaluator.jac",
-         "runtime/runtime.jac",
-         "cli/commands/execution.jac",
-         "lsp/server/server.jac"
-     );
 
 """Retain analyzed closures across units for this process (and, via fork,
 its workers): with unit_retain set, get_bytecode's outermost evict_unit is
@@ -82,33 +65,6 @@ def _retain_units -> None {
     import from jaclang.runtime.runtime { JacRuntime as Jac }
 
     Jac.get_compiler().unit_retain = True;
-}
-
-"""Fork-cascade warm-up (prototype, JAC_DEV_RESEAL_WARM=1): analyze a few
-broad trunk roots once in the parent, then freeze the heap so forked workers
-inherit the warm hub via copy-on-write instead of each re-analyzing shared
-closures."""
-def _warm_trunk -> None {
-    import gc;
-    import from jaclang.compiler.driver.jir { _jaclang_pkg_dir }
-
-    trunk_started = time.monotonic();
-    for rel in _WARM_ROOTS {
-        candidate = os.path.join(_jaclang_pkg_dir, rel.replace("/", os.sep));
-        if not os.path.isfile(candidate) {
-            continue;
-        }
-        try {
-            _compile_unit(candidate, collect=False, keep=True);
-        } except Exception {
-            continue;
-        }
-    }
-    gc.freeze();
-    sys.stderr.write(
-        f"jac: trunk warm-up {time.monotonic() - trunk_started:.1f}s\n"
-    );
-    sys.stderr.flush();
 }
 
 def _reseal_retire(served: int, rss_mb: int) -> bool {
@@ -271,18 +227,11 @@ def _run_pool(targets: list[str]) -> dict[(str, any)] {
     );
     sys.stderr.flush();
 
-    warm_setting = os.environ.get("JAC_DEV_RESEAL_WARM", "").strip();
-    keep_hub = warm_setting not in ("0", "evict");
-    if keep_hub {
-        _retain_units();
-        if warm_setting == "fork" {
-            _warm_trunk();
-        }
-    }
+    _retain_units();
     warm = targets[0];
     remaining = targets[1:];
     try {
-        warm_code = _compile_unit(warm, collect=False, keep=keep_hub);
+        warm_code = _compile_unit(warm);
         counts["compiled" if warm_code is not None else "failed"] += 1;
     } except Exception {
         counts["failed"] += 1;
@@ -299,7 +248,7 @@ def _run_pool(targets: list[str]) -> dict[(str, any)] {
             if is_module_cache_valid(jac_path, get_module_cache_path(jac_path)) {
                 return {"status": "reused"};
             }
-            code = _compile_unit(jac_path, collect=not use_pool, keep=keep_hub);
+            code = _compile_unit(jac_path);
             if code is None {
                 return {"status": "failed", "message": f"no bytecode: {jac_path}"};
             }
