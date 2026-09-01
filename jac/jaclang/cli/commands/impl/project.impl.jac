@@ -1494,11 +1494,11 @@ def _run_precompiler(src_dir: str, flags: list[str]) -> int {
 
     code = (
         "import _jac_finder as _jf; _jf.apply_dev_source_override(); _jf.install(); "
-        "import sys; sys.argv = ['precompile', "
+        "import sys; sys.argv = ['jac', 'precompile', "
         + repr(src_dir)
         + "] + "
         + repr(list(flags))
-        + "; from jaclang.dist.precompile_bytecode import main; main()"
+        + "; from jaclang.cli.cli_boot import start_cli; start_cli()"
     );
     return subprocess.call([sys.executable, "-c", code]);
 }
