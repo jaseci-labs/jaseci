@@ -691,8 +691,6 @@ impl NaIRGenCycleCollector._emit_rc_collect_cycles -> None {
 }
 
 impl NaIRGenCycleCollector._emit_rc_collect_export -> None {
-    # A host embedding the lib (the compiler kernel loader) needs a
-    # deterministic collection point; the collector itself is internal.
     collect_fn = self.rc_collect_cycles_fn;
     if collect_fn is None {
         return;

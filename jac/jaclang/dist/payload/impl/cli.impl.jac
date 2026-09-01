@@ -23,10 +23,7 @@ impl main(argv: list[str]) -> int {
         sys.stderr.flush();
         return 1;
     }
-    # mkpayload hosts the kernel nacompile in-process, and the loaded LLVM
-    # shim does not survive interpreter teardown reliably (a silent crash
-    # or hang after the last log line, which zig then retries at full
-    # cost). The work is done and durable at this point; skip teardown.
+
     sys.stdout.flush();
     sys.stderr.flush();
     os._exit(0);

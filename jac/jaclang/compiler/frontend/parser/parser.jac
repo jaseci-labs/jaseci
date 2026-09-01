@@ -1,5 +1,10 @@
 import from .tokens {
-    LexToken, TokenKind, SourceLoc, SrcDiag, CommentData, is_special_var_kind
+    LexToken,
+    TokenKind,
+    SourceLoc,
+    SrcDiag,
+    CommentData,
+    is_special_var_kind
 }
 import from .lexer { tokenize_full }
 

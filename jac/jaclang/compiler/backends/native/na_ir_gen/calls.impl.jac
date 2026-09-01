@@ -1390,10 +1390,7 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                         _id_val, self._opt_payload_of(_id_val.type)
                     );
                 }
-                if (
-                    _id_val is not None
-                    and isinstance(_id_val.type, ir.PointerType)
-                ) {
+                if (_id_val is not None and isinstance(_id_val.type, ir.PointerType)) {
                     return self.builder.ptrtoint(
                         _id_val, ir.IntType(64), name="id.p2i"
                     );
@@ -1403,9 +1400,7 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                     and self?.jacval_type
                     and _id_val.type == self.jacval_type
                 ) {
-                    return self.builder.extract_value(
-                        _id_val, 1, name="id.jv.payload"
-                    );
+                    return self.builder.extract_value(_id_val, 1, name="id.jv.payload");
                 }
             }
         }

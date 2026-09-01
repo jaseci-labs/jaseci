@@ -1,16 +1,3 @@
-"""Entry unit for libjac_compiler: the native compiler kernel's C ABI surface.
-
-The kernel parses (and weaves annexes) natively, then hands the whole tree
-to Python in one call: jc_parse -> jc_weave* -> jc_finish. jc_finish runs
-the materializer (jc_materialize.jac), which builds the ordinary Python
-unitree and purges the kernel's graph state for the parse.
-
-This unit is the typed side of the kernel: it holds the parse state and the
-typed helpers the raw-world materializer reaches through the C ABI (a raw
-handle re-enters the typed world by being passed to an exported function
-whose parameter is declared with the real type).
-"""
-
 import from c { def PyList_New(n: int) -> int;  }
 import from c { def PyList_SetItem(l: int, i: int, v: int) -> int;  }
 
@@ -167,7 +154,7 @@ def _packed_shapes(nd: UniNode) -> int {
     return b | (sp << 4) | (a << 8);
 }
 
-def _apply_shapes(mod: Module) -> None {
+def _apply_shapes(mod: Module) {
     stack: list[UniNode] = [mod];
     seen: set[int] = set();
     while stack {

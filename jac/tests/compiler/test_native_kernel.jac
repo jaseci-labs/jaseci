@@ -71,7 +71,7 @@ def _profile(nd: any) -> list {
     while stack {
         cur = stack.pop();
         row = [`type(cur).__name__];
-        v = getattr(cur, "value", None);
+        v = cur?.value;
         if isinstance(v, str) {
             row.append(v);
         }
