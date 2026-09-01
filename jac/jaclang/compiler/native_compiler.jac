@@ -159,7 +159,7 @@ class NativeCompiler {
             for f in dataclasses.fields(cls) {
                 out[f.name] = str(f.`type);
             }
-        } except TypeError { }
+        } except TypeError {}
         return out;
     }
 
@@ -385,7 +385,7 @@ class NativeCompiler {
         if self.teardown != "leak" and self._finishes % 4 == 0 {
             try {
                 self.lib.jac_gc_cycles();
-            } except AttributeError { }
+            } except AttributeError {}
         }
         return out;
     }

@@ -43,9 +43,7 @@ def activate_scope_lowering -> None {
                 }
             }
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
 }
 
 def scope_lowering_active -> bool {
