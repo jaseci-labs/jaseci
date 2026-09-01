@@ -10,7 +10,7 @@ impl NaIRGenContextMgr._codegen_with(nd: uni.WithStmt) -> None {
 }
 
 impl NaIRGenContextMgr._codegen_with_recursive(
-    exprs: object, idx: int, body: object
+    exprs: Sequence[uni.ExprAsItem], idx: int, body: Sequence[uni.CodeBlockStmt]
 ) -> None {
     if idx >= len(exprs) {
         if isinstance(body, (list, tuple)) {

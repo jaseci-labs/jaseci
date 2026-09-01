@@ -421,9 +421,7 @@ test "walker_call records one breaker failure per failed round trip" {
         sv_client.register(mod, "http://demo.invalid");
         try {
             JacScalePlugin.sv_walker_call(mod, "Ping", {}, None);
-        } except RuntimeError {
-            ;
-        }
+        } except RuntimeError {}
 
         st = _breaker_peek(mod);
         assert st is not None;
@@ -449,9 +447,7 @@ test "breaker opens after exactly the trip threshold of failed round trips" {
             calls += 1;
             try {
                 JacScalePlugin.sv_service_call(mod, "ping", {});
-            } except RuntimeError {
-                ;
-            }
+            } except RuntimeError {}
         }
 
         assert round_trips["n"] == _BREAKER_TRIP_THRESHOLD , (
@@ -522,9 +518,7 @@ test "application error envelope does NOT trip the breaker" {
         for _ in range(_BREAKER_TRIP_THRESHOLD) {
             try {
                 JacScalePlugin.sv_service_call(mod, "fail", {});
-            } except RuntimeError {
-                ;
-            }
+            } except RuntimeError {}
         }
 
         assert not breaker_should_skip(mod);
@@ -799,9 +793,7 @@ def _start_counting_server(counts: dict, reply: (bytes | None)) -> tuple {
                 try {
                     conn.sendall(reply);
                     conn.close();
-                } except OSError {
-                    ;
-                }
+                } except OSError {}
             }
         }
     }
@@ -814,15 +806,11 @@ def _start_counting_server(counts: dict, reply: (bytes | None)) -> tuple {
 def _stop_counting_server(srv: any, held: list) {
     try {
         srv.close();
-    } except OSError {
-        ;
-    }
+    } except OSError {}
     for conn in held {
         try {
             conn.close();
-        } except OSError {
-            ;
-        }
+        } except OSError {}
     }
 }
 

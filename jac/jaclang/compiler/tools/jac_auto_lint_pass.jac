@@ -14,8 +14,8 @@ import from jaclang.compiler.frontend.diagnostics {
     W3008,
     W3009,
     W3010,
-    W3011,
     E3012,
+    W3013,
     W3020,
     W3021,
     W3022,
@@ -36,8 +36,26 @@ import from jaclang.compiler.frontend.diagnostics {
     W3051
 }
 import type from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.frontend.roles {
+    AssignmentsRole,
+    BodyRole,
+    ConditionRole,
+    DecoratorsRole,
+    DocRole,
+    ElseValueRole,
+    ExprRole,
+    ItemsRole,
+    NameRefRole,
+    ReturnTypeRole,
+    SignatureRole,
+    SpecRole,
+    TargetRole,
+    ValueRole,
+    ValuesRole,
+    VarsRole
+}
 
-obj JacAutoLintPass(UniPass) {
+walker JacAutoLintPass(UniPass) {
     has prog: JacProgram,
         lint_enabled: bool = True,
         report_only: bool = False,
@@ -53,7 +71,7 @@ obj JacAutoLintPass(UniPass) {
 
     def postinit -> None;
     def _is_file_excluded(file_path: str) -> bool;
-    def enter_module(nd: uni.Module) -> None;
+    can enter_module with uni.Module entry;
     def can_convert_to_glob(assignment: uni.Assignment) -> bool;
     def names_unsafe_to_globalize(module: uni.Module) -> set[str];
     def entry_written_names(module: uni.Module) -> set[str];
@@ -65,15 +83,15 @@ obj JacAutoLintPass(UniPass) {
     def combine_consecutive_has(body: list) -> list;
     def combine_consecutive_glob(body: list) -> list;
     def _combine_has_in_node(nd: uni.Archetype | uni.Enum | uni.Ability) -> None;
-    def enter_archetype(nd: uni.Archetype) -> None;
-    def enter_enum(nd: uni.Enum) -> None;
-    def enter_impl_def(nd: uni.ImplDef) -> None;
-    def exit_impl_def(nd: uni.ImplDef) -> None;
-    def enter_ability(ability_node: uni.Ability) -> None;
+    can enter_archetype with uni.Archetype entry;
+    can enter_enum with uni.Enum entry;
+    can enter_impl_def with uni.ImplDef entry;
+    can exit_impl_def with uni.ImplDef exit;
+    can enter_ability with uni.Ability entry;
     def _remove_staticmethod_from_kids(ability_node: uni.Ability) -> None;
-    def exit_ability(ability_node: uni.Ability) -> None;
-    def enter_special_var_ref(nd: uni.SpecialVarRef) -> None;
-    def exit_func_call(nd: uni.FuncCall) -> None;
+    can exit_ability with uni.Ability exit;
+    can enter_special_var_ref with uni.SpecialVarRef entry;
+    can exit_func_call with uni.FuncCall exit;
     def _convert_hasattr_to_null_ok(nd: uni.FuncCall) -> (uni.AtomTrailer | None);
     def _convert_getattr_to_null_ok(nd: uni.FuncCall) -> (uni.AtomTrailer | None);
     def _funccall_to_null_safe(
@@ -100,8 +118,8 @@ obj JacAutoLintPass(UniPass) {
     def _expr_to_key(expr: uni.Expr) -> (str | None);
     def _exprs_are_identical(expr1: uni.Expr, expr2: uni.Expr) -> bool;
     def _convert_ternary_to_or(if_else_node: uni.IfElseExpr) -> bool;
-    def exit_if_else_expr(if_else_node: uni.IfElseExpr) -> None;
-    def exit_bool_expr(bool_node: uni.BoolExpr) -> None;
+    can exit_if_else_expr with uni.IfElseExpr exit;
+    can exit_bool_expr with uni.BoolExpr exit;
     def _is_future_annotations_import(stmt: uni.UniNode) -> bool;
     def _fix_impl_signature_mismatch(impl_node: uni.ImplDef) -> None;
     def _impl_owner_archetype(impl_node: uni.ImplDef) -> (uni.Archetype | None);
@@ -111,7 +129,7 @@ obj JacAutoLintPass(UniPass) {
     ) -> bool;
 
     def _stmt_body_list(nd: uni.UniNode) -> (Sequence[uni.UniNode] | None);
-    def enter_import(import_node: uni.Import) -> None;
+    def _strip_redundant_semis(nd: uni.Module) -> None;
     def _remove_empty_parens_from_sig(
         target_node: uni.UniNode, sig: uni.FuncSignature, sig_attr: str
     ) -> None;
@@ -136,13 +154,13 @@ obj JacAutoLintPass(UniPass) {
     ) -> None;
 
     def _body_has_return_stmt(body: list) -> bool;
-    def exit_if_stmt(nd: uni.IfStmt) -> None;
-    def enter_else_stmt(nd: uni.ElseStmt) -> None;
-    def exit_compare_expr(nd: uni.CompareExpr) -> None;
-    def exit_func_signature(nd: uni.FuncSignature) -> None;
-    def enter_param_var(nd: uni.ParamVar) -> None;
-    def exit_archetype(nd: uni.Archetype) -> None;
-    def exit_lambda_expr(nd: uni.LambdaExpr) -> None;
+    can exit_if_stmt with uni.IfStmt exit;
+    can enter_else_stmt with uni.ElseStmt entry;
+    can exit_compare_expr with uni.CompareExpr exit;
+    can exit_func_signature with uni.FuncSignature exit;
+    can enter_param_var with uni.ParamVar entry;
+    can exit_archetype with uni.Archetype exit;
+    can exit_lambda_expr with uni.LambdaExpr exit;
     def _is_usestate_assignment(
         stmt: uni.UniNode
     ) -> (tuple[str, str, uni.Expr | None] | None);
@@ -157,8 +175,8 @@ obj JacAutoLintPass(UniPass) {
 
     def _convert_usestate_vars(ability_node: uni.Ability) -> None;
     def _strip_usestate_imports(nd: uni.Module) -> None;
-    def exit_expr_stmt(nd: uni.ExprStmt) -> None;
-    def exit_module(nd: uni.Module) -> None;
+    can exit_expr_stmt with uni.ExprStmt exit;
+    can exit_module with uni.Module exit;
     def _strip_noise(nd: uni.Module) -> None;
     def _strip_docstrings(start: uni.UniNode) -> None;
     def _collect_doc_nodes(`node: uni.UniNode, results: list[uni.AstDocNode]) -> None;
@@ -196,6 +214,6 @@ obj JacAutoLintPass(UniPass) {
     def _convert_property_impl(nd: uni.ImplDef) -> None;
 }
 
-obj JacLintCheckPass(JacAutoLintPass) {
+walker JacLintCheckPass(JacAutoLintPass) {
     has report_only: bool = True;
 }

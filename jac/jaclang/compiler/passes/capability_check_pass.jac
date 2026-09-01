@@ -84,7 +84,7 @@ def partition_native_capability_violations(
     )
 ];
 
-obj PortabilityWarnPass(Transform) {
+walker PortabilityWarnPass(Transform) {
     has ir_in: Module,
         cancel_token: any = None;
 
@@ -92,6 +92,8 @@ obj PortabilityWarnPass(Transform) {
 
     def postinit -> None;
     def transform(ir_in: Module) -> Module;
+    def _run_impl(ir_in: Module) -> Module;
+    can run_walk with Module entry;
     def _check_js_globals(mod: Module) -> None;
     def _check_js_methods(mod: Module) -> None;
     def _find_call_is_js_style(call: FuncCall) -> bool;
@@ -99,20 +101,24 @@ obj PortabilityWarnPass(Transform) {
     def _check_js_properties(mod: Module) -> None;
 }
 
-obj NativeCapabilityCheckPass(Transform) {
+walker NativeCapabilityCheckPass(Transform) {
     static has PROVIDES: tuple = ('capability', );
     has ir_in: Module,
         cancel_token: any = None;
 
     def postinit -> None;
     def transform(ir_in: Module) -> Module;
+    def _run_impl(ir_in: Module) -> Module;
+    can run_walk with Module entry;
 }
 
-obj ClientCapabilityCheckPass(Transform) {
+walker ClientCapabilityCheckPass(Transform) {
     static has PROVIDES: tuple = ('client_capability', );
     has ir_in: Module,
         cancel_token: any = None;
 
     def postinit -> None;
     def transform(ir_in: Module) -> Module;
+    def _run_impl(ir_in: Module) -> Module;
+    can run_walk with Module entry;
 }

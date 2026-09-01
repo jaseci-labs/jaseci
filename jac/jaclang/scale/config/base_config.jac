@@ -1,15 +1,22 @@
+import from jaclang.comptime { fields, get_field }
+
 obj BaseConfig {
     has app_name: str = 'jaseci',
         namespace: str = 'default';
 
     def to_dict -> dict[str, any] {
-        return {'app_name': self.app_name, 'namespace': self.namespace};
+        out: dict[str, any] = {};
+        comptime for f in fields(BaseConfig) {
+            out[f.name] = get_field(self, f.name);
+        }
+        return out;
     }
 
     static def from_dict(cls: type, config: dict[str, any]) -> BaseConfig {
-        return cls(
-            app_name=config.get('app_name', 'jaseci'),
-            namespace=config.get('namespace', 'default')
-        );
+        kw: dict[str, any] = {};
+        comptime for f in fields(BaseConfig) {
+            kw[f.name] = config.get(f.name, f.`default);
+        }
+        return cls(**kw);
     }
 }

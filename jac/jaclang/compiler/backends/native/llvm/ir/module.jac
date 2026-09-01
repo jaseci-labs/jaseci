@@ -1,6 +1,8 @@
 import collections;
 import from jaclang.compiler.backends.native.llvm.ir { context, values, types, _utils }
 class Module(object) {
+    has globals: dict[str, values.GlobalValue] = {};
+
     def init(
         self: Module, name: any = '', context: any = context.global_context
     ) -> object {
@@ -152,14 +154,14 @@ class Module(object) {
         An iterable of global values in this module.
         """
     @property
-    def global_values(self: Module) -> object {
+    def global_values(self: Module) -> Iterable[values.GlobalValue] {
         return self.globals.values();
     }
 
     """
         Get a global value by name.
         """
-    def get_global(self: Module, name: any) -> object {
+    def get_global(self: Module, name: any) -> values.GlobalValue {
         return self.globals[name];
     }
 

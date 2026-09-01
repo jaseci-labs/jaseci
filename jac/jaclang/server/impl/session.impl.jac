@@ -248,6 +248,8 @@ impl Session.postinit -> None {
     self._active_units = 0;
     self._flushing = None;
     self._read_scopes = 0;
+    self._ro_units = 0;
+    self._unit_stack = [];
     self._snapshot_reads = set();
     self._version_seen = {};
     if self.store is None and self.base_path {
@@ -312,10 +314,11 @@ impl Session.get(id: UUID) -> (Anchor | None) {
 
 
 impl Session.put(anchor: Anchor) -> None {
+    aid = anchor.ensure_id();
     with self._lock {
-        self.__mem__[anchor.id] = anchor;
-        self._dirty[anchor.id] = None;
-        self._deleted.discard(anchor.id);
+        self.__mem__[aid] = anchor;
+        self._dirty[aid] = None;
+        self._deleted.discard(aid);
     }
 }
 
@@ -376,7 +379,7 @@ impl Session.get_roots -> Generator[Root, None, None] {
     seen: set[UUID] = set();
     for anchor in list(self.__mem__.values()) {
         if isinstance(anchor.archetype, Root) {
-            seen.add(anchor.id);
+            seen.add(anchor.ensure_id());
             yield anchor.archetype;
         }
     }
@@ -491,6 +494,7 @@ impl Session.abort -> None {
     self._evict_uncommitted();
     self._dirty.clear();
     self._deleted.clear();
+    self._drop_snapshot_reads();
     self._on_commit = [];
 }
 
@@ -529,11 +533,12 @@ impl Session.get_mem -> dict[UUID, Anchor] {
 
 impl Session.quarantine_ref(referrer: (Anchor | None), stub: Anchor) -> None {
     import from jaclang.runtime.osp_graph_sv { sv_forget_by_id }
-    sv_forget_by_id(stub.id, self);
+    sid = stub.ensure_id();
+    sv_forget_by_id(sid, self);
     if self.store is not None {
         try {
             self.store.quarantine(
-                stub.id, referrer.id if referrer else None, type(stub).__name__
+                sid, referrer.ensure_id() if referrer else None, type(stub).__name__
             );
         } except Exception as e {
             logger.debug(f"quarantine record failed: {e}");
@@ -591,13 +596,43 @@ impl Session._fire_on_commit -> None {
 
 
 impl Session._txn_isolation -> TxnIsolation {
-    if self._read_scopes > 0
-        and self._active_units == 0
-        and not self._dirty
-        and not self._deleted {
+    if self._dirty or self._deleted {
+        return TxnIsolation.SERIALIZABLE;
+    }
+    if self._read_scopes > 0 and self._active_units == 0 {
+        return TxnIsolation.SNAPSHOT_READ_ONLY;
+    }
+    if self._active_units > 0 and self._ro_units == self._active_units {
         return TxnIsolation.SNAPSHOT_READ_ONLY;
     }
     return TxnIsolation.SERIALIZABLE;
+}
+
+
+impl Session._register_ro_writers -> str {
+    keys = [
+        key
+        for (key, ro) in self._unit_stack
+        if ro and key is not None
+    ];
+    for key in keys {
+        record_unit_writes(key);
+    }
+    self._ro_units = 0;
+    self._unit_stack = [(key, False) for (key, _ro) in self._unit_stack];
+    return keys[-1] if keys else '';
+}
+
+
+impl Session._raise_ro_retry -> None {
+    import from uuid { UUID as _UUID }
+    last = self._register_ro_writers();
+    if self.store is not None {
+        try {
+            self.store.rollback();
+        } except Exception {}
+    }
+    raise ReadOnlyRetry(anchor_id=_UUID(int=0), unit_key=last);
 }
 
 
@@ -629,6 +664,9 @@ impl Session._ensure_txn -> None {
         }
         if wanted is TxnIsolation.SERIALIZABLE
             and self.store.txn_isolation() is TxnIsolation.SNAPSHOT_READ_ONLY {
+            if self._ro_units > 0 {
+                self._raise_ro_retry();
+            }
             self.store.commit();
             self._drop_snapshot_reads();
             self.store.begin(TxnIsolation.SERIALIZABLE);
@@ -637,9 +675,14 @@ impl Session._ensure_txn -> None {
 }
 
 
-impl Session.unit_enter -> None {
+impl Session.unit_enter(key: (str | None) = None) -> None {
     with self._lock {
+        ro = key is not None and ro_units_enabled() and not unit_writes_recorded(key);
         self._active_units += 1;
+        if ro {
+            self._ro_units += 1;
+        }
+        self._unit_stack.append((key, ro));
         if self.store is not None and self.store.in_txn() {
             self._ensure_txn();
         }
@@ -671,7 +714,7 @@ impl Session.read_scope_exit -> None {
             );
             try {
                 self.store.rollback();
-            } except Exception { }
+            } except Exception {}
         }
         self._drop_snapshot_reads();
     }
@@ -681,28 +724,42 @@ impl Session.read_scope_exit -> None {
 impl Session.unit_exit -> None {
     with self._lock {
         self._active_units = max(0, self._active_units - 1);
-        if self._active_units > 0 {
-            return;
-        }
-        if self.store is None or not self.store.in_txn() {
-            return;
-        }
         try {
-            self.commit();
-        } except WriteConflict {
+            if self._active_units > 0 {
+                return;
+            }
+            if self.store is None or not self.store.in_txn() {
+                return;
+            }
             try {
-                self.store.rollback();
-            } except Exception { }
-            raise;
-        } except Exception as e {
-            logger.warning(
-                f"unit close commit failed; rolling back: {type(e).__name__}: {e}"
-            );
-            try {
-                self.store.rollback();
-            } except Exception { }
+                self.commit();
+            } except WriteConflict {
+                try {
+                    self.store.rollback();
+                } except Exception {}
+                raise;
+            } except Exception as e {
+                logger.warning(
+                    f"unit close commit failed; rolling back: {type(e).__name__}: {e}"
+                );
+                try {
+                    self.store.rollback();
+                } except Exception {}
+            }
+        } finally {
+            if self._unit_stack {
+                (_key, was_ro) = self._unit_stack.pop();
+                if was_ro {
+                    self._ro_units = max(0, self._ro_units - 1);
+                }
+            }
         }
     }
+}
+
+
+impl Session.unit_depth -> int {
+    return self._active_units;
 }
 
 
@@ -720,7 +777,7 @@ impl Session._recover_conflict -> None {
     if self.store is not None {
         try {
             self.store.rollback();
-        } except Exception { }
+        } except Exception {}
     }
     for id in list(self._txn_changed) {
         if id in self.__mem__ {
@@ -799,15 +856,25 @@ impl Session._flush_locked(full: bool) -> None {
             pending.append((anchor, h));
         }
         if rows or self._deleted {
-            self._ensure_txn();
+            if self.store.txn_isolation() is TxnIsolation.SNAPSHOT_READ_ONLY {
+                if self._ro_units > 0 {
+                    self._raise_ro_retry();
+                }
+                self.store.commit();
+                self._drop_snapshot_reads();
+                self.store.begin(TxnIsolation.SERIALIZABLE);
+            } else {
+                self._ensure_txn();
+            }
         }
         if rows {
             self.store.upsert(rows);
             for (i, (anchor, h)) in enumerate(pending) {
-                self._flushed_hash[anchor.id] = h;
+                aid = anchor.ensure_id();
+                self._flushed_hash[aid] = h;
                 anchor.hash = h;
-                self._version_seen[anchor.id] = rows[i].version;
-                self._txn_changed.add(anchor.id);
+                self._version_seen[aid] = rows[i].version;
+                self._txn_changed.add(aid);
             }
         }
         if self._deleted {
@@ -843,18 +910,19 @@ impl Session._serialize(anchor: Anchor) -> AnchorRow {
     dst: (UUID | None) = None;
     undirected = False;
     if isinstance(anchor, EdgeAnchor) {
-        src = anchor.source.id if anchor.source is not None else None;
-        dst = anchor.target.id if anchor.target is not None else None;
+        src = anchor.source.ensure_id() if anchor.source is not None else None;
+        dst = anchor.target.ensure_id() if anchor.target is not None else None;
         undirected = anchor.is_undirected;
     }
+    row_id = anchor.ensure_id();
     return AnchorRow(
-        id=anchor.id,
+        id=row_id,
         kind=type(anchor).__name__,
         arch_type=arch_type,
         arch_module=arch_module,
         fingerprint=fingerprint,
         root_id=anchor.root,
-        version=self._version_seen.get(anchor.id, 0),
+        version=self._version_seen.get(row_id, 0),
         props=props if isinstance(props, dict) else {},
         src=src,
         dst=dst,
