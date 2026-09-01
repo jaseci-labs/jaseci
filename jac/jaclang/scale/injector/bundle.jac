@@ -57,6 +57,8 @@ glob _EXCLUDE_ENV: set[str] = {
          "JAC_EXECUTABLE"
      };
 
+glob _EXCLUDE_ENV_PREFIXES: tuple[str, ...] = ("JAC_SV_", );
+
 
 def is_excluded(rel: Path) -> bool {
     parts = rel.parts;
@@ -198,7 +200,7 @@ def release_binary_env -> dict[str, str] {
     return {
         k: v
         for (k, v) in os.environ.items()
-        if k not in _EXCLUDE_ENV
+        if k not in _EXCLUDE_ENV and not k.startswith(_EXCLUDE_ENV_PREFIXES)
     };
 }
 

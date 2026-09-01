@@ -432,6 +432,11 @@ test "delegating runs the pinned binary with this deploy, and forwards its resul
     );
     stub.chmod(0o755);
     os.environ["JAC_DEV_SOURCE"] = d;
+    # A deployer running inside a jac-scale pod carries JAC_SV_*, which names
+    # ITS OWN services. jac-scale falls back to JAC_SV_ROUTES whenever the app
+    # declares none, so a leaked one deploys the deployer's fleet into the
+    # target namespace.
+    os.environ["JAC_SV_ROUTES"] = '{"builder_sv": "/api/builder_sv"}';
     err = io.StringIO();
     with unittest.mock.patch.object(
         binary_mod, "host_toolchain_path", return_value=str(stub)
@@ -443,6 +448,7 @@ test "delegating runs the pinned binary with this deploy, and forwards its resul
         );
     }
     os.environ.pop("JAC_DEV_SOURCE", None);
+    os.environ.pop("JAC_SV_ROUTES", None);
     assert rc == 7 , f"the child exited 7; the deploy reported {rc}";
     argv = (Path(d) / "argv").read_text().split();
     assert argv == [
@@ -456,6 +462,10 @@ test "delegating runs the pinned binary with this deploy, and forwards its resul
     assert f"{DELEGATED_ENV}=1" in env , "the child can delegate again and fork forever";
     assert "JAC_DEV_SOURCE" not in env , (
         "the child inherited the parent's dev source and would run its code"
+    );
+    assert "JAC_SV_ROUTES" not in env , (
+        "the child inherited the deployer's own service routes and would "
+        "deploy the deployer's fleet into the app's namespace"
     );
     assert "7" in err.getvalue() , "a failed delegated deploy said nothing";
 }
