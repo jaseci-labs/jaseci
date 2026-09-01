@@ -330,7 +330,15 @@ jobs:
       # ServingApp"). Check the tree with its own compiler instead: the job
       # clears JAC_NO_DEV_SOURCE ("" engages the reroute, as the equivalence
       # chunk does).
+      # Serial on purpose: a parallel cold sweep can load a dependency into a
+      # worker's program twice (once compiled in-process, once from a sibling
+      # worker's just-written JIR) and the two identities of one class then
+      # fail to unify ("Cannot assign Import to parameter of type
+      # type[Import]"). The correctness gate must not depend on worker
+      # scheduling; the underlying cache/identity race is tracked separately.
       - name: Run jac check (using .jacignore)
+        env:
+          JAC_CHECK_JOBS: "0"
         run: |
           set -euo pipefail
           IGNORE_ARGS="tests checker_*.jac *_err.jac $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ')"
