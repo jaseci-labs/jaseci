@@ -200,9 +200,7 @@ def _candidate_from(base: str, parts: list[str]) -> (tuple[(str, str)] | None) {
 def _self_tree_candidate(
     base_dir: str, actual_parts: list[str]
 ) -> (tuple[(str, str)] | None) {
-    if actual_parts[0] == COMPILER_PACKAGE {
-        return None;
-    }
+    is_compiler_pkg = actual_parts[0] == COMPILER_PACKAGE;
     cur = os.path.abspath(base_dir);
     while True {
         parent = os.path.dirname(cur);
@@ -210,9 +208,11 @@ def _self_tree_candidate(
             return None;
         }
         if os.path.basename(cur) == actual_parts[0] {
-            res = _candidate_from(parent, actual_parts);
-            if res {
-                return res;
+            if not is_compiler_pkg or os.path.isdir(os.path.join(cur, 'jac0core')) {
+                res = _candidate_from(parent, actual_parts);
+                if res {
+                    return res;
+                }
             }
         }
         cur = parent;
