@@ -56,6 +56,36 @@ test "JAC_ADMIN_PASSWORD supplies the bootstrap credential" {
 }
 
 
+test "bootstrap honors require_password_reset = false" {
+    import from jaclang.scale.identity.user_manager { JacScaleUserManager }
+    import from unittest.mock { patch as mock_patch }
+    import tempfile;
+    import shutil;
+
+    tmp = tempfile.mkdtemp();
+    env = {"JAC_ADMIN_ENABLED": "true", "JAC_ADMIN_PASSWORD": "boot-pass-1"};
+    with patch.dict(os.environ, env, clear=True) {
+        reset_scale_config();
+        try {
+            cfg = get_scale_config();
+            original = cfg.get_admin_config();
+            relaxed = dict(original);
+            relaxed["require_password_reset"] = False;
+            with mock_patch.object(cfg, "get_admin_config", return_value=relaxed) {
+                manager = JacScaleUserManager(base_path=tmp);
+                result = manager.bootstrap_admin_user();
+                assert "error" not in result;
+                user_id = result["user_id"];
+                assert not manager.requires_password_reset(user_id);
+            }
+        } finally {
+            reset_scale_config();
+            shutil.rmtree(tmp, ignore_errors=True);
+        }
+    }
+}
+
+
 test "bootstrap refuses to provision an admin without a configured password" {
     import from jaclang.scale.identity.user_manager { JacScaleUserManager }
     import tempfile;

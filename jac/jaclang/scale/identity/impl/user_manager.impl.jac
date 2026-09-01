@@ -726,13 +726,23 @@ impl JacScaleUserManager.bootstrap_admin_user -> dict[str, str] {
     }
     user_id = result.get('user_id', '');
     self.set_user_role(user_id, 'admin');
-    self.set_requires_password_reset(user_id, True);
 
-    logger.warning(
-        f"Admin user '{admin_username}' created with the configured bootstrap "
-        "password. It must be rotated on first login before the account can "
-        "use any admin endpoint."
-    );
+    require_reset: bool = bool(admin_config.get('require_password_reset', True));
+    self.set_requires_password_reset(user_id, require_reset);
+
+    if require_reset {
+        logger.warning(
+            f"Admin user '{admin_username}' created with the configured bootstrap "
+            "password. It must be rotated on first login before the account can "
+            "use any admin endpoint."
+        );
+    } else {
+        logger.warning(
+            f"Admin user '{admin_username}' created with the configured bootstrap "
+            "password and [scale.admin] require_password_reset = false, so it is "
+            "usable immediately. Rotate it promptly."
+        );
+    }
     return {
         'message': 'Admin user created successfully',
         'username': admin_username,
