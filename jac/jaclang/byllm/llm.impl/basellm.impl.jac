@@ -264,6 +264,73 @@ def _apply_prompt_caching(messages: list[object], tools: list | None) {
 }
 
 
+def _cache_content_fingerprint(content: object) -> str {
+    import hashlib;
+    try {
+        payload = json.dumps(content, sort_keys=True, `default=str, ensure_ascii=False);
+    } except Exception {
+        payload = str(content);
+    }
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest();
+}
+
+
+def _last_system_message_content(messages: list[object]) -> object {
+    content: object = None;
+    for msg in messages {
+        if isinstance(msg, dict) and msg.get("role") == "system" {
+            content = msg.get("content");
+        }
+    }
+    return content;
+}
+
+
+def _detect_cache_break(
+    mt_run: MTRuntime, messages: list[object], tools: list[object] | None
+) -> dict[(str, object)] {
+    tools_fp = _cache_content_fingerprint(tools or []);
+    sys_fp = _cache_content_fingerprint(_last_system_message_content(messages));
+
+    prev = mt_run._cache_fingerprint;
+    mt_run._cache_fingerprint = {"tools": tools_fp, "system": sys_fp};
+
+    if not prev {
+        return {"cache_break_expected": False, "cache_break_reason": None};
+    }
+    if prev.get("tools") != tools_fp {
+        return {"cache_break_expected": True, "cache_break_reason": "tools_changed"};
+    }
+    if prev.get("system") != sys_fp {
+        return {"cache_break_expected": True, "cache_break_reason": "system_changed"};
+    }
+    return {"cache_break_expected": False, "cache_break_reason": None};
+}
+
+
+def _attach_cache_break_info(usage_obj: object, mt_run: MTRuntime) -> None {
+    info = mt_run._cache_break_info;
+    if usage_obj is None or not info {
+        return;
+    }
+    if isinstance(usage_obj, dict) {
+        usage_obj["cache_break_expected"] = info.get("cache_break_expected", False);
+        usage_obj["cache_break_reason"] = info.get("cache_break_reason");
+    } else {
+        try {
+            setattr(
+                usage_obj,
+                "cache_break_expected",
+                info.get("cache_break_expected", False)
+            );
+            setattr(usage_obj, "cache_break_reason", info.get("cache_break_reason"));
+        } except Exception {
+            ;
+        }
+    }
+}
+
+
 def _litellm_ctx_window(model_name: str) -> int {
     try {
         info = dict(litellm.get_model_info(model_name));
@@ -1151,7 +1218,10 @@ impl BaseLLM.make_model_params(mt_run: MTRuntime) -> dict {
     }
 
     if _is_prompt_caching_eligible(self.model_name) {
+        mt_run._cache_break_info = _detect_cache_break(mt_run, messages, tools);
         _apply_prompt_caching(messages, tools);
+    } else {
+        mt_run._cache_break_info = {};
     }
 
     params = {
@@ -1425,6 +1495,7 @@ impl BaseLLM.dispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
         else output_content;
     usage_data = response.get("usage", {});
     _attach_call_cost(usage_data, self.model_name, response);
+    _attach_cache_break_info(usage_data, mt_run);
     return CompletionResult(
         output=output_value, tool_calls=tool_calls, usage=usage_data
     );
@@ -1465,6 +1536,7 @@ impl BaseLLM.dispatch_streaming(mt_run: MTRuntime) -> Generator[str, None, None]
                 chunk_usage = chunk?.usage;
                 if chunk_usage {
                     _attach_call_cost(chunk_usage, self.model_name);
+                    _attach_cache_break_info(chunk_usage, mt_run);
                     self._usage_history.append(chunk_usage);
                 }
                 if chunk?.choices and chunk?.choices?[0]?.delta {
@@ -1570,6 +1642,7 @@ impl BaseLLM.dispatch_streaming_with_tools(
             message = rebuilt.get("choices", [])[0].get("message");
             usage_data = rebuilt.get("usage", {}) or {};
             _attach_call_cost(usage_data, self.model_name, rebuilt);
+            _attach_cache_break_info(usage_data, mt_run);
             finish_reason = str(
                 rebuilt.get("choices", [])[0].get("finish_reason") or ""
             );
@@ -1657,6 +1730,7 @@ impl BaseLLM.adispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
         else output_content;
     usage_data = response.get("usage", {});
     _attach_call_cost(usage_data, self.model_name, response);
+    _attach_cache_break_info(usage_data, mt_run);
     return CompletionResult(
         output=output_value, tool_calls=tool_calls, usage=usage_data
     );
@@ -1677,6 +1751,7 @@ impl BaseLLM.adispatch_streaming(mt_run: MTRuntime) {
                 chunk_usage = chunk?.usage;
                 if chunk_usage {
                     _attach_call_cost(chunk_usage, self.model_name);
+                    _attach_cache_break_info(chunk_usage, mt_run);
                     self._usage_history.append(chunk_usage);
                 }
                 if chunk?.choices and chunk?.choices?[0]?.delta {

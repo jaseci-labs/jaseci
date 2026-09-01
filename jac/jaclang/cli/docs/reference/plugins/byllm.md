@@ -1550,6 +1550,26 @@ with entry {
 
 Cached input tokens are billed at a fraction of the normal rate, so a high hit rate on a long, static system prompt or tool schema is a direct cost saving. See [`[byllm.prompt_caching]`](#project-configuration) to toggle caching.
 
+#### Detecting a cache break
+
+Reconstructing a cache break from `cache_read_input_tokens`/`cache_creation_input_tokens` alone is unreliable: a legitimate large write to the conversation (e.g. a big batch of tool results) can spike `cache_creation_input_tokens` without breaking anything. byLLM knows the answer directly, because it builds the `tools` array and system message that Anthropic's cache breakpoints sit on -- so each `per_call` dict also carries a deterministic verdict:
+
+```jac
+with entry {
+    for event in my_agent("...") {
+        if event.event_type == "usage" {
+            for call in event.data["per_call"] {
+                if call.get("cache_break_expected") {
+                    print(f"cache break: {call.get('cache_break_reason')}");
+                }
+            }
+        }
+    }
+}
+```
+
+`cache_break_reason` is `"tools_changed"` when the tools array sent to the model differs from the previous call in the same turn, or `"system_changed"` when the system message does; it is `None` when no break is expected (including a turn's first call, which has nothing prior to break against). The same two fields land on `CompletionResult.usage` for callers that invoke `dispatch_no_streaming`/`dispatch_streaming` directly instead of going through the `usage` stream event.
+
 ### Streaming Limitations
 
 - Only supports `str` return type
