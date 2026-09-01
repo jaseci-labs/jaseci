@@ -3,6 +3,7 @@
 import os;
 import re;
 import shutil;
+import signal;
 import socket;
 import time;
 import from pathlib { Path }
@@ -96,8 +97,26 @@ def _start_preact_server(project_dir: Path) -> tuple {
     return (proc, port, f"http://127.0.0.1:{port}");
 }
 
+"""Signal the server's whole process group, tolerating an already-dead group.
+
+Returns False if the group is gone so the caller can fall back to the lone
+process.
+"""
+def _signal_group(proc: Popen, sig: any) -> bool {
+    try {
+        os.killpg(os.getpgid(proc.pid), sig);
+        return True;
+    } except Exception {
+        return False;
+    }
+}
+
 def _stop_server(proc: Popen) {
-    proc.terminate();
+    # Signal the entire process group so bun/vite/esbuild children die with the
+    # parent instead of orphaning and wedging the test session.
+    if not _signal_group(proc, signal.SIGTERM) {
+        proc.terminate();
+    }
     try {
         proc.`wait(timeout=20);
     } except Exception {

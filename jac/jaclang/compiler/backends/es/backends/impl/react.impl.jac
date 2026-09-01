@@ -126,7 +126,7 @@ impl ReactBackend.async_boundary_symbols(a: AsyncBoundary) -> list[str] {
 }
 
 impl ReactBackend.view_runtime_symbols(view: ViewElement) -> list[str] {
-    return [];
+    return [self.jsx_factory_name()];
 }
 
 impl ReactBackend.lower_state_field(s: StateField) -> list[es.Statement] {
@@ -205,6 +205,7 @@ impl ReactBackend.lower_view(view: ViewElement, sync_loc: any) -> es.Expression 
         HostTag,
         ComponentTag,
         DynamicTag,
+        FragmentTag,
         SpreadAttr,
         TextChild,
         DynamicChild,
@@ -298,9 +299,18 @@ impl ReactBackend.lower_view(view: ViewElement, sync_loc: any) -> es.Expression 
             children_elements.append(child.expr);
         }
     }
-    children_expr = sync_loc(
-        es.ArrayExpression(elements=children_elements), jac_node=view.jac_node
-    );
+
+    if (
+        isinstance(tag, FragmentTag)
+        and len(view.children) == 1
+        and isinstance(view.children[0], DynamicChild)
+    ) {
+        children_expr = children_elements[0];
+    } else {
+        children_expr = sync_loc(
+            es.ArrayExpression(elements=children_elements), jac_node=view.jac_node
+        );
+    }
     return sync_loc(
         es.CallExpression(
             callee=sync_loc(
