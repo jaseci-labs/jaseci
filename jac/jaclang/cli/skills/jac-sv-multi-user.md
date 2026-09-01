@@ -71,6 +71,41 @@ def share_with(tweet_id: str, target_root: str) {
 
 `target_root` is the other user's root id - the `root_id` field of their `/user/login` response, or `jid(root)` captured server-side. Like `grant`, it's per-node, not per-subtree. The `jac:ignore[E1053]` is needed because the checker doesn't yet accept node types for the `archetype: Archetype` parameter (runtime is fine - verified live); alternatively cast `t as Archetype` with `import from jaclang.runtime.archetype { Archetype }`.
 
+## Sharing with a group: `allow_group`
+
+`allow_root(obj, root_id, level)` writes one entry per grantee into that
+object's own permission map, so an audience of N costs N entries on every
+object and joining or leaving rewrites all of them. Name a **group** instead:
+the grant is one entry, and membership is an edge.
+
+```jac
+node Doc { has body: str; }
+node Team { has name: str; }
+edge MemberOf {}
+
+import from jaclang { JacRuntime as Jac }
+import from uuid { UUID }
+
+def share_with_team(doc: Doc, team: Team) {
+    Jac.allow_group(doc, UUID(jid(team)), AccessLevel.READ);  # jac:ignore[E1053]
+}
+
+def join_team(team: Team) {
+    root +>:MemberOf:+> team;   # joining: one edge, zero content writes
+}
+```
+
+- Membership is resolved through the edge at check time, so a join or a leave
+  touches no content row at all - which is what makes it O(1) rather than
+  proportional to the group's data.
+- Group grants compose with the rest: an existing per-root grant still
+  applies, and a group grant only ever raises the level.
+- The permission test compiles into the query for the standard model (owner,
+  granted-to-all, granted-to-you, granted-to-your-group), so a gated read
+  costs the rows you may see. An archetype overriding `__jac_access__` or
+  `__jac_access_for__` decides in Jac, which has no SQL form, and keeps the
+  object-space filter.
+
 ## root.shared - the public commons
 
 Every served deployment has one public graph besides the per-user roots: the guest root that anonymous requests run on. `root.shared` resolves to it from any request context - the right home for genuinely public data (feed, catalog, announcements):
