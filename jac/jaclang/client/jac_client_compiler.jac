@@ -10,7 +10,7 @@ import from jaclang.client.route_scanner { RouteScanner, resolve_route_exports }
 import from jaclang.jac0core.ext_registry { ANNEX_SUFFIXES }
 
 with entry {
-    if TYPE_CHECKING { }
+    if TYPE_CHECKING {}
 }
 
 class JacClientCompiler {

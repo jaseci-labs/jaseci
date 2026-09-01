@@ -199,7 +199,7 @@ impl NaIRGenFunc._elem_keys_of_annotation(ann: (uni.UniNode | None)) -> (list | 
         if _etb is not None {
             try {
                 _ek = self._normalize_type_key(self._mangled_of(_etb));
-            } except Exception { }
+            } except Exception {}
         }
         keys.append(_ek);
     }
@@ -220,7 +220,7 @@ impl NaIRGenFunc._record_ret_facts(name: str, sig: uni.FuncSignature) -> None {
             self.func_ret_type_key[name] = self._normalize_type_key(
                 self._mangled_of(_rtb)
             );
-        } except Exception { }
+        } except Exception {}
     }
     keys = self._elem_keys_of_annotation(_rt);
     if keys {
@@ -1629,7 +1629,7 @@ impl NaIRGenFunc._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
                     "DILocation", {"line": 1, "column": 0, "scope": _di_init_sp}
                 );
                 _init_call.set_metadata("dbg", _di_init_loc);
-            } except Exception { }
+            } except Exception {}
         }
         if _guard_kernel {
             self.builder.branch(_gk_done);

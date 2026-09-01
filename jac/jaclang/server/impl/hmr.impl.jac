@@ -145,7 +145,7 @@ impl HotReloader._status_file_path -> Path {
         try {
             compiled = Path(str(self.client_compiler.jac_client_compiler.compiled_dir));
             return compiled.parent / '.jac-status.json';
-        } except Exception { }
+        } except Exception {}
     }
     return Path(self.base_path) / '.jac' / 'client' / '.jac-status.json';
 }
@@ -160,7 +160,7 @@ impl HotReloader._sync_status_file -> None {
         } elif status_file.exists() {
             status_file.unlink();
         }
-    } except OSError { }
+    } except OSError {}
 }
 
 impl get_build_status -> dict {
@@ -251,7 +251,7 @@ impl HotReloader._remove_compiled_output(file_path: str) -> None {
     source_path = Path(file_path);
     try {
         source_path = source_path.resolve();
-    } except OSError { }
+    } except OSError {}
     if self.client_compiler {
         output_path = self.client_compiler.jac_client_compiler._output_path_for(
             source_path, base_dir
@@ -276,7 +276,7 @@ impl HotReloader._remove_compiled_output(file_path: str) -> None {
                 target.unlink();
                 removed = True;
             }
-        } except OSError { }
+        } except OSError {}
     }
     if removed {
         console.warning(f"Removed compiled output for deleted {file_path}");
@@ -288,7 +288,7 @@ impl HotReloader._remove_compiled_dir(file_path: str) -> None {
     source_path = Path(file_path);
     try {
         source_path = source_path.resolve();
-    } except OSError { }
+    } except OSError {}
     try {
         rel = source_path.relative_to(base_dir);
     } except ValueError {
@@ -312,7 +312,7 @@ impl HotReloader._remove_compiled_dir(file_path: str) -> None {
                 f"Removed compiled output for deleted directory {file_path}"
             );
         }
-    } except OSError { }
+    } except OSError {}
 }
 
 impl HotReloader._refresh_routing(file_path: str) -> None {
@@ -324,7 +324,7 @@ impl HotReloader._refresh_routing(file_path: str) -> None {
     changed = Path(file_path);
     try {
         changed = changed.resolve();
-    } except OSError { }
+    } except OSError {}
     under_pages = (
         str(changed) == str(pages_dir)
         or str(changed).startswith(str(pages_dir) + os.sep)
@@ -504,7 +504,7 @@ impl HotReloader._signal_full_reload -> None {
         if signal_file.parent.is_dir() {
             signal_file.write_text(str(self._reload_nonce), encoding='utf-8');
         }
-    } except OSError { }
+    } except OSError {}
 }
 
 impl HotReloader._recompile_client_code(
@@ -693,7 +693,7 @@ impl HotReloader._copy_frontend_files(file_path: str) -> None {
         try {
             output_path.parent.mkdir(parents=True, exist_ok=True);
             shutil.copy2(source_path, output_path);
-        } except (FileNotFoundError, OSError) { }
+        } except (FileNotFoundError, OSError) {}
         console.success(f"Copied: {rel_path}");
     } except Exception as e {
         console.error(f"Copy error in {file_path}: {e}");

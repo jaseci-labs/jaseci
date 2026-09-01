@@ -8,7 +8,7 @@ import from jaclang.client.jac_client_compiler { JacClientCompiler }
 import from jaclang.client.vite_bundler { ViteBundler }
 
 with entry {
-    if TYPE_CHECKING { }
+    if TYPE_CHECKING {}
 }
 
 class ViteCompiler {

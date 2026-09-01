@@ -146,9 +146,7 @@ def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
         if (_cfg is not None and getattr(_cfg?.project, 'kind', '') == 'web-app') {
             return (False, "web-app project: native is opt-in");
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     (env_ok, env_reason) = native_pipeline_available();
     if not env_ok {
         return (False, env_reason);
@@ -700,9 +698,7 @@ def _emit_solver_warning(
                 help_text=diag.format_help(**kwargs)
             )
         );
-    } except Exception {
-        ;
-    }
+    } except Exception {}
 }
 
 def _warn_state_forks(target: uni.Module, prog: any) {
@@ -804,9 +800,7 @@ def _pull_boundary_import(imp: uni.Import, module: uni.Module, prog: any) -> int
         ) {
             targets.append(linked);
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     new_stamps = 0;
     for target in targets {
         new_stamps += _pull_into_target(imp, target, module, prog);
@@ -947,9 +941,7 @@ def demote_client_pulled_elements(
             style="dim",
             file=sys.stderr
         );
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return True;
 }
 

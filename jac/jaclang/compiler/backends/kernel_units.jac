@@ -62,9 +62,7 @@ def _retire_superseded_artifacts(name: str, keep: str) {
             if os.path.getmtime(path) < cutoff {
                 os.remove(path);
             }
-        } except OSError {
-            ;
-        }
+        } except OSError {}
     }
 }
 
@@ -131,9 +129,7 @@ def store_unit_artifact(unit_path: str, kind: str, fingerprint: str, text: str) 
         if stale != path {
             try {
                 os.remove(stale);
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
     }
     try {
@@ -142,9 +138,7 @@ def store_unit_artifact(unit_path: str, kind: str, fingerprint: str, text: str) 
                 return;
             }
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     _atomic_write(path, text);
 }
 
@@ -159,9 +153,7 @@ def es_pass_fingerprint -> str {
                 with open(p, "rb") as f {
                     h.update(f.read());
                 }
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
     }
     return h.hexdigest()[:8];

@@ -53,5 +53,5 @@ impl pack(stub: str, payload: str, out: str, stubcat: str | None = None) {
     }
     try {
         os.chmod(out, 0o755);
-    } except OSError { }
+    } except OSError {}
 }

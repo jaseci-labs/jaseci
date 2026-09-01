@@ -37,7 +37,7 @@ def _discard_runtime {
     if rt is not None {
         try {
             rt.stop();
-        } except Exception { }
+        } except Exception {}
     }
     if home is not None {
         shutil.rmtree(home, ignore_errors=True);

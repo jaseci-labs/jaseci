@@ -97,23 +97,17 @@ impl WorkPool._spawn(slot: int) -> dict[(str, any)] {
                 }
                 try {
                     os.close(other["dispatch_fd"]);
-                } except OSError {
-                    ;
-                }
+                } except OSError {}
                 try {
                     os.close(other["result_fd"]);
-                } except OSError {
-                    ;
-                }
+                } except OSError {}
             }
             self._worker_loop(dispatch_r, result_w);
             exit_hook = self.worker_exit;
             if exit_hook is not None {
                 exit_hook();
             }
-        } except BaseException {
-            ;
-        }
+        } except BaseException {}
         os._exit(0);
     }
     os.close(dispatch_r);
@@ -280,14 +274,10 @@ impl WorkPool._reap(kid: dict[(str, any)]) -> None {
     kid["alive"] = False;
     try {
         os.close(kid["result_fd"]);
-    } except OSError {
-        ;
-    }
+    } except OSError {}
     try {
         os.close(kid["dispatch_fd"]);
-    } except OSError {
-        ;
-    }
+    } except OSError {}
     status = 0;
     try {
         (_, status) = os.waitpid(kid["pid"], 0);
@@ -390,9 +380,7 @@ impl WorkPool._shutdown -> None {
         }
         try {
             os.write(kid["dispatch_fd"], b"q\n");
-        } except OSError {
-            ;
-        }
+        } except OSError {}
     }
     for kid in self.kids {
         if not kid["alive"] {
@@ -402,9 +390,7 @@ impl WorkPool._shutdown -> None {
         for fd_key in ("dispatch_fd", "result_fd") {
             try {
                 os.close(kid[fd_key]);
-            } except OSError {
-                ;
-            }
+            } except OSError {}
         }
         reaped = False;
         deadline = time.monotonic() + 2.0;
@@ -424,22 +410,16 @@ impl WorkPool._shutdown -> None {
         if not reaped {
             try {
                 os.kill(int(kid["pid"]), int(signal.SIGKILL));
-            } except OSError {
-                ;
-            }
+            } except OSError {}
             try {
                 os.waitpid(kid["pid"], 0);
-            } except OSError {
-                ;
-            }
+            } except OSError {}
         }
     }
     for path in self.crashlogs {
         try {
             os.unlink(path);
-        } except OSError {
-            ;
-        }
+        } except OSError {}
     }
     self.crashlogs = [];
 }
@@ -468,7 +448,7 @@ impl maybe_malloc_trim -> None {
     try {
         import ctypes;
         ctypes.CDLL("libc.so.6").malloc_trim(0);
-    } except (ImportError, OSError, AttributeError, ValueError) { }
+    } except (ImportError, OSError, AttributeError, ValueError) {}
 }
 
 impl env_int(name: str, fallback: int) -> int {

@@ -235,12 +235,9 @@ def native_only_import_target(nd: uni.Import, prog: object) -> (str | None) {
 }
 
 def is_client_native_edge_import(nd: uni.Import, prog: object) -> bool {
-    if nd.code_context == CodeContext.CLIENT {
-        ;
-    } elif nd.code_context == CodeContext.SERVER
-        and module_has_client_top(nd.find_parent_of_type(uni.Module)) {
-        ;
-    } else {
+    if nd.code_context == CodeContext.CLIENT {} elif nd.code_context
+        == CodeContext.SERVER
+        and module_has_client_top(nd.find_parent_of_type(uni.Module)) {} else {
         return False;
     }
     return plain_native_import_target(nd, prog) is not None;
