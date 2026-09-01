@@ -76,7 +76,8 @@ SEED_PATHS: tuple[str, ...] = (
 # tier stamping (is_seed_source) is unaffected, which also keeps them out
 # of the full-compiler seal sweep.
 NATIVE_ONLY_SEEDS: tuple[str, ...] = (
-    "compiler/frontend/parser/npy_unit.jac",
+    "compiler/jc_unit.jac",
+    "compiler/jc_materialize.jac",
 )
 
 
