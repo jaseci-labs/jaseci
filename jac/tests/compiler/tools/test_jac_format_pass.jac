@@ -373,6 +373,53 @@ test "inline comment in func call args" {
     assert formatted == prog2.mod.main.gen.jac , "Formatting is not idempotent";
 }
 
+test "empty blocks format without inner space" {
+    source = (
+        'obj Empty {}\n'
+        '\n'
+        'obj HasM {\n'
+        '    def m;\n'
+        '}\n'
+        '\n'
+        'impl HasM.m {}\n'
+        '\n'
+        'walker W {\n'
+        '    can go with Root entry {}\n'
+        '}\n'
+        '\n'
+        'def multi {}\n'
+        '\n'
+        'def branches(x: int) {\n'
+        '    if x > 0 {} else {}\n'
+        '    while False {}\n'
+        '    for i in range(1) {}\n'
+        '    try {} except Exception {} finally {}\n'
+        '}\n'
+        '\n'
+        'test {}\n'
+        '\n'
+        'with entry {}\n'
+    );
+    prog = JacProgram.jac_str_formatter(source_str=source, file_path="<test>.jac");
+    formatted = prog.mod.main.gen.jac;
+
+    assert "obj Empty {}" in formatted;
+    assert "impl HasM.m{}" in formatted;
+    assert "can go with Root entry {}" in formatted;
+    assert "def multi {}" in formatted;
+    assert "if x > 0 {} else {}" in formatted;
+    assert "while False {}" in formatted;
+    assert "for i in range(1) {}" in formatted;
+    assert "try {} except Exception {} finally {}" in formatted;
+    assert "test {}" in formatted;
+    assert "with entry {}" in formatted;
+    assert "{ }" not in formatted;
+
+    # Idempotency
+    prog2 = JacProgram.jac_str_formatter(source_str=formatted, file_path="<test>.jac");
+    assert formatted == prog2.mod.main.gen.jac , "Formatting is not idempotent";
+}
+
 """Regression: JSX elements with only inline children (text/expression) and
 lambda bodies with a single-statement `if` should stay flat when they fit
 within the print width. Previously, both paths used `hard_line()` in their

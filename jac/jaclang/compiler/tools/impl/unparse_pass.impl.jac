@@ -18,940 +18,974 @@ impl UnparsePass._comma_sep(nodes: Sequence[uni.UniNode]) -> str {
     );
 }
 
-impl UnparsePass.exit_node(nd: uni.UniNode) -> None {
-    for attr in vars(nd).values() {
+impl UnparsePass.unparse_prepare_exit with uni.UniNode exit {
+    for attr in vars(here).values() {
         if isinstance(attr, uni.Token) and not attr.gen.jac {
             attr.gen.jac = attr.value;
         }
     }
-    super.exit_node(nd);
 }
 
-impl UnparsePass.default_exit(nd: uni.UniNode) -> None {
-    if isinstance(nd, uni.Token) {
-        nd.gen.jac = nd.value;
+impl UnparsePass.unparse_default_exit with uni.UniNode exit {
+    if isinstance(here, uni.Token) {
+        here.gen.jac = here.value;
     } else {
-        nd.gen.jac = " ".join(
+        here.gen.jac = " ".join(
             [
                 k.gen.jac
-                for k in nd.kid
+                for k in here.kid
                 if k and k.gen.jac
             ]
         );
     }
 }
 
-impl UnparsePass.exit_token(nd: uni.Token) -> None {
-    nd.gen.jac = nd.value;
+impl UnparsePass.exit_token with uni.Token exit {
+    if here.__class__ is not uni.Token {
+        return;
+    }
+    here.gen.jac = here.value;
 }
 
-impl UnparsePass.exit_name(nd: uni.Name) -> None {
-    prefix = "`" if nd.is_kwesc else "";
-    suffix = ",\n" if nd.is_enum_stmt else "";
-    nd.gen.jac = prefix + nd.value + suffix;
+impl UnparsePass.exit_name with uni.Name exit {
+    if here.__class__ is not uni.Name {
+        return;
+    }
+    prefix = "`" if here.is_kwesc else "";
+    suffix = ",\n" if here.is_enum_stmt else "";
+    here.gen.jac = prefix + here.value + suffix;
 }
 
-impl UnparsePass.exit_string(nd: uni.String) -> None {
-    if nd.parent and isinstance(nd.parent, uni.FString) {
-        escaped = nd.value.replace("{", "{{").replace("}", "}}");
-        nd.gen.jac = escaped.replace("#", "\\#");
+impl UnparsePass.exit_string with uni.String exit {
+    if here.parent and isinstance(here.parent, uni.FString) {
+        escaped = here.value.replace("{", "{{").replace("}", "}}");
+        here.gen.jac = escaped.replace("#", "\\#");
     } else {
-        nd.gen.jac = nd.value;
+        here.gen.jac = here.value;
     }
 }
 
-impl UnparsePass.exit_semi(nd: uni.Semi) -> None {
-    nd.gen.jac = nd.value;
+impl UnparsePass.exit_semi with uni.Semi exit {
+    here.gen.jac = here.value;
 }
 
-impl UnparsePass.exit_int(nd: uni.Int) -> None {
-    nd.gen.jac = nd.value;
+impl UnparsePass.exit_int with uni.Int exit {
+    here.gen.jac = here.value;
 }
 
-impl UnparsePass.exit_float(nd: uni.Float) -> None {
-    nd.gen.jac = nd.value;
+impl UnparsePass.exit_float with uni.Float exit {
+    here.gen.jac = here.value;
 }
 
-impl UnparsePass.exit_bool(nd: uni.Bool) -> None {
-    nd.gen.jac = nd.value;
+impl UnparsePass.exit_bool with uni.Bool exit {
+    here.gen.jac = here.value;
 }
 
-impl UnparsePass.exit_null(nd: uni.Null) -> None {
-    nd.gen.jac = nd.value;
+impl UnparsePass.exit_null with uni.Null exit {
+    here.gen.jac = here.value;
 }
 
-impl UnparsePass.exit_ellipsis(nd: uni.Ellipsis) -> None {
-    nd.gen.jac = nd.value;
+impl UnparsePass.exit_ellipsis with uni.Ellipsis exit {
+    here.gen.jac = here.value;
 }
 
-impl UnparsePass.exit_builtin_type(nd: uni.BuiltinType) -> None {
-    nd.gen.jac = nd.value;
+impl UnparsePass.exit_builtin_type with uni.BuiltinType exit {
+    here.gen.jac = here.value;
 }
 
-impl UnparsePass.exit_special_var_ref(nd: uni.SpecialVarRef) -> None {
-    nd.gen.jac = nd.value;
+impl UnparsePass.exit_special_var_ref with uni.SpecialVarRef exit {
+    here.gen.jac = here.value;
 }
 
-impl UnparsePass.exit_module(nd: uni.Module) -> None {
+impl UnparsePass.exit_module with uni.Module exit {
     parts: list = [];
-    if nd.doc {
-        parts.append(nd.doc.gen.jac);
+    if here.doc {
+        parts.append(here.doc.gen.jac);
     }
-    for stmt in nd.body {
+    for stmt in here.body {
         parts.append(stmt.gen.jac);
     }
-    nd.gen.jac = " ".join(parts);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_sub_tag(nd: uni.SubTag[uni.UniNode]) -> None {
+impl UnparsePass.exit_sub_tag with uni.SubTag exit {
     prefix = "";
-    if nd.ownership == OwnershipKind.OWN {
+    if here.ownership == OwnershipKind.OWN {
         prefix = "own ";
-    } elif nd.ownership == OwnershipKind.MUT_BORROW {
+    } elif here.ownership == OwnershipKind.MUT_BORROW {
         prefix = "&mut ";
-    } elif nd.ownership == OwnershipKind.BORROW {
+    } elif here.ownership == OwnershipKind.BORROW {
         prefix = "&";
-    } elif nd.ownership == OwnershipKind.IMM {
+    } elif here.ownership == OwnershipKind.IMM {
         prefix = "imm ";
     }
-    nd.gen.jac = ": " + prefix + nd.tag.gen.jac;
+    here.gen.jac = ": " + prefix + here.tag.gen.jac;
 }
 
-impl UnparsePass.exit_type_param(nd: uni.TypeParam) -> None {
-    parts: list = [nd.name.gen.jac];
-    if nd.bound {
-        parts.append(": " + nd.bound.gen.jac);
+impl UnparsePass.exit_type_param with uni.TypeParam exit {
+    parts: list = [("comptime " if here.is_comptime else "") + here.name.gen.jac];
+    if here.bound {
+        parts.append(": " + here.bound.gen.jac);
     }
-    if nd.default_val {
-        parts.append(" = " + nd.default_val.gen.jac);
+    if here.default_val {
+        parts.append(" = " + here.default_val.gen.jac);
     }
-    nd.gen.jac = "".join(parts);
+    here.gen.jac = "".join(parts);
 }
 
-impl UnparsePass.exit_type_alias(nd: uni.TypeAlias) -> None {
+impl UnparsePass.exit_type_alias with uni.TypeAlias exit {
     parts: list = [];
-    if nd.doc {
-        parts.append(nd.doc.gen.jac);
+    if here.doc {
+        parts.append(here.doc.gen.jac);
     }
     parts.append("type");
-    if nd.access {
-        parts.append(nd.access.gen.jac);
+    if here.access {
+        parts.append(here.access.gen.jac);
     }
-    parts.append(nd.name.gen.jac);
-    if nd.type_params {
-        tp_str = ", ".join([tp.gen.jac for tp in nd.type_params]);
+    parts.append(here.name.gen.jac);
+    if here.type_params {
+        tp_str = ", ".join([tp.gen.jac for tp in here.type_params]);
         parts.append("[" + tp_str + "]");
     }
-    parts.append(":=" if nd.is_distinct else "=");
-    parts.append(nd.value.gen.jac);
-    nd.gen.jac = " ".join(parts);
+    parts.append(":=" if here.is_distinct else "=");
+    parts.append(here.value.gen.jac);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_global_vars(nd: uni.GlobalVars) -> None {
+impl UnparsePass.exit_global_vars with uni.GlobalVars exit {
     parts: list = [];
-    if nd.doc {
-        parts.append(nd.doc.gen.jac);
+    if here.doc {
+        parts.append(here.doc.gen.jac);
     }
-    parts.append("glob");
-    if nd.access {
-        parts.append(nd.access.gen.jac);
+    parts.append("comptime" if here.is_frozen else "glob");
+    if here.access {
+        parts.append(here.access.gen.jac);
     }
-    parts.append(self._comma_sep(nd.assignments));
-    nd.gen.jac = " ".join(parts);
+    parts.append(self._comma_sep(here.assignments));
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_test(nd: uni.Test) -> None {
+impl UnparsePass.exit_test with uni.Test exit {
     parts: list = [];
-    if nd.doc {
-        parts.append(nd.doc.gen.jac);
+    if here.doc {
+        parts.append(here.doc.gen.jac);
     }
-    if nd.decorators {
-        decs = " @".join([d.gen.jac for d in nd.decorators]);
+    if here.decorators {
+        decs = " @".join([d.gen.jac for d in here.decorators]);
         parts.append("@" + decs);
     }
     parts.append("test");
-    if nd.description {
-        parts.append(nd.description.gen.jac);
-    } elif nd.name.value and not nd.name.value.startswith('_jac_gen_') {
-        parts.append(nd.name.gen.jac);
+    if here.description {
+        parts.append(here.description.gen.jac);
+    } elif here.name.value and not here.name.value.startswith('_jac_gen_') {
+        parts.append(here.name.gen.jac);
     }
-    body = " ".join([s.gen.jac for s in nd.body]);
+    body = " ".join([s.gen.jac for s in here.body]);
     parts.append("{ " + body + " }");
-    nd.gen.jac = " ".join(parts);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_module_code(nd: uni.ModuleCode) -> None {
+impl UnparsePass.exit_module_code with uni.ModuleCode exit {
     parts: list = ["with entry"];
-    if nd.name {
+    if here.name {
         parts.append(":");
-        parts.append(nd.name.gen.jac);
+        parts.append(here.name.gen.jac);
     }
-    body = " ".join([s.gen.jac for s in nd.body]);
+    body = " ".join([s.gen.jac for s in here.body]);
     parts.append("{ " + body + " }");
-    nd.gen.jac = " ".join(parts);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_py_inline_code(nd: uni.PyInlineCode) -> None {
-    nd.gen.jac = "::py::" + nd.code.value + "::py::";
+impl UnparsePass.exit_py_inline_code with uni.PyInlineCode exit {
+    here.gen.jac = "::py::" + here.code.value + "::py::";
 }
 
-impl UnparsePass.exit_import(nd: uni.Import) -> None {
+impl UnparsePass.exit_import with uni.Import exit {
     parts: list = [];
-    if nd.doc {
-        parts.append(nd.doc.gen.jac);
+    if here.doc {
+        parts.append(here.doc.gen.jac);
     }
-    if nd.is_absorb {
+    if here.is_comptime {
+        parts.append("comptime");
+    }
+    if here.is_absorb {
         parts.append("include");
     } else {
         parts.append("import");
     }
-    if nd.is_typed {
+    if here.is_typed {
         parts.append("type");
     }
-    items = self._comma_sep(nd.items);
-    if nd.from_loc {
+    items = self._comma_sep(here.items);
+    if here.from_loc {
         parts.append("from");
-        parts.append(nd.from_loc.gen.jac);
+        parts.append(here.from_loc.gen.jac);
         parts.append("{ " + items + " }");
     } else {
         parts.append(items);
         parts.append(";");
     }
-    nd.gen.jac = " ".join(parts);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_module_path(nd: uni.ModulePath) -> None {
-    path = ".".join([p.gen.jac for p in nd.path] if nd.path else []);
-    if nd.alias {
-        path = path + " as " + nd.alias.gen.jac;
+impl UnparsePass.exit_module_path with uni.ModulePath exit {
+    path = ".".join([p.gen.jac for p in here.path] if here.path else []);
+    if here.alias {
+        path = path + " as " + here.alias.gen.jac;
     }
-    nd.gen.jac = path;
+    here.gen.jac = path;
 }
 
-impl UnparsePass.exit_module_item(nd: uni.ModuleItem) -> None {
-    result = nd.name.gen.jac;
-    if nd.alias {
-        result = result + " as " + nd.alias.gen.jac;
+impl UnparsePass.exit_module_item with uni.ModuleItem exit {
+    result = here.name.gen.jac;
+    if here.alias {
+        result = result + " as " + here.alias.gen.jac;
     }
-    nd.gen.jac = result;
+    here.gen.jac = result;
 }
 
-impl UnparsePass.exit_archetype(nd: uni.Archetype) -> None {
+impl UnparsePass.exit_archetype with uni.Archetype exit {
     parts: list = [];
-    if nd.doc {
-        parts.append(nd.doc.gen.jac);
-        if not isinstance(nd.parent, (uni.Module, uni.Archetype, uni.Enum)) {
+    if here.doc {
+        parts.append(here.doc.gen.jac);
+        if not isinstance(here.parent, (uni.Module, uni.Archetype, uni.Enum)) {
             parts.append(";");
         }
     }
-    if nd.decorators {
-        decs = " @".join([d.gen.jac for d in nd.decorators]);
+    if here.decorators {
+        decs = " @".join([d.gen.jac for d in here.decorators]);
         parts.append("@" + decs);
     }
-    if nd.is_async {
+    if here.is_async {
         parts.append("async");
     }
-    parts.append(nd.arch_type.gen.jac);
-    if nd.access {
-        parts.append(nd.access.gen.jac);
+    parts.append(here.arch_type.gen.jac);
+    if here.access {
+        parts.append(here.access.gen.jac);
     }
-    parts.append(nd.name.gen.jac);
-    if nd.type_params {
-        tp_str = ", ".join([tp.gen.jac for tp in nd.type_params]);
+    parts.append(here.name.gen.jac);
+    if here.type_params {
+        tp_str = ", ".join([tp.gen.jac for tp in here.type_params]);
         parts.append("[" + tp_str + "]");
     }
-    if nd.base_classes or nd.keywords {
-        inherit = [b.gen.jac for b in nd.base_classes]
-            + [k.gen.jac for k in nd.keywords];
+    if here.base_classes or here.keywords {
+        inherit = [b.gen.jac for b in here.base_classes]
+            + [k.gen.jac for k in here.keywords];
         parts.append("(" + ", ".join(inherit) + ")");
     }
-    if nd.src_endpoint and nd.tgt_endpoint {
+    if here.src_endpoint and here.tgt_endpoint {
         parts.append(
-            ": " + nd.src_endpoint.gen.jac + " --> " + nd.tgt_endpoint.gen.jac
+            ": " + here.src_endpoint.gen.jac + " --> " + here.tgt_endpoint.gen.jac
         );
     }
-    if nd.body {
-        if isinstance(nd.body, uni.ImplDef) {
+    if here.body {
+        if isinstance(here.body, uni.ImplDef) {
             parts.append(";");
         } else {
-            body = " ".join([s.gen.jac for s in nd.body]);
+            body = " ".join([s.gen.jac for s in here.body]);
             parts.append("{ " + body + " }");
         }
     } else {
         parts.append("{ }");
     }
-    nd.gen.jac = " ".join(parts);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_impl_def(nd: uni.ImplDef) -> None {
+impl UnparsePass.exit_impl_def with uni.ImplDef exit {
     parts: list = [];
-    if nd.doc {
-        parts.append(nd.doc.gen.jac);
+    if here.doc {
+        parts.append(here.doc.gen.jac);
     }
-    if nd.decorators {
-        decs = " @".join([d.gen.jac for d in nd.decorators]);
+    if here.decorators {
+        decs = " @".join([d.gen.jac for d in here.decorators]);
         parts.append("@" + decs);
     }
     parts.append("impl");
-    target_str = ".".join([t.gen.jac for t in nd.target]);
+    target_str = ".".join([t.gen.jac for t in here.target]);
     parts.append(target_str);
-    if nd.spec {
-        if isinstance(nd.spec, (uni.FuncSignature, uni.EventSignature)) {
-            parts.append(nd.spec.gen.jac);
+    if here.spec {
+        if isinstance(here.spec, (uni.FuncSignature, uni.EventSignature)) {
+            parts.append(here.spec.gen.jac);
         } else {
-            parts.append("(" + self._comma_sep(nd.spec) + ")");
+            parts.append("(" + self._comma_sep(here.spec) + ")");
         }
     }
-    if isinstance(nd.body, uni.Expr) {
-        parts.append(nd.body.gen.jac);
+    if isinstance(here.body, uni.Expr) {
+        parts.append(here.body.gen.jac);
     } else {
-        body = " ".join([s.gen.jac for s in nd.body]);
+        body = " ".join([s.gen.jac for s in here.body]);
         parts.append("{ " + body + " }");
     }
-    nd.gen.jac = " ".join(parts);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_sem_def(nd: uni.SemDef) -> None {
-    target_str = ".".join([t.gen.jac for t in nd.target]);
-    nd.gen.jac = "sem " + target_str + " = " + nd.value.gen.jac + ";";
+impl UnparsePass.exit_sem_def with uni.SemDef exit {
+    target_str = ".".join([t.gen.jac for t in here.target]);
+    here.gen.jac = "sem " + target_str + " = " + here.value.gen.jac + ";";
 }
 
-impl UnparsePass.exit_enum(nd: uni.Enum) -> None {
+impl UnparsePass.exit_enum with uni.Enum exit {
     parts: list = [];
-    if nd.decorators {
-        decs = " @".join([d.gen.jac for d in nd.decorators]);
+    if here.decorators {
+        decs = " @".join([d.gen.jac for d in here.decorators]);
         parts.append("@" + decs);
     }
-    if nd.doc {
-        parts.append(nd.doc.gen.jac);
+    if here.doc {
+        parts.append(here.doc.gen.jac);
     }
     parts.append("enum");
-    if nd.access {
-        parts.append(nd.access.gen.jac);
+    if here.access {
+        parts.append(here.access.gen.jac);
     }
-    parts.append(nd.name.gen.jac);
-    if nd.value_type {
-        parts.append(": " + nd.value_type.gen.jac);
-    } elif nd.base_classes {
-        parts.append("(" + self._comma_sep(nd.base_classes) + ")");
+    parts.append(here.name.gen.jac);
+    if here.value_type {
+        parts.append(": " + here.value_type.gen.jac);
+    } elif here.base_classes {
+        parts.append("(" + self._comma_sep(here.base_classes) + ")");
     }
-    if nd.body {
-        if isinstance(nd.body, uni.ImplDef) {
+    if here.body {
+        if isinstance(here.body, uni.ImplDef) {
             parts.append(";");
         } else {
-            body = " ".join([s.gen.jac for s in nd.body]);
+            body = " ".join([s.gen.jac for s in here.body]);
             parts.append("{ " + body + " }");
         }
     } else {
         parts.append(";");
     }
-    nd.gen.jac = " ".join(parts);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_ability(nd: uni.Ability) -> None {
+impl UnparsePass.exit_ability with uni.Ability exit {
     parts: list = [];
-    if nd.doc {
-        parts.append(nd.doc.gen.jac);
-        if not isinstance(nd.parent, (uni.Module, uni.Archetype, uni.Enum)) {
+    if here.doc {
+        parts.append(here.doc.gen.jac);
+        if not isinstance(here.parent, (uni.Module, uni.Archetype, uni.Enum)) {
             parts.append(";");
         }
     }
-    if nd.decorators {
-        decs = " @".join([d.gen.jac for d in nd.decorators]);
+    if here.decorators {
+        decs = " @".join([d.gen.jac for d in here.decorators]);
         parts.append("@" + decs);
     }
-    if nd.is_async {
+    if here.is_comptime {
+        parts.append("comptime");
+    }
+    if here.is_async {
         parts.append("async");
     }
-    if nd.is_override {
+    if here.is_override {
         parts.append("override");
     }
-    if nd.is_classmethod {
+    if here.is_classmethod {
         parts.append("class");
     }
-    if nd.is_static {
+    if here.is_static {
         parts.append("static");
     }
-    keyword = "def" if nd.is_def else "can";
+    keyword = "def" if here.is_def else "can";
     parts.append(keyword);
-    if nd.access {
-        parts.append(nd.access.gen.jac);
+    if here.access {
+        parts.append(here.access.gen.jac);
     }
-    if nd.name_ref {
-        parts.append(nd.name_ref.gen.jac);
+    if here.name_ref {
+        parts.append(here.name_ref.gen.jac);
     }
-    if nd.signature {
-        parts.append(nd.signature.gen.jac);
+    if here.signature {
+        parts.append(here.signature.gen.jac);
     }
-    if nd.is_genai_ability {
+    if here.is_genai_ability {
         parts.append("by");
     }
-    if nd.is_abstract {
+    if here.is_abstract {
         parts.append("abstract");
     }
-    if nd.body is not None {
-        if isinstance(nd.body, uni.ImplDef) {
+    if here.body is not None {
+        if isinstance(here.body, uni.ImplDef) {
             parts.append(";");
-        } elif isinstance(nd.body, Sequence) and not isinstance(nd.body, uni.Expr) {
-            body = " ".join([s.gen.jac for s in nd.body]);
+        } elif isinstance(here.body, Sequence)
+            and not isinstance(here.body, uni.Expr) {
+            body = " ".join([s.gen.jac for s in here.body]);
             parts.append("{ " + body + " }");
         } else {
-            parts.append(nd.body.gen.jac);
-            if nd.is_genai_ability {
+            parts.append(here.body.gen.jac);
+            if here.is_genai_ability {
                 parts.append(";");
             }
         }
     } else {
         parts.append(";");
     }
-    nd.gen.jac = " ".join(parts);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_func_signature(nd: uni.FuncSignature) -> None {
+impl UnparsePass.exit_func_signature with uni.FuncSignature exit {
     param_parts: list = [];
-    if nd.posonly_params {
-        for prm in nd.posonly_params {
+    if here.posonly_params {
+        for prm in here.posonly_params {
             param_parts.append(prm.gen.jac);
         }
         param_parts.append("/");
     }
-    for prm in nd.params {
+    for prm in here.params {
         param_parts.append(prm.gen.jac);
     }
-    if nd.varargs {
-        param_parts.append(nd.varargs.gen.jac);
-    } elif nd.kwonlyargs {
+    if here.varargs {
+        param_parts.append(here.varargs.gen.jac);
+    } elif here.kwonlyargs {
         param_parts.append("*");
     }
-    for prm in nd.kwonlyargs {
+    for prm in here.kwonlyargs {
         param_parts.append(prm.gen.jac);
     }
-    if nd.kwargs {
-        param_parts.append(nd.kwargs.gen.jac);
+    if here.kwargs {
+        param_parts.append(here.kwargs.gen.jac);
     }
     params_str = ", ".join(param_parts);
     result = "(" + params_str + ")";
-    if nd.return_type {
-        result = result + " -> " + nd.return_type.gen.jac;
+    if here.return_type {
+        result = result + " -> " + here.return_type.gen.jac;
     }
-    nd.gen.jac = result;
+    here.gen.jac = result;
 }
 
-impl UnparsePass.exit_event_signature(nd: uni.EventSignature) -> None {
+impl UnparsePass.exit_event_signature with uni.EventSignature exit {
     parts: list = ["with"];
-    if nd.arch_tag_info {
-        parts.append(nd.arch_tag_info.gen.jac);
+    if here.arch_tag_info {
+        parts.append(here.arch_tag_info.gen.jac);
     }
-    parts.append(nd.event.gen.jac);
-    nd.gen.jac = " ".join(parts);
+    parts.append(here.event.gen.jac);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_param_var(nd: uni.ParamVar) -> None {
-    result = "";
-    if nd.unpack {
-        result = nd.unpack.gen.jac;
+impl UnparsePass.exit_param_var with uni.ParamVar exit {
+    result = "comptime " if here.is_comptime else "";
+    if here.unpack {
+        result = here.unpack.gen.jac;
     }
-    result = result + nd.name.gen.jac;
-    if nd.type_tag {
-        result = result + nd.type_tag.gen.jac;
+    result = result + here.name.gen.jac;
+    if here.type_tag {
+        result = result + here.type_tag.gen.jac;
     }
-    if nd.value {
-        result = result + " = " + nd.value.gen.jac;
+    if here.value {
+        result = result + " = " + here.value.gen.jac;
     }
-    nd.gen.jac = result;
+    here.gen.jac = result;
 }
 
-impl UnparsePass.exit_arch_has(nd: uni.ArchHas) -> None {
+impl UnparsePass.exit_arch_has with uni.ArchHas exit {
     parts: list = [];
-    if nd.access {
-        parts.append(nd.access.gen.jac);
+    if here.access {
+        parts.append(here.access.gen.jac);
     }
     parts.append("has");
-    for v in nd.vars {
+    for v in here.vars {
         parts.append(v.gen.jac);
     }
     parts.append(";");
-    nd.gen.jac = " ".join(parts);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_has_var(nd: uni.HasVar) -> None {
-    result = nd.name.gen.jac;
-    if nd.type_tag {
-        result = result + nd.type_tag.gen.jac;
+impl UnparsePass.exit_has_var with uni.HasVar exit {
+    result = here.name.gen.jac;
+    if here.type_tag {
+        result = result + here.type_tag.gen.jac;
     }
-    if nd.value {
-        result = result + " = " + nd.value.gen.jac;
+    if here.value {
+        result = result + " = " + here.value.gen.jac;
     }
     result = result + " ,";
-    nd.gen.jac = result;
+    here.gen.jac = result;
 }
 
-impl UnparsePass.exit_typed_ctx_block(nd: uni.TypedCtxBlock) -> None {
+impl UnparsePass.exit_typed_ctx_block with uni.TypedCtxBlock exit {
     parts: list = [":"];
-    if nd.type_ctx {
-        parts.append(nd.type_ctx.gen.jac);
+    if here.type_ctx {
+        parts.append(here.type_ctx.gen.jac);
     }
-    body = " ".join([s.gen.jac for s in nd.body]);
+    body = " ".join([s.gen.jac for s in here.body]);
     parts.append("{ " + body + " }");
-    nd.gen.jac = " ".join(parts);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_open_stmt(nd: uni.OpenStmt) -> None {
-    body = " ".join([s.gen.jac for s in nd.body]);
-    nd.gen.jac = "in " + nd.target.gen.jac + " { " + body + " }";
+impl UnparsePass.exit_open_stmt with uni.OpenStmt exit {
+    body = " ".join([s.gen.jac for s in here.body]);
+    here.gen.jac = "in " + here.target.gen.jac + " { " + body + " }";
 }
 
-impl UnparsePass.exit_if_stmt(nd: uni.IfStmt) -> None {
-    body = " ".join([s.gen.jac for s in nd.body]);
-    result = "if " + nd.condition.gen.jac + " { " + body + " }";
-    if nd.else_body {
-        result = result + " " + nd.else_body.gen.jac;
+impl UnparsePass.exit_if_stmt with uni.IfStmt exit {
+    if here.__class__ is not uni.IfStmt {
+        return;
     }
-    nd.gen.jac = result;
-}
-
-impl UnparsePass.exit_else_if(nd: uni.ElseIf) -> None {
-    body = " ".join([s.gen.jac for s in nd.body]);
-    result = "elif " + nd.condition.gen.jac + " { " + body + " }";
-    if nd.else_body {
-        result = result + " " + nd.else_body.gen.jac;
+    body = " ".join([s.gen.jac for s in here.body]);
+    result = ("comptime " if here.is_comptime else "")
+        + "if "
+        + here.condition.gen.jac
+        + " { "
+        + body
+        + " }";
+    if here.else_body {
+        result = result + " " + here.else_body.gen.jac;
     }
-    nd.gen.jac = result;
+    here.gen.jac = result;
 }
 
-impl UnparsePass.exit_else_stmt(nd: uni.ElseStmt) -> None {
-    body = " ".join([s.gen.jac for s in nd.body]);
-    nd.gen.jac = "else { " + body + " }";
+impl UnparsePass.exit_else_if with uni.ElseIf exit {
+    body = " ".join([s.gen.jac for s in here.body]);
+    result = "elif " + here.condition.gen.jac + " { " + body + " }";
+    if here.else_body {
+        result = result + " " + here.else_body.gen.jac;
+    }
+    here.gen.jac = result;
 }
 
-impl UnparsePass.exit_expr_stmt(nd: uni.ExprStmt) -> None {
+impl UnparsePass.exit_else_stmt with uni.ElseStmt exit {
+    body = " ".join([s.gen.jac for s in here.body]);
+    here.gen.jac = "else { " + body + " }";
+}
+
+impl UnparsePass.exit_expr_stmt with uni.ExprStmt exit {
     result = "";
-    if nd.expr {
-        result = nd.expr.gen.jac;
+    if here.expr {
+        result = here.expr.gen.jac;
     }
-    nd.gen.jac = result + ";";
+    here.gen.jac = result + ";";
 }
 
-impl UnparsePass.exit_try_stmt(nd: uni.TryStmt) -> None {
-    body = " ".join([s.gen.jac for s in nd.body]);
+impl UnparsePass.exit_try_stmt with uni.TryStmt exit {
+    body = " ".join([s.gen.jac for s in here.body]);
     result = "try { " + body + " }";
-    for exc in nd.excepts {
+    for exc in here.excepts {
         result = result + " " + exc.gen.jac;
     }
-    if nd.else_body {
-        result = result + " " + nd.else_body.gen.jac;
+    if here.else_body {
+        result = result + " " + here.else_body.gen.jac;
     }
-    if nd.finally_body {
-        result = result + " " + nd.finally_body.gen.jac;
+    if here.finally_body {
+        result = result + " " + here.finally_body.gen.jac;
     }
-    nd.gen.jac = result;
+    here.gen.jac = result;
 }
 
-impl UnparsePass.exit_except(nd: uni.Except) -> None {
+impl UnparsePass.exit_except with uni.Except exit {
     parts: list = ["except"];
-    if nd.ex_type {
-        parts.append(nd.ex_type.gen.jac);
-        if nd.name {
+    if here.ex_type {
+        parts.append(here.ex_type.gen.jac);
+        if here.name {
             parts.append("as");
-            parts.append(nd.name.gen.jac);
+            parts.append(here.name.gen.jac);
         }
     }
-    body = " ".join([s.gen.jac for s in nd.body]);
+    body = " ".join([s.gen.jac for s in here.body]);
     parts.append("{ " + body + " }");
-    nd.gen.jac = " ".join(parts);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_finally_stmt(nd: uni.FinallyStmt) -> None {
-    body = " ".join([s.gen.jac for s in nd.body]);
-    nd.gen.jac = "finally { " + body + " }";
+impl UnparsePass.exit_finally_stmt with uni.FinallyStmt exit {
+    body = " ".join([s.gen.jac for s in here.body]);
+    here.gen.jac = "finally { " + body + " }";
 }
 
-impl UnparsePass.exit_iter_for_stmt(nd: uni.IterForStmt) -> None {
-    parts: list = ["async for" if nd.is_async else "for"];
-    parts.append(nd.iter.gen.jac);
-    if nd.condition {
+impl UnparsePass.exit_iter_for_stmt with uni.IterForStmt exit {
+    parts: list = ["async for" if here.is_async else "for"];
+    parts.append(here.iter.gen.jac);
+    if here.condition {
         parts.append("while");
-        parts.append(nd.condition.gen.jac);
+        parts.append(here.condition.gen.jac);
     }
-    if nd.count_by {
+    if here.count_by {
         parts.append("with");
-        parts.append(nd.count_by.gen.jac);
+        parts.append(here.count_by.gen.jac);
     }
-    body = " ".join([s.gen.jac for s in nd.body]);
+    body = " ".join([s.gen.jac for s in here.body]);
     parts.append("{ " + body + " }");
-    if nd.else_body {
-        parts.append(nd.else_body.gen.jac);
+    if here.else_body {
+        parts.append(here.else_body.gen.jac);
     }
-    nd.gen.jac = " ".join(parts);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_in_for_stmt(nd: uni.InForStmt) -> None {
-    parts: list = ["for"];
-    if nd.is_async {
+impl UnparsePass.exit_in_for_stmt with uni.InForStmt exit {
+    parts: list = [];
+    if here.is_comptime {
+        parts.append("comptime");
+    }
+    parts.append("for");
+    if here.is_async {
         parts.append("async");
     }
-    parts.append(nd.target.gen.jac);
+    parts.append(here.target.gen.jac);
     parts.append("in");
-    parts.append(nd.collection.gen.jac);
-    body = " ".join([s.gen.jac for s in nd.body]);
+    parts.append(here.collection.gen.jac);
+    body = " ".join([s.gen.jac for s in here.body]);
     parts.append("{ " + body + " }");
-    if nd.else_body {
-        parts.append(nd.else_body.gen.jac);
+    if here.else_body {
+        parts.append(here.else_body.gen.jac);
     }
-    nd.gen.jac = " ".join(parts);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_while_stmt(nd: uni.WhileStmt) -> None {
-    body = " ".join([s.gen.jac for s in nd.body]);
-    result = "while " + nd.condition.gen.jac + " { " + body + " }";
-    if nd.else_body {
-        result = result + " " + nd.else_body.gen.jac;
+impl UnparsePass.exit_while_stmt with uni.WhileStmt exit {
+    body = " ".join([s.gen.jac for s in here.body]);
+    result = "while " + here.condition.gen.jac + " { " + body + " }";
+    if here.else_body {
+        result = result + " " + here.else_body.gen.jac;
     }
-    nd.gen.jac = result;
+    here.gen.jac = result;
 }
 
-impl UnparsePass.exit_forever_stmt(nd: uni.ForeverStmt) -> None {
-    body = " ".join([s.gen.jac for s in nd.body]);
-    nd.gen.jac = "forever { " + body + " }";
+impl UnparsePass.exit_forever_stmt with uni.ForeverStmt exit {
+    body = " ".join([s.gen.jac for s in here.body]);
+    here.gen.jac = "forever { " + body + " }";
 }
 
-impl UnparsePass.exit_with_stmt(nd: uni.WithStmt) -> None {
+impl UnparsePass.exit_with_stmt with uni.WithStmt exit {
     parts: list = ["with"];
-    if nd.is_async {
+    if here.is_async {
         parts.append("async");
     }
-    if nd.exprs {
-        parts.append(self._comma_sep(nd.exprs));
+    if here.exprs {
+        parts.append(self._comma_sep(here.exprs));
     }
-    body = " ".join([s.gen.jac for s in nd.body]);
+    body = " ".join([s.gen.jac for s in here.body]);
     parts.append("{ " + body + " }");
-    nd.gen.jac = " ".join(parts);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_expr_as_item(nd: uni.ExprAsItem) -> None {
-    result = nd.expr.gen.jac;
-    if nd.alias {
-        result = result + " as " + nd.alias.gen.jac;
+impl UnparsePass.exit_expr_as_item with uni.ExprAsItem exit {
+    result = here.expr.gen.jac;
+    if here.alias {
+        result = result + " as " + here.alias.gen.jac;
     }
-    nd.gen.jac = result;
+    here.gen.jac = result;
 }
 
-impl UnparsePass.exit_raise_stmt(nd: uni.RaiseStmt) -> None {
+impl UnparsePass.exit_raise_stmt with uni.RaiseStmt exit {
     parts: list = ["raise"];
-    if nd.cause {
-        parts.append(nd.cause.gen.jac);
+    if here.cause {
+        parts.append(here.cause.gen.jac);
     }
-    if nd.from_target {
+    if here.from_target {
         parts.append("from");
-        parts.append(nd.from_target.gen.jac);
+        parts.append(here.from_target.gen.jac);
     }
-    nd.gen.jac = " ".join(parts) + ";";
+    here.gen.jac = " ".join(parts) + ";";
 }
 
-impl UnparsePass.exit_assert_stmt(nd: uni.AssertStmt) -> None {
-    parts: list = ["assert", nd.condition.gen.jac];
-    if nd.error_msg {
+impl UnparsePass.exit_assert_stmt with uni.AssertStmt exit {
+    parts: list = [];
+    if here.is_comptime {
+        parts.append("comptime");
+    }
+    parts.extend(["assert", here.condition.gen.jac]);
+    if here.error_msg {
         parts.append(",");
-        parts.append(nd.error_msg.gen.jac);
+        parts.append(here.error_msg.gen.jac);
     }
-    nd.gen.jac = " ".join(parts) + ";";
+    here.gen.jac = " ".join(parts) + ";";
 }
 
-impl UnparsePass.exit_ctrl_stmt(nd: uni.CtrlStmt) -> None {
-    nd.gen.jac = str(nd.ctrl.value) + ";";
+impl UnparsePass.exit_ctrl_stmt with uni.CtrlStmt exit {
+    here.gen.jac = str(here.ctrl.value) + ";";
 }
 
-impl UnparsePass.exit_delete_stmt(nd: uni.DeleteStmt) -> None {
-    nd.gen.jac = "delete " + nd.target.gen.jac + ";";
+impl UnparsePass.exit_delete_stmt with uni.DeleteStmt exit {
+    here.gen.jac = "delete " + ", ".join([t.gen.jac for t in here.targets]) + ";";
 }
 
-impl UnparsePass.exit_report_stmt(nd: uni.ReportStmt) -> None {
-    nd.gen.jac = "report " + nd.expr.gen.jac + ";";
+impl UnparsePass.exit_report_stmt with uni.ReportStmt exit {
+    here.gen.jac = "report " + here.expr.gen.jac + ";";
 }
 
-impl UnparsePass.exit_return_stmt(nd: uni.ReturnStmt) -> None {
-    if nd.is_implicit and nd.expr {
-        nd.gen.jac = nd.expr.gen.jac;
+impl UnparsePass.exit_return_stmt with uni.ReturnStmt exit {
+    if here.is_implicit and here.expr {
+        here.gen.jac = here.expr.gen.jac;
         return;
     }
     parts: list = ["return"];
-    if nd.expr {
-        parts.append(nd.expr.gen.jac);
+    if here.expr {
+        parts.append(here.expr.gen.jac);
     }
     parts.append(";");
-    nd.gen.jac = " ".join(parts);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_visit_stmt(nd: uni.VisitStmt) -> None {
+impl UnparsePass.exit_visit_stmt with uni.VisitStmt exit {
     parts: list = ["visit"];
-    if nd.insert_loc {
-        parts.append(nd.insert_loc.gen.jac);
+    if here.insert_loc {
+        parts.append(here.insert_loc.gen.jac);
     }
-    parts.append(nd.target.gen.jac);
-    if nd.else_body {
-        parts.append(nd.else_body.gen.jac);
+    parts.append(here.target.gen.jac);
+    if here.else_body {
+        parts.append(here.else_body.gen.jac);
     }
     parts.append(";");
-    nd.gen.jac = " ".join(parts);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_disengage_stmt(nd: uni.DisengageStmt) -> None {
-    nd.gen.jac = "disengage ;";
+impl UnparsePass.exit_disengage_stmt with uni.DisengageStmt exit {
+    here.gen.jac = "disengage ;";
 }
 
-impl UnparsePass.exit_await_expr(nd: uni.AwaitExpr) -> None {
-    nd.gen.jac = "await " + nd.target.gen.jac;
+impl UnparsePass.exit_await_expr with uni.AwaitExpr exit {
+    here.gen.jac = "await " + here.target.gen.jac;
 }
 
-impl UnparsePass.exit_cast_expr(nd: uni.CastExpr) -> None {
-    nd.gen.jac = nd.value.gen.jac + " as " + nd.cast_type.gen.jac;
+impl UnparsePass.exit_cast_expr with uni.CastExpr exit {
+    here.gen.jac = here.value.gen.jac + " as " + here.cast_type.gen.jac;
 }
 
-impl UnparsePass.exit_assignment(nd: uni.Assignment) -> None {
+impl UnparsePass.exit_assignment with uni.Assignment exit {
     parts: list = [];
-    targets = " = ".join([t.gen.jac for t in nd.target]);
+    if here.is_comptime and not isinstance(here.parent, uni.GlobalVars) {
+        parts.append("comptime");
+    }
+    targets = " = ".join([t.gen.jac for t in here.target]);
     parts.append(targets);
-    if nd.type_tag {
-        parts.append(nd.type_tag.gen.jac);
+    if here.type_tag {
+        parts.append(here.type_tag.gen.jac);
     }
-    if nd.aug_op {
-        parts.append(nd.aug_op.gen.jac);
+    if here.aug_op {
+        parts.append(here.aug_op.gen.jac);
     }
-    if nd.value {
-        if not nd.aug_op {
+    if here.value {
+        if not here.aug_op {
             parts.append("=");
         }
-        parts.append(nd.value.gen.jac);
+        parts.append(here.value.gen.jac);
     }
     result = " ".join(parts);
 
-    if not nd.is_enum_stmt
+    if not here.is_enum_stmt
         and not (
-            isinstance(nd.parent, uni.IterForStmt)
-            and (nd == nd.parent.iter or nd == nd.parent.count_by)
+            isinstance(here.parent, uni.IterForStmt)
+            and (here == here.parent.iter or here == here.parent.count_by)
         ) {
         result = result + ";";
     }
-    nd.gen.jac = result;
+    here.gen.jac = result;
 }
 
-impl UnparsePass.exit_concurrent_expr(nd: uni.ConcurrentExpr) -> None {
+impl UnparsePass.exit_concurrent_expr with uni.ConcurrentExpr exit {
     parts: list = [];
-    if isinstance(nd.tok, uni.Token) and nd.tok.value {
-        parts.append(nd.tok.gen.jac);
+    if isinstance(here.tok, uni.Token) and here.tok.value {
+        parts.append(here.tok.gen.jac);
     }
-    parts.append(nd.target.gen.jac);
-    nd.gen.jac = " ".join(parts);
+    parts.append(here.target.gen.jac);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_binary_expr(nd: uni.BinaryExpr) -> None {
-    nd.gen.jac = nd.left.gen.jac + " " + nd.op.gen.jac + " " + nd.right.gen.jac;
+impl UnparsePass.exit_binary_expr with uni.BinaryExpr exit {
+    here.gen.jac = here.left.gen.jac + " " + here.op.gen.jac + " " + here.right.gen.jac;
 }
 
-impl UnparsePass.exit_compare_expr(nd: uni.CompareExpr) -> None {
-    result = nd.left.gen.jac;
-    for i in range(len(nd.rights)) {
-        result = result + " " + nd.ops[i].gen.jac + " " + nd.rights[i].gen.jac;
+impl UnparsePass.exit_compare_expr with uni.CompareExpr exit {
+    result = here.left.gen.jac;
+    for i in range(len(here.rights)) {
+        result = result + " " + here.ops[i].gen.jac + " " + here.rights[i].gen.jac;
     }
-    nd.gen.jac = result;
+    here.gen.jac = result;
 }
 
-impl UnparsePass.exit_cfg_expr(nd: uni.CfgExpr) -> None {
-    nd.gen.jac = nd.expr.gen.jac;
+impl UnparsePass.exit_cfg_expr with uni.CfgExpr exit {
+    here.gen.jac = here.expr.gen.jac;
 }
 
-impl UnparsePass.exit_bool_expr(nd: uni.BoolExpr) -> None {
-    sep = " " + nd.op.gen.jac + " ";
-    nd.gen.jac = sep.join([v.gen.jac for v in nd.values]);
+impl UnparsePass.exit_bool_expr with uni.BoolExpr exit {
+    sep = " " + here.op.gen.jac + " ";
+    here.gen.jac = sep.join([v.gen.jac for v in here.values]);
 }
 
-impl UnparsePass.exit_lambda_expr(nd: uni.LambdaExpr) -> None {
+impl UnparsePass.exit_lambda_expr with uni.LambdaExpr exit {
     parts: list = ["lambda"];
-    if nd.signature {
-        parts.append(nd.signature.gen.jac);
+    if here.signature {
+        parts.append(here.signature.gen.jac);
     }
-    if isinstance(nd.body, uni.Expr) {
-        parts.append("{ " + nd.body.gen.jac + " }");
+    if isinstance(here.body, uni.Expr) {
+        parts.append("{ " + here.body.gen.jac + " }");
     } else {
-        body = " ".join([s.gen.jac for s in nd.body]);
+        body = " ".join([s.gen.jac for s in here.body]);
         parts.append("{ " + body + " }");
     }
-    nd.gen.jac = " ".join(parts);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_unary_expr(nd: uni.UnaryExpr) -> None {
-    if is_mut_kind(nd.ownership) {
-        nd.gen.jac = nd.op.gen.jac + "mut " + nd.operand.gen.jac;
+impl UnparsePass.exit_unary_expr with uni.UnaryExpr exit {
+    if is_mut_kind(here.ownership) {
+        here.gen.jac = here.op.gen.jac + "mut " + here.operand.gen.jac;
     } else {
-        nd.gen.jac = nd.op.gen.jac + " " + nd.operand.gen.jac;
+        here.gen.jac = here.op.gen.jac + " " + here.operand.gen.jac;
     }
 }
 
-impl UnparsePass.exit_if_else_expr(nd: uni.IfElseExpr) -> None {
-    nd.gen.jac = nd.value.gen.jac
+impl UnparsePass.exit_if_else_expr with uni.IfElseExpr exit {
+    here.gen.jac = here.value.gen.jac
         + " if "
-        + nd.condition.gen.jac
+        + here.condition.gen.jac
         + " else "
-        + nd.else_value.gen.jac;
+        + here.else_value.gen.jac;
 }
 
-impl UnparsePass.exit_multi_string(nd: uni.MultiString) -> None {
-    nd.gen.jac = " ".join([s.gen.jac for s in nd.strings]);
+impl UnparsePass.exit_multi_string with uni.MultiString exit {
+    here.gen.jac = " ".join([s.gen.jac for s in here.strings]);
 }
 
-impl UnparsePass.exit_f_string(nd: uni.FString) -> None {
+impl UnparsePass.exit_f_string with uni.FString exit {
     parts: list = [];
-    if nd.start is not None {
-        parts.append(nd.start.gen.jac);
+    if here.start is not None {
+        parts.append(here.start.gen.jac);
     }
-    for part in nd.parts {
+    for part in here.parts {
         parts.append(part.gen.jac);
     }
-    if nd.end is not None {
-        parts.append(nd.end.gen.jac);
+    if here.end is not None {
+        parts.append(here.end.gen.jac);
     }
-    nd.gen.jac = "".join(parts);
+    here.gen.jac = "".join(parts);
 }
 
-impl UnparsePass.exit_formatted_value(nd: uni.FormattedValue) -> None {
-    result = "{" + nd.format_part.gen.jac;
-    if nd.conversion != -1 {
-        result = result + "!" + chr(nd.conversion);
+impl UnparsePass.exit_formatted_value with uni.FormattedValue exit {
+    result = "{" + here.format_part.gen.jac;
+    if here.conversion != -1 {
+        result = result + "!" + chr(here.conversion);
     }
-    if nd.format_spec {
-        result = result + ":" + nd.format_spec.gen.jac;
+    if here.format_spec {
+        result = result + ":" + here.format_spec.gen.jac;
     }
-    nd.gen.jac = result + "}";
+    here.gen.jac = result + "}";
 }
 
-impl UnparsePass.exit_list_val(nd: uni.ListVal) -> None {
-    nd.gen.jac = "[" + self._comma_sep(nd.values) + "]";
+impl UnparsePass.exit_list_val with uni.ListVal exit {
+    here.gen.jac = "[" + self._comma_sep(here.values) + "]";
 }
 
-impl UnparsePass.exit_set_val(nd: uni.SetVal) -> None {
-    vals: Sequence[uni.Expr] = nd.values if nd.values is not None else [];
-    nd.gen.jac = "{" + self._comma_sep(vals) + "}";
+impl UnparsePass.exit_set_val with uni.SetVal exit {
+    vals: Sequence[uni.Expr] = here.values if here.values is not None else [];
+    here.gen.jac = "{" + self._comma_sep(vals) + "}";
 }
 
-impl UnparsePass.exit_tuple_val(nd: uni.TupleVal) -> None {
-    inner = self._comma_sep(nd.values);
-    if len(nd.values) == 1 {
+impl UnparsePass.exit_tuple_val with uni.TupleVal exit {
+    inner = self._comma_sep(here.values);
+    if len(here.values) == 1 {
         inner = inner + ",";
     }
-    nd.gen.jac = "(" + inner + ")";
+    here.gen.jac = "(" + inner + ")";
 }
 
-impl UnparsePass.exit_dict_val(nd: uni.DictVal) -> None {
-    nd.gen.jac = "{" + self._comma_sep(nd.kv_pairs) + "}";
+impl UnparsePass.exit_dict_val with uni.DictVal exit {
+    here.gen.jac = "{" + self._comma_sep(here.kv_pairs) + "}";
 }
 
-impl UnparsePass.exit_k_v_pair(nd: uni.KVPair) -> None {
-    if nd.key {
-        nd.gen.jac = nd.key.gen.jac + " : " + nd.value.gen.jac;
+impl UnparsePass.exit_k_v_pair with uni.KVPair exit {
+    if here.key {
+        here.gen.jac = here.key.gen.jac + " : " + here.value.gen.jac;
     } else {
-        nd.gen.jac = "**" + nd.value.gen.jac;
+        here.gen.jac = "**" + here.value.gen.jac;
     }
 }
 
-impl UnparsePass.exit_k_w_pair(nd: uni.KWPair) -> None {
-    if nd.key {
-        nd.gen.jac = nd.key.gen.jac + " = " + nd.value.gen.jac;
+impl UnparsePass.exit_k_w_pair with uni.KWPair exit {
+    if here.key {
+        here.gen.jac = here.key.gen.jac + " = " + here.value.gen.jac;
     } else {
-        nd.gen.jac = "**" + nd.value.gen.jac;
+        here.gen.jac = "**" + here.value.gen.jac;
     }
 }
 
-impl UnparsePass.exit_inner_compr(nd: uni.InnerCompr) -> None {
+impl UnparsePass.exit_inner_compr with uni.InnerCompr exit {
     parts: list = ["for"];
-    if nd.is_async {
+    if here.is_async {
         parts.append("async");
     }
-    parts.append(nd.target.gen.jac);
+    parts.append(here.target.gen.jac);
     parts.append("in");
-    parts.append(nd.collection.gen.jac);
-    if nd.conditional {
-        for cond in nd.conditional {
+    parts.append(here.collection.gen.jac);
+    if here.conditional {
+        for cond in here.conditional {
             parts.append("if");
             parts.append(cond.gen.jac);
         }
     }
-    nd.gen.jac = " ".join(parts);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_list_compr(nd: uni.ListCompr) -> None {
-    comprs = " ".join([c.gen.jac for c in nd.compr]);
-    nd.gen.jac = "[" + nd.out_expr.gen.jac + " " + comprs + "]";
+impl UnparsePass.exit_list_compr with uni.ListCompr exit {
+    if here.__class__ is not uni.ListCompr {
+        return;
+    }
+    comprs = " ".join([c.gen.jac for c in here.compr]);
+    here.gen.jac = "[" + here.out_expr.gen.jac + " " + comprs + "]";
 }
 
-impl UnparsePass.exit_gen_compr(nd: uni.GenCompr) -> None {
-    comprs = " ".join([c.gen.jac for c in nd.compr]);
-    inner = nd.out_expr.gen.jac + " " + comprs;
+impl UnparsePass.exit_gen_compr with uni.GenCompr exit {
+    comprs = " ".join([c.gen.jac for c in here.compr]);
+    inner = here.out_expr.gen.jac + " " + comprs;
 
-    nd.gen.jac = "(" + inner + ")";
+    here.gen.jac = "(" + inner + ")";
 }
 
-impl UnparsePass.exit_set_compr(nd: uni.SetCompr) -> None {
-    comprs = " ".join([c.gen.jac for c in nd.compr]);
-    nd.gen.jac = "{" + nd.out_expr.gen.jac + " " + comprs + "}";
+impl UnparsePass.exit_set_compr with uni.SetCompr exit {
+    comprs = " ".join([c.gen.jac for c in here.compr]);
+    here.gen.jac = "{" + here.out_expr.gen.jac + " " + comprs + "}";
 }
 
-impl UnparsePass.exit_dict_compr(nd: uni.DictCompr) -> None {
-    comprs = " ".join([c.gen.jac for c in nd.compr]);
-    nd.gen.jac = "{" + nd.kv_pair.gen.jac + " " + comprs + "}";
+impl UnparsePass.exit_dict_compr with uni.DictCompr exit {
+    comprs = " ".join([c.gen.jac for c in here.compr]);
+    here.gen.jac = "{" + here.kv_pair.gen.jac + " " + comprs + "}";
 }
 
-impl UnparsePass.exit_atom_trailer(nd: uni.AtomTrailer) -> None {
-    result = nd.target.gen.jac;
-    if nd.is_null_ok {
+impl UnparsePass.exit_atom_trailer with uni.AtomTrailer exit {
+    result = here.target.gen.jac;
+    if here.is_null_ok {
         result = result + "?";
     }
-    if nd.is_attr {
+    if here.is_attr {
         result = result + ".";
     }
-    if nd.right {
-        result = result + nd.right.gen.jac;
+    if here.right {
+        result = result + here.right.gen.jac;
     }
-    nd.gen.jac = result;
+    here.gen.jac = result;
 }
 
-impl UnparsePass.exit_atom_unit(nd: uni.AtomUnit) -> None {
-    nd.gen.jac = "(" + nd.value.gen.jac + ")";
+impl UnparsePass.exit_atom_unit with uni.AtomUnit exit {
+    here.gen.jac = "(" + here.value.gen.jac + ")";
 }
 
-impl UnparsePass.exit_yield_expr(nd: uni.YieldExpr) -> None {
+impl UnparsePass.exit_yield_expr with uni.YieldExpr exit {
     parts: list = ["yield"];
-    if nd.with_from {
+    if here.with_from {
         parts.append("from");
     }
-    if nd.expr {
-        parts.append(nd.expr.gen.jac);
+    if here.expr {
+        parts.append(here.expr.gen.jac);
     }
-    nd.gen.jac = " ".join(parts);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_func_call(nd: uni.FuncCall) -> None {
-    call_params: Sequence[(uni.Expr | uni.KWPair)] = nd.params
-        if nd.params is not None
+impl UnparsePass.exit_func_call with uni.FuncCall exit {
+    call_params: Sequence[(uni.Expr | uni.KWPair)] = here.params
+        if here.params is not None
         else [];
     is_gencompr = len(call_params) == 1 and isinstance(call_params[0], uni.GenCompr);
     params_str = self._comma_sep(call_params);
     if is_gencompr {
-        result = nd.target.gen.jac + params_str;
+        result = here.target.gen.jac + params_str;
     } else {
-        result = nd.target.gen.jac + "(" + params_str;
-        if nd.genai_call {
-            result = result + " by " + nd.genai_call.gen.jac;
+        result = here.target.gen.jac + "(" + params_str;
+        if here.genai_call {
+            result = result + " by " + here.genai_call.gen.jac;
         }
         result = result + ")";
     }
-    nd.gen.jac = result;
+    here.gen.jac = result;
 }
 
-impl UnparsePass.exit_index_slice(nd: uni.IndexSlice) -> None {
+impl UnparsePass.exit_index_slice with uni.IndexSlice exit {
     result = "[";
-    if nd.is_range {
+    if here.is_range {
         slice_parts: list = [];
-        for s in nd.slices {
+        for s in here.slices {
             part = "";
             if s.start {
                 part = s.start.gen.jac;
@@ -966,204 +1000,210 @@ impl UnparsePass.exit_index_slice(nd: uni.IndexSlice) -> None {
             slice_parts.append(part);
         }
         result = result + ", ".join(slice_parts);
-    } elif len(nd.slices) == 1 and nd.slices[0].start {
-        result = result + nd.slices[0].start.gen.jac;
+    } elif len(here.slices) == 1 and here.slices[0].start {
+        result = result + here.slices[0].start.gen.jac;
     }
-    nd.gen.jac = result + "]";
+    here.gen.jac = result + "]";
 }
 
-impl UnparsePass.exit_edge_ref_trailer(nd: uni.EdgeRefTrailer) -> None {
-    nd.gen.jac = _join_kids(nd);
+impl UnparsePass.exit_edge_ref_trailer with uni.EdgeRefTrailer exit {
+    here.gen.jac = _join_kids(here);
 }
 
-impl UnparsePass.exit_edge_op_ref(nd: uni.EdgeOpRef) -> None {
-    nd.gen.jac = _join_kids(nd);
+impl UnparsePass.exit_edge_op_ref with uni.EdgeOpRef exit {
+    here.gen.jac = _join_kids(here);
 }
 
-impl UnparsePass.exit_disconnect_op(nd: uni.DisconnectOp) -> None {
-    nd.gen.jac = "delete " + nd.edge_spec.gen.jac;
+impl UnparsePass.exit_disconnect_op with uni.DisconnectOp exit {
+    here.gen.jac = "delete " + here.edge_spec.gen.jac;
 }
 
-impl UnparsePass.exit_connect_op(nd: uni.ConnectOp) -> None {
-    nd.gen.jac = _join_kids(nd);
+impl UnparsePass.exit_connect_op with uni.ConnectOp exit {
+    here.gen.jac = _join_kids(here);
 }
 
-impl UnparsePass.exit_filter_compr(nd: uni.FilterCompr) -> None {
+impl UnparsePass.exit_filter_compr with uni.FilterCompr exit {
     parts: list[str] = [];
-    is_edge_inline = isinstance(nd.parent, uni.EdgeOpRef);
+    is_edge_inline = isinstance(here.parent, uni.EdgeOpRef);
     if is_edge_inline {
-        if nd.f_type {
-            parts.append(nd.f_type.gen.jac);
+        if here.f_type {
+            parts.append(here.f_type.gen.jac);
         }
-        if nd.compares {
-            if nd.f_type {
+        if here.compares {
+            if here.f_type {
                 parts.append(":");
             }
-            parts.append(", ".join([c.gen.jac for c in nd.compares]));
+            parts.append(", ".join([c.gen.jac for c in here.compares]));
         }
     } else {
         parts.append("[?");
-        if nd.f_type {
+        if here.f_type {
             parts.append(":");
-            parts.append(nd.f_type.gen.jac);
+            parts.append(here.f_type.gen.jac);
         }
-        if nd.compares {
-            if nd.f_type {
+        if here.compares {
+            if here.f_type {
                 parts.append(", ");
             }
-            parts.append(", ".join([c.gen.jac for c in nd.compares]));
+            parts.append(", ".join([c.gen.jac for c in here.compares]));
         }
         parts.append("]");
     }
-    nd.gen.jac = "".join(parts);
+    here.gen.jac = "".join(parts);
 }
 
-impl UnparsePass.exit_assign_compr(nd: uni.AssignCompr) -> None {
-    nd.gen.jac = _join_kids(nd);
+impl UnparsePass.exit_assign_compr with uni.AssignCompr exit {
+    here.gen.jac = _join_kids(here);
 }
 
-impl UnparsePass.exit_jsx_element(nd: uni.JsxElement) -> None {
-    nd.gen.jac = _join_kids(nd, sep="");
+impl UnparsePass.exit_jsx_element with uni.JsxElement exit {
+    here.gen.jac = _join_kids(here, sep="");
 }
 
-impl UnparsePass.exit_jsx_element_name(nd: uni.JsxElementName) -> None {
-    if nd.parts {
-        nd.gen.jac = ".".join(
+impl UnparsePass.exit_jsx_element_name with uni.JsxElementName exit {
+    if here.parts {
+        here.gen.jac = ".".join(
             [
                 p.gen.jac
-                for p in nd.parts
+                for p in here.parts
                 if p
             ]
         );
     } else {
-        nd.gen.jac = "";
+        here.gen.jac = "";
     }
 }
 
-impl UnparsePass.exit_jsx_spread_attribute(nd: uni.JsxSpreadAttribute) -> None {
-    nd.gen.jac = nd.expr.gen.jac;
+impl UnparsePass.exit_jsx_spread_attribute with uni.JsxSpreadAttribute exit {
+    here.gen.jac = here.expr.gen.jac;
 }
 
-impl UnparsePass.exit_jsx_normal_attribute(nd: uni.JsxNormalAttribute) -> None {
-    if nd.is_shorthand {
-        nd.gen.jac = "{" + nd.name.gen.jac + "}";
+impl UnparsePass.exit_jsx_normal_attribute with uni.JsxNormalAttribute exit {
+    if here.is_shorthand {
+        here.gen.jac = "{" + here.name.gen.jac + "}";
         return;
     }
-    result = nd.name.gen.jac;
-    if nd.value {
-        result = result + " = " + nd.value.gen.jac;
+    result = here.name.gen.jac;
+    if here.value {
+        result = result + " = " + here.value.gen.jac;
     }
-    nd.gen.jac = result;
+    here.gen.jac = result;
 }
 
-impl UnparsePass.exit_jsx_text(nd: uni.JsxText) -> None {
-    nd.gen.jac = _join_kids(nd, sep="");
+impl UnparsePass.exit_jsx_text with uni.JsxText exit {
+    here.gen.jac = _join_kids(here, sep="");
 }
 
-impl UnparsePass.exit_jsx_expression(nd: uni.JsxExpression) -> None {
-    nd.gen.jac = nd.expr.gen.jac;
+impl UnparsePass.exit_jsx_expression with uni.JsxExpression exit {
+    here.gen.jac = here.expr.gen.jac;
 }
 
-impl UnparsePass.exit_jsx_slot(nd: uni.JsxSlot) -> None {
+impl UnparsePass.exit_jsx_slot with uni.JsxSlot exit {
     parts: list[str] = [];
-    for k in nd.kid {
+    for k in here.kid {
         s = k.gen.jac;
         if s is not None {
             parts.append(s);
         }
     }
-    nd.gen.jac = "".join(parts);
+    here.gen.jac = "".join(parts);
 }
 
-impl UnparsePass.exit_jsx_comment(nd: uni.JsxComment) -> None {
-    nd.gen.jac = nd.value.value if isinstance(nd.value, uni.Token) else str(nd.value);
+impl UnparsePass.exit_jsx_comment with uni.JsxComment exit {
+    here.gen.jac = here.value.value
+        if isinstance(here.value, uni.Token)
+        else str(here.value);
 }
 
-impl UnparsePass.exit_match_stmt(nd: uni.MatchStmt) -> None {
-    cases = " ".join([c.gen.jac for c in nd.cases]);
-    nd.gen.jac = "match " + nd.target.gen.jac + " { " + cases + " }";
+impl UnparsePass.exit_match_stmt with uni.MatchStmt exit {
+    cases = " ".join([c.gen.jac for c in here.cases]);
+    here.gen.jac = "match " + here.target.gen.jac + " { " + cases + " }";
 }
 
-impl UnparsePass.exit_match_case(nd: uni.MatchCase) -> None {
-    parts: list = ["case", nd.pattern.gen.jac];
-    if nd.guard {
+impl UnparsePass.exit_match_case with uni.MatchCase exit {
+    parts: list = ["case", here.pattern.gen.jac];
+    if here.guard {
         parts.append("if");
-        parts.append(nd.guard.gen.jac);
+        parts.append(here.guard.gen.jac);
     }
     parts.append(":");
-    body = " ".join([s.gen.jac for s in nd.body]);
+    body = " ".join([s.gen.jac for s in here.body]);
     parts.append(body);
-    nd.gen.jac = " ".join(parts);
+    here.gen.jac = " ".join(parts);
 }
 
-impl UnparsePass.exit_switch_stmt(nd: uni.SwitchStmt) -> None {
-    cases = " ".join([c.gen.jac for c in nd.cases]);
-    nd.gen.jac = "switch " + nd.target.gen.jac + " { " + cases + " }";
+impl UnparsePass.exit_switch_stmt with uni.SwitchStmt exit {
+    cases = " ".join([c.gen.jac for c in here.cases]);
+    here.gen.jac = "switch " + here.target.gen.jac + " { " + cases + " }";
 }
 
-impl UnparsePass.exit_switch_case(nd: uni.SwitchCase) -> None {
-    if nd.pattern is not None {
-        result = "case " + nd.pattern.gen.jac;
+impl UnparsePass.exit_switch_case with uni.SwitchCase exit {
+    if here.pattern is not None {
+        result = "case " + here.pattern.gen.jac;
     } else {
         result = "default";
     }
     result = result + ":";
-    body = " ".join([s.gen.jac for s in nd.body]);
+    body = " ".join([s.gen.jac for s in here.body]);
     result = result + " " + body;
-    nd.gen.jac = result;
+    here.gen.jac = result;
 }
 
-impl UnparsePass.exit_match_or(nd: uni.MatchOr) -> None {
-    nd.gen.jac = " | ".join([p.gen.jac for p in nd.patterns]);
+impl UnparsePass.exit_match_or with uni.MatchOr exit {
+    here.gen.jac = " | ".join([p.gen.jac for p in here.patterns]);
 }
 
-impl UnparsePass.exit_match_as(nd: uni.MatchAs) -> None {
-    if nd.pattern {
-        nd.gen.jac = nd.pattern.gen.jac + " as " + nd.name.gen.jac;
+impl UnparsePass.exit_match_as with uni.MatchAs exit {
+    if here.pattern {
+        here.gen.jac = here.pattern.gen.jac + " as " + here.name.gen.jac;
     } else {
-        nd.gen.jac = nd.name.gen.jac;
+        here.gen.jac = here.name.gen.jac;
     }
 }
 
-impl UnparsePass.exit_match_wild(nd: uni.MatchWild) -> None {
-    nd.gen.jac = "_";
+impl UnparsePass.exit_match_wild with uni.MatchWild exit {
+    here.gen.jac = "_";
 }
 
-impl UnparsePass.exit_match_value(nd: uni.MatchValue) -> None {
-    nd.gen.jac = nd.value.gen.jac;
+impl UnparsePass.exit_match_value with uni.MatchValue exit {
+    here.gen.jac = here.value.gen.jac;
 }
 
-impl UnparsePass.exit_match_singleton(nd: uni.MatchSingleton) -> None {
-    nd.gen.jac = nd.value.gen.jac;
+impl UnparsePass.exit_match_singleton with uni.MatchSingleton exit {
+    here.gen.jac = here.value.gen.jac;
 }
 
-impl UnparsePass.exit_match_sequence(nd: uni.MatchSequence) -> None {
-    nd.gen.jac = "[" + self._comma_sep(nd.values) + "]";
+impl UnparsePass.exit_match_sequence with uni.MatchSequence exit {
+    here.gen.jac = "[" + self._comma_sep(here.values) + "]";
 }
 
-impl UnparsePass.exit_match_mapping(nd: uni.MatchMapping) -> None {
-    nd.gen.jac = "{" + self._comma_sep(nd.values) + "}";
+impl UnparsePass.exit_match_mapping with uni.MatchMapping exit {
+    here.gen.jac = "{" + self._comma_sep(here.values) + "}";
 }
 
-impl UnparsePass.exit_match_k_v_pair(nd: uni.MatchKVPair) -> None {
-    nd.gen.jac = nd.key.gen.jac + " " + nd.kid[1].gen.jac + " " + nd.value.gen.jac;
+impl UnparsePass.exit_match_k_v_pair with uni.MatchKVPair exit {
+    here.gen.jac = here.key.gen.jac
+        + " "
+        + here.kid[1].gen.jac
+        + " "
+        + here.value.gen.jac;
 }
 
-impl UnparsePass.exit_match_star(nd: uni.MatchStar) -> None {
+impl UnparsePass.exit_match_star with uni.MatchStar exit {
     result = "*";
-    if nd.name {
-        result = result + nd.name.gen.jac;
+    if here.name {
+        result = result + here.name.gen.jac;
     }
-    nd.gen.jac = result;
+    here.gen.jac = result;
 }
 
-impl UnparsePass.exit_match_arch(nd: uni.MatchArch) -> None {
+impl UnparsePass.exit_match_arch with uni.MatchArch exit {
     parts: list = [];
-    if nd.arg_patterns {
-        parts.extend([a.gen.jac for a in nd.arg_patterns]);
+    if here.arg_patterns {
+        parts.extend([a.gen.jac for a in here.arg_patterns]);
     }
-    if nd.kw_patterns {
-        parts.extend([k.gen.jac for k in nd.kw_patterns]);
+    if here.kw_patterns {
+        parts.extend([k.gen.jac for k in here.kw_patterns]);
     }
-    nd.gen.jac = nd.name.gen.jac + "(" + ", ".join(parts) + ")";
+    here.gen.jac = here.name.gen.jac + "(" + ", ".join(parts) + ")";
 }

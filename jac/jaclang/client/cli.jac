@@ -1,5 +1,5 @@
-import from jaclang.cli.registry { get_registry }
-import from jaclang.cli.command { Arg, ArgKind }
+import from jaclang.comptime { name as ct_name }
+import from jaclang.cli.command { Arg, ArgKind, CommandSpec }
 import from jaclang.project.config { JacConfig }
 import from jaclang.client.mobile_setup_env {
     mobile_setup_platform_env_restore,
@@ -7,40 +7,37 @@ import from jaclang.client.mobile_setup_env {
 }
 import os;
 
-import from jaclang.client.targets.register { sync_client_target_choices }
 import from jaclang.client.targets.registry { ClientTarget }
 import from pathlib { Path }
 
-glob registry = get_registry();
+comptime SPEC_SETUP: CommandSpec = CommandSpec(
+         name="setup",
+         help="Setup a build target (one-time initialization)",
+         args=[
+             Arg.create(
+                 "target",
+                 kind=ArgKind.POSITIONAL,
+                 help="Target to setup (e.g., desktop)"
+             ),
+             Arg.create(
+                 "platform",
+                 typ=str,
+                 `default=None,
+                 help="Platform for mobile setup (android, ios, all)",
+                 choices=["android", "ios", "all"],
+                 short="p"
+             ),
 
-with entry {
-    sync_client_target_choices();
-}
+         ],
+         examples=[
+             ("jac setup mobile", "Setup mobile target (default platform)"),
+             ("jac setup mobile --platform ios", "Setup iOS scaffold only"),
+             ("jac setup mobile --platform all", "Setup both Android and iOS (macOS)")
+         ],
+         group="project",
+         handler_name=ct_name(setup)
+     );
 
-@registry.command(
-    name="setup",
-    help="Setup a build target (one-time initialization)",
-    args=[
-        Arg.create(
-            "target", kind=ArgKind.POSITIONAL, help="Target to setup (e.g., desktop)"
-        ),
-        Arg.create(
-            "platform",
-            typ=str,
-            `default=None,
-            help="Platform for mobile setup (android, ios, all)",
-            choices=["android", "ios", "all"],
-            short="p"
-        ),
-
-    ],
-    examples=[
-        ("jac setup mobile", "Setup mobile target (default platform)"),
-        ("jac setup mobile --platform ios", "Setup iOS scaffold only"),
-        ("jac setup mobile --platform all", "Setup both Android and iOS (macOS)")
-    ],
-    group="project"
-)
 def setup(target: str, platform: str | None = None) -> int {
     import from jaclang.cli.console { console }
     import from jaclang.client.targets.registry { get_target_factory }
@@ -192,7 +189,7 @@ def run_client_start(
 ) -> int | None {
     import from jaclang.cli.console { console }
     import from jaclang.client.targets.registry { get_target_factory }
-    import from jaclang.client.diagnostics { is_debug_mode }
+    import from jaclang.client.client_diagnostics { is_debug_mode }
 
     config = get_config();
     if not config {

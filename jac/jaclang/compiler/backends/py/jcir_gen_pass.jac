@@ -1,3 +1,4 @@
+import from jaclang.runtime.osp_kernel { osp_skip_rest }
 import textwrap;
 import from collections.abc { Sequence }
 import from jaclang.compiler.frontend.unitree {
@@ -155,7 +156,8 @@ import from jaclang.compiler.frontend.diagnostics {
     E5008,
     E5094,
     W5096,
-    E5098
+    E5098,
+    E5102
 }
 
 glob TOKEN_CLS_BY_NAME: dict[(str, str)] = {
@@ -333,8 +335,9 @@ def module_container_bytes(mod_path: str, root_node: CgNode) -> bytes {
     return w.to_bytes();
 }
 
-obj JcirGenPass(BaseAstGenPass[CgItem]) {
+walker JcirGenPass(BaseAstGenPass[CgItem]) {
     has already_added: list[str] = [],
+        _ct_only_names: (set[str] | None) = None,
         jaclib_imports: set[str] postinit,
         builtin_imports: set[str] postinit,
         sized_imports: set[str] postinit,
@@ -347,13 +350,13 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
         _module_path: str = "",
         _interop_stub_node: (UniNode | None) = None;
 
-    with entry { }
+    with entry {}
 
     def _get_builtin_names -> set[str];
     def _get_ambient_typing_names -> set[str];
     def postinit -> None;
-    def enter_node(nd: UniNode) -> None;
-    def exit_node(nd: UniNode) -> None;
+    can enter_walk with UniNode entry;
+    can exit_walk with UniNode exit;
     def _is_native_ext_module -> bool;
     def _refuse(nd: (UniNode | None), construct: str) -> None;
     def nod(
@@ -383,6 +386,22 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
     def _fw_aug_assign(nd: Assignment, target: any, value: any) -> (CgNode | None);
     def val(nd: UniNode) -> CgNode;
     def const_of(value: any, jac_node: (UniNode | None) = None) -> CgNode;
+    def _ct_kind(v: any) -> str;
+    def _ct_order_key(v: any) -> str;
+    def _ct_materializable(v: any) -> bool;
+    def _ct_concrete(nd: Expr) -> bool;
+    def _is_comptime_only_name(nd: Name) -> bool;
+    def _comptime_only_names -> set[str];
+    def _record_bypasses_init(v: any) -> bool;
+    def _is_ct_type_param(nd: Name) -> bool;
+    def _ct_param_decls(cls_expr: Expr) -> (list[TypeParam] | None);
+    def _ct_ctor_slots(nd: AtomTrailer) -> (list[tuple] | None);
+    def _trailer_reaches_ct_class(nd: AtomTrailer) -> bool;
+    def _ct_param_fields(nd: Archetype) -> list[CgNode];
+    def _import_ref(module: str, name: str, jac_node: UniNode) -> CgNode;
+    def _class_ref(module: str, name: str, jac_node: UniNode) -> CgNode;
+    def _materialize(v: any, jac_node: UniNode) -> (CgNode | None);
+    def _comptime_if_out(nd: IfStmt) -> bool;
     def name_load(name_id: str, jac_node: (UniNode | None) = None) -> CgNode;
     def _with_ctx(cgn: CgNode, ctx_cls: str) -> CgNode;
     def jaclib_obj(obj_name: str) -> CgNode;
@@ -462,91 +481,99 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
     def _is_in_type_annotation(nd: UniNode) -> bool;
     def _is_descendant_of(nd: UniNode, ancestor: UniNode) -> bool;
     def gen_call_args(nd: FuncCall) -> tuple[(list, list)];
-    def _delete_targets(nd: DeleteStmt) -> list[CgNode];
-    def _delete_ctx_targets(targets: list[CgNode], ctx_cls: str) -> list[CgNode];
+    def _del_ctx_target(target: Expr, ctx_cls: str) -> CgNode;
+    def _destroy_call(value: CgNode, strict: bool) -> CgNode;
+    def _del_is_trivial(cgn: CgNode) -> bool;
+    def _del_slice_value(value: CgNode, nd: DeleteStmt) -> CgNode;
+    def _del_bind_temp(
+        value: CgNode, name: str, stmts: list[CgItem], nd: DeleteStmt
+    ) -> CgNode;
+
+    def _del_location(target: Expr, nd: DeleteStmt, ordinal: int) -> list[CgItem];
     def ir_bytes -> bytes;
-    def exit_sub_tag(nd: SubTag) -> None;
-    def exit_module(nd: Module) -> None;
-    def exit_type_param(nd: TypeParam) -> None;
-    def exit_type_alias(nd: TypeAlias) -> None;
-    def exit_global_vars(nd: GlobalVars) -> None;
-    def enter_test(nd: Test) -> None;
-    def exit_test(nd: Test) -> None;
-    def exit_module_code(nd: ModuleCode) -> None;
-    def exit_py_inline_code(nd: PyInlineCode) -> None;
-    def exit_import(nd: Import) -> None;
-    def exit_module_path(nd: ModulePath) -> None;
-    def exit_module_item(nd: ModuleItem) -> None;
-    def enter_archetype(nd: Archetype) -> None;
-    def exit_archetype(nd: Archetype) -> None;
-    def enter_enum(nd: Enum) -> None;
-    def exit_enum(nd: Enum) -> None;
-    def enter_ability(nd: Ability) -> None;
-    def exit_ability(nd: Ability) -> None;
-    def exit_impl_def(nd: ImplDef) -> None;
-    def exit_sem_def(nd: SemDef) -> None;
-    def exit_func_signature(nd: FuncSignature) -> None;
-    def exit_event_signature(nd: EventSignature) -> None;
-    def exit_param_var(nd: ParamVar) -> None;
-    def exit_arch_has(nd: ArchHas) -> None;
-    def exit_has_var(nd: HasVar) -> None;
-    def exit_typed_ctx_block(nd: TypedCtxBlock) -> None;
-    def exit_open_stmt(nd: OpenStmt) -> None;
-    def exit_if_stmt(nd: IfStmt) -> None;
-    def exit_else_if(nd: ElseIf) -> None;
-    def exit_else_stmt(nd: ElseStmt) -> None;
-    def exit_expr_stmt(nd: ExprStmt) -> None;
-    def exit_concurrent_expr(nd: ConcurrentExpr) -> None;
-    def exit_try_stmt(nd: TryStmt) -> None;
-    def exit_except(nd: Except) -> None;
-    def exit_finally_stmt(nd: FinallyStmt) -> None;
-    def exit_iter_for_stmt(nd: IterForStmt) -> None;
-    def exit_in_for_stmt(nd: InForStmt) -> None;
-    def exit_while_stmt(nd: WhileStmt) -> None;
-    def exit_forever_stmt(nd: ForeverStmt) -> None;
-    def exit_with_stmt(nd: WithStmt) -> None;
-    def exit_expr_as_item(nd: ExprAsItem) -> None;
-    def exit_raise_stmt(nd: RaiseStmt) -> None;
-    def exit_assert_stmt(nd: AssertStmt) -> None;
-    def exit_ctrl_stmt(nd: CtrlStmt) -> None;
-    def exit_delete_stmt(nd: DeleteStmt) -> None;
-    def exit_report_stmt(nd: ReportStmt) -> None;
-    def exit_return_stmt(nd: ReturnStmt) -> None;
-    def exit_yield_expr(nd: YieldExpr) -> None;
-    def exit_visit_stmt(nd: VisitStmt) -> None;
-    def exit_disengage_stmt(nd: DisengageStmt) -> None;
-    def exit_await_expr(nd: AwaitExpr) -> None;
-    def exit_cast_expr(nd: CastExpr) -> None;
-    def exit_assignment(nd: Assignment) -> None;
-    def exit_binary_expr(nd: BinaryExpr) -> None;
+    can exit_sub_tag with SubTag exit;
+    can exit_module with Module exit;
+    can exit_type_param with TypeParam exit;
+    can exit_type_alias with TypeAlias exit;
+    can exit_global_vars with GlobalVars exit;
+    can enter_test with Test entry;
+    can exit_test with Test exit;
+    can exit_module_code with ModuleCode exit;
+    can exit_py_inline_code with PyInlineCode exit;
+    can exit_import with Import exit;
+    can exit_module_path with ModulePath exit;
+    can exit_module_item with ModuleItem exit;
+    can enter_archetype with Archetype entry;
+    can exit_archetype with Archetype exit;
+    can enter_enum with Enum entry;
+    can exit_enum with Enum exit;
+    can enter_ability with Ability entry;
+    can exit_ability with Ability exit;
+    can exit_impl_def with ImplDef exit;
+    can exit_sem_def with SemDef exit;
+    can exit_func_signature with FuncSignature exit;
+    can exit_event_signature with EventSignature exit;
+    can exit_param_var with ParamVar exit;
+    can exit_arch_has with ArchHas exit;
+    can exit_has_var with HasVar exit;
+    can exit_typed_ctx_block with TypedCtxBlock exit;
+    can exit_open_stmt with OpenStmt exit;
+    can exit_if_stmt with IfStmt exit;
+    can exit_else_if with ElseIf exit;
+    can exit_else_stmt with ElseStmt exit;
+    can exit_expr_stmt with ExprStmt exit;
+    can exit_concurrent_expr with ConcurrentExpr exit;
+    can exit_try_stmt with TryStmt exit;
+    can exit_except with Except exit;
+    can exit_finally_stmt with FinallyStmt exit;
+    can exit_iter_for_stmt with IterForStmt exit;
+    can exit_in_for_stmt with InForStmt exit;
+    can exit_while_stmt with WhileStmt exit;
+    can exit_forever_stmt with ForeverStmt exit;
+    can exit_with_stmt with WithStmt exit;
+    can exit_expr_as_item with ExprAsItem exit;
+    can exit_raise_stmt with RaiseStmt exit;
+    can exit_assert_stmt with AssertStmt exit;
+    can exit_ctrl_stmt with CtrlStmt exit;
+    can exit_delete_stmt with DeleteStmt exit;
+    can exit_report_stmt with ReportStmt exit;
+    can exit_return_stmt with ReturnStmt exit;
+    can exit_yield_expr with YieldExpr exit;
+    can exit_visit_stmt with VisitStmt exit;
+    can exit_disengage_stmt with DisengageStmt exit;
+    can exit_await_expr with AwaitExpr exit;
+    can exit_cast_expr with CastExpr exit;
+    can exit_assignment with Assignment exit;
+    can exit_binary_expr with BinaryExpr exit;
     def translate_jac_bin_op(nd: BinaryExpr) -> list;
-    def exit_compare_expr(nd: CompareExpr) -> None;
-    def exit_cfg_expr(nd: CfgExpr) -> None;
-    def exit_bool_expr(nd: BoolExpr) -> None;
-    def exit_lambda_expr(nd: LambdaExpr) -> None;
+    can exit_compare_expr with CompareExpr exit;
+    can exit_cfg_expr with CfgExpr exit;
+    can exit_bool_expr with BoolExpr exit;
+    can exit_lambda_expr with LambdaExpr exit;
     def _emit_lambda_expr_body(nd: LambdaExpr, body_node: Expr) -> None;
     def _remove_lambda_param_annotations(signature: FuncSignature) -> None;
-    def exit_unary_expr(nd: UnaryExpr) -> None;
+    can exit_unary_expr with UnaryExpr exit;
     def _emit_jobj_ref(nd: UnaryExpr) -> None;
-    def exit_if_else_expr(nd: IfElseExpr) -> None;
+    can exit_if_else_expr with IfElseExpr exit;
     def _multi_string_pieces(str_seq: Sequence[UniNode]) -> list;
-    def exit_multi_string(nd: MultiString) -> None;
-    def exit_f_string(nd: FString) -> None;
-    def exit_formatted_value(nd: FormattedValue) -> None;
-    def exit_list_val(nd: ListVal) -> None;
-    def exit_set_val(nd: SetVal) -> None;
-    def exit_tuple_val(nd: TupleVal) -> None;
-    def exit_dict_val(nd: DictVal) -> None;
-    def exit_k_v_pair(nd: KVPair) -> None;
-    def exit_k_w_pair(nd: KWPair) -> None;
-    def exit_inner_compr(nd: InnerCompr) -> None;
-    def exit_list_compr(nd: ListCompr) -> None;
-    def exit_gen_compr(nd: GenCompr) -> None;
-    def exit_set_compr(nd: SetCompr) -> None;
-    def exit_dict_compr(nd: DictCompr) -> None;
-    def exit_atom_trailer(nd: AtomTrailer) -> None;
-    def exit_atom_unit(nd: AtomUnit) -> None;
-    def exit_func_call(nd: FuncCall) -> None;
+    can exit_multi_string with MultiString exit;
+    can exit_f_string with FString exit;
+    can exit_formatted_value with FormattedValue exit;
+    can exit_list_val with ListVal exit;
+    can exit_set_val with SetVal exit;
+    can exit_tuple_val with TupleVal exit;
+    can exit_dict_val with DictVal exit;
+    can exit_k_v_pair with KVPair exit;
+    can exit_k_w_pair with KWPair exit;
+    can exit_inner_compr with InnerCompr exit;
+    can exit_list_compr with ListCompr exit;
+    can exit_gen_compr with GenCompr exit;
+    can exit_set_compr with SetCompr exit;
+    can exit_dict_compr with DictCompr exit;
+    can exit_atom_trailer with AtomTrailer exit;
+    can exit_atom_unit with AtomUnit exit;
+    can exit_func_call with FuncCall exit;
+    def _exit_func_call_impl(nd: FuncCall) -> None;
     def _fold_sorted_traversal(nd: FuncCall) -> bool;
     def _order_term(
         expr: Expr, param: str, node_ty: str, edge_ty: str
@@ -557,45 +584,47 @@ obj JcirGenPass(BaseAstGenPass[CgItem]) {
     ) -> (list[tuple[str, bool, bool]] | None);
 
     def _final_hop_types(nd: EdgeRefTrailer) -> tuple[str, str];
-    def exit_index_slice(nd: IndexSlice) -> None;
-    def exit_special_var_ref(nd: SpecialVarRef) -> None;
-    def exit_edge_ref_trailer(nd: EdgeRefTrailer) -> None;
+    def _simple_hop(nd: EdgeRefTrailer) -> (list[CgNode] | None);
+    can exit_index_slice with IndexSlice exit;
+    can exit_special_var_ref with SpecialVarRef exit;
+    can exit_edge_ref_trailer with EdgeRefTrailer exit;
     def _traversal_consumed_now(nd: EdgeRefTrailer) -> bool;
     def _warn_inplace_sort(nd: FuncCall) -> None;
-    def exit_edge_op_ref(nd: EdgeOpRef) -> None;
-    def exit_disconnect_op(nd: DisconnectOp) -> None;
-    def exit_connect_op(nd: ConnectOp) -> None;
-    def exit_filter_compr(nd: FilterCompr) -> None;
-    def exit_assign_compr(nd: AssignCompr) -> None;
-    def exit_match_stmt(nd: MatchStmt) -> None;
-    def exit_match_case(nd: MatchCase) -> None;
-    def exit_match_or(nd: MatchOr) -> None;
-    def exit_match_as(nd: MatchAs) -> None;
-    def exit_match_wild(nd: MatchWild) -> None;
-    def exit_match_value(nd: MatchValue) -> None;
-    def exit_match_singleton(nd: MatchSingleton) -> None;
-    def exit_match_sequence(nd: MatchSequence) -> None;
-    def exit_match_mapping(nd: MatchMapping) -> None;
-    def exit_match_k_v_pair(nd: MatchKVPair) -> None;
-    def exit_match_star(nd: MatchStar) -> None;
-    def exit_match_arch(nd: MatchArch) -> None;
-    def exit_token(nd: Token) -> None;
-    def exit_name(nd: Name) -> None;
-    def exit_float(nd: Float) -> None;
-    def exit_int(nd: Int) -> None;
-    def exit_string(nd: String) -> None;
-    def exit_bool(nd: Bool) -> None;
-    def exit_builtin_type(nd: BuiltinType) -> None;
-    def exit_null(nd: Null) -> None;
-    def exit_ellipsis(nd: Ellipsis) -> None;
-    def exit_jsx_element(nd: JsxElement) -> None;
-    def exit_jsx_element_name(nd: JsxElementName) -> None;
-    def exit_jsx_spread_attribute(nd: JsxSpreadAttribute) -> None;
-    def exit_jsx_normal_attribute(nd: JsxNormalAttribute) -> None;
-    def exit_jsx_text(nd: JsxText) -> None;
-    def exit_jsx_expression(nd: JsxExpression) -> None;
-    def exit_jsx_slot(nd: JsxSlot) -> None;
-    def exit_jsx_comment(nd: JsxComment) -> None;
-    def exit_semi(nd: Semi) -> None;
-    def exit_comment_token(nd: CommentToken) -> None;
+    can exit_edge_op_ref with EdgeOpRef exit;
+    can exit_disconnect_op with DisconnectOp exit;
+    can exit_connect_op with ConnectOp exit;
+    can exit_filter_compr with FilterCompr exit;
+    can exit_assign_compr with AssignCompr exit;
+    can exit_match_stmt with MatchStmt exit;
+    can exit_match_case with MatchCase exit;
+    can exit_match_or with MatchOr exit;
+    can exit_match_as with MatchAs exit;
+    can exit_match_wild with MatchWild exit;
+    can exit_match_value with MatchValue exit;
+    can exit_match_singleton with MatchSingleton exit;
+    can exit_match_sequence with MatchSequence exit;
+    can exit_match_mapping with MatchMapping exit;
+    can exit_match_k_v_pair with MatchKVPair exit;
+    can exit_match_star with MatchStar exit;
+    can exit_match_arch with MatchArch exit;
+    can exit_token with Token exit;
+    can exit_name with Name exit;
+    can exit_float with Float exit;
+    can exit_int with Int exit;
+    can exit_string with String exit;
+    can exit_bool with Bool exit;
+    can exit_builtin_type with BuiltinType exit;
+    can exit_null with Null exit;
+    can exit_ellipsis with Ellipsis exit;
+    can exit_jsx_element with JsxElement exit;
+    can exit_jsx_element_name with JsxElementName exit;
+    can exit_jsx_spread_attribute with JsxSpreadAttribute exit;
+    can exit_jsx_normal_attribute with JsxNormalAttribute exit;
+    can exit_jsx_text with JsxText exit;
+    can exit_jsx_expression with JsxExpression exit;
+    can exit_jsx_slot with JsxSlot exit;
+    can exit_jsx_comment with JsxComment exit;
+    can exit_semi with Semi exit;
+    can exit_comment_token with CommentToken exit;
+    can finish_expr with Expr exit;
 }

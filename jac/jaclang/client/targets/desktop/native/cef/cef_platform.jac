@@ -49,7 +49,7 @@ def _assert_cef_abi {
     abort();
 }
 
-def cef_stub_add_ref(self: int) { }
+def cef_stub_add_ref(self: int) {}
 def cef_stub_release(self: int) -> int {
     return 0;
 }
