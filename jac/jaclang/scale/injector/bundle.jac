@@ -824,9 +824,6 @@ def _precompile_app(
             result.returncode != 0
             and "invalid choice: 'precompile'" in (result.stderr or "")
         ) {
-            # Seal binaries are version-pinned downloads, so only a binary that
-            # predates the 'jac precompile' verb (e.g. a stale local dev build)
-            # lands here; drive its own vendored sealer script instead.
             logger.warning(
                 "Seal binary predates 'jac precompile'; falling back to its "
                 "legacy sealer script."
