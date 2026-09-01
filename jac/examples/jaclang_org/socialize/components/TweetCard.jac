@@ -138,9 +138,7 @@ def:pub TweetCard(
                         >
                             <MessageCircle size={16}/>
                             {if comment_count > 0 {
-                                <span className="text-xs">
-                                    {str(comment_count)}
-                                </span>
+                                <span className="text-xs">{str(comment_count)}</span>
                             }}
                         </TooltipTrigger>
                         <TooltipContent>Reply</TooltipContent>

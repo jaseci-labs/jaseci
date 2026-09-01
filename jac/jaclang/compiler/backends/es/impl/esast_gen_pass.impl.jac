@@ -2098,9 +2098,6 @@ impl EsastGenPass.exit_func_call with uni.FuncCall exit {
 
     _call_kind = here.call_kind;
     if _call_kind is None {
-        # Bodies the checker skips (e.g. `test` blocks compiled for the cl
-        # test harness) reach codegen unclassified; classify_call needs only
-        # the symbol tables, so recover the kind here.
         import from jaclang.compiler.symbol_utils { classify_call }
         _call_kind = classify_call(here).value;
     }
@@ -2251,9 +2248,6 @@ impl EsastGenPass.exit_func_call with uni.FuncCall exit {
     } else {
         _emit_new = _call_kind == "instantiation";
         if not _emit_new {
-            # In bodies the checker skips (e.g. client `test` blocks) the
-            # callee has no inferred type and no call_kind; an archetype call
-            # is still an instantiation, so consult the symbol directly.
             import from jaclang.compiler.symbol_utils { resolve_expr_symbol }
             _callee_sym = resolve_expr_symbol(here.target);
             if (
@@ -7495,14 +7489,11 @@ impl EsastGenPass._emit_boundary_type_stubs(nd: uni.Module) -> list[es.Statement
                     alternate=None
                 )
             );
-            # Only convert nested types whose wire class is actually emitted;
-            # an unresolved type stays a plain wire object rather than a
-            # ReferenceError at runtime.
             nested_set = {
                 t
                 for t in info.nested_types
                 if t in manifest.boundary_types
-                and manifest.boundary_types[t].kind != "enum"
+                    and manifest.boundary_types[t].kind != "enum"
             };
             for fname in field_names {
                 ftype = field_types[fname];

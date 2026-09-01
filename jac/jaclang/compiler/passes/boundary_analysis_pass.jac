@@ -87,6 +87,7 @@ walker BoundaryAnalysisPass(UniPass) {
     def _parse_imported_archetype(
         type_name: str, search_mods: list[Module]
     ) -> (Archetype | Enum | None);
+
     can enter_ability with Ability entry;
     can enter_func_call with FuncCall entry;
     def _extract_subscript_inner(expr: (UniNode | None)) -> str;
@@ -98,10 +99,6 @@ walker BoundaryAnalysisPass(UniPass) {
     def _record_access_levels(manifest: any) -> None;
 }
 
-# Parse-only trees for wire-type resolution, keyed by file path with the
-# mtime they were read at. Boundary analysis can run before a dependency
-# module's import links exist (a module compiled while its importer is still
-# in flight), so type resolution must not lean on the symbol tables alone.
 glob _type_parse_memo: dict[str, tuple[float, Module | None]] = {};
 
 def _parse_module_for_types(file_path: str) -> (Module | None);

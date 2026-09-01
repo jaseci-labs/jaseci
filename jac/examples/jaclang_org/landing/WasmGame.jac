@@ -39,9 +39,15 @@ def:pub WasmGame -> JsxElement {
                             <div
                                 className="code-titlebar flex items-center gap-2 pl-4 pr-4 pt-2.5 pb-2.5"
                             >
-                                <span className="size-2.5 rounded-full bg-white/15"></span>
-                                <span className="size-2.5 rounded-full bg-white/15"></span>
-                                <span className="size-2.5 rounded-full bg-white/15"></span>
+                                <span
+                                    className="size-2.5 rounded-full bg-white/15"
+                                ></span>
+                                <span
+                                    className="size-2.5 rounded-full bg-white/15"
+                                ></span>
+                                <span
+                                    className="size-2.5 rounded-full bg-white/15"
+                                ></span>
                                 <span className="ml-2 font-mono text-xs text-white/45">
                                     game/arena.jac → /static/arena.wasm
                                 </span>

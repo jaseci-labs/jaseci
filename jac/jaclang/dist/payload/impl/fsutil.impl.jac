@@ -166,10 +166,6 @@ impl skip_jaclang(p: str) -> bool {
 }
 
 impl skip_site_template(p: str) -> bool {
-    # Ships a project tree (the --awesome template) inside the payload:
-    # sources and assets only -- no build dirs, caches, or dotfiles. The
-    # template's root .gitignore is kept; the scaffold loader folds it into
-    # the created project's root .gitignore.
     if p == ".gitignore" {
         return False;
     }

@@ -20,7 +20,10 @@ def:pub page -> JsxPage {
                     This walker traversed the whole graph and found nothing at this path. The edge you followed may have been deleted.
                 </p>
                 <div className="mt-8 flex items-center justify-center gap-3">
-                    <Link to="/" className={buttonVariants().call(None, {"size": "lg"})}>
+                    <Link
+                        to="/"
+                        className={buttonVariants().call(None, {"size": "lg"})}
+                    >
                         root spawn home
                     </Link>
                     <Link

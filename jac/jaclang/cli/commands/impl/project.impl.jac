@@ -429,10 +429,7 @@ def _resolve_awesome_template -> ProjectTemplate | None {
             continue;
         }
         tmpl = load_template_from_directory(cand);
-        # The site's own config carries contributor-only knobs a scaffolded
-        # project must not inherit: the [dev] live-source reroute points into
-        # this repo's tree. And the literal project name becomes the standard
-        # placeholder so the created project is named after itself.
+
         tmpl.config.pop("dev", None);
         if isinstance(tmpl.config.get("project"), dict) {
             tmpl.config["project"]["name"] = "{{name}}";

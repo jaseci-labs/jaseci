@@ -133,7 +133,9 @@ def:pub Leaderboard -> JsxElement {
                 <div className="mt-14 flex items-center gap-2">
                     <h2 className="text-lg font-semibold">The board</h2>
                     <span className="text-sm text-muted-foreground">
-                        · {str(len(entries))}{" repo" if len(entries) == 1 else " repos"}
+                        · {str(len(entries))}{" repo"
+                            if len(entries) == 1
+                            else " repos"}
                     </span>
                     <div
                         className="ml-auto flex gap-1 rounded-lg border border-border/60 bg-card/40 pt-0.5 pb-0.5 pl-1 pr-1"

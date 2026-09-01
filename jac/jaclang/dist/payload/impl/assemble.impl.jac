@@ -113,8 +113,6 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
             os.path.join(site, "jaclang", "dist", "payload", "pins.json")
         );
 
-        # The jaclang.org site rides along as the `jac create --awesome`
-        # template; the CLI scaffolds it from this bundled tree.
         awesome_src = os.path.join(repo_root, "examples", "jaclang_org");
         if os.path.isdir(awesome_src) {
             log("==> bundling the jaclang.org site as the --awesome template");

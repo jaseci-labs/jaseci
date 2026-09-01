@@ -122,8 +122,7 @@ def _setup_site_project(temp_dir: any) -> tuple {
     with open(toml_path, "w") as f {
         f.write(
             toml_body.replace(
-                'jaclang_source = "../.."',
-                f'jaclang_source = "{_jac_root()}"'
+                'jaclang_source = "../.."', f'jaclang_source = "{_jac_root()}"'
             )
         );
     }
@@ -530,7 +529,9 @@ test "login valid and invalid" {
                     ctx3 = browser.new_context();
                     page3 = ctx3.new_page();
                     try {
-                        _login(page3, socialize_url, "lx_nonexistent_999", "wrong_pass");
+                        _login(
+                            page3, socialize_url, "lx_nonexistent_999", "wrong_pass"
+                        );
                         assert not _is_logged_in(page3) , (
                             "invalid credentials should NOT log in"
                         );

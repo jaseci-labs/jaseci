@@ -818,8 +818,7 @@ impl BoundaryAnalysisPass._collect_boundary_type(
                 arch_node = candidate;
                 break;
             }
-            # The symbol may be an import alias (a wire type living in a
-            # third module); follow the import chain to its declaration.
+
             resolved = resolved_decl_of(sym);
             if resolved is not None {
                 target = resolved.name_of;
@@ -844,9 +843,6 @@ impl BoundaryAnalysisPass._collect_boundary_type(
         }
     }
     if arch_node is None {
-        # Symbol tables can be unlinked at this point (this module compiled
-        # while its importer is still in flight skips analysis); resolve the
-        # type straight through the import's file with a parse-only tree.
         arch_node = self._parse_imported_archetype(type_name, search_mods);
     }
     if arch_node is None {
@@ -910,8 +906,6 @@ impl BoundaryAnalysisPass._collect_boundary_type(
         );
         manifest.boundary_types[type_name] = info;
 
-        # Nested field types resolve against the module that declares this
-        # archetype, so wire types reachable only from there are found too.
         arch_mod = arch_node.find_parent_of_type(Module);
         for nt in nested {
             self._collect_boundary_type(nt, arch_mod or source_mod);

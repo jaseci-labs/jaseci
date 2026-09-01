@@ -876,8 +876,7 @@ impl serve(
                 compiler = server.introspector._bundle_builder._get_compiler();
                 compiler.compile(server.introspector._module, Path(filename));
                 console.print("  ✔ Initial client compilation completed");
-                # Dev mode skips compile_and_bundle, so native wasm modules
-                # (served from /static/<stem>.wasm) must be emitted here too.
+
                 compiler._emit_na_wasm(Path(filename));
             } except Exception as e {
                 console.warning(f"Initial client compilation failed: {e}");
