@@ -2,7 +2,7 @@ import from jaclang.scale.observability.logger { Logger }
 import from jaclang.cli.console { console }
 
 class StandardLogger(Logger) {
-    def init(self: StandardLogger, config: dict[str, any] = {}) { }
+    def init(self: StandardLogger, config: dict[str, any] = {}) {}
     def info(self: StandardLogger, message: str, context: dict[str, any] = {}) {
         if context {
             console.info(f"{message} | Context: {context}");

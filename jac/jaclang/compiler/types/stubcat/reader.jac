@@ -97,9 +97,7 @@ obj CatProvider {
             self.memo_set = True;
             try {
                 symbol.decl.type = resolved;
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
         found = self.memo;
         if found is None {

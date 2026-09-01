@@ -786,7 +786,7 @@ impl serve(
 
     try {
         mach.mem.unit_exit();
-    } except Exception { }
+    } except Exception {}
 
     port_pinned = port > 0;
     port = port if port_pinned else 8000;
@@ -1007,7 +1007,7 @@ def _get_network_ips -> list[str] {
                 }
             }
         }
-    } except Exception { }
+    } except Exception {}
     return ips;
 }
 

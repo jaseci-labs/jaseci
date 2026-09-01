@@ -496,7 +496,7 @@ def _module_cache_root(source_path: str) -> Path {
     try {
         resolved.relative_to(sys.prefix);
         return get_jir_cache_dir() / 'modules';
-    } except ValueError { }
+    } except ValueError {}
 
     try {
         config_mod = __import__("jaclang.project.config", fromlist=["get_config"]);
@@ -505,11 +505,11 @@ def _module_cache_root(source_path: str) -> Path {
             try {
                 resolved.relative_to(cfg.project_root);
                 return cfg.get_cache_dir();
-            } except ValueError { }
+            } except ValueError {}
 
             return get_jir_cache_dir() / 'modules';
         }
-    } except Exception { }
+    } except Exception {}
 
     return resolved.parent / ".jac" / "cache";
 }
@@ -606,9 +606,7 @@ def _sweep_once(cache_root: Path) {
     _SWEPT_ROOTS.add(key);
     try {
         sweep_stale_generations(cache_root, compiler_generation());
-    } except Exception {
-        ;
-    }
+    } except Exception {}
 }
 
 glob _na_ir_cache_region: dict[str, bool] = {"suspended": False};
@@ -689,9 +687,7 @@ def read_sections(data: (bytes | memoryview), start_pos: int) -> dict[int, bytes
             result[sec_type] = bytes(data[pos:pos + sec_len]);
             pos += sec_len;
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return result;
 }
 

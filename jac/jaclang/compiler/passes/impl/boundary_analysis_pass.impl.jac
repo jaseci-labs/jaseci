@@ -873,7 +873,7 @@ impl BoundaryAnalysisPass._collect_boundary_type(
                             try {
                                 member_val = int(item.value.value);
                                 next_auto = member_val + 1;
-                            } except ValueError { }
+                            } except ValueError {}
                         }
                     } else {
                         member_val = next_auto;

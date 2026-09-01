@@ -190,9 +190,7 @@ impl JacCompiler.get_bytecode(
                 actual_program.invalidate_module(full_target);
                 symtab_only_recovery = True;
             }
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
 
     allow_unsealed = (not rebuild) and (not no_precompile);
@@ -219,9 +217,7 @@ impl JacCompiler.get_bytecode(
             } finally {
                 tmp_path.unlink(missing_ok=True);
             }
-        } except Exception {
-            ;
-        }
+        } except Exception {}
         return marshal.loads(precompiled_bc);
     }
 
@@ -392,9 +388,7 @@ impl JacCompiler._restore_sections(
         try {
             mtir_map = pickle.loads(mtir_bytes);
             actual_program.mtir_map.update(mtir_map);
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
 
     placement_bytes = secs.get(SEC_PLACEMENT);
@@ -408,9 +402,7 @@ impl JacCompiler._restore_sections(
             if restored is not None {
                 summary_store(actual_program)[os.path.abspath(full_target)] = restored;
             }
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
 
     native_obj_bytes = secs.get(SEC_NATIVE_OBJ);
@@ -426,9 +418,7 @@ impl JacCompiler._restore_sections(
                 full_target, actual_program, native_obj_bytes, cached_interop
             );
             return;
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
 
     llvm_bytes = secs.get(SEC_LLVM_IR);
@@ -445,9 +435,7 @@ impl JacCompiler._restore_sections(
             self._load_native_from_cache(
                 full_target, actual_program, cached_ir, cached_interop2
             );
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
 }
 
@@ -529,9 +517,7 @@ impl JacCompiler._get_precompiled_jir_bytecode(
                             return patch_co_filenames_bytes(bc, PRECOMPILE_SENTINEL, d);
                         }
                     }
-                } except Exception {
-                    ;
-                }
+                } except Exception {}
             }
             break;
         }
@@ -956,10 +942,10 @@ impl JacCompiler.stamp_boundary_facts(
         walkers: dict[(str, uni.Archetype)] = {};
         try {
             collect_abilities(src, abilities);
-        } except Exception { }
+        } except Exception {}
         try {
             collect_pub_walkers(src, walkers);
-        } except Exception { }
+        } except Exception {}
         for name in wanted {
             wk_decl = walkers.get(name);
             if wk_decl is not None {
@@ -1242,9 +1228,7 @@ impl JacCompiler.compile(
         del _wrap_prog.warnings_had[_pre_warns:];
         try {
             _wrap_prog.invalidate_module(_resolved);
-        } except Exception {
-            ;
-        }
+        } except Exception {}
         try {
             import from jaclang.compiler.placement.placement_solver {
                 invalidate_importers_es
@@ -1263,9 +1247,7 @@ impl JacCompiler.compile(
             import from jaclang.cli.console { console as _note_console }
             (_note_msg, _note_style) = na_demotion_note(file_path, _first_err, _is_ice);
             _note_console.print(_note_msg, style=_note_style, file=sys.stderr);
-        } except Exception {
-            ;
-        }
+        } except Exception {}
         return self._compile_once(
             file_path=file_path,
             target_program=target_program,
@@ -1350,9 +1332,7 @@ impl JacCompiler._persist_module_cache(
             sections[SEC_PLACEMENT] = summary_to_bytes(
                 get_module_summary(result, actual_program)
             );
-        } except Exception {
-            ;
-        }
+        } except Exception {}
         import from jaclang.compiler.driver.jir {
             SEC_CTDEPS,
             ct_deps_section,
@@ -1362,16 +1342,14 @@ impl JacCompiler._persist_module_cache(
             sections[SEC_CTDEPS] = ct_deps_section(result.ct_file_deps);
         }
         write_module_cache(full_target, cache_bc, extra_sections=sections);
-    } except Exception {
-        ;
-    }
+    } except Exception {}
 }
 
 impl JacCompiler._release_compile_scratch(target_program: JacProgram) -> None {
     try {
         target_program.release_native_dep_units();
         target_program.release_check_caches();
-    } except Exception { }
+    } except Exception {}
 }
 
 impl JacCompiler._compile_once(
@@ -1457,9 +1435,7 @@ impl JacCompiler._compile_once(
         }
         try {
             solve_program_placement(mod_targ, actual_program);
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
 
     import from jaclang.compiler.frontend.constant { CodeContext as _CodeCtx }
@@ -1825,9 +1801,7 @@ impl JacCompiler._report_missing_native_ir(
     try {
         import from jaclang.compiler.backends.native { NaIRGenPass }
         from_pass = NaIRGenPass;
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     deliver_alerts(
         [
             Alert(

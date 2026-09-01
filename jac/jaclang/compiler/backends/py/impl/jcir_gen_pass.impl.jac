@@ -2314,13 +2314,9 @@ impl JcirGenPass.exit_ability with Ability exit {
     self.set_out(here, [func_def]);
 }
 
-impl JcirGenPass.exit_impl_def with ImplDef exit {
-    ;
-}
+impl JcirGenPass.exit_impl_def with ImplDef exit {}
 
-impl JcirGenPass.exit_sem_def with SemDef exit {
-    ;
-}
+impl JcirGenPass.exit_sem_def with SemDef exit {}
 
 impl JcirGenPass.exit_func_signature with FuncSignature exit {
     posonlyargs = [self.val(i) for i in here.posonly_params];
@@ -3966,9 +3962,7 @@ impl JcirGenPass.exit_dict_val with DictVal exit {
     );
 }
 
-impl JcirGenPass.exit_k_v_pair with KVPair exit {
-    ;
-}
+impl JcirGenPass.exit_k_v_pair with KVPair exit {}
 
 impl JcirGenPass.exit_k_w_pair with KWPair exit {
     self.set_out(
@@ -5448,9 +5442,7 @@ impl JcirGenPass.exit_match_mapping with MatchMapping exit {
     );
 }
 
-impl JcirGenPass.exit_match_k_v_pair with MatchKVPair exit {
-    ;
-}
+impl JcirGenPass.exit_match_k_v_pair with MatchKVPair exit {}
 
 impl JcirGenPass.exit_match_star with MatchStar exit {
     self.set_out(here, [self.nod('MatchStar', ['name'], [here.name.sym_name])]);
@@ -5827,13 +5819,9 @@ impl JcirGenPass.exit_jsx_comment with JsxComment exit {
     self.set_out(here, []);
 }
 
-impl JcirGenPass.exit_semi with Semi exit {
-    ;
-}
+impl JcirGenPass.exit_semi with Semi exit {}
 
-impl JcirGenPass.exit_comment_token with CommentToken exit {
-    ;
-}
+impl JcirGenPass.exit_comment_token with CommentToken exit {}
 
 impl JcirGenPass._gen_native_interop_stubs(nd: UniNode) -> None {
     manifest = self.ir_in.gen.interop_manifest;

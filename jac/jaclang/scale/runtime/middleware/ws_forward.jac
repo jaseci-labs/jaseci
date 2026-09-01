@@ -106,9 +106,7 @@ async def websocket_forward(
         _logger.error(f"ws: upstream handshake failed: {e}");
         try {
             await client_ws.close(code=1011);
-        } except Exception {
-            ;
-        }
+        } except Exception {}
         return;
     }
     try {
@@ -120,13 +118,9 @@ async def websocket_forward(
     } finally {
         try {
             await upstream_ws.close();
-        } except Exception {
-            ;
-        }
+        } except Exception {}
         try {
             await client_ws.close();
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
 }

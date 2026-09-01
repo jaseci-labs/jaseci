@@ -3968,7 +3968,7 @@ impl Parser.parse_statement -> CodeBlockStmt | None {
     expr_kid: list[UniNode] = [expr];
     if self.match_tok(TokenKind.SEMI) {
         expr_kid.append(self.make_semi());
-    } elif isinstance(expr, JsxElement) and self._view_body_depth > 0 { } elif isinstance(
+    } elif isinstance(expr, JsxElement) and self._view_body_depth > 0 {} elif isinstance(
         expr, Name
     )
         and expr.value == "new" {

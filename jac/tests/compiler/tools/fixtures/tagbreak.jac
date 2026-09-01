@@ -188,7 +188,7 @@ class X {}
 
 # comment
 @decorator
-def xxx() { }
+def xxx() {}
 
 # ddd
 glob a = 7;

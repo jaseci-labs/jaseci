@@ -498,7 +498,7 @@ impl NaIRGenObjects._codegen_archetype(nd: uni.Archetype) -> None {
                         FunctionType as _ClibFnType
                     }
                     _cf_fnty = isinstance(var?.type, _ClibFnType);
-                } except ImportError { }
+                } except ImportError {}
                 if _cf_fnty {
                     ftype = self._lower_clib_function_type(arch_name, fname, var.type);
                 } else {
@@ -583,9 +583,7 @@ impl NaIRGenObjects._codegen_archetype(nd: uni.Archetype) -> None {
         }
     }
 
-    if arch_name in self.clib_struct_names and not struct_type.is_opaque {
-        ;
-    } else {
+    if arch_name in self.clib_struct_names and not struct_type.is_opaque {} else {
         struct_type.set_body(*field_types);
     }
     self.struct_field_indices[arch_name] = field_index_map;
@@ -1156,7 +1154,7 @@ impl NaIRGenObjects._demote_method_if_unlowerable(
                 self.ir_in.loc.mod_path,
                 f"{full_name}: {_code_tag}" + str(_own[0]).split('\n')[0]
             );
-        } except Exception { }
+        } except Exception {}
     }
     del self.errors_had[local_mark:];
 
@@ -1187,7 +1185,7 @@ impl NaIRGenObjects._seam_warnings_on -> bool {
         if _cfg and _cfg.check {
             return bool(_cfg.check.warn_native_seams);
         }
-    } except Exception { }
+    } except Exception {}
     return True;
 }
 
@@ -1231,7 +1229,7 @@ impl NaIRGenObjects._opaque_field_if_unlowerable(
             self.ir_in.loc.mod_path,
             f"{arch_name}.{fname}: " + (f"[{_code}] " if _code else "") + _why
         );
-    } except Exception { }
+    } except Exception {}
     del self.errors_had[local_mark:];
     if arch_name not in self.struct_field_opaque {
         self.struct_field_opaque[arch_name] = {};
