@@ -69,6 +69,22 @@ SEED_PATHS: tuple[str, ...] = (
     "project/tomlio.jac",
 )
 
+# Modules that live under a seed directory but belong to the native
+# toolchain tier: nacompile builds them into a shared library, and they
+# never execute as bytecode (extern `import from c` declarations have no
+# Python lowering). The jac0 sweep and the seed-manifest gate skip them;
+# tier stamping (is_seed_source) is unaffected, which also keeps them out
+# of the full-compiler seal sweep.
+NATIVE_ONLY_SEEDS: tuple[str, ...] = (
+    "compiler/frontend/parser/npy_unit.jac",
+)
+
+
+def is_native_only_seed(rel_path: str) -> bool:
+    """Whether a jaclang-package-relative POSIX path is a native-tier unit
+    that jac0 must not compile even though a seed directory covers it."""
+    return rel_path in NATIVE_ONLY_SEEDS
+
 
 def seed_abs_entries(jaclang_dir: str) -> tuple[tuple[str, ...], frozenset[str]]:
     """Resolve the manifest against a jaclang package dir.
