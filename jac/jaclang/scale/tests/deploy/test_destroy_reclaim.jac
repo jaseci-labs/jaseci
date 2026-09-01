@@ -223,3 +223,24 @@ test "destroying the database keeps the volume holding the app's code" {
         "the postgres data volume outlived the database it belongs to"
     );
 }
+
+
+test "an app on an external database loses its connection-string secret" {
+    core_v1 = unittest.mock.MagicMock();
+    core_v1.list_namespaced_service.return_value = SimpleNamespace(items=[]);
+    core_v1.read_namespace.side_effect = ApiException(status=404);
+    core_v1.list_namespaced_persistent_volume_claim.return_value = SimpleNamespace(
+        items=[_pvc(bundle_pvc_name(CO_TENANT), "bundle-store")]
+    );
+
+    _run_destroy(unittest.mock.MagicMock(), core_v1, unittest.mock.MagicMock());
+
+    deleted: list = [
+        call.kwargs.get("name")
+        for call in core_v1.delete_namespaced_secret.call_args_list
+    ];
+    assert f"{APP}-external-db" in deleted , (
+        "the secret holding the external database connection string stayed in "
+        "a namespace this destroy does not reclaim"
+    );
+}

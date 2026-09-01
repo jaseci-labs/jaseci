@@ -1784,12 +1784,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
     }
 
     def _destroy_fleet_workloads(
-        app_name: str,
-        namespace: str,
-        apps_v1: any,
-        core_v1: any,
-        policy_v1: any,
-        networking_v1: any
+        namespace: str, apps_v1: any, core_v1: any, policy_v1: any, networking_v1: any
     ) {
         ms_selector: str = "managed=jac-scale";
 
@@ -2088,6 +2083,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
             'Service'
         );
         delete_k8s_secret(core_v1, namespace, f"{pg_name}-secret");
+        delete_k8s_secret(core_v1, namespace, f"{app_name}-external-db");
         delete_if_exists(
             core_v1.delete_namespaced_service_account,
             f"{pg_name}-sa",
@@ -2136,7 +2132,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
 
         self._destroy_fleet_workloads(
-            app_name, namespace, apps_v1, core_v1, policy_v1, networking_v1
+            namespace, apps_v1, core_v1, policy_v1, networking_v1
         );
 
         monitoring_reclaimed = self._destroy_monitoring(
@@ -2189,7 +2185,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
     ) {
         if component == 'application' {
             self._destroy_fleet_workloads(
-                app_name, namespace, apps_v1, core_v1, policy_v1, networking_v1
+                namespace, apps_v1, core_v1, policy_v1, networking_v1
             );
         } elif component == 'database' {
             self._destroy_app_database(app_name, namespace, apps_v1, core_v1);
