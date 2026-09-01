@@ -177,6 +177,115 @@ def format_related_spans(
     return result;
 }
 
+def span_for_file(
+    mod_path: str, line: int, col: int, end_col: int = 0, source: str = ''
+) -> Span {
+    import from jaclang.compiler.frontend.srcloc { Span }
+    bare = Span(
+        mod_path=mod_path,
+        first_line=line,
+        last_line=line,
+        col_start=col,
+        col_end=(end_col if end_col > col else col)
+    );
+    if (line < 1) or (mod_path == '') {
+        return bare;
+    }
+    code = source;
+    if (code == '') {
+        try {
+            code = read_file_with_encoding(mod_path);
+        } except Exception {
+            return bare;
+        }
+    }
+    fb = code.encode("utf-8");
+    flen = len(fb);
+    off = 0;
+    curr = 1;
+    while (curr < line) {
+        nl = fb.find(b'\n', off);
+        if (nl < 0) {
+            return bare;
+        }
+        off = nl + 1;
+        curr += 1;
+    }
+    start = off + (col - 1 if col > 0 else 0);
+    if (start > flen) {
+        start = flen;
+    }
+    stop = off + (end_col - 1) if (end_col > col) else (start + 1);
+    if (stop > flen) {
+        stop = flen;
+    }
+    return Span.make(
+        mod_path,
+        code,
+        (line, line),
+        (col, end_col if (end_col > col) else col),
+        (start, stop)
+    );
+}
+
+def render_diagnostic_header(
+    message: str,
+    code: str = '',
+    severity: str = 'error',
+    loc: (Span | None) = None,
+    *,
+    colors: bool = False
+) -> str {
+    file_path = loc.mod_path if (loc is not None) else '';
+    if (code != '') {
+        if colors {
+            color = ANSIColors.RED if (severity == 'error') else ANSIColors.YELLOW;
+            header = f"{color}{severity}[{code}]{ANSIColors.END}: {message}";
+        } else {
+            header = f"{severity}[{code}]: {message}";
+        }
+        if (file_path == '') or (loc is None) {
+            return header;
+        }
+        return f"{header}\n  --> {file_path}:{loc.first_line}:{loc.col_start}";
+    }
+    if (file_path == '') or (loc is None) {
+        return message;
+    }
+    body = message if not colors else f"{ANSIColors.RED}{message}{ANSIColors.END}";
+    return f"{file_path}:{loc.first_line}:{loc.col_start} {body}";
+}
+
+def render_diagnostic(
+    message: str,
+    code: str = '',
+    severity: str = 'error',
+    loc: (Span | None) = None,
+    related: (list[tuple[str, Span]] | None) = None,
+    help_text: (str | None) = None,
+    *,
+    colors: bool = False
+) -> str {
+    result = render_diagnostic_header(message, code, severity, loc, colors=colors);
+    if (loc is not None) {
+        span_dump = pretty_print_span(loc, colors=colors);
+        if (span_dump != '') {
+            result += '\n' + span_dump;
+        }
+    }
+    if related {
+        result += format_related_spans(related, colors=colors);
+    }
+    if help_text {
+        if colors {
+            result += f"\n{ANSIColors.CYAN}help{ANSIColors.END}: {help_text}";
+        } else {
+            result += f"\nhelp: {help_text}";
+        }
+    }
+    return result;
+}
+
 glob _JAC_TEXT_ENCODINGS = [
          'utf-8-sig',
          'utf-8',

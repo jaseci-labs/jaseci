@@ -12,13 +12,16 @@ import from jaclang.data.dbcatalog {
     stop_heartbeat
 }
 import from jaclang.data.pgembed { PgRuntime }
-import from jaclang.runtime.exceptions { WriteConflict }
+import from jaclang.runtime.exceptions { ReadOnlyRetry, WriteConflict }
 import from jaclang.data.store { AnchorRow, ConnInfo, PgStore, Store, TxnIsolation }
 
 glob logger = logging.getLogger(__name__),
      MAX_RETRIES = 5,
      SCRATCH_ENV = 'JAC_DB_SCRATCH',
      RETENTION_ENV = 'JAC_DB_RETENTION_DAYS',
+     RO_UNITS_ENV = 'JAC_DB_RO_UNITS',
+     RO_WRITER_TTL_ENV = 'JAC_DB_RO_WRITER_TTL_S',
+     _unit_writers: dict[str, float] = {},
      __all__ = [
          'Session',
          'promotions_for',
@@ -32,9 +35,48 @@ glob logger = logging.getLogger(__name__),
          'drop_scratch_database',
          'retention_days_for',
          'runtime_for_base',
+         'ro_units_enabled',
+         'unit_writes_recorded',
+         'record_unit_writes',
          'SCRATCH_ENV',
-         'RETENTION_ENV'
+         'RETENTION_ENV',
+         'RO_UNITS_ENV'
      ];
+
+
+def ro_units_enabled -> bool {
+    return os.environ.get(RO_UNITS_ENV, '1').strip().lower()
+        not in ('0', 'false', 'no', 'off');
+}
+
+
+def _writer_ttl -> float {
+    try {
+        return max(1.0, float(os.environ.get(RO_WRITER_TTL_ENV, '300') or 300));
+    } except ValueError {
+        return 300.0;
+    }
+}
+
+
+def unit_writes_recorded(key: str) -> bool {
+    import time;
+    expiry = _unit_writers.get(key);
+    if expiry is None {
+        return False;
+    }
+    if time.monotonic() >= expiry {
+        _unit_writers.pop(key, None);
+        return False;
+    }
+    return True;
+}
+
+
+def record_unit_writes(key: str) {
+    import time;
+    _unit_writers[key] = time.monotonic() + _writer_ttl();
+}
 
 
 obj ScratchLease {
@@ -84,6 +126,8 @@ obj Session {
         _active_units: int postinit,
         _flushing: (int | None) postinit,
         _read_scopes: int postinit,
+        _ro_units: int postinit,
+        _unit_stack: list[tuple[(str | None), bool]] postinit,
         _snapshot_reads: set[UUID] postinit,
         _version_seen: dict[UUID, int] postinit;
 
@@ -123,8 +167,9 @@ obj Session {
     def run_request(body: Callable) -> any;
     def reset_fetch_count -> None;
     def get_fetch_count -> int;
-    def unit_enter -> None;
+    def unit_enter(key: (str | None) = None) -> None;
     def unit_exit -> None;
+    def unit_depth -> int;
     def read_scope_enter -> None;
     def read_scope_exit -> None;
     def on_commit(callback: Callable) -> None;
@@ -134,6 +179,8 @@ obj Session {
     def _recover_conflict -> None;
     def _ensure_txn -> None;
     def _txn_isolation -> TxnIsolation;
+    def _register_ro_writers -> str;
+    def _raise_ro_retry -> None;
     def _drop_snapshot_reads -> None;
     def _materialize(
         row: AnchorRow, edge_ids: (list[UUID] | None) = None
