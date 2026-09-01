@@ -9,9 +9,17 @@ a wrong-target dispatch (or a crash) can never satisfy the asserts.
 
 glob GTBL: list[Callable[[int], int]] = [];
 
-def h_bad(n: int) -> int { return -99; }
-def h_one(n: int) -> int { return 100 + n; }
-def h_two(n: int) -> int { return 200 + n; }
+def h_bad(n: int) -> int {
+    return -99;
+}
+
+def h_one(n: int) -> int {
+    return 100 + n;
+}
+
+def h_two(n: int) -> int {
+    return 200 + n;
+}
 
 def pick(fs: list[Callable[[int], int]], i: int, n: int) -> int {
     g: Callable[[int], int] = fs[i];
@@ -26,7 +34,10 @@ def dict_pick(d: dict[str, Callable[[int], int]], k: str, n: int) -> int {
 def list_append_dispatch(n: int) -> int {
     tbl: list[Callable[[int], int]] = [];
     i: int = 0;
-    while i < 8 { tbl.append(h_bad); i = i + 1; }
+    while i < 8 {
+        tbl.append(h_bad);
+        i = i + 1;
+    }
     tbl[3] = h_one;
     f: Callable[[int], int] = tbl[3];
     return f(n);
@@ -48,7 +59,10 @@ def list_insert_dispatch(n: int) -> int {
 
 def global_list_dispatch(n: int) -> int {
     i: int = 0;
-    while i < 4 { GTBL.append(h_bad); i = i + 1; }
+    while i < 4 {
+        GTBL.append(h_bad);
+        i = i + 1;
+    }
     GTBL[2] = h_two;
     f: Callable[[int], int] = GTBL[2];
     return f(n);

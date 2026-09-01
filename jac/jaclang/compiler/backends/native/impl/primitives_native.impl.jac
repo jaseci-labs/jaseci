@@ -2726,8 +2726,6 @@ impl NativeListEmitter.emit_insert(
 
     b.call(helpers["set"], [target, insert_idx, insert_val]);
     if _ins_wrapped is not _ins_orig {
-        # The wrap allocated an owned {fn, env=null} box; the list now holds
-        # its own retained reference, so drop the creation reference here.
         p._emit_rc_release_simple(_ins_wrapped, op="list_insert_wrap", loc="");
     }
     return ir.Constant(i64, 0);

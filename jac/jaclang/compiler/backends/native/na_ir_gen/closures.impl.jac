@@ -89,11 +89,6 @@ impl NaIRGenClosures._closure_sig_struct(fnty: ir.FunctionType) -> tuple {
     return (name, st, fnty_env);
 }
 
-# A raw function used as a VALUE (e.g. appended to a list[Callable]) must
-# become a {fn, env=null} closure pair — the Callable read/call convention
-# loads both slots, so a bare code pointer stored in a container is
-# dereferenced as a closure box and crashes. Routing through _coerce_type
-# reuses the clos.wrap emission (which also marks the box owned).
 impl NaIRGenClosures._wrap_fn_as_closure_value(val: ir.Value) -> ir.Value {
     _wfty: any = None;
     if isinstance(val.type, ir.FunctionType) {
