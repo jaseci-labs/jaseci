@@ -100,9 +100,7 @@ obj SyncWebSocket {
         if self._ws is not None {
             try {
                 self._run(self._ws.close(code));
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
         if self._loop is not None {
             self._loop.call_soon_threadsafe(self._loop.stop);

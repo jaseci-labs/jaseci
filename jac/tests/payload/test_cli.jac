@@ -23,7 +23,7 @@ test "no subcommand and unknown subcommand are usage errors" {
     (rc, err) = run([]);
     assert rc == 1;
     assert err.startswith("payload: usage: payload <fetch-pbs|fetch-typeshed|");
-    assert "|mkpayload|typeshed-sha|pack> ..." in err;
+    assert "|mkpayload|typeshed-sha|stubcat|pack> ..." in err;
 
     (rc, err) = run(["bogus"]);
     assert rc == 1;
@@ -54,8 +54,12 @@ test "every subcommand reports its usage when positional args are missing" {
         (["mkpayload", "/pbs", "/root"], MKPAYLOAD_USAGE),
         (["typeshed-sha"], "usage: payload typeshed-sha <commit>"),
         (
+            ["stubcat", "/pbs", "/site"],
+            "usage: payload stubcat <pbs-python-dir> <site-dir> <out.bin>"
+        ),
+        (
             ["pack", "/stub", "/payload"],
-            "usage: payload pack <stub> <payload.tar.zst> <out>"
+            "usage: payload pack <stub> <payload.tar.zst> <out> [stubcat.bin]"
         )
     ];
     for (argv, usage) in cases {

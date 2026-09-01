@@ -257,6 +257,9 @@ impl OwnershipCheckPass._emit_flow_for_diagnostics -> None {
                 if sym is None or sym.decl is None {
                     continue;
                 }
+                if sym.in_stub_scope() {
+                    continue;
+                }
                 if self._is_ancestor(lp, sym.decl) {
                     continue;
                 }

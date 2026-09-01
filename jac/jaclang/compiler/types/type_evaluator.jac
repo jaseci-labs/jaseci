@@ -1,6 +1,9 @@
 import os;
 import from pathlib { Path }
 import from typing { cast }
+import from jaclang.compiler.types.ct_eval { CtEvaluator }
+import from jaclang.compiler.types.ct_value { CtValue }
+import from jaclang.compiler.frontend.diagnostics { E0033, E0108, E0109 }
 import from jaclang.compiler.frontend.unitree {
     Ability,
     Archetype,
@@ -72,6 +75,9 @@ import from jaclang.compiler.frontend.unitree {
     MultiString,
     Name,
     NameAtom,
+    is_client_destined,
+    kind_has_runtime_binding,
+    resolved_decl_of,
     Null,
     OpenStmt,
     ParamKind as UniParamKind,
@@ -103,6 +109,8 @@ import from jaclang.compiler.frontend.unitree {
 }
 import from jaclang.compiler.frontend.constant {
     TOKEN_MAP,
+    BindingKind,
+    CodeContext,
     SymbolType,
     Tokens as Tok,
     EdgeDir,
@@ -182,7 +190,8 @@ import from jaclang.compiler.types.ts_decl_parser {
     TsTypeKind,
     TsDeclKind,
     TsAccess,
-    TsMember
+    TsMember,
+    ts_decl_binding_kind
 }
 
 import from jaclang.compiler.frontend.diagnostics {
@@ -231,6 +240,7 @@ import from jaclang.compiler.frontend.diagnostics {
     E1120,
     E1121,
     E1129,
+    E1131,
     E0049,
     E5094,
     W1050,
@@ -320,10 +330,12 @@ obj ConditionInfo {
         attr_name: str | None = None;
 }
 
-glob _stub_module_memo: dict[str, tuple[float, Module]] = {};
+walker TypeEvaluator {
+    can eval_expr with Expr entry;
+    def _intern_shared(shared: ClassDetailsShared) -> ClassDetailsShared;
 
-obj TypeEvaluator {
     has program: JacProgram,
+        _shared_intern: dict[tuple, ClassDetailsShared] = {},
         _BUILTINS_STUB_FILE_PATH: str postinit,
         _TYPING_STUB_FILE_PATH: str postinit,
         _TYPES_STUB_FILE_PATH: str postinit,
@@ -336,6 +348,8 @@ obj TypeEvaluator {
         ambient_typing_names_by_module: dict[str, set[str]] = {},
         _ENUM_STUB_FILE_PATH: str postinit,
         symbol_resolution_stack: list[Symbol] = [],
+        ct_eval: CtEvaluator postinit,
+        ct_quiet: bool = False,
         prefetch: PrefetchedTypes postinit,
         _pass_ref: object | None = None,
         builtins_module: Module | None = None,
@@ -366,9 +380,16 @@ obj TypeEvaluator {
     has _pass: (Transform | None) { getter; setter(_pass: (Transform | None)); }
 
     def postinit -> None;
+    def ct_demand(nd: Expr) -> (CtValue | None);
+    def ct_site_error(
+        nd: Expr, what: str, cv: (CtValue | None), allow_deferred: bool = True
+    ) -> bool;
+
     def _read_dunder_all(path: str) -> (set[str] | None);
     def _read_ambient_imports_by_module(path: str) -> dict[str, set[str]];
     def _load_stub_module(path: str) -> Module;
+    def _init_prelude_from_catalog(catalog: any) -> list[Module];
+    def _init_prelude_from_sources -> list[Module];
     def _get_type_from_module(module: Module, name: str) -> TypeBase;
     def _prefetch_types;
     def get_none_type -> TypeBase;
@@ -394,9 +415,26 @@ obj TypeEvaluator {
         from_loc: ModulePath, item_name: str
     ) -> (TypeBase | None);
 
+    def _ts_decl_path(from_loc: ModulePath) -> (str | None);
     def _ts_declared_type_from_file(
         dts_path: str, item_name: str
     ) -> (TypeBase | None);
+
+    def _ts_declared_kind_from_file(
+        dts_path: str, item_name: str
+    ) -> (BindingKind | None);
+
+    def _ts_declared_kind(
+        from_loc: ModulePath, item_name: str
+    ) -> (BindingKind | None);
+
+    def _apply_import_binding_kind(
+        node_: ModuleItem,
+        binding: Name,
+        kind: BindingKind,
+        module: str,
+        target_decl: (NameAtom | None) = None
+    ) -> None;
 
     def _load_ts_declarations(dts_path: str) -> (dict[str, TsDecl] | None);
     def _map_ts_decl(
@@ -439,6 +477,11 @@ obj TypeEvaluator {
 
     def _metaclass_of(cls_type: ClassType) -> (ClassType | None);
     def _extract_type_params(node_: Archetype) -> list[TypeVarType];
+    def _extract_ct_params(node_: Archetype) -> (list[str] | None);
+    def _ct_args_for_class(
+        base_type: ClassType, slot_vals: list[Expr]
+    ) -> (tuple | None);
+
     def _is_class_scoped_type_param(node_: TypeParam) -> bool;
     def _collect_typevars_from_base(
         base_class: AtomTrailer,

@@ -177,7 +177,7 @@ impl NaIRGenOs._emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None) {
         if p is None {
             return None;
         }
-        mode = ir.Constant(i32, 0o777);
+        mode: ir.Value = ir.Constant(i32, 0o777);
         if len(params) >= 2 {
             mv = self._str_arg(self._codegen_expr(params[1]));
             if mv is not None {
@@ -194,7 +194,7 @@ impl NaIRGenOs._emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None) {
         if p is None {
             return None;
         }
-        mode = ir.Constant(i32, 0o777);
+        mode: ir.Value = ir.Constant(i32, 0o777);
         if len(params) >= 2 {
             mv = self._str_arg(self._codegen_expr(params[1]));
             if mv is not None {
@@ -269,10 +269,12 @@ impl NaIRGenOs._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | Non
     params = nd.params or [];
 
     if name == "join" and params {
-        acc = self._str_arg(self._codegen_expr(params[0]));
-        if acc is None {
+        _acc0 = self._str_arg(self._codegen_expr(params[0]));
+        if _acc0 is None {
             return None;
         }
+
+        acc: ir.Value = _acc0;
         sep = self._make_global_string("/", name_prefix=".ospath.sep");
         for idx in range(1, len(params)) {
             b = self._str_arg(self._codegen_expr(params[idx]));
@@ -299,8 +301,14 @@ impl NaIRGenOs._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | Non
             no_sep = self.builder.or_(a_empty, a_slash, name="join.nosep0");
             no_sep = self.builder.or_(no_sep, b_abs, name="join.nosep");
             with_sep = self._emit_binary_op(Tok.PLUS, acc, sep);
+            if with_sep is None {
+                return None;
+            }
             joined_sep = self._emit_binary_op(Tok.PLUS, with_sep, b);
             joined_nosep = self._emit_binary_op(Tok.PLUS, acc, b);
+            if joined_sep is None or joined_nosep is None {
+                return None;
+            }
 
             picked = self.builder.select(
                 no_sep, joined_nosep, joined_sep, name="join.pick"

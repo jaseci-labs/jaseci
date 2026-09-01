@@ -10,6 +10,10 @@ obj NaIRGenStmt(NaIRGenState) {
     def _codegen_body(stmts: (list | tuple)) -> None;
     def _codegen_stmt(nd: uni.UniNode) -> None;
     def _codegen_return(nd: uni.ReturnStmt) -> None;
+    def _codegen_delete(nd: uni.DeleteStmt) -> None;
+    def _codegen_destroy_target(target: uni.Expr, nd: uni.DeleteStmt) -> None;
+    def _del_target_holds_graph(target: uni.Expr) -> bool;
+    def _codegen_delete_location(target: uni.AtomTrailer, nd: uni.DeleteStmt) -> None;
     def _codegen_if(nd: uni.IfStmt) -> None;
     def _codegen_switch(nd: uni.SwitchStmt) -> None;
     def _codegen_while(nd: uni.WhileStmt) -> None;
