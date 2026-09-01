@@ -652,7 +652,6 @@ def main {
     seal_compile = "--seal-compile" in args;
     finalize_only = "--seal-finalize" in args;
     embed_src = "--debug-src" in args;
-    exclude_seed = seal or seal_compile;
     jobs_arg = "";
     for a in args {
         if a.startswith("--jobs=") {
@@ -666,11 +665,11 @@ def main {
     ];
     if not args {
         console.print(
-            "Usage: jac run dist/precompile_bytecode.jac<package-source-dir> [--seal|--seal-finalize] [--debug-src]"
+            "Usage: jac precompile <package-source-dir> [--seal|--seal-finalize] [--debug-src]"
         );
         console.print("\nExamples:");
-        console.print("  jac run dist/precompile_bytecode.jac./jac");
-        console.print("  jac run dist/precompile_bytecode.jac./jac/jaclang/scale");
+        console.print("  jac precompile ./jac");
+        console.print("  jac precompile ./jac/jaclang/scale");
         console.print("\n--seal: precompile, freeze the bootstrap seed tier, and emit");
         console.print("        MANIFEST.json (JIR-authoritative image; .jac sources");
         console.print(
@@ -698,8 +697,25 @@ def main {
         );
         sys.`exit(1);
     }
+    run_precompile(
+        args[0],
+        seal=seal,
+        seal_compile=seal_compile,
+        finalize_only=finalize_only,
+        embed_src=embed_src,
+        jobs_arg=jobs_arg
+    );
+}
 
-    source_dir = args[0];
+def run_precompile(
+    source_dir: str,
+    seal: bool = False,
+    seal_compile: bool = False,
+    finalize_only: bool = False,
+    embed_src: bool = False,
+    jobs_arg: str = ""
+) {
+    exclude_seed = seal or seal_compile;
     package_dir = find_package_dir(source_dir);
     if package_dir is None {
         console.error(f"Could not find a Python package in {source_dir}");
