@@ -387,6 +387,7 @@ walker JcirGenPass(BaseAstGenPass[CgItem]) {
     def val(nd: UniNode) -> CgNode;
     def const_of(value: any, jac_node: (UniNode | None) = None) -> CgNode;
     def _ct_kind(v: any) -> str;
+    def _ct_order_key(v: any) -> str;
     def _ct_materializable(v: any) -> bool;
     def _ct_concrete(nd: Expr) -> bool;
     def _is_comptime_only_name(nd: Name) -> bool;
