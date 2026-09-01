@@ -1,0 +1,4 @@
+[project]
+name = "svmod"
+entry-point = "main.jac"
+kind = "web-app"
