@@ -1,18 +1,3 @@
-"""Loader for libjac_compiler: the Python side of the native compiler kernel.
-
-Finds the kernel lib next to this package (or via JAC_COMPILER_LIB), reads
-the layout sidecar the backend emitted when the lib was built, and
-registers the real Python unitree classes with the kernel's materializer,
-once per process: class handles keyed by stable OSP tag, per-field decode
-rows (interned attribute keys, enum decode tables, aux-class hints),
-per-class default fills for the fields the parser never touches, and the
-edge classes adjacency is rebuilt with.
-
-After registration the parse surface is three calls: jc_parse, jc_weave
-per annex, jc_finish, and the tree that comes back is ordinary Python
-objects with ordinary light edges; nothing native survives the crossing.
-"""
-
 import ctypes;
 import json;
 import os;
@@ -83,13 +68,7 @@ class NativeCompiler {
         self._keep = [];
         self.classes = {};
         self._finishes = 0;
-        # Teardown policy for per-parse kernel state. The parse tree is
-        # cyclic in native RC terms (token/loc pairs, ctx-parent chains),
-        # so a wipe alone recovers only part of it and the decref churn
-        # feeds the threshold collector mid-parse. Until the parse gets a
-        # region arena, "leak" (the reference branch's behavior) keeps
-        # parses flat and lets memory ride for the life of the process;
-        # "collect" trades throughput for partial reclamation.
+
         self.teardown = os.environ.get("JAC_COMPILER_TEARDOWN", "collect");
         self._bind();
         self._register();
@@ -226,8 +205,6 @@ class NativeCompiler {
                 }
             } elif code in ("optref", "obj") {
                 if code == "obj" and aux == "" {
-                    # Erased type var (e.g. SubTag[T].tag): a node ref whose
-                    # class is runtime-discriminated by the target's tag.
                     nat_code = CODE_OBJ;
                 } elif aux not in self.layout or aux not in self.classes {
                     continue;
@@ -237,9 +214,7 @@ class NativeCompiler {
                 }
             } elif code == "opaque" {
                 import re;
-                m = re.fullmatch(
-                    r"\(?\s*(\w+)\s*\|\s*None\s*\)?", anns.get(fname, "")
-                );
+                m = re.fullmatch(r"\(?\s*(\w+)\s*\|\s*None\s*\)?", anns.get(fname, ""));
                 if not m {
                     continue;
                 }
@@ -307,9 +282,7 @@ class NativeCompiler {
     def _register_edges(self: NativeCompiler) {
         import importlib;
         roles_mod = importlib.import_module("jaclang.compiler.frontend.roles");
-        relations_mod = importlib.import_module(
-            "jaclang.compiler.frontend.relations"
-        );
+        relations_mod = importlib.import_module("jaclang.compiler.frontend.relations");
         seen = set();
         for mod in (roles_mod, relations_mod) {
             mod_name = getattr(mod, "__name__", "");
@@ -321,9 +294,7 @@ class NativeCompiler {
                     and name not in seen
                 ) {
                     seen.add(name);
-                    self.lib.jc_reg_edge(
-                        stable_osp_tag(name), self._hold(cls)
-                    );
+                    self.lib.jc_reg_edge(stable_osp_tag(name), self._hold(cls));
                 }
             }
         }
@@ -460,9 +431,7 @@ def _lib_name -> str {
 def _kit_site_present -> bool {
     shim = "libjacllvm.dylib" if sys.platform == "darwin" else "libjacllvm.so";
     here = os.path.dirname(os.path.abspath(__file__));
-    if os.path.isfile(
-        os.path.join(here, "backends", "native", "llvm", shim)
-    ) {
+    if os.path.isfile(os.path.join(here, "backends", "native", "llvm", shim)) {
         return True;
     }
     for p in sys.path {
@@ -481,9 +450,6 @@ def _kit_site_present -> bool {
 
 def _find_lib -> (str | None) {
     if os.environ.get("JAC_STUBCAT_BUILDING") {
-        # Kit-build steps (launcher stub, payload seal) always compile
-        # with the store parser: the kernel lib is a build PRODUCT, and
-        # step ordering must not decide which parser built the kit.
         return None;
     }
     ov = os.environ.get("JAC_COMPILER_LIB", "");

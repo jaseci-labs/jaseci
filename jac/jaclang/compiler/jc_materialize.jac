@@ -1,45 +1,25 @@
-"""The materializer: walks the kernel's parse tree and builds the ordinary
-Python unitree through the CPython C API, in one pass; the kernel's graph
-state for the parse is dropped afterwards (jc_graph_wipe at next parse).
-
-This is the raw side of the kernel: everything here is an address. Node
-kinds are discriminated by the type tag OSP archetypes carry at a fixed
-offset; plain (tag-less) objects are discriminated statically, by the aux
-class of the field or call site that referenced them. Field decoding is
-driven by per-class tables registered once per process by the Python
-loader (native_compiler.jac) from the layout sidecar the backend emits at
-lib build. Adjacency is copied straight out of the shared OSP kernel's
-per-node index into the Python runtime's light-edge structures
-(out_light / in_light), so role semantics never need naming here: the
-graph is the data.
-
-Role shapes are the one typed read: jc_unit walks its typed tree after
-jc_mz_run and attaches them through jc_mz_shapes3, keyed by the handle map
-the run leaves behind until jc_mz_dispose.
-"""
-
 import from c { def memcpy(dst: bytes, src: int, n: u64) -> int;  }
 import from c { def osp_adj_pairs(origin: int, dir: int) -> list[int];  }
-import from c { def osp_graph_wipe() -> int;  }
+import from c { def osp_graph_wipe -> int;  }
 import from c { def PyType_GenericAlloc(t: int, n: int) -> int;  }
 import from c { def PyObject_SetAttr(o: int, k: int, v: int) -> int;  }
 import from c { def PyObject_GetAttr(o: int, k: int) -> int;  }
-import from c { def PyErr_Clear() -> int;  }
+import from c { def PyErr_Clear -> int;  }
 import from c { def PyUnicode_FromString(p: int) -> int;  }
 import from c { def PyLong_FromLongLong(v: int) -> int;  }
 import from c { def PyList_New(n: int) -> int;  }
 import from c { def PyList_SetItem(l: int, i: int, v: int) -> int;  }
 import from c { def PyList_Append(l: int, v: int) -> int;  }
-import from c { def PyDict_New() -> int;  }
+import from c { def PyDict_New -> int;  }
 import from c { def PyDict_SetItem(d: int, k: int, v: int) -> int;  }
 import from c { def PyDict_GetItem(d: int, k: int) -> int;  }
 import from c { def PySet_New(i: int) -> int;  }
 import from c { def PyWeakref_NewRef(o: int, cb: int) -> int;  }
 import from c { def Py_IncRef(o: int) -> int;  }
 import from c { def Py_DecRef(o: int) -> int;  }
-import from c { def PyGC_Disable() -> int;  }
-import from c { def PyGC_Enable() -> int;  }
-import from c { def PyGC_IsEnabled() -> int;  }
+import from c { def PyGC_Disable -> int;  }
+import from c { def PyGC_Enable -> int;  }
+import from c { def PyGC_IsEnabled -> int;  }
 
 glob CODE_SKIP: int = 0,
      CODE_INT: int = 1,
@@ -154,8 +134,7 @@ def:pub jc_reg_field(
     row: ClassRow = _CLS[tag];
     row.rows.append(
         FieldRow(
-            key_h=key_h, code=code, off=off, aux_tag=aux_tag, enum_h=enum_h,
-            flags=flags
+            key_h=key_h, code=code, off=off, aux_tag=aux_tag, enum_h=enum_h, flags=flags
         )
     );
     return 0;
@@ -227,8 +206,6 @@ def _tag_at(h: int) -> int {
     return _peek64(h + 8);
 }
 
-# Native list ABI (same shape npy_adj read on the reference branch):
-# length at +0, element data pointer at +16, elements 8 bytes each.
 def _nlist_len(l: int) -> int {
     return _peek64(l);
 }
@@ -252,14 +229,14 @@ obj Mz {
 
 glob _LAST: list[Mz] = [];
 
-def _enqueue(m: Mz, h: int, hint: int) -> None {
+def _enqueue(m: Mz, h: int, hint: int) {
     if h != 0 {
         m.q.append(h);
         m.q_hint.append(hint);
     }
 }
 
-def _defer_ref(m: Mz, o: int, k: int, t: int, hint: int) -> None {
+def _defer_ref(m: Mz, o: int, k: int, t: int, hint: int) {
     m.ref_o.append(o);
     m.ref_k.append(k);
     m.ref_t.append(t);
@@ -276,7 +253,7 @@ def _set_fresh(o: int, k: int, v: int) -> None {
     Py_DecRef(v);
 }
 
-def _fill_defaults(row: ClassRow, o: int) -> None {
+def _fill_defaults(row: ClassRow, o: int) {
     n = len(row.dflt_k);
     i = 0;
     while i < n {
@@ -332,7 +309,7 @@ def _copy_union(m: Mz, o: int, fr: FieldRow, buf: bytes) -> None {
     PyObject_SetAttr(o, fr.key_h, _K.none_h);
 }
 
-def _copy_fields(m: Mz, row: ClassRow, h: int, o: int) -> None {
+def _copy_fields(m: Mz, row: ClassRow, h: int, o: int) {
     buf = b"\x00" * row.size;
     memcpy(buf, h, u64(row.size));
     for fr in row.rows {
@@ -441,7 +418,7 @@ def _visit(m: Mz, h: int, hint: int) -> None {
     }
 }
 
-def _enqueue_adj(m: Mz, h: int, dir: int) -> None {
+def _enqueue_adj(m: Mz, h: int, dir: int) {
     po = osp_adj_pairs(h, dir);
     n = len(po);
     i = 0;
@@ -451,7 +428,7 @@ def _enqueue_adj(m: Mz, h: int, dir: int) -> None {
     }
 }
 
-def _patch_refs(m: Mz) -> None {
+def _patch_refs(m: Mz) {
     n = len(m.ref_o);
     i = 0;
     while i < n {
@@ -640,7 +617,7 @@ def:pub jc_mz_skipped -> int {
     return _STATS[0];
 }
 
-def _shape_entry(d: int, cls_h: int, code: int) -> None {
+def _shape_entry(d: int, cls_h: int, code: int) {
     if code == 1 {
         PyDict_SetItem(d, cls_h, _K.s_none);
     } elif code == 2 {

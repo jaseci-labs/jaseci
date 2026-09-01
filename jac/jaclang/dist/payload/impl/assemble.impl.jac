@@ -389,7 +389,8 @@ impl stage_tree(
             "jaclang",
             "compiler",
             "libjac_compiler.dylib"
-                if _sys.platform == "darwin" else "libjac_compiler.so"
+                if _sys.platform == "darwin"
+                else "libjac_compiler.so"
         )
     );
 
