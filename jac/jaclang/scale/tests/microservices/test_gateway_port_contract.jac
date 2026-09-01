@@ -66,7 +66,7 @@ def _pump(stream: any, sink: list) {
         for line in iter(stream.readline, '') {
             sink.append(line);
         }
-    } except Exception { }
+    } except Exception {}
 }
 
 
@@ -74,13 +74,13 @@ def _pump(stream: any, sink: list) {
 def _kill_tree(proc: any) {
     try {
         os.killpg(os.getpgid(proc.pid), int(signal.SIGTERM));
-    } except Exception { }
+    } except Exception {}
     try {
         proc.`wait(timeout=10);
     } except Exception {
         try {
             os.killpg(os.getpgid(proc.pid), int(signal.SIGKILL));
-        } except Exception { }
+        } except Exception {}
     }
 }
 

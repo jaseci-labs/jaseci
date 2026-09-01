@@ -223,8 +223,8 @@ obj NativeJServer {
         self.app.add_ws_endpoint(WSEndPoint(path=path, handler=handler));
     }
 
-    def execute { }
-    def create_server { }
+    def execute {}
+    def create_server {}
     def run_server(
         host: str = '0.0.0.0',
         port: int = 8000,

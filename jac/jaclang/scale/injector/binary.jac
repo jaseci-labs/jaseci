@@ -492,9 +492,7 @@ def _fetch_verified_asset(
             cached_bytes: bytes | None = None;
             try {
                 cached_bytes = cache_file.read_bytes();
-            } except OSError {
-                ;
-            }
+            } except OSError {}
             if cached_bytes is not None
                 and hashlib.sha256(cached_bytes).hexdigest() == want {
                 logger.info(f"Using the cached {what} (checksum match).");

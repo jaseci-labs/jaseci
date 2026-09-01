@@ -101,7 +101,7 @@ impl NaIRGenExpr._codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None) {
         or isinstance(nd, uni.KWPair)
         or isinstance(nd, uni.InnerCompr)
         or isinstance(nd, uni.FormattedValue)
-    ) { } else {
+    ) {} else {
         self.emit(E5092, node_override=nd, kind="expression", name=type(nd).__name__);
     }
 

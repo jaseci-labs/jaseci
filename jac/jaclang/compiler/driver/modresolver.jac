@@ -183,9 +183,7 @@ def _resolve_jac_virtual_module(target: str) -> (tuple[(str, str)] | None) {
                 }
             }
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return None;
 }
 
@@ -210,9 +208,7 @@ def resolve_jac_virtual_module_exports(target: str) -> list[str] {
                 }
             }
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return [];
 }
 
@@ -224,9 +220,7 @@ def _get_path_aliases -> dict[str, str] {
             client_config = config.get_plugin_config('client');
             return client_config.get('paths', {});
         }
-    } except (ImportError, AttributeError) {
-        ;
-    }
+    } except (ImportError, AttributeError) {}
     return {};
 }
 

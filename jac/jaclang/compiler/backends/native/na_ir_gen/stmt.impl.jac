@@ -50,7 +50,7 @@ impl NaIRGenStmt._codegen_body(stmts: (list | tuple)) -> None {
                         }
                     }
                 }
-            } except Exception { }
+            } except Exception {}
         }
     }
 }
@@ -166,9 +166,9 @@ impl NaIRGenStmt._codegen_stmt(nd: uni.UniNode) -> None {
         }
     } elif isinstance(nd, uni.DeleteStmt) {
         self._codegen_delete(nd);
-    } elif isinstance(nd, uni.Semi) { } elif isinstance(nd, uni.Import) { } elif isinstance(
+    } elif isinstance(nd, uni.Semi) {} elif isinstance(nd, uni.Import) {} elif isinstance(
         nd, uni.PyInlineCode
-    ) { } elif isinstance(nd, uni.VisitStmt) {
+    ) {} elif isinstance(nd, uni.VisitStmt) {
         self._codegen_visit(nd);
     } elif isinstance(nd, uni.DisengageStmt) {
         self._codegen_disengage(nd);
@@ -2862,9 +2862,9 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
             }
             self._register_region_handle_var(nd, var_name);
             if isinstance(var_type, ir.PointerType)
-                and var_name in self.region_handle_vars {
-                ;
-            } elif isinstance(var_type, ir.PointerType)
+                and var_name in self.region_handle_vars {} elif isinstance(
+                var_type, ir.PointerType
+            )
                 or (self._str_desc_ty is not None and var_type == self._str_desc_ty) {
                 if getattr(value, 'opname', '') == 'inttoptr' {
                     self.param_vars.add(var_name);

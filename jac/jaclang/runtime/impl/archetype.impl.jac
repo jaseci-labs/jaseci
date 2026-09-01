@@ -305,7 +305,7 @@ impl Archetype.uninstall_subclass_hook(hook: Callable[[type], None]) -> None {
     }
 }
 
-impl Archetype.postinit -> None { }
+impl Archetype.postinit -> None {}
 
 impl Archetype.__repr__ -> str {
     return f"{self.__class__.__name__}";
