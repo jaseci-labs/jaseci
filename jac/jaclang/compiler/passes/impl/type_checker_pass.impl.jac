@@ -967,10 +967,30 @@ impl TypeCheckPass._jsx_component_params(nd: Ability) -> (list[ParamVar] | None)
     ];
 }
 
+impl TypeCheckPass._is_ref_forward_tail_param(p: ParamVar) -> bool {
+    if p.type_tag is None {
+        return False;
+    }
+    cur: UniNode | None = p.type_tag.tag;
+    while isinstance(cur, (FuncCall, AtomTrailer)) {
+        cur = cur.target;
+    }
+    return isinstance(cur, Name) and cur.value == "Ref";
+}
+
 impl TypeCheckPass._check_props_bundle_is_exclusive(
     nd: Ability, comp_params: list[ParamVar]
 ) -> None {
     if len(comp_params) < 2 {
+        return;
+    }
+
+    if (
+        len(comp_params) == 2
+        and isinstance(comp_params[0].name, Name)
+        and comp_params[0].name.value == "props"
+        and self._is_ref_forward_tail_param(comp_params[1])
+    ) {
         return;
     }
     component = nd.name_spec.sym_name;
