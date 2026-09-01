@@ -30,9 +30,7 @@ def _ensure_libwebview(webview_dir: Path) -> Path {
 
     try {
         script.chmod(script.stat().st_mode | 0o111);
-    } except OSError {
-        ;
-    }
+    } except OSError {}
     res = subprocess.run([str(script)]);
     if res.returncode != 0 or not lib.exists() {
         raise RuntimeError(
@@ -43,7 +41,7 @@ def _ensure_libwebview(webview_dir: Path) -> Path {
     return lib;
 }
 
-impl NativeDesktopTarget.setup(project_dir: Path) -> None { }
+impl NativeDesktopTarget.setup(project_dir: Path) -> None {}
 
 def _assemble_native_host(
     entry_file: Path, project_dir: Path, output_dir: Path, dist_dir: Optional[Path]

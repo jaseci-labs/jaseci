@@ -201,7 +201,7 @@ def _stage_cef_runtime(cef_dist: Path, out_dir: Path) {
     }
 }
 
-impl CefDesktopTarget.setup(project_dir: Path) -> None { }
+impl CefDesktopTarget.setup(project_dir: Path) -> None {}
 
 impl CefDesktopTarget.build(
     entry_file: Path, project_dir: Path, platform: Optional[str] = None

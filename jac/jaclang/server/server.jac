@@ -33,7 +33,7 @@ import from jaclang.server.serving.middleware {
     custom_headers_middleware
 }
 import from jaclang.server.serving.openapi { register_docs_endpoints }
-import from jaclang.server.serving.server { ServingServer }
+import from jaclang.server.serving.server { PORT_RETRY_LIMIT, ServingServer }
 import from jaclang.server.static_files { find_static_candidate, is_asset_request }
 import from jaclang { JacRuntime as Jac }
 import type from jaclang.runtime.invocation { InvocationDispatcher }
@@ -75,9 +75,12 @@ obj UserManager {
     async def aget_root_id(username: str) -> (str | None);
 }
 
+def observe_read_tier_retry(metrics: any, unit_key: str) -> None;
+
 obj ExecutionManager {
     has base_path: str,
-        user_manager: UserManager;
+        user_manager: UserManager,
+        metrics: any = None;
 
     async def execute_function(
         func: Callable[(..., any)], args: dict[(str, any)], username: str
@@ -210,6 +213,7 @@ obj JacAPIServer {
         base_path: str = "",
         module_file: (str | None) = None,
         is_sv_sibling: bool = False,
+        strict_port: bool = False,
         user_manager: UserManager postinit,
         execution_manager: ExecutionManager postinit,
         introspector: ModuleIntrospector postinit,

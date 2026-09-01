@@ -69,7 +69,7 @@ impl load_template_from_directory(
                     }
                 }
             }
-        } except Exception { }
+        } except Exception {}
     }
     if ".jac/" not in root_gitignore_entries {
         root_gitignore_entries = root_gitignore_entries + [".jac/"];

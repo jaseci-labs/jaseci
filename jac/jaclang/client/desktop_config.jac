@@ -1,4 +1,5 @@
 import from pathlib { Path }
+import from jaclang.comptime { fields, get_field }
 import from jaclang.project.plugin_config { PluginConfigBase }
 import from jaclang.server.http_surface { HTTP_CAPABILITIES }
 
@@ -19,15 +20,15 @@ obj WindowConfig {
     static def from_dict(
         data: dict[str, any], title_fallback: str = ""
     ) -> WindowConfig {
-        title = str(data.get("title", title_fallback) or title_fallback);
-        return WindowConfig(
-            title=title,
-            width=int(data.get("width", 1200)),
-            height=int(data.get("height", 800)),
-            min_width=int(data.get("min_width", 800)),
-            min_height=int(data.get("min_height", 600)),
-            resizable=bool(data.get("resizable", True))
-        );
+        kw: dict[str, any] = {
+            "title": str(data.get("title", title_fallback) or title_fallback)
+        };
+        comptime for f in fields(WindowConfig) {
+            comptime if f.name != "title" {
+                kw[f.name] = f.`type(data.get(f.name, f.`default));
+            }
+        }
+        return WindowConfig(**kw);
     }
 }
 
@@ -37,11 +38,11 @@ obj DispatchConfig {
         debug: bool = False;
 
     static def from_dict(data: dict[str, any]) -> DispatchConfig {
-        return DispatchConfig(
-            timeout_s=float(data.get("timeout_s", 30.0)),
-            max_queue=int(data.get("max_queue", 128)),
-            debug=bool(data.get("debug", False))
-        );
+        kw: dict[str, any] = {};
+        comptime for f in fields(DispatchConfig) {
+            kw[f.name] = f.`type(data.get(f.name, f.`default));
+        }
+        return DispatchConfig(**kw);
     }
 }
 
@@ -81,19 +82,16 @@ obj DesktopDefaultConfig {
         window: WindowConfig;
 
     def to_dict -> dict[str, any] {
+        window: dict[str, any] = {};
+        comptime for f in fields(WindowConfig) {
+            window[f.name] = get_field(self.window, f.name);
+        }
+        window['fullscreen'] = False;
         return {
             'name': self.name,
             'identifier': self.identifier,
             'version': self.version,
-            'window': {
-                'title': self.window.title,
-                'width': self.window.width,
-                'height': self.window.height,
-                'min_width': self.window.min_width,
-                'min_height': self.window.min_height,
-                'resizable': self.window.resizable,
-                'fullscreen': False
-            }
+            'window': window
         };
     }
 }

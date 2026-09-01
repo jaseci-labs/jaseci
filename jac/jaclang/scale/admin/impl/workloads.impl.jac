@@ -67,7 +67,7 @@ def _metrics_namespace -> str {
         return str(
             get_scale_config().get_monitoring_config().get('namespace', 'jaclang_scale')
         );
-    } except Exception { }
+    } except Exception {}
     return 'jaclang_scale';
 }
 
@@ -99,7 +99,7 @@ def _unavailable_reason -> str {
         if not bool(get_scale_config().get_monitoring_config().get('enabled', False)) {
             return "Monitoring is disabled. Set [scale.monitoring] enabled = true in jac.toml and redeploy to see workload metrics.";
         }
-    } except Exception { }
+    } except Exception {}
     if resolve_prometheus_url() is None {
         return "Prometheus URL not configured (K8S_APP_NAME unset).";
     }

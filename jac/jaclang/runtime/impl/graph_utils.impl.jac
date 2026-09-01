@@ -14,10 +14,12 @@ impl traverse_graph(
     edge_limit: int
 ) -> None {
     import from jaclang.runtime.archetype { EdgeAnchor }
-    import from jaclang.runtime.osp_graph_sv { sv_live_edges, sv_register_hydrated }
+    import from jaclang.runtime.osp_graph_sv { sv_register_hydrated }
+    import from jaclang.runtime.runtime { JacRuntimeInterface }
     nd_anchor = nd.__jac__;
     sv_register_hydrated(nd_anchor, fetch_stubs=True);
-    for `edge in sv_live_edges(nd_anchor, 3, None, True) {
+    for edge_arch in JacRuntimeInterface.hop(nd, 3, None, True) {
+        `edge = edge_arch.__jac__;
         if not isinstance(`edge, EdgeAnchor) {
             continue;
         }
@@ -78,7 +80,7 @@ impl traverse_graph(
 impl collect_node_connections(
     current_node: NodeArchetype, visited_nodes: set, connections: set, edge_ids: set
 ) -> None {
-    import from jaclang.runtime.archetype { EdgeAnchor, NodeAnchor }
+    import from jaclang.runtime.archetype { EdgeAnchor, NodeAnchor, anchor_key }
     import from jaclang.runtime.osp_graph_sv { sv_live_edges, sv_register_hydrated }
     import from jaclang.runtime.runtime { resolve_ref }
     if (current_node not in visited_nodes) {
@@ -86,15 +88,20 @@ impl collect_node_connections(
         node_anchor = current_node.__jac__;
         sv_register_hydrated(node_anchor, fetch_stubs=True);
         for edge_ in sv_live_edges(node_anchor, 3, None, True) {
-            if not isinstance(edge_, EdgeAnchor) or (edge_.id in edge_ids) {
+            if not isinstance(edge_, EdgeAnchor) or (anchor_key(edge_) in edge_ids) {
                 continue;
             }
-            edge_ids.add(edge_.id);
+            edge_ids.add(anchor_key(edge_));
             source = resolve_ref(edge_.source, edge_);
             target = resolve_ref(edge_.target, edge_);
             if isinstance(source, NodeAnchor) and isinstance(target, NodeAnchor) {
                 connections.add(
-                    (edge_.id, source.archetype, target.archetype, edge_.archetype)
+                    (
+                        anchor_key(edge_),
+                        source.archetype,
+                        target.archetype,
+                        edge_.archetype
+                    )
                 );
                 collect_node_connections(
                     target.archetype, visited_nodes, connections, edge_ids
@@ -122,9 +129,7 @@ impl get_name(target_path: (str | None) = None) -> str | None {
                 return cfg.project.name;
             }
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
 
     stem = file_path.stem;
     return stem if stem not in ['jac', '__main__'] else None;

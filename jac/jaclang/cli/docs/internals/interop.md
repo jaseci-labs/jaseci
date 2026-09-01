@@ -288,15 +288,20 @@ a separate shared object loaded across a process boundary.
 ### Crossing whole Jac values
 
 Whole-value crossings are **one-way and total**: the native side rebuilds
-the value as real CPython objects through libpython externs, and nothing
-native outlives the call. The sealed parser is the worked example -- its
-generated materializer root (`compiler/native_materialize.jac`, written at
-seal time by `gen_native_materialize.jac`) exposes complete crossing
-entries that parse natively and return fully Python-owned trees, envelopes
-and all. There is no view layer: the earlier zero-copy
+the value as real CPython objects before it returns, and nothing native
+outlives the call. There is no view layer -- the earlier zero-copy
 `NativeStructView`/`NativeListView` machinery was deleted with #8139 Step 2
 once measurement showed per-access view reads losing to outright
 materialization for every real consumer.
+
+No whole-value crossing ships today. The worked example used to be the
+compiler's own sealed parser, whose generated materializer root returned
+fully Python-owned trees, envelopes and all; it went with the native seal
+in #8735 (#8732). What crosses now is narrower: scalars, through the ctypes
+trampolines above, or -- on the `na → C host` path (row 13 below) -- opaque
+`void*` handles the host reference-counts with `@jac_retain` /
+`@jac_release` and must never dereference. The rule above is the contract
+the next crossing has to meet; the entries that meet it are its own to write.
 
 ### AOT alternative
 
@@ -306,28 +311,6 @@ to the Python path when it cannot lower). The
 *ahead-of-time* counterpart is the **`na → C host`** native-lib export
 path (below), where the native side is packaged as a real `.so` and a host (Python via `ctypes`, or C) loads
 it across the process boundary.
-
-The compiler itself ships this way: sealing a release AOT-compiles
-`compiler/native_materialize.jac` (whose native closure carries the parser,
-lexer and `unitree`) and `compiler/frontend/unitree.jac` into per-platform shared
-libraries (`_precompiled/native/<triple>/libjac_native_materialize.*`,
-`libjac_unitree.*`) with persisted `NativeModuleLayout` JSON, recorded in
-`MANIFEST.json` under `native_artifacts` (sha256-verified,
-fail-closed). The materializer root is itself native jac, GENERATED AT SEAL TIME by
-`jaclang/dist/gen_native_materialize.jac` (the generated output is never
-checked in; issue #8133 tracks the end state): typed per-class emitters rebuild
-the parsed tree as real CPython objects at about 1.6 us per node through
-`import from python` clib externs -- resolved from the host process via ELF
-lazy PLT binds on Linux and Mach-O flat-lookup binds on macOS, so no second
-interpreter is ever loaded -- and the unmodified bytecode pipeline consumes
-the result with no view layer in between. The sealed runtime binds the
-library with plain ctypes via `runtime/native_dylib.jac` -- no LLVM on the
-boot path -- with the materializer entries bound GIL-held (PYFUNCTYPE), and
-`parse()` and `parse_diags()` serve natively wherever an artifact exists,
-with no bytecode fallback: an artifact that fails to load or verify raises.
-Environments with no artifact at all (dev source trees, platforms the seal
-skips) parse on the bytecode tier, which also remains the bootstrap that
-builds the seal itself.
 
 ---
 
@@ -716,7 +699,7 @@ RPC to the backend). It is the matrix in miniature.
 | Context split / coercion | [`compiler.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/compiler.jac) (`_coerce_module`); `constant.jac` (`CodeContext`) |
 | `cl → sv` | `compiler/backends/es/impl/esast_gen_pass.impl.jac` (`__jacSpawn`/`__jacCallFunction`); `client/impl/client_runtime.impl.jac`; `jac/jaclang/scale/server/impl/serve.endpoints.impl.jac` |
 | `sv → cl` | `client/impl/{compiler,vite_bundler}.impl.jac`; `server/impl/server.impl.jac`; `passes/ast_gen/impl/jsx_processor.impl.jac` |
-| `sv ↔ na` | `runtime/interop_bridge.jac`; `compiler/frontend/parser/materialize.jac` + `dist/gen_native_materialize.jac` (sealed parse-tree crossing); `backends/py/impl/jcir_gen_pass.impl.jac` (`_gen_native_interop_stubs`, `_generate_sv_to_sv_stubs`); `backends/native/impl/na_compile_pass.impl.jac` |
+| `sv ↔ na` | `runtime/interop_bridge.jac`; `backends/py/impl/jcir_gen_pass.impl.jac` (`_gen_native_interop_stubs`, `_generate_sv_to_sv_stubs`); `backends/native/impl/na_compile_pass.impl.jac` |
 | `na ↔ C` | `compiler/backends/native/{foreign,abi}.jac`; `backends/native/na_ir_gen/{clib_abi,clib_vtable}.impl.jac` |
 | `na → C host` | `cli/commands/impl/nacompile.impl.jac` (`_inject_shared_init`); `backends/native/impl/{elf,macho,pe}_linker.impl.jac` |
 | `na ↔ cl` (wasm) | `backends/native/{wasm_build,wasm_linker}.jac`; `client/impl/compiler.impl.jac` |

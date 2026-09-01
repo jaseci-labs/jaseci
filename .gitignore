@@ -98,7 +98,3 @@ jactastic/**
 # Zig 0.16 project-local package cache (fetched, hash-pinned deps)
 zig-pkg/
 
-# Seal-time generated roots (see jaclang/dist/gen_native_materialize.jac and
-# generate_fused_seal_root in jaclang/dist/precompile_bytecode.jac)
-jac/jaclang/compiler/native_materialize.jac
-jac/jaclang/compiler/fused_seal_root.jac

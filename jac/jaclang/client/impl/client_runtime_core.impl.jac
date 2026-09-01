@@ -253,7 +253,7 @@ async def __consumeNativePush(stream_id: str) -> any {
 def __nativeErrorMsg(response: any) -> str {
     try {
         return response["body"]["error"]["message"];
-    } except Exception { }
+    } except Exception {}
     return "Unknown error";
 }
 
@@ -776,7 +776,7 @@ impl __jacReportError(
                 )
             }
         );
-    } except Exception { }
+    } except Exception {}
 }
 
 impl __jacInstallErrorHandlers -> None {
@@ -968,7 +968,7 @@ impl __jacReactErrorHandler(error: any, info: any) -> None {
         stack = error.stack if error else "";
         componentStack = info.componentStack if info else "";
         __jacReportError(message, stack, "", "ErrorBoundary", componentStack);
-    } except Exception { }
+    } except Exception {}
 }
 
 impl __unwrapFormSchema(schema: any) -> any {

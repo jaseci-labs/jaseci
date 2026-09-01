@@ -1052,7 +1052,7 @@ test "boot() clears stale _BOOT_ERROR at entry" {
         with tempfile.TemporaryDirectory() as d {
             try {
                 ipd.boot("/nonexistent/__definitely_not_a_module__.jac", d + "/g");
-            } except Exception { }
+            } except Exception {}
         }
         assert "stale ImportError" not in ipd._BOOT_ERROR , (
             "boot() must clear a stale error at rec before recording a new one"
@@ -1377,7 +1377,7 @@ test "_worker_loop replies NATIVE_DISPATCH_ERROR when dispatch() raises" {
         ipd._shutting_down = orig_shutting;
         try {
             test_q.put_nowait(None);
-        } except queue.Full { }
+        } except queue.Full {}
         exc_worker.join(timeout=2.0);
         ipd._work_q = orig_q;
         ipd._workers = orig_workers;
@@ -1629,7 +1629,7 @@ test "_boot_impl closes a prior runtime before re-booting" {
         with tempfile.TemporaryDirectory() as d {
             try {
                 ipd._boot_impl("/nonexistent/__not_a_module__.jac", d + "/g");
-            } except Exception { }
+            } except Exception {}
         }
         assert mock_runtime.close.called , (
             "_boot_impl must close the prior runtime before starting a new boot"

@@ -7,6 +7,7 @@ import from jaclang.scale.runtime.gateway.service_registry {
     ServiceStatus
 }
 import from jaclang.scale.runtime.gateway.microservice_gateway { MicroserviceGateway }
+import from jaclang.server.serving.datatypes { Headers, Request, URL }
 
 test "resolve strips prefix and preserves walker path" {
     reg = ServiceRegistry();
@@ -319,7 +320,7 @@ def _serve_fragment(payload: dict) -> tuple {
         handler_self.wfile.write(body);
     }
 
-    def _log_quiet(handler_self: any, fmt: str, *args: any) { }
+    def _log_quiet(handler_self: any, fmt: str, *args: any) {}
 
     handler_cls = type(
         "_FragmentHandler",
@@ -1584,9 +1585,7 @@ def _start_backend(hits: dict, routes: dict, port: int = 0) -> tuple {
                 (status, body) = routes.get(key, (404, '{"detail": "nope"}'));
                 conn.sendall(_http_response(status, body));
                 conn.close();
-            } except OSError {
-                ;
-            }
+            } except OSError {}
         }
     }
     t = threading.Thread(target=serve, daemon=True);
@@ -1598,9 +1597,7 @@ def _start_backend(hits: dict, routes: dict, port: int = 0) -> tuple {
 def _stop_backend(srv: any) {
     try {
         srv.close();
-    } except OSError {
-        ;
-    }
+    } except OSError {}
 }
 
 
@@ -2105,4 +2102,29 @@ test "a replicated family prefers a healthy service over one still starting" {
         _stop_backend(srv_a);
         _stop_backend(srv_b);
     }
+}
+
+
+test "forward headers append the peer to the forwarded chain" {
+    gw = MicroserviceGateway(registry=ServiceRegistry());
+    h = Headers();
+    h.append("x-forwarded-for", "203.0.113.7");
+    h.append("X-Forwarded-For", "198.51.100.9");
+    req = Request(url=URL(path="/api/x"), headers=h, client_host="10.0.0.1");
+    fwd = gw.build_forward_headers(req);
+    assert fwd["X-Forwarded-For"] == "203.0.113.7, 198.51.100.9, 10.0.0.1";
+    xff_keys = [
+        k
+        for k in fwd.keys()
+        if k.lower() == "x-forwarded-for"
+    ];
+    assert len(xff_keys) == 1;
+}
+
+
+test "forward headers stamp the peer when no chain is present" {
+    gw = MicroserviceGateway(registry=ServiceRegistry());
+    req = Request(url=URL(path="/api/x"), headers=Headers(), client_host="10.0.0.1");
+    fwd = gw.build_forward_headers(req);
+    assert fwd["X-Forwarded-For"] == "10.0.0.1";
 }

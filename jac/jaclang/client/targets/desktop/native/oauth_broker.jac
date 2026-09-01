@@ -446,7 +446,7 @@ def make_handler(
                     self.wfile.write(("data: " + msg + "\n\n").encode("utf-8"));
                     self.wfile.flush();
                 }
-            } except (BrokenPipeError, ConnectionResetError, OSError) { } finally {
+            } except (BrokenPipeError, ConnectionResetError, OSError) {} finally {
                 hub.unsubscribe(q);
             }
         }

@@ -39,7 +39,7 @@ impl native_compiler_fingerprint(options: any) -> str {
                 with open(_cf, "rb") as _cfh {
                     _comp_h.update(_cfh.read());
                 }
-            } except Exception { }
+            } except Exception {}
         }
     }
     _comp_h.update(options.codegen_identity().encode());
@@ -72,7 +72,8 @@ impl DepClibMeta.to_meta -> dict {
         "demoted_symbols": self.demoted_symbols,
         "transitive_deps": self.transitive_deps,
         "options_fingerprint": self.options_fingerprint,
-        "unverified_live_calls": self.unverified_live_calls
+        "unverified_live_calls": self.unverified_live_calls,
+        "coverage": self.coverage
     };
 }
 
@@ -86,7 +87,8 @@ impl DepClibMeta.from_meta(meta: dict) -> DepClibMeta {
         demoted_symbols=meta.get("demoted_symbols", []),
         transitive_deps=meta.get("transitive_deps", []),
         options_fingerprint=meta.get("options_fingerprint", ""),
-        unverified_live_calls=meta.get("unverified_live_calls", {})
+        unverified_live_calls=meta.get("unverified_live_calls", {}),
+        coverage=meta.get("coverage", {})
     );
 }
 
@@ -192,7 +194,10 @@ impl native_unit_demotions(
         and real_path not in prog.scratch.na_verdict_resolving
         and _ud_os.path.isfile(real_path)
     ) {
-        if not getattr(options, "no_ir_cache", False) {
+        import from jaclang.compiler.driver.jir {
+            native_ir_cache_suspended as _ud_suspended
+        }
+        if not (getattr(options, "no_ir_cache", False) or _ud_suspended()) {
             try {
                 import json as _ud_json;
                 (_, _ud_meta_path) = native_dep_cache_paths(real_path, options);
@@ -205,7 +210,7 @@ impl native_unit_demotions(
                         return set(_ud_cached);
                     }
                 }
-            } except Exception { }
+            } except Exception {}
         }
         prog.scratch.na_verdict_resolving.add(real_path);
         try {
@@ -306,7 +311,7 @@ impl NativeCompilePass.postinit -> None {
     super.postinit();
 }
 
-impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
+impl NativeCompilePass._run_impl(ir_in: uni.Module) -> uni.Module {
     module = ir_in;
     if module.gen.llvm_ir is None {
         return ir_in;
@@ -451,7 +456,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
                 mod.verify();
 
                 module.gen.native_bitcode = _mod_bitcode(mod);
-            } except Exception as _dbg_err { }
+            } except Exception as _dbg_err {}
         }
 
         if _compile_opts.aot_mode {
@@ -472,7 +477,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
                         _all_fn_names.append(_fn_name_str);
                     }
                 }
-            } except Exception { }
+            } except Exception {}
         }
 
         engine = llvm.create_mcjit_compiler(mod, target_machine);
@@ -481,7 +486,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
         if _native_debug {
             try {
                 engine.enable_jit_events();
-            } except Exception { }
+            } except Exception {}
         }
         install_native_static_init(engine, module.gen.interop_manifest);
         module.gen.native_engine = engine;
@@ -508,8 +513,8 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
                             _sf.write(f"{_fn_name} 0x{_addr:x}\n");
                         }
                     }
-                } else { }
-            } except Exception as _sym_err { }
+                } else {}
+            } except Exception as _sym_err {}
         }
     } except Exception as e {
         self.emit(E5020, error=str(e));
@@ -556,7 +561,7 @@ impl NativeCompilePass._jit_load_clib(lib_path: str) -> bool {
         try {
             llvm.load_library_permanently(base);
             return True;
-        } except Exception { }
+        } except Exception {}
     }
 
     stem = base;
@@ -714,7 +719,11 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 real_path, _link_opts
             );
 
-            _no_ir_cache = bool(getattr(_link_opts, "no_ir_cache", False));
+            import from jaclang.compiler.driver.jir { native_ir_cache_suspended }
+            _no_ir_cache = (
+                bool(getattr(_link_opts, "no_ir_cache", False))
+                or native_ir_cache_suspended()
+            );
             if (
                 not _no_ir_cache
                 and os.path.exists(_cache_ir_path)
@@ -729,7 +738,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 meta = DepClibMeta.from_meta(_meta);
                 _cache_hit = True;
             }
-        } except Exception { }
+        } except Exception {}
 
         if _cache_hit
             and link_fingerprint_mismatches(
@@ -761,12 +770,14 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 for _uv_stale in (_cache_ir_path, _cache_meta_path) {
                     try {
                         os.remove(_uv_stale);
-                    } except OSError { }
+                    } except OSError {}
                 }
             }
         }
 
         if _cache_hit {
+            import from jaclang.compiler.driver.na_coverage { na_coverage_replay }
+            na_coverage_replay(real_path, meta.coverage);
             dep_base = os.path.dirname(full_path);
             for dep_mod_path in meta.transitive_deps {
                 work_queue.append((_DepBinding(dep_mod_path), dep_base));
@@ -828,7 +839,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 self.prog.scratch.na_dep_units.pop(real_path, None);
                 try {
                     self.prog.invalidate_module(real_path);
-                } except Exception { }
+                } except Exception {}
                 try {
                     _lk_composed += 1;
                     imported_ir = self.prog.compile(
@@ -899,6 +910,8 @@ impl NativeCompilePass._compile_and_link_native_imports(
             meta.owned_symbols = sorted(_owned_seen);
             imported_llvm_str_raw = str(imported_ir.gen.llvm_ir);
             meta.demoted_symbols = native_demoted_ir_symbols(imported_llvm_str_raw);
+            import from jaclang.compiler.driver.na_coverage { na_coverage_capture }
+            meta.coverage = na_coverage_capture(real_path);
             meta.clib_paths = imported_ir.gen._clib_paths or [];
             meta.clib_symbol_lib = imported_ir.gen._clib_symbol_lib or {};
             meta.exported_symbols = imported_ir.gen._exported_symbols or [];
@@ -955,17 +968,17 @@ impl NativeCompilePass._compile_and_link_native_imports(
                     for _leftover in (_tmp_ir, _tmp_meta) {
                         try {
                             os.remove(_leftover);
-                        } except OSError { }
+                        } except OSError {}
                     }
                 }
-            } except Exception { }
+            } except Exception {}
         }
 
         if not self.prog.options.aot_mode {
             for dep_lib_path in meta.clib_paths {
                 try {
                     self._jit_load_clib(dep_lib_path);
-                } except Exception { }
+                } except Exception {}
             }
         }
 
@@ -1221,6 +1234,12 @@ impl NativeCompilePass._link_osp_kernel(main_mod: ModuleRef) -> None {
         or bool(getattr(self.ir_in.gen, "nogc_enforced", False));
     ir_str = _compile_osp_kernel_ir(_gc, _enf and _gc == "none");
     if ir_str is None {
+        self.emit(
+            E5025,
+            path=f"osp_core kernel unit (gc={_gc})",
+            error="the kernel unit failed to compile to LLVM IR; every OSP "
+            "operation in this module would be an unresolved symbol at link"
+        );
         return;
     }
 
@@ -1234,7 +1253,7 @@ impl NativeCompilePass._link_osp_kernel(main_mod: ModuleRef) -> None {
         kmod.verify();
         main_mod.link_in(kmod);
     } except Exception as _e {
-        ;
+        self.emit(E5025, path=f"osp_core kernel unit (gc={_gc})", error=str(_e));
     }
 }
 
@@ -1316,7 +1335,17 @@ impl NativeCompilePass._link_fmt_kernel(main_mod: ModuleRef) -> None {
         kmod = llvm.parse_assembly(ir_str);
         kmod.verify();
         main_mod.link_in(kmod);
-    } except Exception as _e {
-        ;
-    }
+    } except Exception as _e {}
+}
+
+impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
+    self.ir_out = ir_in;
+    ir_in spawn self;
+    out = self.ir_out;
+    assert isinstance(out, uni.Module);
+    return out;
+}
+
+impl NativeCompilePass.run_walk with uni.Module entry {
+    self.ir_out = self._run_impl(here);
 }
