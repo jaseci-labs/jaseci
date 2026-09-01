@@ -17,6 +17,12 @@ def _served_by_image -> set[str] {
 }
 
 test "the running image serves exactly the scope" {
+    import from jaclang.jac0core.sealed { _jaclang_image as _img }
+    if _img() is None {
+        # Dev-source reroute: the compiler is served from the tree, not
+        # an image, so there is no image record to agree with.
+        return;
+    }
     assert _served_by_image() == {e.module for e in NATIVE_SCOPE};
 }
 

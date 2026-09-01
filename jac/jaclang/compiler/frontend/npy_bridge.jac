@@ -539,24 +539,40 @@ class NpyBridge {
     def _install_union_prop(
         self: NpyBridge, t: any, fname: str, off: int, allow_str: bool
     ) {
+        import struct as _struct;
         def uget(nd: any) -> any {
-            v = nd.__dict__.get(fname);
-            if v is not None {
-                return v;
+            d = nd.__dict__;
+            if fname in d {
+                return d[fname];
             }
             a = _addr(nd) + off;
-            if not cast(a, POINTER(ctypes.c_uint8))[0] {
+            kind = cast(a, POINTER(ctypes.c_uint8))[0];
+            payload = cast(a + 8, POINTER(ctypes.c_int64))[0];
+            if kind == 8 {
                 return None;
             }
-            payload = cast(a + 8, POINTER(ctypes.c_int64))[0];
+            if kind == 7 {
+                return payload != 0;
+            }
+            if kind == 0 {
+                return None if payload == 0 else payload;
+            }
+            if kind == 1 {
+                return _struct.unpack("<d", payload.to_bytes(8, "little", signed=True))[
+                    0
+                ];
+            }
             if not payload {
                 return None;
             }
-            w0 = cast(payload, POINTER(ctypes.c_uint64))[0];
-            if w0 == 3221225472 {
-                return cast(payload, py_object).value;
+            if kind == 6 {
+                w0 = cast(payload, POINTER(ctypes.c_uint64))[0];
+                if w0 >= 1073741824 and w0 <= 4294967295 {
+                    return cast(payload, py_object).value;
+                }
+                return None;
             }
-            if allow_str {
+            if kind == 2 and allow_str {
                 return string_at(payload).decode();
             }
             return None;
@@ -1149,6 +1165,9 @@ def _kit_site_present -> bool {
 
 def _find_lib -> (str | None) {
     import sys;
+    if os.environ.get("JAC_STUBCAT_BUILDING") {
+        return None;
+    }
     ov = os.environ.get("JAC_FRONTEND_LIB", "");
     if ov.strip().lower() in ("none", "off", "disabled", "0") {
         return None;
