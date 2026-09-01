@@ -38,6 +38,21 @@ def _retain_units {
     Jac.get_compiler().unit_retain = True;
 }
 
+def _release_retention {
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
+
+    compiler = Jac.get_compiler();
+    compiler.unit_retain = False;
+    try {
+        if _unit_program {
+            _unit_program[0].release_compile_closure(collect=True);
+        }
+        compiler.selfhost.program.release_compile_closure(collect=True);
+    } except Exception {
+        ;
+    }
+}
+
 def _reseal_retire(served: int, rss_mb: int) -> bool {
     import from jaclang.cli.workpool { env_int, should_retire }
 
@@ -190,73 +205,77 @@ def _run_pool(targets: list[str]) -> dict[(str, any)] {
     warm = targets[0];
     remaining = targets[1:];
     try {
-        warm_code = _compile_unit(warm);
-        counts["compiled" if warm_code is not None else "failed"] += 1;
-    } except Exception {
-        counts["failed"] += 1;
-    }
-
-    def unit_job(request: dict[(str, any)]) -> dict[(str, any)] {
-        import from jaclang.compiler.driver.jir {
-            get_module_cache_path,
-            is_module_cache_valid
-        }
-
-        jac_path = str(request["path"]);
         try {
-            if is_module_cache_valid(jac_path, get_module_cache_path(jac_path)) {
-                return {"status": "reused"};
-            }
-            code = _compile_unit(jac_path);
-            if code is None {
-                return {"status": "failed", "message": f"no bytecode: {jac_path}"};
-            }
-            return {"status": "compiled"};
-        } except Exception as e {
-            return {"status": "failed", "message": f"{jac_path}: {e}"};
-        }
-    }
-
-    failures: list[str] = [];
-
-    def on_dispatch(idx: int, path: str) {
-        done = counts["compiled"] + counts["reused"] + counts["failed"];
-        sys.stderr.write(f"\r  [{done}/{total}] resealing...");
-        sys.stderr.flush();
-    }
-
-    def on_record(idx: int, record: dict[(str, any)]) -> None {
-        result = record.get("result");
-        if not isinstance(result, dict) {
-            detail = record.get("crash") or record.get("error") or "no result";
-            failures.append(f"{remaining[idx]}: {detail}");
+            warm_code = _compile_unit(warm);
+            counts["compiled" if warm_code is not None else "failed"] += 1;
+        } except Exception {
             counts["failed"] += 1;
-            return;
         }
-        status = str(result.get("status") or "failed");
-        message = str(result.get("message") or "");
-        if status == "failed" and message {
-            failures.append(message);
-        }
-        counts[status] = counts.get(status, 0) + 1;
-    }
 
-    if remaining {
-        pool = WorkPool(
-            items=list(remaining),
-            job=unit_job,
-            on_record=on_record,
-            jobs=min(workers, len(remaining)),
-            retire=_reseal_retire,
-            on_dispatch=on_dispatch,
-            rss_log_env="JAC_PRECOMPILE_RSS_LOG",
-            crash_prefix="jac-reseal-crash-"
-        );
-        if use_pool {
-            pool.run();
-        } else {
-            pool.run_inline();
+        def unit_job(request: dict[(str, any)]) -> dict[(str, any)] {
+            import from jaclang.compiler.driver.jir {
+                get_module_cache_path,
+                is_module_cache_valid
+            }
+
+            jac_path = str(request["path"]);
+            try {
+                if is_module_cache_valid(jac_path, get_module_cache_path(jac_path)) {
+                    return {"status": "reused"};
+                }
+                code = _compile_unit(jac_path);
+                if code is None {
+                    return {"status": "failed", "message": f"no bytecode: {jac_path}"};
+                }
+                return {"status": "compiled"};
+            } except Exception as e {
+                return {"status": "failed", "message": f"{jac_path}: {e}"};
+            }
         }
+
+        failures: list[str] = [];
+
+        def on_dispatch(idx: int, path: str) {
+            done = counts["compiled"] + counts["reused"] + counts["failed"];
+            sys.stderr.write(f"\r  [{done}/{total}] resealing...");
+            sys.stderr.flush();
+        }
+
+        def on_record(idx: int, record: dict[(str, any)]) -> None {
+            result = record.get("result");
+            if not isinstance(result, dict) {
+                detail = record.get("crash") or record.get("error") or "no result";
+                failures.append(f"{remaining[idx]}: {detail}");
+                counts["failed"] += 1;
+                return;
+            }
+            status = str(result.get("status") or "failed");
+            message = str(result.get("message") or "");
+            if status == "failed" and message {
+                failures.append(message);
+            }
+            counts[status] = counts.get(status, 0) + 1;
+        }
+
+        if remaining {
+            pool = WorkPool(
+                items=list(remaining),
+                job=unit_job,
+                on_record=on_record,
+                jobs=min(workers, len(remaining)),
+                retire=_reseal_retire,
+                on_dispatch=on_dispatch,
+                rss_log_env="JAC_PRECOMPILE_RSS_LOG",
+                crash_prefix="jac-reseal-crash-"
+            );
+            if use_pool {
+                pool.run();
+            } else {
+                pool.run_inline();
+            }
+        }
+    } finally {
+        _release_retention();
     }
 
     elapsed = time.monotonic() - started;
