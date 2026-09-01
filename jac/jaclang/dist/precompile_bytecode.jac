@@ -630,6 +630,13 @@ def write_manifest(
     if app_meta {
         manifest.update(app_meta);
     }
+    if pkg_name == "jaclang" {
+        import from jaclang.compiler.native_scope { NATIVE_SCOPE }
+        scope_mods = sorted([e.module for e in NATIVE_SCOPE]);
+        if scope_mods {
+            manifest["native"] = {"modules": scope_mods};
+        }
+    }
     (precompiled_dir / MANIFEST_NAME).write_text(
         json.dumps(manifest, sort_keys=True, indent=1) + "\n", encoding="utf-8"
     );

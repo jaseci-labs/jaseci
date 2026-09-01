@@ -1,23 +1,26 @@
 import os;
 
-obj NativeScopeEntry {
-    has module: str,
-        strict: bool = False;
-}
+obj NativeScopeEntry {has module: str,
+    strict: bool = False; }
 
 glob NATIVE_SCOPE: tuple[NativeScopeEntry, ...] = (
-    NativeScopeEntry(module="jaclang.compiler.frontend.constant", strict=True),
-    NativeScopeEntry(module="jaclang.compiler.frontend.srcloc", strict=True),
-    NativeScopeEntry(module="jaclang.compiler.frontend.roles", strict=True),
-    NativeScopeEntry(module="jaclang.compiler.frontend.relations", strict=True),
-    NativeScopeEntry(module="jaclang.compiler.frontend.unitree", strict=True),
-    NativeScopeEntry(module="jaclang.compiler.frontend.parser.tokens", strict=True),
-    NativeScopeEntry(module="jaclang.compiler.frontend.parser.lexer", strict=True),
-    NativeScopeEntry(module="jaclang.compiler.frontend.parser.parser", strict=True),
-    NativeScopeEntry(
-        module="jaclang.compiler.frontend.parser.npy_unit", strict=True
-    ),
-);
+         NativeScopeEntry(module="jaclang.compiler.frontend.constant", strict=True),
+         NativeScopeEntry(module="jaclang.compiler.frontend.srcloc", strict=True),
+         NativeScopeEntry(module="jaclang.compiler.frontend.roles", strict=True),
+         NativeScopeEntry(module="jaclang.compiler.frontend.relations", strict=True),
+         NativeScopeEntry(module="jaclang.compiler.frontend.unitree", strict=True),
+         NativeScopeEntry(
+             module="jaclang.compiler.frontend.parser.tokens", strict=True
+         ),
+         NativeScopeEntry(module="jaclang.compiler.frontend.parser.lexer", strict=True),
+         NativeScopeEntry(
+             module="jaclang.compiler.frontend.parser.parser", strict=True
+         ),
+         NativeScopeEntry(
+             module="jaclang.compiler.frontend.parser.npy_unit", strict=True
+         ),
+
+     );
 
 glob _SCOPE_SUFFIX_CACHE: list = [],
      _SCOPE_ACTIVE: list = [];
@@ -35,7 +38,7 @@ def activate_scope_lowering -> None {
             hub = prog.mod.hub;
             for k in list(hub.keys()) {
                 if in_native_scope_path(k) {
-                    del hub[k] ;
+                    del hub[k];
                 }
             }
         }

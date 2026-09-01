@@ -9,21 +9,16 @@ impl LayoutPass.postinit -> None {
 
 impl LayoutPass._run_impl(ir_in: Module) -> Module {
     module = self.ir_in;
-
     self._build_enum_layouts(module);
-
     arch_map = self._collect_archetypes(module);
     if not arch_map {
         module.gen.layout_registry = self.registry;
         return ir_in;
     }
-
     self._build_hierarchy(arch_map);
     self._collect_isinstance_targets(module);
-
     topo_order = self._topo_sort(arch_map);
     self.registry.topo_order = topo_order;
-
     for name in topo_order {
         if name in arch_map {
             layout = self._build_layout(arch_map[name]);
@@ -31,21 +26,17 @@ impl LayoutPass._run_impl(ir_in: Module) -> Module {
             self.registry.local_names.append(name);
         }
     }
-
     for name in topo_order {
         if name in arch_map {
             self._build_vtable_layout(name, arch_map);
         }
     }
-
     self._compute_acyclicity();
-
     for name in topo_order {
         if name in arch_map {
             self._validate_obj_fields(arch_map[name], arch_map);
         }
     }
-
     module.gen.layout_registry = self.registry;
     return ir_in;
 }
@@ -103,7 +94,6 @@ impl LayoutPass._collect_isinstance_targets(module: Module) -> None {
 
 impl LayoutPass._build_hierarchy(archetypes: dict[str, Archetype]) -> None {
     reg = self.registry;
-
     for (aname, arch) in archetypes.items() {
         if arch.base_classes {
             parents: list[str] = [];
@@ -127,7 +117,6 @@ impl LayoutPass._build_hierarchy(archetypes: dict[str, Archetype]) -> None {
             }
         }
     }
-
     for aname in archetypes {
         if aname not in reg.mro_order {
             reg.mro_order[aname] = self._compute_c3_mro(aname);
@@ -137,12 +126,10 @@ impl LayoutPass._build_hierarchy(archetypes: dict[str, Archetype]) -> None {
 
 impl LayoutPass._compute_c3_mro(class_name: str) -> list[str] {
     reg = self.registry;
-
     parents = reg.class_parents.get(class_name);
     if parents is None or not parents {
         return [class_name];
     }
-
     parent_mros: list[list[str]] = [];
     for p in parents {
         if p not in reg.mro_order {
@@ -150,9 +137,7 @@ impl LayoutPass._compute_c3_mro(class_name: str) -> list[str] {
         }
         parent_mros.append(list(reg.mro_order[p]));
     }
-
     parent_mros.append(list(parents));
-
     result: list[str] = [class_name];
     while True {
         any_remaining = False;
@@ -207,7 +192,6 @@ impl LayoutPass._topo_sort(arch_map: dict[str, Archetype]) -> list[str] {
     visited: set[str] = set();
     order: list[str] = [];
     reg = self.registry;
-
     for aname in arch_map {
         if aname in visited {
             continue;
@@ -256,36 +240,26 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
     aname = arch.name.value if arch.name else "unknown";
     mro = reg.mro_order.get(aname, [aname]);
     parents = reg.class_parents.get(aname, []);
-
     arch_type_str = arch.arch_kind or "object";
     is_osp = arch.arch_kind is not None;
-
     parents_set: set[str] = set();
     for (_, plist) in reg.class_parents.items() {
         for p in plist {
             parents_set.add(p);
         }
     }
-
     vtable_by_dispatch = (
         is_osp or aname in parents_set or aname in self.isinstance_targets
     );
     needs_vtable = bool(parents) or vtable_by_dispatch;
-
     fields: list[FieldInfo] = [];
     field_index: dict[str, int] = {};
     parent_field_start: dict[str, int] = {};
     seen_fields: set[str] = set();
     current_idx = 0;
-
     vtable_ptr_slot: (int | None) = None;
     type_tag_slot: (int | None) = None;
     reports_slot: (int | None) = None;
-    # Classes in the armed native-frontend scope carry a CPython object
-    # header ahead of every other slot: {ob_refcnt, ob_type}. The native
-    # allocator stamps both, so an instance IS a PyObject and the Python
-    # side reads fields through generated type slots at interpreter speed
-    # (#8789 PyObject-unitree design).
     pyobj_header_slots = 0;
     import from jaclang.compiler.native_scope {
         in_native_scope_path as _pyo_in_scope,
@@ -293,15 +267,9 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
     }
     _pyo_mod = arch.find_parent_of_type(Module);
     _pyo_path = _pyo_mod.loc.mod_path if _pyo_mod is not None else "";
-    import os as _pyo_os;
-    if (
-        _pyo_armed() and _pyo_in_scope(_pyo_path or "")
-    ) or (
-        _pyo_os.environ.get("JAC_NPY_FORCE")
-        and "jaclang" not in (_pyo_path or "")
-    ) {
-        # {ob_refcnt, ob_type, instance __dict__} -- the dict slot gives
-        # Python-side passes their scratch attributes via tp_dictoffset.
+    import from jaclang.compiler.driver.compile_options { env_npy_force as _pyo_force }
+    if (_pyo_armed() and _pyo_in_scope(_pyo_path or ""))
+        or (_pyo_force() and "jaclang" not in (_pyo_path or "")) {
         pyobj_header_slots = 3;
         current_idx = 3;
     }
@@ -319,7 +287,6 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
         seen_fields.add("reports");
         current_idx += 1;
     }
-
     for ancestor_name in mro[1:] {
         ancestor_layout = reg.layouts.get(ancestor_name);
         if ancestor_layout is None {
@@ -347,7 +314,6 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
             current_idx += 1;
         }
     }
-
     for var in arch.get_has_vars() {
         fname = var.name.value if var.name else "field";
         if fname in seen_fields {
@@ -384,7 +350,6 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
         field_index[fname] = current_idx;
         current_idx += 1;
     }
-
     for tp in (arch.type_params or []) {
         if not tp.is_comptime {
             continue;
@@ -411,7 +376,6 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
         field_index[pname] = current_idx;
         current_idx += 1;
     }
-
     import os as _lay_os;
     _decl_mod = arch.find_parent_of_type(Module);
     _decl_path = _decl_mod.loc.mod_path if _decl_mod is not None else None;
@@ -542,7 +506,6 @@ impl LayoutPass._build_vtable_layout(
     method_list: list[str] = [];
     seen_methods: set[str] = set();
     mro = reg.mro_order.get(arch_name, [arch_name]);
-
     for ancestor_name in mro[1:] {
         ancestor_layout = reg.layouts.get(ancestor_name);
         if ancestor_layout is None {
@@ -555,7 +518,6 @@ impl LayoutPass._build_vtable_layout(
             }
         }
     }
-
     arch = arch_map.get(arch_name);
     if arch is not None {
         for method in arch.get_methods() {
@@ -573,7 +535,6 @@ impl LayoutPass._build_vtable_layout(
             }
         }
     }
-
     methods: list[MethodSlot] = [];
     method_index: dict[str, int] = {};
     for (i, mname) in enumerate(method_list) {
@@ -612,7 +573,6 @@ impl LayoutPass._build_vtable_layout(
         methods.append(slot);
         method_index[mname] = i;
     }
-
     layout_obj.methods = methods;
     layout_obj.method_index = method_index;
 }
@@ -835,11 +795,9 @@ impl LayoutPass._is_layout_compatible_type(
     if isinstance(type_node, FuncSignature) {
         return True;
     }
-
     if isinstance(type_node, UnaryExpr) and type_node.ownership != OwnershipKind.NONE {
         return self._is_layout_compatible_type(type_node.operand, arch_map);
     }
-
     if isinstance(type_node, Name) {
         tname = type_node.value;
         if tname in LAYOUT_COMPATIBLE_SCALARS {
@@ -859,12 +817,10 @@ impl LayoutPass._is_layout_compatible_type(
 
         return False;
     }
-
     if BuiltinType and isinstance(type_node, BuiltinType) {
         tname = type_node.value;
         return tname in LAYOUT_COMPATIBLE_SCALARS;
     }
-
     if isinstance(type_node, BinaryExpr) {
         op_val = getattr(type_node.op, 'value', '');
         if op_val == "|" {
@@ -874,7 +830,6 @@ impl LayoutPass._is_layout_compatible_type(
             );
         }
     }
-
     if isinstance(type_node, AtomTrailer) and not type_node.is_attr {
         target_name: (str | None) = None;
         if isinstance(type_node.target, Name) {
@@ -905,7 +860,6 @@ impl LayoutPass._is_layout_compatible_type(
             return True;
         }
     }
-
     if isinstance(type_node, Name) {
         tname = type_node.value;
         if tname in LAYOUT_COMPATIBLE_SCALARS {

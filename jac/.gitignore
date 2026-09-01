@@ -97,6 +97,11 @@ jaclang/vendor/typeshed/stdlib
 libjacllvm.so
 libjacllvm.dylib
 jacllvm.dll
+# Kit-built native frontend lib (#8789), staged in-tree by mkpayload.
+libjac_npy.so
+libjac_npy.dylib
+libjac_npy.so.layout.json
+libjac_npy.dylib.layout.json
 # Zig-built libjacpyembed desktop shim, placed in-tree per host platform.
 libjacpyembed.so
 libjacpyembed.dylib

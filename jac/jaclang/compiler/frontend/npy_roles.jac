@@ -1,33 +1,3 @@
-"""Field-to-role map for the PyObject-unitree bridge (#8789).
-
-Generated from the role-backed getters in unitree.impl/roles.impl.jac and
-impl/unitree.impl.jac: for each class, the fields whose storage is graph
-adjacency rather than a struct slot, with the role edge class, direction
-(2 = out, 1 = in), and result shape:
-
-- "many": the full adjacency list
-- "one": exactly one target (indexed [0])
-- "opt": first target or None
-- "shaped": runtime one/many/none via the node's _role_shapes (np_role_shape)
-- "impl_body": AstImplNeedingNode.body -- the linked ImplDef (ImplOf out)
-  when one exists, else the node's own shaped BodyRole adjacency
-- "main_mod": ProgramModule.main_mod -- MainRole target unless stub_only;
-  setting None connects a fresh stub Module
-- "parent": hand-installed by the bridge (_install_parent): last Kid-in
-  holder, else last Role-in holder, else the _ctx_parent slot
-- "parent_scope": last ScopeChild-in holder, else last ScopeParent-out
-  target, else None
-- "py_value" / "py_value_many": fields whose values are Python objects
-  (TypeBase and friends), not arena nodes -- kernel edges cannot hold
-  them, so the native property is instance-dict-backed. Safe because no
-  compiler code traverses these edges outside the property pair.
-
-Verified 1:1 against the getter impls in unitree.impl/roles.impl.jac and
-impl/unitree.impl.jac; re-verify after role schema changes. Setters exist
-only for the fields in ROLE_SETTERS below -- the store path generates
-getter-only properties for every other role field.
-"""
-
 glob ROLE_FIELDS: dict[str, dict[str, tuple]] = {
          'Ability': {
              'decorators': ('DecoratorsRole', 2, 'many'),
@@ -442,21 +412,8 @@ glob ROLE_FIELDS: dict[str, dict[str, tuple]] = {
          },
          'YieldExpr': {'expr': ('ExprRole', 2, 'opt'),},
 
-     };
-
-# The role fields with canonical setters (impl/unitree.impl.jac and
-# unitree.impl/roles.impl.jac); every other role field is getter-only.
-#
-# - "std": clear the role's out-edges, connect the value when not None
-# - "parent_scope": drop ScopeChild in-edges and ScopeParent out-edges,
-#   then connect self ->ScopeParent-> value when not None
-# - "main_mod": std, but a None value connects a fresh stub Module
-#
-# The "py_value"/"py_value_many" kinds above carry their setters
-# implicitly (instance-dict writes). code_context and decided_codespace
-# keep their twin properties (kind "complex"): both route through
-# codespace_node, which only the twin knows.
-glob ROLE_SETTERS: dict[str, dict[str, str]] = {
+     },
+     ROLE_SETTERS: dict[str, dict[str, str]] = {
          'ConditionalNode': {'sc_false_target': 'std', 'sc_true_target': 'std',},
          'FuncCall': {'callee_decl': 'std'},
          'Import': {'absorbed_mod': 'std'},

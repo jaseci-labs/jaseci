@@ -145,6 +145,49 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
         );
     }
 
+    import sys;
+    np_name = "libjac_npy.dylib" if sys.platform == "darwin" else "libjac_npy.so";
+    np_src = os.path.join(
+        repo_root, "jaclang", "compiler", "frontend", "parser", "npy_unit.jac"
+    );
+    np_dst = os.path.join(site, "jaclang", "compiler", "frontend", "parser", np_name);
+    log(f"==> building native frontend lib (nacompile --shared {np_src})");
+    import from jaclang.cli.commands.nacompile { nacompile as _nacompile }
+    _prev_shim = os.environ.get("JAC_LLVM_SHIM");
+    _prev_flib = os.environ.get("JAC_FRONTEND_LIB");
+    os.environ["JAC_LLVM_SHIM"] = so;
+    os.environ["JAC_FRONTEND_LIB"] = "off";
+    try {
+        np_rc = _nacompile(np_src, output=np_dst, shared=True);
+    } finally {
+        if _prev_shim is None {
+            del os.environ["JAC_LLVM_SHIM"];
+        } else {
+            os.environ["JAC_LLVM_SHIM"] = _prev_shim;
+        }
+        if _prev_flib is None {
+            del os.environ["JAC_FRONTEND_LIB"];
+        } else {
+            os.environ["JAC_FRONTEND_LIB"] = _prev_flib;
+        }
+    }
+    if (
+        np_rc != 0
+        or not file_exists(np_dst)
+        or not file_exists(np_dst + ".layout.json")
+    ) {
+        raise PayloadDie(
+            f"mkpayload: native frontend lib build failed (rc={np_rc}); the"
+            f" shipped binary requires {np_dst} and its .layout.json sidecar."
+        );
+    }
+
+    np_tree = os.path.join(
+        repo_root, "jaclang", "compiler", "frontend", "parser", np_name
+    );
+    copy_file(np_dst, np_tree);
+    copy_file(np_dst + ".layout.json", np_tree + ".layout.json");
+
     bb = opts.bun_bin;
     if bb is not None {
         bun_dir = os.path.join(site, "jaclang", "client", "_bun");
@@ -340,6 +383,18 @@ impl stage_tree(
 
     copy_tree(site, os.path.join(stage, "site"), skip_stage_site);
     strip_best_effort(site_shim_path(os.path.join(stage, "site")));
+    import sys as _sys;
+    strip_best_effort(
+        os.path.join(
+            stage,
+            "site",
+            "jaclang",
+            "compiler",
+            "frontend",
+            "parser",
+            "libjac_npy.dylib" if _sys.platform == "darwin" else "libjac_npy.so"
+        )
+    );
 
     stage_python_bin(pbs_py_dir, stage);
 

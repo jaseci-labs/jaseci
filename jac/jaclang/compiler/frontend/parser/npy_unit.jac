@@ -1,14 +1,3 @@
-"""The native front end's Python-facing surface (#8789 PyObject-unitree).
-
-Nodes built by the natively compiled parser carry CPython object headers,
-so this unit's exports traffic in Python objects directly: np_parse returns
-the Module, the diagnostic getters return PyLists of header-carrying diag
-objects, and the adjacency/connect wrappers take node addresses that ARE
-PyObject pointers. There is no handle scheme, no proxy layer, and no
-per-field accessor surface -- scalar fields cross through the generated
-type slots the installer builds from the layout sidecar.
-"""
-
 import from c { def PyList_New(n: int) -> int;  }
 import from c { def PyList_SetItem(l: int, i: int, v: int) -> int;  }
 import from c { def memcpy(dst: bytes, src: int, n: u64) -> int;  }
@@ -23,21 +12,23 @@ import from c {
         rgn_tgt: int
     ) -> int;
 }
-import from c { def osp_refs(origin: int, dir: int, edge_tag: int, edges_only: int) -> int;  }
-import from c { def osp_disconn_between(src: int, tgt: int, dir: int, edge_tag: int) -> int;  }
+import from c {
+    def osp_refs(origin: int, dir: int, edge_tag: int, edges_only: int) -> int;
+}
+import from c {
+    def osp_disconn_between(src: int, tgt: int, dir: int, edge_tag: int) -> int;
+}
 
 import from jaclang.compiler.frontend.parser.parser { parse_program }
 import from jaclang.compiler.frontend.parser.tokens { SrcDiag, CommentData }
 import from jaclang.compiler.frontend.unitree { UniNode, Module, nu_role_shape }
 
-obj NpState {
-    has mod: (Module | None) = None,
-        p_errs: int = 0,
-        p_diags: list[SrcDiag] = [],
-        comments: list[CommentData] = [],
-        lex_diags: list[SrcDiag] = [],
-        lex_errs: int = 0;
-}
+obj NpState {has mod: (Module | None) = None,
+    p_errs: int = 0,
+    p_diags: list[SrcDiag] = [],
+    comments: list[CommentData] = [],
+    lex_diags: list[SrcDiag] = [],
+    lex_errs: int = 0; }
 
 glob _NP: NpState = NpState();
 
@@ -73,9 +64,6 @@ def:pub np_err_count -> int {
     return _NP.p_errs;
 }
 
-"""A PyList of header-carrying unit objects: the element addresses are
-already PyObject pointers, and immortality makes the stolen references
-PyList_SetItem takes a no-op."""
 def:pub np_lex_errs -> int {
     return _NP.lex_errs;
 }
@@ -98,7 +86,6 @@ def:pub np_lexdiags -> int {
     return _pyobj_list(_NP.lex_diags);
 }
 
-"""One adjacency read as a PyList of nodes. dir: 1 = in, 2 = out."""
 def:pub np_comments -> int {
     return _pyobj_list(_NP.comments);
 }

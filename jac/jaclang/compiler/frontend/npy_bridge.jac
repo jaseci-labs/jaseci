@@ -1,29 +1,3 @@
-"""The PyObject-unitree installer (#8789).
-
-Loads the natively compiled front end (``JAC_FRONTEND_LIB``), reads the
-layout sidecar the compiler emitted next to it, and builds one CPython type
-per unitree class over the native struct layout:
-
-- scalar fields become ``tp_members`` rows reading the struct slots in
-  place -- interpreter-speed access, no FFI per read;
-- jac-string and enum fields become properties over the raw slots;
-- role-backed fields become properties that make one native adjacency call
-  per read (``npy_adj``) and get back a list of nodes that already ARE
-  Python objects;
-- every method and property of the bytecode twin classes is flattened onto
-  the native types, whose base chain mirrors the jac hierarchy so
-  ``isinstance`` works throughout;
-- ``__new__`` allocates through ``npy_alloc``, so nodes that passes create
-  land in the same native arena as parser output;
-- the source modules' class names are rebound to the native types at module
-  exec time (meta-importer hook), before any importer binds them.
-
-One-time ctypes is used to construct the types; steady-state scalar field
-access never crosses ctypes. The per-access ctypes that remains in the
-non-scalar accessors is scheduled for replacement by backend-generated
-native descriptors (#8818).
-"""
-
 import ctypes;
 import json;
 import os;
@@ -41,27 +15,21 @@ import from ctypes {
     string_at
 }
 
-# -- CPython construction surface (typeslots.h / structmember.h) ------------
-glob Py_tp_members: int = 72;
-glob Py_TPFLAGS_BASETYPE: int = 1024;
-
-glob T_LONGLONG: int = 17;
-glob T_BOOL: int = 14;
-glob T_DOUBLE: int = 4;
-glob T_OBJECT: int = 6;  # NULL reads as None -- every jac ref field is nullable-at-rest
-glob T_PYSSIZET: int = 19;
-glob READONLY: int = 1;
-
-glob HDR_DICT_OFF: int = 16;
-
-# ctypes.Structure subclasses built dynamically: the bridge is bootstrap
-# plumbing, so these tiny mirror structs skip the archetype machinery.
-glob PyType_Slot: any = `type(
+glob Py_tp_members: int = 72,
+     Py_TPFLAGS_BASETYPE: int = 1024,
+     T_LONGLONG: int = 17,
+     T_BOOL: int = 14,
+     T_DOUBLE: int = 4,
+     T_OBJECT: int = 6,
+     T_PYSSIZET: int = 19,
+     READONLY: int = 1,
+     HDR_DICT_OFF: int = 16,
+     PyType_Slot: any = `type(
          'PyType_Slot',
          (Structure, ),
          {'_fields_': [('slot', c_int), ('pfunc', c_void_p)]}
-     );
-glob PyType_Spec: any = `type(
+     ),
+     PyType_Spec: any = `type(
          'PyType_Spec',
          (Structure, ),
          {
@@ -74,8 +42,8 @@ glob PyType_Spec: any = `type(
 
              ]
          }
-     );
-glob PyMemberDef: any = `type(
+     ),
+     PyMemberDef: any = `type(
          'PyMemberDef',
          (Structure, ),
          {
@@ -105,8 +73,6 @@ def _addr(o: any) -> int {
 }
 
 
-"""Resolve an enum class named in the layout sidecar: most live in
-frontend.constant, the lexer's TokenKind in parser.tokens."""
 def _enum_class(name: str) -> any {
     import jaclang.compiler.frontend.constant as constant;
     cls = getattr(constant, name, None);
@@ -118,9 +84,6 @@ def _enum_class(name: str) -> any {
 }
 
 
-"""Native enum slots follow the backend's per-enum convention: int-valued
-enums store the member VALUE, string-valued enums store the ORDINAL
-(na_ir_gen/enums.impl.jac)."""
 def _enum_decode(cls: any, raw: int) -> any {
     if isinstance(next(iter(cls)).value, int) {
         return cls(raw);
@@ -145,10 +108,6 @@ def _generic_get_dict(nd: any) -> any {
 }
 
 
-# Root base for native types: contributes no storage, only the __dict__
-# descriptor FromSpec types otherwise lack (cached_property and vars()
-# want it), backed by CPython's own generic dict access. Built via type()
-# because __slots__/__dict__ must land verbatim in the class namespace.
 glob NpyBase: any = `type(
          'NpyBase',
          (object, ),
@@ -156,10 +115,8 @@ glob NpyBase: any = `type(
      );
 
 
-"""A mutable view over a jac native list of node pointers. Elements are
-PyObject-headed nodes, so reads come back as the objects themselves."""
 class NativeList {
-    def init(self: NativeList, lib: any, ptr: int) -> None {
+    def init(self: NativeList, lib: any, ptr: int) {
         self._lib = lib;
         self._ptr = ptr or 0;
     }
@@ -196,7 +153,7 @@ class NativeList {
         return len(self) > 0;
     }
 
-    def append(self: NativeList, v: any) -> None {
+    def append(self: NativeList, v: any) {
         if not self._ptr {
             raise ValueError("append to an unset native list field");
         }
@@ -205,23 +162,21 @@ class NativeList {
 }
 
 
-"""One loaded frontend lib + its constructed type universe."""
 class NpyBridge {
-    def init(self: NpyBridge, lib_path: str) -> None {
+    def init(self: NpyBridge, lib_path: str) {
         self.lib = ctypes.PyDLL(lib_path);
         layout_path = lib_path + ".layout.json";
         with open(layout_path) as f {
             self.layout = json.load(f)["classes"];
         }
-        self._keep = [];  # ctypes structures that must outlive the types
+        self._keep = [];
         self.types = {};
         self.kind_of_type = {};
         self._twins = {};
         self._bind();
     }
 
-    # -- lib call surface --------------------------------------------------
-    def _bind(self: NpyBridge) -> None {
+    def _bind(self: NpyBridge) {
         L = self.lib;
         L.npy_register_kind.argtypes = [
             ctypes.c_int64,
@@ -263,7 +218,6 @@ class NpyBridge {
         L.npy_list_new.restype = c_void_p;
     }
 
-    """Call an export taking two jac-str args (each a {p, p, len} triple)."""
     def _call_str2(self: NpyBridge, name: str, a: str, b: str) -> any {
         fn = getattr(self.lib, name);
         ab = a.encode();
@@ -303,6 +257,14 @@ class NpyBridge {
     }
 
     def role_shape(self: NpyBridge, nd: any, role_name: str) -> int {
+        shapes = nd.__dict__.get("_role_shapes");
+        if shapes {
+            for (k, v) in shapes.items() {
+                if getattr(k, "__name__", "") == role_name {
+                    return 2 if v == "many" else (1 if v == "one" else 0);
+                }
+            }
+        }
         fn = self.lib.np_role_shape;
         fn.restype = ctypes.c_int64;
         rb = role_name.encode();
@@ -312,12 +274,7 @@ class NpyBridge {
         );
     }
 
-    # -- type construction -------------------------------------------------
-    """Rebind this source module's unitree classes to native types.
-
-    Called from the meta-importer as each scope module finishes
-    executing, before anything imports names out of it."""
-    def adopt_module(self: NpyBridge, module: any) -> None {
+    def adopt_module(self: NpyBridge, module: any) {
         mod_name = getattr(module, "__name__", "");
         for name in `list(vars(module)) {
             twin = getattr(module, name);
@@ -326,8 +283,6 @@ class NpyBridge {
                 and name in self.layout
                 and getattr(twin, "__module__", "") == mod_name
             ) {
-                # Only classes this module DECLARES: re-exported imports
-                # (e.g. the runtime's TreeWalker) must keep their identity.
                 self._twins.setdefault(name, twin);
             }
         }
@@ -356,8 +311,6 @@ class NpyBridge {
                 and anc.__name__ != name
                 and self._twins.get(anc.__name__) is anc
             ) {
-                # Identity check: a runtime class sharing a name with a laid-
-                # out unitree class (e.g. Archetype) must not become a base.
                 bases.append(self._type_for(anc.__name__));
             }
         }
@@ -423,11 +376,7 @@ class NpyBridge {
 
         tname = ("jaclang.native." + name).encode();
         self._keep.append(tname);
-        # Only chain roots declare CPython storage; every derived type
-        # inherits, so all native types share their root as solid base and
-        # multiple inheritance can never conflict. True instance sizes are
-        # the native allocator's business, and the member tables address
-        # fields by explicit offset regardless of tp_basicsize.
+
         basicsize = 0 if bases_in else info["size"];
         spec = PyType_Spec(tname, basicsize, 0, Py_TPFLAGS_BASETYPE, slots);
         self._keep.append(spec);
@@ -454,13 +403,8 @@ class NpyBridge {
         return t;
     }
 
-    """A zero-arg super() in twin bytecode resolves through the function's
-    __class__ cell, which points at the twin. Native instances are not twin
-    subclasses, so the cell is rebound to the native counterpart of the
-    defining class -- the native MRO mirrors the twin MRO, so super()
-    chains identically."""
     def _rebind_class_cell(self: NpyBridge, fn: any, owner_native: any) -> any {
-        code = getattr(fn, "__code__", None);
+        code = fn?.__code__;
         if code is None or "__class__" not in code.co_freevars {
             return fn;
         }
@@ -492,11 +436,7 @@ class NpyBridge {
         return v;
     }
 
-    """Every method/property the twins define, flattened base-first so
-    overrides land last. Python functions bind to any instance, so the
-    twins' bytecode runs unchanged over native storage; __class__ cells
-    are rebound so super() works."""
-    def _flatten_twin(self: NpyBridge, t: any, twin: any, fields: dict) -> None {
+    def _flatten_twin(self: NpyBridge, t: any, twin: any, fields: dict) {
         skip_names = {
             "__dict__",
             "__weakref__",
@@ -506,19 +446,11 @@ class NpyBridge {
             "__dictoffset__",
             "__basicsize__",
             "__new__",
-            # Class-creation hooks must not be flattened: every jac-generated
-            # subclass lists the runtime archetype base (Walker/Node/...)
-            # explicitly, so Archetype.__init_subclass__ is already in its
-            # MRO; a flattened copy on the native type would run it a second
-            # time, and the second dataclass pass strips factory defaults.
             "__init_subclass__",
             "__set_name__",
 
         };
-        # Classes the native type already inherits from must not be
-        # flattened either: their methods arrive through the MRO. typing
-        # machinery (Generic) is C-guarded against foreign types; generic
-        # twins get an erasure __class_getitem__ below instead.
+
         inherited = set(t.__mro__);
         is_generic = False;
         for cls in reversed(twin.__mro__) {
@@ -546,8 +478,6 @@ class NpyBridge {
                     and not callable(v)
                     and not isinstance(v, (property, classmethod, staticmethod))
                 ) {
-                    # A dataclass field default is a plain class attribute;
-                    # copying it would shadow the native member descriptor.
                     continue;
                 }
                 try {
@@ -556,8 +486,6 @@ class NpyBridge {
             }
         }
         if is_generic {
-            # Runtime type params are erased: SubTag[Token] constructs a
-            # plain SubTag, exactly what subscripted twin calls need.
             def _erasure_getitem(cls: any, _item: any) -> any {
                 return cls;
             }
@@ -565,9 +493,6 @@ class NpyBridge {
         }
     }
 
-    """Twin bytecode reaches a __-prefixed field through its compile-time
-    mangled name (_DeclaringClass__field); alias the accessor under every
-    MRO class's mangling so whichever twin method reads it resolves."""
     def _alias_mangled(self: NpyBridge, t: any, fname: str) -> None {
         if not (fname.startswith("__") and not fname.endswith("__")) {
             return;
@@ -586,12 +511,9 @@ class NpyBridge {
         }
     }
 
-    # Each installer below builds its closures inside a per-field call so
-    # every captured offset/tag is frozen (jac closures late-bind loop
-    # variables exactly as Python's do).
     def _install_optenum_prop(
         self: NpyBridge, t: any, fname: str, off: int, ecls: any
-    ) -> None {
+    ) {
         def oeget(nd: any) -> any {
             a = _addr(nd) + off;
             if not cast(a, POINTER(ctypes.c_uint8))[0] {
@@ -614,9 +536,38 @@ class NpyBridge {
         setattr(t, fname, property(oeget, oeset));
     }
 
-    """A jac string field is one pointer to a NUL-terminated, RC-managed
-    buffer (confirmed by memory probe)."""
-    def _install_str_prop(self: NpyBridge, t: any, fname: str, off: int) -> None {
+    def _install_union_prop(
+        self: NpyBridge, t: any, fname: str, off: int, allow_str: bool
+    ) {
+        def uget(nd: any) -> any {
+            v = nd.__dict__.get(fname);
+            if v is not None {
+                return v;
+            }
+            a = _addr(nd) + off;
+            if not cast(a, POINTER(ctypes.c_uint8))[0] {
+                return None;
+            }
+            payload = cast(a + 8, POINTER(ctypes.c_int64))[0];
+            if not payload {
+                return None;
+            }
+            w0 = cast(payload, POINTER(ctypes.c_uint64))[0];
+            if w0 == 3221225472 {
+                return cast(payload, py_object).value;
+            }
+            if allow_str {
+                return string_at(payload).decode();
+            }
+            return None;
+        }
+        def uset(nd: any, value: any) {
+            nd.__dict__[fname] = value;
+        }
+        setattr(t, fname, property(uget, uset));
+    }
+
+    def _install_str_prop(self: NpyBridge, t: any, fname: str, off: int) {
         lib = self.lib;
         def sget(nd: any) -> str {
             data = cast(_addr(nd) + off, POINTER(c_void_p))[0];
@@ -625,7 +576,7 @@ class NpyBridge {
             }
             return string_at(data).decode();
         }
-        def sset(nd: any, value: any) -> None {
+        def sset(nd: any, value: any) {
             b = (value or "").encode();
             p = lib.jac_str_new(b, len(b));
             cast(_addr(nd) + off, POINTER(c_void_p))[0] = p;
@@ -633,9 +584,7 @@ class NpyBridge {
         setattr(t, fname, property(sget, sset));
     }
 
-    """An optional node ref is {flag: i8, ptr}: present iff the flag byte
-    is set; the target is itself a PyObject."""
-    def _install_optref_prop(self: NpyBridge, t: any, fname: str, off: int) -> None {
+    def _install_optref_prop(self: NpyBridge, t: any, fname: str, off: int) {
         def oget(nd: any) -> any {
             a = _addr(nd) + off;
             flag = cast(a, POINTER(ctypes.c_uint8))[0];
@@ -645,7 +594,7 @@ class NpyBridge {
             ptr = cast(a + 8, POINTER(c_void_p))[0];
             return cast(ptr, py_object).value if ptr else None;
         }
-        def oset(nd: any, value: any) -> None {
+        def oset(nd: any, value: any) {
             a = _addr(nd) + off;
             if value is None {
                 cast(a, POINTER(ctypes.c_uint8))[0] = 0;
@@ -658,14 +607,12 @@ class NpyBridge {
         setattr(t, fname, property(oget, oset));
     }
 
-    def _install_enum_prop(
-        self: NpyBridge, t: any, fname: str, enum_name: str
-    ) -> None {
+    def _install_enum_prop(self: NpyBridge, t: any, fname: str, enum_name: str) {
         raw_attr = "__npy_raw_" + fname;
         def eget(nd: any) -> any {
             return _enum_decode(_enum_class(enum_name), getattr(nd, raw_attr));
         }
-        def eset(nd: any, value: any) -> None {
+        def eset(nd: any, value: any) {
             cls = _enum_class(enum_name);
             if isinstance(value, cls) {
                 setattr(nd, raw_attr, _enum_encode(cls, value));
@@ -678,7 +625,7 @@ class NpyBridge {
 
     def _install_field_props(
         self: NpyBridge, t: any, fields: dict[str, dict[str, any]]
-    ) -> None {
+    ) {
         import dataclasses;
         import re as _re;
         _dcf: dict[str, str] = {};
@@ -691,8 +638,6 @@ class NpyBridge {
             code = f["code"];
             off = f["offset"];
             if code == "opaque" {
-                # An optional enum lowers to a {flag, ordinal} pair the
-                # layout can't name; the twin's annotation can.
                 _ann = _dcf.get(fname, "");
                 _m = _re.fullmatch(r"\(?\s*(\w+)\s*\|\s*None\s*\)?", _ann);
                 if _m {
@@ -704,12 +649,15 @@ class NpyBridge {
                     }
                 }
             }
+            if code == "union" {
+                _ann = _dcf.get(fname, "");
+                _parts = [x.strip(" ()") for x in _ann.split("|")];
+                self._install_union_prop(t, fname, off, "str" in _parts);
+                continue;
+            }
             if code == "str" {
                 self._install_str_prop(t, fname, off);
             } elif code == "optref" and f["aux"] not in self.layout {
-                # The optional's payload is not a PyObject (a native dict or
-                # erased aggregate): Python-side use of such fields is pure
-                # scratch, so they live in the instance dict instead.
                 continue;
             } elif code == "optref" {
                 self._install_optref_prop(t, fname, off);
@@ -719,7 +667,7 @@ class NpyBridge {
         }
     }
 
-    def _install_natlist_prop(self: NpyBridge, t: any, fname: str, off: int) -> None {
+    def _install_natlist_prop(self: NpyBridge, t: any, fname: str, off: int) {
         lib = self.lib;
         def lget(nd: any) -> any {
             ptr = cast(_addr(nd) + off, POINTER(c_void_p))[0];
@@ -741,7 +689,7 @@ class NpyBridge {
 
     def _install_natlist_props(
         self: NpyBridge, t: any, fields: dict[str, dict[str, any]]
-    ) -> None {
+    ) {
         for (fname, f) in fields.items() {
             if f["code"] == "natlist" {
                 self._install_natlist_prop(t, fname, f["offset"]);
@@ -763,11 +711,6 @@ class NpyBridge {
         return _spec;
     }
 
-    """Fields whose native storage Python has no view over (native dicts,
-    foreign pointers, non-object optionals) are plain instance attributes:
-    tp_dictoffset gives every node generic attribute storage, and a
-    __getattr__ seeds the twin's dataclass default on first read. Mangled
-    names alias the same defaults."""
     def _install_overlay_props(
         self: NpyBridge, t: any, fields: dict[str, dict[str, any]]
     ) -> None {
@@ -791,9 +734,6 @@ class NpyBridge {
             } elif dcf is not None and dcf.`default is not dataclasses.MISSING {
                 spec = self._const_spec(dcf.`default);
             } else {
-                # Same rule the store-era schema settled on: a nullable
-                # annotation means None is the meaningful unset state, and
-                # only non-nullable containers seed fresh-empty.
                 ann = str(dcf.`type) if dcf is not None else "";
                 parts = [x.strip(" ()") for x in ann.split("|")];
                 bare = ann.lstrip("(").strip();
@@ -842,7 +782,7 @@ class NpyBridge {
 
     def _make_std_setter(self: NpyBridge, tag: int) -> any {
         lib = self.lib;
-        def sset(nd: any, value: any) -> None {
+        def sset(nd: any, value: any) {
             lib.npy_role_clear(_addr(nd), 2, tag);
             if value is not None {
                 lib.npy_conn(_addr(nd), _addr(value), tag);
@@ -854,7 +794,7 @@ class NpyBridge {
     def _make_parent_scope_setter(self: NpyBridge, child_tag: int) -> any {
         lib = self.lib;
         parent_tag = _stable_tag("ScopeParent");
-        def pset(nd: any, value: any) -> None {
+        def pset(nd: any, value: any) {
             lib.npy_role_clear(_addr(nd), 1, child_tag);
             lib.npy_role_clear(_addr(nd), 2, parent_tag);
             if value is not None {
@@ -864,11 +804,7 @@ class NpyBridge {
         return pset;
     }
 
-    """Python-object values (TypeBase and friends) cannot be kernel edges;
-    the instance dict is their storage and holds the strong reference."""
-    def _install_py_value_prop(
-        self: NpyBridge, t: any, fname: str, many: bool
-    ) -> None {
+    def _install_py_value_prop(self: NpyBridge, t: any, fname: str, many: bool) {
         key = "__npy_" + fname;
         def vget(nd: any) -> any {
             v = nd.__dict__.get(key);
@@ -877,17 +813,15 @@ class NpyBridge {
             }
             return v;
         }
-        def vset(nd: any, value: any) -> None {
+        def vset(nd: any, value: any) {
             nd.__dict__[key] = value;
         }
         setattr(t, fname, property(vget, vset));
     }
 
-    """The linked ImplDef stands in for a decl's body until one is written
-    directly (roles.impl.jac ground truth)."""
     def _install_impl_body_prop(
         self: NpyBridge, t: any, fname: str, body_tag: int, role: str
-    ) -> None {
+    ) {
         lib = self.lib;
         bridge_self = self;
         implof_tag = _stable_tag("ImplOf");
@@ -909,7 +843,7 @@ class NpyBridge {
         setattr(t, fname, property(bget));
     }
 
-    def _install_main_mod_prop(self: NpyBridge, t: any, fname: str, tag: int) -> None {
+    def _install_main_mod_prop(self: NpyBridge, t: any, fname: str, tag: int) {
         lib = self.lib;
         def mget(nd: any) -> any {
             found = lib.npy_adj(_addr(nd), tag, 2);
@@ -918,7 +852,7 @@ class NpyBridge {
             }
             return None if found[0].stub_only else found[0];
         }
-        def mset(nd: any, value: any) -> None {
+        def mset(nd: any, value: any) {
             lib.npy_role_clear(_addr(nd), 2, tag);
             if value is None {
                 import jaclang.compiler.frontend.unitree as _uni;
@@ -931,7 +865,7 @@ class NpyBridge {
 
     def _install_parent_scope_prop(
         self: NpyBridge, t: any, fname: str, child_tag: int
-    ) -> None {
+    ) {
         lib = self.lib;
         parent_tag = _stable_tag("ScopeParent");
         def psget(nd: any) -> any {
@@ -954,7 +888,7 @@ class NpyBridge {
         kind: str,
         role: str,
         setter_shape: (str | None)
-    ) -> None {
+    ) {
         lib = self.lib;
         bridge_self = self;
         def rget(nd: any) -> any {
@@ -977,8 +911,7 @@ class NpyBridge {
             }
             return None;
         }
-        # Setters only where the store path has one (ROLE_SETTERS); every
-        # other role field is getter-only there.
+
         if setter_shape is not None {
             setattr(t, fname, property(rget, self._make_std_setter(tag)));
         } else {
@@ -988,10 +921,9 @@ class NpyBridge {
 
     def _install_role_props(
         self: NpyBridge, t: any, name: str, fields: dict[str, dict[str, any]]
-    ) -> None {
+    ) {
         import from jaclang.compiler.frontend.npy_roles { ROLE_SETTERS }
-        # A slot-backed field on this class wins over a role getter an MRO
-        # ancestor contributes under the same name.
+
         seen = set(fields);
         cls_names = [name];
         for b in t.__npy_twin__.__mro__ {
@@ -1006,12 +938,9 @@ class NpyBridge {
                 (role, direction, kind) = spec;
                 tag = _stable_tag(role);
                 if kind == "complex" {
-                    # Twin property stays flattened; its edge refs run
-                    # through the runtime graph seam.
                     continue;
                 }
                 if kind == "parent" {
-                    # Hand-installed by _install_parent on every type.
                     continue;
                 }
                 setter_shape = ROLE_SETTERS.get(cls_name, {}).get(fname);
@@ -1032,9 +961,7 @@ class NpyBridge {
         }
     }
 
-    """parent is the one hand-written adjacency getter: last Kid-in holder,
-    else last Role-in holder, else the _ctx_parent slot."""
-    def _install_parent(self: NpyBridge, t: any) -> None {
+    def _install_parent(self: NpyBridge, t: any) {
         lib = self.lib;
         kid_tag = _stable_tag("Kid");
         role_tag = _stable_tag("Role");
@@ -1047,20 +974,16 @@ class NpyBridge {
             if holders {
                 return holders[-1];
             }
-            return getattr(nd, "_ctx_parent", None);
+            return nd?._ctx_parent;
         }
         setattr(t, "parent", property(pget));
     }
 
-    """Twin methods that introspect Python edge anchors have no anchors to
-    read on kernel-backed nodes; the graph-op equivalents replace them
-    (desk-checked: _drop_primary is on the sym-insert path, replace_kid on
-    tooling paths)."""
-    def _install_anchorless_overrides(self: NpyBridge, t: any, name: str) -> None {
+    def _install_anchorless_overrides(self: NpyBridge, t: any, name: str) {
         lib = self.lib;
         if name == "UniScopeNode" {
             sp_tag = _stable_tag("ScopePrimary");
-            def _drop_primary(nd: any, sym: any) -> None {
+            def _drop_primary(nd: any, sym: any) {
                 lib.npy_disconn(_addr(nd), _addr(sym), 2, sp_tag);
             }
             t._drop_primary = _drop_primary;
@@ -1087,23 +1010,12 @@ class NpyBridge {
         }
     }
 
-    def _install_new(self: NpyBridge, t: any) -> None {
+    def _install_new(self: NpyBridge, t: any) {
         lib = self.lib;
         bridge_self = self;
         def __new__(cls: any, *args: any, **kwargs: any) -> any {
             k = bridge_self.kind_of_type.get(cls);
             if k is None {
-                # A Python-defined subclass of a native type (pass walkers
-                # extending TreeWalker, stubcat's CatModule extending
-                # Module). Inherited field properties write the ancestor's
-                # struct offsets, and Python appends its own storage
-                # (managed weakref pre-header, tail slots) at the declared
-                # basicsize -- the chain root's, far short of the real
-                # struct. Widen this subclass's tp_basicsize to the
-                # ancestor's true struct size once, then let object.__new__
-                # allocate a proper (pre-headered, GC-tracked, zeroed) heap
-                # instance; stamp the immortal refcount and OSP tag the
-                # kernel expects of a node it may hold an address to.
                 info = None;
                 for anc in cls.__mro__[1:] {
                     if bridge_self.kind_of_type.get(anc) is not None {
@@ -1136,7 +1048,6 @@ class NpyBridge {
         t.__new__ = staticmethod(__new__);
     }
 
-    # -- graph seam for pass-side edge expressions -------------------------
     def connect(self: NpyBridge, left: any, right: any, edge_cls: any) -> any {
         tag = _stable_tag(edge_cls.__name__);
         lefts = left if isinstance(left, `list) else [left];
@@ -1183,9 +1094,8 @@ class NpyBridge {
 }
 
 
-# Jac has no global-rebind statement; the singleton lives in a one-slot
-# mutable cell (same pattern as npy_unit's NpState holder).
-glob _BRIDGE_CELL: list = [];
+glob _BRIDGE_CELL: list = [],
+     _RESOLVED: list = [];
 
 
 def bridge -> (NpyBridge | None) {
@@ -1198,15 +1108,98 @@ def is_native(o: any) -> bool {
 }
 
 
+def _lib_name -> str {
+    import sys;
+    if sys.platform == "darwin" {
+        return "libjac_npy.dylib";
+    }
+    return "libjac_npy.so";
+}
+
+
+def _kit_site_present -> bool {
+    import sys;
+    shim = "libjacllvm.dylib" if sys.platform == "darwin" else "libjacllvm.so";
+    here = os.path.dirname(os.path.abspath(__file__));
+    if os.path.isfile(
+        os.path.join(
+            os.path.dirname(os.path.dirname(here)),
+            "compiler",
+            "backends",
+            "native",
+            "llvm",
+            shim
+        )
+    ) {
+        return True;
+    }
+    for p in sys.path {
+        if p
+            and os.path.isfile(
+                os.path.join(
+                    p, "jaclang", "compiler", "backends", "native", "llvm", shim
+                )
+            ) {
+            return True;
+        }
+    }
+    return False;
+}
+
+
+def _find_lib -> (str | None) {
+    import sys;
+    ov = os.environ.get("JAC_FRONTEND_LIB", "");
+    if ov.strip().lower() in ("none", "off", "disabled", "0") {
+        return None;
+    }
+    if ov {
+        if os.path.isfile(ov) and os.path.isfile(ov + ".layout.json") {
+            return ov;
+        }
+        raise OSError(
+            f"JAC_FRONTEND_LIB={ov} does not name a frontend lib with its "
+            ".layout.json sidecar"
+        );
+    }
+    name = _lib_name();
+    here = os.path.dirname(os.path.abspath(__file__));
+    cand = os.path.join(here, "parser", name);
+    if os.path.isfile(cand) and os.path.isfile(cand + ".layout.json") {
+        return cand;
+    }
+    for p in sys.path {
+        if not p {
+            continue;
+        }
+        alt = os.path.join(p, "jaclang", "compiler", "frontend", "parser", name);
+        if os.path.isfile(alt) and os.path.isfile(alt + ".layout.json") {
+            return alt;
+        }
+    }
+    if _kit_site_present() {
+        raise OSError(
+            f"This jac build is missing its native frontend ('{name}' + "
+            ".layout.json under jaclang/compiler/frontend/parser/). Every "
+            "fully built jac binary parses natively; rebuild the kit "
+            "(zig build), or set JAC_FRONTEND_LIB=off to run the store "
+            "parser explicitly."
+        );
+    }
+    return None;
+}
+
+
 def ensure_loaded -> (NpyBridge | None) {
     if _BRIDGE_CELL {
         return _BRIDGE_CELL[0];
     }
-    path = os.environ.get("JAC_FRONTEND_LIB", "");
-    if not path or not os.path.exists(path) {
+    if _RESOLVED {
         return None;
     }
-    if not os.path.exists(path + ".layout.json") {
+    path = _find_lib();
+    if path is None {
+        _RESOLVED.append(None);
         return None;
     }
     b = NpyBridge(path);
@@ -1215,7 +1208,6 @@ def ensure_loaded -> (NpyBridge | None) {
 }
 
 
-# Modules whose classes are rebound as they finish executing.
 glob ADOPTED_MODULES: tuple = (
          "jaclang.compiler.frontend.unitree",
          "jaclang.compiler.frontend.srcloc",
@@ -1225,7 +1217,6 @@ glob ADOPTED_MODULES: tuple = (
      );
 
 
-"""Meta-importer hook: rebind a just-executed scope module's classes."""
 def on_module_exec(module: any) -> None {
     b = ensure_loaded();
     if b is None {

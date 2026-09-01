@@ -209,6 +209,11 @@ def env_llvm_shim_override -> (str | None) {
     return os.environ.get("JAC_LLVM_SHIM", None);
 }
 
+def env_npy_force -> bool {
+    import os;
+    return bool(os.environ.get("JAC_NPY_FORCE"));
+}
+
 def env_typed_pointers_enabled -> bool {
     import os;
     return os.environ.get(
