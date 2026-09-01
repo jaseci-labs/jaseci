@@ -273,15 +273,20 @@ test "the /cl/__error__ endpoint logs a rendered diagnostic with a Jac location"
                 }
             )
         );
-        buf = io.StringIO();
-        sink = logging.StreamHandler(buf);
-        logger = logging.getLogger("jaclang.client_errors");
-        logger.addHandler(sink);
         _error_rate_limiter._seen = {};
         _error_rate_limiter._count = 0;
         client = JacTestClient.from_file(
             str((Path(FIXTURES) / "serve_api.jac").resolve()), base_path=str(proj)
         );
+        # Attach the sink after serve boot, and revive the logger: a boot-time
+        # logging config from an earlier test in this worker can disable or
+        # cap it, which silently drops the diagnostic this test asserts on.
+        buf = io.StringIO();
+        sink = logging.StreamHandler(buf);
+        logger = logging.getLogger("jaclang.client_errors");
+        logger.disabled = False;
+        logger.setLevel(logging.NOTSET);
+        logger.addHandler(sink);
         try {
             resp = client.post(
                 "/cl/__error__",
