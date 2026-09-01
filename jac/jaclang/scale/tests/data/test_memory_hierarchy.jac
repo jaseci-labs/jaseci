@@ -1805,3 +1805,33 @@ test "RedisBackend loads carry a field-hash snapshot (L2 parity with L3 loads)" 
         "field mutations on an L2-loaded anchor must be derivable"
     );
 }
+
+
+test "in a cluster with no mongo, persistence fails instead of going pod-local" {
+    # #8766: the fallback wrote to a SqliteMemory file on the pod filesystem,
+    # one per replica, gone on restart, announced at debug. Off-cluster that
+    # fallback is the point, so the refusal is scoped to a pod.
+    import from jaclang.scale.memory.memory_hierarchy { ScaleTieredMemory }
+    prior = os.environ.get("KUBERNETES_SERVICE_HOST");
+    prior_uri = os.environ.get("MONGODB_URI");
+    os.environ["KUBERNETES_SERVICE_HOST"] = "10.96.0.1";
+    os.environ.pop("MONGODB_URI", None);
+    raised = False;
+    try {
+        ScaleTieredMemory(base_path=".", target_path="main.jac");
+    } except RuntimeError as e {
+        raised = "per-replica" in str(e);
+    } except Exception {
+        raised = False;
+    } finally {
+        if prior is None {
+            os.environ.pop("KUBERNETES_SERVICE_HOST", None);
+        } else {
+            os.environ["KUBERNETES_SERVICE_HOST"] = prior;
+        }
+        if prior_uri is not None {
+            os.environ["MONGODB_URI"] = prior_uri;
+        }
+    }
+    assert raised , ("a pod with no database silently took a per-replica local store");
+}

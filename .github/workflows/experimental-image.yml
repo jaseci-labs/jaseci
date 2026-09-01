@@ -98,8 +98,13 @@ jobs:
       # expressions, and the token value itself must not sit in env.
       DOCKERHUB_TOKEN_SET: ${{ secrets.DOCKERHUB_TOKEN != '' }}
     steps:
-      # Only the Dockerfile is needed; the binaries carry the PR's code.
+      # The Dockerfile must come from the PR too: it stages a runtime the
+      # binary has to support, and that differs by generation (0.36 added the
+      # embedded Postgres `jac db fetch` step). Taking it from the default
+      # branch builds main's Dockerfile against a backport's binary.
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: refs/pull/${{ needs.resolve.outputs.pr }}/head
 
       - name: Fail if publishing secrets are missing (org repo)
         if: github.repository == 'jaseci-labs/jac' && (env.DOCKERHUB_USERNAME == '' || env.DOCKERHUB_TOKEN_SET != 'true')
