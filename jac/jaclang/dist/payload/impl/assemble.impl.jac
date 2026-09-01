@@ -117,9 +117,7 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
         if os.path.isdir(awesome_src) {
             log("==> bundling the jaclang.org site as the --awesome template");
             copy_tree(
-                awesome_src,
-                os.path.join(site, "jaclang", "cli", "templates", "awesome"),
-                skip_site_template
+                awesome_src, os.path.join(site, "awesome_template"), skip_site_template
             );
         } else {
             log(f"==> no {awesome_src}; --awesome template not bundled");

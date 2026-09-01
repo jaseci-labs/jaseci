@@ -2097,10 +2097,6 @@ impl EsastGenPass.exit_func_call with uni.FuncCall exit {
     self._ensure_emitters();
 
     _call_kind = here.call_kind;
-    if _call_kind is None {
-        import from jaclang.compiler.symbol_utils { classify_call }
-        _call_kind = classify_call(here).value;
-    }
     if _call_kind == "builtin" and isinstance(here.target, uni.Name) {
         import from jaclang.compiler.backends.es.es_unparse { JSCodeGenerator }
         import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
@@ -2247,21 +2243,6 @@ impl EsastGenPass.exit_func_call with uni.FuncCall exit {
             and not _target_type.shared.is_builtin_class;
     } else {
         _emit_new = _call_kind == "instantiation";
-        if not _emit_new {
-            import from jaclang.compiler.symbol_utils { resolve_expr_symbol }
-            _callee_sym = resolve_expr_symbol(here.target);
-            if (
-                _callee_sym is not None
-                and _callee_sym.sym_type
-                    in (
-                        SymbolType.OBJECT_ARCH,
-                        SymbolType.NODE_ARCH,
-                        SymbolType.EDGE_ARCH
-                    )
-            ) {
-                _emit_new = True;
-            }
-        }
     }
     if _emit_new and isinstance(callee, es.Expression) {
         result_expr: es.Expression = self.sync_loc(

@@ -158,7 +158,7 @@ def _create_body(
         if tmpl is None {
             console.error(
                 "The awesome template is not available in this jac build.",
-                hint="It ships inside the released binary's payload (jaclang/cli/templates/awesome) or a source checkout's examples/jaclang_org."
+                hint="It ships inside the released binary's payload (awesome_template beside the jaclang package) or a source checkout's examples/jaclang_org."
             );
             return 1;
         }
@@ -421,7 +421,7 @@ def _resolve_awesome_template -> ProjectTemplate | None {
     import from jaclang.project.template_loader { load_template_from_directory }
     pkg = Path(jaclang.__file__).parent;
     candidates = [
-        pkg / "cli" / "templates" / "awesome",
+        pkg.parent / "awesome_template",
         pkg.parent / "examples" / "jaclang_org"
     ];
     for cand in candidates {

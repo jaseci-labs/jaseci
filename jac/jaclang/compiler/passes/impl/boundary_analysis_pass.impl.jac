@@ -513,6 +513,19 @@ impl BoundaryAnalysisPass._find_archetype(
     return None;
 }
 
+impl BoundaryAnalysisPass.exit_func_call with FuncCall exit {
+    if here.call_kind is not None {
+        return;
+    }
+    import sys;
+    _su = sys.modules.get("jaclang.compiler.symbol_utils");
+    _classify = _su?.classify_call if _su is not None else None;
+    if _classify is None {
+        return;
+    }
+    here.call_kind = _classify(here).value;
+}
+
 impl BoundaryAnalysisPass.enter_ability with Ability entry {
     if (
         here.sym_name

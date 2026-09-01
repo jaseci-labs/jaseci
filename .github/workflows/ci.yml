@@ -309,10 +309,23 @@ jobs:
           git push origin "HEAD:$HEAD_REF"
           echo "::notice::Pushed jac fmt autofix to $HEAD_REF; the new commit's CI run supersedes this one."
 
+      # Fork PRs cannot receive autofix pushes; print the patch so the author
+      # can apply it locally.
+      - name: Show formatting diff
+        if: steps.fmt.outcome == 'failure'
+        run: |
+          set -euo pipefail
+          FILES="$(grep -vE '(/fixtures/|^scripts/|/passes/native/llvm/|_err\.jac$)' changed-jac.txt || true)"
+          if [ -n "$FILES" ]; then
+            printf '%s\n' "$FILES" | tr '\n' '\0' \
+              | xargs -0 --no-run-if-empty jac fmt --lintfix || true
+            git --no-pager diff
+          fi
+
       - name: Fail if formatting was not clean
         if: steps.fmt.outcome == 'failure'
         run: |
-          echo "::error::jac fmt --check --lintfix failed for this commit (an autofix was pushed to the branch if this is a same-repo PR)."
+          echo "::error::jac fmt --check --lintfix failed for this commit (an autofix was pushed to the branch if this is a same-repo PR; fork PRs: apply the 'Show formatting diff' patch above)."
           exit 1
 
       # Manifest freshness, the seed-manifest bootstrap invariants, and the
