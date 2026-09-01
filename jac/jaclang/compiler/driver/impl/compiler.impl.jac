@@ -733,8 +733,7 @@ impl JacCompiler.parse_str(
             scope_lowering_active
         }
         _scope_native = (
-            scope_lowering_active()
-            and in_native_scope_path(mod.loc.mod_path or '')
+            scope_lowering_active() and in_native_scope_path(mod.loc.mod_path or '')
         );
         _native_eligible = (
             not _analysis_only
