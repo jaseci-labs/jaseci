@@ -428,9 +428,13 @@ jobs:
           # The equivalence suite builds fixture paths from jaclang.__file__,
           # which only resolve in the checkout: it runs through the reroute,
           # over the kit's shim and floors ("" clears JAC_NO_DEV_SOURCE).
+          # JAC_IFACE_VERIFY makes every hydration/replay the analysis cache
+          # serves during the suite recompute-and-diff, so warmth can never
+          # change an equivalence verdict silently.
           - chunk: equivalence
             paths: jaclang/compiler/tests
             sealed: ""
+            iface_verify: "1"
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/jac-kit
@@ -442,6 +446,7 @@ jobs:
         working-directory: jac
         env:
           JAC_NO_DEV_SOURCE: ${{ matrix.sealed }}
+          JAC_IFACE_VERIFY: ${{ matrix.iface_verify || '' }}
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
