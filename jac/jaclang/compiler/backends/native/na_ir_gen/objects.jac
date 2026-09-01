@@ -56,6 +56,9 @@ obj NaIRGenObjects(NaIRGenState) {
         nd: uni.Archetype, arch_name: str, block: uni.ModuleCode
     ) -> None;
 
+    def _jc_abi_offsets(field_types: list) -> tuple;
+    def _build_jc_layout -> str;
+
     def _register_one_class_const(
         arch_name: str,
         fname: str,
