@@ -173,7 +173,13 @@ def _make_handles(recs: list[dict[str, object]]) -> list[str] {
 
 def _route_context -> tuple[object, (Anchor | None)] {
     import from jaclang.runtime.osp_kernel { _current_scope }
-    import from jaclang.runtime.archetype { NodeAnchor, EdgeAnchor, WalkerAnchor }
+    import from jaclang.runtime.archetype {
+        EdgeAnchor,
+        EdgeArchetype,
+        NodeAnchor,
+        NodeArchetype,
+        WalkerAnchor
+    }
     scope = _current_scope();
     if scope is None {
         return (None, None);
@@ -184,7 +190,9 @@ def _route_context -> tuple[object, (Anchor | None)] {
         wkr = wkr.archetype;
     }
     here_step = scope.path[-1] if scope.path else None;
-    here_anchor = here_step if isinstance(here_step, Anchor) else None;
+    here_anchor = here_step.__jac__
+        if isinstance(here_step, (NodeArchetype, EdgeArchetype))
+        else (here_step if isinstance(here_step, Anchor) else None);
     return (wkr, here_anchor);
 }
 
@@ -213,10 +221,12 @@ def _candidate_for(item: object, here_anchor: (Anchor | None)) -> tuple {
     edge_arch = None;
     direction = "out";
     if isinstance(here_anchor, NodeAnchor) {
-        import from jaclang.runtime.osp_graph_sv { sv_live_edges, sv_register_hydrated }
+        import from jaclang.runtime.osp_graph_sv { sv_register_hydrated }
+        import from jaclang.runtime.runtime { JacRuntimeInterface }
         here_arch = here_anchor.archetype;
         sv_register_hydrated(here_anchor, fetch_stubs=True);
-        for ea in sv_live_edges(here_anchor, 3, None, True) {
+        for e in JacRuntimeInterface.hop(here_arch, 3, None, True) {
+            ea = e.__jac__;
             if not isinstance(ea, EdgeAnchor) {
                 continue;
             }

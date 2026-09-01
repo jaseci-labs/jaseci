@@ -131,7 +131,7 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
         if config_system_prompt {
             system_content = config_system_prompt;
         }
-    } except Exception { }
+    } except Exception {}
 
     call_system_prompt = call_params.get("system_prompt");
     if callable(call_system_prompt) {

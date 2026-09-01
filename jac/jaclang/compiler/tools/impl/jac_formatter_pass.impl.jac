@@ -169,7 +169,7 @@ impl JacFormatPass.format_doc_ir(
     }
 }
 
-impl JacFormatPass.transform(ir_in: uni.Module) -> uni.Module {
+impl JacFormatPass._run_impl(ir_in: uni.Module) -> uni.Module {
     formatted = self.format_doc_ir();
     formatted += self._flush_suffixes();
     lines = [line.rstrip() for line in formatted.split('\n')];
@@ -335,4 +335,16 @@ impl JacFormatPass.pre_transform -> None {
     self._pending_suffixes: list[str] = [];
     self._line_has_content = False;
     self._rendering_suffix = False;
+}
+
+impl JacFormatPass.transform(ir_in: uni.Module) -> uni.Module {
+    self.ir_out = ir_in;
+    ir_in spawn self;
+    out = self.ir_out;
+    assert isinstance(out, uni.Module);
+    return out;
+}
+
+impl JacFormatPass.run_walk with uni.Module entry {
+    self.ir_out = self._run_impl(here);
 }

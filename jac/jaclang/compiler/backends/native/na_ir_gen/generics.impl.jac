@@ -195,12 +195,204 @@ impl NaIRGenGenerics._solve_generic_call(
     return solution;
 }
 
+impl NaIRGenGenerics._ct_eval -> any {
+    return self.prog.get_type_evaluator().ct_eval;
+}
+
+impl NaIRGenGenerics._ct_value_with_bindings(nd: uni.Expr) -> tuple {
+    cv = nd.ct_value;
+    if cv is None {
+        return (False, None);
+    }
+    if not cv.is_deferred {
+        return (True, cv.v);
+    }
+    if not self._ct_bindings {
+        return (False, None);
+    }
+    try {
+        return (True, self._ct_eval().eval_with_bindings(nd, self._ct_bindings));
+    } except Exception {
+        return (False, None);
+    }
+}
+
+impl NaIRGenGenerics._ct_native_const(v: any, nd: uni.Expr) -> (ir.Value | None) {
+    out: (ir.Value | None) = None;
+    if isinstance(v, bool) {
+        out = ir.Constant(ir.IntType(1), 1 if v else 0);
+    } elif isinstance(v, int) {
+        out = ir.Constant(ir.IntType(64), v);
+    } elif isinstance(v, float) {
+        out = ir.Constant(ir.DoubleType(), v);
+    } elif isinstance(v, str) {
+        out = self._make_global_string(v);
+    } elif isinstance(v, bytes) {
+        out = self._make_global_bytes(v);
+    } elif v is None {
+        out = ir.Constant(ir.IntType(8).as_pointer(), None);
+    }
+    if out is not None and nd.coerce_to is not None {
+        return self._lower_coercion(nd, out);
+    }
+    return out;
+}
+
+impl NaIRGenGenerics._ct_fold(nd: (uni.UniNode | None)) -> (ir.Value | None) {
+    import from jaclang.compiler.frontend.constant { ExprCtx }
+    if not isinstance(nd, uni.Expr) or nd.ct_value is None {
+        return None;
+    }
+    if isinstance(nd, (uni.Int, uni.Float, uni.Bool, uni.Null, uni.String)) {
+        return None;
+    }
+    if isinstance(nd, uni.NameAtom) and nd.expr_ctx != ExprCtx.LOAD {
+        return None;
+    }
+    par = nd.parent;
+    if isinstance(par, uni.FuncCall) and par.target is nd {
+        return None;
+    }
+    if isinstance(par, uni.AtomTrailer) and (par.target is nd or par.right is nd) {
+        return None;
+    }
+    if not self._ct_origin(nd) {
+        return None;
+    }
+    (ok, v) = self._ct_value_with_bindings(nd);
+    if not ok {
+        return None;
+    }
+    return self._ct_native_const(v, nd);
+}
+
+impl NaIRGenGenerics._ct_origin(nd: uni.Expr) -> bool {
+    if isinstance(nd, uni.FuncCall) {
+        if nd.callee_decl is not None and nd.callee_decl.is_comptime {
+            return True;
+        }
+        return isinstance(nd.target, uni.Name) and self._ct_only_name(nd.target);
+    }
+    if isinstance(nd, uni.AtomTrailer)
+        and nd.is_attr
+        and isinstance(nd.right, uni.Name) {
+        return self._ct_origin(nd.right);
+    }
+    if not isinstance(nd, uni.Name) {
+        return False;
+    }
+    if nd.sym_name in self._ct_bindings {
+        return True;
+    }
+    sym = nd.sym;
+    if sym is None {
+        return False;
+    }
+    decl = sym.decl;
+    owner = decl.parent if isinstance(decl, uni.Name) else None;
+    if isinstance(owner, uni.ParamVar) {
+        return owner.is_comptime;
+    }
+    if isinstance(owner, uni.Assignment) {
+        return owner.is_comptime;
+    }
+    if isinstance(owner, uni.InForStmt) {
+        return owner.is_comptime;
+    }
+    return False;
+}
+
+impl NaIRGenGenerics._ability_has_ct_params(ability: uni.Ability) -> bool {
+    sig = ability.signature;
+    if not isinstance(sig, uni.FuncSignature) {
+        return False;
+    }
+    for p in sig.get_parameters() {
+        if p.is_comptime {
+            return True;
+        }
+    }
+    return False;
+}
+
+impl NaIRGenGenerics._solve_ct_args(
+    ability: uni.Ability, nd: uni.FuncCall
+) -> (dict | None) {
+    sig = ability.signature;
+    params = sig.get_parameters() if isinstance(sig, uni.FuncSignature) else [];
+    positional: list = [];
+    kw_map: dict = {};
+    for a in (nd.params or []) {
+        if isinstance(a, uni.KWPair) {
+            if a.key is not None {
+                kw_map[a.key.sym_name] = a.value;
+            }
+        } else {
+            positional.append(a);
+        }
+    }
+    out: dict = {};
+    for (i, p) in enumerate(params) {
+        if not p.is_comptime {
+            continue;
+        }
+        pname = p.name.value;
+        chosen = positional[i] if i < len(positional) else kw_map.get(pname);
+        if chosen is None {
+            chosen = p.value;
+        }
+        if chosen is None {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="call argument",
+                name=pname,
+                help_text=f"comptime parameter '{pname}' has no argument and no default."
+            );
+            return None;
+        }
+        (ok, v) = self._ct_value_with_bindings(chosen);
+        if not ok {
+            self.emit(
+                E5092,
+                node_override=chosen,
+                kind="argument for comptime parameter",
+                name=pname,
+                help_text="The argument must be known at compile time so the callee can be specialized on it."
+            );
+            return None;
+        }
+        out[pname] = v;
+    }
+    return out;
+}
+
+impl NaIRGenGenerics._bind_ct_target(tgt: uni.UniNode, v: any) -> None {
+    if isinstance(tgt, uni.AtomUnit) {
+        self._bind_ct_target(tgt.value, v);
+        return;
+    }
+    if isinstance(tgt, uni.Name) {
+        self._ct_bindings[tgt.value] = v;
+        return;
+    }
+    if isinstance(tgt, (uni.TupleVal, uni.ListVal)) {
+        items = list(v);
+        for (i, t) in enumerate(tgt.values) {
+            if i < len(items) {
+                self._bind_ct_target(t, items[i]);
+            }
+        }
+    }
+}
+
 impl NaIRGenGenerics._instantiate_generic(
     nd: uni.FuncCall, func_name: str
 ) -> (ir.Function | None) {
+    import from jaclang.compiler.types.ct_value { ct_mangle }
     ability = self.generic_fns[func_name];
     solution = self._solve_generic_call(ability, nd);
-    if not solution {
+    if solution is None {
         self.emit(
             E5092,
             node_override=nd,
@@ -210,11 +402,16 @@ impl NaIRGenGenerics._instantiate_generic(
         );
         return None;
     }
+    ct_bind = self._solve_ct_args(ability, nd);
+    if ct_bind is None {
+        return None;
+    }
     _mangles: dict = {};
     for (k, v) in solution.items() {
         _mangles[k] = v.mangle() if v?.mangle else "any";
     }
     parts = sorted([f"{k}={m}" for (k, m) in _mangles.items()]);
+    parts.extend(sorted([f"ct_{k}={ct_mangle(v)}" for (k, v) in ct_bind.items()]));
     key = func_name + "|" + ",".join(parts);
     _hit = self._mono_fns.get(key);
     if _hit is not None {
@@ -227,13 +424,16 @@ impl NaIRGenGenerics._instantiate_generic(
     spec_name = f"__jac_mono_{func_name}_{safe}_{_kd}";
     saved_sol = self._mono_solution;
     saved_map = self._mono_mangle_map;
+    saved_ct = self._ct_bindings;
     self._mono_solution = solution;
     self._mono_mangle_map = _mangles;
+    self._ct_bindings = dict(ct_bind);
     try {
         fn = self._stamp_mono_fn(ability, spec_name, key);
     } finally {
         self._mono_solution = saved_sol;
         self._mono_mangle_map = saved_map;
+        self._ct_bindings = saved_ct;
     }
     return fn;
 }
@@ -505,4 +705,34 @@ impl NaIRGenGenerics._find_source_ability(
         }
     }
     return None;
+}
+
+impl NaIRGenGenerics._ct_only_name(nd: uni.Name) -> bool {
+    sym = nd.sym;
+    if sym is None {
+        return False;
+    }
+    decl = sym.decl;
+    imp = decl.find_parent_of_type(uni.Import) if isinstance(decl, uni.Name) else None;
+    if imp is not None and imp.is_comptime {
+        return True;
+    }
+    mod = nd.find_parent_of_type(uni.Module);
+    if mod is None {
+        return False;
+    }
+    for imp2 in mod.get_all_sub_nodes(uni.Import) {
+        if not imp2.is_comptime {
+            continue;
+        }
+        for item in imp2.items {
+            bound = item.alias
+                if item.alias is not None
+                else (item.name if isinstance(item, uni.ModuleItem) else None);
+            if isinstance(bound, uni.Name) and bound.sym_name == nd.sym_name {
+                return True;
+            }
+        }
+    }
+    return False;
 }

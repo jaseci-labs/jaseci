@@ -3,8 +3,6 @@ import contextlib;
 import gc;
 import glob;
 import json;
-import re;
-import select;
 import socket;
 import subprocess;
 import from jaclang.scale.runtime.context.util { jac_executable }
@@ -1516,7 +1514,6 @@ test "websocket functionality" {
 
 glob dm_fixtures_dir: Path = Path(__file__).parent.parent / "fixtures",
      dm_test_file: Path = dm_fixtures_dir / "test_api.jac",
-     dm_vite_port: int = get_free_port(),
      dm_api_port: int = get_free_port(),
      dm_base_url: str = f"http://localhost:{dm_api_port}";
 
@@ -1538,12 +1535,14 @@ def setup_dev_mode_server -> subprocess.Popen {
     }
     _cleanup_db_files(dm_fixtures_dir);
 
+    # Only --api_port is pinned: that is the one this suite talks to, and a
+    # pinned port is now a contract that fails rather than relocating. The app
+    # port is left unset so it may still relocate, which is what this harness
+    # always relied on after reserving ports at import time.
     cmd = [
         jac_executable(),
         "run",
         "--serve",
-        "--port",
-        str(dm_vite_port),
         "--api-port",
         str(dm_api_port),
         "--dev",
@@ -1844,13 +1843,16 @@ test "dev mode named endpoints and HMR refresh" {
     }
 }
 
-import from jaclang.scale.server.serve {
-    _find_available_port,
-    _get_network_ips,
+import from jaclang.scale.server.serve { _get_network_ips }
+import from jaclang.server.net {
+    find_available_port as _find_available_port,
+    PortInUseError,
     PORT_RETRY_LIMIT,
     ERRNO_ADDR_IN_USE_LINUX,
+    ERRNO_ADDR_IN_USE_MACOS,
     ERRNO_ADDR_IN_USE_WINDOWS
 }
+import from jaclang.cli.commands.execution { _find_free_port }
 
 test "port fallback - available port returns same port" {
     free_port = get_free_port();
@@ -1901,6 +1903,90 @@ test "port fallback - skips multiple blocked ports" {
     }
 }
 
+def _assert_refuses(label: str, port: int, err: OSError | None) {
+    assert err is not None , (
+        f"{label}: a pinned port was relocated instead of failing, which is what "
+        "silently strands a proxy pointed at it"
+    );
+    assert str(port) in str(err) , (
+        f"{label}: the error must name the port that was asked for, got: {err}"
+    );
+}
+
+
+test "an explicitly requested port is never relocated" {
+    # Both selections a user's -p reaches: the API port, and in dev mode the
+    # app port Vite serves. The second is the one the incident in #8387 moved.
+    blocked = get_free_port();
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s {
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
+        s.bind(('0.0.0.0', blocked));
+        s.listen(1);
+        api_err: OSError | None = None;
+        try {
+            _find_available_port(blocked, strict=True);
+        } except OSError as e {
+            api_err = e;
+        }
+        _assert_refuses("api port", blocked, api_err);
+        app_err: OSError | None = None;
+        try {
+            _find_free_port(blocked, 0, True);
+        } except OSError as e {
+            app_err = e;
+        }
+        _assert_refuses("app port", blocked, app_err);
+        collide_err: OSError | None = None;
+        try {
+            _find_free_port(blocked, blocked, True);
+        } except OSError as e {
+            collide_err = e;
+        }
+        _assert_refuses("app port equal to the api port", blocked, collide_err);
+    }
+}
+
+
+test "a refused port reaches the CLI as a mapped error, not a traceback" {
+    # The refusal crosses two paths that report failures differently: the plain
+    # one catches it itself, the gateway one lets it reach the CLI executor.
+    # Carrying a type rather than a message is what lets errmap render both the
+    # same way, so an unmapped error's raw Python traceback stops being the
+    # gateway's answer to a busy port.
+    import from jaclang.cli.errmap { humanize_error }
+
+    blocked = get_free_port();
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s {
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
+        s.bind(('0.0.0.0', blocked));
+        s.listen(1);
+        err: OSError | None = None;
+        try {
+            _find_available_port(blocked, strict=True);
+        } except OSError as e {
+            err = e;
+        }
+        assert isinstance(err, PortInUseError) , (
+            f"a strict refusal must raise PortInUseError, got {type(err).__name__}"
+        );
+        assert err.port == blocked , (
+            f"the error must carry the port asked for, got {err.port}"
+        );
+        assert isinstance(err, OSError) , (
+            "PortInUseError must stay an OSError so existing handlers still catch it"
+        );
+        mapped = humanize_error(err);
+        assert mapped is not None , (
+            "an unmapped error is what makes the CLI print a raw traceback"
+        );
+        assert str(blocked) in mapped[0] , (
+            f"the mapped message must name the port: {mapped[0]!r}"
+        );
+        assert mapped[1] , "the mapped error should carry a hint";
+    }
+}
+
+
 test "port fallback - raises error when no ports available" {
     start_port = get_free_port();
     sockets: list[socket.socket] = [];
@@ -1950,10 +2036,11 @@ test "network IPs - returns valid IP list" {
 test "port constants - values are correct" {
     assert PORT_RETRY_LIMIT == 10 , "PORT_RETRY_LIMIT should be 10";
     assert ERRNO_ADDR_IN_USE_LINUX == 98 , "ERRNO_ADDR_IN_USE_LINUX should be 98";
+    assert ERRNO_ADDR_IN_USE_MACOS == 48 , "ERRNO_ADDR_IN_USE_MACOS should be 48";
     assert ERRNO_ADDR_IN_USE_WINDOWS == 10048 , "ERRNO_ADDR_IN_USE_WINDOWS should be 10048";
 }
 
-test "server startup - port fallback integration" {
+test "server startup - a second server refuses an already-taken explicit port" {
     port1 = get_free_port();
     sp1: subprocess.Popen | None = None;
     sp2: subprocess.Popen | None = None;
@@ -1972,6 +2059,7 @@ test "server startup - port fallback integration" {
             "--serve",
             "--port",
             str(port1),
+            "--no-client",
             sv_test_file.name
         ];
 
@@ -1983,38 +2071,17 @@ test "server startup - port fallback integration" {
             cwd=str(sv_fixtures_dir)
         );
 
-        actual_port = port1;
-        max_wait = 60;
-        start_time = time.time();
+        (output, _unused) = sp2.communicate(timeout=120);
 
-        while time.time() - start_time < max_wait {
-            if sp2.stdout and select.select([sp2.stdout], [], [], 0.5)[0] {
-                line = sp2.stdout.readline();
-                if line and "using port" in line {
-                    port_match = re.search(r'using port (\d+)', line);
-                    if port_match {
-                        actual_port = int(port_match.group(1));
-                    }
-                }
-            }
-
-            for test_port in range(port1 + 1, port1 + 5) {
-                try {
-                    resp = requests.get(
-                        f"http://localhost:{test_port}/healthz", timeout=1
-                    );
-                    if resp.status_code == 200 {
-                        actual_port = test_port;
-                        break;
-                    }
-                } except Exception { }
-            }
-            if actual_port > port1 {
-                break;
-            }
-        }
-
-        assert actual_port > port1 , f"Second server should use port > {port1}, got {actual_port}";
+        assert sp2.returncode != 0 , (
+            "a second server asked for a port the first one holds must exit "
+            f"non-zero rather than relocating, got {sp2.returncode}"
+        );
+        assert str(port1) in output , (
+            f"the failure must name the port that was asked for, got: {output[-300:]!r}"
+        );
+        survivor = requests.get(f"http://localhost:{port1}/healthz", timeout=5);
+        assert survivor.status_code == 200 , "the first server must be undisturbed";
     } finally {
         if sp2 {
             sp2.terminate();
