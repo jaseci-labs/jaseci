@@ -157,15 +157,15 @@ def run_prefetch_policy(ctx: any, cfg: any, warch: any, nd: NodeAnchor) -> tuple
     run_cfg = cfg.run;
     policy_name: str = str(getattr(run_cfg, "prefetching", ""));
     limit: int = int(getattr(run_cfg, "prefetch_limit", 0) or 0);
-    if not policy_name or limit <= 0 {
-        return (0.0, 0.0, 0.0, 0.0);
-    }
     import from jaclang.runtime.prefetch_policy {
         get_prefetch_plan,
         normalize_prefetch_policy_name
     }
     policy = normalize_prefetch_policy_name(policy_name);
-    if policy in ("none", "off", "false", "0") {
+    if not policy_name or policy in ("none", "off", "false", "0") {
+        return (0.0, 0.0, 0.0, 0.0);
+    }
+    if limit <= 0 and policy != "oracle" {
         return (0.0, 0.0, 0.0, 0.0);
     }
     plan = get_prefetch_plan(
@@ -176,6 +176,9 @@ def run_prefetch_policy(ctx: any, cfg: any, warch: any, nd: NodeAnchor) -> tuple
         prefetch_start = _time.perf_counter();
         mode: str = str(getattr(run_cfg, "async_prefetch", ""));
         workers: int = int(getattr(run_cfg, "prefetch_workers", 1) or 1);
+        if plan.single_query {
+            workers = 1;
+        }
         dispatch_prefetch(ctx, plan.ids, mode, workers);
         dispatch_ms = (_time.perf_counter() - prefetch_start) * 1000;
         gil_fn = getattr(_sys, "_is_gil_enabled", None);

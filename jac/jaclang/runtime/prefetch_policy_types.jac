@@ -16,7 +16,8 @@ obj PrefetchPlanResult {
     has ids: list[UUID] = [],
         topology_ms: float = 0.0,
         plan_ms: float = 0.0,
-        resolve_ms: float = 0.0;
+        resolve_ms: float = 0.0,
+        single_query: bool = False;
 }
 
 def prefetch_walker_keys(warch: any) -> list[str] {
