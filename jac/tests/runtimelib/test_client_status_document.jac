@@ -299,6 +299,14 @@ test "the /cl/__error__ endpoint logs a rendered diagnostic with a Jac location"
                 }
             );
             assert resp.ok , resp.status_code;
+            body = resp.json();
+            # A throttled request is ok=True with nothing logged; failing on
+            # it here names the actual suppression instead of a blank assert.
+            assert not body.get("throttled") , (
+                f"rate limiter throttled the request: {body}; "
+                f"limiter seen={_error_rate_limiter._seen} "
+                f"count={_error_rate_limiter._count}"
+            );
             # The endpoint logs the rendered diagnostic from its handler
             # thread; the response can land first, so wait for the marker.
             import time;
@@ -311,7 +319,12 @@ test "the /cl/__error__ endpoint logs a rendered diagnostic with a Jac location"
                 }
                 time.sleep(0.1);
             }
-            assert "error[E7003]" in logged , logged;
+            assert "error[E7003]" in logged , (
+                f"diagnostic never reached the sink; response={body}; "
+                f"logger disabled={logger.disabled} level={logger.level} "
+                f"handlers={logger.handlers} propagate={logger.propagate}; "
+                f"buffer={logged!r}"
+            );
             assert "--> app.jac:2" in logged , logged;
             # One classification, one renderer: the stack is resolved on the
             # diagnostic (not a second time by the endpoint) and logged from it.
