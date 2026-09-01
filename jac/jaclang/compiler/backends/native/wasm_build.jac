@@ -132,9 +132,9 @@ def _load_libc_module(libc_dir: str, triple: str) -> (ModuleRef | None) {
         } except OSError {
             try {
                 os.unlink(tmp_path);
-            } except OSError { }
+            } except OSError {}
         }
-    } except OSError { }
+    } except OSError {}
     return merged;
 }
 

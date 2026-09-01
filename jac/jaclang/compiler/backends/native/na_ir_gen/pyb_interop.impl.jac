@@ -63,7 +63,7 @@ impl NaIRGenPybInterop._pyb_base_of(arch_name: str) -> (tuple | None) {
         if bname in NATIVE_ERASED_BASES {
             continue;
         }
-        sym = base_expr?.sym;
+        sym = base_expr.sym if isinstance(base_expr, uni.NameAtom) else None;
         decl = sym.decl if sym is not None else None;
         if decl is None {
             continue;
@@ -73,7 +73,7 @@ impl NaIRGenPybInterop._pyb_base_of(arch_name: str) -> (tuple | None) {
             continue;
         }
         decl_mod = decl.find_parent_of_type(uni.Module);
-        path = decl_mod.loc.mod_path if decl_mod?.loc else None;
+        path = decl_mod.loc.mod_path if decl_mod is not None else None;
         if not path or not path.endswith(".jac") {
             continue;
         }
@@ -122,7 +122,7 @@ impl NaIRGenPybInterop._pyb_shadow_postinit_owner(arch_name: str) -> (str | None
         if bname in ("Node", "Edge", "Walker", "Object", "Obj", "Root", "Archetype") {
             continue;
         }
-        sym = base_expr?.sym;
+        sym = base_expr.sym if isinstance(base_expr, uni.NameAtom) else None;
         decl = sym.decl if sym is not None else None;
         base_arch = decl.find_parent_of_type(uni.Archetype)
             if decl is not None
@@ -204,7 +204,7 @@ impl NaIRGenPybInterop._pyb_shadowed_dispatch(
         if bname in ("Node", "Edge", "Walker", "Object", "Obj", "Root", "Archetype") {
             continue;
         }
-        sym = base_expr?.sym;
+        sym = base_expr.sym if isinstance(base_expr, uni.NameAtom) else None;
         decl = sym.decl if sym is not None else None;
         base_arch = decl.find_parent_of_type(uni.Archetype)
             if decl is not None
@@ -966,6 +966,9 @@ impl NaIRGenPybInterop._codegen_pyb_method_call(
     }
     i8p = ir.IntType(8).as_pointer();
     trailer = nd.target;
+    if not isinstance(trailer, uni.AtomTrailer) {
+        return None;
+    }
     obj_val = self._codegen_expr(trailer.target);
     if obj_val is None {
         return None;

@@ -188,6 +188,8 @@ with entry {
 }
 ```
 
+A parameter prefixed with `comptime` (`def repeat(comptime n: int, msg: str)`) must receive a compile-time-known argument at every call site; inside the body it is a comptime value, so `comptime for _ in range(n)` unrolls. See [Compile-Time Evaluation](comptime.md#comptime-parameters).
+
 ### 4 `can` vs `def`
 
 Jac has two keywords for defining callable behavior: `def` for standard functions/methods and `can` for event-driven abilities on archetypes. Use `def` when you want explicit calling; use `can` when behavior should trigger automatically based on walker/node context.

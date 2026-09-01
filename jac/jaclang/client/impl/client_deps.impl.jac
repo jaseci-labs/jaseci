@@ -17,7 +17,7 @@ def _resolve_client_framework -> str {
         if cfg and cfg.client {
             return cfg.client.framework;
         }
-    } except Exception { }
+    } except Exception {}
     return "react";
 }
 

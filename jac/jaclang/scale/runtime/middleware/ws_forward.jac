@@ -28,17 +28,25 @@ def _to_ws_scheme(url: str) -> str {
 }
 
 
-def _select_handshake_headers(client_headers: dict[str, str]) -> dict[str, str] {
+def _select_handshake_headers(
+    client_headers: dict[str, str], peer: str
+) -> dict[str, str] {
     out: dict[str, str] = {};
+    xff: list[str] = [];
     for (k, v) in client_headers.items() {
         lk = k.lower();
         if lk in _WS_HOP_BY_HOP {
             continue;
         }
-        if lk in ("authorization", "x-trace-id", "x-forwarded-for") {
+        if lk == "x-forwarded-for" {
+            xff.append(v);
+            continue;
+        }
+        if lk in ("authorization", "x-trace-id") {
             out[k] = v;
         }
     }
+    out["X-Forwarded-For"] = ", ".join(xff + [peer]);
     return out;
 }
 
@@ -88,7 +96,8 @@ async def websocket_forward(
     timeout: int = 30
 ) -> None {
     ws_url: str = _to_ws_scheme(upstream_url);
-    hs_headers: dict[str, str] = _select_handshake_headers(request_headers);
+    peer: str = client_ws.client_host or "unknown";
+    hs_headers: dict[str, str] = _select_handshake_headers(request_headers, peer);
     try {
         upstream_ws = await aws_connect(
             ws_url, headers=hs_headers, timeout=float(timeout)
@@ -97,9 +106,7 @@ async def websocket_forward(
         _logger.error(f"ws: upstream handshake failed: {e}");
         try {
             await client_ws.close(code=1011);
-        } except Exception {
-            ;
-        }
+        } except Exception {}
         return;
     }
     try {
@@ -111,13 +118,9 @@ async def websocket_forward(
     } finally {
         try {
             await upstream_ws.close();
-        } except Exception {
-            ;
-        }
+        } except Exception {}
         try {
             await client_ws.close();
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
 }

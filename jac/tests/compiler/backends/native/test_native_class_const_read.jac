@@ -19,8 +19,9 @@ back a zero.
 
 The subprocess pair is the contract: the server pathway and a native binary
 must print the same lines, so the *values* are pinned and not merely that
-something lowered. `test_type_system_seal_baseline` carries the other half --
-`TypeBase.category.__get__` left its waiver when this landed.
+something lowered. The other half -- `TypeBase.category.__get__` leaving its
+waiver when this landed -- was pinned by `test_type_system_seal_baseline`,
+deleted with the native seal (#8735).
 
 The last case is the one that stays broken on purpose. A flat imported
 ancestor with no vtable slot puts its first field at slot 0 while a subclass
