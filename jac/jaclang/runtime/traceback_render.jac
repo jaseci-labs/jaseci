@@ -1,3 +1,4 @@
+import os;
 import from traceback { TracebackException }
 import from jaclang.compiler.frontend.helpers {
     pretty_print_source_location,
@@ -31,7 +32,8 @@ def dump_traceback(e: Exception) -> str {
         );
     }
     seen_runtime_marker: bool = False;
-    collapse_internal: bool = True;
+    collapse_internal: bool = os.environ.get('JAC_DEBUG', '').lower()
+        in ('', '0', 'false');
     for (idx, frame) in enumerate(tb.stack) {
         is_internal: bool = is_internal_runtime_frame(frame.filename);
         if (is_internal and collapse_internal) {
