@@ -524,7 +524,7 @@ def run_gradle_assemble(rn_dir: Path, release: bool = False) -> Path {
     if os.name != "nt" {
         try {
             os.chmod(gradlew, 0o755);
-        } except Exception { }
+        } except Exception {}
     }
 
     gradle_task = "assembleRelease" if release else "assembleDebug";

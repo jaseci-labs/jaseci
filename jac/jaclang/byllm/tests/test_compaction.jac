@@ -479,7 +479,7 @@ test "streaming path triggers compaction and respects compaction_enabled" {
         on_compaction=hook1
     );
 
-    for event in task1("test") { }
+    for event in task1("test") {}
     assert fired1[0];
 
     llm2 = MockLLM(
@@ -511,7 +511,7 @@ test "streaming path triggers compaction and respects compaction_enabled" {
         on_compaction=hook2
     );
 
-    for event in task2("test") { }
+    for event in task2("test") {}
     assert not fired2[0];
 }
 

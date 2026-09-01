@@ -124,9 +124,7 @@ impl invoke_native_test(
             done = set();
             try {
                 setattr(engine, "_jac_glob_inits_done", done);
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
         for init_sym in (init_symbols or []) {
             if init_sym in done {
@@ -177,9 +175,7 @@ impl invoke_native_test(
     } finally {
         try {
             ctypes.CDLL(None).fflush(None);
-        } except Exception {
-            ;
-        }
+        } except Exception {}
         for (fd, (sink, name)) in sinks.items() {
             os.dup2(saved[fd], fd);
             os.close(saved[fd]);
@@ -196,9 +192,7 @@ impl invoke_native_test(
                 if stream is not None {
                     try {
                         stream.write(data.decode("utf-8", "replace"));
-                    } except Exception {
-                        ;
-                    }
+                    } except Exception {}
                 }
             }
         }

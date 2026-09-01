@@ -20,7 +20,8 @@ impl NaIRGenSets._emit_set_helpers(
     if not self._nogc_headerless() {
         _rel_fnty_s = ir.FunctionType(ir.VoidType(), [set_ptr_type]);
         try {
-            _rel_fn_decl_s = self.llvm_module.get_global(_rel_fn_name_s);
+            _found_s = self.llvm_module.get_global(_rel_fn_name_s);
+            _rel_fn_decl_s = _found_s if isinstance(_found_s, ir.Function) else None;
         } except KeyError {
             _rel_fn_decl_s = ir.Function(
                 self.llvm_module, _rel_fnty_s, name=_rel_fn_name_s
@@ -83,7 +84,11 @@ impl NaIRGenSets._codegen_set_val(nd: uni.SetVal) -> (ir.Value | None) {
     }
 
     _decl_args = nd.type.private.type_args
-        if (isinstance(nd, uni.Expr) and nd.type is not None)
+        if (
+            isinstance(nd, uni.Expr)
+            and isinstance(nd.type, ClassType)
+            and nd.type.private is not None
+        )
         else [];
     _decl_elem = self._elem_storage_llvm(_decl_args[0]) if _decl_args else None;
     if _decl_elem is not None
@@ -130,6 +135,9 @@ impl NaIRGenSets._codegen_set_val(nd: uni.SetVal) -> (ir.Value | None) {
         elem_type = _first_src_info["helpers"]["elem_type"];
         elem_size = _first_src_info["helpers"]["elem_size"];
     } else {
+        if _first_src_info is None {
+            return None;
+        }
         _spread_elem = self._spread_elem_storage(_first_src_info, _first_spread);
         if _spread_elem is None {
             self.emit(
@@ -243,6 +251,9 @@ impl NaIRGenSets._codegen_set_val(nd: uni.SetVal) -> (ir.Value | None) {
             return None;
         }
         val = self._nogc_elem_prep(nd.values[i], val);
+        if val is None {
+            return None;
+        }
         if self._reject_ptr_into_raw_slot(nd, val, elem_type, "set element") {
             return set_val;
         }
