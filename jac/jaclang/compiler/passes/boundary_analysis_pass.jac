@@ -35,7 +35,8 @@ import from jaclang.compiler.frontend.unitree {
     TupleVal,
     UnaryExpr,
     UniNode,
-    ability_of_symbol
+    ability_of_symbol,
+    resolved_decl_of
 }
 import from jaclang.compiler.frontend.constant {
     CodeContext,

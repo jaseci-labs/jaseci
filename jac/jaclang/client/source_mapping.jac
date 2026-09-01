@@ -67,6 +67,20 @@ def generate_source_map_json(
             }
         );
     }
+    # A synthetic node can carry line/col 0; emitting it 0-based would put a
+    # negative position in the map, which crashes downstream consumers (vite).
+    segments = [s for s in segments if s[2] >= 1 and s[3] >= 1];
+    if not segments {
+        return json.dumps(
+            {
+                "version": 3,
+                "file": output_file,
+                "sources": [source_file],
+                "names": [],
+                "mappings": ""
+            }
+        );
+    }
     by_line: dict[int, list[tuple[int, int, int, int, str]]] = {};
     for seg in segments {
         by_line.setdefault(seg[0], []).append(seg);
