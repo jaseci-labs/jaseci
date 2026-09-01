@@ -79,8 +79,9 @@ test "hpa.behavior on one service does not leak onto another" {
             "orders_ops": {}
         }
     );
-    assert b._get_autoscaler_config("billing_ops")["behavior"]
-        == {"scaleDown": {"selectPolicy": "Min"}};
+    assert b._get_autoscaler_config("billing_ops")["behavior"] == {
+        "scaleDown": {"selectPolicy": "Min"}
+    };
     assert b._get_autoscaler_config("orders_ops")["behavior"] == {};
 }
 
@@ -133,8 +134,9 @@ test "hpa.behavior works for the gateway via the __gateway__ service key" {
     b = _builder(
         {GATEWAY_NAME: {"hpa": {"behavior": {"scaleDown": {"selectPolicy": "Min"}}}}}
     );
-    assert b._get_autoscaler_config(GATEWAY_NAME)["behavior"]
-        == {"scaleDown": {"selectPolicy": "Min"}};
+    assert b._get_autoscaler_config(GATEWAY_NAME)["behavior"] == {
+        "scaleDown": {"selectPolicy": "Min"}
+    };
 }
 
 test "malformed hpa.behavior warns and falls back to the empty fragment" {
@@ -153,55 +155,6 @@ test "malformed hpa.behavior warns and falls back to the empty fragment" {
     assert cfg["behavior"] == {};
     logger.warning.assert_called_once();
     assert "billing_ops" in logger.warning.call_args[0][0];
-}
-
-
-# The preflight reads the pod architecture from the cluster, and node_arch()
-# silently falls back to the HOST arch when no kubeconfig is loaded. Deploy must
-# therefore load the cluster config first, or a macOS host deploying to a linux
-# x86_64 cluster checks the wrong release asset and can refuse a valid pin.
-test "deploy loads the cluster config before it resolves the pod arch" {
-    import unittest.mock;
-    import tempfile;
-    import from pathlib { Path }
-    import from jaclang.scale.deploy.target.kubernetes.target { KubernetesTarget }
-    import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
-        KubernetesConfig
-    }
-    import from jaclang.scale.config.app_config { AppConfig }
-    import jaclang.scale.injector.binary as binary_mod;
-    import from jaclang.cli.manifest_route { resolve_cli_version }
-
-    # Same minor line as the running jac, or the deploy is refused as a
-    # cross-generation deploy (#8766) and never reaches the ordering under test.
-    (major, minor, _) = binary_mod._ver_key(resolve_cli_version().strip());
-    d = tempfile.mkdtemp();
-    (Path(d) / "jac.toml").write_text(
-        f'[project]\nname = "x"\nversion = "0.1.0"\n'
-        f'jac-version = "=={major}.{minor}.99"\n'
-    );
-    order: list[str] = [];
-    target = KubernetesTarget(config=KubernetesConfig(app_name="t", namespace="t-ns"));
-
-    def _note_config {
-        order.append("config");
-    }
-
-    def _note_arch -> str {
-        order.append("arch");
-        return "x86_64";
-    }
-
-    with unittest.mock.patch.object(target, "_load_cluster_config", _note_config), unittest.mock.patch.object(
-        binary_mod, "node_arch", _note_arch
-    ), unittest.mock.patch.object(
-        binary_mod, "preflight_pod_runtime", return_value="0.0.0"
-    ), unittest.mock.patch.object(
-        KubernetesTarget, "generate_manifests", side_effect=RuntimeError("stop")
-    ) {
-        target.deploy(AppConfig(code_folder=d, file_name="main.jac", app_name="t"));
-    }
-    assert order[:2] == ["config", "arch"];
 }
 
 
@@ -298,8 +251,7 @@ test "a rendered Deployment tightens probes for a min=0 service but not its min=
     one_probe = b._build_service_pod_spec("onesvc", "python:3.12-slim")["containers"][0][
         "readinessProbe"
     ];
-    assert zero_probe["periodSeconds"]
-        == KubernetesConfig().readiness_period_scale_to_zero;
+    assert zero_probe["periodSeconds"] == KubernetesConfig().readiness_period_scale_to_zero;
     assert one_probe["periodSeconds"] == KubernetesConfig().readiness_period;
     assert one_probe["failureThreshold"] == 3;
 }

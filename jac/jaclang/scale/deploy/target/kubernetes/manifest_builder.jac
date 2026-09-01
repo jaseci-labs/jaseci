@@ -1494,7 +1494,6 @@ obj ManifestBuilder {
             return None;
         }
         k8s_name = k8s_safe_name(svc_name);
-        max_u: int = int(cfg.get("max_unavailable", 1));
         return {
             "apiVersion": "policy/v1",
             "kind": "PodDisruptionBudget",
@@ -1503,10 +1502,7 @@ obj ManifestBuilder {
                 "namespace": self.k8s_config.namespace,
                 "labels": {"app": k8s_name, "managed": "jac-scale"}
             },
-            "spec": {
-                "maxUnavailable": max_u,
-                "selector": {"matchLabels": {"app": k8s_name}}
-            }
+            "spec": {** spec, "selector": {"matchLabels": {"app": k8s_name}}}
         };
     }
 

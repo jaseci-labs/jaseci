@@ -512,16 +512,15 @@ test "forwarded requests carry each service's own host_override as the wire Host
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from jaclang.testing.testkit { ServingTestClient as TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     try {
         resp = client.get("/graph/data");
         assert resp.status_code == 200;
-        assert set(observed_hosts)
-            == {
-                "orders-app-service.shop.svc.cluster.local",
-                "cart-app-service.shop.svc.cluster.local"
-            } , (
+        assert set(observed_hosts) == {
+            "orders-app-service.shop.svc.cluster.local",
+            "cart-app-service.shop.svc.cluster.local"
+        } , (
             f"expected the wire Host header to carry each service's own "
             f"host_override, observed: {observed_hosts}"
         );

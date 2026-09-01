@@ -1,4 +1,5 @@
 import os;
+import unittest;
 import from pathlib { Path }
 import from kubernetes { client, config }
 import from kubernetes.client.exceptions { ApiException }
@@ -7,12 +8,20 @@ import from jaclang.scale.config.config_loader { get_scale_config, reset_scale_c
 import from jaclang.scale.deploy.target.factory { DeploymentTargetFactory }
 import from jaclang.scale.models.resource_status { ResourceStatus }
 import from jaclang.scale.observability.factory { UtilityFactory }
-import from jaclang.testing.requires { require_flag }
 
 with entry {
-    require_flag(
-        "JAC_TEST_K8S", "this e2e needs a live Kubernetes cluster and kubectl context"
-    );
+    if os.environ.get("JAC_TEST_K8S", "").strip().lower() in (
+        "",
+        "0",
+        "false",
+        "no",
+        "off"
+    ) {
+        raise unittest.SkipTest(
+            "set JAC_TEST_K8S=1 to run: this e2e needs a live Kubernetes cluster and "
+            "kubectl context"
+        );
+    }
 }
 
 # Real-cluster e2e for get_status()'s scale-to-zero eligibility check. Unlike

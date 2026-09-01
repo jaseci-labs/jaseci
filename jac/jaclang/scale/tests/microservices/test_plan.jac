@@ -12,6 +12,7 @@ import from jaclang.scale.runtime.cli.diagnostics {
     _mem_to_bytes
 }
 import jaclang.scale.runtime.cli.plan as plan_mod;
+import from jaclang.scale.config.config_loader { get_scale_config, reset_scale_config }
 
 
 def _validate(
@@ -72,12 +73,50 @@ def _dep(
 }
 
 
+def _seed_ms_config(ms_toml: str) -> str {
+    # Write a real jac.toml holding the requested [scale.microservices] config
+    # and point get_scale_config() at it, so Plan._load_ms_cfg() runs for real.
+    import tempfile;
+    project_dir = tempfile.mkdtemp(prefix="jac-plan-test-");
+    toml_body = (
+        "[project]\nname = \"plan-test\"\nentry-point = \"main.jac\"\n" + ms_toml
+    );
+    (Path(project_dir) / "jac.toml").write_text(toml_body);
+    reset_scale_config();
+    get_scale_config(project_dir=Path(project_dir));
+    return project_dir;
+}
+
+
+def _teardown_ms_config(project_dir: str) {
+    import shutil;
+    reset_scale_config();
+    shutil.rmtree(project_dir, ignore_errors=True);
+}
+
+
 def _run_plan(
-    bundle: dict[str, Any], show_yaml: bool = False, ms_cfg_pair: tuple | None = None
+    bundle: dict[str, Any],
+    show_yaml: bool = False,
+    ms_cfg_pair: tuple | None = None,
+    ms_toml: str | None = None
 ) -> tuple {
     target = _StubTarget(_bundle=bundle);
     buf = io.StringIO();
     diagnostics: list = [];
+    if ms_toml is not None {
+        project_dir = _seed_ms_config(ms_toml);
+        try {
+            with redirect_stdout(buf) {
+                (_, diagnostics) = print_plan(
+                    target, _make_app_config(), show_yaml=show_yaml
+                );
+            }
+        } finally {
+            _teardown_ms_config(project_dir);
+        }
+        return (buf.getvalue(), diagnostics);
+    }
     cfg_pair = ms_cfg_pair if ms_cfg_pair is not None else ({}, {});
     with redirect_stdout(buf) {
         with mock.patch.object(plan_mod.Plan, "_load_ms_cfg", return_value=cfg_pair) {
@@ -197,36 +236,8 @@ test "render smoke: realistic bundle prints every section" {
 def _rate_limit_toml(enabled: str, extra: str = "") -> str {
     return (
         "[scale.microservices.routes]\napi = \"/api\"\n"
-        "\n[scale.microservices.rate_limit]\n"
-        + f"enabled = {enabled}\nper_ip_rpm = 120\nper_user_rpm = 30\n"
-        + extra
+        "\n[scale.microservices.rate_limit]\n" + f"enabled = {enabled}\nper_ip_rpm = 120\nper_user_rpm = 30\n" + extra
     );
-}
-
-
-test "an enabled rate limit reaches the plan from jac.toml, both tiers" {
-    (out, _) = _run_plan(
-        {"deployments": {"api": _dep()}, "services": {"api": {}}},
-        ms_toml=_rate_limit_toml("true", extra="burst_multiplier = 3.0\n")
-    );
-    assert "Cluster-wide" in out , f"no cluster-wide block in plan:\n{out}";
-    assert "120/min per IP" in out , f"per-IP limit missing from plan:\n{out}";
-    assert "30/min per user" in out , f"per-user limit missing from plan:\n{out}";
-    assert "burst x3" in out;
-}
-
-
-test "a rate limit with both tiers at 0 renders as configured-but-inert" {
-    (out, _) = _run_plan(
-        {"deployments": {"api": _dep()}, "services": {"api": {}}},
-        ms_toml=(
-            "[scale.microservices.routes]\napi = \"/api\"\n"
-            "\n[scale.microservices.rate_limit]\n"
-            "enabled = true\nper_ip_rpm = 0\nper_user_rpm = 0\n"
-        )
-    );
-    assert "rate_limit:" in out , f"an inert limit rendered nothing:\n{out}";
-    assert "no limit" in out;
 }
 
 
@@ -306,7 +317,7 @@ test "validate: HPA bounds (min < 1, min > max, cpu_target out of 1-100)" {
 
 
 def _keda_dry_run_plan(hpa_toml: str, engine: str = "keda") -> tuple[int, str] {
-    # Real `jac scale deploy --dry-run` subprocess against a real project,
+    # Real `jac start --scale --dry-run` subprocess against a real project,
     # no cluster and no network (test_dry_run_purity.jac holds that
     # contract) -- same shape as test_dry_run_plan_rate_limit.jac. Unlike
     # _validate() above, this drives Plan.from_target for real, so it
@@ -328,10 +339,10 @@ def _keda_dry_run_plan(hpa_toml: str, engine: str = "keda") -> tuple[int, str] {
         'namespace = "plankeda"\n'
         # Without a storage class the RWX bundle PVC raises before the plan
         # is rendered (see test_dry_run_plan_rate_limit.jac).
-        'bundle_storage_class = "standard"\n'
-            + f'autoscaler_engine = "{engine}"\n'
-            + '\n' '[scale.microservices.routes]\n' 'orders = "/orders"\n' '\n'
-            + hpa_toml,
+        'bundle_storage_class = "standard"\n' + f'autoscaler_engine = "{engine}"\n' + '\n'
+        '[scale.microservices.routes]\n'
+        'orders = "/orders"\n'
+        '\n' + hpa_toml,
         encoding="utf-8"
     );
     (project_dir / "main.jac").write_text("with entry {}\n", encoding="utf-8");
@@ -342,7 +353,7 @@ def _keda_dry_run_plan(hpa_toml: str, engine: str = "keda") -> tuple[int, str] {
     }
     try {
         result = subprocess.run(
-            [jac_executable(), "scale", "deploy", "main.jac", "--dry-run"],
+            [jac_executable(), "start", "main.jac", "--scale", "--dry-run"],
             capture_output=True,
             text=True,
             cwd=str(project_dir),

@@ -39,6 +39,11 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 import from jaclang.scale.config.config_loader { JacScaleConfig }
 
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
+
 def _write_toml(body: str) -> str {
     d = tempfile.mkdtemp();
     with open(os.path.join(d, "jac.toml"), "w") as handle {
@@ -639,8 +644,7 @@ test "experimental images fall back to the tag, not the plain python base, when 
     }
     try {
         binary_mod._http_get_bytes = _as_any(_raise);
-        assert binary_mod.resolve_pod_base_image(d, "")
-            == "jaseci/jaclang:experimental-7494";
+        assert binary_mod.resolve_pod_base_image(d, "") == "jaseci/jaclang:experimental-7494";
     } finally {
         binary_mod._http_get_bytes = saved;
     }

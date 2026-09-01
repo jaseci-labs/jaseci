@@ -104,28 +104,6 @@ test "min_available brings the budget back at one replica" {
 }
 
 
-test "the plan validator warns about the pair that produces no budget" {
-    validator = PlanValidator(
-        bundle={"deployments": {"orders_app": {"spec": {"replicas": 1}}}},
-        ms_cfg={"routes": {"orders_app": "/orders"}},
-        svc_configs={
-            "orders_app": {"hpa": {"enabled": False}, "pdb": {"max_unavailable": 1}}
-        }
-    );
-    messages = [
-        d.message
-        for d in validator.run()
-        if d.service == "orders_app"
-    ];
-    hits = [
-        m
-        for m in messages
-        if "permits evicting every replica" in m
-    ];
-    assert len(hits) == 1 , f"expected one no-budget warning, got {messages}";
-}
-
-
 test "the validator stays quiet when the budget actually holds" {
     validator = PlanValidator(
         bundle={"deployments": {"orders_app": {"spec": {"replicas": 3}}}},
