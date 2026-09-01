@@ -188,21 +188,21 @@ obj Memory {
         }
     }
 
-    def read_barrier { }
-    def flush(full: bool = False) { }
-    def reset_fetch_count { }
+    def read_barrier {}
+    def flush(full: bool = False) {}
+    def reset_fetch_count {}
     def get_fetch_count -> int {
         return 0;
     }
 
-    def unit_enter(key: (str | None) = None) { }
-    def unit_exit { }
+    def unit_enter(key: (str | None) = None) {}
+    def unit_exit {}
     def unit_depth -> int {
         return 0;
     }
 
-    def read_scope_enter { }
-    def read_scope_exit { }
+    def read_scope_enter {}
+    def read_scope_exit {}
     def run_request(body: Callable) -> any {
         result = body();
         self.commit();
