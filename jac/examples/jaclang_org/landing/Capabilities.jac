@@ -22,9 +22,9 @@ import from "@hugeicons/core-free-icons" {
 glob _KINDS: list[dict] = [
          {"name": "Script / CLI tool", "cmd": "jac run app.jac"},
          {"name": "Zero-dependency native binary", "cmd": "jac build --as native"},
-         {"name": "REST API + Swagger + auth", "cmd": "jac start api.jac"},
-         {"name": "Microservice mesh", "cmd": "import + jac start"},
-         {"name": "Full-stack web app", "cmd": "jac start"},
+         {"name": "REST API + Swagger + auth", "cmd": "jac run --serve api.jac"},
+         {"name": "Microservice mesh", "cmd": "import + jac run --serve"},
+         {"name": "Full-stack web app", "cmd": "jac run"},
          {"name": "Desktop app (OS webview)", "cmd": "jac build --client desktop"},
          {"name": "Mobile app (Android / iOS)", "cmd": "jac build --client mobile"},
          {"name": "WebAssembly in the browser", "cmd": "jac build  # web-static"},
@@ -98,7 +98,7 @@ def:pub Capabilities -> JsxElement {
                                             <PillarCard
                                                 icon={CloudServerIcon}
                                                 title="Laptop to Kubernetes"
-                                                body="jac start --scale. No Dockerfile, no YAML, no changed code."
+                                                body="jac scale deploy. No Dockerfile, no YAML, no changed code."
                                             />
                                             <PillarCard
                                                 icon={CheckmarkCircle01Icon}

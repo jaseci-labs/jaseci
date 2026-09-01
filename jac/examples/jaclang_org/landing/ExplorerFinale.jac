@@ -17,10 +17,10 @@ import from "@hugeicons/core-free-icons" {
 
 glob BOOK_URL: str = "https://doi.org/10.5281/zenodo.21464040",
      RUN_LINES: list[str] = [
-         "git clone https://github.com/jaseci-labs/jac_site",
-         "cd jac_site",
+         "git clone https://github.com/jaseci-labs/jac",
+         "cd jac/jac/examples/jaclang_org",
          "jac install",
-         "jac start",
+         "jac run",
 
      ];
 

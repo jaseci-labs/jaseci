@@ -3,7 +3,7 @@ import from react { useEffect }
 glob _SCRIPT: list[dict] = [
          {"k": "cmd", "t": "jac create trailmate --use jac-shadcn"},
          {"k": "out", "t": "  Themed starter ready (nova / orange / geist)"},
-         {"k": "cmd", "t": "jac start --scale"},
+         {"k": "cmd", "t": "jac scale deploy"},
          {"k": "ok", "t": "✔ REST API · auth · Swagger · graph persistence"},
          {"k": "ok", "t": "✔ React client compiled from Jac"},
          {"k": "ok", "t": "✔ Kubernetes: images built, cluster provisioned"},

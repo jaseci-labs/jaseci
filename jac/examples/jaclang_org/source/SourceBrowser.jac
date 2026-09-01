@@ -66,7 +66,7 @@ def:pub SourceBrowser(
                 <span className="ml-2 font-mono text-xs text-white/45">
                     jaclang.org — this site, serving itself, for real,{" "}
                     <a
-                        href="https://github.com/jaseci-labs/jac_site"
+                        href="https://github.com/jaseci-labs/jac/tree/main/jac/examples/jaclang_org"
                         target="_blank"
                         rel="noreferrer"
                         className="underline decoration-white/30 underline-offset-2 transition-colors hover:text-white/70"
@@ -206,7 +206,7 @@ def:pub SourceBrowser(
                 <span>
                     {str(len(tree))}{" files · "}{str(total_lines)}{" lines · 1 config · 0 glue artifacts"}
                 </span>
-                <span className="text-orange-400/80">$ jac start</span>
+                <span className="text-orange-400/80">$ jac run</span>
             </div>
         </div>;
 }

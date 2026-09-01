@@ -10,6 +10,9 @@ jaclang_source = "../.."
 [precommit]
 typecheck = true
 
+[test]
+directories = ["socialize", "leaderboard", "shared", "docs"]
+
 [check.lint]
 select = ["all", "strip-comments", "strip-docstrings"]
 exclude = [
@@ -62,15 +65,19 @@ lib_imports = ["import tailwindcss from '@tailwindcss/vite'"]
 [serve]
 base_route_app = "app"
 
+# Keeps local `jac run` single-process (vite dev + HMR) while the routes table
+# below still declares the deployed service cut. The deprecation warning says
+# to delete this, but without it `jac run` enters local microservice mode,
+# which serves no web app (see _planning/site_qa_jac_issues.md).
+[scale.microservices]
+enabled = false
+
 [client.assets]
 custom_extensions = [
     ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico",
     ".woff", ".woff2", ".ttf", ".otf", ".eot", ".mp4", ".webm", ".mp3",
     ".wav", ".css", ".js", ".json",
 ]
-
-[scale.microservices]
-enabled = false
 
 [client.app_meta_data]
 title = "The Jac Programming Language"

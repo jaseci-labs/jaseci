@@ -41,7 +41,7 @@ glob SCREEN_W: float = 960.0,
      SCREEN_H: float = 600.0;
 
 def open_window {
-    InitWindow(960, 600, "Jac Rocket Arena");
+    InitWindow(i32(960), i32(600), "Jac Rocket Arena");
 }
 
 def should_close -> bool {
@@ -53,11 +53,11 @@ def frame_dt -> float {
 }
 
 def key_held(code: int) -> bool {
-    return IsKeyDown(code);
+    return IsKeyDown(i32(code));
 }
 
 def key_tapped(code: int) -> bool {
-    return IsKeyPressed(code);
+    return IsKeyPressed(i32(code));
 }
 
 def mouse_x -> float {
@@ -69,7 +69,7 @@ def mouse_y -> float {
 }
 
 def mouse_pressed(button: int) -> bool {
-    return IsMouseButtonPressed(button);
+    return IsMouseButtonPressed(i32(button));
 }
 
 def lock_mouse {
@@ -99,7 +99,7 @@ def end_model {
 }
 
 def draw_fps(x: int, y: int) {
-    DrawFPS(x, y);
+    DrawFPS(i32(x), i32(y));
 }
 
 def _quad(

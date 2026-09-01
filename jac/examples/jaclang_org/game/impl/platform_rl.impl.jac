@@ -1,6 +1,6 @@
 impl begin_frame(r: int, g: int, b: int) {
     BeginDrawing();
-    rlClearColor(r, g, b, 255);
+    rlClearColor(u8(r), u8(g), u8(b), u8(255));
     rlClearScreenBuffers();
     rlEnableDepthTest();
 }
@@ -12,31 +12,31 @@ impl set_camera(
     far_plane = 400.0;
     top = near * 0.57735026;
     right = top * aspect;
-    rlMatrixMode(RL_PROJECTION);
+    rlMatrixMode(i32(RL_PROJECTION));
     rlLoadIdentity();
-    rlFrustum(-right, right, -top, top, near, far_plane);
-    rlMatrixMode(RL_MODELVIEW);
+    rlFrustum(f64(-right), f64(right), f64(-top), f64(top), f64(near), f64(far_plane));
+    rlMatrixMode(i32(RL_MODELVIEW));
     rlLoadIdentity();
-    rlRotatef(-pitch_deg, 1.0, 0.0, 0.0);
-    rlRotatef(-yaw_deg, 0.0, 1.0, 0.0);
-    rlTranslatef(-px, -py, -pz);
+    rlRotatef(f32(-pitch_deg), f32(1.0), f32(0.0), f32(0.0));
+    rlRotatef(f32(-yaw_deg), f32(0.0), f32(1.0), f32(0.0));
+    rlTranslatef(f32(-px), f32(-py), f32(-pz));
 }
 
 impl begin_overlay(width: float, height: float) {
     EndMode3D();
-    rlMatrixMode(RL_PROJECTION);
+    rlMatrixMode(i32(RL_PROJECTION));
     rlLoadIdentity();
-    rlOrtho(0.0, width, height, 0.0, -1.0, 1.0);
-    rlMatrixMode(RL_MODELVIEW);
+    rlOrtho(f64(0.0), f64(width), f64(height), f64(0.0), f64(-1.0), f64(1.0));
+    rlMatrixMode(i32(RL_MODELVIEW));
     rlLoadIdentity();
     rlDisableDepthTest();
 }
 
 impl begin_model(x: float, y: float, z: float, yaw_deg: float, pitch_deg: float) {
     rlPushMatrix();
-    rlTranslatef(x, y, z);
-    rlRotatef(yaw_deg, 0.0, 1.0, 0.0);
-    rlRotatef(pitch_deg, 1.0, 0.0, 0.0);
+    rlTranslatef(f32(x), f32(y), f32(z));
+    rlRotatef(f32(yaw_deg), f32(0.0), f32(1.0), f32(0.0));
+    rlRotatef(f32(pitch_deg), f32(1.0), f32(0.0), f32(0.0));
 }
 
 impl _quad(
@@ -53,12 +53,12 @@ impl _quad(
     p10: float,
     p11: float
 ) {
-    rlVertex3f(p0, p1, p2);
-    rlVertex3f(p3, p4, p5);
-    rlVertex3f(p6, p7, p8);
-    rlVertex3f(p0, p1, p2);
-    rlVertex3f(p6, p7, p8);
-    rlVertex3f(p9, p10, p11);
+    rlVertex3f(f32(p0), f32(p1), f32(p2));
+    rlVertex3f(f32(p3), f32(p4), f32(p5));
+    rlVertex3f(f32(p6), f32(p7), f32(p8));
+    rlVertex3f(f32(p0), f32(p1), f32(p2));
+    rlVertex3f(f32(p6), f32(p7), f32(p8));
+    rlVertex3f(f32(p9), f32(p10), f32(p11));
 }
 
 impl _shade(c: int, pct: int) -> int {
@@ -81,18 +81,18 @@ impl draw_box(
     hy = sy * 0.5;
     hz = sz * 0.5;
     rlPushMatrix();
-    rlTranslatef(cx, cy, cz);
-    rlBegin(RL_TRIANGLES);
+    rlTranslatef(f32(cx), f32(cy), f32(cz));
+    rlBegin(i32(RL_TRIANGLES));
 
-    rlColor4ub(_shade(r, 100), _shade(g, 100), _shade(b, 100), 255);
+    rlColor4ub(u8(_shade(r, 100)), u8(_shade(g, 100)), u8(_shade(b, 100)), u8(255));
     _quad(-hx, hy, hz, hx, hy, hz, hx, hy, -hz, -hx, hy, -hz);
-    rlColor4ub(_shade(r, 85), _shade(g, 85), _shade(b, 85), 255);
+    rlColor4ub(u8(_shade(r, 85)), u8(_shade(g, 85)), u8(_shade(b, 85)), u8(255));
     _quad(-hx, -hy, hz, hx, -hy, hz, hx, hy, hz, -hx, hy, hz);
     _quad(hx, -hy, -hz, -hx, -hy, -hz, -hx, hy, -hz, hx, hy, -hz);
-    rlColor4ub(_shade(r, 70), _shade(g, 70), _shade(b, 70), 255);
+    rlColor4ub(u8(_shade(r, 70)), u8(_shade(g, 70)), u8(_shade(b, 70)), u8(255));
     _quad(hx, -hy, hz, hx, -hy, -hz, hx, hy, -hz, hx, hy, hz);
     _quad(-hx, -hy, -hz, -hx, -hy, hz, -hx, hy, hz, -hx, hy, -hz);
-    rlColor4ub(_shade(r, 45), _shade(g, 45), _shade(b, 45), 255);
+    rlColor4ub(u8(_shade(r, 45)), u8(_shade(g, 45)), u8(_shade(b, 45)), u8(255));
     _quad(-hx, -hy, -hz, hx, -hy, -hz, hx, -hy, hz, -hx, -hy, hz);
 
     rlEnd();
@@ -101,29 +101,29 @@ impl draw_box(
 
 impl draw_floor(half: int, step: float) {
     ext = float(half) * step;
-    rlSetLineWidth(1.0);
-    rlBegin(RL_LINES);
-    rlColor4ub(52, 52, 58, 255);
+    rlSetLineWidth(f32(1.0));
+    rlBegin(i32(RL_LINES));
+    rlColor4ub(u8(52), u8(52), u8(58), u8(255));
     i = -half;
     while i <= half {
         f = float(i) * step;
-        rlVertex3f(f, 0.0, -ext);
-        rlVertex3f(f, 0.0, ext);
-        rlVertex3f(-ext, 0.0, f);
-        rlVertex3f(ext, 0.0, f);
+        rlVertex3f(f32(f), f32(0.0), f32(-ext));
+        rlVertex3f(f32(f), f32(0.0), f32(ext));
+        rlVertex3f(f32(-ext), f32(0.0), f32(f));
+        rlVertex3f(f32(ext), f32(0.0), f32(f));
         i += 1;
     }
     rlEnd();
 }
 
 impl draw_rect2d(x: float, y: float, w: float, h: float, r: int, g: int, b: int) {
-    rlBegin(RL_TRIANGLES);
-    rlColor4ub(r, g, b, 255);
-    rlVertex3f(x, y, 0.0);
-    rlVertex3f(x, y + h, 0.0);
-    rlVertex3f(x + w, y + h, 0.0);
-    rlVertex3f(x, y, 0.0);
-    rlVertex3f(x + w, y + h, 0.0);
-    rlVertex3f(x + w, y, 0.0);
+    rlBegin(i32(RL_TRIANGLES));
+    rlColor4ub(u8(r), u8(g), u8(b), u8(255));
+    rlVertex3f(f32(x), f32(y), f32(0.0));
+    rlVertex3f(f32(x), f32(y + h), f32(0.0));
+    rlVertex3f(f32(x + w), f32(y + h), f32(0.0));
+    rlVertex3f(f32(x), f32(y), f32(0.0));
+    rlVertex3f(f32(x + w), f32(y + h), f32(0.0));
+    rlVertex3f(f32(x + w), f32(y), f32(0.0));
     rlEnd();
 }

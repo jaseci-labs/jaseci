@@ -192,7 +192,7 @@ def:pub Showcase -> JsxElement {
                                     points={[
                                         "await add_todo(...) is a real RPC — HTTP call, serialization, and shared types, all generated.",
                                         "Rename a field: every stale use on either side is a compile error.",
-                                        "jac start serves it. jac start --dev adds hot reload.",
+                                        "jac run --serve serves it. jac run --dev adds hot reload.",
 
                                     ]}
                                     link_label="Full-stack tutorial"
