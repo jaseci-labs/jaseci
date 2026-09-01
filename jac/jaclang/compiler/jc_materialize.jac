@@ -37,6 +37,9 @@ import from c { def PySet_New(i: int) -> int;  }
 import from c { def PyWeakref_NewRef(o: int, cb: int) -> int;  }
 import from c { def Py_IncRef(o: int) -> int;  }
 import from c { def Py_DecRef(o: int) -> int;  }
+import from c { def PyGC_Disable() -> int;  }
+import from c { def PyGC_Enable() -> int;  }
+import from c { def PyGC_IsEnabled() -> int;  }
 
 glob CODE_SKIP: int = 0,
      CODE_INT: int = 1,
@@ -80,6 +83,7 @@ obj MzConsts {
         k_in: int = 0,
         k_jac: int = 0,
         k_shapes: int = 0,
+        k_arch: int = 0,
         body_h: int = 0,
         spec_h: int = 0,
         acc_h: int = 0;
@@ -101,7 +105,8 @@ def:pub jc_reg_consts(
     k_out: int,
     k_in: int,
     k_jac: int,
-    k_shapes: int
+    k_shapes: int,
+    k_arch: int
 ) -> int {
     _K.none_h = none_h;
     _K.true_h = true_h;
@@ -114,6 +119,7 @@ def:pub jc_reg_consts(
     _K.k_in = k_in;
     _K.k_jac = k_jac;
     _K.k_shapes = k_shapes;
+    _K.k_arch = k_arch;
     return 0;
 }
 
@@ -187,11 +193,20 @@ def hint_commentdata -> int {
 }
 
 def _ld64u(buf: bytes, off: int) -> int {
-    return int.from_bytes(buf[off:off + 8], "little");
+    return (
+        buf[off]
+        | (buf[off + 1] << 8)
+        | (buf[off + 2] << 16)
+        | (buf[off + 3] << 24)
+        | (buf[off + 4] << 32)
+        | (buf[off + 5] << 40)
+        | (buf[off + 6] << 48)
+        | (buf[off + 7] << 56)
+    );
 }
 
 def _ld64s(buf: bytes, off: int) -> int {
-    v = int.from_bytes(buf[off:off + 8], "little");
+    v = _ld64u(buf, off);
     if v >= 9223372036854775808 {
         v -= 18446744073709551616;
     }
@@ -199,7 +214,7 @@ def _ld64s(buf: bytes, off: int) -> int {
 }
 
 def _ld8(buf: bytes, off: int) -> int {
-    return int.from_bytes(buf[off:off + 1], "little");
+    return buf[off];
 }
 
 def _peek64(addr: int) -> int {
@@ -238,7 +253,7 @@ obj Mz {
 glob _LAST: list[Mz] = [];
 
 def _enqueue(m: Mz, h: int, hint: int) -> None {
-    if h != 0 and h not in m.map {
+    if h != 0 {
         m.q.append(h);
         m.q_hint.append(hint);
     }
@@ -440,22 +455,14 @@ def _patch_refs(m: Mz) -> None {
     n = len(m.ref_o);
     i = 0;
     while i < n {
-        t = m.ref_t[i];
-        po = 0;
-        if t in m.map {
-            po = m.map[t];
-        }
+        po = m.map.get(m.ref_t[i], 0);
         PyObject_SetAttr(m.ref_o[i], m.ref_k[i], po if po != 0 else _K.none_h);
         i += 1;
     }
     n = len(m.lst_l);
     i = 0;
     while i < n {
-        t = m.lst_t[i];
-        po = 0;
-        if t in m.map {
-            po = m.map[t];
-        }
+        po = m.map.get(m.lst_t[i], 0);
         if po == 0 {
             po = _K.none_h;
         }
@@ -479,10 +486,7 @@ def _edge_dict_from_pairs(m: Mz, h: int, dir: int, weak: int) -> int {
         if tg not in _EDGE {
             continue;
         }
-        if t not in m.map {
-            continue;
-        }
-        val = m.map[t];
+        val = m.map.get(t, 0);
         if val == 0 {
             continue;
         }
@@ -524,13 +528,31 @@ def _edge_dict_from_pairs(m: Mz, h: int, dir: int, weak: int) -> int {
     return d;
 }
 
+glob ANCHOR_TAG: int = 1;
+
+def _new_anchor(o: int) -> int {
+    if ANCHOR_TAG not in _CLS {
+        return PyObject_GetAttr(o, _K.k_jac);
+    }
+    row: ClassRow = _CLS[ANCHOR_TAG];
+    a = PyType_GenericAlloc(row.cls_h, 0);
+    if a == 0 {
+        PyErr_Clear();
+        return 0;
+    }
+    _fill_defaults(row, a);
+    PyObject_SetAttr(a, _K.k_arch, o);
+    PyObject_SetAttr(o, _K.k_jac, a);
+    return a;
+}
+
 def _edge_lists(m: Mz, h: int, o: int) -> None {
     d_out = _edge_dict_from_pairs(m, h, 2, 0);
     d_in = _edge_dict_from_pairs(m, h, 1, 1);
     if d_out == 0 and d_in == 0 {
         return;
     }
-    anchor = PyObject_GetAttr(o, _K.k_jac);
+    anchor = _new_anchor(o);
     if anchor != 0 {
         if d_out != 0 {
             PyObject_SetAttr(anchor, _K.k_out, d_out);
@@ -551,6 +573,10 @@ def _edge_lists(m: Mz, h: int, o: int) -> None {
 }
 
 def _run(start_h: int, start_hint: int, do_edges: int) -> int {
+    gc_was = PyGC_IsEnabled();
+    if gc_was != 0 {
+        PyGC_Disable();
+    }
     m = Mz(
         map={},
         q=[],
@@ -596,6 +622,9 @@ def _run(start_h: int, start_hint: int, do_edges: int) -> int {
         _LAST.pop();
     }
     _LAST.append(m);
+    if gc_was != 0 {
+        PyGC_Enable();
+    }
     return out;
 }
 

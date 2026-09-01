@@ -89,6 +89,26 @@ def:pub jc_finish -> int {
     }
     jc_mz_dispose();
     _JC.mod = None;
+    jc_graph_wipe();
+    return out;
+}
+
+def:pub jc_finish_probe(mode: int) -> int {
+    mod = _JC.mod;
+    if mod is None {
+        return 0;
+    }
+    out = 0;
+    if mode == 2 {
+        out = jc_mz_obj(id(mod), 0);
+    } else {
+        out = jc_mz_run(id(mod));
+        if mode == 0 and out != 0 {
+            _apply_shapes(mod);
+        }
+    }
+    jc_mz_dispose();
+    _JC.mod = None;
     return out;
 }
 

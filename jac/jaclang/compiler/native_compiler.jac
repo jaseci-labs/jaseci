@@ -111,7 +111,7 @@ class NativeCompiler {
             fn.argtypes = [];
             fn.restype = c_void_p;
         }
-        L.jc_reg_consts.argtypes = [c_int64] * 11;
+        L.jc_reg_consts.argtypes = [c_int64] * 12;
         L.jc_reg_consts.restype = c_int64;
         L.jc_reg_shape_roles.argtypes = [c_int64] * 3;
         L.jc_reg_shape_roles.restype = c_int64;
@@ -211,11 +211,16 @@ class NativeCompiler {
                     flags = 1;
                 }
             } elif code in ("optref", "obj") {
-                if aux not in self.layout or aux not in self.classes {
+                if code == "obj" and aux == "" {
+                    # Erased type var (e.g. SubTag[T].tag): a node ref whose
+                    # class is runtime-discriminated by the target's tag.
+                    nat_code = CODE_OBJ;
+                } elif aux not in self.layout or aux not in self.classes {
                     continue;
+                } else {
+                    nat_code = CODE_OPTREF if code == "optref" else CODE_OBJ;
+                    aux_tag = self._class_tag(aux);
                 }
-                nat_code = CODE_OPTREF if code == "optref" else CODE_OBJ;
-                aux_tag = self._class_tag(aux);
             } elif code == "opaque" {
                 import re;
                 m = re.fullmatch(
@@ -328,7 +333,8 @@ class NativeCompiler {
             self._intern("out_light"),
             self._intern("in_light"),
             self._intern("__jac__"),
-            self._intern("_role_shapes")
+            self._intern("_role_shapes"),
+            self._intern("archetype")
         );
         self.lib.jc_reg_shape_roles(
             self._hold(BodyRole), self._hold(SpecRole), self._hold(AccessorsRole)
@@ -345,6 +351,9 @@ class NativeCompiler {
             self._register_defaults(cls, tag);
             self._register_fields(name, cls, tag);
         }
+        import from jaclang.runtime.archetype { NodeAnchor }
+        self.lib.jc_reg_class(1, self._hold(NodeAnchor), 0, 0, 0);
+        self._register_defaults(NodeAnchor, 1);
         self._register_edges();
         self.lib.jc_reg_hint_tags(
             stable_osp_tag("SrcDiag"), stable_osp_tag("CommentData")
