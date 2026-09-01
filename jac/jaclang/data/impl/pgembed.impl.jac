@@ -654,7 +654,7 @@ impl PgRuntime._start(bin_dir: str) -> None {
             with open(log_path) as f {
                 tail = ''.join(f.readlines()[-15:]);
             }
-        } except OSError { }
+        } except OSError {}
         assert False , f"postgres failed to start: {res.stderr.strip()}\n{tail}";
     }
 }

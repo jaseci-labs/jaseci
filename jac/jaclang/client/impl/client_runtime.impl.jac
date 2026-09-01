@@ -189,7 +189,7 @@ impl JacForm(props: dict[str, any]) -> JsxElement {
             if schema.unwrap {
                 return unwrapZodSchema(schema.unwrap(), depth + 1);
             }
-        } except Exception { }
+        } except Exception {}
         if not schema._def {
             return schema;
         }

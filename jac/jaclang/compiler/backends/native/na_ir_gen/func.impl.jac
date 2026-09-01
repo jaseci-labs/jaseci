@@ -40,8 +40,11 @@ impl NaIRGenFunc._maybe_declare_ability(nd: uni.ElementStmt) -> None {
     if nd.signature is None or not isinstance(nd.signature, uni.FuncSignature) {
         return;
     }
+    if nd.is_comptime {
+        return;
+    }
     name = nd.name_ref.sym_name if nd.name_ref else "unnamed";
-    if nd.type_params {
+    if nd.type_params or self._ability_has_ct_params(nd) {
         self.generic_fns[name] = nd;
         self.has_native_code = True;
         return;
@@ -196,7 +199,7 @@ impl NaIRGenFunc._elem_keys_of_annotation(ann: (uni.UniNode | None)) -> (list | 
         if _etb is not None {
             try {
                 _ek = self._normalize_type_key(self._mangled_of(_etb));
-            } except Exception { }
+            } except Exception {}
         }
         keys.append(_ek);
     }
@@ -217,7 +220,7 @@ impl NaIRGenFunc._record_ret_facts(name: str, sig: uni.FuncSignature) -> None {
             self.func_ret_type_key[name] = self._normalize_type_key(
                 self._mangled_of(_rtb)
             );
-        } except Exception { }
+        } except Exception {}
     }
     keys = self._elem_keys_of_annotation(_rt);
     if keys {
@@ -380,11 +383,18 @@ impl NaIRGenFunc._declare_clib_ability(nd: uni.Ability) -> None {
 
 impl NaIRGenFunc._codegen_ability(nd: uni.Ability) -> None {
     name = (nd).name_ref.sym_name if (nd).name_ref else "unnamed";
-    if nd.type_params and self._mono_solution is None {
+    if nd.is_comptime {
+        return;
+    }
+    if (nd.type_params or self._ability_has_ct_params(nd))
+        and self._mono_solution is None {
         return;
     }
     func = self.func_symtab.get(name);
     if func is None {
+        if id(nd) in self._capability_demotions {
+            self._claimed_capability_demotions.add(id(nd));
+        }
         return;
     }
 
@@ -1619,7 +1629,7 @@ impl NaIRGenFunc._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
                     "DILocation", {"line": 1, "column": 0, "scope": _di_init_sp}
                 );
                 _init_call.set_metadata("dbg", _di_init_loc);
-            } except Exception { }
+            } except Exception {}
         }
         if _guard_kernel {
             self.builder.branch(_gk_done);

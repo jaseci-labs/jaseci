@@ -4,5 +4,7 @@ import jaclang.compiler.frontend.unitree as uni;
 
 obj NaIRGenContextMgr(NaIRGenState) {
     def _codegen_with(nd: uni.WithStmt) -> None;
-    def _codegen_with_recursive(exprs: object, idx: int, body: object) -> None;
+    def _codegen_with_recursive(
+        exprs: Sequence[uni.ExprAsItem], idx: int, body: Sequence[uni.CodeBlockStmt]
+    ) -> None;
 }

@@ -5,7 +5,7 @@ import from jaclang.compiler.frontend.constant { Tokens as Tok }
 glob _CLOSING_DELIMS = [Tok.RBRACE, Tok.RPAREN, Tok.RSQUARE],
      _OPENING_DELIMS = [Tok.LBRACE, Tok.LPAREN, Tok.LSQUARE];
 
-impl CommentAttachPass.transform(ir_in: uni.Module) -> uni.Module {
+impl CommentAttachPass._run_impl(ir_in: uni.Module) -> uni.Module {
     if not isinstance(ir_in, uni.Module) {
         return ir_in;
     }
@@ -115,4 +115,16 @@ impl CommentAttachPass._largest_starting_at(tok: uni.Token) -> uni.UniNode {
         cur = cur.parent;
     }
     return target;
+}
+
+impl CommentAttachPass.transform(ir_in: uni.Module) -> uni.Module {
+    self.ir_out = ir_in;
+    ir_in spawn self;
+    out = self.ir_out;
+    assert isinstance(out, uni.Module);
+    return out;
+}
+
+impl CommentAttachPass.run_walk with uni.Module entry {
+    self.ir_out = self._run_impl(here);
 }
