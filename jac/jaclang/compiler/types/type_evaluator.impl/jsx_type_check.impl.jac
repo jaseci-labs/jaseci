@@ -85,17 +85,10 @@ impl TypeEvaluator._resolve_intrinsic_jsx_tag(part: Name, tag_name: str) -> None
     }
 }
 
-impl TypeEvaluator._is_jsx_tag_node(expr: JsxElement) -> bool {
-    if expr.is_self_closing or expr.is_fragment or not expr.kid {
-        return False;
-    }
-    return isinstance(expr.kid[0], Token);
-}
-
 impl TypeEvaluator._validate_jsx_props(
     expr: JsxElement, expected_type: TypeBase | None = None
 ) -> None {
-    if not expr.name or self._is_jsx_tag_node(expr) {
+    if not expr.name {
         return;
     }
     first_part = expr.name.parts[0] if expr.name.parts else None;

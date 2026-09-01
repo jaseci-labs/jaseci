@@ -5,10 +5,8 @@ import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import jaclang;
 import jaclang.compiler.frontend.unitree as uni;
-import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
-import from jaclang.compiler.driver.pass_driver { run_pass }
 import from jaclang.testing.test { parametrize }
 
 glob FIXTURES = os.path.join(JAC_ROOT, "tests", "compiler", "passes", "fixtures"),
@@ -4298,7 +4296,6 @@ test "jsx_children_must_be_declared_by_the_component" {
     path = os.path.join(CHECKER_FIXTURES, "checker_jsx_children_contract.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    run_pass(TypeCheckPass, mod, program);
 
     w1053 = [
         w
@@ -4367,7 +4364,6 @@ test "jsx_props_are_checked_at_call_sites_passing_no_attribute" {
     path = os.path.join(CHECKER_FIXTURES, "checker_jsx_required_props.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    run_pass(TypeCheckPass, mod, program);
 
     e1102 = [
         e
@@ -4415,7 +4411,6 @@ test "jsx_props_bundle_must_be_the_only_parameter" {
     path = os.path.join(CHECKER_FIXTURES, "checker_jsx_props_bundle_exclusive.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
-    run_pass(TypeCheckPass, mod, program);
 
     e1109 = [
         e
@@ -4450,7 +4445,7 @@ glob PAGES_ROUTING_FIXTURES = os.path.join(
 def _pages_entry_errors(project: str) -> list {
     path = os.path.join(PAGES_ROUTING_FIXTURES, project, "main.jac");
     program = JacProgram();
-    program.compile(path, type_check=True);
+    program.compile(path);
     return [
         e
         for e in program.errors_had

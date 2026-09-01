@@ -755,7 +755,6 @@ walker TypeEvaluator {
     ) -> None;
 
     def _has_rendered_jsx_children(expr: JsxElement) -> bool;
-    def _is_jsx_tag_node(expr: JsxElement) -> bool;
     def _validate_intrinsic_jsx_props(expr: JsxElement, tag_name: str) -> None;
     def _resolve_intrinsic_jsx_tag(part: Name, tag_name: str) -> None;
     def validate_typevar_in_type_expr(expr: Expr) -> None;
