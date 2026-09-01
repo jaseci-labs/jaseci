@@ -435,7 +435,7 @@ impl __jacReportError(
                 )
             }
         );
-    } except Exception { }
+    } except Exception {}
 }
 
 impl __jacReactErrorHandler(error: any, info: any) -> None {
@@ -444,5 +444,5 @@ impl __jacReactErrorHandler(error: any, info: any) -> None {
         stack = error.stack if error else "";
         componentStack = info.componentStack if info else "";
         __jacReportError(message, stack, "", "ErrorBoundary", componentStack);
-    } except Exception { }
+    } except Exception {}
 }

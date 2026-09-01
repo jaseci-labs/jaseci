@@ -403,8 +403,8 @@ select = ["combine-has", "remove-empty-parens"]
 | `simplify-ternary` | `W3008` | Simplify `x if x else default` to `x or default` | default |
 | `remove-future-annotations` | `W3009` | Remove `import from __future__ { annotations }` (not needed in Jac) | default |
 | `fix-impl-signature` | `W3010` | Fix signature mismatches between declarations and implementations | default |
-| `remove-import-semi` | `W3011` | Remove trailing semicolons from `import from X { ... }` | default |
 | `no-print` | `E3012` | Error on bare `print()` calls (use console abstraction instead) | all |
+| `remove-redundant-semi` | `W3013` | Remove standalone no-op semicolons from any body (`{;}` → `{}`, `x = 1;;` → `x = 1;`); `remove-import-semi` is an accepted alias for this rule | default |
 | `strip-comments` | `W3050` | Remove **all** comments | opt-in |
 | `strip-docstrings` | `W3051` | Remove **all** docstrings | opt-in |
 

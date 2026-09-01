@@ -294,7 +294,7 @@ obj PythonProvider(EcosystemProvider) {
                     {(p["name"].lower(), p["version"]) for p in json.loads(out)}
                 );
             }
-        } except Exception { }
+        } except Exception {}
         return (False, set());
     }
 

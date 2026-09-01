@@ -167,7 +167,8 @@ impl NaIRGenDicts._emit_dict_helpers(
     if not self._nogc_headerless() {
         _rel_fnty = ir.FunctionType(ir.VoidType(), [dict_ptr_type]);
         try {
-            _rel_fn_decl = self.llvm_module.get_global(_rel_fn_name);
+            _found = self.llvm_module.get_global(_rel_fn_name);
+            _rel_fn_decl = _found if isinstance(_found, ir.Function) else None;
         } except KeyError {
             _rel_fn_decl = ir.Function(self.llvm_module, _rel_fnty, name=_rel_fn_name);
             _rel_fn_decl.linkage = "private";
@@ -223,7 +224,9 @@ impl NaIRGenDicts._emit_dict_helpers(
 }
 
 impl NaIRGenDicts._box_to_jacval(value: ir.Value) -> ir.Value {
-    value = self._str_norm(value);
+    _normed = self._str_norm(value);
+    assert _normed is not None , "a boxed value is always present";
+    value = _normed;
     b = self.builder;
     i8 = ir.IntType(8);
     i32 = ir.IntType(32);
@@ -374,9 +377,15 @@ impl NaIRGenDicts._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
     }
 
     _dk_args = nd.type.private.type_args
-        if (isinstance(nd, uni.Expr) and nd.type is not None)
+        if (
+            isinstance(nd, uni.Expr)
+            and isinstance(nd.type, ClassType)
+            and nd.type.private is not None
+        )
         else [];
-    _k_store = self._elem_storage_llvm(_dk_args[0]) if len(_dk_args) >= 2 else None;
+    _k_store = self._elem_storage_llvm(_dk_args[0])
+        if (_dk_args is not None and len(_dk_args) >= 2)
+        else None;
     if _k_store is not None and self?.jacval_type and _k_store == self.jacval_type {
         self.emit(
             E5092,
@@ -432,6 +441,9 @@ impl NaIRGenDicts._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
         else 0}";
 
     first_val = self._nogc_elem_prep(first_pair.value, first_val);
+    if first_val is None {
+        return None;
+    }
     if not use_jacval
         and self._reject_ptr_into_raw_slot(nd, first_val, val_type, "dict value") {
         return dict_val;
@@ -461,6 +473,9 @@ impl NaIRGenDicts._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
         v = self._codegen_expr(pair.value);
         if k is not None and v is not None {
             v = self._nogc_elem_prep(pair.value, v);
+            if v is None {
+                return None;
+            }
             if not use_jacval
                 and self._reject_ptr_into_raw_slot(nd, v, val_type, "dict value") {
                 return dict_val;

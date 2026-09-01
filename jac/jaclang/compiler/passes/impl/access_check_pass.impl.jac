@@ -2,7 +2,7 @@ impl AccessCheckPass.postinit -> None {
     super.postinit();
 }
 
-impl AccessCheckPass.transform(ir_in: Module) -> Module {
+impl AccessCheckPass._run_impl(ir_in: Module) -> Module {
     self._enforce = ir_in.access_enforced;
 
     checked: set[int] = set();
@@ -137,4 +137,16 @@ impl AccessCheckPass._is_subclass_of(child: Archetype, ancestor: Archetype) -> b
         }
     }
     return False;
+}
+
+impl AccessCheckPass.transform(ir_in: Module) -> Module {
+    self.ir_out = ir_in;
+    ir_in spawn self;
+    out = self.ir_out;
+    assert isinstance(out, Module);
+    return out;
+}
+
+impl AccessCheckPass.run_walk with Module entry {
+    self.ir_out = self._run_impl(here);
 }

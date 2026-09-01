@@ -18,9 +18,7 @@ class ContextRef(ffi.ObjectRef) {
 }
 
 class GlobalContextRef(ContextRef) {
-    def _dispose(self: GlobalContextRef) -> object {
-        ;
-    }
+    def _dispose(self: GlobalContextRef) -> object {}
 }
 
 with entry {

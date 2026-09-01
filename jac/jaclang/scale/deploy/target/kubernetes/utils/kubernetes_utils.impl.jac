@@ -271,7 +271,17 @@ impl cluster_type -> str {
             }
         }
         return 'local';
-    } except Exception {
+    } except ApiException as exc {
+        console.print(
+            f"[warn] could not read cluster nodes to detect the provider "
+            f"(HTTP {exc.status} {exc.reason}). {_LOCAL_FALLBACK_NOTE}"
+        );
+        return 'local';
+    } except Exception as exc {
+        console.print(
+            f"[warn] provider detection failed "
+            f"({type(exc).__name__}: {exc}). {_LOCAL_FALLBACK_NOTE}"
+        );
         return 'local';
     }
 }
@@ -425,9 +435,7 @@ impl delete_if_exists(
     try {
         delete_func(name, namespace);
     } except ApiException as e {
-        if (e.status == 404) {
-            ;
-        } else {
+        if (e.status == 404) {} else {
             raise;
         }
     }

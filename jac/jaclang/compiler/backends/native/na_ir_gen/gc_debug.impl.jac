@@ -42,7 +42,8 @@ impl NaIRGenGcDebug._emit_rc_debug_globals -> None {
                 or ("macos" in _triple)
                 or ("ios" in _triple);
             _stderr_name = "__stderrp" if _is_darwin else "stderr";
-            if _stderr_name not in self.extern_funcs {
+
+            if _stderr_name not in self.llvm_module.globals {
                 _stderr_gv = ir.GlobalVariable(
                     self.llvm_module, i8_ptr, name=_stderr_name
                 );
@@ -50,7 +51,6 @@ impl NaIRGenGcDebug._emit_rc_debug_globals -> None {
                 if "windows" in _triple {
                     _stderr_gv.storage_class = "dllimport";
                 }
-                self.extern_funcs[_stderr_name] = _stderr_gv;
             }
             _fprintf_fn = self._get_or_declare_extern(
                 "fprintf", i32, [i8_ptr, i8_ptr], var_arg=True
@@ -62,7 +62,9 @@ impl NaIRGenGcDebug._emit_rc_debug_globals -> None {
             _notice_ptr = _b_en.gep(
                 _notice, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="en.notice"
             );
-            _stderr_val = _b_en.load(self.extern_funcs[_stderr_name], name="en.stderr");
+            _stderr_val = _b_en.load(
+                self.llvm_module.get_global(_stderr_name), name="en.stderr"
+            );
             _b_en.call(_fprintf_fn, [_stderr_val, _notice_ptr]);
         }
     }
@@ -337,7 +339,7 @@ impl NaIRGenGcDebug._emit_raw_free_bbs(
         _triple = str(self.llvm_module.triple or "").lower();
         _raw_msz = b.gep(ptr, [ir.Constant(i64, HDR_ALLOC_ID_OFF)], name="raw.msz");
         if "wasm" in _triple {
-            _msz = ir.Constant(i64, 0);
+            _msz: ir.Value = ir.Constant(i64, 0);
         } else {
             _is_darwin = ("darwin" in _triple)
                 or ("apple" in _triple)
@@ -412,7 +414,7 @@ impl NaIRGenGcDebug._emit_struct_free_log(
 
     _triple = str(self.llvm_module.triple or "").lower();
     if "wasm" in _triple {
-        _msz2 = ir.Constant(i64, 0);
+        _msz2: ir.Value = ir.Constant(i64, 0);
     } else {
         _is_darwin = ("darwin" in _triple)
             or ("apple" in _triple)

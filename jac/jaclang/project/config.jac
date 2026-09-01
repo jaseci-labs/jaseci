@@ -68,6 +68,9 @@ obj BuildConfig {
 
 obj TestConfig {
     has directory: str = "",
+        directories: list[str] = [],
+        isolate: list[str] = [],
+        serial: list[str] = [],
         filter: str = "",
         verbose: bool = False,
         fail_fast: bool = False,
@@ -144,7 +147,10 @@ obj ClientConfig {
 
 obj DevConfig {
     has jaclang_source: str = "",
-        test_jobs: str = "auto";
+        jobs: str = "",
+        test_jobs: str = "",
+        check_jobs: str = "",
+        fmt_jobs: str = "";
 }
 
 def interpolate_env_vars(value: str) -> str;
