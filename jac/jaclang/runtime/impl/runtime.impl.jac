@@ -234,7 +234,7 @@ impl JacWalker.`visit(
     }
     items: list = `list(expr)
         if isinstance(expr, `list)
-        else ([expr] if isinstance(expr, (NodeArchetype, EdgeArchetype)) else []);
+        else ([expr] if is_arch_object(expr) else []);
     targets: list = [];
     for arch in items {
         anchor = arch.__jac__;
@@ -329,7 +329,7 @@ impl JacWalker.`spawn(
             return `edge;
         } elif (
             isinstance(t, `list)
-            and all(isinstance(i, (NodeArchetype, EdgeArchetype)) for i in t)
+            and all(is_arch_object(i) for i in t)
         ) {
             return collect_targets(`walker, t);
         } else {
@@ -1045,7 +1045,7 @@ impl JacGraph.refs(
         out: list[(NodeArchetype | EdgeArchetype)] = [];
         for a in planned {
             arch = a.archetype;
-            if isinstance(arch, (NodeArchetype, EdgeArchetype)) {
+            if is_arch_object(arch) {
                 out.append(arch);
             }
         }
@@ -1113,13 +1113,19 @@ impl JacGraph.connect(
             return _npy_b.connect(left, right, `edge);
         }
     }
+    _l_node = isinstance(left, NodeArchetype) or getattr(
+        `type(left), "__npy_native__", False
+    );
+    _r_node = isinstance(right, NodeArchetype) or getattr(
+        `type(right), "__npy_native__", False
+    );
     if (
         not undir
         and conn_assign is None
         and not edges_only
         and isinstance(`edge, `type)
-        and isinstance(left, NodeArchetype)
-        and isinstance(right, NodeArchetype)
+        and _l_node
+        and _r_node
     ) {
         light = _light_edge_types.get(`edge);
         if light is None {
@@ -1138,9 +1144,9 @@ impl JacGraph.connect(
             }
         }
     }
-    left = [left] if isinstance(left, NodeArchetype) else left;
-    right_is_node = isinstance(right, NodeArchetype);
-    right = [right] if isinstance(right, NodeArchetype) else right;
+    left = [left] if _l_node else left;
+    right_is_node = _r_node;
+    right = [right] if _r_node else right;
     edges = [];
     for i in left {
         _left = i.__jac__;

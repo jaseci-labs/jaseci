@@ -43,6 +43,7 @@ import from jaclang.runtime.constructs {
     Archetype,
     EdgeAnchor,
     EdgeArchetype,
+    is_arch_object,
     JsxElement,
     NodeAnchor,
     NodeArchetype,

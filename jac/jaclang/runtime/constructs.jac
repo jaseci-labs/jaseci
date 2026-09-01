@@ -6,6 +6,7 @@ import from jaclang.runtime.archetype {
     EdgeAnchor,
     EdgeArchetype,
     GenericEdge,
+    is_arch_object,
     JsxElement,
     NodeAnchor,
     NodeArchetype,

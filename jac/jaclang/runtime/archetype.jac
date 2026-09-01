@@ -280,6 +280,14 @@ obj JsxElement {
 }
 
 
+def is_arch_object(o: object) -> bool {
+    """A node/edge endpoint: a runtime archetype, or a native unitree
+    object (the bridge types do not subclass the runtime archetypes)."""
+    return isinstance(o, (NodeArchetype, EdgeArchetype)) or getattr(
+        `type(o), "__npy_native__", False
+    );
+}
+
 def is_light_edge_type(cls: type) -> bool {
     known = _light_edge_types.get(cls);
     if known is not None {

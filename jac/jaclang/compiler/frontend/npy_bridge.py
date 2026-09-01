@@ -96,6 +96,21 @@ def _addr(obj) -> int:
     return id(obj)
 
 
+def _enum_decode(cls, raw: int):
+    """Native enum slots follow the backend's per-enum convention: int-valued
+    enums store the member VALUE, string-valued enums store the ORDINAL
+    (na_ir_gen/enums.impl.jac)."""
+    if isinstance(next(iter(cls)).value, int):
+        return cls(raw)
+    return list(cls)[raw]
+
+
+def _enum_encode(cls, member) -> int:
+    if isinstance(member.value, int):
+        return int(member.value)
+    return list(cls).index(member)
+
+
 def _generic_get_dict(self):
     api = ctypes.pythonapi
     api.PyObject_GenericGetDict.restype = py_object
@@ -420,10 +435,16 @@ class NpyBridge:
             "__init_subclass__", "__set_name__",
         }
         # Classes the native type already inherits from must not be
-        # flattened either — their methods arrive through the MRO.
+        # flattened either — their methods arrive through the MRO. typing
+        # machinery (Generic) is C-guarded against foreign types; generic
+        # twins get an erasure __class_getitem__ below instead.
         inherited = set(t.__mro__)
+        is_generic = False
         for cls in reversed(twin.__mro__):
             if cls is object or cls in inherited:
+                continue
+            if cls.__module__ == "typing":
+                is_generic = True
                 continue
             owner_native = t
             if (
@@ -445,6 +466,10 @@ class NpyBridge:
                     setattr(t, k, self._flatten_member(v, owner_native))
                 except (TypeError, AttributeError):
                     pass
+        if is_generic:
+            # Runtime type params are erased: SubTag[Token] constructs a
+            # plain SubTag, exactly what subscripted twin calls need.
+            t.__class_getitem__ = classmethod(lambda cls, _item: cls)
 
     def _alias_mangled(self, t: type, fname: str) -> None:
         """Twin bytecode reaches a __-prefixed field through its compile-time
@@ -490,7 +515,7 @@ class NpyBridge:
                             if not cast(a, POINTER(ctypes.c_uint8))[0]:
                                 return None
                             raw = cast(a + 8, POINTER(ctypes.c_int64))[0]
-                            return list(_ec)[raw]
+                            return _enum_decode(_ec, raw)
 
                         def oeset(self, value, _off=off, _ec=_ecls):
                             a = _addr(self) + _off
@@ -499,7 +524,7 @@ class NpyBridge:
                                 return
                             cast(a, POINTER(ctypes.c_uint8))[0] = 1
                             cast(a + 8, POINTER(ctypes.c_int64))[0] = (
-                                list(_ec).index(value)
+                                _enum_encode(_ec, value)
                                 if isinstance(value, _ec)
                                 else int(value)
                             )
@@ -553,17 +578,18 @@ class NpyBridge:
                 enum_name = f["aux"]
 
                 def eget(self, _f="__npy_raw_" + fname, _en=enum_name):
-                    # Native enum slots hold the member ORDINAL.
                     import jaclang.compiler.frontend.constant as constant
 
-                    return list(getattr(constant, _en))[getattr(self, _f)]
+                    return _enum_decode(
+                        getattr(constant, _en), getattr(self, _f)
+                    )
 
                 def eset(self, value, _f="__npy_raw_" + fname, _en=enum_name):
                     import jaclang.compiler.frontend.constant as constant
 
                     cls = getattr(constant, _en)
                     if isinstance(value, cls):
-                        setattr(self, _f, list(cls).index(value))
+                        setattr(self, _f, _enum_encode(cls, value))
                     else:
                         setattr(self, _f, int(value))
 
@@ -664,6 +690,27 @@ class NpyBridge:
         # A slot-backed field on this class wins over a role getter an MRO
         # ancestor contributes under the same name.
         seen: set[str] = set(fields)
+        from jaclang.compiler.frontend.npy_roles import ROLE_SETTERS
+
+        implof_tag = _stable_tag("ImplOf")
+        scope_parent_tag = _stable_tag("ScopeParent")
+
+        def make_setter(shape: str, tag: int):
+            if shape == "std":
+                def sset(self, value, _tag=tag):
+                    lib.npy_role_clear(_addr(self), 2, _tag)
+                    if value is not None:
+                        lib.npy_conn(_addr(self), _addr(value), _tag)
+                return sset
+            if shape == "parent_scope":
+                def pset(self, value, _ct=tag, _pt=scope_parent_tag):
+                    lib.npy_role_clear(_addr(self), 1, _ct)
+                    lib.npy_role_clear(_addr(self), 2, _pt)
+                    if value is not None:
+                        lib.npy_conn(_addr(self), _addr(value), _pt)
+                return pset
+            raise ValueError(f"unknown setter shape {shape!r}")
+
         for cls_name in [name] + [b.__name__ for b in t.__npy_twin__.__mro__]:
             for fname, (role, direction, kind) in (
                 self._roles().get(cls_name, {}).items()
@@ -673,6 +720,80 @@ class NpyBridge:
                 seen.add(fname)
                 tag = _stable_tag(role)
                 if kind == "complex":
+                    # Twin property stays flattened; its edge refs run
+                    # through the runtime graph seam.
+                    continue
+                if kind == "parent":
+                    # Hand-installed by _install_parent on every type.
+                    continue
+                setter_shape = ROLE_SETTERS.get(cls_name, {}).get(fname)
+
+                if kind in ("py_value", "py_value_many"):
+                    # Python-object values (TypeBase and friends) cannot be
+                    # kernel edges; the instance dict is their storage and
+                    # holds the strong reference.
+                    _vk = "__npy_" + fname
+
+                    def vget(self, _k=_vk, _many=(kind == "py_value_many")):
+                        v = self.__dict__.get(_k)
+                        if v is None and _many:
+                            return []
+                        return v
+
+                    def vset(self, value, _k=_vk):
+                        self.__dict__[_k] = value
+
+                    setattr(t, fname, property(vget, vset))
+                    continue
+
+                if kind == "impl_body":
+                    # The linked ImplDef stands in for a decl's body until
+                    # one is written directly (roles.impl.jac ground truth).
+                    def bget(self, _it=implof_tag, _bt=tag, _role=role):
+                        impls = lib.npy_adj(_addr(self), _it, 2)
+                        if impls:
+                            return impls[0]
+                        found = lib.npy_adj(_addr(self), _bt, 2)
+                        s = bridge.role_shape(self, _role)
+                        if s == 2:
+                            return found
+                        if s == 1:
+                            return found[0] if found else None
+                        return None
+
+                    setattr(t, fname, property(bget))
+                    continue
+
+                if kind == "main_mod":
+                    def mget(self, _mt=tag):
+                        found = lib.npy_adj(_addr(self), _mt, 2)
+                        if not found:
+                            return None
+                        return None if found[0].stub_only else found[0]
+
+                    def mset(self, value, _mt=tag):
+                        lib.npy_role_clear(_addr(self), 2, _mt)
+                        if value is None:
+                            import jaclang.compiler.frontend.unitree as _uni
+
+                            value = _uni.Module.make_stub()
+                        lib.npy_conn(_addr(self), _addr(value), _mt)
+
+                    setattr(t, fname, property(mget, mset))
+                    continue
+
+                if kind == "parent_scope":
+                    def psget(self, _ct=tag, _pt=scope_parent_tag):
+                        found = lib.npy_adj(_addr(self), _ct, 1)
+                        if found:
+                            return found[-1]
+                        owners = lib.npy_adj(_addr(self), _pt, 2)
+                        return owners[-1] if owners else None
+
+                    setattr(
+                        t, fname,
+                        property(psget, make_setter("parent_scope", tag)),
+                    )
                     continue
 
                 def rget(self, _tag=tag, _dir=direction, _kind=kind, _role=role):
@@ -690,16 +811,15 @@ class NpyBridge:
                         return found[0] if found else None
                     return None
 
-                def rset(self, value, _tag=tag, _role=role):
-                    lib.npy_role_clear(_addr(self), 2, _tag)
-                    items = value if isinstance(value, (list, tuple)) else (
-                        [] if value is None else [value]
+                # Setters only where the store path has one (ROLE_SETTERS);
+                # every other role field is getter-only there.
+                if setter_shape is not None:
+                    setattr(
+                        t, fname,
+                        property(rget, make_setter(setter_shape, tag)),
                     )
-                    for v in items:
-                        if v is not None:
-                            lib.npy_conn(_addr(self), _addr(v), _tag)
-
-                setattr(t, fname, property(rget, rset))
+                else:
+                    setattr(t, fname, property(rget))
 
     _KID_TAG = None
 
@@ -764,10 +884,41 @@ class NpyBridge:
             k = self.kind_of_type.get(cls)
             if k is None:
                 # A Python-defined subclass of a native type (pass walkers
-                # extending TreeWalker): an ordinary heap instance -- the
-                # layout-compatible struct region is zero-initialized and
-                # native code never handles these.
-                return object.__new__(cls)
+                # extending TreeWalker, stubcat's CatModule extending
+                # Module). Inherited field properties write the ancestor's
+                # struct offsets, and Python appends its own storage
+                # (managed weakref pre-header, tail slots) at the declared
+                # basicsize -- the chain root's, far short of the real
+                # struct. Widen this subclass's tp_basicsize to the
+                # ancestor's true struct size once, then let object.__new__
+                # allocate a proper (pre-headered, GC-tracked, zeroed) heap
+                # instance; stamp the immortal refcount and OSP tag the
+                # kernel expects of a node it may hold an address to.
+                info = None
+                for anc in cls.__mro__[1:]:
+                    if self.kind_of_type.get(anc) is not None:
+                        info = self.layout.get(anc.__name__)
+                        break
+                if info is None:
+                    return object.__new__(cls)
+                if cls.__basicsize__ < info["size"]:
+                    ctypes.cast(
+                        id(cls) + 32, POINTER(ctypes.c_ssize_t)
+                    )[0] = info["size"]
+                    if cls.__basicsize__ != info["size"]:
+                        raise RuntimeError(
+                            f"tp_basicsize poke failed for {cls!r}"
+                        )
+                obj = object.__new__(cls)
+                addr = id(obj)
+                ctypes.cast(
+                    addr, POINTER(ctypes.c_uint64)
+                )[0] = 0xC0000000
+                if info["tag"]:
+                    ctypes.cast(
+                        addr + info["tag_offset"], POINTER(ctypes.c_int64)
+                    )[0] = info["tag"]
+                return obj
             ptr = lib.npy_alloc(k)
             return cast(ptr, py_object).value
 

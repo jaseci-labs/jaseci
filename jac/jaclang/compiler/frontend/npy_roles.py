@@ -9,17 +9,29 @@ adjacency rather than a struct slot, with the role edge class, direction
 - "one": exactly one target (indexed [0])
 - "opt": first target or None
 - "shaped": runtime one/many/none via the node's _role_shapes (np_role_shape)
-- "complex": hand-written logic -- the bridge leaves the twin's getter in
-  place and routes its edge reads through the graph seam
+- "impl_body": AstImplNeedingNode.body -- the linked ImplDef (ImplOf out)
+  when one exists, else the node's own shaped BodyRole adjacency
+- "main_mod": ProgramModule.main_mod -- MainRole target unless stub_only;
+  setting None connects a fresh stub Module
+- "parent": hand-installed by the bridge (_install_parent): last Kid-in
+  holder, else last Role-in holder, else the _ctx_parent slot
+- "parent_scope": last ScopeChild-in holder, else last ScopeParent-out
+  target, else None
+- "py_value" / "py_value_many": fields whose values are Python objects
+  (TypeBase and friends), not arena nodes -- kernel edges cannot hold
+  them, so the native property is instance-dict-backed. Safe because no
+  compiler code traverses these edges outside the property pair.
 
-Regenerate by rerunning the extraction over the getter impls after role
-schema changes.
+Verified 1:1 against the getter impls in unitree.impl/roles.impl.jac and
+impl/unitree.impl.jac; re-verify after role schema changes. Setters exist
+only for the fields in ROLE_SETTERS below -- the store path generates
+getter-only properties for every other role field.
 """
 
 ROLE_FIELDS: dict[str, dict[str, tuple[str, int, str]]] = {
     'Ability': {
         'decorators': ('DecoratorsRole', 2, 'many'),
-        'event_triggers': ('EventTriggerOf', 2, 'many'),
+        'event_triggers': ('EventTriggerOf', 2, 'py_value_many'),
         'name_ref': ('NameRefRole', 2, 'opt'),
         'signature': ('SignatureRole', 2, 'opt'),
         'type_params': ('TypeParamsRole', 2, 'many'),
@@ -61,10 +73,10 @@ ROLE_FIELDS: dict[str, dict[str, tuple[str, int, str]]] = {
         'else_body': ('ElseBodyRole', 2, 'opt'),
     },
     'AstImplNeedingNode': {
-        'body': ('BodyRole', 2, 'shaped'),
+        'body': ('BodyRole', 2, 'impl_body'),
     },
     'AstTypedVarNode': {
-        'type': ('TypeOf', 2, 'opt'),
+        'type': ('TypeOf', 2, 'py_value'),
         'type_tag': ('TypeTagRole', 2, 'opt'),
     },
     'AtomTrailer': {
@@ -156,8 +168,8 @@ ROLE_FIELDS: dict[str, dict[str, tuple[str, int, str]]] = {
         'name': ('NameRole', 2, 'opt'),
     },
     'Expr': {
-        'narrowed_type': ('NarrowedTypeOf', 2, 'opt'),
-        'type': ('TypeOf', 2, 'opt'),
+        'narrowed_type': ('NarrowedTypeOf', 2, 'py_value'),
+        'type': ('TypeOf', 2, 'py_value'),
     },
     'ExprAsItem': {
         'alias': ('AliasRole', 2, 'opt'),
@@ -365,7 +377,7 @@ ROLE_FIELDS: dict[str, dict[str, tuple[str, int, str]]] = {
     },
     'ProgramModule': {
         'main': ('MainRole', 2, 'one'),
-        'main_mod': ('MainRole', 2, 'complex'),
+        'main_mod': ('MainRole', 2, 'main_mod'),
     },
     'PyInlineCode': {
         'code': ('CodeRole', 2, 'one'),
@@ -444,11 +456,11 @@ ROLE_FIELDS: dict[str, dict[str, tuple[str, int, str]]] = {
     },
     'UniNode': {
         'kid': ('Kid', 2, 'many'),
-        'parent': ('Kid', 1, 'opt'),
+        'parent': ('Kid', 1, 'parent'),
     },
     'UniScopeNode': {
         'kid_scope': ('ScopeChild', 2, 'many'),
-        'parent_scope': ('ScopeChild', 1, 'opt'),
+        'parent_scope': ('ScopeChild', 1, 'parent_scope'),
     },
     'VisitStmt': {
         'insert_loc': ('InsertLocRole', 2, 'opt'),
@@ -465,4 +477,28 @@ ROLE_FIELDS: dict[str, dict[str, tuple[str, int, str]]] = {
     'YieldExpr': {
         'expr': ('ExprRole', 2, 'opt'),
     },
+}
+
+# The role fields with canonical setters (impl/unitree.impl.jac and
+# unitree.impl/roles.impl.jac); every other role field is getter-only.
+#
+# - "std": clear the role's out-edges, connect the value when not None
+# - "parent_scope": drop ScopeChild in-edges and ScopeParent out-edges,
+#   then connect self ->ScopeParent-> value when not None
+# - "main_mod": std, but a None value connects a fresh stub Module
+#
+# The "py_value"/"py_value_many" kinds above carry their setters
+# implicitly (instance-dict writes). code_context and decided_codespace
+# keep their twin properties (kind "complex"): both route through
+# codespace_node, which only the twin knows.
+ROLE_SETTERS: dict[str, dict[str, str]] = {
+    'ConditionalNode': {
+        'sc_false_target': 'std',
+        'sc_true_target': 'std',
+    },
+    'FuncCall': {'callee_decl': 'std'},
+    'Import': {'absorbed_mod': 'std'},
+    'NameAtom': {'sym': 'std'},
+    'ProgramModule': {'main_mod': 'main_mod'},
+    'UniScopeNode': {'parent_scope': 'parent_scope'},
 }
