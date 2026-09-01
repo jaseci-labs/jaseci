@@ -14,8 +14,8 @@ import from jaclang.compiler.frontend.diagnostics {
     W3008,
     W3009,
     W3010,
-    W3011,
     E3012,
+    W3013,
     W3020,
     W3021,
     W3022,
@@ -129,7 +129,7 @@ walker JacAutoLintPass(UniPass) {
     ) -> bool;
 
     def _stmt_body_list(nd: uni.UniNode) -> (Sequence[uni.UniNode] | None);
-    can enter_import with uni.Import entry;
+    def _strip_redundant_semis(nd: uni.Module) -> None;
     def _remove_empty_parens_from_sig(
         target_node: uni.UniNode, sig: uni.FuncSignature, sig_attr: str
     ) -> None;

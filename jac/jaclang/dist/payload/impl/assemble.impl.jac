@@ -621,7 +621,7 @@ impl zstd_compress(data: bytes) -> bytes {
         mt: dict[int, int] = dict(opts);
         mt[int(CompressionParameter.nb_workers)] = workers;
         return compress(data, options=mt);
-    } except Exception { }
+    } except Exception {}
     return compress(data, options=opts);
 }
 

@@ -100,9 +100,7 @@ impl MTIRGenPass._parse_type_expr(
             }
             return tuple([base] + resolved_parts);
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     sym = self._extract_type_symbol(type_expr, scope);
     if sym is not None {
         if sym.sym_type.value == 'enum' {
@@ -442,9 +440,7 @@ impl MTIRGenPass._extract_tools_from_expr(
                                 tools.append(tool_info);
                             }
                         }
-                    } except Exception {
-                        ;
-                    }
+                    } except Exception {}
                 }
             }
         }

@@ -710,7 +710,7 @@ test "exception hierarchy" {
         compare_results(
             py_result, run_js_function(js_code, "exceptions_cl"), "exceptions [ES]"
         );
-    } except Exception { }
+    } except Exception {}
 }
 
 test "runtime error hierarchy" {
@@ -722,7 +722,7 @@ test "runtime error hierarchy" {
             run_js_function(js_code, "runtime_errors_cl"),
             "runtime_errors [ES]"
         );
-    } except Exception { }
+    } except Exception {}
 }
 
 """exception basic catch"""

@@ -649,9 +649,7 @@ impl is_debug_mode(config: object = None) -> bool {
             if client_cfg {
                 return bool(client_cfg.get("debug", True));
             }
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
     return True;
 }

@@ -17,7 +17,7 @@ async def _invoke(plugin: str, command: str, args: dict) -> any {
         msg = "desktop invoke failed";
         try {
             msg = str(parsed["error"]["message"]);
-        } except Exception { }
+        } except Exception {}
         raise Exception(msg);
     }
     if globalThis.__jac and globalThis.__jac.invoke {

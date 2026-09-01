@@ -811,7 +811,7 @@ impl JacAutoLintPass.exit_func_call with uni.FuncCall exit {
                 return;
             }
 
-            if isinstance(parent, uni.IfElseExpr) { } elif isinstance(
+            if isinstance(parent, uni.IfElseExpr) {} elif isinstance(
                 parent, uni.BoolExpr
             ) {
                 if attr_name is None
@@ -1448,36 +1448,72 @@ impl JacAutoLintPass._stmt_body_list(
     return None;
 }
 
-impl JacAutoLintPass.enter_import with uni.Import entry {
-    if not self.lint_enabled or self.report_only or here.from_loc is None {
+impl JacAutoLintPass._strip_redundant_semis(nd: uni.Module) -> None {
+    if not self.lint_enabled or self._is_suppressed(W3013) {
         return;
     }
-    parent = here.parent;
-    if parent is None {
-        return;
+    removable: list[tuple[uni.UniNode, uni.Semi]] = [];
+    stack: list[uni.UniNode] = [nd];
+    while stack {
+        current = stack.pop();
+        body = self._stmt_body_list(current);
+        if isinstance(body, list) and not isinstance(current, uni.JsxSlot) {
+            semis = [
+                s
+                for s in body
+                if isinstance(s, uni.Semi)
+            ];
+            if len(semis) == len(body)
+                and isinstance(current, (uni.MatchCase, uni.SwitchCase)) {
+                semis = semis[1:];
+            }
+            for semi in semis {
+                removable.append((current, semi));
+            }
+        }
+        for kid in current.kid {
+            if kid is not None {
+                stack.append(kid);
+            }
+        }
     }
-    body = self._stmt_body_list(parent);
-    if body is None or not isinstance(body, list) {
-        return;
+    removable.sort(
+        key=lambda (item) { (item[1].loc.first_line, item[1].loc.col_start); }
+    );
+    doomed: dict[int, tuple[uni.UniNode, set[int]]] = {};
+    for (container, semi) in removable {
+        if not self.emit(W3013, node_override=semi) {
+            continue;
+        }
+        if self.report_only {
+            continue;
+        }
+        if id(container) not in doomed {
+            doomed[id(container)] = (container, set());
+        }
+        doomed[id(container)][1].add(id(semi));
     }
-    try {
-        idx = body.index(here);
-    } except ValueError {
-        return;
-    }
-    if idx + 1 < len(body)
-        and isinstance(body[idx + 1], uni.Semi)
-        and self.emit(W3011, node_override=here) {
-        semi = body[idx + 1];
-        body.pop(idx + 1);
-        parent.set_kids(
+    for (container, semi_ids) in doomed.values() {
+        body = self._stmt_body_list(container);
+        if not isinstance(body, list) {
+            continue;
+        }
+        container._role_set(
+            BodyRole,
             [
-                k
-                for k in parent.kid
-                if k is not semi
+                s
+                for s in body
+                if id(s) not in semi_ids
             ]
         );
-        parent._invalidate_sub_node_tab();
+        container.set_kids(
+            [
+                k
+                for k in container.kid
+                if id(k) not in semi_ids
+            ]
+        );
+        container._invalidate_sub_node_tab();
     }
 }
 
@@ -2460,6 +2496,7 @@ impl JacAutoLintPass._strip_usestate_imports(nd: uni.Module) -> None {
 
 impl JacAutoLintPass.exit_module with uni.Module exit {
     self._strip_usestate_imports(here);
+    self._strip_redundant_semis(here);
     self._strip_noise(here);
 }
 
