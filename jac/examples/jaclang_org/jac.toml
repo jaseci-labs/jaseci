@@ -4,6 +4,13 @@ entry-point = "main.jac"
 kind = "web-app"
 jac-version = "0.35.0"
 
+# Makes this site scaffoldable as a template: `jac create <name> --awesome`
+# dumps it (the payload bundles this tree at jaclang/cli/templates/awesome).
+# The section itself never reaches a scaffolded project's jac.toml.
+[jacpack]
+name = "awesome"
+description = "The full jaclang.org site: landing, live docs, leaderboard, socialize, and a wasm game in one Jac program"
+
 [dev]
 jaclang_source = "../.."
 

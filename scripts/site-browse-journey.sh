@@ -63,7 +63,13 @@ wait_for_text() {
 }
 
 open_page() {
-    jac browse open "$1" || fail "could not open $1"
+    # A slow page-load event can outlast the CDP navigation wait; one retry
+    # absorbs that without masking a dead server.
+    if ! jac browse open "$1"; then
+        echo "open of $1 timed out; retrying once"
+        sleep 3
+        jac browse open "$1" || fail "could not open $1"
+    fi
     sleep 2
 }
 

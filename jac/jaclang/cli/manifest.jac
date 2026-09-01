@@ -36,6 +36,9 @@ comptime import from jaclang.cli.shadcn.cli { SPEC_RETHEME }
 comptime import from jaclang.client.cli { SPEC_SETUP }
 comptime import from jaclang.scale.plugin { SPEC_SCALE_CMD }
 
+# NOTE: the SPEC_* values above are folded into this module at comptime; an
+# edit to a spec in its home module needs this file recompiled too (the
+# cached fold does not yet key on the producer's content).
 comptime VERB_BUDGET: int = 26,
      TOMBSTONED_VERBS: dict[str, str] = {
          "add": "jac install <pkg>",
