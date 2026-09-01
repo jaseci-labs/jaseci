@@ -69,7 +69,7 @@ class NativeCompiler {
         self.classes = {};
         self._finishes = 0;
 
-        self.teardown = os.environ.get("JAC_COMPILER_TEARDOWN", "wipe");
+        self.teardown = os.environ.get("JAC_COMPILER_TEARDOWN", "leak");
         self._bind();
         self._register();
         if self.teardown == "leak" {
