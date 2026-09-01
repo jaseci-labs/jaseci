@@ -58,7 +58,15 @@ glob PROBE: str = os.path.join(
      ),
      CHESS: str = os.path.join(JAC_ROOT, "examples", "chess", "chess.jac"),
      REPO_ROOT: str = os.path.dirname(JAC_ROOT),
-     PHASES: list[str] = ["parse", "ir_gen", "boundary", "codegen", "full"];
+     PHASES: list[str] = [
+         "parse",
+         "ir_gen",
+         "analysis",
+         "boundary",
+         "codegen",
+         "full",
+         "check"
+     ];
 
 """The measured corpus, restated here so the harness pins the probe's list.
 
