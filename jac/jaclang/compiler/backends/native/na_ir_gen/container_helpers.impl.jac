@@ -57,13 +57,19 @@ impl NaIRGenContainerHelpers._emit_jacval_rc_fn(
     i8 = ir.IntType(8);
     i64 = ir.IntType(64);
     i8p = i8.as_pointer();
+    fn: ir.Function | None = None;
     try {
         _existing = self.llvm_module.get_global(fn_name);
-        if isinstance(_existing, ir.Function) and _existing.blocks {
-            return _existing;
+        if isinstance(_existing, ir.Function) {
+            if _existing.blocks {
+                return _existing;
+            }
+            fn = _existing;
         }
-        fn = _existing;
     } except KeyError {
+        fn = None;
+    }
+    if fn is None {
         fnty = ir.FunctionType(ir.VoidType(), [self.jacval_type]);
         fn = ir.Function(self.llvm_module, fnty, name=fn_name);
         fn.linkage = "private";
@@ -330,7 +336,7 @@ impl NaIRGenContainerHelpers._container_managed_fields(layout: dict) -> list {
 
 impl NaIRGenContainerHelpers._container_struct_fields(layout: dict) -> list {
     i64 = ir.IntType(64);
-    _fields = [i64, i64];
+    _fields: list[ir.Type] = [i64, i64];
     for (_, _dt) in layout["data_fields"] {
         _fields.append(_dt.as_pointer());
     }
@@ -463,7 +469,7 @@ impl NaIRGenContainerHelpers._emit_container_new_fn(
         dtor_fn = None;
     }
     if dtor_fn is not None and self.rc_set_type_fn is not None {
-        _dtor_name = dtor_fn?.name or str(dtor_fn);
+        _dtor_name: str = dtor_fn?.name or str(dtor_fn);
         _type_name = _dtor_name[len("__rc_release_"):]
             if _dtor_name.startswith("__rc_release_")
             else "container";
@@ -504,7 +510,7 @@ impl NaIRGenContainerHelpers._container_type_name(dtor_fn: object) -> str {
     if dtor_fn is None {
         return "container";
     }
-    _dtor_name = dtor_fn?.name or str(dtor_fn);
+    _dtor_name: str = dtor_fn?.name or str(dtor_fn);
     if _dtor_name.startswith("__rc_release_") {
         return _dtor_name[len("__rc_release_"):];
     }

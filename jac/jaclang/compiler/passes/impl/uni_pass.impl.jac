@@ -2,36 +2,13 @@ impl UniPass.postinit -> None {
     super.postinit();
 }
 
-impl UniPass.before_pass -> None { }
+impl UniPass.before_pass -> None {}
 
-impl UniPass.after_pass -> None { }
-
-impl UniPass.enter_node(nd: UniNode) -> None {
-    nd.accept_enter(self);
-}
-
-impl UniPass.exit_node(nd: UniNode) -> None {
-    nd.accept_exit(self);
-}
-
-
-impl UniPass.default_enter(nd: UniNode) -> None { }
-
-impl UniPass.default_exit(nd: UniNode) -> None { }
-
-impl UniPass.prune -> None {
-    self.prune_signal = True;
-}
+impl UniPass.after_pass -> None {}
 
 impl UniPass.recalculate_parents(nd: UniNode) -> None {
-    if not nd {
-        return;
-    }
-    for i in nd.kid {
-        if i {
-            i.parent = nd;
-            self.recalculate_parents(i);
-        }
+    if nd {
+        nd._invalidate_sub_node_tab();
     }
 }
 
@@ -50,24 +27,28 @@ impl UniPass.transform(ir_in: Module) -> Module {
 }
 
 impl UniPass.traverse(nd: UniNode) -> UniNode {
-    if self.is_canceled() {
+    if self.is_canceled() or nd.ct_pruned {
         return nd;
     }
-    self.cur_node = nd;
-    self.enter_node(nd);
-    if not self.prune_signal {
-        for i in nd.kid {
-            if i {
-                self.traverse(i);
-            }
-        }
-    } else {
-        self.prune_signal = False;
-    }
-    self.cur_node = nd;
-    if self.is_canceled() {
-        return nd;
-    }
-    self.exit_node(nd);
+    nd spawn self;
     return nd;
+}
+
+impl UniPass.enter_walk with UniNode entry {
+    if self.is_canceled() or here.ct_pruned {
+        osp_skip_rest();
+        return;
+    }
+    self.cur_node = here;
+}
+
+impl UniPass.exit_walk with UniNode exit {
+    if here.ct_pruned {
+        osp_skip_rest();
+        return;
+    }
+    self.cur_node = here;
+    if self.is_canceled() {
+        osp_skip_rest();
+    }
 }

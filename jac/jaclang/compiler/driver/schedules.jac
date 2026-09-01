@@ -102,6 +102,9 @@ def get_ir_gen_sched(
     }
     _tok = _ir_sched_loading.set(True);
     try {
+        import jaclang.compiler.types.type_evaluator;
+        import jaclang.compiler.backends.es.framework_backend;
+        import jaclang.compiler.passes.pyast_load_pass;
         import from jaclang.compiler.passes.cfg_build_pass { CFGBuildPass }
         import from jaclang.compiler.passes.sem_def_match_pass { SemDefMatchPass }
         import from jaclang.compiler.passes.jsx_intrinsic_guard_pass {
@@ -129,6 +132,10 @@ def get_ir_gen_sched(
         }
         passes.append(JsxIntrinsicGuardPass);
         passes.append(PlacementApplyPass);
+        import from jaclang.compiler.passes.comptime_resolve_pass {
+            ComptimeResolvePass
+        }
+        passes.append(ComptimeResolvePass);
         return validate_schedule(passes, origin='ir-gen schedule');
     } except ImportError as e {
         fail_loud_on_compiler_source(e);
@@ -155,15 +162,16 @@ def typeshed_stubs_available -> bool {
 }
 
 def require_typeshed_stubs -> None {
-    if typeshed_stubs_available() {
+    import from jaclang.jac0core.stubcat_hook { active }
+    if active() is not None or typeshed_stubs_available() {
         return;
     }
     raise TypeshedUnavailableError(
-        "type inference is on the critical path of every compilation, but the "
-        "vendored typeshed stdlib stubs are missing from this environment, so "
-        "no module can be compiled. In a source checkout run "
+        "type inference is on the critical path of every compilation, but this "
+        "environment has neither a stub catalog nor the vendored typeshed stdlib "
+        "stubs, so no module can be compiled. In a source checkout run "
         "'zig build fetch-typeshed'; in an installed environment reinstall the "
-        "jac distribution, whose payload is required to carry the stubs."
+        "jac distribution, whose payload carries the catalog."
     );
 }
 
@@ -212,7 +220,7 @@ def get_analysis_sched -> list[type[Transform]] {
                 PortabilityWarnPass,
                 JacLintCheckPass
             ],
-            preprovided={'cfg'},
+            preprovided={'CfgSucc'},
             origin='analysis schedule'
         );
     } except ImportError as e {
@@ -285,6 +293,10 @@ def get_py_code_gen(
             _note_native_schedule_failure(None);
         }
         passes.extend(_py_codegen_tail());
+        import from jaclang.compiler.passes.freeze_structure_pass {
+            FreezeStructurePass
+        }
+        passes.append(FreezeStructurePass);
         return validate_schedule(
             passes, preprovided=provided, origin='codegen schedule'
         );

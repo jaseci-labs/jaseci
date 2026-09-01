@@ -33,6 +33,7 @@ event-driven abilities. `import from X { Y }` and `import X;`. `with entry {}` a
   jac://guide/patterns              complete working idiomatic examples
   jac://guide/jac-core-cheatsheet   baseline syntax: imports, control flow, match, comprehensions
   jac://guide/jac-types             type system: annotations, unions, optionals, `as` casts
+  jac://guide/jac-comptime          compile-time values: comptime bindings/if/for/assert, comptime params, fields()/members()
   jac://guide/jac-has-fields        has-field declarations, defaults, post-init
   jac://guide/jac-impl-files        declaration/implementation separation (.impl.jac, impl/)
 
@@ -182,6 +183,7 @@ The React client framework, byLLM compilation support, and the MCP server itself
   Write ANY Jac code                      | jac://guide/pitfalls + jac://guide/patterns
   Look up syntax while coding             | jac://guide/jac-core-cheatsheet
   Fix a type error                        | jac://guide/jac-types
+  Compute a value at compile time         | jac://guide/jac-comptime
   Store / retrieve user data              | jac://guide/jac-sv-persistence
   Build a REST endpoint                   | jac://guide/jac-sv-endpoints
   Write a walker / traverse the graph     | jac://guide/jac-walker-patterns

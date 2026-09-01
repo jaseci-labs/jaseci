@@ -590,7 +590,7 @@ obj LayoutRegistry {
     def is_primary_ancestor(child: str, ancestor: str) -> bool;
 }
 
-obj LayoutPass(Transform) {
+walker LayoutPass(Transform) {
     has ir_in: Module,
         cancel_token: any = None,
         registry: LayoutRegistry postinit,
@@ -598,6 +598,8 @@ obj LayoutPass(Transform) {
 
     def postinit -> None;
     def transform(ir_in: Module) -> Module;
+    def _run_impl(ir_in: Module) -> Module;
+    can run_walk with Module entry;
     def _collect_archetypes(module: Module) -> dict[str, Archetype];
     def _collect_isinstance_targets(module: Module) -> None;
     def _build_hierarchy(archetypes: dict[str, Archetype]) -> None;

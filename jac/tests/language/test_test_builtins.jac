@@ -46,9 +46,7 @@ test "raises rejects a non-matching pattern" {
 test "raises fails when the block raises nothing" {
     caught = "";
     try {
-        with testraises(ValueError) {
-            ;
-        }
+        with testraises(ValueError) {}
     } except AssertionError as e {
         caught = str(e);
     }

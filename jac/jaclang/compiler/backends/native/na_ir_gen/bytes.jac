@@ -1,5 +1,6 @@
 import from jaclang.compiler.backends.native.llvm { ir }
 import from jaclang.compiler.backends.native.na_ir_gen.state { NaIRGenState }
+import jaclang.compiler.frontend.unitree as uni;
 
 obj NaIRGenBytes(NaIRGenState) {
     def _get_bytes_struct_type -> ir.Type;
@@ -10,7 +11,7 @@ obj NaIRGenBytes(NaIRGenState) {
     def _make_global_bytes(data: bytes) -> ir.Value;
     def _is_bytes_value(v: ir.Value) -> bool;
     def _codegen_bytes_index(bv: ir.Value, idx: ir.Value) -> (ir.Value | None);
-    def _codegen_bytes_slice(bv: ir.Value, slice_node: object) -> (ir.Value | None);
+    def _codegen_bytes_slice(bv: ir.Value, slice_node: uni.Slice) -> (ir.Value | None);
     def _emit_bytes_eq(left: ir.Value, right: ir.Value, negate: bool) -> ir.Value;
     def _is_bytes_type(t: ir.Type) -> bool;
     def _emit_bytes_truthy(bv: ir.Value) -> ir.Value;

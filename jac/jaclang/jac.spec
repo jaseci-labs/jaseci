@@ -256,13 +256,28 @@ element_stmt ::=
     | docstring_target
     | ability
     | global_var
+    | comptime_element
     | impl_def
     | sem_def
     | PYNLINE
     | module_code
 
+comptime_element ::= ability | import_stmt | comptime_stmt | comptime_global
+
+comptime_global ::=
+    "comptime" access_tag global_var_assignment ("," global_var_assignment)* ";"
+
+comptime_stmt ::=
+    if_stmt
+    | for_stmt
+    | assert_stmt
+    | import_stmt
+    | ability
+    | "comptime" (NAME | KWESC_NAME) assignment_with_target
+
 docstring_target ::=
-    STRING (test | enum | type_alias | global_var | impl_def | module_code)?
+    STRING
+    (test | enum | type_alias | global_var | comptime_element | impl_def | module_code)?
 
 module_code ::=
     "with" ("exit" | "entry")? (":" (NAME | KWESC_NAME))? "{" code_block_stmts "}"
@@ -276,6 +291,7 @@ statement ::=
     | jsx_element ";"?
     | expression ("}" ";"?)?
     | (NAME | KWESC_NAME) assignment_with_target
+    | comptime_stmt
     | import_stmt
     | if_stmt
     | while_stmt
@@ -304,7 +320,8 @@ statement ::=
     | "->" expression "{" code_block_stmts "}"
     | expression (assignment_with_target | ";")?
 
-if_stmt ::= "if" expression "{" code_block_stmts "}" (elif_stmt | else_stmt)?
+if_stmt ::=
+    "comptime"? "if" expression "{" code_block_stmts "}" (elif_stmt | else_stmt)?
 
 elif_stmt ::= "elif" expression "{" code_block_stmts "}" (elif_stmt | else_stmt)?
 
@@ -317,7 +334,7 @@ open_stmt ::= "in" expression "{" code_block_stmts "}"
 forever_stmt ::= "forever" "{" code_block_stmts "}"
 
 for_stmt ::=
-    "async"? "flow"? "for" atomic_chain (
+    "comptime"? "async"? "flow"? "for" atomic_chain (
         "=" expression "while" expression "with" atomic_chain assignment_with_target?
         "{" code_block_stmts "}" else_stmt?
         | "in" expression "{" code_block_stmts "}" else_stmt?
@@ -377,9 +394,9 @@ yield_stmt ::= "yield" "from"? expression?
 
 raise_stmt ::= "raise" expression? ("from" expression)? ";"
 
-assert_stmt ::= "assert" expression ("," expression)? ";"
+assert_stmt ::= "comptime"? "assert" expression ("," expression)? ";"
 
-delete_stmt ::= "del" expression ";"
+delete_stmt ::= "del" expression ("," expression)* ";"
 
 ownership_prefix ::= ("own" | "imm" | "&" "mut"?)?
 
@@ -404,7 +421,7 @@ assignment_with_target ::=
     )? ";"?
 
 import_stmt ::=
-    ("include" | "import") "type"? ("from" from_path)? (
+    "comptime"? ("include" | "import") "type"? ("from" from_path)? (
         import_items
         | (STRING | (NAME | KWESC_NAME) ("." (NAME | KWESC_NAME))*)?
           ("as" (NAME | KWESC_NAME))? ","?
@@ -430,6 +447,7 @@ archetype_member ::=
     STRING? (
         ability
         | has_stmt
+        | comptime_global
         | archetype
         | enum
         | impl_def
@@ -446,7 +464,7 @@ has_var ::=
 accessor ::= func_signature ("{" code_block_stmts "}" | ";")
 
 ability ::=
-    ("@" atomic_chain)* "override"? "class"? "static"? ("async" "class"?)?
+    ("@" atomic_chain)* "comptime"? "override"? "class"? "static"? ("async" "class"?)?
     ("def" | "can") access_tag (NAME | KWESC_NAME)? ("[" type_params "]")?
     ("with" expression? ("entry" | "exit") | func_signature)
     ("{" code_block_stmts "}" | "by" expression ";" | "abst"? ";")
@@ -456,7 +474,7 @@ func_signature ::= ("(" func_params? ")")? ("->" pipe)?
 func_params ::= ("*" ","? | "/" ","? | param_var ","?)*
 
 param_var ::=
-    ("*" | "**")?
+    "comptime"? ("*" | "**")?
     (NAME | KWESC_NAME | "self" | "props" | "here" | "visitor" | builtin_type)
     (":" ownership_prefix pipe)? ("=" expression)?
 
@@ -507,8 +525,8 @@ type_alias ::=
     "type" access_tag (NAME | KWESC_NAME) ("[" type_params "]")? (":=" | "=") pipe ";"
 
 type_params ::=
-    (NAME | KWESC_NAME) (":" pipe)? ("=" pipe)?
-    ("," (NAME | KWESC_NAME) (":" pipe)? ("=" pipe)?)*
+    "comptime"? (NAME | KWESC_NAME) (":" pipe)? ("=" pipe)?
+    ("," "comptime"? (NAME | KWESC_NAME) (":" pipe)? ("=" pipe)?)*
 
 visit_stmt ::= "visit" (":" expression ":")? expression (else_stmt | ";")?
 

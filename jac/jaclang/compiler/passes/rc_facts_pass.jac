@@ -111,17 +111,19 @@ def loop_body_locals(body: (Sequence[UniNode] | None)) -> list[str] {
     return out;
 }
 
-obj RcFactsPass(Transform) {
+walker RcFactsPass(Transform) {
     has ir_in: Module,
         cancel_token: any = None,
         _node_use: dict[int, set[SymId]] = {},
         _node_def: dict[int, set[SymId]] = {};
 
     static has PROVIDES: tuple = ('rc-facts', ),
-        REQUIRES: tuple = ('cfg', );
+        REQUIRES: tuple = ('CfgSucc', );
 
     def postinit -> None;
     def transform(ir_in: Module) -> Module;
+    def _run_impl(ir_in: Module) -> Module;
+    can run_walk with Module entry;
     def _stamp_param_rebound(ir_in: Module) -> None;
     def _stamp_escapes(ir_in: Module) -> None;
     def _call_use_stack_safe(nm: NameAtom, sym: Symbol) -> bool;
