@@ -19,11 +19,11 @@ obj Memory {
         _on_commit: list[Callable] postinit,
         _lock: threading.RLock postinit;
 
-    def postinit -> None {
+    def postinit {
         self._init_memory();
     }
 
-    def _init_memory -> None {
+    def _init_memory {
         self._lock = threading.RLock();
         self.__mem__ = {};
         self._dirty = {};
@@ -46,7 +46,7 @@ obj Memory {
         return self.__mem__.get(id);
     }
 
-    def put(anchor: Anchor) -> None {
+    def put(anchor: Anchor) {
         aid = anchor.ensure_id();
         with self._lock {
             self.__mem__[aid] = anchor;
@@ -55,13 +55,13 @@ obj Memory {
         }
     }
 
-    def mark_dirty(anchor: Anchor) -> None {
+    def mark_dirty(anchor: Anchor) {
         if anchor.id in self.__mem__ {
             self._dirty[anchor.id] = None;
         }
     }
 
-    def delete(id: UUID) -> None {
+    def delete(id: UUID) {
         with self._lock {
             self.__mem__.pop(id, None);
             self._dirty.pop(id, None);
@@ -126,7 +126,7 @@ obj Memory {
         return out;
     }
 
-    def commit(anchor: (Anchor | None) = None) -> None {
+    def commit(anchor: (Anchor | None) = None) {
         with self._lock {
             self._dirty.clear();
             self._deleted.clear();
@@ -134,7 +134,7 @@ obj Memory {
         self._fire_on_commit();
     }
 
-    def abort -> None {
+    def abort {
         self._dirty.clear();
         self._deleted.clear();
         self._on_commit = [];
@@ -144,7 +144,7 @@ obj Memory {
         return self.__mem__;
     }
 
-    def quarantine_ref(referrer: (Anchor | None), stub: Anchor) -> None {
+    def quarantine_ref(referrer: (Anchor | None), stub: Anchor) {
         self.__mem__.pop(stub.ensure_id(), None);
     }
 
@@ -156,11 +156,11 @@ obj Memory {
         return self.get(id);
     }
 
-    async def aput(anchor: Anchor) -> None {
+    async def aput(anchor: Anchor) {
         self.put(anchor);
     }
 
-    async def adelete(id: UUID) -> None {
+    async def adelete(id: UUID) {
         self.delete(id);
     }
 
@@ -168,15 +168,15 @@ obj Memory {
         return self.`has(id);
     }
 
-    async def acommit(anchor: (Anchor | None) = None) -> None {
+    async def acommit(anchor: (Anchor | None) = None) {
         self.commit(anchor);
     }
 
-    def on_commit(callback: Callable) -> None {
+    def on_commit(callback: Callable) {
         self._on_commit.append(callback);
     }
 
-    def _fire_on_commit -> None {
+    def _fire_on_commit {
         fired = self._on_commit;
         self._on_commit = [];
         for cb in fired {
@@ -188,15 +188,15 @@ obj Memory {
         }
     }
 
-    def read_barrier -> None {
+    def read_barrier {
         ;
     }
 
-    def flush(full: bool = False) -> None {
+    def flush(full: bool = False) {
         ;
     }
 
-    def reset_fetch_count -> None {
+    def reset_fetch_count {
         ;
     }
 
@@ -204,11 +204,11 @@ obj Memory {
         return 0;
     }
 
-    def unit_enter(key: (str | None) = None) -> None {
+    def unit_enter(key: (str | None) = None) {
         ;
     }
 
-    def unit_exit -> None {
+    def unit_exit {
         ;
     }
 
@@ -216,11 +216,11 @@ obj Memory {
         return 0;
     }
 
-    def read_scope_enter -> None {
+    def read_scope_enter {
         ;
     }
 
-    def read_scope_exit -> None {
+    def read_scope_exit {
         ;
     }
 
@@ -230,7 +230,7 @@ obj Memory {
         return result;
     }
 
-    def close -> None {
+    def close {
         self.commit();
         self.__mem__.clear();
         self._dirty.clear();

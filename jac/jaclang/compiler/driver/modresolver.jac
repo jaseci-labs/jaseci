@@ -20,7 +20,7 @@ def pop_import_base {
 
 def _finders_find_spec(name: str, search: (list[str] | None)) -> (ModuleSpec | None) {
     for finder in `list(sys.meta_path) {
-        fs = getattr(finder, 'find_spec', None);
+        fs = finder?.find_spec;
         if fs is None {
             continue;
         }
@@ -40,7 +40,7 @@ def _find_spec_no_exec(target: str) -> (ModuleSpec | None) {
     import from importlib.machinery { PathFinder }
     loaded_target = sys.modules.get(target);
     if loaded_target is not None {
-        tspec = getattr(loaded_target, '__spec__', None);
+        tspec = loaded_target?.__spec__;
         if isinstance(tspec, ModuleSpec) {
             return tspec;
         }
@@ -49,7 +49,7 @@ def _find_spec_no_exec(target: str) -> (ModuleSpec | None) {
         if finder is PathFinder {
             continue;
         }
-        fs = getattr(finder, 'find_spec', None);
+        fs = finder?.find_spec;
         if fs is None {
             continue;
         }
@@ -70,9 +70,9 @@ def _find_spec_no_exec(target: str) -> (ModuleSpec | None) {
         prefix = part if i == 0 else f'{prefix}.{part}';
         loaded = sys.modules.get(prefix);
         if loaded is not None {
-            lspec = getattr(loaded, '__spec__', None);
+            lspec = loaded?.__spec__;
             spec = lspec if isinstance(lspec, ModuleSpec) else None;
-            lpath = getattr(loaded, '__path__', None);
+            lpath = loaded?.__path__;
             search = `list(lpath) if lpath is not None else None;
         } else {
             spec = _finders_find_spec(prefix, search);

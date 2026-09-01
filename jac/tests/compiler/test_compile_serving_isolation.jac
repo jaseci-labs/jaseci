@@ -25,9 +25,8 @@ import sys;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 
-glob FIXTURES = str(Path(__file__).parent / "fixtures");
-
-glob _PROBE_SCRIPT = """
+glob FIXTURES = str(Path(__file__).parent / "fixtures"),
+     _PROBE_SCRIPT = """
 import os
 import runpy
 import sys
