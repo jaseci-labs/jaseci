@@ -151,11 +151,40 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
     };
 }
 
+impl _warn_placeholder_jwt_secret -> None {
+    if _placeholder_jwt_secret_warned {
+        return;
+    }
+    _placeholder_jwt_secret_warned = True;
+    import logging;
+    logging.getLogger(__name__).warning(
+        'No [scale.jwt] secret is configured, and a per-project dev secret '
+        'would be per-replica in a cluster. Signing tokens with the shipped '
+        'placeholder, which is public: anyone can mint a token for any user. '
+        'Set [scale.jwt] secret to a real value for this deployment.'
+    );
+}
+
 impl JacScaleConfig.get_jwt_config(self: JacScaleConfig) -> dict[str, any] {
+    import from jaclang.server.serving.authcrypt {
+        PLACEHOLDER_JWT_SECRET,
+        project_signing_secret
+    }
     config = self.load();
     jwt_config = config.get('jwt', {});
+    secret = str(jwt_config.get('secret', '') or '');
+    if not secret or secret == PLACEHOLDER_JWT_SECRET {
+        if os.environ.get('KUBERNETES_SERVICE_HOST', '').strip() {
+            _warn_placeholder_jwt_secret();
+            secret = PLACEHOLDER_JWT_SECRET;
+        } else {
+            secret = project_signing_secret(
+                str(self.project_dir) if self.project_dir is not None else '.'
+            );
+        }
+    }
     return {
-        'secret': jwt_config.get('secret', 'supersecretkey_for_testing_only!'),
+        'secret': secret,
         'algorithm': jwt_config.get('algorithm', 'HS256'),
         'exp_delta_days': int(jwt_config.get('exp_delta_days', 7))
     };
