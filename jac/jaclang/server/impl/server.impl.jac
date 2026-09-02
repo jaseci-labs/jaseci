@@ -2426,11 +2426,28 @@ impl JacAPIServer.build_app -> ServingApp {
         return outcome;
     }
 
-    def _mk_spec_ep(bound: str, is_walker: bool, media_type: str) -> Callable {
+    def _query_bound_request(request: Request) -> Request {
+        args = dict(request.query_params.items());
+        if not args {
+            return request;
+        }
+        body = _read_data(request) or {};
+        for (key, value) in args.items() {
+            if key not in body {
+                body[key] = value;
+            }
+        }
+        return dataclasses.replace(request, body=json.dumps(body).encode('utf-8'));
+    }
+
+    def _mk_spec_ep(
+        bound: str, is_walker: bool, media_type: str, binds_query: bool
+    ) -> Callable {
         def _serve_spec(request: Request) -> any {
-            outcome = _spawn_walker(request, bound)
+            bound_request = _query_bound_request(request) if binds_query else request;
+            outcome = _spawn_walker(bound_request, bound)
                 if is_walker
-                else _call_function(request, bound);
+                else _call_function(bound_request, bound);
             if not media_type {
                 return outcome;
             }
@@ -2452,10 +2469,16 @@ impl JacAPIServer.build_app -> ServingApp {
             continue;
         }
         _spec_media = (_spec.produces or 'text/plain') if not _spec.envelope else '';
+        _spec_method = HTTPMethod(str(_spec.method or 'POST').upper());
         _ep(
-            HTTPMethod(str(_spec.method or 'POST').upper()),
+            _spec_method,
             _spec_path,
-            _mk_spec_ep(_spec_name, _spec_kind == 'walker', _spec_media),
+            _mk_spec_ep(
+                _spec_name,
+                _spec_kind == 'walker',
+                _spec_media,
+                _spec_method == HTTPMethod.GET
+            ),
             in_schema=True
         );
     }

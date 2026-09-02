@@ -62,6 +62,11 @@ def _restspec_app(project_dir: str) -> str {
         '@restspec(method=HTTPMethod.GET, path="/llms.txt", produces="text/plain")\n'
         'def:pub llms_txt -> str {\n'
         '    return "jac docs";\n'
+        '}\n'
+        '\n'
+        '@restspec(method=HTTPMethod.GET, path="/echo", envelope=False)\n'
+        'def:pub echo(word: str = "none") -> str {\n'
+        '    return "you said " + word;\n'
         '}\n',
         encoding="utf-8"
     );
@@ -160,6 +165,26 @@ test "an enveloped GET @restspec path still returns the transport envelope" {
         assert status == 200 , f"GET /llms.txt should serve the function; got {status}";
         assert "jac docs" in body , (
             f"GET /llms.txt must return the function's payload; got {body[:200]!r}"
+        );
+    }
+}
+
+
+test "a GET @restspec binds its arguments from the query string" {
+    with TemporaryDirectory() as tmp {
+        app = _restspec_app(tmp);
+        client = JacTestClient.from_file(app, base_path=tmp);
+        try {
+            response = client.get("/echo", params={"word": "hello"});
+            status = response.status_code;
+            body = response.text;
+        } finally {
+            client.close();
+        }
+        assert status == 200 , f"GET /echo should serve the function; got {status}";
+        assert "you said hello" in body , (
+            "a GET route has no body, so its arguments come from the query "
+            f"string; got {body[:200]!r}"
         );
     }
 }
