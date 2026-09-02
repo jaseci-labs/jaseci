@@ -46,16 +46,21 @@ def _diag_wire(alert: any) -> dict[(str, any)] {
     };
 }
 
-def _scrub_selfhost_type_state {
+def _scrub_sticky_unknown_memos(prog: any) {
     import os;
     if os.environ.get("JAC_NO_UNIT_EVICT") {
         return;
     }
-    import from jaclang.runtime.runtime { JacRuntime }
-    selfhost_prog = JacRuntime.get_selfhost().peek_program();
-    if selfhost_prog is not None {
-        selfhost_prog.clear_type_system();
+    ev = prog.type_evaluator;
+    if ev is None {
+        return;
     }
+    for nd in ev.sticky_unknown_memos {
+        try {
+            nd.type = None;
+        } except Exception {}
+    }
+    ev.sticky_unknown_memos.clear();
 }
 
 def _check_retire(served: int, rss_mb: int) -> bool {
@@ -186,8 +191,8 @@ def _check_file_job(request: dict[(str, any)]) -> dict[(str, any)] {
         result['success'] = False;
         return result;
     } finally {
+        _scrub_sticky_unknown_memos(prog);
         prog.release_compile_closure(collect=bool(request.get("collect")));
-        _scrub_selfhost_type_state();
         _maybe_malloc_trim();
     }
 }

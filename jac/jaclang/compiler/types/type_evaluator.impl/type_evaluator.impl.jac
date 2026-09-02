@@ -3747,6 +3747,9 @@ impl TypeEvaluator.get_type_of_expression(
         }
     }
     node_.type = result;
+    if isinstance(result, UnknownType) and result.is_diagnosed {
+        self.sticky_unknown_memos.append(node_);
+    }
     if node_.ct_value is None {
         node_.ct_value = self.ct_eval.try_eval(node_);
     }

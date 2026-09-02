@@ -107,6 +107,7 @@ impl TypeEvaluator.get_type_of_module_item(node_: ModuleItem) -> TypeBase {
             }
 
             binding.type = UnknownType(is_diagnosed=True);
+            self.sticky_unknown_memos.append(binding);
             self.emit_diag(W1101, binding, name=item_name, module=from_mod_name);
             return binding.type;
         } else {
@@ -158,6 +159,7 @@ impl TypeEvaluator.get_type_of_module_item(node_: ModuleItem) -> TypeBase {
                 }
             }
             binding.type = UnknownType(is_diagnosed=True);
+            self.sticky_unknown_memos.append(binding);
             self.emit_diag(W1101, binding, name=item_name, module=from_mod_name);
             return binding.type;
         }
@@ -165,6 +167,7 @@ impl TypeEvaluator.get_type_of_module_item(node_: ModuleItem) -> TypeBase {
 
     if isinstance(from_mod_type, UnknownType) and from_mod_type.is_diagnosed {
         binding.type = UnknownType(is_diagnosed=True);
+        self.sticky_unknown_memos.append(binding);
         return binding.type;
     }
 
@@ -324,6 +327,7 @@ impl TypeEvaluator.get_type_of_module(node_: ModulePath) -> TypeBase {
                     return npath.type;
                 }
                 npath.type = UnknownType(is_diagnosed=True);
+                self.sticky_unknown_memos.append(npath);
                 self.emit_diag(W1100, npath);
                 return npath.type;
             }
