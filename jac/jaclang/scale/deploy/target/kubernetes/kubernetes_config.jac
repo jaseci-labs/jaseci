@@ -237,6 +237,7 @@ obj KubernetesConfig(BaseConfig) {
             prometheus_admin_password=config.get(
                 'prometheus_admin_password', 'Adminpassword123'
             ),
+            admin_username=config.get('admin_username', 'admin'),
             ingress_node_port=config.get('ingress_node_port', 30080),
             shared_ingress=config.get('shared_ingress', False),
             shared_ingress_class=config.get('shared_ingress_class', 'nginx'),
