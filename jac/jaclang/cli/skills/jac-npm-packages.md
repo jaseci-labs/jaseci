@@ -67,10 +67,10 @@ def:pub TextInput() -> JsxElement {
 
 **`ref` is an ordinary prop.** The client runtime is React 19, so a compiled component receives `ref` in its props like any other. The compiler never threads it onto an element for you - a ref reaches a DOM node only where you write `ref=` or spread a bundle that still carries it.
 
-**Props-bundle component (`props: any`) - already receives it.** `props["ref"]` is set; spread the bundle (or a rest copy that does not exclude `ref`) onto the host tag:
+**Props-bundle component (a single `props` param) - already receives it.** `props["ref"]` is set; spread the bundle (or a rest copy that does not exclude `ref`) onto the host tag:
 
 ```jac
-def:pub FancyInput(props: any) -> JsxElement {
+def:pub FancyInput(props: dict) -> JsxElement {
     <input className="fancy" {**props} />
 }
 ```

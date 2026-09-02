@@ -204,13 +204,13 @@ def:pub RadixTriggerExample() -> JsxElement {
 
 ## ⚠ `asChild` triggers and ref forwarding (silent no-open bug)
 
-`<DialogTrigger asChild={True}>`, `<DropdownMenuTrigger asChild={True}>`, `<PopoverTrigger asChild={True}>`, etc. render their **child** as the trigger and attach a positioning-anchor ref to it. The installed `components/ui/` primitives handle this: each takes a `props: any` bundle and spreads it onto its host tag, and under React 19 `ref` rides that spread like any other prop.
+`<DialogTrigger asChild={True}>`, `<DropdownMenuTrigger asChild={True}>`, `<PopoverTrigger asChild={True}>`, etc. render their **child** as the trigger and attach a positioning-anchor ref to it. The installed `components/ui/` primitives handle this: each takes one `props` bundle and spreads it onto its host tag, and under React 19 `ref` rides that spread like any other prop.
 
 A **hand-written composite of your own** has to land the ref somewhere too, or the anchor stays null and the popper positions at the viewport origin instead of at the trigger. No compile error, no console error. Spread your props onto the host tag, or declare a trailing `ref: Ref[...]` parameter (which lowers to React `forwardRef`) if the component takes named params:
 
 ```jac
 # Usable as an asChild trigger child - the props spread carries the anchor ref
-def:pub MyMenuButton(props: any) -> JsxElement {
+def:pub MyMenuButton(props: dict) -> JsxElement {
     <button className="..." {**props}>{props["children"]}</button>
 }
 
