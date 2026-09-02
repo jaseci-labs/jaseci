@@ -1116,6 +1116,7 @@ impl JacCompiler.compile(
     import from jaclang.compiler.native_scope {
         activate_scope_lowering,
         deactivate_scope_lowering,
+        in_native_scope_path,
         scope_lowering_active
     }
     _scope_armed = False;
@@ -1123,6 +1124,7 @@ impl JacCompiler.compile(
         options.aot_mode
         and options.default_codespace == 'native'
         and self._reentrant_depth == 0
+        and in_native_scope_path(str(file_path))
         and not scope_lowering_active()
     ) {
         activate_scope_lowering();

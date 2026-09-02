@@ -186,8 +186,11 @@ def _demoted_native_code(path: str) -> str {
 
 
 def _mark_demoted_native(path: str, code: str = "") {
-    import from jaclang.compiler.native_scope { in_native_scope_path }
-    if in_native_scope_path(path) {
+    import from jaclang.compiler.native_scope {
+        in_native_scope_path,
+        scope_lowering_active
+    }
+    if scope_lowering_active() and in_native_scope_path(path) {
         return;
     }
     key = _file_key(path);
