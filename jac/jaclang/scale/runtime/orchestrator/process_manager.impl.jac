@@ -129,16 +129,7 @@ impl ServiceProcessManager._url_for(service_entry: ServiceEntry) -> str {
     return f"http://127.0.0.1:{service_entry.port}";
 }
 
-impl ServiceProcessManager._assign_port(service_entry: ServiceEntry) -> int {
-    if service_entry.port > 0 {
-        return service_entry.port;
-    }
-    import from jaclang.scale.runtime.context.util { pick_free_port }
-    return pick_free_port(service_entry.name);
-}
-
-impl ServiceProcessManager._assign_free_port(service_entry: ServiceEntry) -> int {
-    import from jaclang.scale.runtime.context.util { pick_free_port }
+impl ServiceProcessManager._ports_in_use -> set[int] {
     taken: set[int] = set();
     for peer in self.registry.entries.values() {
         if peer.port > 0 {
@@ -148,7 +139,20 @@ impl ServiceProcessManager._assign_free_port(service_entry: ServiceEntry) -> int
             taken.add(peer.page_port);
         }
     }
-    return pick_free_port(f"{service_entry.name}-api", avoid=taken);
+    return taken;
+}
+
+impl ServiceProcessManager._assign_port(service_entry: ServiceEntry) -> int {
+    if service_entry.port > 0 {
+        return service_entry.port;
+    }
+    import from jaclang.scale.runtime.context.util { pick_free_port }
+    return pick_free_port(service_entry.name, avoid=self._ports_in_use());
+}
+
+impl ServiceProcessManager._assign_free_port(service_entry: ServiceEntry) -> int {
+    import from jaclang.scale.runtime.context.util { pick_free_port }
+    return pick_free_port(f"{service_entry.name}-api", avoid=self._ports_in_use());
 }
 
 impl ServiceProcessManager._prepare_ports(service_entry: ServiceEntry) -> None {
@@ -242,13 +246,64 @@ impl ServiceProcessManager.start_service(name: str) -> bool {
     }
 }
 
+impl ServiceProcessManager._boot_order -> list[str] {
+    lead: list[str] = [];
+    rest: list[str] = [];
+    for (name, `entry) in self.registry.entries.items() {
+        if `entry.serves_client {
+            lead.append(name);
+        } else {
+            rest.append(name);
+        }
+    }
+    return lead + rest;
+}
+
+impl ServiceProcessManager._await_lead(name: str) -> None {
+    import from jaclang.scale.runtime.context.util { wait_for_health }
+    `entry = self.registry.entries[name];
+    proc = self.processes.get(name);
+    if proc is None or not `entry.url {
+        return;
+    }
+    live: subprocess.Popen = proc;
+    logger.info(
+        f"Waiting for {name} to compile its client before starting the rest of "
+        f"the fleet; a module analyzed for another service first reaches the "
+        f"client backend with its calls unresolved"
+    );
+    ok = wait_for_health(
+        `entry.url, lambda { live.poll() is None; }, timeout=self.app_boot_timeout
+    );
+    if ok {
+        `entry.status = ServiceStatus.HEALTHY;
+        return;
+    }
+    exit_code = live.poll();
+    if exit_code is not None {
+        `entry.status = ServiceStatus.STOPPED;
+        `entry.pid = None;
+        _report_exit(name, exit_code, "during startup");
+        return;
+    }
+    logger.warning(
+        f"{name} is still starting after {self.app_boot_timeout:.0f}s; the rest "
+        f"of the fleet starts now and its client bundle may be built from a "
+        f"cache another service warmed"
+    );
+}
+
 impl ServiceProcessManager.start_all -> None {
     for (_name, `entry) in self.registry.entries.items() {
         self._prepare_ports(`entry);
     }
 
-    for name in self.registry.entries {
+    order: list[str] = self._boot_order();
+    for name in order {
         self.start_service(name);
+        if self.registry.entries[name].serves_client and len(order) > 1 {
+            self._await_lead(name);
+        }
     }
 }
 
@@ -291,14 +346,18 @@ impl ServiceProcessManager.stop_service(name: str) -> bool {
             return True;
         }
         logger.info(f"Stopping {name} (pid={pid}) via pidfile...");
-        _signal_group(pid, int(signal.SIGTERM));
+        try {
+            os.kill(pid, int(signal.SIGTERM));
+        } except (ProcessLookupError, OSError) {}
         deadline = time.time() + 10.0;
         while time.time() < deadline and _pid_alive(pid) {
             time.sleep(0.2);
         }
         if _pid_alive(pid) {
             logger.warning(f"{name} did not exit gracefully, force killing");
-            _signal_group(pid, int(signal.SIGKILL));
+            try {
+                os.kill(pid, int(signal.SIGKILL));
+            } except (ProcessLookupError, OSError) {}
         }
     }
 
@@ -391,16 +450,17 @@ impl ServiceProcessManager.check_all_health -> dict[str, bool] {
 
 
 def _health_monitor_loop(pm: any, stop_event: any, interval: float) -> None {
-    current: float = interval;
     while not stop_event.is_set() {
+        settled: bool = False;
         try {
             results = pm.check_all_health();
-            if results and all(results.values()) {
-                current = pm._health_monitor_interval;
-            }
+            settled = bool(results) and all(results.values());
         } except Exception as e {
             logger.warning(f"health monitor iteration failed: {e}");
         }
+        current: float = pm._health_monitor_interval
+            if settled
+            else min(pm._health_monitor_interval, interval);
         if stop_event.`wait(current) {
             return;
         }

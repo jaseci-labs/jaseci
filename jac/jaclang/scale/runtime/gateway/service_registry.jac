@@ -25,6 +25,7 @@ obj ServiceEntry {
         serves_client: bool = False;
 
     def is_routable -> bool;
+    def owns_root -> bool;
 }
 
 obj ServiceRegistry {

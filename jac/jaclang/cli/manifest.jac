@@ -151,6 +151,11 @@ with entry {
     ) , "a command names a tier that TIER_SECTIONS does not know";
     comptime assert all([r.group in GROUP_DISPLAY for r in ROUTES]) , "a command names a group that GROUP_DISPLAY does not know";
     comptime assert all([r.handler_module and r.handler_name for r in ROUTES]) , "a command spec has no handler";
+    comptime assert not [
+        r.name
+        for r in ROUTES
+        if len({a.dest or a.name for a in r.args}) != len(r.args)
+    ] , "a command declares two arguments that bind the same name";
 }
 
 def get_command_meta(name: str) -> CommandSpec | None;

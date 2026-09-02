@@ -28,9 +28,13 @@ impl ServiceRegistry.match_route(path: str) -> ServiceEntry | None {
     return None;
 }
 
+impl ServiceEntry.owns_root -> bool {
+    return self.is_app and self.serves_client;
+}
+
 impl ServiceRegistry.app_entry -> ServiceEntry | None {
     for `entry in self.entries.values() {
-        if `entry.is_app {
+        if `entry.owns_root() {
             return `entry;
         }
     }

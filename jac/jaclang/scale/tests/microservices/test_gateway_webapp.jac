@@ -9,7 +9,9 @@ across every service in registration order. These tests pin that the app
 service owns the project root, and that no page request fans out.
 """
 
+import shutil;
 import tempfile;
+import from pathlib { Path }
 import from jaclang.server.serving.app { ServingApp }
 import from jaclang.server.serving.datatypes { JSONResponse, Request, Response }
 import from jaclang.server.serving.server { ServingServer }
@@ -24,13 +26,23 @@ import from jaclang.testing.testkit { ServingTestClient }
 
 """Serve a marker backend that names itself in every response body."""
 def _spawn_stub(
-    name: str, spec_paths: list[str], seen: list[str], ready: list[bool]
+    name: str,
+    spec_paths: list[str],
+    seen: list[str],
+    ready: list[bool],
+    pages: list[str] | None = None
 ) -> tuple {
     app = ServingApp(title=name);
+    owned: list[str] = list(pages) if pages is not None else [];
 
     async def marker(request: Request, call_next: object) -> Response {
         path: str = request.url.path;
         seen.append(f"{name} {path}");
+        if pages is not None and path.startswith("/cl/") {
+            if path[len("/cl/"):] not in owned {
+                return Response(content="no such page", status_code=404);
+            }
+        }
         if path == "/openapi.json" {
             if not ready[0] {
                 return Response(content="not ready", status_code=404);
@@ -62,11 +74,15 @@ obj Fleet {
         peer_seen: list[str],
         peer: ServiceEntry,
         peer_ready: list[bool],
-        _servers: list[any];
+        _servers: list[any],
+        _dirs: list[str] = [];
 
     def close {
         for srv in self._servers {
             srv.request_stop();
+        }
+        for d in self._dirs {
+            shutil.rmtree(d, ignore_errors=True);
         }
     }
 }
@@ -84,12 +100,18 @@ def _fleet(
     peer_seen: list[str] = [];
     peer_flag: list[bool] = [peer_ready];
     (peer_srv, peer_port) = _spawn_stub(
-        "social_graph", ["/api/orders", "/static/{file_path}"], peer_seen, peer_flag
+        "social_graph",
+        ["/api/orders", "/static/{file_path}"],
+        peer_seen,
+        peer_flag,
+        pages=["orders"]
     );
     (app_srv, app_port) = _spawn_stub(
-        "main", ["/walker/ping", "/static/{file_path}"], app_seen, [True]
+        "main", ["/walker/ping", "/static/{file_path}"], app_seen, [True], pages=["app"]
     );
 
+    dist_dir: str = tempfile.mkdtemp();
+    base_dir: str = tempfile.mkdtemp();
     reg = ServiceRegistry();
     peer = ServiceEntry(
         name="social_graph",
@@ -114,7 +136,7 @@ def _fleet(
     );
 
     gw = MicroserviceGateway(
-        registry=reg, client_dist_dir=tempfile.mkdtemp(), base_path=tempfile.mkdtemp()
+        registry=reg, client_dist_dir=dist_dir, base_path=base_dir
     );
     gw.setup();
     return Fleet(
@@ -258,6 +280,8 @@ test "in dev the pages come from the client dev server, the API from the service
     (api_srv, api_port) = _spawn_stub("main", ["/walker/ping"], api_seen, [True]);
     (page_srv, page_port) = _spawn_stub("vite", [], page_seen, [True]);
 
+    dist_dir: str = tempfile.mkdtemp();
+    base_dir: str = tempfile.mkdtemp();
     reg = ServiceRegistry();
     reg.register(
         ServiceEntry(
@@ -274,7 +298,7 @@ test "in dev the pages come from the client dev server, the API from the service
         )
     );
     gw = MicroserviceGateway(
-        registry=reg, client_dist_dir=tempfile.mkdtemp(), base_path=tempfile.mkdtemp()
+        registry=reg, client_dist_dir=dist_dir, base_path=base_dir
     );
     gw.setup();
     client = ServingTestClient(gw.app);
@@ -305,5 +329,63 @@ test "in dev the pages come from the client dev server, the API from the service
         if not page_stopped {
             page_srv.request_stop();
         }
+        shutil.rmtree(dist_dir, ignore_errors=True);
+        shutil.rmtree(base_dir, ignore_errors=True);
+    }
+}
+
+
+test "a deployed gateway keeps its own shell: is_app alone does not own the root" {
+    app_seen: list[str] = [];
+    (srv, port) = _spawn_stub("main", ["/walker/ping"], app_seen, [True]);
+    dist_dir: str = tempfile.mkdtemp();
+    base_dir: str = tempfile.mkdtemp();
+    (Path(dist_dir) / "index.html").write_text("<html>staged-shell</html>");
+
+    reg = ServiceRegistry();
+    reg.register(
+        ServiceEntry(
+            name="main",
+            file="main.jac",
+            prefix="/__main__",
+            port=port,
+            url=f"http://127.0.0.1:{port}",
+            status=ServiceStatus.HEALTHY,
+            is_app=True,
+            serves_client=False
+        )
+    );
+    gw = MicroserviceGateway(
+        registry=reg, client_dist_dir=dist_dir, base_path=base_dir
+    );
+    gw.setup();
+    client = ServingTestClient(gw.app);
+    try {
+        landing = client.get("/", headers={"Accept": "text/html"});
+        assert "staged-shell" in landing.text , (
+            f"a fleet pod serves the client bundle its image staged; only a "
+            f"service that serves the client owns the root; got {landing.text!r}"
+        );
+        assert "main /" not in landing.text;
+    } finally {
+        srv.request_stop();
+        shutil.rmtree(dist_dir, ignore_errors=True);
+        shutil.rmtree(base_dir, ignore_errors=True);
+    }
+}
+
+
+test "a client page the app does not have still reaches the service that does" {
+    fleet = _fleet();
+    try {
+        resp = fleet.client.get("/cl/orders");
+        assert resp.status_code == 200;
+        assert resp.text == "social_graph /cl/orders" , (
+            f"/cl is a discovery family: the app is asked first, and a page it "
+            f"does not serve still falls through to the peer that does; got "
+            f"{resp.text!r}"
+        );
+    } finally {
+        fleet.close();
     }
 }

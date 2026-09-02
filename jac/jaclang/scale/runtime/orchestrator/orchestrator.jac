@@ -50,8 +50,11 @@ obj MicroserviceOrchestrator {
         logger.info(f"Registry: {len(registry.entries)} services");
 
         deployer = LocalDeployer(registry=registry, dev_mode=self._dev_mode());
-        deployer.deploy_all();
         pm = deployer._ensure_pm();
+        pm.app_boot_timeout = float(
+            self.ms_config.get("app_boot_timeout", pm.app_boot_timeout)
+        );
+        deployer.deploy_all();
 
         pm._boot_health_timeout = float(
             self.ms_config.get("boot_health_timeout", pm._boot_health_timeout)
@@ -65,11 +68,9 @@ obj MicroserviceOrchestrator {
 
         atexit.register(deployer.destroy_all);
 
-        all_healthy: bool = self._wait_for_health(pm, registry, max_wait);
+        self._wait_for_health(pm, registry, max_wait);
 
-        pm.start_health_monitor(
-            interval=None if all_healthy else _BOOT_RECHECK_INTERVAL
-        );
+        pm.start_health_monitor(interval=_BOOT_RECHECK_INTERVAL);
 
         gateway_port: int = int(
             self.ms_config.get("gateway_port", DEFAULT_GATEWAY_PORT)

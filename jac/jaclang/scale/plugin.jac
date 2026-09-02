@@ -96,9 +96,11 @@ def scale_local_serve(
     }
 
     enabled = ms_config.get("enabled", None);
-    if ms is True and not ms_config.get("routes") {
+    asked_for_ms: bool = ms is True or (ms is None and enabled is True);
+    if asked_for_ms and not ms_config.get("routes") {
+        how: str = "--ms" if ms is True else "[scale.microservices] enabled = true";
         console.error(
-            "--ms has nothing to run: no services are declared.\n"
+            f"{how} has nothing to run: no services are declared.\n"
             "  Declare them in [scale.microservices.routes] "
             "(`jac scale split <module>` adds one).",
             emoji=False
@@ -145,7 +147,9 @@ def scale_local_serve(
         ms_config["gateway_port_pinned"] = bool(port);
         ms_config["dev"] = dev_client;
         ms_config["app_serves_client"] = _app_serves_client(no_client);
-        _print_local_ms_banner(ms_config.get("routes", {}));
+        if not asked_for_ms {
+            _print_local_ms_banner(ms_config.get("routes", {}));
+        }
         realizer.serve();
         return 0;
     }
