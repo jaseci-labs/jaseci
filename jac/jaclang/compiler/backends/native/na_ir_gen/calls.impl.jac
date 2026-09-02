@@ -2128,6 +2128,7 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
 
     _clib_str_args: set = set();
     _clib_str_ret = False;
+    _clib_managed_ret = False;
     if _is_foreign {
         import from jaclang.compiler.backends.native.foreign { declared_type_name }
         _clib_sig = self._callee_sig_of(nd);
@@ -2138,7 +2139,9 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                     _clib_str_args.add(_ci);
                 }
             }
-            _clib_str_ret = declared_type_name(_clib_sig.return_type) == "str";
+            _clib_ret_name = declared_type_name(_clib_sig.return_type) or "";
+            _clib_str_ret = _clib_ret_name == "str";
+            _clib_managed_ret = _clib_ret_name.split("[")[0] in ("list", "dict", "set");
         }
     }
     release_args: list[ir.Value] = [];
@@ -2244,6 +2247,8 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     if func_name in self.clib_extern_names {
         if _clib_str_ret and isinstance(result.type, ir.PointerType) {
             result = self._membrane_str_in(self.builder, result);
+        } elif _clib_managed_ret and isinstance(result.type, ir.PointerType) {
+            result = self._mark_owned(result);
         }
     }
 

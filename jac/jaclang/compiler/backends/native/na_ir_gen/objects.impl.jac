@@ -1912,6 +1912,30 @@ impl NaIRGenObjects._codegen_instantiation(
             self._emit_set_type_tag(self.builder, _obj_i8_r, type_name);
         }
         self._region_log_dtor_if_needed(raw_ptr, type_name);
+    } elif self._dynamic_region_module() and not self._arch_is_walker_name(type_name) {
+        null_ptr = ir.Constant(struct_ptr_type, None);
+        size_gep = self.builder.gep(
+            null_ptr, [ir.Constant(ir.IntType(32), 1)], name="sizeof.gep"
+        );
+        size = self.builder.ptrtoint(size_gep, ir.IntType(64), name="sizeof");
+        raw_ptr = self._dyn_region_alloc(size, type_name);
+        obj_ptr = self.builder.bitcast(raw_ptr, struct_ptr_type, name="obj.ptr");
+        self._emit_trace_fn(type_name);
+        _trace_fn_d = self.struct_trace_fns.get(type_name);
+        self._require_trace_fn(
+            type_name,
+            (
+                self._struct_has_ref_fields(type_name)
+                and not self._arch_is_acyclic(type_name)
+            ),
+            _trace_fn_d is not None
+        );
+        if self.rc_set_type_fn is not None {
+            _obj_i8_d = self.builder.bitcast(
+                obj_ptr, ir.IntType(8).as_pointer(), name="obj.i8.dtag"
+            );
+            self._emit_set_type_tag(self.builder, _obj_i8_d, type_name);
+        }
     } elif (
         self._arch_is_osp_name(type_name)
         and not self._arch_is_walker_name(type_name)
@@ -3301,7 +3325,7 @@ impl NaIRGenObjects._codegen_accessor_call(
     if self._arch_has_vtable(type_name) {
         result = self._codegen_virtual_call(obj_val, slot, _all_args, type_name);
         if result is not None {
-            return result;
+            return self._own_accessor_result(result);
         }
     }
     coerced: list[ir.Value] = [];
@@ -3310,7 +3334,17 @@ impl NaIRGenObjects._codegen_accessor_call(
             self._coerce_type(arg, func.args[i].type) if i < len(func.args) else arg
         );
     }
-    return self.builder.call(func, coerced, name=f"acc.{slot}");
+    return self._own_accessor_result(
+        self.builder.call(func, coerced, name=f"acc.{slot}")
+    );
+}
+
+impl NaIRGenObjects._own_accessor_result(result: ir.Value) -> ir.Value {
+    if isinstance(result.type, ir.PointerType)
+        or self._opt_ptr_payload_of(result.type) is not None {
+        return self._mark_owned(result);
+    }
+    return result;
 }
 
 impl NaIRGenObjects._receiver_union_parts(
