@@ -1568,7 +1568,13 @@ impl JacServe.get_api_server_class -> type {
     }
     _scaled = _sp.get_api_server_class();
     if _scaled is None {
-        raise scale_stack_unavailable('jaclang.scale.server.serve');
+        raise RuntimeError(
+            'the scale plugin returned no API server class while the scale '
+            'identity owns /user/* for this project. Nothing falls back to the '
+            'core store from here: the two stacks keep credentials in '
+            'different databases, so serving the other one would answer for '
+            'accounts this project does not have.'
+        );
     }
     return _scaled;
 }

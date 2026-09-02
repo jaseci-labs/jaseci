@@ -196,10 +196,10 @@ impl JacScaleConfig.get_jwt_config(self: JacScaleConfig) -> dict[str, any] {
             secret = PLACEHOLDER_JWT_SECRET;
         } else {
             base = str(self.project_dir) if self.project_dir is not None else '.';
+            secret = project_signing_secret(base);
             _announce_minted_jwt_secret(
                 os.path.join(project_data_dir(base), DEV_SECRET_FILENAME)
             );
-            secret = project_signing_secret(base);
         }
     }
     return {
