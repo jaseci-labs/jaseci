@@ -108,23 +108,35 @@ def:pub DocsSidebar(
                     />
                     <span className="text-sm font-semibold">Jac Docs</span>
                 </div>
-                <Select value={version} onValueChange={onVersionChange}>
-                    <SelectTrigger className="mb-3 w-full">
-                        <SelectValue placeholder="Version"/>
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectGroup>
-                            {for (i, v) in enumerate(versions) {
-                                <SelectItem key={str(i)} value={v.label}>
-                                    {v.label}{" · "}{str(v.pages)}{" pages"}
-                                </SelectItem>
-                            }}
-                            {if len(versions) == 0 {
-                                <SelectItem value={version}>{version}</SelectItem>
-                            }}
-                        </SelectGroup>
-                    </SelectContent>
-                </Select>
+                {if len(versions) > 1 {
+                    <Select value={version} onValueChange={onVersionChange}>
+                        <SelectTrigger className="mb-3 w-full">
+                            <SelectValue placeholder="Version"/>
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                                {for (i, v) in enumerate(versions) {
+                                    <SelectItem key={str(i)} value={v.label}>
+                                        {v.label}{" · "}{str(v.pages)}{" pages"}
+                                    </SelectItem>
+                                }}
+                            </SelectGroup>
+                        </SelectContent>
+                    </Select>
+                } else {
+                    <div
+                        className="mb-3 flex items-center justify-between rounded-md border border-border/60 bg-muted/30 pl-3 pr-3 pt-1.5 pb-1.5 text-[12px]"
+                    >
+                        <span className="font-mono font-semibold">
+                            {"jac " + version}
+                        </span>
+                        {if len(versions) == 1 {
+                            <span className="text-muted-foreground">
+                                {str(versions[0].pages)}{" pages"}
+                            </span>
+                        }}
+                    </div>
+                } }
                 <Input
                     value={q}
                     onChange={onFilter}
