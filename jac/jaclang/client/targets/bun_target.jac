@@ -1,11 +1,9 @@
 import from pathlib { Path }
 import from typing { Optional }
-import from jaclang.client.targets.registry { Host }
-import from jaclang.jac0core.host { HOST_BUN }
+import from jaclang.client.targets.registry { ClientTarget }
 
-obj BunTarget(Host) {
+obj BunTarget(ClientTarget) {
     has name: str = "bun",
-        host_kind: str = HOST_BUN,
         `default: bool = False,
         requires_setup: bool = False,
         config_section: str = "plugin.client",
