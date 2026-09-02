@@ -37,7 +37,8 @@ obj PrometheusMetricsCollector(MetricsCollector) {
         _walker_latency: any = None,
         _ws_connections_active: any = None,
         _ws_broadcasts_total: any = None,
-        _read_tier_retries: any = None;
+        _read_tier_retries: any = None,
+        _jac_info: any = None;
 
     def postinit {
         self._enabled = bool(self.config.get("enabled", True));
@@ -61,6 +62,17 @@ obj PrometheusMetricsCollector(MetricsCollector) {
             ProcessCollector(registry=self._registry);
             PlatformCollector(registry=self._registry);
             GCCollector(registry=self._registry);
+        } except Exception {}
+
+        try {
+            import from jaclang.cli.manifest_route { resolve_cli_version }
+            self._jac_info = Gauge(
+                "jac_info",
+                "Jac runtime version information",
+                ["version"],
+                registry=self._registry
+            );
+            self._jac_info.labels(version=resolve_cli_version()).set(1);
         } except Exception {}
 
         buckets = self.config.get("histogram_buckets");

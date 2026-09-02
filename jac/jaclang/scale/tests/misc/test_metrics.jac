@@ -60,6 +60,24 @@ test "prometheus endpoint handler returns response" {
     assert "text" in response.media_type or "openmetrics" in response.media_type;
 }
 
+test "prometheus exposes jac version info" {
+    import from jaclang.scale.admin.admin_portal { _parse_prometheus_text }
+    import from jaclang.cli.manifest_route { resolve_cli_version }
+
+    collector = PrometheusMetricsCollector(config=ENABLED_CONFIG);
+    metrics = _parse_prometheus_text(collector.expose().decode("utf-8"));
+
+    jac_info = None;
+    for metric in metrics {
+        if metric["name"] == "jac_info" {
+            jac_info = metric;
+        }
+    }
+
+    assert jac_info is not None , "jac_info was not exposed";
+    assert jac_info["values"][0]["labels"]["version"] == resolve_cli_version();
+}
+
 test "factory returns noop when disabled" {
     config = {"enabled": False};
     collector = UtilityFactory.create_metrics("prometheus", config);
