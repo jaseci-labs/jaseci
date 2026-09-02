@@ -55,3 +55,27 @@ test "initdb failure exhausts retries and leaves a clean slate" {
     assert failed , "exhausted initdb must raise";
     assert not os.path.exists(data_dir) or os.listdir(data_dir) == [] , "partial cluster must not survive a failed provision";
 }
+
+test "initdb retry never wipes a cluster another process completed" {
+    data_dir = tempfile.mkdtemp(prefix="jac_initdb_race_");
+    rt = PgRuntime(data_dir=data_dir, superuser='jac');
+    calls: list = [];
+
+    def fake_run(args: list, **kw: any) -> any {
+        calls.append(args);
+        if len(calls) == 1 {
+            with open(os.path.join(data_dir, 'PG_VERSION'), 'w') as f {
+                f.write('16');
+            }
+            return type("R", (), {"returncode": 1, "stderr": "boom"})();
+        }
+        return type("R", (), {"returncode": 0, "stderr": ""})();
+    }
+
+    with patch("jaclang.data.pgembed.subprocess.run", side_effect=fake_run) {
+        rt._initdb_if_needed(bin_dir="/nonexistent/bin");
+    }
+    assert len(calls) == 1 , f"provision must not retry once the cluster is complete, got {len(calls)} calls";
+    assert os.path.isfile(os.path.join(data_dir, 'PG_VERSION')) , "completed cluster marker must survive the failed attempt";
+    assert os.listdir(data_dir) == ['PG_VERSION'] , "no wipe may touch a completed data dir";
+}

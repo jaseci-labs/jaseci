@@ -582,7 +582,15 @@ impl PgRuntime._initdb_if_needed(bin_dir: str) -> None {
     os.makedirs(self.data_dir, exist_ok=True);
     os.chmod(self.data_dir, 0o700);
     self._grant_dir(self.data_dir);
-    timeout = float(os.environ.get('JAC_PG_INITDB_TIMEOUT', '120'));
+    try {
+        timeout = float(os.environ.get('JAC_PG_INITDB_TIMEOUT', '120'));
+    } except ValueError {
+        logger.warning(
+            f"ignoring non-numeric JAC_PG_INITDB_TIMEOUT "
+            f"{os.environ.get('JAC_PG_INITDB_TIMEOUT')!r}; using 120.0"
+        );
+        timeout = 120.0;
+    }
     last_err: str = '';
     for attempt in range(2) {
         try {
@@ -614,6 +622,13 @@ impl PgRuntime._initdb_if_needed(bin_dir: str) -> None {
         logger.warning(
             f"initdb attempt {attempt + 1}/2 failed, " f"resetting data dir: {last_err}"
         );
+        if os.path.isfile(os.path.join(self.data_dir, 'PG_VERSION')) {
+            logger.info(
+                'skipping data dir reset: another process completed '
+                'provisioning while initdb failed'
+            );
+            return;
+        }
         shutil.rmtree(self.data_dir, ignore_errors=True);
     }
     assert False , f"initdb failed after retry: {last_err}";
@@ -824,8 +839,16 @@ impl PgRuntime._sweep_on_start -> None {
 
 
 impl PgRuntime.serve -> int {
-    bin_dir = self._resolve_binaries();
-    self._initdb_if_needed(bin_dir);
+    import fcntl;
+    os.makedirs(os.path.dirname(self.data_dir) or '.', exist_ok=True);
+    lock_f = open(self.data_dir + '.lock', 'w');
+    fcntl.flock(lock_f.fileno(), fcntl.LOCK_EX);
+    try {
+        self._initdb_if_needed(bin_dir);
+    } finally {
+        fcntl.flock(lock_f.fileno(), fcntl.LOCK_UN);
+        lock_f.close();
+    }
     os.makedirs(self._sock_dir(), exist_ok=True);
     self._grant_dir(self._sock_dir());
     argv = [
