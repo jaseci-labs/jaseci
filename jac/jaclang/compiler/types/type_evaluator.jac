@@ -670,6 +670,10 @@ walker TypeEvaluator {
         solved_type_vars: (dict[str, TypeBase] | None) = None
     ) -> bool;
 
+    def _merge_catalog_field_params(
+        tab: any, param_map: dict[str, Parameter], skip_deferred: bool
+    ) -> None;
+
     def _build_field_params(
         class_type: ClassType, skip_deferred: bool = True
     ) -> dict[str, Parameter];

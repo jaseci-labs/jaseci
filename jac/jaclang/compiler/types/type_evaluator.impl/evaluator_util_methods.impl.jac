@@ -48,11 +48,57 @@ impl TypeEvaluator._type_from_union_annotation_arg(val: Expr) -> TypeBase {
     return self._convert_to_instance(self.get_type_of_expression(val));
 }
 
+impl TypeEvaluator._merge_catalog_field_params(
+    tab: any, param_map: dict[str, Parameter], skip_deferred: bool
+) -> None {
+    import from jaclang.compiler.frontend.constant { SymbolType }
+    import from jaclang.compiler.types.stubcat.format { SYMF_DEFER, SYMF_HAS_DEFAULT }
+    names: dict[str, Symbol] = dict(getattr(tab, "names_in_scope", {}) or {});
+    for (name, sym) in names.items() {
+        try {
+            if sym.sym_type != SymbolType.HAS_VAR {
+                continue;
+            }
+        } except Exception {
+            continue;
+        }
+        prov: any = sym.provider;
+        bits: int = int(getattr(prov, "symbits", 0) or 0);
+        if skip_deferred and (bits & SYMF_DEFER) != 0 {
+            param_map.pop(name, None);
+            continue;
+        }
+        if int(getattr(prov, "prop_kind", 0) or 0) != 0 {
+            continue;
+        }
+        param_type: (TypeBase | None) = None;
+        try {
+            param_type = self.get_type_of_symbol(sym);
+        } except Exception {
+            param_type = None;
+        }
+        param_map[name] = Parameter(
+            name=name,
+            category=ParameterCategory.Positional,
+            param_type=param_type,
+            default_value=None,
+            is_self=False,
+            param_kind=ParamKind.NORMAL,
+            has_default=(bits & SYMF_HAS_DEFAULT) != 0
+        );
+    }
+}
+
 impl TypeEvaluator._build_field_params(
     class_type: ClassType, skip_deferred: bool = True
 ) -> dict[str, Parameter] {
     param_map: dict[str, Parameter] = {};
     for cls in class_type.shared.mro[::-1] {
+        cat_tab = cls.shared.symbol_table;
+        if hasattr(cat_tab, "cat_kind") {
+            self._merge_catalog_field_params(cat_tab, param_map, skip_deferred);
+            continue;
+        }
         for has_var in cls.shared.symbol_table.get_has_vars() {
             if skip_deferred and has_var.defer {
                 param_map.pop(has_var.name.value, None);

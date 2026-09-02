@@ -231,6 +231,24 @@ jobs:
           fi
           cat changed-jac.txt || true
 
+      # The analysis cache is content+env keyed (every entry folds the
+      # compiler-source digest), so restoring any prior cache is safe by
+      # construction: entries from another compiler generation simply miss
+      # and get swept. The key's digest segment covers the compiler digest
+      # roots, so a compiler edit starts cold exactly when it must, while
+      # app-and-test-only PRs restore a fully warm analysis cache and the
+      # whole-repo sweep collapses to diagnostics replay. Restored before
+      # jac-kit (which pins XDG_CACHE_HOME to this path) so the kit's own
+      # warm-up precompile re-wraps cached JIRs instead of compiling.
+      - name: Restore JIR analysis cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/.cache/jac/jir
+          key: jac-check-jir-${{ runner.os }}-${{ hashFiles('jac/jaclang/compiler/**', 'jac/jaclang/runtime/**', 'jac/jaclang/lib/**', 'jac/jaclang/jac0core/**', 'jac/jaclang/jac0.py', 'jac/jaclang/meta_importer.py', 'jac/jaclang/bootstrap_manifest.py', 'jac/jaclang/cli/cli_boot.jac', 'jac/jaclang/project/tomlio.jac', 'jac/jaclang/dist/precompile_bytecode.jac') }}-${{ github.sha }}
+          restore-keys: |
+            jac-check-jir-${{ runner.os }}-${{ hashFiles('jac/jaclang/compiler/**', 'jac/jaclang/runtime/**', 'jac/jaclang/lib/**', 'jac/jaclang/jac0core/**', 'jac/jaclang/jac0.py', 'jac/jaclang/meta_importer.py', 'jac/jaclang/bootstrap_manifest.py', 'jac/jaclang/cli/cli_boot.jac', 'jac/jaclang/project/tomlio.jac', 'jac/jaclang/dist/precompile_bytecode.jac') }}-
+            jac-check-jir-${{ runner.os }}-
+
       - uses: ./.github/actions/jac-kit
 
       - name: Install plugin deps so jac check resolves scale/byllm imports
@@ -349,6 +367,13 @@ jobs:
           IGNORE_ARGS="tests checker_*.jac *_err.jac $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ')"
           jac check . --ignore $IGNORE_ARGS --nowarn
 
+      - name: Save JIR analysis cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/.cache/jac/jir
+          key: jac-check-jir-${{ runner.os }}-${{ hashFiles('jac/jaclang/compiler/**', 'jac/jaclang/runtime/**', 'jac/jaclang/lib/**', 'jac/jaclang/jac0core/**', 'jac/jaclang/jac0.py', 'jac/jaclang/meta_importer.py', 'jac/jaclang/bootstrap_manifest.py', 'jac/jaclang/cli/cli_boot.jac', 'jac/jaclang/project/tomlio.jac', 'jac/jaclang/dist/precompile_bytecode.jac') }}-${{ github.sha }}
+
       - name: Error-code breakdown (label "type-error-report")
         if: contains(github.event.pull_request.labels.*.name, 'type-error-report')
         run: |
@@ -443,9 +468,13 @@ jobs:
           # The equivalence suite builds fixture paths from jaclang.__file__,
           # which only resolve in the checkout: it runs through the reroute,
           # over the kit's shim and floors ("" clears JAC_NO_DEV_SOURCE).
+          # JAC_IFACE_VERIFY makes every hydration/replay the analysis cache
+          # serves during the suite recompute-and-diff, so warmth can never
+          # change an equivalence verdict silently.
           - chunk: equivalence
             paths: jaclang/compiler/tests
             sealed: ""
+            iface_verify: "1"
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/jac-kit
@@ -457,6 +486,7 @@ jobs:
         working-directory: jac
         env:
           JAC_NO_DEV_SOURCE: ${{ matrix.sealed }}
+          JAC_IFACE_VERIFY: ${{ matrix.iface_verify || '' }}
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
