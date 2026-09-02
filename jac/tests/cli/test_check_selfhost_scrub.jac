@@ -79,11 +79,14 @@ test "check jobs leave no type memos on retained self-host dependencies" {
     if os.environ.get("JAC_NO_UNIT_EVICT") {
         return;
     }
-    root = tempfile.mkdtemp(prefix="jac_scrub_fx_");
-    fx = os.path.join(root, "fx");
+    fx_root = tempfile.mkdtemp(prefix="jac_scrub_fx_");
+    fx = os.path.join(fx_root, "fx");
     os.makedirs(fx);
     for (name, src) in {
-        "a.jac": FX_A, "b.jac": FX_B, "d.jac": FX_D, "e.jac": FX_E
+        "a.jac": FX_A,
+        "b.jac": FX_B,
+        "d.jac": FX_D,
+        "e.jac": FX_E
     }.items() {
         with open(os.path.join(fx, name), "w") as fh {
             fh.write(src);
@@ -93,10 +96,10 @@ test "check jobs leave no type memos on retained self-host dependencies" {
     real_root = sh.jaclang_root();
     old_cwd = os.getcwd();
     try {
-        sh._jaclang_root = os.path.realpath(root);
-        os.chdir(root);
+        sh._jaclang_root = os.path.realpath(fx_root);
+        os.chdir(fx_root);
         r1 = _run_job(os.path.join(fx, "d.jac"));
-        assert r1["success"], f"d.jac should check clean: {r1['errors']}";
+        assert r1["success"] , f"d.jac should check clean: {r1['errors']}";
 
         sp = sh.peek_program();
         assert sp is not None;
@@ -105,7 +108,7 @@ test "check jobs leave no type memos on retained self-host dependencies" {
             for (p, m) in sp.mod.hub.items()
             if (os.sep + "fx" + os.sep) in p
         };
-        assert retained, (
+        assert retained , (
             "fixture dependencies were not retained in the self-host hub; "
             + "the leak surface this test guards is gone, update the test"
         );
@@ -113,16 +116,16 @@ test "check jobs leave no type memos on retained self-host dependencies" {
         for m in retained.values() {
             leaked += _count_memos(m);
         }
-        assert leaked == 0, (
+        assert leaked == 0 , (
             f"{leaked} type memo(s) survived a check job on retained "
             + "self-host modules; stale memos poison later files (#8828)"
         );
 
         r2 = _run_job(os.path.join(fx, "e.jac"));
-        assert r2["success"], f"e.jac should check clean: {r2['errors']}";
+        assert r2["success"] , f"e.jac should check clean: {r2['errors']}";
     } finally {
         sh._jaclang_root = real_root;
         os.chdir(old_cwd);
-        shutil.rmtree(root, ignore_errors=True);
+        shutil.rmtree(fx_root, ignore_errors=True);
     }
 }
