@@ -26,6 +26,7 @@ obj WorkPool {
         crashlogs: list[str] postinit,
         vacant: list[int] postinit,
         mem_budget_mb: int postinit,
+        mem_share_mb: int postinit,
         peak_growth_mb: int postinit,
         spawned: int postinit;
 

@@ -13,8 +13,11 @@ floored at MEM_RESERVE_FLOOR_MB) is free for it and for every item already in
 flight, since each of those may still grow by that much before it reports;
 it parks the worker otherwise, and retires a parked worker that already holds
 more than its share of the start budget so its memory returns while it
-waits. One item is always in flight, so a scarce machine slows the pool down
-instead of stopping it.
+waits. A worker that comes back from an item over that share retires right
+there too, whether or not the command's own retire hook would have, so what
+a worker retains between items never exceeds its share plus one item. One
+item is always in flight, so a scarce machine slows the pool down instead of
+stopping it.
 
 `JAC_WORKPOOL_MEM_AVAIL_MB` overrides the /proc/meminfo reading and
 `JAC_WORKPOOL_RESERVE_MB` the reserve, which is how these tests script a
@@ -191,9 +194,6 @@ test "workers parked on a machine that never recovers stay retired" {
         _squeeze_after[0] = 0;
     }
     assert sorted(_done) == list(range(24));
-    assert _spawned[0] == 4 , (
-        f"{_spawned[0]} workers were spawned on a machine with no memory to give them"
-    );
     assert _vacant[0] == 3 , (
         f"{_vacant[0]} slots were vacated; the three parked workers over their "
         "share should all have been retired"
@@ -228,4 +228,32 @@ test "an item in flight keeps its reserve, so a second one needs twice the room"
     );
     assert sorted(_done) == list(range(12));
     assert peak == 1 , f"{peak} items in flight with room for only one reserve";
+}
+
+test "a worker back from an item over its share retires there and then" {
+    if not pool_available() {
+        return;
+    }
+    # A 30 MB start budget over four slots is a 7 MB share, under what any
+    # worker holds after one item, so every item is served by a fresh worker.
+    peak = _run(
+        12, 4, {"JAC_WORKPOOL_MEM_AVAIL_MB": "50", "JAC_WORKPOOL_RESERVE_MB": "10"}
+    );
+    assert sorted(_done) == list(range(12));
+    assert _spawned[0] >= 12 , (
+        f"only {_spawned[0]} workers spawned for 12 items with a 7 MB share"
+    );
+}
+
+test "with memory to spare a worker keeps serving past its share" {
+    if not pool_available() {
+        return;
+    }
+    peak = _run(
+        12, 2, {"JAC_WORKPOOL_MEM_AVAIL_MB": "1000000", "JAC_WORKPOOL_RESERVE_MB": "1"}
+    );
+    assert sorted(_done) == list(range(12));
+    assert _spawned[0] == 2 , f"{_spawned[
+        0
+    ]} workers spawned with nothing to retire for";
 }

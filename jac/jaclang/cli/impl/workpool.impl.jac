@@ -3,6 +3,7 @@ impl WorkPool.postinit -> None {
     self.crashlogs = [];
     self.vacant = [];
     self.mem_budget_mb = 0;
+    self.mem_share_mb = 0;
     self.peak_growth_mb = 0;
     self.spawned = 0;
 }
@@ -74,6 +75,7 @@ impl WorkPool.run -> None {
     }
     avail = available_memory_mb();
     self.mem_budget_mb = int(avail * MEM_HEADROOM) if avail > 0 else 0;
+    self.mem_share_mb = self.mem_budget_mb // max(1, self.jobs);
     if self.mem_reserve_mb <= 0 {
         self.mem_reserve_mb = env_int("JAC_WORKPOOL_RESERVE_MB", 0);
     }
@@ -179,6 +181,9 @@ impl WorkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
                 retire_now = False;
             }
         }
+        if not retire_now and self.mem_share_mb > 0 and rss >= self.mem_share_mb {
+            retire_now = True;
+        }
         record["idx"] = request["idx"];
         record["retire"] = retire_now;
         record["rss"] = rss;
@@ -276,8 +281,7 @@ impl WorkPool._park(kid: dict[(str, any)]) -> None {
             f"{self._reserve_mb()}MB reserve"
         );
     }
-    share = self.mem_budget_mb // max(1, self.jobs);
-    if share > 0 and int(kid.get("rss") or 0) >= share {
+    if self.mem_share_mb > 0 and int(kid.get("rss") or 0) >= self.mem_share_mb {
         self._quit_kid(kid);
     }
 }
@@ -288,7 +292,7 @@ impl WorkPool._quit_kid(kid: dict[(str, any)]) -> None {
     self.vacant.append(int(kid["slot"]));
     self._log_mem(
         f"slot={kid['slot']} retired while parked at {kid.get('rss')}MB "
-        f"(share {self.mem_budget_mb // max(1, self.jobs)}MB)"
+        f"(share {self.mem_share_mb}MB)"
     );
     try {
         os.write(kid["dispatch_fd"], b"q\n");
