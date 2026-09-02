@@ -77,6 +77,18 @@ impl NaIRGenTypes._lower_type(t: any) -> (ir.Type | None) {
 }
 
 impl NaIRGenTypes._unify_repr_lowering(reprs: list) -> (ir.Type | None) {
+    """One representation for a set of lowerings that share a slot.
+
+    Members that share a lowering keep it. An all-pointer set keeps the
+    first member's layout only when every member is the same kind of
+    pointer, or when every member is callable: a closure struct and a raw
+    function pointer meet at one calling convention once the raw function
+    is wrapped into a closure (`_coerce_type` does the wrapping), so the
+    closure layout is the union's layout and boxing them would leave
+    nothing callable behind. Any other mix, including two headered heap
+    kinds such as `list | Expr` in the unitree, boxes to a tagged jacval so
+    the payload is never reinterpreted through the wrong layout.
+    """;
     if not reprs {
         return None;
     }
@@ -102,15 +114,30 @@ impl NaIRGenTypes._unify_repr_lowering(reprs: list) -> (ir.Type | None) {
         return _first;
     }
     if _all_ptr {
-        _kind = self._ptr_box_kind(_first);
-        _same_kind = True;
+        _kinds = [self._ptr_box_kind(_first)];
         for _r in _rest {
-            if self._ptr_box_kind(_r) != _kind {
+            _kinds.append(self._ptr_box_kind(_r));
+        }
+        _same_kind = True;
+        _all_callable = True;
+        for _k in _kinds {
+            if _k != _kinds[0] {
                 _same_kind = False;
-                break;
+            }
+            if _k != 7 {
+                _all_callable = False;
             }
         }
         if _same_kind {
+            return _first;
+        }
+
+        if _all_callable {
+            for _r in reprs {
+                if self._closure_struct_of(_r) is not None {
+                    return _r;
+                }
+            }
             return _first;
         }
     }
@@ -118,6 +145,12 @@ impl NaIRGenTypes._unify_repr_lowering(reprs: list) -> (ir.Type | None) {
 }
 
 impl NaIRGenTypes._ptr_box_kind(rt: any) -> int {
+    if isinstance(rt, ir.PointerType) and isinstance(rt.pointee, ir.FunctionType) {
+        return 7;
+    }
+    if self._closure_struct_of(rt) is not None {
+        return 7;
+    }
     for (_, ltype) in self.list_types.items() {
         if rt == ltype.as_pointer() {
             return 3;
