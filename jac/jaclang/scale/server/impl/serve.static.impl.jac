@@ -264,7 +264,10 @@ impl JacAPIServerStatic.serve_root_asset(file_path: str) -> Response {
         configured_root = config.serve.base_route_app if config else "";
         base_route_app = self.introspector.resolve_root_app(configured_root);
         if (
-            not file_ext and base_route_app and not file_path.startswith(api_prefixes)
+            not file_ext
+            and base_route_app
+            and not self.introspector.dev_mode
+            and not file_path.startswith(api_prefixes)
         ) {
             try {
                 render_payload = self.introspector.render_page(

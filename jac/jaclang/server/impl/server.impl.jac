@@ -1365,6 +1365,12 @@ impl ModuleIntrospector.ensure_bundle -> str {
     if self._bundle {
         return self._bundle.hash;
     }
+    if self.dev_mode {
+        raise ClientBundleError(
+            'the dev server owns the client in dev mode; the API port does not '
+            'build a production bundle'
+        );
+    }
 
     entry_epoch = self._bundle_epoch;
     with self._bundle_lock {
@@ -1507,7 +1513,8 @@ impl ModuleIntrospector.restspec_routes -> list[tuple[str, str, any]] {
             }
         }
         for (name, target) in sorted(self.get_functions().items()) {
-            fn_spec = target?.restspec;
+            fn_target: any = target;
+            fn_spec = fn_target?.restspec;
             if fn_spec is not None {
                 routes.append((name, 'function', fn_spec));
             }
@@ -2628,6 +2635,7 @@ impl JacAPIServer.start(
         );
     }
     self.dev_mode = dev;
+    self.introspector.dev_mode = dev;
     self.app = self.build_app();
     serving = ServingServer(app=self.app, host='0.0.0.0', port=self.port);
     self.server = serving;

@@ -185,6 +185,7 @@ impl JacAPIServerCore.start(
     on_ready: Callable[..., None] | None = None
 ) -> None {
     self.introspector.load();
+    self.introspector.dev_mode = dev;
     if self.introspector.has_client_route('/docs') {
         self.server.app.docs_url = None;
     }

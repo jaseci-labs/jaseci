@@ -131,7 +131,8 @@ obj ModuleIntrospector {
         _function_access: dict[(str, bool)] = {},
         _walker_access: dict[(str, bool)] = {},
         _spa_routes_loaded: bool = False,
-        _spa_route_patterns: (list[str] | None) = None;
+        _spa_route_patterns: (list[str] | None) = None,
+        dev_mode: bool = False;
 
     def postinit -> None;
     def load(force_reload: bool = False) -> None;
