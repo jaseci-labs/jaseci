@@ -332,3 +332,29 @@ test "a namespace holding no other app warns about no co-tenant" {
         "is told to redeploy an app that does not exist"
     );
 }
+
+
+test "a refused monitoring teardown fails its own component destroy" {
+    core_v1 = unittest.mock.MagicMock();
+    core_v1.list_namespaced_service.return_value = SimpleNamespace(items=[]);
+    monitoring = unittest.mock.MagicMock();
+    monitoring.destroy.side_effect = ApiException(status=403);
+
+    raised = False;
+    try {
+        _run_destroy(
+            unittest.mock.MagicMock(),
+            core_v1,
+            unittest.mock.MagicMock(),
+            component="monitoring",
+            monitoring=monitoring
+        );
+    } except ApiException {
+        raised = True;
+    }
+
+    assert raised , (
+        "destroying the monitoring component reported success while its "
+        "cluster-scoped roles were refused, so nobody knows to retry"
+    );
+}

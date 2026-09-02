@@ -1879,13 +1879,16 @@ obj KubernetesTarget(KubernetesTargetBase) {
     }
 
     def _destroy_monitoring(
-        app_name: str, namespace: str, apps_v1: any, core_v1: any
+        app_name: str, namespace: str, apps_v1: any, core_v1: any, strict: bool = False
     ) -> bool {
         try {
             monitoring = MonitoringDeployer(self.k8s_config, self.logger);
             monitoring.destroy(app_name, namespace, apps_v1, core_v1);
             return True;
         } except Exception as e {
+            if strict {
+                raise;
+            }
             if self.logger {
                 self.logger.warning(
                     f"Observability stack destroy failed, leaving its "
@@ -2230,7 +2233,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
             self._destroy_app_database(app_name, namespace, apps_v1, core_v1);
             self._destroy_pvcs([self._postgres_pvc_name(app_name)], namespace, core_v1);
         } elif component == 'monitoring' {
-            self._destroy_monitoring(app_name, namespace, apps_v1, core_v1);
+            self._destroy_monitoring(
+                app_name, namespace, apps_v1, core_v1, strict=True
+            );
         } else {
             raise ValueError(
                 f"Unknown component: '{component}'. Valid choices: application, "
