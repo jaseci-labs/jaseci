@@ -255,6 +255,27 @@ test "E0001: parenthesized tuple target does not fire" {
     assert not has_diagnostic_code(prog, "E0001");
 }
 
+test "E0001: bare tuple target in numeric for resyncs at '=' and emits one diagnostic" {
+    (prog, _) = parse_with_prog(
+        'with entry { n = 10; for i, j = 0 while n < 10 with i += 1 { pass; } }'
+    );
+    assert len(prog.errors_had) == 1;
+    assert count_diagnostic_code(prog, "E0001") == 1;
+    assert "parenthesized" in prog.errors_had[0].msg;
+    for a in prog.errors_had {
+        assert "EOF" not in a.msg;
+    }
+}
+
+test "E0001: numeric-for-style target missing both in and eq recovers within bounds" {
+    (prog, _) = parse_with_prog('with entry { for k, v { x; } }');
+    assert has_diagnostic_code(prog, "E0001");
+    assert len(prog.errors_had) <= 3;
+    for a in prog.errors_had {
+        assert "EOF" not in a.msg;
+    }
+}
+
 # ── E0027: forward typed connection missing :+> ──────────────────────
 test "E0027: +>: EdgeType without :+> closer emits E0027" {
     (prog, _) = compile_only("parser_E0027_forward_missing_close.jac");

@@ -4115,7 +4115,14 @@ impl Parser.parse_in_target(example: str) -> Expr {
             "E0001",
             help=f"wrap the variables in parentheses, e.g. `{example}`",
         );
-        while not self.check_any(TokenKind.KW_IN, TokenKind.EOF) {
+        while not self.check_any(
+            TokenKind.KW_IN,
+            TokenKind.EQ,
+            TokenKind.LBRACE,
+            TokenKind.SEMI,
+            TokenKind.RBRACE,
+            TokenKind.EOF
+        ) {
             self.advance();
         }
     }
