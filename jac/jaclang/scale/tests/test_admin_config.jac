@@ -2,7 +2,11 @@
 
 import os;
 import from unittest.mock { patch }
-import from jaclang.scale.config.config_loader { get_scale_config, reset_scale_config }
+import from jaclang.scale.config.config_loader {
+    get_scale_config,
+    reset_scale_config,
+    resolve_admin_enabled
+}
 
 
 test "admin portal is disabled by default" {
@@ -38,6 +42,56 @@ test "JAC_ADMIN_ENABLED opts the portal in" {
             assert get_scale_config().get_admin_config()["enabled"] is True;
         } finally {
             reset_scale_config();
+        }
+    }
+}
+
+
+test "JAC_ADMIN_ENABLED accepts on and surrounding whitespace" {
+    for raw in ["on", " True ", "YES", "1"] {
+        with patch.dict(os.environ, {"JAC_ADMIN_ENABLED": raw}, clear=True) {
+            reset_scale_config();
+            try {
+                assert get_scale_config().get_admin_config()["enabled"] is True;
+            } finally {
+                reset_scale_config();
+            }
+        }
+    }
+}
+
+
+test "JAC_ADMIN_ENABLED turns the portal off explicitly" {
+    for raw in ["off", "false", "0", "no"] {
+        with patch.dict(os.environ, {"JAC_ADMIN_ENABLED": raw}, clear=True) {
+            reset_scale_config();
+            try {
+                assert get_scale_config().get_admin_config()["enabled"] is False;
+            } finally {
+                reset_scale_config();
+            }
+        }
+    }
+}
+
+
+test "an unrecognized JAC_ADMIN_ENABLED warns and stays disabled" {
+    with patch.dict(os.environ, {"JAC_ADMIN_ENABLED": "ture"}, clear=True) {
+        with patch("logging.getLogger") as get_logger {
+            assert not resolve_admin_enabled(True);
+            warning = get_logger.return_value.warning;
+            assert warning.call_count == 1;
+            assert "JAC_ADMIN_ENABLED" in warning.call_args[0][0];
+        }
+    }
+}
+
+
+test "an unset or empty JAC_ADMIN_ENABLED leaves jac.toml in charge" {
+    for env in [{}, {"JAC_ADMIN_ENABLED": ""}, {"JAC_ADMIN_ENABLED": "   "}] {
+        with patch.dict(os.environ, env, clear=True) {
+            assert resolve_admin_enabled(True);
+            assert not resolve_admin_enabled(False);
         }
     }
 }

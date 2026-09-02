@@ -1242,7 +1242,7 @@ time (a Kubernetes Secret, for example) instead of being committed to the reposi
 
 | Variable | Description |
 |----------|-------------|
-| `JAC_ADMIN_ENABLED` | Enable/disable the portal (`true`/`1`/`yes`), overrides jac.toml |
+| `JAC_ADMIN_ENABLED` | Enable/disable the portal, overrides jac.toml. Accepts `true`/`1`/`yes`/`on` and `false`/`0`/`no`/`off` (case and surrounding whitespace are ignored); any other value logs a warning and leaves the portal disabled |
 | `JAC_ADMIN_PASSWORD` | Bootstrap admin password, overrides jac.toml |
 
 ### User Roles
