@@ -682,6 +682,7 @@ def main {
     seal = "--seal" in args;
     seal_compile = "--seal-compile" in args;
     finalize_only = "--seal-finalize" in args;
+    force = "--force" in args;
     embed_src = "--debug-src" in args;
     jobs_arg = "";
     for a in args {
@@ -696,7 +697,7 @@ def main {
     ];
     if not args {
         console.print(
-            "Usage: jac precompile <package-source-dir> [--seal|--seal-finalize] [--debug-src]"
+            "Usage: jac precompile <package-source-dir> [--seal|--seal-finalize] [--force] [--debug-src]"
         );
         console.print("\nExamples:");
         console.print("  jac precompile ./jac");
@@ -720,6 +721,10 @@ def main {
             "        to the best-effort compile crashing on a native module."
         );
         console.print(
+            "--force: delete the previous _precompiled output first and rewrite"
+        );
+        console.print("        every unit (the warm module cache is still used).");
+        console.print(
             "--debug-src: embed zlib source text in each .jir (dev tracebacks)."
         );
         console.print(
@@ -733,6 +738,7 @@ def main {
         seal=seal,
         seal_compile=seal_compile,
         finalize_only=finalize_only,
+        force=force,
         embed_src=embed_src,
         jobs_arg=jobs_arg
     );
@@ -743,9 +749,18 @@ def run_precompile(
     seal: bool = False,
     seal_compile: bool = False,
     finalize_only: bool = False,
+    force: bool = False,
     embed_src: bool = False,
     jobs_arg: str = ""
 ) {
+    if force and finalize_only {
+        console.error(
+            "--force cannot be combined with --seal-finalize: finalize only "
+            "re-manifests an existing _precompiled tree, so there would be "
+            "nothing left to seal."
+        );
+        sys.`exit(1);
+    }
     exclude_seed = seal or seal_compile;
     package_dir = find_package_dir(source_dir);
     if package_dir is None {
@@ -780,6 +795,11 @@ def run_precompile(
     console.print(f"Precompiling {pkg_name} for {pyver}...");
     console.print(f"  Package directory: {package_dir}");
     console.print(f"  Compiler identity: {compiler_identity()}");
+
+    if force and precompiled_dir.is_dir() {
+        shutil.rmtree(precompiled_dir);
+        console.print(f"  Removed previous output (--force): {precompiled_dir}");
+    }
 
     jac_files = (
         sealable_sources(package_dir) if exclude_seed else find_jac_files(package_dir)
