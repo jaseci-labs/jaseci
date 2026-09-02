@@ -127,8 +127,10 @@ runpy.run_module('jaclang', run_name='__main__', alter_sys=True)
             stderr=subprocess.STDOUT,
         );
         try {
+            # A cold cache compiles the scale stack inside the child's boot;
+            # the window must cover that, and a ready server exits it early.
             ready = False;
-            for _ in range(60) {
+            for _ in range(240) {
                 if server.poll() is not None {
                     break;
                 }

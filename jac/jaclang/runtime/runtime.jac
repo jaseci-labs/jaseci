@@ -197,6 +197,7 @@ obj LLMModel(Protocol) {
 
 class JacContext {
     static def get_context -> ExecutionContext;
+    static def peek_context -> (ExecutionContext | None);
     static def reset_graph(root_node: (Root | None) = None) -> int;
     static def create_j_context(
         user_root: (str | None),
