@@ -503,6 +503,33 @@ def shadow_global() {
 
 
 # ============================================================
+# Compile-Time Evaluation (comptime)
+# ============================================================
+# `comptime` values are computed by the compiler and folded into the program.
+# See reference/language/comptime.md for the full rules and intrinsics.
+
+comptime import from jaclang.comptime { members }
+
+enum Kind { A, B }
+
+comptime KINDS: int = len(members(Kind));   # 2, evaluated at compile time
+comptime assert KINDS == 2, "two kinds";     # fails the build, never runs
+
+def repeat(comptime n: int, msg: str) -> str {
+    out = "";
+    comptime for _ in range(n) {              # unrolled per call-site value
+        out += msg;
+    }
+    return out;
+}
+
+obj Grid[T, comptime rows: int, comptime cols: int] {
+    has cells: list[T];
+    comptime SIZE: int = rows * cols;         # Grid[int, 2, 3].SIZE folds to 6
+}
+
+
+# ============================================================
 # Impl Blocks (separate declaration from definition)
 # ============================================================
 
@@ -842,10 +869,15 @@ with entry {
     root ++> a ++> b ++> c;
 
     # --- Delete edge ---
-    a del --> b;
+    a del --> b;                            # untyped disconnect
+    del [edge a ->: Friendship :-> b];      # destroy the edges a query yields
 
     # --- Delete node ---
-    del c;
+    del c;                                  # destroys the node and unbinds c
+    del index["c"];                         # destroys the node, then removes the entry
+
+    # --- Drop a reference without destroying ---
+    index["c"] = None;                      # rebind to drop, del to destroy
 }
 
 
@@ -1564,7 +1596,7 @@ def:pub TodoApp() -> JsxElement {
 # ============================================================
 # Types:    str, int, float, bool, list, tuple, set, dict, bytes, any, type
 # Decl:     obj, class, node, edge, walker, enum, has, can, def, impl,
-#           glob, test, type
+#           glob, comptime, test, type
 # Modifiers: pub, priv, protect, static, override, abst, async
 # Control:  if, elif, else, for, by, while, match, switch, case, default
 # Flow:     return, yield, break, continue, raise, del, assert, skip

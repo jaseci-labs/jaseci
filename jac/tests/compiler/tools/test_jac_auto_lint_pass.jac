@@ -938,6 +938,71 @@ test "import semicolons preserved without lint" {
     assert ";" in formatted;
 }
 
+# ── TestRemoveRedundantSemis ─────────────────────────────────────────────
+test "redundant semicolons removed from all bodies" {
+    input_path = auto_lint_fixture_path("redundant_semi.jac");
+
+    prog = JacProgram.jac_file_formatter(input_path, auto_lint=True);
+    formatted = prog.mod.main.gen.jac;
+
+    # Lone-semicolon blocks collapse to empty blocks
+    assert "def empty_fn {}" in formatted;
+    assert "def method {}" in formatted;
+    assert "can act with Root entry {}" in formatted;
+    assert "if flag {}" in formatted;
+    assert "else {}" in formatted;
+    assert "while flag {}" in formatted;
+    assert "for i in range(1) {}" in formatted;
+    assert "try {}" in formatted;
+    assert "except Exception {}" in formatted;
+    assert "finally {}" in formatted;
+    assert "test {}" in formatted;
+    assert "named {}" in formatted;
+
+    # Stray semicolons between statements are gone; real terminators stay
+    assert ";;" not in formatted;
+    semi_only_lines = [
+        ln
+        for ln in formatted.splitlines()
+        if ln.strip() == ";"
+    ];
+    assert not semi_only_lines , f"stray semicolon lines remain: {semi_only_lines}";
+    assert "x = 1;" in formatted;
+    assert "y = 2;" in formatted;
+    assert "{ }" not in formatted;
+}
+
+test "match case keeps its required lone semicolon" {
+    input_path = auto_lint_fixture_path("redundant_semi_match.jac");
+
+    prog = JacProgram.jac_file_formatter(input_path, auto_lint=True);
+    formatted = prog.mod.main.gen.jac;
+
+    # An empty case body is not parseable, so the lone semicolon must survive
+    # (one per case); only the surplus one in `case 2: ;;` is removed.
+    semi_only_lines = [
+        ln
+        for ln in formatted.splitlines()
+        if ln.strip() == ";"
+    ];
+    assert len(semi_only_lines) == 2 , f"expected 2 kept semis, got: {semi_only_lines}";
+    assert ";;" not in formatted;
+}
+
+test "redundant semicolons preserved without lint" {
+    input_path = auto_lint_fixture_path("redundant_semi.jac");
+
+    prog = JacProgram.jac_file_formatter(input_path, auto_lint=False);
+    formatted = prog.mod.main.gen.jac;
+
+    semi_only_lines = [
+        ln
+        for ln in formatted.splitlines()
+        if ln.strip() == ";"
+    ];
+    assert semi_only_lines , "plain formatting must not delete standalone semicolons";
+}
+
 # ── TestRemoveFutureAnnotations ──────────────────────────────────────────
 test "future annotations removed" {
     input_path = auto_lint_fixture_path("future_annotations.jac");

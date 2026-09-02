@@ -214,7 +214,7 @@ impl fetch_typeshed(repo_root: str) {
         if file_exists(lic) {
             try {
                 copy_file(lic, os.path.join(vendor, "LICENSE"));
-            } except Exception { }
+            } except Exception {}
         }
     } finally {
         delete_tree(tmp);

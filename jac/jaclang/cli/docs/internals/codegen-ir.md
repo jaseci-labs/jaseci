@@ -4,8 +4,7 @@ Status: shipped. This format is the compiler's only Python codegen. The
 emitter (`compiler/backends/py/jcir_gen_pass.jac`) produces it from the
 annotated unitree for the whole language, the shim seat
 (`compiler/backends/py/jcir_bc_gen_pass.jac`) turns the bytes back into
-CPython code objects, and the seal ships the emitter as a native
-artifact. The Python-AST emitter it was measured against
+CPython code objects. The Python-AST emitter it was measured against
 (`pyast_gen_pass`), its bytecode pass, and the `JAC_CODEGEN` flag that
 chose between them were deleted at the cutover, which is where the
 two-codegen era ends. Sections 1 through 8 are the design record and
@@ -18,6 +17,15 @@ the intermediate annotated-state materializer is skippable at all. What
 remains ahead of it is the mega-arc's own work -- per-node dispatch, and
 retiring the Python shim seat for a generated native transcriber, which
 must conform to the bytes specified here.
+
+Status note (#8732): the native seal, the fused `libjac_compiler` build,
+the pass-serving binder, and the `mat_parse` materializer crossing that
+this document refers to were removed. The compiler modules served natively
+are now listed in `compiler/native_scope.jac`, empty until a native pass
+can share the tree with a bytecode pass. The sealed-lane paragraphs below
+(sections 2, 9 and 11) are the record of what was measured before the
+removal and the precedent the next crossing builds on; the tests and
+waiver tables they name no longer exist.
 
 Note on location: the task brief suggested `docs/community/internals/`; the
 corpus's actual home for internal design docs is `docs/internals/` (beside
@@ -385,7 +393,8 @@ assumed away.
    boundary at all, and stays.
 5. **`__jac_dirty_fields__`-adjacent emissions.** Verified: `pyast_gen`
    emits nothing dirty-field-related; that tracking lives at runtime in
-   `Archetype.__setattr__`. The adjacent codegen behaviors are the
+   the `track_writes` hook installed when an anchor becomes persistent.
+   The adjacent codegen behaviors are the
    `field()` wrappers (note 2) and `__jac_async__` class markers, both
    ordinary IR emission. Nothing crosses.
 6. **Module docstrings.** `nd.doc` becomes the first `Expr(Constant)`
@@ -698,7 +707,7 @@ JCIR is stable across sealed and dev lanes by construction: the codegen
 decision pass emits the same bytes whether it runs natively or in Python,
 so lane parity is byte equality on the container, and end-to-end parity is
 code object plus diagnostics equality against the bytecode pipeline, per
-the epic's canary. The pass coverage, waiver discipline, and payload-lane
-proofs of #8139 carry forward unchanged; this format is the piece that
-lets Steps 3 and 4 execute as one program with nothing throwaway in
-between.
+the epic's canary. The waiver discipline and payload-lane proofs of #8139
+were retired with the seal (#8732); the format itself is unchanged, and
+it is the piece that lets a native emitter and a bytecode transcriber
+share one contract.

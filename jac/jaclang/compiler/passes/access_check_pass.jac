@@ -21,7 +21,7 @@ import from jaclang.compiler.frontend.diagnostics {
     W2038
 }
 
-obj AccessCheckPass(Transform) {
+walker AccessCheckPass(Transform) {
     has ir_in: Module,
         cancel_token: any = None,
         _enforce: bool = False;
@@ -30,6 +30,8 @@ obj AccessCheckPass(Transform) {
 
     def postinit -> None;
     def transform(ir_in: Module) -> Module;
+    def _run_impl(ir_in: Module) -> Module;
+    can run_walk with Module entry;
     def _check_use(use_node: AstSymbolNode, sym: Symbol) -> None;
     def _check_member(use_node: AstSymbolNode, sym: Symbol, owner: Archetype) -> None;
     def _declaring_archetype(sym: Symbol) -> (Archetype | None);

@@ -7,7 +7,7 @@ import from jaclang.compiler.frontend.diagnostics {
     Severity
 }
 import from jaclang.compiler.frontend.diagnostic_utils { resolve_diagnostic_tokens }
-import from jaclang.compiler.passes.pass_rim { PassRim }
+import from abc { ABC }
 import from jaclang.compiler.frontend.unitree { UniNode }
 
 obj Alert {
@@ -41,7 +41,7 @@ obj DiagnosticPolicy {
     def _inline_suppressed(diag: DiagnosticInfo, loc: (CodeLocInfo | Span)) -> bool;
 }
 
-obj BaseTransform(PassRim) {
+obj BaseTransform(ABC) {
     has ir_in: UniNode,
         cancel_token: any = None,
         cancel_requested: bool = False,

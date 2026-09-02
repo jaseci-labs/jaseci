@@ -686,7 +686,7 @@ impl __getApiBaseUrl -> str {
         if cfg and cfg.extra and cfg.extra.apiBaseUrl {
             return cfg.extra.apiBaseUrl;
         }
-    } except Exception { }
+    } except Exception {}
     if not globalThis.__jacWarnedMissingApiBaseUrl__ {
         globalThis.__jacWarnedMissingApiBaseUrl__ = True;
         console.warn(
@@ -1080,7 +1080,7 @@ impl JacForm(props: dict[str, any]) -> JsxElement {
         if schema._def and schema._def.schema {
             actualSchema = schema._def.schema;
         }
-    } except Exception { }
+    } except Exception {}
     schemaShape = actualSchema.shape or {};
     fieldNames = Object.keys(schemaShape);
     form = useJacForm(validate_mode, schema);
@@ -1171,7 +1171,7 @@ impl __jacInstallErrorHandlers -> None {
     globalThis.__jacErrorHandlersInstalled = True;
     try {
         __ensureNativeTokenPrimed();
-    } except Exception { }
+    } except Exception {}
     try {
         prev = globalThis.ErrorUtils.getGlobalHandler();
         globalThis.ErrorUtils.setGlobalHandler(

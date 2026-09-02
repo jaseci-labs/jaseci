@@ -1,3 +1,10 @@
+impl NaIRGenSized._int_width_of(val: ir.Value) -> int {
+    ty = val.type;
+    assert isinstance(ty, ir.IntType) , "a sized integer op needs an integer";
+    return ty.width;
+}
+
+
 import from jaclang.runtime.scalars { range_of, shape_of, wrap_value }
 
 glob OVERFLOW_MSG: str = "integer overflow",
@@ -70,7 +77,7 @@ impl NaIRGenSized._convert_scalar(
     }
     from_unsigned = (not src.signed) or val.type == ir.IntType(1);
     if isinstance(val.type, ir.IntType) and isinstance(dst_ty, ir.IntType) {
-        if val.type.width < dst_ty.width {
+        if self._int_width_of(val) < dst_ty.width {
             if from_unsigned {
                 return self.builder.zext(val, dst_ty, name="widen.z");
             }
@@ -112,7 +119,7 @@ impl NaIRGenSized._lower_coercion(nd: uni.Expr, val: ir.Value) -> ir.Value {
     src = self._scalar_shape_named(primitive_type_name_of(nd.type));
     if src is None {
         if isinstance(val.type, ir.IntType) {
-            src = shape_of("bool" if val.type.width == 1 else "int");
+            src = shape_of("bool" if self._int_width_of(val) == 1 else "int");
         } elif isinstance(val.type, (ir.FloatType, ir.DoubleType)) {
             src = shape_of("float");
         }
@@ -128,7 +135,7 @@ impl NaIRGenSized._emit_checked_int_cast(
     val: ir.Value, src: ScalarShape, dst: ScalarShape
 ) -> ir.Value {
     dst_ty = ir.IntType(dst.width);
-    if val.type.width == 1 {
+    if self._int_width_of(val) == 1 {
         return self.builder.zext(val, dst_ty, name="cast.bool");
     }
     wide = ir.IntType(128);
@@ -196,13 +203,13 @@ impl NaIRGenSized._emit_wrap_to(
         wide = self.builder.fptosi(val, ir.IntType(128), name="wrap.f2i");
         return self.builder.trunc(wide, dst_ty, name="wrap.val");
     }
-    if val.type.width == dst.width {
+    if self._int_width_of(val) == dst.width {
         return val;
     }
-    if val.type.width > dst.width {
+    if self._int_width_of(val) > dst.width {
         return self.builder.trunc(val, dst_ty, name="wrap.val");
     }
-    if src.signed and val.type.width > 1 {
+    if src.signed and self._int_width_of(val) > 1 {
         return self.builder.sext(val, dst_ty, name="wrap.s");
     }
     return self.builder.zext(val, dst_ty, name="wrap.z");
@@ -225,7 +232,7 @@ impl NaIRGenSized._codegen_sized_cast(
     src = self._scalar_shape(arg);
     if src is None {
         if isinstance(val.type, ir.IntType) {
-            src = shape_of("bool" if val.type.width == 1 else "int");
+            src = shape_of("bool" if self._int_width_of(val) == 1 else "int");
         } elif isinstance(val.type, (ir.FloatType, ir.DoubleType)) {
             src = shape_of("float");
         }
@@ -261,10 +268,13 @@ impl NaIRGenSized._codegen_sized_wrap(
     src = self._scalar_shape(arg);
     if src is None {
         if isinstance(val.type, ir.IntType) {
-            src = shape_of("bool" if val.type.width == 1 else "int");
+            src = shape_of("bool" if self._int_width_of(val) == 1 else "int");
         } else {
             src = shape_of("float");
         }
+    }
+    if src is None {
+        return None;
     }
     return self._emit_wrap_to(val, src, dst);
 }
@@ -313,7 +323,7 @@ impl NaIRGenSized._codegen_wrapping(nd: uni.FuncCall, name: str) -> (ir.Value | 
     }
     if name == "wrapping_shl" {
         count = self.builder.and_(
-            b, ir.Constant(b.type, a.type.width - 1), name="wshl.count"
+            b, ir.Constant(b.type, self._int_width_of(a) - 1), name="wshl.count"
         );
         return self.builder.shl(a, count, name="wshl");
     }
@@ -325,6 +335,7 @@ impl NaIRGenSized._emit_overflow_op(
     op: str, left: ir.Value, right: ir.Value, unsigned: bool
 ) -> ir.Value {
     int_ty = left.type;
+    assert isinstance(int_ty, ir.IntType) , "an overflow-checked op needs an integer";
     prefix = "u" if unsigned else "s";
     overflow_ret = ir.LiteralStructType([int_ty, ir.IntType(1)]);
     intrinsic = self._get_or_declare_extern(
@@ -345,6 +356,7 @@ impl NaIRGenSized._emit_checked_neg(val: ir.Value) -> ir.Value {
 
 impl NaIRGenSized._emit_checked_abs(val: ir.Value) -> ir.Value {
     int_ty = val.type;
+    assert isinstance(int_ty, ir.IntType) , "a sized integer op needs an integer";
     zero = ir.Constant(int_ty, 0);
     min_val = ir.Constant(int_ty, -(1 << (int_ty.width - 1)));
     is_min = self.builder.icmp_signed("==", val, min_val, name="abs.min");
@@ -361,11 +373,11 @@ impl NaIRGenSized._emit_shift_count_check(count: ir.Value, width: int) -> None {
     self._emit_runtime_raise(bad, "OverflowError", SHIFT_MSG);
 }
 
-impl NaIRGenSized._shift_count_as(count: ir.Value, target: ir.Type) -> ir.Value {
+impl NaIRGenSized._shift_count_as(count: ir.Value, target: ir.IntType) -> ir.Value {
     if count.type == target {
         return count;
     }
-    if count.type.width > target.width {
+    if self._int_width_of(count) > target.width {
         return self.builder.trunc(count, target, name="shift.count");
     }
     return self.builder.zext(count, target, name="shift.count");
@@ -374,8 +386,10 @@ impl NaIRGenSized._shift_count_as(count: ir.Value, target: ir.Type) -> ir.Value 
 impl NaIRGenSized._emit_checked_shl(
     left: ir.Value, right: ir.Value, unsigned: bool
 ) -> ir.Value {
-    self._emit_shift_count_check(right, left.type.width);
-    right = self._shift_count_as(right, left.type);
+    self._emit_shift_count_check(right, self._int_width_of(left));
+    _shift_ty = left.type;
+    assert isinstance(_shift_ty, ir.IntType) , "a shift operates on an integer";
+    right = self._shift_count_as(right, _shift_ty);
     res = self.builder.shl(left, right, name="shl");
     back = (
         self.builder.lshr(res, right, name="shl.back")
@@ -390,8 +404,10 @@ impl NaIRGenSized._emit_checked_shl(
 impl NaIRGenSized._emit_shr(
     left: ir.Value, right: ir.Value, unsigned: bool
 ) -> ir.Value {
-    self._emit_shift_count_check(right, left.type.width);
-    right = self._shift_count_as(right, left.type);
+    self._emit_shift_count_check(right, self._int_width_of(left));
+    _shift_ty = left.type;
+    assert isinstance(_shift_ty, ir.IntType) , "a shift operates on an integer";
+    right = self._shift_count_as(right, _shift_ty);
     if unsigned {
         return self.builder.lshr(left, right, name="lshr");
     }
@@ -402,6 +418,7 @@ impl NaIRGenSized._emit_int_divmod(
     left: ir.Value, right: ir.Value, unsigned: bool, trap_min: bool = True
 ) -> tuple[(ir.Value, ir.Value)] {
     int_ty = left.type;
+    assert isinstance(int_ty, ir.IntType) , "an overflow-checked op needs an integer";
     if unsigned {
         return (
             self.builder.udiv(left, right, name="udiv"),

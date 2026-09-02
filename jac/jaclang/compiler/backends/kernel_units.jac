@@ -37,19 +37,44 @@ def _atomic_write(path: str, text: str) {
     os.replace(tmp, path);
 }
 
-def kernel_unit_path(name: str, parts: list[str]) -> str {
-    source = unit_source(parts);
-    path = os.path.join(_units_dir(), f"{name}.jac");
-    try {
-        with open(path, "r") as f {
-            if f.read() == source {
-                return path;
-            }
-        }
-    } except Exception {
-        ;
+glob _RETIRED_UNITS: set[str] = set();
+
+def _retire_superseded_artifacts(name: str, keep: str) {
+    import glob as _g;
+    import time;
+    import from jaclang.compiler.driver.jir { generation_ttl_seconds }
+    if name in _RETIRED_UNITS {
+        return;
     }
-    _atomic_write(path, source);
+    _RETIRED_UNITS.add(name);
+    ttl = generation_ttl_seconds();
+    if ttl <= 0.0 {
+        return;
+    }
+    cutoff = time.time() - ttl;
+    live = f"{name}.{keep}.";
+    for path in _g.`glob(os.path.join(_units_dir(), f"{name}.*")) {
+        base = os.path.basename(path);
+        if base.endswith(".jac") or base.startswith(live) {
+            continue;
+        }
+        try {
+            if os.path.getmtime(path) < cutoff {
+                os.remove(path);
+            }
+        } except OSError {}
+    }
+}
+
+def kernel_unit_path(name: str, parts: list[str]) -> str {
+    import hashlib;
+    source = unit_source(parts);
+    digest = hashlib.sha256(source.encode()).hexdigest()[:16];
+    path = os.path.join(_units_dir(), f"{name}.{digest}.jac");
+    if not os.path.exists(path) {
+        _atomic_write(path, source);
+    }
+    _retire_superseded_artifacts(name, digest);
     return path;
 }
 
@@ -104,9 +129,7 @@ def store_unit_artifact(unit_path: str, kind: str, fingerprint: str, text: str) 
         if stale != path {
             try {
                 os.remove(stale);
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
     }
     try {
@@ -115,9 +138,7 @@ def store_unit_artifact(unit_path: str, kind: str, fingerprint: str, text: str) 
                 return;
             }
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     _atomic_write(path, text);
 }
 
@@ -132,9 +153,7 @@ def es_pass_fingerprint -> str {
                 with open(p, "rb") as f {
                     h.update(f.read());
                 }
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
     }
     return h.hexdigest()[:8];
