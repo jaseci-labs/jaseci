@@ -42,6 +42,16 @@ jobs:
   happy-path:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # JAC_NO_DEV_SOURCE: the site's jac.toml carries a [dev] live-source stanza
+    # for contributors, and this lane's contract is the RELEASED binary against
+    # main's tree -- so every jac call below (install included) runs the shipped
+    # compiler. Rerouted, `jac install` compiles the clone's compiler, and a
+    # plain clone is a bare tree: no typeshed stdlib stubs (gitignored, fetched
+    # by `zig build`), so the first compile dies with "Stub file not found".
+    # _jac_finder refuses a bare checkout from the next release on; this env
+    # pins the same answer for whatever binary install.sh fetches today.
+    env:
+      JAC_NO_DEV_SOURCE: "1"
     steps:
       - name: Install jac (documented curl one-liner)
         run: |
@@ -58,14 +68,10 @@ jobs:
         working-directory: jac/jac/examples/jaclang_org
         run: jac install
 
-      # JAC_NO_DEV_SOURCE: the site's jac.toml carries a [dev] live-source
-      # stanza for contributors; a fresh user's released binary must serve it
-      # without that reroute. The docs section reads the corpus bundled with
-      # that binary, so the docs stop needs nothing beyond the install.
+      # The docs section reads the corpus bundled with the released binary, so
+      # the docs stop needs nothing beyond the install.
       - name: jac run in the background (the documented dev server)
         working-directory: jac/jac/examples/jaclang_org
-        env:
-          JAC_NO_DEV_SOURCE: "1"
         run: |
           nohup jac run > "$RUNNER_TEMP/jac-run.log" 2>&1 &
           echo "jac run launched (pid $!)"
