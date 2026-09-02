@@ -35,7 +35,7 @@ impl ViteCompiler._owes_wasm(self: ViteCompiler, module_path: Path) -> bool {
     if compiled is not None {
         return bool(compiled.declares_codespace(CodeContext.NATIVE));
     }
-    declared = getattr(self.jac_client_compiler, 'na_wasm_modules', None) or set();
+    declared = self.jac_client_compiler?.na_wasm_modules or set();
     for known in declared {
         try {
             if str(Path(known).resolve()) == target {
