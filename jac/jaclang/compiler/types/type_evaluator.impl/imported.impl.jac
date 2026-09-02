@@ -270,8 +270,13 @@ impl TypeEvaluator.get_type_of_module(node_: ModulePath) -> TypeBase {
         last_type = node_.path[-1].type;
 
         if last_type
+            and not (isinstance(last_type, UnknownType) and not last_type.is_diagnosed)
             and not (
-                isinstance(last_type, UnknownType) and not last_type.is_diagnosed
+                isinstance(last_type, ModuleType)
+                and last_type.file_uri is not None
+                and not self.program.is_dep_view_live(
+                    str(last_type.file_uri), last_type.symbol_table
+                )
             ) {
             return last_type;
         }
@@ -285,13 +290,21 @@ impl TypeEvaluator.get_type_of_module(node_: ModulePath) -> TypeBase {
             mod_path = path_list[idx + offset];
 
             if mod_path in self._module_type_cache {
+                cached_mod_type = self._module_type_cache[mod_path];
                 resolved_for_cache = str(Path(mod_path).resolve());
-                if self.program.is_hub_entry_fresh(resolved_for_cache) {
-                    npath.type = self._module_type_cache[mod_path];
+                entry_fresh = self.program.is_hub_entry_fresh(resolved_for_cache);
+                if entry_fresh
+                    and self.program.is_dep_view_live(
+                        resolved_for_cache, cached_mod_type.symbol_table
+                    ) {
+                    npath.type = cached_mod_type;
                     npath._sym_category = SymbolType.MODULE;
                     continue;
                 }
-                self.program.invalidate_module(resolved_for_cache);
+                del self._module_type_cache[mod_path];
+                if not entry_fresh {
+                    self.program.invalidate_module(resolved_for_cache);
+                }
             }
 
             if not Path(mod_path).exists() {

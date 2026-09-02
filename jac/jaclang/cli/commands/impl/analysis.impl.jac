@@ -46,6 +46,18 @@ def _diag_wire(alert: any) -> dict[(str, any)] {
     };
 }
 
+def _scrub_selfhost_type_state {
+    import os;
+    if os.environ.get("JAC_NO_UNIT_EVICT") {
+        return;
+    }
+    import from jaclang.runtime.runtime { JacRuntime }
+    selfhost_prog = JacRuntime.get_selfhost().peek_program();
+    if selfhost_prog is not None {
+        selfhost_prog.clear_type_system();
+    }
+}
+
 def _check_retire(served: int, rss_mb: int) -> bool {
     import from jaclang.cli.workpool { env_int, should_retire }
     return should_retire(
@@ -175,6 +187,7 @@ def _check_file_job(request: dict[(str, any)]) -> dict[(str, any)] {
         return result;
     } finally {
         prog.release_compile_closure(collect=bool(request.get("collect")));
+        _scrub_selfhost_type_state();
         _maybe_malloc_trim();
     }
 }

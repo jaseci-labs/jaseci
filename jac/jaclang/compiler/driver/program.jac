@@ -69,6 +69,7 @@ class JacProgram {
     def has_failed_parse(self: JacProgram, path: str) -> bool;
     def _search_hubs(self: JacProgram) -> list[dict[(str, uni.Module)]];
     def find_module(self: JacProgram, path: str) -> (uni.Module | None);
+    def is_dep_view_live(self: JacProgram, resolved_path: str, view: any) -> bool;
     def get_bytecode(self: JacProgram, full_target: str) -> (types.CodeType | None);
     def parse_str(
         self: JacProgram,
