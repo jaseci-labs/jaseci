@@ -31,7 +31,7 @@ glob GATEWAY_API_SEGMENTS: tuple = (
      _GATEWAY_OWNED_PREFIX_SEGMENTS: set[str] = (
          set(GATEWAY_API_SEGMENTS)
          | set(GATEWAY_WELLKNOWN_SEGMENTS)
-         | {GATEWAY_CLIENT_SEGMENT, "admin"}
+         | {GATEWAY_CLIENT_SEGMENT, "admin", "static"}
      );
 
 
