@@ -70,7 +70,7 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
     async def forward_to_app(request: Request, path: str) -> Response | None;
     async def resolve_learned_owner(path: str) -> ServiceEntry | None;
     async def forward_root_path(
-        request: Request, service_entry: ServiceEntry, path: str
+        request: Request, service_entry: ServiceEntry, path: str, base_url: str = ""
     ) -> Response | None;
 
     async def deliver_once(request: Request, path: str) -> Response | None;

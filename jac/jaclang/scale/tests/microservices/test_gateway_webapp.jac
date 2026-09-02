@@ -235,3 +235,60 @@ test "routes of a service that was still starting are learned once it is healthy
         fleet.close();
     }
 }
+
+
+test "in dev the pages come from the client dev server, the API from the service" {
+    api_seen: list[str] = [];
+    page_seen: list[str] = [];
+    (api_srv, api_port) = _spawn_stub("main", ["/walker/ping"], api_seen, [True]);
+    (page_srv, page_port) = _spawn_stub("vite", [], page_seen, [True]);
+
+    reg = ServiceRegistry();
+    reg.register(
+        ServiceEntry(
+            name="main",
+            file="main.jac",
+            prefix="/__main__",
+            port=api_port,
+            page_port=page_port,
+            url=f"http://127.0.0.1:{api_port}",
+            page_url=f"http://127.0.0.1:{page_port}",
+            status=ServiceStatus.HEALTHY,
+            is_app=True,
+            serves_client=True
+        )
+    );
+    gw = MicroserviceGateway(
+        registry=reg, client_dist_dir=tempfile.mkdtemp(), base_path=tempfile.mkdtemp()
+    );
+    gw.setup();
+    client = ServingTestClient(gw.app);
+    page_stopped: bool = False;
+    try {
+        landing = client.get("/", headers={"Accept": "text/html"});
+        assert landing.text == "vite /" , (
+            f"the dev client server owns the page, so HMR works; got "
+            f"{landing.text!r}"
+        );
+        assert client.get("/cl/app").text == "vite /cl/app";
+
+        api_call = client.post("/walker/ping");
+        assert api_call.text == "main /walker/ping" , (
+            f"walker traffic goes straight to the service, not through the "
+            f"page server; got {api_call.text!r}"
+        );
+
+        page_srv.request_stop();
+        page_stopped = True;
+        fallen_back = client.get("/", headers={"Accept": "text/html"});
+        assert fallen_back.text == "main /" , (
+            f"a dead client dev server costs HMR, not the site: the service "
+            f"renders the page itself; got {fallen_back.text!r}"
+        );
+    } finally {
+        api_srv.request_stop();
+        if not page_stopped {
+            page_srv.request_stop();
+        }
+    }
+}

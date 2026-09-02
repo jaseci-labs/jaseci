@@ -137,21 +137,33 @@ impl ServiceProcessManager._assign_port(service_entry: ServiceEntry) -> int {
     return pick_free_port(service_entry.name);
 }
 
-impl ServiceProcessManager._assign_api_port(service_entry: ServiceEntry) -> int {
-    if service_entry.api_port > 0 {
-        return service_entry.api_port;
-    }
+impl ServiceProcessManager._assign_free_port(service_entry: ServiceEntry) -> int {
     import from jaclang.scale.runtime.context.util { pick_free_port }
     taken: set[int] = set();
     for peer in self.registry.entries.values() {
         if peer.port > 0 {
             taken.add(peer.port);
         }
-        if peer.api_port > 0 {
-            taken.add(peer.api_port);
+        if peer.page_port > 0 {
+            taken.add(peer.page_port);
         }
     }
     return pick_free_port(f"{service_entry.name}-api", avoid=taken);
+}
+
+impl ServiceProcessManager._prepare_ports(service_entry: ServiceEntry) -> None {
+    if service_entry.port > 0 {
+        return;
+    }
+    first: int = self._assign_port(service_entry);
+    if service_entry.serves_client and self.dev_mode {
+        service_entry.page_port = first;
+        service_entry.page_url = f"http://127.0.0.1:{first}";
+        service_entry.port = self._assign_free_port(service_entry);
+    } else {
+        service_entry.port = first;
+    }
+    service_entry.url = self._url_for(service_entry);
 }
 
 impl ServiceProcessManager.start_service(name: str) -> bool {
@@ -161,7 +173,8 @@ impl ServiceProcessManager.start_service(name: str) -> bool {
     }
 
     `entry = self.registry.entries[name];
-    port = self._assign_port(`entry);
+    self._prepare_ports(`entry);
+    port: int = `entry.port;
 
     import from jaclang.scale.runtime.context.util { jac_executable }
     import from jaclang.server.sv_client {
@@ -171,11 +184,10 @@ impl ServiceProcessManager.start_service(name: str) -> bool {
     }
     jac_bin: str = jac_executable();
 
-    if `entry.serves_client {
-        `entry.port = port;
-        `entry.api_port = self._assign_api_port(`entry);
-        cmd = [jac_bin]
-            + app_start_args(`entry.file, port, self.dev_mode, `entry.api_port);
+    if `entry.page_port > 0 {
+        cmd = [jac_bin] + app_start_args(`entry.file, `entry.page_port, True, port);
+    } elif `entry.serves_client {
+        cmd = [jac_bin] + app_start_args(`entry.file, port);
     } else {
         cmd = [jac_bin] + headless_start_args(`entry.file, port);
     }
@@ -211,7 +223,6 @@ impl ServiceProcessManager.start_service(name: str) -> bool {
         os.close(log_fd);
         self.processes[name] = proc;
         `entry.pid = proc.pid;
-        `entry.port = port;
         `entry.url = self._url_for(`entry);
         `entry.status = ServiceStatus.STARTING;
         self._failure_counts[name] = 0;
@@ -232,11 +243,8 @@ impl ServiceProcessManager.start_service(name: str) -> bool {
 }
 
 impl ServiceProcessManager.start_all -> None {
-    for (name, `entry) in self.registry.entries.items() {
-        if `entry.port == 0 {
-            `entry.port = self._assign_port(`entry);
-            `entry.url = self._url_for(`entry);
-        }
+    for (_name, `entry) in self.registry.entries.items() {
+        self._prepare_ports(`entry);
     }
 
     for name in self.registry.entries {

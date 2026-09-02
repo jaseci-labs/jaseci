@@ -29,7 +29,8 @@ obj ServiceProcessManager {
 
     def _url_for(service_entry: ServiceEntry) -> str;
     def _assign_port(service_entry: ServiceEntry) -> int;
-    def _assign_api_port(service_entry: ServiceEntry) -> int;
+    def _assign_free_port(service_entry: ServiceEntry) -> int;
+    def _prepare_ports(service_entry: ServiceEntry) -> None;
     def start_service(name: str) -> bool;
     def start_all -> None;
     def stop_service(name: str) -> bool;

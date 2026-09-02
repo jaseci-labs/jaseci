@@ -45,6 +45,7 @@ impl ServiceRegistry.health_summary -> dict[str, dict] {
             "prefix": `entry.prefix,
             "port": `entry.port,
             "url": `entry.url,
+            "page_url": `entry.page_url,
             "status": `entry.status.value,
             "pid": `entry.pid,
             "is_app": `entry.is_app

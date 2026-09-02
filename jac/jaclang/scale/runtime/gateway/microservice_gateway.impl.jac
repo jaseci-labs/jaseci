@@ -28,10 +28,14 @@ def _install_ws_catchall(gw: MicroserviceGateway) {
             await gw.refresh_app_routes();
             matched = gw.registry.entries.get(gw.route_table.owner(full_path));
         }
+        page_base: str = "";
         if not matched {
             matched = gw.registry.app_entry();
+            if matched is not None {
+                page_base = matched.page_url;
+            }
         }
-        if not matched or not matched.url {
+        if not matched or not (page_base or matched.url) {
             await websocket.accept();
             await websocket.close(code=1008);
             return;
@@ -46,7 +50,7 @@ def _install_ws_catchall(gw: MicroserviceGateway) {
             else full_path;
         remaining = remaining or "/";
         query: str = str(websocket.url.query);
-        target_http: str = f"{matched.url}{remaining}";
+        target_http: str = f"{page_base or matched.url}{remaining}";
         if query {
             target_http = f"{target_http}?{query}";
         }
@@ -394,7 +398,7 @@ impl MicroserviceGateway.handle_builtin_passthrough(
     first_seg: str = stripped.split("/")[0] if stripped else "";
     app = self.app_service();
     if first_seg == GATEWAY_CLIENT_SEGMENT and app is not None {
-        return await self.forward_root_path(request, app, path);
+        return await self.forward_to_app(request, path);
     }
     if first_seg in _DISCOVERY_SEGMENTS {
         return await self.probe_services(request, path, self.eligible_services());
@@ -441,6 +445,16 @@ impl MicroserviceGateway.forward_to_app(
     if app is None {
         return None;
     }
+    if app.page_url {
+        page_resp = await self.forward_root_path(request, app, path, app.page_url);
+        if page_resp is not None and page_resp.status_code not in (502, 504) {
+            return page_resp;
+        }
+        logger.warning(
+            f"client dev server at {app.page_url} did not answer {path}; "
+            f"falling back to {app.name}'s own page rendering"
+        );
+    }
     return await self.forward_root_path(request, app, path);
 }
 
@@ -460,14 +474,15 @@ impl MicroserviceGateway.resolve_learned_owner(path: str) -> ServiceEntry | None
 }
 
 impl MicroserviceGateway.forward_root_path(
-    request: Request, service_entry: ServiceEntry, path: str
+    request: Request, service_entry: ServiceEntry, path: str, base_url: str = ""
 ) -> Response | None {
     if not service_entry.is_routable() {
         import from jaclang.scale.runtime.context.errors { service_unavailable }
         return service_unavailable(service_entry.name, "not accepting traffic");
     }
     query: str = str(request.url.query);
-    target_url: str = f"{self.service_base_url(service_entry)}{path}";
+    base: str = base_url or self.service_base_url(service_entry);
+    target_url: str = f"{base}{path}";
     if query {
         target_url = f"{target_url}?{query}";
     }
