@@ -32,6 +32,29 @@ enum SymbolType {
     }
 }
 
+enum BindingKind {
+    VALUE = 'value',
+    TYPE = 'type',
+    BOTH = 'both',
+    with entry {
+        def __str__(self: BindingKind) -> str {
+            return self.value;
+        }
+
+        def is_type_only(self: BindingKind) -> bool {
+            return (self == BindingKind.TYPE);
+        }
+
+        def denotes_type(self: BindingKind) -> bool {
+            return (self != BindingKind.VALUE);
+        }
+
+        def denotes_value(self: BindingKind) -> bool {
+            return (self != BindingKind.TYPE);
+        }
+    }
+}
+
 enum JacSemTokenType: int {
     NAMESPACE = 0,
     TYPE = 1,
@@ -382,6 +405,7 @@ class Tokens(StrEnum) {
         KW_ABSTRACT = 'KW_ABSTRACT';
         KW_OBJECT = 'KW_OBJECT';
         KW_CLASS = 'KW_CLASS';
+        KW_COMPTIME = 'KW_COMPTIME';
         KW_ENUM = 'KW_ENUM';
         KW_NODE = 'KW_NODE';
         KW_VISIT = 'KW_VISIT';
@@ -633,6 +657,7 @@ glob TOKEN_MAP: dict[str, str] = {
          'KW_CAN': 'can',
          'KW_CASE': 'case',
          'KW_CLASS': 'class',
+         'KW_COMPTIME': 'comptime',
          'KW_CONTINUE': 'continue',
          'KW_DEF': 'def',
          'KW_DEFAULT': 'default',

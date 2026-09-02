@@ -64,7 +64,7 @@ def _seed(ctx: ExecutionContext) -> UUID {
     leaf.edges.append(e2);
     ctx.mem.put(leaf);
     ctx.mem.put(e2);
-    return ranch.id;
+    return ranch.ensure_id();
 }
 
 

@@ -12,7 +12,7 @@ obj Gateway {
         raise NotImplementedError("setup() must be implemented by a Gateway");
     }
 
-    def serve {
+    def serve(on_ready: any = None) {
         raise NotImplementedError("serve() must be implemented by a Gateway");
     }
 }

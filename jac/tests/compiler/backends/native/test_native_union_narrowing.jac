@@ -20,7 +20,7 @@ A narrowing that is dropped rather than mis-lowered still produces a
 well-typed value, so every fixture carries both the idiomatic spelling and
 the workaround #8052 used, and every function is additionally checked against
 the sv/bytecode result of the same fixture -- the parity idiom
-`test_sealed_native_parser` and `test_native_union_slot_ops.jac` use.
+`test_native_union_slot_ops.jac` uses.
 
 Refs #8150, #8027 (T1.1), #8039, #8052
 """

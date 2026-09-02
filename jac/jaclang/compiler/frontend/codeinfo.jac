@@ -144,6 +144,26 @@ def native_safe_sym(src: str) -> str {
     return f"{safe}_{hashlib.sha1(src.encode()).hexdigest()[:8]}";
 }
 
+def module_dotted_name(mod_path: str, mod_name: str = "") -> str {
+    import os;
+    path = mod_path.replace("\\", "/");
+    if not path {
+        return mod_name;
+    }
+    idx = path.rfind("/jaclang/");
+    stem = path[idx + 1:] if idx >= 0 else os.path.basename(path);
+    for ext in (".impl.jac", ".test.jac", ".jac", ".py") {
+        if stem.endswith(ext) {
+            stem = stem[:-len(ext)];
+            break;
+        }
+    }
+    if stem.endswith("/__init__") {
+        stem = stem[:-len("/__init__")];
+    }
+    return stem.replace("/", ".");
+}
+
 def native_module_key(path: str) -> str {
     import os;
     rp = os.path.realpath(path);
@@ -216,22 +236,15 @@ glob NATIVE_SUPPORTED_STDLIB: set[str] = {
 
 glob NATIVE_ERASED_ABC_BASES: frozenset = frozenset({"ABC"});
 
-glob NATIVE_ERASED_RIM_BASES: frozenset = frozenset({"PassRim"});
-
-glob NATIVE_ERASED_BASES: frozenset = (
-         NATIVE_ERASED_ABC_BASES | NATIVE_ERASED_RIM_BASES
-     );
+glob NATIVE_ERASED_BASES: frozenset = NATIVE_ERASED_ABC_BASES;
 
 glob NATIVE_ERASED_IDENTITY_CALLS: frozenset = frozenset({"cast"});
 
 glob NATIVE_ERASED_FIELD_MARKERS: frozenset = frozenset({"field"});
 
-glob PASS_RIM_MODULE: str = "jaclang.compiler.passes.pass_rim";
-
 glob NATIVE_ERASED_IMPORTS: dict[str, frozenset] = {
          "abc": NATIVE_ERASED_ABC_BASES,
          "dataclasses": NATIVE_ERASED_FIELD_MARKERS,
-         PASS_RIM_MODULE: NATIVE_ERASED_RIM_BASES,
          "typing": TYPE_PARAM_CONSTRUCTORS
              | NATIVE_ERASED_IDENTITY_CALLS
              | NATIVE_ERASED_TYPE_MARKERS
@@ -322,6 +335,34 @@ def is_native_by_location(file_path: str) -> bool {
     ap = os.path.abspath(file_path);
     pkg = os.path.dirname(os.path.abspath(str(jaclang.__file__)));
     return ap.startswith(os.path.join(pkg, "runtime", "na_stdlib") + os.sep);
+}
+
+def bundled_stdlib_module_of(file_path: str) -> (str | None) {
+    import os;
+    import jaclang;
+    if not file_path or not jaclang?.__file__ {
+        return None;
+    }
+    ap = os.path.abspath(file_path);
+    pkg = os.path.dirname(os.path.abspath(str(jaclang.__file__)));
+    native_root = os.path.join(pkg, "runtime", "na_stdlib") + os.sep;
+    stub_root = os.path.join(pkg, "vendor", "typeshed", "stdlib") + os.sep;
+    if ap.startswith(native_root) and ap.endswith(".jac") {
+        rel = ap[len(native_root):-len(".jac")];
+        parts = rel.split(os.sep);
+
+        parts[-1] = parts[-1].split(".")[0];
+        return ".".join(parts);
+    }
+    if ap.startswith(stub_root) and ap.endswith(".pyi") {
+        rel = ap[len(stub_root):-len(".pyi")];
+        parts = rel.split(os.sep);
+        if parts[-1] == "__init__" {
+            parts = parts[:-1];
+        }
+        return ".".join(parts) if parts else None;
+    }
+    return None;
 }
 
 glob CLIENT_RUNTIME_SOURCE_PATHS: list[str] = [

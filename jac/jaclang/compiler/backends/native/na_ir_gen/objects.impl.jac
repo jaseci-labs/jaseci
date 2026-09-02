@@ -488,7 +488,9 @@ impl NaIRGenObjects._codegen_archetype(nd: uni.Archetype) -> None {
         fname = finfo.name;
         var = finfo.decl_node;
         ftype: ir.Type = ir.IntType(64);
-        if var is not None and var.type_tag is not None {
+        if isinstance(var, uni.TypeParam) {
+            ftype = self._resolve_jac_type(var.bound);
+        } elif var is not None and var.type_tag is not None {
             if finfo.owner in self.clib_struct_names {
                 _cf_fnty = False;
                 try {
@@ -496,7 +498,7 @@ impl NaIRGenObjects._codegen_archetype(nd: uni.Archetype) -> None {
                         FunctionType as _ClibFnType
                     }
                     _cf_fnty = isinstance(var?.type, _ClibFnType);
-                } except ImportError { }
+                } except ImportError {}
                 if _cf_fnty {
                     ftype = self._lower_clib_function_type(arch_name, fname, var.type);
                 } else {
@@ -538,7 +540,6 @@ impl NaIRGenObjects._codegen_archetype(nd: uni.Archetype) -> None {
                     }
                 }
             }
-
             _ftag = var.type_tag.tag;
             ftag_name = self._get_name(_ftag);
             if ftag_name is not None and ftag_name in self.enum_types {
@@ -559,7 +560,9 @@ impl NaIRGenObjects._codegen_archetype(nd: uni.Archetype) -> None {
         field_index_map[fname] = finfo.index;
         field_type_map[fname] = ftype;
 
-        if var is not None and var.value is not None and fname not in foreign_fields {
+        if isinstance(var, uni.HasVar)
+            and var.value is not None
+            and fname not in foreign_fields {
             field_default_map[fname] = var.value;
         }
     }
@@ -580,9 +583,7 @@ impl NaIRGenObjects._codegen_archetype(nd: uni.Archetype) -> None {
         }
     }
 
-    if arch_name in self.clib_struct_names and not struct_type.is_opaque {
-        ;
-    } else {
+    if arch_name in self.clib_struct_names and not struct_type.is_opaque {} else {
         struct_type.set_body(*field_types);
     }
     self.struct_field_indices[arch_name] = field_index_map;
@@ -845,6 +846,9 @@ impl NaIRGenObjects._forward_declare_method(
     field: (uni.HasVar | None) = None,
     imported: bool = False
 ) -> None {
+    if method.is_comptime {
+        return;
+    }
     method_name = self._method_slot_name(method, field);
     full_name = f"{arch_name}.{method_name}";
 
@@ -947,6 +951,9 @@ impl NaIRGenObjects._codegen_method(
     symbol_override: (str | None) = None,
     field: (uni.HasVar | None) = None
 ) -> None {
+    if method.is_comptime {
+        return;
+    }
     method_name = self._method_slot_name(method, field);
 
     full_name = symbol_override or f"{arch_name}.{method_name}";
@@ -1147,7 +1154,7 @@ impl NaIRGenObjects._demote_method_if_unlowerable(
                 self.ir_in.loc.mod_path,
                 f"{full_name}: {_code_tag}" + str(_own[0]).split('\n')[0]
             );
-        } except Exception { }
+        } except Exception {}
     }
     del self.errors_had[local_mark:];
 
@@ -1178,7 +1185,7 @@ impl NaIRGenObjects._seam_warnings_on -> bool {
         if _cfg and _cfg.check {
             return bool(_cfg.check.warn_native_seams);
         }
-    } except Exception { }
+    } except Exception {}
     return True;
 }
 
@@ -1222,7 +1229,7 @@ impl NaIRGenObjects._opaque_field_if_unlowerable(
             self.ir_in.loc.mod_path,
             f"{arch_name}.{fname}: " + (f"[{_code}] " if _code else "") + _why
         );
-    } except Exception { }
+    } except Exception {}
     del self.errors_had[local_mark:];
     if arch_name not in self.struct_field_opaque {
         self.struct_field_opaque[arch_name] = {};
@@ -2050,6 +2057,11 @@ impl NaIRGenObjects._codegen_instantiation(
             if _kn is not None {
                 _field_inits.append((_kn, param.value));
             }
+        }
+    }
+    if isinstance(nd, uni.FuncCall) {
+        for (_ct_name, _ct_expr) in self._ct_ctor_slots(nd.target) {
+            _field_inits.append((_ct_name, _ct_expr));
         }
     }
     for (key_name, init_expr) in _field_inits {

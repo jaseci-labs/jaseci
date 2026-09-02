@@ -444,13 +444,14 @@ def:pub useSafeSubmit() -> any {
 
 ### Build Error Diagnostics
 
-When client builds fail, Jac provides structured error messages:
+When client builds fail, Jac classifies the bundler output and renders each error at its Jac location, using the same codes and renderer as the dev loop:
 
 | Code | Issue | Fix |
 |------|-------|-----|
-| `JAC_CLIENT_001` | Missing npm dependency | `jac install --npm <package>` |
-| `JAC_CLIENT_003` | Syntax error in client code | Check the source snippet in the error |
-| `JAC_CLIENT_004` | Unresolved import | Verify import path and package name |
+| `E7001` | Module has no such export | Import it with `import type`, or check the export name |
+| `E7002` | Unresolved import | Verify the import path, or declare the package and run `jac install` |
+| `E7004` | Vite rejected a module | Read the location the diagnostic names |
+| `E7005` | The build could not produce a loadable module | Run `jac check` on the file it names |
 
 Enable debug mode for raw Vite output:
 
