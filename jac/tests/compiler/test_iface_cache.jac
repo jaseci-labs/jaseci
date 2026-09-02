@@ -272,3 +272,72 @@ test "the compiler digest manifest reproduces the full sweep exactly" {
         "manifest digest missed an edited file"
     );
 }
+
+test "a third-party Python dependency is fingerprinted, never compiled as a target" {
+    # A byllm fixture imports litellm, and the sealed in-package lane died
+    # on it: `.py` under site-packages counted as a cacheable dependency, so
+    # a cache miss compiled it as an interface target, whose interface walk
+    # loaded everything it imported, each of which missed and compiled in
+    # turn -- 1,450 litellm modules and 14 GB on a 16 GB runner. Third-party
+    # Python is opaque to the cutoff now, the way typeshed stubs are: its
+    # row carries a content digest, no miss ever compiles it, and it is
+    # never served or persisted as an interface target.
+    import sys;
+    import from jaclang.compiler.driver.jir { compute_stub_module_key }
+    tmp = tempfile.mkdtemp();
+    sp = os.path.join(tmp, "site-packages");
+    pkg = os.path.join(sp, "thirdmod");
+    os.makedirs(pkg);
+    with open(os.path.join(pkg, "__init__.py"), "w") as fh {
+        fh.write("from .sub import helper\n\n__all__ = ['helper']\n");
+    }
+    with open(os.path.join(pkg, "sub.py"), "w") as fh {
+        fh.write("from .deep import base\n\ndef helper() -> int:\n    return base()\n");
+    }
+    with open(os.path.join(pkg, "deep.py"), "w") as fh {
+        fh.write("def base() -> int:\n    return 7\n");
+    }
+    main = os.path.join(tmp, "usesthird.jac");
+    with open(main, "w") as fh {
+        fh.write(
+            "import from thirdmod { helper }\n\nwith entry { print(helper()); }\n"
+        );
+    }
+    main = os.path.realpath(main);
+    init_py = os.path.realpath(os.path.join(pkg, "__init__.py"));
+    sys.path.insert(0, sp);
+    try {
+        (prog, rendered) = _check(main);
+        assert not prog.errors_had , f"the third-party import did not check clean: {rendered}";
+        events = prog.analysis.cache_events;
+        assert events.get("dep_miss_compile", 0) == 0 , (
+            f"a site-packages module was compiled as a dependency target (events: {events})"
+        );
+        for name in ("__init__.py", "sub.py", "deep.py") {
+            leaf = os.path.realpath(os.path.join(pkg, name));
+            assert not get_module_cache_path(leaf).exists() , (
+                f"{name} got its own cache entry; third-party Python must stay opaque"
+            );
+        }
+        reg = prog.iface_registry();
+        compiler = prog._get_compiler();
+        assert not reg.eligible(compiler, init_py, _check_opts()) , "a site-packages module must never be served or persisted as an interface target";
+        before = dict(reg.prog.analysis.cache_events);
+        assert reg.ensure(init_py) is None , "ensure() must not manufacture an entry for third-party Python";
+        assert reg.prog.analysis.cache_events.get("dep_miss_compile", 0)
+            == before.get("dep_miss_compile", 0) , "ensure() compiled a site-packages module on a miss";
+        assert not get_module_cache_path(init_py).exists() , "ensure() wrote a cache entry for third-party Python";
+        reg.frame_push(main);
+        try {
+            reg.note_dep(init_py);
+        } finally {
+            reg.frame_pop();
+        }
+        rows = reg.direct_deps.get(main, {});
+        assert rows.get(init_py) == compute_stub_module_key(init_py) , f"a third-party Python dependency is fingerprinted by content, like a stub (rows: {rows})";
+    } finally {
+        if sp in sys.path {
+            sys.path.remove(sp);
+        }
+    }
+}
