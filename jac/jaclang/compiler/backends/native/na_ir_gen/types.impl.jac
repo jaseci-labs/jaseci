@@ -1787,6 +1787,9 @@ impl NaIRGenTypes._apply_flow_narrowing(nd: uni.UniNode, val: ir.Value) -> ir.Va
         return val;
     }
     if not isinstance(nd, uni.Name) {
+        if _is_jv and isinstance(nd, uni.AtomTrailer) {
+            return self._unbox_narrowed_member(nd, val);
+        }
         return val;
     }
     _nm = nd.value;
@@ -1861,6 +1864,51 @@ impl NaIRGenTypes._apply_flow_narrowing(nd: uni.UniNode, val: ir.Value) -> ir.Va
         return self._coerce_type(_ub, _want);
     }
     return _ub;
+}
+
+impl NaIRGenTypes._unbox_narrowed_member(
+    nd: uni.AtomTrailer, val: ir.Value
+) -> ir.Value {
+    """Unbox a member read the checker narrowed to one heap kind.
+
+    A member typed as a mix of heap kinds (`list[Item] | Item`) is stored
+    boxed, and the analysis pipeline stamps `narrowed_type` on an occurrence
+    it has narrowed (`src.body` after `isinstance(src.body, list)`). Before
+    unions boxed, every pointer union carried its first member's layout and
+    the narrow was a free reinterpretation; the box needs an explicit unbox
+    or the consumer sees a jacval where the checker promised a list, and
+    `list(src.body)` refuses to lower. Only a class or container narrow
+    unboxes here: an Optional payload read stays a Name-only retype, because
+    a callee can rebind an attribute to None between the test and the use
+    (`optional_narrowing.jac`'s `callee_rebinds_attr`), and that unwrap must
+    keep its tag check.
+    """;
+    if not isinstance(nd, uni.Expr) or nd.narrowed_type is None {
+        return val;
+    }
+    if self._narrowing_blocked_by_none_test(nd) {
+        return val;
+    }
+    _nt = nd.narrowed_type;
+    try {
+        import from jaclang.compiler.types.types { ClassType as _ClassType }
+    } except ImportError {
+        return val;
+    }
+    if not isinstance(_nt, _ClassType)
+        or _nt.shared.class_name in ("NoneType", "None") {
+        return val;
+    }
+    _want = self._lower_type(_nt);
+    if _want is None
+        or isinstance(_want, ir.VoidType)
+        or _want == val.type
+        or self._opt_payload_of(_want) is not None
+        or not isinstance(_want, ir.PointerType)
+        or isinstance(_want.pointee, ir.FunctionType) {
+        return val;
+    }
+    return self._unbox_from_jacval(val, _want);
 }
 
 impl NaIRGenTypes._opt_ptr_payload_of(t: ir.Type) -> (ir.Type | None) {

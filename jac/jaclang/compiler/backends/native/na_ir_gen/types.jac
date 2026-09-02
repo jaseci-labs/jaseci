@@ -20,6 +20,7 @@ obj NaIRGenTypes(NaIRGenState) {
     ) -> bool;
 
     def _apply_flow_narrowing(nd: uni.UniNode, val: ir.Value) -> ir.Value;
+    def _unbox_narrowed_member(nd: uni.AtomTrailer, val: ir.Value) -> ir.Value;
     def _lower_function_type_raw(t: any) -> ir.Type;
     def _stack_entry_alloca(var_type: ir.Type, name: str) -> ir.Value;
     def _abi_sizeof(t: ir.Type) -> int;
