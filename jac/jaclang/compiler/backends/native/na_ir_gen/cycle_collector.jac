@@ -19,7 +19,6 @@ import from jaclang.compiler.frontend.codeinfo {
 obj NaIRGenCycleCollector(NaIRGenState) {
     def _emit_rc_roots_globals -> None;
     def _emit_rc_collect_cycles -> None;
-    def _emit_rc_collect_export -> None;
     def _emit_rc_color_load(
         b: ir.IRBuilder, obj_i8: ir.Value
     ) -> tuple[ir.Value, ir.Value];

@@ -687,19 +687,4 @@ impl NaIRGenCycleCollector._emit_rc_collect_cycles -> None {
     scan_fn = self._emit_rc_scan_phase(scan_black_fn);
     collect_white_fn = self._emit_rc_collect_white_phase();
     self._emit_rc_collect_loop(mark_gray_fn, scan_fn, collect_white_fn);
-    self._emit_rc_collect_export();
-}
-
-impl NaIRGenCycleCollector._emit_rc_collect_export -> None {
-    collect_fn = self.rc_collect_cycles_fn;
-    if collect_fn is None {
-        return;
-    }
-    fnty = ir.FunctionType(ir.VoidType(), []);
-    wrapper = ir.Function(self.llvm_module, fnty, name="jac_gc_cycles");
-    wrapper.linkage = "weak";
-    bb = wrapper.append_basic_block("entry");
-    b = ir.IRBuilder(bb);
-    b.call(collect_fn, []);
-    b.ret_void();
 }
