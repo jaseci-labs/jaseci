@@ -159,18 +159,22 @@ def start_server(fixtures_dir: Path, jac_file: Path, port: int) -> subprocess.Po
         env=env
     );
     base_url = f"http://localhost:{port}";
-    for _ in range(120) {
+    # A subprocess that has to compile the tree cold takes minutes, and a
+    # health check that answers anything but 200 used to burn the whole budget
+    # without pausing, so the wait is a wall clock that sleeps on every outcome
+    # short of ready. A server that exits still ends the wait immediately.
+    deadline = time.monotonic() + 300.0;
+    while time.monotonic() < deadline {
         try {
             r = requests.get(f"{base_url}/healthz", timeout=1);
             if r.status_code == 200 {
                 return server;
             }
-        } except Exception {
-            time.sleep(1);
-        }
+        } except Exception {}
         if server.poll() is not None {
             break;
         }
+        time.sleep(1);
     }
     server.kill();
     (stdout, stderr) = server.communicate(timeout=5);
