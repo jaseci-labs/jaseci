@@ -121,13 +121,9 @@ impl BaseTransform.postinit -> None {
     self.post_transform();
 }
 
-impl BaseTransform.pre_transform -> None {
-    ;
-}
+impl BaseTransform.pre_transform -> None {}
 
-impl BaseTransform.post_transform -> None {
-    ;
-}
+impl BaseTransform.post_transform -> None {}
 
 impl BaseTransform.log_info(msg: str) -> None {
     import logging;

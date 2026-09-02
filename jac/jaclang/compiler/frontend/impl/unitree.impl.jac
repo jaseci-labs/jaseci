@@ -1062,7 +1062,7 @@ impl AstAccessNode.public_access.getter -> bool {
     return (self.access_type == SymbolAccess.PUBLIC);
 }
 
-impl ContextAwareNode.postinit -> None { }
+impl ContextAwareNode.postinit -> None {}
 
 impl ContextAwareNode.code_context.getter -> CodeContext {
     found = [self->:PlacedIn:->];

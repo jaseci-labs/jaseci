@@ -780,9 +780,7 @@ def _format_single_file_worker(
                         );
                     }
                 }
-            } except (OSError, ValueError, TypeError, AttributeError) {
-                ;
-            }
+            } except (OSError, ValueError, TypeError, AttributeError) {}
         }
 
         return result;
@@ -1177,7 +1175,7 @@ impl precommit(
                             }
                         }
                     }
-                } except Exception { }
+                } except Exception {}
                 subprocess.run(
                     [
                         "git",

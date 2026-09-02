@@ -53,7 +53,7 @@ async def _aiter(items: list) {
 
 
 async def _drain(agen: any) {
-    async for _item in agen { }
+    async for _item in agen {}
 }
 
 

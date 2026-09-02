@@ -737,9 +737,7 @@ class JacScalePlugin {
                 );
                 sv_client.register(module_name, dns_url);
                 return;
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
 
         base_dir = Path(base_path);

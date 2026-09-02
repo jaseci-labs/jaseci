@@ -230,7 +230,7 @@ impl JacLangServer.dispatcher -> None {
         try {
             self.type_check_file(task.file_uri, cancel_token=task.cancel_token);
             self.lsp.send_request(lspt.WORKSPACE_SEMANTIC_TOKENS_REFRESH);
-        } finally { }
+        } finally {}
         if task.cancel_token.is_set() {
             self.debug(
                 "Task cancelled id: " + str(task.task_id) + " " + str(time.time())
@@ -672,9 +672,7 @@ impl JacLangServer.get_node_info(sym_node: uni.AstSymbolNode) -> Optional[str] {
                 tags.append('inferred');
                 node_info += f"\nplacement: {space} ({', '.join(tags)})";
             }
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     } except AttributeError as e {
         self.log_warning(f"Attribute error when accessing node attributes: {e}");
     }

@@ -150,9 +150,7 @@ def _remove_demotion_sidecar(path: str) {
     }
     try {
         os.remove(sidecar);
-    } except OSError {
-        ;
-    }
+    } except OSError {}
 }
 
 
@@ -206,9 +204,7 @@ def _mark_demoted_native(path: str, code: str = "") {
             f.write(f"{key[0]} {key[1]} {code}\n");
         }
         os.replace(tmp, sidecar);
-    } except OSError {
-        ;
-    }
+    } except OSError {}
 }
 
 

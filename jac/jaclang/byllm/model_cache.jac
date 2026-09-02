@@ -91,7 +91,7 @@ def _resolve_consent(alias: str, spec: dict, auto_download: bool) -> bool {
         target.mkdir(parents=True, exist_ok=True);
         try {
             _consent_marker(alias).write_text("1\n");
-        } except OSError { }
+        } except OSError {}
         return True;
     }
     return False;

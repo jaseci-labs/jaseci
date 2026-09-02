@@ -2252,7 +2252,7 @@ test "ensure_bundle retries a missing-bun failure and a build error alike" {
         try {
             intro.ensure_bundle();
             assert False , "ensure_bundle should raise while bun is missing";
-        } except ClientBundleError { }
+        } except ClientBundleError {}
     }
     assert bun_missing.build.call_count == 2 , "missing bun must be re-checked on every call, not memoized";
 
@@ -2265,7 +2265,7 @@ test "ensure_bundle retries a missing-bun failure and a build error alike" {
         try {
             intro2.ensure_bundle();
             assert False , "ensure_bundle should raise for a broken build";
-        } except ClientBundleError { }
+        } except ClientBundleError {}
     }
     assert broken.build.call_count == 2 , (
         "a build failure must be retried on the next call: the serving core builds "

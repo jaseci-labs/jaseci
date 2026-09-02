@@ -236,9 +236,7 @@ def _build_catalog_inner(
         with open(out_path + ".json", "w", encoding="utf-8") as f {
             json.dump(manifest, f, indent=2, sort_keys=True);
         }
-    } except OSError {
-        ;
-    }
+    } except OSError {}
     if not quiet {
         sys.stderr.write(
             f"stubcat: {manifest['modules']} modules, {manifest['symbols']} symbols, "
