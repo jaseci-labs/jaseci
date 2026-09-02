@@ -2,7 +2,7 @@ impl StaticAnalysisPass.postinit -> None {
     super.postinit();
 }
 
-impl StaticAnalysisPass.transform(ir_in: Module) -> Module {
+impl StaticAnalysisPass._run_impl(ir_in: Module) -> Module {
     _fresh: set[int] = set();
     self._checked_scopes = _fresh;
 
@@ -589,4 +589,16 @@ impl StaticAnalysisPass._check_redundant_imports(mod: Module) -> None {
             }
         }
     }
+}
+
+impl StaticAnalysisPass.transform(ir_in: Module) -> Module {
+    self.ir_out = ir_in;
+    ir_in spawn self;
+    out = self.ir_out;
+    assert isinstance(out, Module);
+    return out;
+}
+
+impl StaticAnalysisPass.run_walk with Module entry {
+    self.ir_out = self._run_impl(here);
 }

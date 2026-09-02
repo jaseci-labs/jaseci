@@ -140,7 +140,7 @@ impl Serializer._serialize_value(
     if isinstance(val, Anchor) {
         result = Serializer._type_info(val, include_type);
         result |= {
-            'id': str(val.id),
+            'id': str(val.ensure_id()),
             'root': str(val.root) if val.root else None,
             'persistent': val.persistent,
             'access': Serializer._serialize_value(
@@ -155,14 +155,14 @@ impl Serializer._serialize_value(
                 );
         }
         if isinstance(val, NodeAnchor) {
-            result['edges'] = [str(e.id) for e in val.edges];
+            result['edges'] = [str(e.ensure_id()) for e in val.edges];
 
             result['version'] = val.version;
         }
         if isinstance(val, EdgeAnchor) {
             result |= {
-                'source': str(val.source.id) if val.source else None,
-                'target': str(val.target.id) if val.target else None,
+                'source': str(val.source.ensure_id()) if val.source else None,
+                'target': str(val.target.ensure_id()) if val.target else None,
                 'is_undirected': val.is_undirected
             };
         }
@@ -173,7 +173,7 @@ impl Serializer._serialize_value(
         if _seen is not None {
             jac_anchor = val?.__jac__;
             if jac_anchor {
-                jac_id = jac_anchor.id;
+                jac_id = jac_anchor.ensure_id();
                 (jac_uuids, _) = _seen;
                 if jac_id in jac_uuids {
                     ref_type = (
@@ -203,7 +203,7 @@ impl Serializer._serialize_value(
         if api_mode {
             result |= {
                 '_jac_type': type(val).__name__,
-                '_jac_id': val.__jac__.id.hex if val?.__jac__ else None,
+                '_jac_id': val.__jac__.ensure_id().hex if val?.__jac__ else None,
                 '_jac_archetype': 'node'
                     if isinstance(val, NodeArchetype)
                     else 'walker' if isinstance(val, WalkerArchetype) else 'archetype'
@@ -876,7 +876,6 @@ impl Serializer._deserialize_anchor(data: dict[str, object]) -> (Anchor | None) 
         anchor.`root = UUID(raw_root)
             if isinstance(raw_root, str) and raw_root
             else None;
-        anchor.persistent = bool(data.get('persistent', False));
         anchor.access = Serializer._deserialize_permission(data.get('access'));
 
         if (arch_data := data.get('archetype')) {
@@ -915,6 +914,8 @@ impl Serializer._deserialize_anchor(data: dict[str, object]) -> (Anchor | None) 
             }
             anchor.archetype = archetype;
         }
+
+        anchor.persistent = bool(data.get('persistent', False));
         if isinstance(anchor, NodeAnchor) {
             raw_edges = data.get('edges');
             edge_ids: list[str] = [];
@@ -987,9 +988,9 @@ impl Serializer._deserialize_anchor(data: dict[str, object]) -> (Anchor | None) 
     }
 }
 
-impl Serializer._deserialize_permission(data: object) -> Permission {
-    if not isinstance(data, dict) {
-        return Permission();
+impl Serializer._deserialize_permission(data: object) -> (Permission | None) {
+    if not isinstance(data, dict) or not data {
+        return None;
     }
     perm = Permission();
     perm.all = access_level_cast(data.get('all', -1));

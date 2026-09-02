@@ -1,5 +1,6 @@
 """AI Day Planner -- authenticated, multi-file version."""
 
+import from jaclang.comptime { fields, get_field }
 import from frontend { app as ClientApp }
 
 def:pub app -> JsxElement {
@@ -82,13 +83,13 @@ def:priv generate_list(meal: str) -> list[ShoppingItem] {
     }
     ingredients = generate_shopping_list(meal);
     for ing in ingredients {
-        root ++> ShoppingItem(
-            name=ing.name,
-            quantity=ing.quantity,
-            unit=str(ing.unit).split(".")[-1].lower(),
-            cost=ing.cost,
-            carby=ing.carby
-        );
+        item: dict[str, any] = {"unit": str(ing.unit).split(".")[-1].lower()};
+        comptime for f in fields(ShoppingItem) {
+            comptime if f.name != "unit" {
+                item[f.name] = get_field(ing, f.name);
+            }
+        }
+        root ++> ShoppingItem(**item);
     }
     return [root-->][?:ShoppingItem];
 }

@@ -91,9 +91,7 @@ def type_to_str(t: object) -> str {
                 return tname;
             }
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     if isinstance(t, `tuple) {
         head = t[0];
         if (head == 'list') {

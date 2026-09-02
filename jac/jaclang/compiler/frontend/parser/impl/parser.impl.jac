@@ -162,6 +162,7 @@ impl Parser.is_keyword_token -> bool {
         TokenKind.KW_DEF,
         TokenKind.KW_STATIC,
         TokenKind.KW_OVERRIDE,
+        TokenKind.KW_COMPTIME,
         TokenKind.KW_IMPL,
         TokenKind.KW_GETTER,
         TokenKind.KW_SETTER,
@@ -3282,6 +3283,7 @@ impl Parser.parse_element_stmt -> ElementStmt | EmptyToken | None {
             TokenKind.KW_IMPL,
             TokenKind.TYP_TYPE,
             TokenKind.KW_GLOBAL,
+            TokenKind.KW_COMPTIME,
             TokenKind.KW_WITH,
             TokenKind.KW_IMPORT,
             TokenKind.KW_INCLUDE
@@ -3294,6 +3296,10 @@ impl Parser.parse_element_stmt -> ElementStmt | EmptyToken | None {
 
     if self.check(TokenKind.KW_GLOBAL) {
         return self.parse_global_var();
+    }
+
+    if self.check(TokenKind.KW_COMPTIME) {
+        return self.parse_comptime_element();
     }
 
     if self.check(TokenKind.KW_IMPL) {
@@ -3331,12 +3337,81 @@ impl Parser._dispatch_decorated_stmt -> CodeBlockStmt | None {
     return decorated if isinstance(decorated, CodeBlockStmt) else None;
 }
 
+impl Parser.parse_comptime_element -> ElementStmt | EmptyToken | None {
+    if self.check_peek_any(TokenKind.KW_DEF, TokenKind.KW_CAN) {
+        return self.parse_ability();
+    }
+    if self.check_peek(TokenKind.KW_IMPORT) {
+        return self.parse_import_stmt();
+    }
+    if self.check_peek(TokenKind.KW_ASSERT) {
+        stmt = self.parse_comptime_stmt();
+        return stmt if isinstance(stmt, AssertStmt) else None;
+    }
+    return self.parse_comptime_global();
+}
+
+impl Parser.parse_comptime_global -> GlobalVars {
+    ct_uni = self.consume_uni(TokenKind.KW_COMPTIME);
+    access = self.parse_access_tag();
+
+    assignments: list[Assignment] = [];
+    comma_unis: list[Token] = [];
+    assignments.append(self.parse_global_var_assignment());
+    while self.match_tok(TokenKind.COMMA) {
+        comma_unis.append(self.make_uni_token(self.previous()));
+        assignments.append(self.parse_global_var_assignment());
+    }
+    self.expect(TokenKind.SEMI);
+    kid: list[UniNode] = [ct_uni];
+    if access {
+        kid.append(access);
+    }
+    for (ai, asn) in enumerate(assignments) {
+        asn.is_comptime = True;
+        if ai > 0 {
+            kid.append(comma_unis[ai - 1]);
+        }
+        kid.append(asn);
+    }
+    kid.append(self.make_semi());
+    return GlobalVars(
+        access=access, assignments=assignments, is_frozen=True, kid=kid, doc=None
+    );
+}
+
+impl Parser.parse_comptime_stmt -> CodeBlockStmt | None {
+    if self.check_peek(TokenKind.KW_IF) {
+        return self.parse_if_stmt();
+    }
+    if self.check_peek(TokenKind.KW_FOR) {
+        return self.parse_for_stmt();
+    }
+    if self.check_peek(TokenKind.KW_ASSERT) {
+        return self.parse_assert_stmt();
+    }
+    if self.check_peek(TokenKind.KW_IMPORT) {
+        return self.parse_import_stmt();
+    }
+    if self.check_peek_any(TokenKind.KW_DEF, TokenKind.KW_CAN) {
+        return self.parse_ability();
+    }
+    ct_uni = self.consume_uni(TokenKind.KW_COMPTIME);
+    target = self.make_name(self.expect_name("comptime binding"));
+    asn = self.parse_assignment_with_target(target);
+    asn.is_comptime = True;
+    asn.add_kids_left([ct_uni]);
+    return asn;
+}
+
 impl Parser._dispatch_decorated -> ElementStmt | None {
     save_pos = self.pos;
     while self.check(TokenKind.DECOR_OP) {
         self.advance();
         self.parse_atomic_chain();
     }
+
+    self.match_tok(TokenKind.KW_COMPTIME);
 
     while self.check(TokenKind.KW_ASYNC) {
         self.advance();
@@ -3428,6 +3503,13 @@ impl Parser.parse_docstring_target -> ElementStmt | None {
         doc_globals = self.parse_global_var();
         self._attach_doc(doc_globals, elem_doc);
         return doc_globals;
+    }
+    if self.check(TokenKind.KW_COMPTIME) {
+        doc_ct = self.parse_comptime_element();
+        if isinstance(doc_ct, AstDocNode) {
+            self._attach_doc(doc_ct, elem_doc);
+        }
+        return doc_ct if isinstance(doc_ct, ElementStmt) else None;
     }
     if self.check(TokenKind.KW_IMPL) {
         doc_impl = self.parse_impl_def();
@@ -3688,6 +3770,9 @@ impl Parser.parse_statement -> CodeBlockStmt | None {
         return self.parse_assignment_with_target(kw_target);
     }
 
+    if self.check(TokenKind.KW_COMPTIME) {
+        return self.parse_comptime_stmt();
+    }
     if self.check_any(TokenKind.KW_IMPORT, TokenKind.KW_INCLUDE) {
         return self.parse_import_stmt();
     }
@@ -3890,7 +3975,7 @@ impl Parser.parse_statement -> CodeBlockStmt | None {
     expr_kid: list[UniNode] = [expr];
     if self.match_tok(TokenKind.SEMI) {
         expr_kid.append(self.make_semi());
-    } elif isinstance(expr, JsxElement) and self._view_body_depth > 0 { } elif isinstance(
+    } elif isinstance(expr, JsxElement) and self._view_body_depth > 0 {} elif isinstance(
         expr, Name
     )
         and expr.value == "new" {
@@ -3909,6 +3994,12 @@ impl Parser.parse_statement -> CodeBlockStmt | None {
 }
 
 impl Parser.parse_if_stmt -> IfStmt {
+    is_comptime = False;
+    ct_uni: Token | None = None;
+    if self.match_tok(TokenKind.KW_COMPTIME) {
+        is_comptime = True;
+        ct_uni = self.make_uni_token(self.previous());
+    }
     if_uni = self.consume_uni(TokenKind.KW_IF);
     condition = self.parse_expression();
     lb_uni = self.consume_uni(TokenKind.LBRACE);
@@ -3920,13 +4011,30 @@ impl Parser.parse_if_stmt -> IfStmt {
     } elif self.check(TokenKind.KW_ELSE) {
         else_body = self.parse_else_stmt();
     }
-    kid: list[UniNode] = [if_uni, condition, lb_uni];
+    kid: list[UniNode] = [];
+    if ct_uni is not None {
+        kid.append(ct_uni);
+    }
+    kid.extend([if_uni, condition, lb_uni]);
     kid.extend(body);
     kid.append(rb_uni);
     if else_body {
         kid.append(else_body);
     }
-    return IfStmt(condition=condition, body=body, else_body=else_body, kid=kid);
+    if is_comptime {
+        chain = else_body;
+        while isinstance(chain, ElseIf) {
+            chain.is_comptime = True;
+            chain = chain.else_body;
+        }
+    }
+    return IfStmt(
+        condition=condition,
+        body=body,
+        else_body=else_body,
+        is_comptime=is_comptime,
+        kid=kid
+    );
 }
 
 impl Parser.parse_elif_stmt -> ElseIf {
@@ -4010,6 +4118,12 @@ impl Parser.parse_for_stmt -> IterForStmt | InForStmt {
     is_async = False;
     async_uni = None;
     flow_uni = None;
+    is_comptime = False;
+    ct_uni: Token | None = None;
+    if self.match_tok(TokenKind.KW_COMPTIME) {
+        is_comptime = True;
+        ct_uni = self.make_uni_token(self.previous());
+    }
     if self.match_tok(TokenKind.KW_ASYNC) {
         is_async = True;
         async_uni = self.make_uni_token(self.previous());
@@ -4024,6 +4138,9 @@ impl Parser.parse_for_stmt -> IterForStmt | InForStmt {
     if self.check(TokenKind.EQ) {
         if flow_uni is not None {
             self.error("`flow for` requires the `for <x> in <collection>` form");
+        }
+        if is_comptime {
+            self.error("`comptime for` requires the `for <x> in <collection>` form");
         }
         eq_tok = self.expect(TokenKind.EQ);
         eq_uni = self.make_uni_token(eq_tok);
@@ -4108,6 +4225,9 @@ impl Parser.parse_for_stmt -> IterForStmt | InForStmt {
         else_body = self.parse_else_stmt();
     }
     kid: list[UniNode] = [];
+    if ct_uni is not None {
+        kid.append(ct_uni);
+    }
     if is_async and async_uni is not None {
         kid.append(async_uni);
     }
@@ -4127,6 +4247,7 @@ impl Parser.parse_for_stmt -> IterForStmt | InForStmt {
         collection=iter_expr,
         body=body,
         else_body=else_body,
+        is_comptime=is_comptime,
         kid=kid
     );
 }
@@ -4761,6 +4882,12 @@ impl Parser.parse_raise_stmt -> RaiseStmt {
 }
 
 impl Parser.parse_assert_stmt -> AssertStmt {
+    is_comptime = False;
+    ct_uni: Token | None = None;
+    if self.match_tok(TokenKind.KW_COMPTIME) {
+        is_comptime = True;
+        ct_uni = self.make_uni_token(self.previous());
+    }
     assert_uni = self.consume_uni(TokenKind.KW_ASSERT);
     `test = self.parse_expression();
     msg = None;
@@ -4769,24 +4896,37 @@ impl Parser.parse_assert_stmt -> AssertStmt {
         comma_uni = self.make_uni_token(self.previous());
         msg = self.parse_expression();
     }
-    kid: list[UniNode] = [assert_uni, `test];
+    kid: list[UniNode] = [];
+    if ct_uni is not None {
+        kid.append(ct_uni);
+    }
+    kid.extend([assert_uni, `test]);
     if msg is not None and comma_uni is not None {
         kid.append(comma_uni);
         kid.append(msg);
     }
     self.expect(TokenKind.SEMI);
     kid.append(self.make_semi());
-    return AssertStmt(condition=`test, error_msg=msg, kid=kid);
+    return AssertStmt(condition=`test, error_msg=msg, is_comptime=is_comptime, kid=kid);
 }
 
 impl Parser.parse_delete_stmt -> DeleteStmt {
     del_uni = self.consume_uni(TokenKind.KW_DELETE);
-    target = self.parse_expression();
+    kid: list[UniNode] = [del_uni];
+    targets: list[Expr] = [];
+    first = self.parse_expression();
+    targets.append(first);
+    kid.append(first);
+    while self.match_tok(TokenKind.COMMA) {
+        kid.append(self.make_uni_token(self.previous()));
+        nxt = self.parse_expression();
+        targets.append(nxt);
+        kid.append(nxt);
+    }
     self._recover_misplaced_disconnect();
-    kid: list[UniNode] = [del_uni, target];
     self.expect(TokenKind.SEMI);
     kid.append(self.make_semi());
-    return DeleteStmt(target=target, kid=kid);
+    return DeleteStmt(targets=targets, kid=kid);
 }
 
 impl Parser._recover_misplaced_disconnect -> None {
@@ -4962,13 +5102,19 @@ impl Parser.parse_assignment_with_target(
 }
 
 impl Parser.parse_import_stmt -> Import {
+    is_comptime = False;
+    kid: list[UniNode] = [];
+    if self.match_tok(TokenKind.KW_COMPTIME) {
+        is_comptime = True;
+        kid.append(self.make_uni_token(self.previous()));
+    }
     is_include = False;
     if self.match_tok(TokenKind.KW_INCLUDE) {
         is_include = True;
     } else {
         self.expect(TokenKind.KW_IMPORT);
     }
-    kid: list[UniNode] = [self.make_uni_token(self.previous())];
+    kid.append(self.make_uni_token(self.previous()));
 
     is_typed = False;
     if not is_include and self.match_tok(TokenKind.TYP_TYPE) {
@@ -5053,6 +5199,7 @@ impl Parser.parse_import_stmt -> Import {
         items=items,
         is_absorb=is_include,
         is_typed=is_typed,
+        is_comptime=is_comptime,
         kid=kid,
         doc=None,
         clib_decls=clib_decls
@@ -5403,7 +5550,23 @@ impl Parser.parse_archetype_member -> UniNode | None {
         }
         return ability;
     }
-    if self.check_any(TokenKind.KW_DEF, TokenKind.KW_CAN, TokenKind.KW_OVERRIDE) {
+    if self.check(TokenKind.KW_COMPTIME)
+        and not self.check_peek_any(
+            TokenKind.KW_DEF,
+            TokenKind.KW_CAN,
+            TokenKind.KW_OVERRIDE,
+            TokenKind.KW_STATIC,
+            TokenKind.KW_ASYNC
+        ) {
+        ct_globals = self.parse_comptime_global();
+        if doc {
+            _ = self._attach_doc(ct_globals, doc);
+        }
+        return ct_globals;
+    }
+    if self.check_any(
+        TokenKind.KW_DEF, TokenKind.KW_CAN, TokenKind.KW_OVERRIDE, TokenKind.KW_COMPTIME
+    ) {
         ability = self.parse_ability();
         if doc {
             _ = self._attach_doc(ability, doc);
@@ -5706,6 +5869,12 @@ impl Parser.parse_ability -> Ability {
         decor_unis.append(self.make_uni_token(self.expect(TokenKind.DECOR_OP)));
         decorators.append(self.parse_atomic_chain());
     }
+    is_comptime = False;
+    comptime_tok: LexToken | None = None;
+    if self.match_tok(TokenKind.KW_COMPTIME) {
+        is_comptime = True;
+        comptime_tok = self.previous();
+    }
     is_override = False;
     override_tok: LexToken | None = None;
     if self.match_tok(TokenKind.KW_OVERRIDE) {
@@ -5830,6 +5999,9 @@ impl Parser.parse_ability -> Ability {
         kid.append(decor_unis[di]);
         kid.append(d);
     }
+    if comptime_tok is not None {
+        kid.append(self.make_uni_token(comptime_tok));
+    }
     if override_tok is not None {
         kid.append(self.make_uni_token(override_tok));
     }
@@ -5896,7 +6068,8 @@ impl Parser.parse_ability -> Ability {
         kid=kid,
         doc=None,
         decorators=decorators,
-        type_params=tp_list
+        type_params=tp_list,
+        is_comptime=is_comptime
     );
 }
 
@@ -6042,6 +6215,10 @@ impl Parser.parse_func_params(kid: list[UniNode]) -> list[ParamVar] {
 }
 
 impl Parser.parse_param_var -> ParamVar | None {
+    ct_uni: Token | None = None;
+    if self.match_tok(TokenKind.KW_COMPTIME) {
+        ct_uni = self.make_uni_token(self.previous());
+    }
     unpack: Token | None = None;
     if self.check_any(TokenKind.STAR_MUL, TokenKind.STAR_POW) {
         unpack_tok = self.expect_any(TokenKind.STAR_MUL, TokenKind.STAR_POW);
@@ -6108,6 +6285,9 @@ impl Parser.parse_param_var -> ParamVar | None {
         default_val = self.parse_expression();
     }
     pv_kid: list[UniNode] = [];
+    if ct_uni is not None {
+        pv_kid.append(ct_uni);
+    }
     if unpack {
         pv_kid.append(unpack);
     }
@@ -6121,7 +6301,12 @@ impl Parser.parse_param_var -> ParamVar | None {
     }
 
     return ParamVar(
-        name=name, unpack=unpack, type_tag=type_tag, value=default_val, kid=pv_kid
+        name=name,
+        unpack=unpack,
+        type_tag=type_tag,
+        value=default_val,
+        is_comptime=ct_uni is not None,
+        kid=pv_kid
     );
 }
 
@@ -6910,11 +7095,19 @@ impl Parser.parse_type_params -> tuple[(list, list)] {
     params: list[TypeParam] = [];
     comma_unis: list[Token] = [];
 
+    ct_uni: Token | None = None;
+    if self.match_tok(TokenKind.KW_COMPTIME) {
+        ct_uni = self.make_uni_token(self.previous());
+    }
     name_tok = self.expect_name();
     name = self.make_name_or_special(name_tok);
     bound: Expr | None = None;
     default_val: Expr | None = None;
-    tp_kid: list[UniNode] = [name];
+    tp_kid: list[UniNode] = [];
+    if ct_uni is not None {
+        tp_kid.append(ct_uni);
+    }
+    tp_kid.append(name);
     if self.match_tok(TokenKind.COLON) {
         tp_kid.append(self.make_uni_token(self.previous()));
         bound = self.parse_pipe();
@@ -6926,18 +7119,32 @@ impl Parser.parse_type_params -> tuple[(list, list)] {
         tp_kid.append(default_val);
     }
     params.append(
-        TypeParam(name=name, bound=bound, default_val=default_val, kid=tp_kid)
+        TypeParam(
+            name=name,
+            bound=bound,
+            default_val=default_val,
+            is_comptime=ct_uni is not None,
+            kid=tp_kid
+        )
     );
     while self.match_tok(TokenKind.COMMA) {
         comma_unis.append(self.make_uni_token(self.previous()));
         if self.check(TokenKind.RSQUARE) {
             break;
         }
+        ct_uni = None;
+        if self.match_tok(TokenKind.KW_COMPTIME) {
+            ct_uni = self.make_uni_token(self.previous());
+        }
         name_tok = self.expect_name();
         name = self.make_name_or_special(name_tok);
         bound = None;
         default_val = None;
-        tp_kid = [name];
+        tp_kid = [];
+        if ct_uni is not None {
+            tp_kid.append(ct_uni);
+        }
+        tp_kid.append(name);
         if self.match_tok(TokenKind.COLON) {
             tp_kid.append(self.make_uni_token(self.previous()));
             bound = self.parse_pipe();
@@ -6949,7 +7156,13 @@ impl Parser.parse_type_params -> tuple[(list, list)] {
             tp_kid.append(default_val);
         }
         params.append(
-            TypeParam(name=name, bound=bound, default_val=default_val, kid=tp_kid)
+            TypeParam(
+                name=name,
+                bound=bound,
+                default_val=default_val,
+                is_comptime=ct_uni is not None,
+                kid=tp_kid
+            )
         );
     }
     return (params, comma_unis);

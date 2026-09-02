@@ -940,23 +940,21 @@ The codegen options carry a canonical identity string and a short hash of it, th
 | `JAC_DEBUG_IR` | (none) | Saves each module's generated IR as `<stem>.ll` in the native cache dir. |
 | `JAC_RC_STATS` | (none) | Prints the per-module rc-stats line to stderr. |
 | `JAC_NOGC_DEBUG` | (none) | Verbose ownership-enforcement logging to stderr. |
-| `JAC_NA_DEBUG` | (none) | Explains every native demotion: `NA_DEBUG demote <Type>.<method>` followed by the full diagnostics that made the method un-lowerable, and `NA_DEBUG raise <Type>.<method>` plus a Python traceback when the emitter raised. Forces the "native seam" warning on regardless of `[check] warn_native_seams`, and prints the traceback behind a failed seal canary. |
+| `JAC_NA_DEBUG` | (none) | Explains every native demotion: `NA_DEBUG demote <Type>.<method>` followed by the full diagnostics that made the method un-lowerable, and `NA_DEBUG raise <Type>.<method>` plus a Python traceback when the emitter raised. Forces the "native seam" warning on regardless of `[check] warn_native_seams`. |
 | `JAC_SYMMAP` | (none) | Writes a `<binary>.symmap` symbol map beside a linked ELF executable. |
 
-### Sealed compiler artifacts (no switches)
+### The native scope (no switches)
 
-There is deliberately **no environment switch** over the sealed tier:
-sealed means served (#8139). A jaclang image records the native roots it
-sealed in its manifest, and `load_image` refuses any image that cannot
-serve them on this host -- a missing, corrupt, or wrong-platform artifact
-is a named startup error, never a silent downgrade to bytecode. The
-bytecode tier exists only where no image exists (a dev source tree, which
-is the build stage itself) or where the platform has no native backend
-(Windows, recorded in the manifest as `skip_reason`). The historical
-`JAC_NO_SEAL` / `JAC_SEAL_NO_NATIVE` overrides are gone; setting either
-against a sealed image is itself a startup error. The payload build runs
-unsealed by construction: it removes any seeded manifest before the staged
-jaclang can probe for it and regenerates the manifest as its final act.
+The compiler modules served from `libjac_compiler` are listed explicitly in
+`jaclang/compiler/native_scope.jac` (`NATIVE_SCOPE`). A module is added when
+the full suite is green with it in and its equivalence fixture exists; the
+built image's manifest must agree with the file exactly
+(`tests/compiler/test_native_scope.jac`), and an empty scope is an image
+with no `native` record. Everything outside the scope runs as bytecode from
+the JIR image. There is no environment switch over the scope and no
+build-time gate: a demotion inside a scoped module is routing, reported,
+never a refusal. The historical `JAC_NO_SEAL` override is gone; setting it
+against a sealed image is itself a startup error.
 
 Toolchain location variables are read through the same boundary module, never inside passes: `JAC_LLVM_SHIM`, `JAC_LLVM_TYPED_POINTERS` (with `LLVMLITE_ENABLE_IR_LAYER_TYPED_POINTERS` honored as a fallback), `JAC_NATIVE_WASM_LIBC_DIR`, `JAC_NATIVE_MUSL_DIR`, `JAC_NATIVE_FLOOR_DIR`, `JAC_NATIVE_CA_BUNDLE`.
 
@@ -978,37 +976,13 @@ This produces a human-readable `.ll` file that can be inspected with any text ed
 
 ### Explaining a demotion
 
-A method the backend cannot lower is *demoted*: it falls back to its Python implementation while the rest of its class stays native. The build prints a one-line `warning: native seam -- demoting ...` for each. `JAC_NA_DEBUG=1` turns that line into the full story:
+A method the backend cannot lower is *demoted*: it falls back to its Python implementation while the rest of its class stays native. The build prints a one-line `⚠ native seam -- demoting ...` warning for each. `JAC_NA_DEBUG=1` turns that line into the full story:
 
 ```bash
 JAC_NA_DEBUG=1 jac nacompile program.jac
 ```
 
-Each demotion emits `NA_DEBUG demote <Type>.<method>` followed by every diagnostic that made the method un-lowerable, with source context. When the emitter raised outright rather than reporting a diagnostic, the line is `NA_DEBUG raise <Type>.<method>` followed by the Python traceback pointing at the codegen site. The flag also forces the seam warning on when `[check] warn_native_seams = false` would otherwise silence it, and prints the traceback behind a failed seal canary.
-
-### Sealed artifacts and demotion
-
-A demotion is only a speed cost while Python is still there to catch it. In a sealed AOT artifact it is not: the demoted method is emitted as an `abort()` stub, so the first call kills the process with no diagnostic. `seal_native_artifacts` therefore refuses to seal a module whose closure demoted anything, naming each offending method and the reason it could not lower. A demotion that is genuinely unreachable in the sealed build can be waived, but only by naming the method:
-
-```jac
-glob NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {
-    "compiler/frontend/parser/parser.jac": ("compiler/frontend/unitree.jac::UniNode.gen.__get__", )
-};
-```
-
-The key is the sealed module; each entry is `<module>::<Type>.<method>`, where the module is the one that actually demoted, given relative to the package root. The module half is required rather than cosmetic: a demotion one hop out in the closure can share a `Type.method` name with one in another module, and a bare name would waive both. The refusal diagnostic prints the exact string to paste in.
-
-Each waived method is announced on every seal, and a waiver that no longer matches a real demotion is reported as stale.
-
-The verdict must not depend on how warm the build cache is, so the gate is layered:
-
-- The seal compiles its closure with the native IR cache disabled. Transitive native imports are otherwise served straight from `<cache>/native/*.ir_cache`, which skips codegen for that module entirely, so its demotions would be recorded nowhere.
-- Independently of that, the seal scans the LLVM IR it is about to hand to the linker for the demotion stub signature (a function whose entire body is `call void @abort()` then `unreachable`) and refuses any it finds. This reads what actually ships, so it holds for every route into the artifact, not just the one the coverage report knows about.
-- A seal that refuses for any reason purges the native IR cache entries for its closure, so a failed build never leaves state that a later build could inherit. The cached IR itself is a faithful record of that compile, so it is not suppressed at write time -- a demoted method genuinely lowers to an abort stub in any native link, and skipping the cache write would silently disable caching for every module containing one.
-
-Before an artifact is written into `MANIFEST.json` it must also pass a load canary: the seal `dlopen`s the freshly linked library, checks that every export the layout advertises is really in it, runs `__jac_shared_init`, and calls a known-good runtime export. An artifact that cannot be loaded and called is deleted and the seal fails. The canary proves the artifact loads; it cannot prove the artifact is free of abort stubs, because an `abort()`-bodied function still resolves through `dlsym` and is never called. That is the scan's job.
-
-The canary's probe string is deliberately **not** released. `jac_release` reaches `__rc_release_simple`, which drops the refcount and, at zero, runs the type-tagged destructor and removes the object from the cycle collector's live list. Under the `cycles` GC mode the seal builds with, that machinery is set up for the module's own execution, not for a foreign `ctypes` caller that has only run `__jac_shared_init`: calling it on the sealed lexer segfaults at address 0 inside the artifact. One probe allocation per artifact, in a build step that exits moments later, is the cheaper of the two.
+Each demotion emits `NA_DEBUG demote <Type>.<method>` followed by every diagnostic that made the method un-lowerable, with source context. When the emitter raised outright rather than reporting a diagnostic, the line is `NA_DEBUG raise <Type>.<method>` followed by the Python traceback pointing at the codegen site. The flag also forces the seam warning on when `[check] warn_native_seams = false` would otherwise silence it.
 
 ### Bytecode Cache
 

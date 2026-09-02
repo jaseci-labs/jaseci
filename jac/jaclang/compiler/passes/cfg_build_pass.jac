@@ -53,8 +53,8 @@ import from jaclang.compiler.frontend.unitree {
 }
 import from jaclang.compiler.passes.uni_pass { UniPass }
 
-obj CFGBuildPass(UniPass) {
-    static has PROVIDES: tuple = ('cfg', );
+walker CFGBuildPass(UniPass) {
+    static has PROVIDES: tuple = ('CfgSucc', 'CfgTrue', 'CfgFalse');
 
     def before_pass -> None;
     def link_bbs(source: UniCFGNode, target: UniCFGNode) -> None;
@@ -99,51 +99,52 @@ obj CFGBuildPass(UniPass) {
         false_target: (UniCFGNode | None)
     ) -> None;
 
-    def enter_node(nd: UniNode) -> None;
-    def enter_if_stmt(nd: IfStmt) -> None;
-    def enter_else_if(nd: ElseIf) -> None;
-    def enter_assert_stmt(nd: AssertStmt) -> None;
-    def enter_match_stmt(nd: MatchStmt) -> None;
-    def exit_bool_expr(nd: BoolExpr) -> None;
-    def exit_if_else_expr(nd: IfElseExpr) -> None;
-    def exit_if_stmt(nd: IfStmt) -> None;
-    def exit_else_if(nd: ElseIf) -> None;
-    def exit_else_stmt(nd: ElseStmt) -> None;
-    def exit_while_stmt(nd: WhileStmt) -> None;
-    def exit_forever_stmt(nd: ForeverStmt) -> None;
-    def exit_in_for_stmt(nd: InForStmt) -> None;
-    def exit_iter_for_stmt(nd: IterForStmt) -> None;
-    def exit_list_compr(nd: ListCompr) -> None;
-    def exit_set_compr(nd: SetCompr) -> None;
-    def exit_gen_compr(nd: GenCompr) -> None;
-    def exit_dict_compr(nd: DictCompr) -> None;
+    can cfg_collect_affected with UniNode entry;
+    can enter_if_stmt with IfStmt entry;
+    can enter_else_if with ElseIf entry;
+    can enter_assert_stmt with AssertStmt entry;
+    can enter_match_stmt with MatchStmt entry;
+    can exit_bool_expr with BoolExpr exit;
+    can exit_if_else_expr with IfElseExpr exit;
+    can exit_if_stmt with IfStmt exit;
+    def _exit_if_stmt_impl(nd: IfStmt) -> None;
+    can exit_else_if with ElseIf exit;
+    can exit_else_stmt with ElseStmt exit;
+    can exit_while_stmt with WhileStmt exit;
+    can exit_forever_stmt with ForeverStmt exit;
+    can exit_in_for_stmt with InForStmt exit;
+    can exit_iter_for_stmt with IterForStmt exit;
+    can exit_list_compr with ListCompr exit;
+    can exit_set_compr with SetCompr exit;
+    can exit_gen_compr with GenCompr exit;
+    can exit_dict_compr with DictCompr exit;
     def _wire_compr_filters(target_node: UniCFGNode, comprs: list[InnerCompr]) -> None;
-    def exit_ctrl_stmt(nd: CtrlStmt) -> None;
-    def exit_try_stmt(nd: TryStmt) -> None;
-    def exit_except(nd: Except) -> None;
-    def exit_finally_stmt(nd: FinallyStmt) -> None;
-    def exit_match_stmt(nd: MatchStmt) -> None;
-    def exit_match_case(nd: MatchCase) -> None;
-    def exit_switch_stmt(nd: SwitchStmt) -> None;
-    def exit_switch_case(nd: SwitchCase) -> None;
-    def exit_with_stmt(nd: WithStmt) -> None;
-    def exit_typed_ctx_block(nd: TypedCtxBlock) -> None;
-    def exit_open_stmt(nd: OpenStmt) -> None;
-    def exit_jsx_slot(nd: JsxSlot) -> None;
-    def exit_ability(nd: Ability) -> None;
-    def exit_archetype(nd: Archetype) -> None;
-    def exit_impl_def(nd: ImplDef) -> None;
-    def exit_module_code(nd: ModuleCode) -> None;
-    def exit_test(nd: Test) -> None;
+    can exit_ctrl_stmt with CtrlStmt exit;
+    can exit_try_stmt with TryStmt exit;
+    can exit_except with Except exit;
+    can exit_finally_stmt with FinallyStmt exit;
+    can exit_match_stmt with MatchStmt exit;
+    can exit_match_case with MatchCase exit;
+    can exit_switch_stmt with SwitchStmt exit;
+    can exit_switch_case with SwitchCase exit;
+    can exit_with_stmt with WithStmt exit;
+    can exit_typed_ctx_block with TypedCtxBlock exit;
+    can exit_open_stmt with OpenStmt exit;
+    can exit_jsx_slot with JsxSlot exit;
+    can exit_ability with Ability exit;
+    can exit_archetype with Archetype exit;
+    can exit_impl_def with ImplDef exit;
+    can exit_module_code with ModuleCode exit;
+    can exit_test with Test exit;
 }
 
-obj CoalesceBBPass(UniPass) {
+walker CoalesceBBPass(UniPass) {
     has basic_blocks: dict[int, dict[str, list[UniCFGNode]]] = {},
         bb_counter: int = 0;
 
     def before_pass -> None;
     def get_bb(nd: UniCFGNode) -> list[UniCFGNode];
-    def enter_node(nd: UniNode) -> None;
+    can coalesce_collect with UniNode entry;
     def printgraph_cfg -> str;
     def _node_label(nd: UniNode) -> str;
     def _has_bool_sc(condition: Expr) -> bool;

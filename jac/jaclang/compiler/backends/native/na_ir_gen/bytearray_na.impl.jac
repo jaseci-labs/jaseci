@@ -92,7 +92,7 @@ impl NaIRGenBytearrayNa._bytearray_runtime_fns -> dict {
     s_buf = ss_fn.args[0];
     s_start = ss_fn.args[1];
     s_stop = ss_fn.args[2];
-    s_src = ss_fn.args[3];
+    s_src: ir.Value = ss_fn.args[3];
     s_n = ss_fn.args[4];
     s_len_p = b.gep(s_buf, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="len.p");
     s_data_p = b.gep(s_buf, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="data.p");
