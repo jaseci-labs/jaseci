@@ -402,6 +402,7 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     strategy:
       fail-fast: false
+      max-parallel: 2
       matrix:
         probe: [1, 2, 3, 4, 5]
     env:
