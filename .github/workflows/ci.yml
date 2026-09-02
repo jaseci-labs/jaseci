@@ -579,35 +579,64 @@ jobs:
       # memory, disk, the fattest processes, and the embedded Postgres
       # cluster that `jac test` provisions on a fresh home (its server log
       # and database count). JAC_TEST_RSS_LOG adds per-item worker RSS.
-      # On a hang, every jac process gets its state recorded before it is
-      # killed: thread count and kernel wait channel from /proc (a futex wait
-      # is a lock, a socket read is the database, a select is the worker
-      # pipe), a py-spy stack, and a few seconds of syscalls.
+      # The first cutoff showed the runner idle at five minutes with the
+      # `jac test` process gone; the second caught it alive: state R, two
+      # threads, 14 GB resident after four minutes and still allocating, with
+      # the embedded Postgres idle. A client-side loop, and none of it
+      # reproduces locally. So the step runs the test under the runtime's own
+      # CPython (3.14 ships sys.remote_exec) and injects a stack dump into the
+      # process the moment it passes 1.2 GB, then kills it and prints the
+      # dump: the loop names itself.
       - name: MTIR integration (byllm)
         env:
           JAC_TEST_RSS_LOG: "1"
+          JAC_STACK_OUT: ${{ runner.temp }}/jac_stack.txt
         run: |
           set -o pipefail
-          jac test jac/jaclang/byllm/tests/test_mtir_integration.jac &
-          pid=$!
-          for _ in $(seq 1 240); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
-          if kill -0 "$pid" 2>/dev/null; then
-            echo "::error::jac test is still running after 240s (it takes 30s when it passes); recording the hung processes"
-            sudo apt-get install -y -q strace >/dev/null 2>&1 || true
-            pip install -q py-spy >/dev/null 2>&1 || true
-            ps -eo pid,ppid,stat,etimes,wchan:32,args --forest | grep -v "ps -eo" | tail -40 || true
-            for p in $(pgrep -x jac); do
-              echo "::group::jac process $p"
-              grep -E '^(State|Threads|VmRSS)' "/proc/$p/status" || true
-              for t in /proc/$p/task/*; do echo "  thread $(basename "$t"): $(cat "$t/wchan" 2>/dev/null) $(grep -E '^State' "$t/status" | tr -s ' ')"; done
-              sudo timeout 30 py-spy dump --pid "$p" --nonblocking 2>&1 | head -120 || true
-              sudo timeout 6 strace -f -p "$p" 2>&1 | head -25 || true
-              echo "::endgroup::"
-            done
-            kill -TERM "$pid" 2>/dev/null; sleep 5; kill -KILL "$pid" 2>/dev/null || true
-            exit 124
-          fi
-          wait "$pid"
+          cat > "$RUNNER_TEMP/dump_stack.py" <<'PY'
+          import faulthandler, os, sys, traceback
+          with open(os.environ.get("JAC_STACK_OUT", "/tmp/jac_stack.txt"), "a") as f:
+              f.write("=== dump pid %d\n" % os.getpid())
+              faulthandler.dump_traceback(file=f, all_threads=True)
+              for tid, fr in sys._current_frames().items():
+                  f.write("--- python thread %s\n" % tid)
+                  f.write("".join(traceback.format_stack(fr)))
+              f.flush()
+          PY
+          cat > "$RUNNER_TEMP/watch_test.py" <<'PY'
+          import os, subprocess, sys, time
+          kit, test, dump = sys.argv[1:4]
+          p = subprocess.Popen([kit, "test", test])
+          t0 = time.time(); dumped = 0
+          def rss(pid):
+              try:
+                  for line in open(f"/proc/{pid}/status"):
+                      if line.startswith("VmRSS:"):
+                          return int(line.split()[1]) // 1024
+              except Exception:
+                  pass
+              return -1
+          while p.poll() is None:
+              time.sleep(2); r = rss(p.pid); el = time.time() - t0
+              if int(el) % 20 < 2:
+                  print(f"[watch] {el:.0f}s rss={r}MB", flush=True)
+              if dumped < 2 and ((el > 30 and r > 1200) or el > 150):
+                  try:
+                      sys.remote_exec(p.pid, dump); dumped += 1
+                      print(f"[watch] injected stack dump at {el:.0f}s rss={r}MB", flush=True)
+                  except Exception as e:
+                      print(f"[watch] inject failed: {e}", flush=True)
+                  time.sleep(4)
+              if r > 4000 or el > 240:
+                  print(f"[watch] killing after {el:.0f}s at rss={r}MB", flush=True)
+                  p.kill(); p.wait(); sys.exit(124)
+          sys.exit(p.returncode)
+          PY
+          PY=$(ls -d "$HOME"/.cache/jac/rt/*/python/bin/python3.14 | head -1)
+          "$PY" "$RUNNER_TEMP/watch_test.py" "$(command -v jac)" jac/jaclang/byllm/tests/test_mtir_integration.jac "$RUNNER_TEMP/dump_stack.py"
+          rc=$?
+          if [ -s "$JAC_STACK_OUT" ]; then echo "::group::stack dump"; cat "$JAC_STACK_OUT"; echo "::endgroup::"; fi
+          exit $rc
       - name: Runner state after the MTIR step
         if: always()
         run: |
