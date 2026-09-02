@@ -1494,8 +1494,7 @@ impl JacCompiler._compile_pipeline(
         );
 
     if _analyze {
-        if 'TypeOf'
-            not in actual_program.analysis.analyses_run.get(id(mod_targ), set()) {
+        if 'TypeOf' not in actual_program.analysis.provided_of(mod_targ) {
             self.run_schedule(
                 mod=mod_targ,
                 target_program=actual_program,
@@ -1527,7 +1526,7 @@ impl JacCompiler._compile_pipeline(
         and not options.symtab_ir_only
         and not had_parse_errors
         and not had_blocking_errors
-        and 'TypeOf' in actual_program.analysis.analyses_run.get(id(mod_targ), set())
+        and 'TypeOf' in actual_program.analysis.provided_of(mod_targ)
     ) {
         import from jaclang.compiler.backends.py.module_codegen_pass {
             ModuleCodegenPass as _PtyMcp
@@ -1657,8 +1656,7 @@ impl JacCompiler._compile_pipeline(
             or ModuleCodegenPass.has_native_context_stmts(mod_targ);
 
         if needs_native
-            and 'TypeOf'
-                not in actual_program.analysis.analyses_run.get(id(mod_targ), set()) {
+            and 'TypeOf' not in actual_program.analysis.provided_of(mod_targ) {
             self.run_schedule(
                 mod=mod_targ,
                 target_program=actual_program,
@@ -1671,7 +1669,7 @@ impl JacCompiler._compile_pipeline(
             target_program=actual_program,
             passes=get_py_code_gen(
                 native=needs_native,
-                provided=actual_program.analysis.analyses_run.get(id(mod_targ), set())
+                provided=actual_program.analysis.provided_of(mod_targ)
             ),
             cancel_token=options.cancel_token
         );
@@ -1704,11 +1702,7 @@ impl JacCompiler.run_schedule(
     passes: list[type[Transform]],
     cancel_token: (Event | None) = None
 ) -> None {
-    provided = target_program.analysis.analyses_run.get(id(mod));
-    if provided is None {
-        provided = set();
-        target_program.analysis.analyses_run[id(mod)] = provided;
-    }
+    provided = target_program.analysis.ledger_of(mod);
     validate_schedule(
         passes,
         preprovided=provided,

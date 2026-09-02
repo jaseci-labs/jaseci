@@ -323,6 +323,7 @@ impl JacProgram.release_compile_closure(
         import gc;
         gc.collect();
     }
+    self.analysis.purge_dead();
 }
 
 impl JacProgram._search_hubs(self: JacProgram) -> list[dict[(str, uni.Module)]] {
