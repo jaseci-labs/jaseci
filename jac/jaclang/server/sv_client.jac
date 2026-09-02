@@ -1,8 +1,18 @@
 import os;
 
+import from jaclang.test_sv_host {
+    register_test_adapter,
+    clear_test_adapters,
+    close_all_test_sv_services
+}
+
 glob _registry: dict[str, str] = {},
-     _test_clients: dict[str, any] = {},
-     _consumer_providers: dict[str, list[str]] = {};
+     _consumer_providers: dict[str, list[str]] = {},
+     _registered_env_keys: set[str] = set();
+
+def sv_host_env_key(module_name: str) -> str {
+    return f"JAC_SV_{module_name.upper()}_HOST";
+}
 
 def headless_start_args(entry_file: str, port: int) -> list[str] {
     return ["run", "--serve", "--port", str(port), "--no-client", entry_file];
@@ -18,12 +28,22 @@ def unregister(module_name: str) {
     }
 }
 
-def register_test_client(module_name: str, client: any) {
-    _test_clients[module_name] = client;
+def register_test_client(module_name: str, client: any = None) {
+    env_key = sv_host_env_key(module_name);
+    os.environ[env_key] = 'test';
+    _registered_env_keys.add(env_key);
+    if client is not None {
+        register_test_adapter(module_name, client);
+    }
 }
 
 def clear_test_clients {
-    _test_clients.clear();
+    for env_key in _registered_env_keys {
+        os.environ.pop(env_key, None);
+    }
+    _registered_env_keys.clear();
+    clear_test_adapters();
+    close_all_test_sv_services();
 }
 
 def _declare_consumer_provider(consumer_name: str, provider_name: str) {
@@ -66,9 +86,6 @@ def resolve_url(module_name: str) -> str {
 }
 
 def _ensure_available(module_name: str) -> None {
-    if module_name in _test_clients {
-        return;
-    }
     if module_name in _registry {
         return;
     }
@@ -99,7 +116,7 @@ def ensure_all(module_names: list[str]) -> None {
     pending: list[str] = [
         n
         for n in module_names
-        if n not in _registry and n not in _test_clients
+        if n not in _registry
     ];
     if not pending {
         return;

@@ -1579,11 +1579,26 @@ impl JacServe.ensure_sv_service(module_name: str, base_path: str) -> None {
     if module_name in sv_client._registry {
         return;
     }
-    if module_name in sv_client._test_clients {
+    import from jaclang.sv_dispatch { dispatch_sv_service, default_sv_base_port }
+    import atexit;
+
+    def _track_bun_child(spawn_result: any) {
+        proc = spawn_result.proc;
+
+        def _cleanup_bun_child {
+            if proc.poll() is None {
+                proc.terminate();
+            }
+        }
+        atexit.register(_cleanup_bun_child);
+    }
+
+    url = dispatch_sv_service(module_name, base_path, on_spawn=_track_bun_child);
+    if url is not None {
         return;
     }
-    base_port = 18000 + (hash(module_name) % 1000);
 
+    base_port = default_sv_base_port(module_name);
     srv = CoreJacAPIServer(
         module_name=module_name, port=0, base_path=base_path, is_sv_sibling=True
     );
@@ -1594,23 +1609,10 @@ impl JacServe.ensure_sv_service(module_name: str, base_path: str) -> None {
     srv.port = port;
     srv.server = serving;
     base_url = f"http://127.0.0.1:{port}";
-    deadline = time.time() + 10.0;
-    healthy = False;
-    while time.time() < deadline {
-        try {
-            probe: HTTPResponse = urllib.request.urlopen(
-                f"{base_url}/functions", timeout=1
-            );
-            with probe as resp {
-                if resp.status < 500 {
-                    healthy = True;
-                    break;
-                }
-            }
-        } except Exception {
-            time.sleep(0.05);
-        }
-    }
+    import from jaclang.scale.runtime.context.util { wait_for_health }
+    healthy = wait_for_health(
+        base_url, lambda { serving.bound_port > 0; }, timeout=10.0, poll_interval=0.05
+    );
     if not healthy {
         raise RuntimeError(
             f"sv-to-sv service '{module_name}' did not become healthy at {base_url}"

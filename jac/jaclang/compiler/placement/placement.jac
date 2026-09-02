@@ -5,12 +5,6 @@ import from dataclasses { field }
 import from jaclang.compiler.frontend.constant { CodeContext, Tokens as Tok }
 
 glob PLACEMENT_SCHEMA: int = 1,
-     PLACEMENT_SV_SIGNAL_NODES: tuple = (
-         ("TypedCtxBlock", uni.TypedCtxBlock),
-         ("PyInlineCode", uni.PyInlineCode),
-         ("JsxElement", uni.JsxElement)
-     ),
-     PLACEMENT_NATIVE_REJECT_NODES: tuple = (),
      PLACEMENT_INFERENCE_HELD: dict[str, str] = {
          "compiler/frontend/codeinfo.jac": (
              "runtime JIT inference stays conservative: admitting codeinfo "
@@ -63,6 +57,17 @@ obj ElementSummary {
     }
 
     static def from_dict(d: dict) -> ElementSummary {
+        if (
+            not isinstance(d, dict)
+            or 'index' not in d
+            or 'kind' not in d
+            or 'name' not in d
+        ) {
+            raise ValueError(
+                f'Malformed placement element summary: '
+                    + f'{sorted(d.keys()) if isinstance(d, dict) else type(d).__name__}'
+            );
+        }
         es = ElementSummary();
         es.index = int(d.get('index', -1));
         es.kind = str(d.get('kind', ''));
@@ -259,6 +264,23 @@ def module_has_root_access(stmt: uni.UniNode) -> bool {
             break;
         }
     }
+    if not found {
+        for ab in mod.get_all_sub_nodes(uni.Ability) {
+            sig = ab.signature;
+            if not isinstance(sig, uni.EventSignature) {
+                continue;
+            }
+            for n in sig.get_all_sub_nodes(uni.Name) {
+                if n.value == 'Root' {
+                    found = True;
+                    break;
+                }
+            }
+            if found {
+                break;
+            }
+        }
+    }
     mod.gen.has_root_access = found;
     return found;
 }
@@ -453,6 +475,32 @@ def _element_glob_write_ids(module: uni.Module, elem: uni.UniNode) -> set[int] {
     return writes;
 }
 
+def _module_native_capability_blocker(module: uni.Module) -> str {
+    import from jaclang.jac0core.host { native_unmet_capability }
+    if module.get_all_sub_nodes(uni.TypedCtxBlock) {
+        return "contains TypedCtxBlock";
+    }
+    if module.get_all_sub_nodes(uni.PyInlineCode) {
+        return "contains PyInlineCode";
+    }
+    for stmt in module.body {
+        if not isinstance(stmt, uni.UniNode) {
+            continue;
+        }
+        for req in _element_reqs(stmt) {
+            if len(req) < 1 {
+                continue;
+            }
+            cap = req[0];
+            if native_unmet_capability(cap) {
+                detail = req[1] if len(req) >= 2 else cap;
+                return f"requires {cap}: {detail}";
+            }
+        }
+    }
+    return '';
+}
+
 def _references_browser_seed_global(elem: uni.UniNode) -> str {
     import from jaclang.compiler.frontend.constant { BROWSER_SEED_GLOBALS }
     for nm in elem.get_all_sub_nodes(uni.Name) {
@@ -571,17 +619,6 @@ def scan_native_blockers(
             }
         }
     }
-    for (nd_name, typ) in PLACEMENT_SV_SIGNAL_NODES {
-        if module.get_all_sub_nodes(typ) {
-            return (f"contains {nd_name}", deps);
-        }
-    }
-
-    for (nd_name, typ) in PLACEMENT_NATIVE_REJECT_NODES {
-        if module.get_all_sub_nodes(typ) {
-            return (f"native-unsupported {nd_name}", deps);
-        }
-    }
     for svr in module.get_all_sub_nodes(uni.SpecialVarRef) {
         if svr.orig.name == Tok.KW_ROOT {
             return ("root access (persistent graph)", deps);
@@ -605,6 +642,10 @@ def scan_native_blockers(
                 }
             }
         }
+    }
+    cap_blocker = _module_native_capability_blocker(module);
+    if cap_blocker {
+        return (cap_blocker, deps);
     }
     scan_mod_path = module.loc.mod_path or '';
     for stmt in module.body {

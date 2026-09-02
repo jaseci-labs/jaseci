@@ -6,6 +6,7 @@ import from jaclang.client.targets.mobile_target { MobileTarget }
 import from jaclang.client.targets.desktop.native_desktop_target { NativeDesktopTarget }
 import from jaclang.client.targets.desktop.cef_desktop_target { CefDesktopTarget }
 import from jaclang.client.targets.react_native_target { ReactNativeTarget }
+import from jaclang.client.targets.bun_target { BunTarget }
 
 def register_targets {
     registry = get_target_registry();
@@ -17,4 +18,5 @@ def register_targets {
 
     registry.register(CefDesktopTarget());
     registry.register(ReactNativeTarget());
+    registry.register(BunTarget());
 }

@@ -304,7 +304,13 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       if (t === "boolean") return "bool";
       if (t === "number") return Number.isInteger(o) ? "int" : "float";
       if (t === "bigint") return "int";
-      if (t === "object") return (o.constructor && o.constructor.name) || "object";
+      if (t === "object") {
+        // Named constructors keep their class name; plain object literals are
+        // Jac dicts ({} lowers to a bare object), so they must type as dict.
+        const cname = o.constructor && o.constructor.name;
+        if (cname && cname !== "Object") return cname;
+        return "dict";
+      }
       return t;
     },
     // --- per-runtime-type Python method tables (keyed by Python name) ---
@@ -1361,6 +1367,16 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
     format(value, format_spec) {
       if (!format_spec) return String(value);
       return String(value);
+    },
+    str(obj) {
+      if (
+        obj !== null && obj !== undefined
+          && typeof obj === "object" && !Array.isArray(obj)
+          && typeof obj.__str__ === "function"
+      ) {
+        return obj.__str__();
+      }
+      return String(obj);
     },
     ascii(obj) {
       if (typeof obj === "string") {

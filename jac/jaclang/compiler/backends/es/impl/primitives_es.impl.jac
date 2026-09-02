@@ -2103,7 +2103,8 @@ impl ESBuiltinEmitter.emit_str(
     if len(args) == 0 {
         return '""';
     }
-    return "String(" + args[0] + ")";
+
+    return _rt("builtin", "str", [args[0]]);
 }
 
 impl ESBuiltinEmitter.emit_int(

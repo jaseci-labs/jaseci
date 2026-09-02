@@ -8,6 +8,16 @@ import from .breaker {
 glob _RPC_MAX_ATTEMPTS: int = 3,
      _RPC_INITIAL_BACKOFF_SECONDS: float = 0.1;
 
+def _test_adapter(module_name: str) -> any {
+    import from jaclang.jac0core.host { HOST_TEST }
+    import from jaclang.jac0core.sv_service_host { resolve_sv_service_host }
+    import from jaclang.test_sv_host { get_test_adapter }
+    if resolve_sv_service_host(module_name) != HOST_TEST {
+        return None;
+    }
+    return get_test_adapter(module_name);
+}
+
 def _rpc_with_retries(module_name: str, label: str, send: any) -> any {
     import time;
     import from jaclang.server.serving.client {
@@ -60,9 +70,9 @@ def service_call(module_name: str, func_name: str, args: dict) -> any {
 
     func_label = f"{module_name}.{func_name}";
 
-    if module_name in sv_client._test_clients {
-        tc = sv_client._test_clients[module_name];
-        resp = tc.post(f"/function/{func_name}", json=args);
+    adapter = _test_adapter(module_name);
+    if adapter is not None {
+        resp = adapter.post(f"/function/{func_name}", json=args);
         ct = str(resp.headers.get("Content-Type") or "");
         if ct.startswith("text/event-stream") {
             return _iter_sse_text(str(resp.text), func_label);
@@ -132,9 +142,9 @@ def walker_call(
 
     label = f"{module_name}.{walker_name}";
 
-    if module_name in sv_client._test_clients {
-        tc = sv_client._test_clients[module_name];
-        resp = tc.post(f"/walker/{walker_name}", json=args);
+    adapter = _test_adapter(module_name);
+    if adapter is not None {
+        resp = adapter.post(f"/walker/{walker_name}", json=args);
         data = resp.json();
         return _hydrate_walker_envelope(data, module_name, walker_name, stub_cls);
     }

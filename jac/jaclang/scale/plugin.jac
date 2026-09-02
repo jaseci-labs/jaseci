@@ -705,6 +705,7 @@ class JacScalePlugin {
         import atexit;
         import subprocess;
         import from jaclang.server { sv_client }
+        import from jaclang.jac0core.host { HOST_TEST }
         import from pathlib { Path }
         import from jaclang.scale.runtime.context.util {
             pick_free_port,
@@ -712,11 +713,14 @@ class JacScalePlugin {
             wait_for_health,
             boot_health_timeout
         }
+        import from jaclang.sv_dispatch { dispatch_sv_service }
 
         if module_name in sv_client._registry {
             return;
         }
-        if module_name in sv_client._test_clients {
+
+        url = dispatch_sv_service(module_name, base_path, kinds=frozenset({HOST_TEST}));
+        if url is not None {
             return;
         }
 
@@ -748,11 +752,38 @@ class JacScalePlugin {
             );
         }
 
+        def _log_size -> int {
+            log_path = base_dir / '.jac' / 'logs' / f"{module_name}.log";
+            try {
+                return log_path.stat().st_size;
+            } except OSError {
+                return -1;
+            }
+        }
+
         with _sv_spawn_lock(module_name) {
             if module_name in sv_client._registry {
                 return;
             }
+            def _cleanup_bun {
+                stop_sv_sibling(module_name);
+            }
+            def _register_bun_spawn(spawn_result: any) {
+                _sv_sibling_procs[module_name] = spawn_result.proc;
+                atexit.register(_cleanup_bun);
+            }
             port: int = pick_free_port(module_name);
+            url = dispatch_sv_service(
+                module_name,
+                str(base_dir),
+                port=port,
+                scale_mode=True,
+                progress=_log_size,
+                on_spawn=_register_bun_spawn
+            );
+            if url is not None {
+                return;
+            }
             base_url: str = f"http://127.0.0.1:{port}";
             child_env = dict(os.environ);
             child_env["JAC_SV_SIBLING"] = "1";
@@ -774,13 +805,6 @@ class JacScalePlugin {
                 log_file.close();
             }
             _sv_sibling_procs[module_name] = proc;
-            def _log_size -> int {
-                try {
-                    return log_path.stat().st_size;
-                } except OSError {
-                    return -1;
-                }
-            }
             budget: float = boot_health_timeout();
             healthy = wait_for_health(
                 base_url,
