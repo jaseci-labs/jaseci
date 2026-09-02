@@ -571,8 +571,24 @@ jobs:
             "litellm>=1.70.0,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
             "httpx>=0.27.0" "loguru>=0.7.2,<0.8.0" \
             --global
+      # Run from a copy OUTSIDE the checkout. The resolver's self-tree rule
+      # binds a `jaclang.*` import from any file inside a jaclang checkout to
+      # that checkout, so run in place, a fixture's `jaclang.byllm.lib`
+      # resolved to the checkout's copy and the sealed kit analyzed the
+      # checkout's own compiler as project code: some 190 modules cold, two
+      # identities for every compiler class, and errors the reroute lanes
+      # never see. Copied out, the same import binds to the kit's bundle,
+      # which is what "sealed" is meant to test. Cut off at five minutes: the
+      # file takes 30 seconds, and the one time it did not (#8876) it took
+      # the 4-vcpu runner down with it and uploaded no log, so a regression
+      # fails the step, with its log, instead of the runner.
       - name: MTIR integration (byllm)
-        run: jac test jac/jaclang/byllm/tests/test_mtir_integration.jac
+        env:
+          JAC_TEST_RSS_LOG: "1"
+        run: |
+          set -o pipefail
+          cp -r jac/jaclang/byllm/tests "$RUNNER_TEMP/byllm-tests"
+          timeout --kill-after=30 300 jac test "$RUNNER_TEMP/byllm-tests/test_mtir_integration.jac"
       - name: HMR refresh (scale server)
         env:
           JAC_TEST_JOBS: "0"

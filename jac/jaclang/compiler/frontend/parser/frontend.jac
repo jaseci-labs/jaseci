@@ -19,7 +19,7 @@ def _replay_diags(diags: any, from_pass: type, prog: JacProgram, diag_src: Sourc
             (loc.pos_start, loc.pos_end)
         );
         code = DIAGNOSTICS.get(d.code_str) if d.code_str else None;
-        help_text = getattr(d, "help", "");
+        help_text = getattr(d, "help", "") or None;
         alrt = Alert(d.message, span, from_pass, code=code, help_text=help_text);
         if d.is_error {
             prog.errors_had.append(alrt);

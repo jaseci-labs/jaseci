@@ -12,6 +12,7 @@ import from jaclang.compiler.driver.jir {
     get_module_cache_path,
     is_compiler_source_path,
     is_module_cache_valid,
+    is_stub_like_path,
     jir_cacheable_source_path,
     module_cache_key,
     read_dep_hashes,
@@ -210,7 +211,7 @@ obj IfaceRegistry {
             return;
         }
         digest = "";
-        if real.endswith('.pyi') {
+        if is_stub_like_path(real) {
             try {
                 import from jaclang.compiler.driver.jir { compute_stub_module_key }
                 digest = compute_stub_module_key(real);
@@ -343,7 +344,7 @@ obj IfaceRegistry {
             if not recorded {
                 return False;
             }
-            if dep.endswith('.pyi') {
+            if is_stub_like_path(dep) {
                 try {
                     import from jaclang.compiler.driver.jir { compute_stub_module_key }
                     if compute_stub_module_key(dep) != recorded {
@@ -386,7 +387,11 @@ obj IfaceRegistry {
                 return found;
             }
         }
-        if not compile_on_miss or not jir_cacheable_source_path(resolved) {
+        if (
+            not compile_on_miss
+            or not jir_cacheable_source_path(resolved)
+            or is_stub_like_path(resolved)
+        ) {
             return None;
         }
         if not os.path.isfile(resolved) {
@@ -504,7 +509,7 @@ obj IfaceRegistry {
             or bool(options.default_codespace) {
             return False;
         }
-        if not jir_cacheable_source_path(resolved) {
+        if not jir_cacheable_source_path(resolved) or is_stub_like_path(resolved) {
             return False;
         }
         if compiler.stub_catalog_disabled {
