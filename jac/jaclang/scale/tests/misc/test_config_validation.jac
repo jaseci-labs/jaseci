@@ -380,10 +380,11 @@ test "every [scale.kubernetes] key the constructor reads is declared in the sche
     );
 
     # Keys get_kubernetes_config assigns unconditionally after loading, from
-    # [scale.monitoring] and from the system plugin deps. Declaring them under
-    # [scale.kubernetes] would validate a value that is then thrown away, which
-    # is the same lie this test exists to catch, pointing the other way.
-    derived: set = {"monitoring_enabled", "service_dependencies"};
+    # [scale.monitoring], [scale.admin] and the system plugin deps. Declaring
+    # them under [scale.kubernetes] would validate a value that is then thrown
+    # away, which is the same lie this test exists to catch, pointing the
+    # other way.
+    derived: set = {"monitoring_enabled", "service_dependencies", "admin_username"};
 
     missing = sorted(consumed - declared - derived);
     assert missing == [] , (
