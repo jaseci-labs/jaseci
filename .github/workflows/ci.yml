@@ -392,6 +392,50 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           exit 0
 
+  # TEMPORARY (#8828 validation): five extra check-only copies of jac-check to
+  # amplify the intermittent phantom-type-error flake. Each probe is an
+  # independent full-tree `jac check` on a fresh runner, so one CI run gives
+  # six samples of the lane instead of one. DELETE THIS JOB before merge.
+  jac-check-probe:
+    needs: [changes, build-kit]
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    strategy:
+      fail-fast: false
+      matrix:
+        probe: [1, 2, 3, 4, 5]
+    env:
+      JAC_NO_DEV_SOURCE: ""
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - uses: ./.github/actions/jac-kit
+
+      - name: Install plugin deps so jac check resolves scale/byllm imports
+        run: |
+          jac install \
+            "python-dotenv>=1.2.1,<2.0.0" \
+            "prometheus-client>=0.21.0,<1.0.0" \
+            "opentelemetry-sdk>=1.27.0,<2.0.0" \
+            "opentelemetry-exporter-otlp-proto-http>=1.27.0,<2.0.0" \
+            "apscheduler>=3.11.2,<4.0.0" "kubernetes>=34.1.0,<35.0.0" \
+            "docker>=7.1.0,<8.0.0" "boto3>=1.40.0,<2.0.0" \
+            "google-cloud-firestore>=2.21.0,<3.0.0" "google-cloud-storage>=2.19.0,<3.0.0" \
+            "firebase-admin>=6.0.0,<8.0.0" "requests>=2.32.0,<3.0.0" \
+            --global
+          jac install \
+            "litellm>=1.70.0,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
+            "httpx>=0.27.0" "loguru>=0.7.2,<0.8.0" \
+            --global
+
+      - name: Run jac check (probe ${{ matrix.probe }})
+        run: |
+          set -euo pipefail
+          IGNORE_ARGS="tests checker_*.jac *_err.jac $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ')"
+          jac check . --ignore $IGNORE_ARGS --nowarn
+
   # Pure PR-metadata policy: no kit, no jac. Docs code blocks are validated
   # by the suite (tests/cli/test_docs_code_blocks.jac) in the test lanes.
   contribution-checks:
