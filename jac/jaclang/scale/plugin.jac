@@ -54,60 +54,100 @@ def _scale_runtime_active -> bool {
     );
 }
 
-def scale_local_serve(filename: str, port: int = 8000) -> int | None {
+def _app_serves_client(no_client: bool) -> bool {
+    if no_client {
+        return False;
+    }
+    try {
+        import from jaclang.project.config { get_config }
+        cfg = get_config();
+        if cfg is None {
+            return False;
+        }
+        kind: str = str(cfg.project.kind or "");
+        if kind {
+            return kind in ("web-app", "web-static");
+        }
+        if "jac-client" in cfg.dependencies or "client" in cfg.plugins {
+            return True;
+        }
+        raw = getattr(cfg, "_raw_data", {});
+        return isinstance(raw, dict) and bool(raw.get("client"));
+    } except Exception {
+        return False;
+    }
+}
+
+def scale_local_serve(
+    filename: str,
+    port: int = 8000,
+    ms: bool | None = None,
+    dev: bool = False,
+    no_client: bool = False
+) -> int | None {
     os.environ["JAC_SCALE_RUNTIME"] = "1";
     scale_config = get_scale_config();
     ms_config = scale_config.get_microservices_config();
     if port {
         ms_config["gateway_port"] = port;
     }
-    is_sv_sibling = os.environ.get("JAC_SV_SIBLING") == "1";
+    if os.environ.get("JAC_SV_SIBLING") == "1" {
+        return None;
+    }
 
     enabled = ms_config.get("enabled", None);
-    if (not is_sv_sibling) and (enabled is not False) {
+    if ms is True and not ms_config.get("routes") {
+        console.error(
+            "--ms has nothing to run: no services are declared.\n"
+            "  Declare them in [scale.microservices.routes] "
+            "(`jac scale split <module>` adds one).",
+            emoji=False
+        );
+        return 1;
+    }
+    dev_client: bool = dev and (not no_client);
+    realizer = None;
+    should_serve_ms = False;
+    try {
+        import from jaclang.scale.runtime.routing {
+            resolve_routes,
+            resolve_service_files
+        }
+        ms_config["routes"] = resolve_routes(ms_config);
+        ms_config["service_files"] = resolve_service_files(
+            ms_config, ms_config["routes"]
+        );
+        if ms_config["routes"] {
+            import from jaclang.scale.runtime.routing { ensure_main_service }
+            ensure_main_service(
+                ms_config["routes"],
+                ms_config["service_files"],
+                os.path.basename(filename)
+            );
+        }
+
+        import from jaclang.scale.runtime.realizer.local_realizer { LocalRealizer }
+        realizer = LocalRealizer(ms_config=ms_config);
+        should_serve_ms = realizer.should_serve(enabled, ms, dev_client);
+    } except ValueError as e {
+        console.error(f"Microservice configuration invalid: {e}", emoji=False);
+        return 1;
+    } except Exception as e {
+        console.error(
+            f"Microservice mode unavailable "
+            f"({type(e).__name__}: {e}); starting as a monolith.",
+            emoji=False
+        );
         realizer = None;
         should_serve_ms = False;
-        try {
-            import from jaclang.scale.runtime.routing {
-                resolve_routes,
-                resolve_service_files
-            }
-            ms_config["routes"] = resolve_routes(ms_config);
-            ms_config["service_files"] = resolve_service_files(
-                ms_config, ms_config["routes"]
-            );
-            if ms_config["routes"] {
-                import from jaclang.scale.runtime.routing { ensure_main_service }
-                ensure_main_service(
-                    ms_config["routes"],
-                    ms_config["service_files"],
-                    os.path.basename(filename)
-                );
-            }
-
-            import from jaclang.scale.runtime.realizer.local_realizer { LocalRealizer }
-            realizer = LocalRealizer(ms_config=ms_config);
-            should_serve_ms = realizer.should_serve(enabled);
-        } except ValueError as e {
-            console.error(f"Microservice configuration invalid: {e}", emoji=False);
-            return 1;
-        } except Exception as e {
-            console.error(
-                f"Microservice mode unavailable "
-                f"({type(e).__name__}: {e}); starting as a monolith.",
-                emoji=False
-            );
-            realizer = None;
-            should_serve_ms = False;
-        }
-        if should_serve_ms and realizer is not None {
-            ms_config["gateway_port_pinned"] = bool(port);
-            if enabled is None {
-                _print_local_ms_banner(ms_config.get("routes", {}));
-            }
-            realizer.serve();
-            return 0;
-        }
+    }
+    if should_serve_ms and realizer is not None {
+        ms_config["gateway_port_pinned"] = bool(port);
+        ms_config["dev"] = dev_client;
+        ms_config["app_serves_client"] = _app_serves_client(no_client);
+        _print_local_ms_banner(ms_config.get("routes", {}));
+        realizer.serve();
+        return 0;
     }
 
     return None;

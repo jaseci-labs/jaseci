@@ -20,6 +20,8 @@ obj ServiceProcessManager {
         _max_failures: int = 3,
         _failure_counts: dict[str, int] = {},
         _next_port: int = 8001,
+        dev_mode: bool = False,
+        _booting: bool = True,
         _boot_health_timeout: float = 60.0,
         _health_monitor_interval: float = 10.0,
         _health_monitor_thread: (any | None) = None,
@@ -27,6 +29,7 @@ obj ServiceProcessManager {
 
     def _url_for(service_entry: ServiceEntry) -> str;
     def _assign_port(service_entry: ServiceEntry) -> int;
+    def _assign_api_port(service_entry: ServiceEntry) -> int;
     def start_service(name: str) -> bool;
     def start_all -> None;
     def stop_service(name: str) -> bool;

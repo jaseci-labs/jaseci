@@ -202,9 +202,12 @@ test "a peer service still owns the routes it declares" {
         assert resp.text == "social_graph /api/orders" , (
             f"a declared root route beats the app fallback; got {resp.text!r}"
         );
-        prefixed = fleet.client.get("/social_graph/anything");
+        prefixed = fleet.client.get("/social_graph/walker/ping");
         assert prefixed.status_code == 200;
-        assert prefixed.text == "social_graph /anything";
+        assert prefixed.text == "social_graph /walker/ping" , (
+            f"a service's own prefix still reaches it with the prefix "
+            f"stripped; got {prefixed.text!r}"
+        );
     } finally {
         fleet.close();
     }

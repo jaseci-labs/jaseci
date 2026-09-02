@@ -28,6 +28,15 @@ impl ServiceRegistry.match_route(path: str) -> ServiceEntry | None {
     return None;
 }
 
+impl ServiceRegistry.app_entry -> ServiceEntry | None {
+    for `entry in self.entries.values() {
+        if `entry.is_app {
+            return `entry;
+        }
+    }
+    return None;
+}
+
 impl ServiceRegistry.health_summary -> dict[str, dict] {
     result: dict[str, dict] = {};
     for (name, `entry) in self.entries.items() {
@@ -37,7 +46,8 @@ impl ServiceRegistry.health_summary -> dict[str, dict] {
             "port": `entry.port,
             "url": `entry.url,
             "status": `entry.status.value,
-            "pid": `entry.pid
+            "pid": `entry.pid,
+            "is_app": `entry.is_app
         };
     }
     return result;

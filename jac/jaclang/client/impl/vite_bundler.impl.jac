@@ -865,6 +865,10 @@ export default defineConfig({{
         target: "http://localhost:{api_port}",
         changeOrigin: true,
       }},
+      "/healthz": {{
+        target: "http://localhost:{api_port}",
+        changeOrigin: true,
+      }},
       "/admin": {{
         target: "http://localhost:{api_port}",
         changeOrigin: true,

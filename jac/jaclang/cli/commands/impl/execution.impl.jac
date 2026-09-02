@@ -88,6 +88,7 @@ def _serve_flag_spelling -> dict {
         "api_port": "--api-port",
         "no_client": "--no-client",
         "faux": "--faux",
+        "ms": "--ms",
         "client": "--client",
         "host": "--host",
         "platform": "--platform",
@@ -116,6 +117,7 @@ def _serve_overrides(
     api_port: (int | None),
     no_client: (bool | None),
     faux: (bool | None),
+    ms: (bool | None),
     client: (str | None),
     host: (str | None),
     platform: (str | None),
@@ -137,6 +139,9 @@ def _serve_overrides(
     }
     if faux is not None {
         over["faux"] = faux;
+    }
+    if ms is not None {
+        over["ms"] = ms;
     }
     if client is not None {
         over["client"] = client;
@@ -206,6 +211,7 @@ def _serve_with(entry_path: str, plan_flags: dict, over: dict, main: bool) -> in
         "api_port": 0,
         "no_client": False,
         "faux": False,
+        "ms": None,
         "client": "web",
         "host": "",
         "platform": "auto",
@@ -217,7 +223,9 @@ def _serve_with(entry_path: str, plan_flags: dict, over: dict, main: bool) -> in
         }
     }
     for (k, v) in over.items() {
-        kw[k] = v;
+        if k in kw {
+            kw[k] = v;
+        }
     }
     return serve(filename=entry_path, main=main, **kw);
 }
@@ -459,6 +467,7 @@ impl run(
     api_port: (int | None) = None,
     no_client: (bool | None) = None,
     faux: (bool | None) = None,
+    ms: (bool | None) = None,
     client: (str | None) = None,
     host: (str | None) = None,
     platform: (str | None) = None,
@@ -490,7 +499,7 @@ impl run(
     }
 
     over = _serve_overrides(
-        port, dev, api_port, no_client, faux, client, host, platform, takeover, cfg
+        port, dev, api_port, no_client, faux, ms, client, host, platform, takeover, cfg
     );
     entry_flags = _entry_flags_used(entry_name, nd, root_id, debug_mode);
     kind_serves = plan is not None and plan.action == "serve";
@@ -703,6 +712,7 @@ impl serve(
     dev: bool = False,
     api_port: int = 0,
     no_client: bool = False,
+    ms: (bool | None) = None,
     client: str = "web",
     host: str = "",
     platform: str = "auto",
@@ -724,7 +734,9 @@ impl serve(
     }
 
     import from jaclang.scale.plugin { scale_local_serve }
-    scale_rc = scale_local_serve(filename, port=port);
+    scale_rc = scale_local_serve(
+        filename, port=port, ms=ms, dev=dev, no_client=no_client
+    );
     if scale_rc is not None {
         return scale_rc;
     }

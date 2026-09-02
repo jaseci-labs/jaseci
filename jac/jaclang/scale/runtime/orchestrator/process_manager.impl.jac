@@ -122,6 +122,23 @@ impl ServiceProcessManager._assign_port(service_entry: ServiceEntry) -> int {
     return pick_free_port(service_entry.name);
 }
 
+impl ServiceProcessManager._assign_api_port(service_entry: ServiceEntry) -> int {
+    if service_entry.api_port > 0 {
+        return service_entry.api_port;
+    }
+    import from jaclang.scale.runtime.context.util { pick_free_port }
+    taken: set[int] = set();
+    for peer in self.registry.entries.values() {
+        if peer.port > 0 {
+            taken.add(peer.port);
+        }
+        if peer.api_port > 0 {
+            taken.add(peer.api_port);
+        }
+    }
+    return pick_free_port(f"{service_entry.name}-api", avoid=taken);
+}
+
 impl ServiceProcessManager.start_service(name: str) -> bool {
     if name not in self.registry.entries {
         logger.error(f"Service '{name}' not found in registry");
@@ -132,10 +149,21 @@ impl ServiceProcessManager.start_service(name: str) -> bool {
     port = self._assign_port(`entry);
 
     import from jaclang.scale.runtime.context.util { jac_executable }
-    import from jaclang.server.sv_client { headless_start_args, peer_url_env_key }
+    import from jaclang.server.sv_client {
+        app_start_args,
+        headless_start_args,
+        peer_url_env_key
+    }
     jac_bin: str = jac_executable();
 
-    cmd = [jac_bin] + headless_start_args(`entry.file, port);
+    if `entry.serves_client {
+        `entry.port = port;
+        `entry.api_port = self._assign_api_port(`entry);
+        cmd = [jac_bin]
+            + app_start_args(`entry.file, port, self.dev_mode, `entry.api_port);
+    } else {
+        cmd = [jac_bin] + headless_start_args(`entry.file, port);
+    }
     logger.info(f"Starting {name}: {' '.join(cmd)}");
 
     try {
@@ -184,8 +212,6 @@ impl ServiceProcessManager.start_service(name: str) -> bool {
 }
 
 impl ServiceProcessManager.start_all -> None {
-    import from jaclang.scale.runtime.context.util { wait_for_health }
-
     for (name, `entry) in self.registry.entries.items() {
         if `entry.port == 0 {
             `entry.port = self._assign_port(`entry);
@@ -193,30 +219,8 @@ impl ServiceProcessManager.start_all -> None {
         }
     }
 
-    timeout: float = self._boot_health_timeout;
     for name in self.registry.entries {
         self.start_service(name);
-        `entry = self.registry.entries[name];
-        proc = self.processes.get(name);
-        if proc is not None and `entry.url {
-            live: subprocess.Popen = proc;
-            ok = wait_for_health(
-                `entry.url, lambda { live.poll() is None; }, timeout=timeout
-            );
-            if not ok {
-                exit_code = live.poll();
-                if exit_code is not None {
-                    `entry.status = ServiceStatus.STOPPED;
-                    `entry.pid = None;
-                    _report_exit(name, exit_code, "during startup");
-                } else {
-                    logger.warning(
-                        f"{name} did not become healthy within {timeout:.0f}s; "
-                        "proceeding"
-                    );
-                }
-            }
-        }
     }
 }
 
@@ -340,6 +344,9 @@ impl ServiceProcessManager.check_all_health -> dict[str, bool] {
             self._failure_counts[name] = 0;
         } else {
             self._failure_counts[name] = self._failure_counts.get(name, 0) + 1;
+            if self._booting {
+                continue;
+            }
             if self._failure_counts[name] >= self._max_failures {
                 if `entry.status != ServiceStatus.UNHEALTHY {
                     logger.warning(
@@ -358,13 +365,17 @@ impl ServiceProcessManager.check_all_health -> dict[str, bool] {
 
 
 def _health_monitor_loop(pm: any, stop_event: any, interval: float) -> None {
+    current: float = interval;
     while not stop_event.is_set() {
         try {
-            pm.check_all_health();
+            results = pm.check_all_health();
+            if results and all(results.values()) {
+                current = pm._health_monitor_interval;
+            }
         } except Exception as e {
             logger.warning(f"health monitor iteration failed: {e}");
         }
-        if stop_event.`wait(interval) {
+        if stop_event.`wait(current) {
             return;
         }
     }
@@ -381,6 +392,7 @@ impl ServiceProcessManager.start_health_monitor(interval: float | None = None) -
     poll_interval: float = (
         interval if interval is not None else self._health_monitor_interval
     );
+    self._booting = False;
     self._health_monitor_stop = threading.Event();
     self._health_monitor_thread = threading.Thread(
         target=_health_monitor_loop,
