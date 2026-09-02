@@ -233,6 +233,22 @@ jobs:
 
       - uses: ./.github/actions/jac-kit
 
+      # The analysis cache is content+env keyed (every entry folds the
+      # compiler-source digest), so restoring any prior cache is safe by
+      # construction: entries from another compiler generation simply miss
+      # and get swept. The key's digest segment covers the compiler digest
+      # roots, so a compiler edit starts cold exactly when it must, while
+      # app-and-test-only PRs restore a fully warm analysis cache and the
+      # whole-repo sweep collapses to diagnostics replay.
+      - name: Restore JIR analysis cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/jac/jir
+          key: jac-check-jir-${{ runner.os }}-${{ hashFiles('jac/jaclang/compiler/**', 'jac/jaclang/runtime/**', 'jac/jaclang/lib/**', 'jac/jaclang/jac0core/**', 'jac/jaclang/jac0.py', 'jac/jaclang/meta_importer.py', 'jac/jaclang/bootstrap_manifest.py', 'jac/jaclang/cli/cli_boot.jac', 'jac/jaclang/project/tomlio.jac', 'jac/jaclang/dist/precompile_bytecode.jac') }}-${{ github.sha }}
+          restore-keys: |
+            jac-check-jir-${{ runner.os }}-${{ hashFiles('jac/jaclang/compiler/**', 'jac/jaclang/runtime/**', 'jac/jaclang/lib/**', 'jac/jaclang/jac0core/**', 'jac/jaclang/jac0.py', 'jac/jaclang/meta_importer.py', 'jac/jaclang/bootstrap_manifest.py', 'jac/jaclang/cli/cli_boot.jac', 'jac/jaclang/project/tomlio.jac', 'jac/jaclang/dist/precompile_bytecode.jac') }}-
+            jac-check-jir-${{ runner.os }}-
+
       - name: Install plugin deps so jac check resolves scale/byllm imports
         # Pins mirror jac/jaclang/project/capabilities.jac.
         run: |
@@ -335,6 +351,13 @@ jobs:
           set -euo pipefail
           IGNORE_ARGS="tests checker_*.jac *_err.jac $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ')"
           jac check . --ignore $IGNORE_ARGS --nowarn
+
+      - name: Save JIR analysis cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/jac/jir
+          key: jac-check-jir-${{ runner.os }}-${{ hashFiles('jac/jaclang/compiler/**', 'jac/jaclang/runtime/**', 'jac/jaclang/lib/**', 'jac/jaclang/jac0core/**', 'jac/jaclang/jac0.py', 'jac/jaclang/meta_importer.py', 'jac/jaclang/bootstrap_manifest.py', 'jac/jaclang/cli/cli_boot.jac', 'jac/jaclang/project/tomlio.jac', 'jac/jaclang/dist/precompile_bytecode.jac') }}-${{ github.sha }}
 
       - name: Error-code breakdown (label "type-error-report")
         if: contains(github.event.pull_request.labels.*.name, 'type-error-report')

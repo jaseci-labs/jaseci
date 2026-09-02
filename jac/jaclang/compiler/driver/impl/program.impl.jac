@@ -179,7 +179,9 @@ impl JacProgram.load_dependency_module(
         self.record_dependency(importer_path, resolved_path);
     }
     try {
-        self.iface_registry().note_dep(resolved_path);
+        if not compiler.selfhost.is_selfhost(self) {
+            self.iface_registry().note_dep(resolved_path);
+        }
     } except Exception {}
     return mod;
 }
