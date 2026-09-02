@@ -58,6 +58,22 @@ def _project_label(config: any) -> str {
 }
 
 
+def _project_serves(config: any) -> bool {
+    import from jaclang.project.kinds { kind_spec }
+    if not config?.project {
+        return False;
+    }
+    kind = str(config.project.kind or "").strip();
+    spec = kind_spec(kind) if kind else None;
+    return spec is not None and spec.action == "serve";
+}
+
+
+def _scope_notice(message: str) {
+    console.print(f"jac run: {message}", file=sys.stderr, style="muted");
+}
+
+
 def _pin_run_scope(filename: str, takeover: (bool | None)) -> None {
     import from pathlib { Path }
     import from jaclang.project.config { JacConfig, get_config, pin_project_scope }
@@ -83,7 +99,7 @@ def _pin_run_scope(filename: str, takeover: (bool | None)) -> None {
         chosen = None;
         context = owner or ambient;
         if context is not None {
-            console.info(
+            _scope_notice(
                 f"{file_path.name} runs standalone (--no-takeover); it will not "
                 f"touch the project {_project_label(context)}"
             );
@@ -91,12 +107,12 @@ def _pin_run_scope(filename: str, takeover: (bool | None)) -> None {
     } elif owner is None and ambient is not None {
         if takeover {
             chosen = ambient;
-            console.info(
+            _scope_notice(
                 f"takeover: {file_path.name} runs as the project "
                 f"{_project_label(ambient)}"
             );
-        } else {
-            console.info(
+        } elif _project_serves(ambient) {
+            _scope_notice(
                 f"{file_path.name} is outside the project {_project_label(ambient)}; "
                 "running it standalone (--takeover runs it as this project)"
             );

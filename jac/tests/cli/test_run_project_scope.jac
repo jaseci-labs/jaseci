@@ -19,7 +19,7 @@ import io;
 import os;
 import shutil;
 import tempfile;
-import from contextlib { redirect_stdout }
+import from contextlib { redirect_stderr, redirect_stdout }
 import from pathlib { Path }
 
 import from jaclang.cli.commands { execution as execution_cmds }
@@ -64,15 +64,17 @@ def make_world -> tuple[str, str] {
 
 
 """Run `jac run --show <filename>` with *cwd* as the working directory and
-return everything it printed. `--show` resolves the plan and prints it
-without executing, so the plan is observable without serving anything."""
+return everything it printed on both streams. `--show` resolves the plan and
+prints it without executing, so the plan is observable without serving
+anything; the scope notice is diagnostic chatter and goes to stderr, since a
+run's stdout belongs to the program."""
 def show_from(cwd: str, filename: str, takeover: (bool | None) = None) -> str {
     buf = io.StringIO();
     old = os.getcwd();
     os.chdir(cwd);
     reset_config();
     try {
-        with redirect_stdout(buf) {
+        with redirect_stdout(buf), redirect_stderr(buf) {
             execution_cmds.run(filename=filename, show=True, takeover=takeover);
         }
     } finally {
