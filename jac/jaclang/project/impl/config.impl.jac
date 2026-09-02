@@ -1380,7 +1380,7 @@ impl _interpolate_recursive(`obj: any) -> any {
 impl get_config(
     start_path: Path | None = None, force_discover: bool = False
 ) -> JacConfig | None {
-    if _config is None or force_discover {
+    if (_config is None and not _config_explicit) or force_discover {
         _config = JacConfig.discover(start_path=start_path);
 
         _config_explicit = False;
@@ -1390,6 +1390,18 @@ impl get_config(
         }
     }
     return _config;
+}
+
+impl pin_project_scope(config: JacConfig | None) -> None {
+    _config = config;
+
+    _config_explicit = True;
+
+    _config_by_root = {};
+}
+
+impl project_scope_is_pinned -> bool {
+    return _config_explicit;
 }
 
 impl set_config(config: JacConfig | None) -> None {

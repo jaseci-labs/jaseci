@@ -13,7 +13,12 @@ import type from jaclang.compiler.backends.native.llvm.binding.executionengine {
 
 def _discover_config_from_file(filename: str) -> None {
     import from pathlib { Path }
-    import from jaclang.project.config { JacConfig, get_config, set_config }
+    import from jaclang.project.config {
+        JacConfig,
+        get_config,
+        project_scope_is_pinned,
+        set_config
+    }
     import from jaclang.project.pyvenv { add_venv_to_path }
     import from jaclang.runtime.runtime { JacRuntime as Jac }
 
@@ -21,6 +26,10 @@ def _discover_config_from_file(filename: str) -> None {
 
     Jac.set_full_target_path(str(file_path));
     file_dir = file_path.parent;
+
+    if project_scope_is_pinned() {
+        return;
+    }
 
     existing_config = get_config();
     active_profile = existing_config.active_profile if existing_config else None;
@@ -38,6 +47,68 @@ def _discover_config_from_file(filename: str) -> None {
             config.apply_profile_overlay(active_profile);
         }
         add_venv_to_path(config);
+    }
+}
+
+
+def _project_label(config: any) -> str {
+    name = config.project.name if config?.project else "";
+    proj_root = str(config.project_root) if config?.project_root else "?";
+    return f"'{name}' at {proj_root}" if name else proj_root;
+}
+
+
+def _pin_run_scope(filename: str, takeover: (bool | None)) -> None {
+    import from pathlib { Path }
+    import from jaclang.project.config { JacConfig, get_config, pin_project_scope }
+    import from jaclang.project.pyvenv { add_venv_to_path }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
+
+    file_path = Path(filename).resolve();
+    Jac.set_full_target_path(str(file_path));
+
+    existing_config = get_config();
+    active_profile = existing_config.active_profile if existing_config else None;
+
+    try {
+        owner = JacConfig.discover(start_path=file_path.parent);
+        ambient = JacConfig.discover(start_path=Path.cwd());
+    } except (OSError, KeyError, ValueError) as e {
+        console.warning(f"Failed to discover config from {file_path.parent}: {e}");
+        return;
+    }
+
+    chosen = owner;
+    if takeover is False {
+        chosen = None;
+        context = owner or ambient;
+        if context is not None {
+            console.info(
+                f"{file_path.name} runs standalone (--no-takeover); it will not "
+                f"touch the project {_project_label(context)}"
+            );
+        }
+    } elif owner is None and ambient is not None {
+        if takeover {
+            chosen = ambient;
+            console.info(
+                f"takeover: {file_path.name} runs as the project "
+                f"{_project_label(ambient)}"
+            );
+        } else {
+            console.info(
+                f"{file_path.name} is outside the project {_project_label(ambient)}; "
+                "running it standalone (--takeover runs it as this project)"
+            );
+        }
+    }
+
+    if chosen is not None and active_profile {
+        chosen.apply_profile_overlay(active_profile);
+    }
+    pin_project_scope(chosen);
+    if chosen is not None {
+        add_venv_to_path(chosen);
     }
 }
 
@@ -90,8 +161,7 @@ def _serve_flag_spelling -> dict {
         "faux": "--faux",
         "client": "--client",
         "host": "--host",
-        "platform": "--platform",
-        "takeover": "--takeover"
+        "platform": "--platform"
     };
 }
 
@@ -119,7 +189,6 @@ def _serve_overrides(
     client: (str | None),
     host: (str | None),
     platform: (str | None),
-    takeover: (bool | None),
     cfg: any
 ) -> dict {
     over: dict = {};
@@ -146,9 +215,6 @@ def _serve_overrides(
     }
     if platform is not None {
         over["platform"] = platform;
-    }
-    if takeover is not None {
-        over["takeover"] = takeover;
     }
     return over;
 }
@@ -188,7 +254,9 @@ def _kind_serve_flags(
     };
 }
 
-def _serve_with(entry_path: str, plan_flags: dict, over: dict, main: bool) -> int {
+def _serve_with(
+    entry_path: str, plan_flags: dict, over: dict, main: bool, takeover: bool = False
+) -> int {
     import from jaclang.project.providers { initialize_provider_registry }
 
     if not entry_path {
@@ -219,6 +287,7 @@ def _serve_with(entry_path: str, plan_flags: dict, over: dict, main: bool) -> in
     for (k, v) in over.items() {
         kw[k] = v;
     }
+    kw["takeover"] = takeover;
     return serve(filename=entry_path, main=main, **kw);
 }
 
@@ -484,13 +553,16 @@ impl run(
         return _run_jab(filename, port, args, serve_only=(serve_mode is True));
     }
 
+    if filename {
+        _pin_run_scope(filename, takeover);
+    }
     (plan, cfg, rc) = _resolve_plan(filename);
     if rc {
         return rc;
     }
 
     over = _serve_overrides(
-        port, dev, api_port, no_client, faux, client, host, platform, takeover, cfg
+        port, dev, api_port, no_client, faux, client, host, platform, cfg
     );
     entry_flags = _entry_flags_used(entry_name, nd, root_id, debug_mode);
     kind_serves = plan is not None and plan.action == "serve";
@@ -535,7 +607,8 @@ impl run(
             filename or (plan.entry_path if plan is not None else ""),
             _kind_serve_flags(plan, kind_serves, serve_mode),
             over,
-            main
+            main,
+            takeover=takeover is True
         );
     }
     if plan is not None and plan.action == "build" and not filename {

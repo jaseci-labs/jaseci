@@ -446,16 +446,16 @@ test "entry_override keeps a named file for kinds that plan without one" {
 
 test "serve flags are recognised only when they were actually typed" {
     over = execution._serve_overrides(
-        None, None, None, None, None, None, None, None, None, None
+        None, None, None, None, None, None, None, None, None
     );
     assert over == {};
     over = execution._serve_overrides(
-        None, True, None, None, None, None, None, None, None, None
+        None, True, None, None, None, None, None, None, None
     );
     assert over == {"dev": True};
     # --no-client is a real choice, not an absence: False must survive.
     over = execution._serve_overrides(
-        None, None, None, False, None, None, None, None, None, None
+        None, None, None, False, None, None, None, None, None
     );
     assert over == {"no_client": False};
 }
