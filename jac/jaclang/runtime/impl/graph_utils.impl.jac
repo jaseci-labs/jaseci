@@ -129,9 +129,7 @@ impl get_name(target_path: (str | None) = None) -> str | None {
                 return cfg.project.name;
             }
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
 
     stem = file_path.stem;
     return stem if stem not in ['jac', '__main__'] else None;

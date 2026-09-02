@@ -206,7 +206,7 @@ impl JacScaleUserManager.validate_token(token: str) -> str | None {
     return self.validate_jwt_token(token);
 }
 
-impl JacScaleUserManager.close -> None { }
+impl JacScaleUserManager.close -> None {}
 
 impl JacScaleUserManager.get_username(user_id: str) -> str | None {
     return self._identity_storage.get_username(user_id);

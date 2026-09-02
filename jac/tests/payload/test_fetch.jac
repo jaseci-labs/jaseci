@@ -292,7 +292,7 @@ test "pins.json carries the pbs + llvm pins and bun stays in lockstep" {
     try {
         py_minor("3.14");
         assert False , "expected a die";
-    } except PayloadDie { }
+    } except PayloadDie {}
 
     assert p.llvm.version == "22.1.8";
     assert p.llvm.slice_base

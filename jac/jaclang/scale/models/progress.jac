@@ -11,7 +11,7 @@ class EventSink {
 }
 
 obj NoopSink(EventSink) {
-    def emit(event: ProgressEvent) { }
+    def emit(event: ProgressEvent) {}
 }
 
 obj CallbackSink(EventSink) {

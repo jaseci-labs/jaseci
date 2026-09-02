@@ -322,7 +322,7 @@ def _serve_fragment(payload: dict) -> tuple {
         handler_self.wfile.write(body);
     }
 
-    def _log_quiet(handler_self: any, fmt: str, *args: any) { }
+    def _log_quiet(handler_self: any, fmt: str, *args: any) {}
 
     handler_cls = type(
         "_FragmentHandler",
@@ -1637,9 +1637,7 @@ def _start_backend(hits: dict, routes: dict, port: int = 0) -> tuple {
                 (status, body) = routes.get(key, (404, '{"detail": "nope"}'));
                 conn.sendall(_http_response(status, body));
                 conn.close();
-            } except OSError {
-                ;
-            }
+            } except OSError {}
         }
     }
     t = threading.Thread(target=serve, daemon=True);
@@ -1651,9 +1649,7 @@ def _start_backend(hits: dict, routes: dict, port: int = 0) -> tuple {
 def _stop_backend(srv: any) {
     try {
         srv.close();
-    } except OSError {
-        ;
-    }
+    } except OSError {}
 }
 
 

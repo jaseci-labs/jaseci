@@ -112,7 +112,7 @@ def shared_store -> (any | None) {
         if old_store is not None {
             try {
                 old_store.close();
-            } except Exception { }
+            } except Exception {}
         }
         store: (any | None) = None;
         reset = False;
@@ -156,7 +156,7 @@ def shared_store -> (any | None) {
             if store is not None {
                 try {
                     store.close();
-                } except Exception { }
+                } except Exception {}
             }
             _fail(_failure_reason(stage, source, store, e));
             return None;

@@ -40,7 +40,7 @@ impl ViteBundler._get_client_dir(self: ViteBundler) -> Path {
                 return config.get_client_dir();
             }
         }
-    } except ImportError { }
+    } except ImportError {}
 
     return self.project_dir / '.jac' / 'client';
 }
@@ -66,9 +66,7 @@ impl ViteBundler.create_package_json(
                     existing_data = json.load(f);
                     name = existing_data.get('name', '');
                 }
-            } except (json.JSONDecodeError, KeyError) {
-                ;
-            }
+            } except (json.JSONDecodeError, KeyError) {}
         }
     }
     if not name {
@@ -1264,7 +1262,7 @@ impl _forward_vite_output(
                 if dispatch is not None {
                     try {
                         dispatch(line);
-                    } except Exception { }
+                    } except Exception {}
                 }
                 continue;
             }
@@ -1281,9 +1279,7 @@ impl _forward_vite_output(
                 output_buffer.append(line);
             }
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
 }
 
 impl ViteBundler._dispatch_client_event(self: ViteBundler, line: str) -> None {
@@ -1618,9 +1614,7 @@ impl ViteBundler._start_vite_with_output_capture(
         }
         try {
             self.dev_server_port = int(port_file.read_text().strip());
-        } except (OSError, ValueError) {
-            ;
-        }
+        } except (OSError, ValueError) {}
         console.print("  ✔ Vite dev server ready", style="success");
     } else {
         exit_code = process.poll();

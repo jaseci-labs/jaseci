@@ -48,7 +48,7 @@ test "register_agent_callback adds callback to registry" {
     original = _agent_callbacks.copy();
     _agent_callbacks.clear();
     try {
-        def cb(record: dict) { }
+        def cb(record: dict) {}
         register_agent_callback(cb);
         assert len(_agent_callbacks) == 1;
         assert _agent_callbacks[0] is cb;
@@ -62,7 +62,7 @@ test "register_agent_callback deduplicates same callback" {
     original = _agent_callbacks.copy();
     _agent_callbacks.clear();
     try {
-        def cb(record: dict) { }
+        def cb(record: dict) {}
         register_agent_callback(cb);
         register_agent_callback(cb);  # Register again — should be ignored
         register_agent_callback(cb);  # Third time — still ignored
@@ -79,8 +79,8 @@ test "register_agent_callback allows different callbacks" {
     original = _agent_callbacks.copy();
     _agent_callbacks.clear();
     try {
-        def cb1(record: dict) { }
-        def cb2(record: dict) { }
+        def cb1(record: dict) {}
+        def cb2(record: dict) {}
         register_agent_callback(cb1);
         register_agent_callback(cb2);
         assert len(_agent_callbacks) == 2;
