@@ -14,7 +14,7 @@ import from jaclang.server.serving.authcrypt {
     jwt_decode as _jwt_decode,
     jwt_encode as _jwt_encode
 }
-import from jaclang.scale.identity.user_manager { JWT_SECRET }
+import from jaclang.scale.identity.user_manager { jwt_secret }
 import from datetime { UTC, datetime, timedelta }
 import from pathlib { Path }
 import from jaclang.scale.tests.scale_test_client {
@@ -146,7 +146,7 @@ def _stop_server(server_process: subprocess.Popen | None) {
 }
 
 def _create_expired_token(username: str, days_ago: int = 1) -> str {
-    secret = JWT_SECRET;
+    secret = jwt_secret();
     algorithm = "HS256";
 
     past_time = datetime.now(UTC) - timedelta(days=days_ago);
@@ -159,7 +159,7 @@ def _create_expired_token(username: str, days_ago: int = 1) -> str {
 }
 
 def _create_very_old_token(username: str, days_ago: int = 15) -> str {
-    secret = JWT_SECRET;
+    secret = jwt_secret();
     algorithm = "HS256";
 
     past_time = datetime.now(UTC) - timedelta(days=days_ago);
@@ -574,7 +574,7 @@ test "token refresh functionality" {
         refresh_result = extract_data(response.json());
         new_token = refresh_result["token"];
 
-        secret = JWT_SECRET;
+        secret = jwt_secret();
         algorithm = "HS256";
 
         original_payload = _jwt_decode(token, secret, algorithms=[algorithm]);
@@ -1023,7 +1023,7 @@ test "walker calls" {
         data = response_data["reports"][0];
         assert data["message"] == "This is a public endpoint";
 
-        secret = JWT_SECRET;
+        secret = jwt_secret();
         now = datetime.now(UTC);
         payload = {
             "username": "deleted_user",
