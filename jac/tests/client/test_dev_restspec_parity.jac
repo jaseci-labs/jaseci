@@ -200,34 +200,101 @@ test "a GET @restspec binds its arguments from the query string" {
 }
 
 
+"""An app with a real client root export, so the SPA fallback has a page to
+render and a 404 can only come from the dev guard."""
+def _spa_app(project_dir: str) -> str {
+    app = os.path.join(project_dir, "spa.jac");
+    Path(app).write_text(
+        'def:pub app -> JsxElement {\n' '    return <div>hello</div>;\n' '}\n',
+        encoding="utf-8"
+    );
+    return app;
+}
+
+
+"""Records every attempt to build a production client bundle and fails it.
+
+Returns (calls, spy): install the spy over the introspector's bundle builder
+and a non-empty `calls` means the request path tried to build."""
+def _build_spy -> tuple[(list[str], any)] {
+    calls: list[str] = [];
+
+    def spy(module: any) -> any {
+        calls.append("build");
+        raise RuntimeError("a production bundle build was attempted");
+    }
+    return (calls, spy);
+}
+
+
+"""Reset the config singleton this fixture pins, so a pinned root app does
+not leak into the next test in this worker."""
+def _reset_config {
+    import from jaclang.project { config as config_mod }
+    config_mod._config = None;
+    config_mod._config_explicit = False;
+    config_mod._config_by_root = {};
+}
+
+
 test "in dev the API port never builds a production client bundle" {
     # The hang: the SPA fallback called ensure_bundle() inside the request
     # thread, which in dev is a cold `bun install` plus a full vite build,
-    # untimed and under a lock, so the request got no response head at all.
+    # untimed and under a lock, so the request never got a response head.
+    #
+    # Both halves have to bite. The fixture pins a base_route_app, so the SPA
+    # fallback really does have a page to render and a 404 can only come from
+    # the dev guard, not from having nothing to serve. And the bundle builder
+    # is spied on, so "refused" has to mean refused before the build, not a
+    # ClientBundleError raised after one.
     import from jaclang.client.client_bundle { ClientBundleError }
+    import from jaclang.project.config { JacConfig, ServeConfig }
 
     with TemporaryDirectory() as tmp {
-        app = _restspec_app(tmp);
-        client = JacTestClient.from_file(app, base_path=tmp);
+        app = _spa_app(tmp);
+        client = JacTestClient.from_file(
+            app,
+            base_path=tmp,
+            config=JacConfig(serve=ServeConfig(base_route_app="app"))
+        );
+        (builds, spy) = _build_spy();
         try {
-            client.server.introspector.dev_mode = True;
+            introspector = client.server.introspector;
+            setattr(introspector._bundle_builder, "build", spy);
+            client.server.dev_mode = True;
+            introspector.dev_mode = True;
+            root_app = introspector.resolve_root_app("app");
             raised = "";
             try {
-                client.server.introspector.ensure_bundle();
+                introspector.ensure_bundle();
             } except ClientBundleError as e {
                 raised = str(e);
             }
             unknown = client.get("/no-such-page");
             status = unknown.status_code;
+            body = unknown.text;
         } finally {
             client.close();
+            _reset_config();
         }
-        assert raised , (
-            "in dev the bundle belongs to the dev server; ensure_bundle must "
-            "refuse rather than build one in a request thread"
+        assert root_app == "app" , (
+            "the fixture must resolve a root app, or the 404 below proves "
+            f"nothing; got {root_app!r}"
+        );
+        assert "dev server owns the client" in raised , (
+            "ensure_bundle must refuse for the dev reason, before building; "
+            f"got {raised!r}"
+        );
+        assert builds == [] , (
+            "a bundle build in the request path is the hang itself; "
+            f"the builder ran {len(builds)} time(s)"
         );
         assert status == 404 , (
-            f"an unknown dev path must answer, not hang; got {status}"
+            f"an unknown dev path must answer, not hang or render; got {status}"
+        );
+        assert "dev server on the web port" in body , (
+            "the 404 has to be the dev guard's, not the render path failing "
+            f"for some other reason; got {body[:200]!r}"
         );
     }
 }
