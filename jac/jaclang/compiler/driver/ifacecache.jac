@@ -136,6 +136,21 @@ obj IfaceRegistry {
 
     def on_closure_release {
         self.closure_token += 1;
+        self._iface_bytes.clear();
+        cap = 192;
+        if len(self.entries) > cap {
+            doomed: list[str] = [];
+            excess = len(self.entries) - cap;
+            for key in self.entries.keys() {
+                if len(doomed) >= excess {
+                    break;
+                }
+                doomed.append(key);
+            }
+            for key in doomed {
+                del self.entries[key];
+            }
+        }
     }
 
     def _event(name: str) {
