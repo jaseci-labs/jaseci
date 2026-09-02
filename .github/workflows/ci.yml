@@ -579,12 +579,35 @@ jobs:
       # memory, disk, the fattest processes, and the embedded Postgres
       # cluster that `jac test` provisions on a fresh home (its server log
       # and database count). JAC_TEST_RSS_LOG adds per-item worker RSS.
+      # On a hang, every jac process gets its state recorded before it is
+      # killed: thread count and kernel wait channel from /proc (a futex wait
+      # is a lock, a socket read is the database, a select is the worker
+      # pipe), a py-spy stack, and a few seconds of syscalls.
       - name: MTIR integration (byllm)
         env:
           JAC_TEST_RSS_LOG: "1"
         run: |
           set -o pipefail
-          timeout --kill-after=30 300 jac test jac/jaclang/byllm/tests/test_mtir_integration.jac
+          jac test jac/jaclang/byllm/tests/test_mtir_integration.jac &
+          pid=$!
+          for _ in $(seq 1 240); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
+          if kill -0 "$pid" 2>/dev/null; then
+            echo "::error::jac test is still running after 240s (it takes 30s when it passes); recording the hung processes"
+            sudo apt-get install -y -q strace >/dev/null 2>&1 || true
+            pip install -q py-spy >/dev/null 2>&1 || true
+            ps -eo pid,ppid,stat,etimes,wchan:32,args --forest | grep -v "ps -eo" | tail -40 || true
+            for p in $(pgrep -x jac); do
+              echo "::group::jac process $p"
+              grep -E '^(State|Threads|VmRSS)' "/proc/$p/status" || true
+              for t in /proc/$p/task/*; do echo "  thread $(basename "$t"): $(cat "$t/wchan" 2>/dev/null) $(grep -E '^State' "$t/status" | tr -s ' ')"; done
+              sudo timeout 30 py-spy dump --pid "$p" --nonblocking 2>&1 | head -120 || true
+              sudo timeout 6 strace -f -p "$p" 2>&1 | head -25 || true
+              echo "::endgroup::"
+            done
+            kill -TERM "$pid" 2>/dev/null; sleep 5; kill -KILL "$pid" 2>/dev/null || true
+            exit 124
+          fi
+          wait "$pid"
       - name: Runner state after the MTIR step
         if: always()
         run: |
