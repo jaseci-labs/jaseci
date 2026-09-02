@@ -203,14 +203,25 @@ impl MicroserviceGateway.bootstrap_admin_ui -> None {
     if (Path(self.admin_dist_dir) / "index.html").is_file() {
         return;
     }
-    logger.info("No staged admin console - building it from source.");
-    try {
-        self.build_admin_client();
-    } except (ImportError, ModuleNotFoundError) {
-        logger.debug("Admin module not available, skipping admin UI bootstrap");
-    } except Exception as e {
-        logger.warning(f"Admin UI build failed: {e}");
+    import threading;
+    gw = self;
+
+    def _build_admin_ui {
+        try {
+            gw.build_admin_client();
+        } except (ImportError, ModuleNotFoundError) {
+            logger.debug("Admin module not available, skipping admin UI bootstrap");
+        } except Exception as e {
+            logger.warning(f"Admin UI build failed: {e}");
+        }
     }
+    logger.info(
+        "No staged admin console - building it from source in the background; "
+        "/admin answers once it lands."
+    );
+    threading.Thread(
+        target=_build_admin_ui, daemon=True, name="jac-admin-ui-build"
+    ).start();
 }
 
 impl MicroserviceGateway.serve_admin_asset(asset_path: str) -> Response | None {
