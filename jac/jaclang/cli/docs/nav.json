@@ -190,6 +190,7 @@
         { "title": "Ownership Checker Specification", "page": "internals/ownership-checker-spec.md" },
         { "title": "Import Patterns", "page": "internals/jac_import_patterns.md" },
         { "title": "Compiler Architecture", "page": "internals/compiler_architecture.md" },
+        { "title": "The Analysis Cache", "page": "internals/analysis-cache.md" },
         { "title": "Cross-Codespace Interop", "page": "internals/interop.md" },
         { "title": "Region-Granular Persistence Design", "page": "internals/region-persistence-design.md" },
         { "title": "Compact Codegen IR", "page": "internals/codegen-ir.md" }

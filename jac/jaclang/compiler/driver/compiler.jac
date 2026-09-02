@@ -13,14 +13,17 @@ import from jaclang.compiler.driver.jir {
     SEC_INTEROP,
     SEC_NATIVE_OBJ,
     SEC_PLACEMENT,
+    SEC_IFACE,
     FLAG_PRECOMPILED,
     get_module_cache_path,
     is_module_cache_valid,
     precompiled_jir_matches_source,
     cache_mode,
     read_bytecode_only,
+    read_section_bytes,
     read_sections,
     patch_co_filenames_bytes,
+    write_module_cache,
     SECTIONS_MAGIC,
     HEADER_SIZE
 }
@@ -158,6 +161,13 @@ obj JacCompiler {
     def _compile_once(
         file_path: str,
         target_program: JacProgram,
+        use_str: (str | None) = None,
+        options: CompileOptions = CompileOptions()
+    ) -> uni.Module;
+
+    def _compile_pipeline(
+        file_path: str,
+        actual_program: JacProgram,
         use_str: (str | None) = None,
         options: CompileOptions = CompileOptions()
     ) -> uni.Module;
