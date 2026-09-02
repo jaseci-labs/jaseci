@@ -69,15 +69,13 @@ class NativeCompiler {
         self.classes = {};
         self._bind();
         self._register();
-
-        self.lib.jc_set_wipe(0);
     }
 
     def _bind(self: NativeCompiler) {
         L = self.lib;
         L.jac_str_new.argtypes = [c_char_p, c_int64];
         L.jac_str_new.restype = c_void_p;
-        for name in ("jc_parse", "jc_weave") {
+        for name in ("jc_run", "jc_annex") {
             fn = getattr(L, name);
             fn.argtypes = [c_void_p, c_void_p, c_int64, c_void_p, c_void_p, c_int64];
             fn.restype = c_int64;
@@ -93,7 +91,12 @@ class NativeCompiler {
             fn.argtypes = [];
             fn.restype = c_int64;
         }
-        for name in ("jc_finish", "jc_diags", "jc_lexdiags", "jc_comments") {
+        for name in (
+            "jc_take_module",
+            "jc_take_diags",
+            "jc_take_lexdiags",
+            "jc_take_comments"
+        ) {
             fn = getattr(L, name);
             fn.argtypes = [];
             fn.restype = c_void_p;
@@ -112,8 +115,6 @@ class NativeCompiler {
         L.jc_reg_edge.restype = c_int64;
         L.jc_reg_hint_tags.argtypes = [c_int64] * 2;
         L.jc_reg_hint_tags.restype = c_int64;
-        L.jc_set_wipe.argtypes = [c_int64];
-        L.jc_set_wipe.restype = c_int64;
     }
 
     def _hold(self: NativeCompiler, o: any) -> int {
@@ -358,12 +359,12 @@ class NativeCompiler {
         );
     }
 
-    def parse(self: NativeCompiler, source: str, path: str) -> int {
-        return self._call_str2("jc_parse", source, path);
+    def annex(self: NativeCompiler, annex_src: str, annex_path: str) -> int {
+        return self._call_str2("jc_annex", annex_src, annex_path);
     }
 
-    def weave(self: NativeCompiler, annex_src: str, annex_path: str) -> int {
-        return self._call_str2("jc_weave", annex_src, annex_path);
+    def run(self: NativeCompiler, source: str, path: str) -> int {
+        return self._call_str2("jc_run", source, path);
     }
 
     def _take(self: NativeCompiler, ptr: any) -> any {
@@ -376,20 +377,20 @@ class NativeCompiler {
         return out;
     }
 
-    def finish(self: NativeCompiler) -> any {
-        return self._take(self.lib.jc_finish());
+    def take_module(self: NativeCompiler) -> any {
+        return self._take(self.lib.jc_take_module());
     }
 
-    def diags(self: NativeCompiler) -> list {
-        return self._take(self.lib.jc_diags()) or [];
+    def take_diags(self: NativeCompiler) -> list {
+        return self._take(self.lib.jc_take_diags()) or [];
     }
 
-    def lexdiags(self: NativeCompiler) -> list {
-        return self._take(self.lib.jc_lexdiags()) or [];
+    def take_lexdiags(self: NativeCompiler) -> list {
+        return self._take(self.lib.jc_take_lexdiags()) or [];
     }
 
-    def comments(self: NativeCompiler) -> list {
-        return self._take(self.lib.jc_comments()) or [];
+    def take_comments(self: NativeCompiler) -> list {
+        return self._take(self.lib.jc_take_comments()) or [];
     }
 
     def err_count(self: NativeCompiler) -> int {

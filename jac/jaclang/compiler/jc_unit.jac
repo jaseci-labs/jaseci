@@ -1,5 +1,6 @@
 import from c { def PyList_New(n: int) -> int;  }
 import from c { def PyList_SetItem(l: int, i: int, v: int) -> int;  }
+import from c { def Py_DecRef(o: int) -> int;  }
 
 import from jaclang.compiler.jc_materialize {
     hint_commentdata,
@@ -17,50 +18,57 @@ import from jaclang.compiler.frontend.unitree { Module, UniNode }
 import from jaclang.compiler.frontend.roles { AccessorsRole, BodyRole, SpecRole }
 
 obj JcState {
-    has mod: (Module | None) = None,
-        p_errs: int = 0,
-        p_diags: list[SrcDiag] = [],
-        comments: list[CommentData] = [],
-        lex_diags: list[SrcDiag] = [],
-        lex_errs: int = 0;
+    has p_errs: int = 0,
+        lex_errs: int = 0,
+        mod_h: int = 0,
+        diags_h: int = 0,
+        lexdiags_h: int = 0,
+        comments_h: int = 0;
 }
 
-glob _JC: JcState = JcState();
+glob _JC: JcState = JcState(),
+     _ANNEX_SRC: list[str] = [],
+     _ANNEX_PATH: list[str] = [];
 
 def:pub jc_probe -> int {
     return 44061;
 }
 
-glob _WIPE: list[int] = [1];
-
-def:pub jc_set_wipe(v: int) -> int {
-    if _WIPE {
-        _WIPE.pop();
+def _drop_h(h: int) {
+    if h != 0 {
+        Py_DecRef(h);
     }
-    _WIPE.append(v);
+}
+
+def _clear_results {
+    _drop_h(_JC.mod_h);
+    _drop_h(_JC.diags_h);
+    _drop_h(_JC.lexdiags_h);
+    _drop_h(_JC.comments_h);
+    _JC.mod_h = 0;
+    _JC.diags_h = 0;
+    _JC.lexdiags_h = 0;
+    _JC.comments_h = 0;
+    _JC.p_errs = 0;
+    _JC.lex_errs = 0;
+}
+
+def _clear_annexes {
+    while _ANNEX_SRC {
+        _ANNEX_SRC.pop();
+    }
+    while _ANNEX_PATH {
+        _ANNEX_PATH.pop();
+    }
+}
+
+def:pub jc_annex(src: str, path: str) -> int {
+    _ANNEX_SRC.append(src);
+    _ANNEX_PATH.append(path);
     return 0;
 }
 
-def:pub jc_parse(src: str, path: str) -> int {
-    _JC.mod = None;
-    if _WIPE[0] != 0 {
-        jc_graph_wipe();
-    }
-    (mod, p_errs, p_diags, comments, lex_diags, lex_errs) = parse_program(src, path);
-    _JC.mod = mod;
-    _JC.p_errs = p_errs;
-    _JC.p_diags = p_diags;
-    _JC.comments = comments;
-    _JC.lex_diags = lex_diags;
-    _JC.lex_errs = lex_errs;
-    return 0 if mod is not None else 1;
-}
-
-def:pub jc_weave(annex_src: str, annex_path: str) -> int {
-    main_mod = _JC.mod;
-    if main_mod is None {
-        return 1;
-    }
+def _weave(r: Region, main_mod: Module, annex_src: str, annex_path: str) -> int {
     (a_mod, a_errs, _pd, _cm, _ld, a_lex_errs) = parse_program(annex_src, annex_path);
     if a_errs > 0 or a_lex_errs > 0 {
         return 1;
@@ -77,21 +85,82 @@ def:pub jc_weave(annex_src: str, annex_path: str) -> int {
     return 0;
 }
 
-def:pub jc_finish -> int {
-    mod = _JC.mod;
-    if mod is None {
-        return 0;
-    }
+def _materialize(
+    r: Region,
+    mod: Module,
+    p_diags: list[SrcDiag],
+    comments: list[CommentData],
+    lex_diags: list[SrcDiag]
+) -> int {
     out = jc_mz_run(id(mod));
-    if out != 0 {
-        _apply_shapes(mod);
+    if out == 0 {
+        jc_mz_dispose();
+        return 1;
     }
+    _apply_shapes(mod);
+    _JC.mod_h = out;
+    _JC.diags_h = _mz_list(p_diags, hint_srcdiag());
+    _JC.lexdiags_h = _mz_list(lex_diags, hint_srcdiag());
+    _JC.comments_h = _mz_list(comments, hint_commentdata());
     jc_mz_dispose();
-    _JC.mod = None;
-    if _WIPE[0] != 0 {
+    return 0;
+}
+
+def _run_in_region(src: str, path: str) -> int {
+    status = 0;
+    r = Region();
+    in r {
+        (mod, p_errs, p_diags, comments, lex_diags, lex_errs) = parse_program(
+            src, path
+        );
+        _JC.p_errs = p_errs;
+        _JC.lex_errs = lex_errs;
+        if p_errs == 0 and lex_errs == 0 {
+            i = 0;
+            n = len(_ANNEX_SRC);
+            while i < n and status == 0 {
+                status = _weave(r, mod, _ANNEX_SRC[i], _ANNEX_PATH[i]);
+                i += 1;
+            }
+        }
+        if status == 0 {
+            status = _materialize(r, mod, p_diags, comments, lex_diags);
+        }
         jc_graph_wipe();
     }
-    return out;
+    return status;
+}
+
+def:pub jc_run(src: str, path: str) -> int {
+    _clear_results();
+    jc_graph_wipe();
+    status = _run_in_region(src, path);
+    _clear_annexes();
+    return status;
+}
+
+def:pub jc_take_module -> int {
+    h = _JC.mod_h;
+    _JC.mod_h = 0;
+    return h;
+}
+
+def:pub jc_take_diags -> int {
+    h = _JC.diags_h;
+    _JC.diags_h = 0;
+    return h;
+}
+
+def:pub jc_take_lexdiags -> int {
+    h = _JC.lexdiags_h;
+    _JC.lexdiags_h = 0;
+    return h;
+}
+
+def:pub jc_take_comments -> int {
+    h = _JC.comments_h;
+    _JC.comments_h = 0;
+    return h;
 }
 
 def:pub jc_err_count -> int {
@@ -109,24 +178,6 @@ def _mz_list(items: list, hint: int) -> int {
         PyList_SetItem(out, i, jc_mz_obj(id(it), hint));
         i += 1;
     }
-    return out;
-}
-
-def:pub jc_diags -> int {
-    out = _mz_list(_JC.p_diags, hint_srcdiag());
-    _JC.p_diags = [];
-    return out;
-}
-
-def:pub jc_lexdiags -> int {
-    out = _mz_list(_JC.lex_diags, hint_srcdiag());
-    _JC.lex_diags = [];
-    return out;
-}
-
-def:pub jc_comments -> int {
-    out = _mz_list(_JC.comments, hint_commentdata());
-    _JC.comments = [];
     return out;
 }
 
@@ -171,4 +222,13 @@ def _apply_shapes(mod: Module) {
             stack.append(k);
         }
     }
+}
+
+def:pub jc_rc_debug(v: int) -> int {
+    if v != 0 {
+        __rc_debug_enable();
+    } else {
+        __rc_debug_disable();
+    }
+    return 0;
 }

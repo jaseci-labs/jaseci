@@ -118,3 +118,65 @@ test "kernel parse materializes the store parser's tree" {
         assert nat_prof == py_prof;
     }
 }
+
+
+def _rss_kb -> (int | None) {
+    try {
+        with open("/proc/self/status", encoding="utf-8") as f {
+            for line in f {
+                if line.startswith("VmRSS:") {
+                    return int(line.split()[1]);
+                }
+            }
+        }
+    } except OSError {
+        return None;
+    }
+    return None;
+}
+
+def _parse_and_drop(src: str, path: str) {
+    import from jaclang.compiler.frontend.parser.frontend { parse_woven }
+    parse_woven(src, path, None, []);
+}
+
+def _kernel_growth_mb(src: str, path: str, rounds: int) -> (float | None) {
+    import gc;
+    _parse_and_drop(src, path);
+    gc.collect();
+    start = _rss_kb();
+    for _i in range(rounds) {
+        _parse_and_drop(src, path);
+        gc.collect();
+    }
+    end = _rss_kb();
+    if start is None or end is None {
+        return None;
+    }
+    return (end - start) / 1024.0;
+}
+
+test "kernel parses retain no native memory once the tree is handed over" {
+    import from jaclang.compiler.native_compiler { ensure_loaded }
+    kernel = ensure_loaded();
+    base = _frontend_dir();
+    src_path = os.path.join(base, "unitree.jac") if base is not None else "";
+    if kernel is None or not src_path or not os.path.isfile(src_path) {
+        # No built kernel or no source tree to parse; the guard runs in checkouts.
+        assert True;
+    } else {
+        with open(src_path, encoding="utf-8") as f {
+            src = f.read();
+        }
+        grown = _kernel_growth_mb(src, src_path, 4);
+        if grown is None {
+            # No /proc on this host; nothing to measure.
+            assert True;
+        } else {
+            assert grown < 40.0 , (
+                f"four kernel parses of unitree.jac grew RSS by {grown:.0f} MB; "
+                "the parse region is not being dropped at the end of jc_run"
+            );
+        }
+    }
+}

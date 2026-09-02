@@ -116,25 +116,21 @@ def _native_parse_woven(
     if kernel is None {
         return None;
     }
-    if kernel.parse(source_str, file_path) != 0 {
+    for (a_src, a_path) in annexes {
+        kernel.annex(a_src, a_path);
+    }
+    if kernel.run(source_str, file_path) != 0 {
+        return None;
+    }
+    module = kernel.take_module();
+    if module is None {
         return None;
     }
     p_errs = kernel.err_count();
     lex_errs = kernel.lex_errs();
-    if p_errs == 0 and lex_errs == 0 {
-        for (a_src, a_path) in annexes {
-            if kernel.weave(a_src, a_path) != 0 {
-                return None;
-            }
-        }
-    }
-    module = kernel.finish();
-    if module is None {
-        return None;
-    }
-    p_diags = kernel.diags();
-    lex_diags = kernel.lexdiags();
-    comments = kernel.comments();
+    p_diags = kernel.take_diags();
+    lex_diags = kernel.take_lexdiags();
+    comments = kernel.take_comments();
     had_error = _finish_parse(
         module, p_errs, p_diags, comments, lex_diags, lex_errs, prog
     );
