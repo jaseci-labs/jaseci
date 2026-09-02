@@ -104,6 +104,7 @@ impl PgStore.postinit -> None {
     self._listeners = [];
     self._listen_thread = None;
     self._listen_stop = None;
+    self._side_listened = False;
     self._booted = False;
     self._ready = False;
     self._readying = None;
@@ -241,7 +242,12 @@ def _owner_alive(pid: (int | None)) -> bool {
 
 impl PgStore._connect -> any {
     import from jaclang.data.pgload { connect as pg_connect }
+    import from jaclang.data.pgpool { checkout }
     info = self.conninfo;
+    pooled = checkout(info);
+    if pooled is not None {
+        return pooled;
+    }
     return pg_connect(
         info.user,
         host=(info.host or None),
@@ -251,6 +257,35 @@ impl PgStore._connect -> any {
         password=(info.password or None),
         startup_params={'application_name': _app_identity()}
     );
+}
+
+
+def _park_conn(info: any, conn: any, in_txn: bool, listened: bool) -> None {
+    import from jaclang.data.pgpool { pool_enabled, release }
+    if conn is None {
+        return;
+    }
+    if not pool_enabled() or getattr(conn, '_closed', False) {
+        try {
+            conn.close();
+        } except Exception {}
+        return;
+    }
+    try {
+        if in_txn {
+            conn.run('ROLLBACK');
+        }
+        conn.run('DISCARD ALL');
+        if listened {
+            conn.notifications.clear();
+        }
+    } except Exception {
+        try {
+            conn.close();
+        } except Exception {}
+        return;
+    }
+    release(info, conn);
 }
 
 
@@ -298,7 +333,7 @@ impl PgStore._run(sql: str, params: dict) -> list {
             self._conn = None;
             try {
                 self.conninfo = self.ensure_cb();
-            } except Exception { }
+            } except Exception {}
             conn = self._main();
         }
         try {
@@ -307,14 +342,14 @@ impl PgStore._run(sql: str, params: dict) -> list {
             if _conn_dead(e) {
                 try {
                     conn.close();
-                } except Exception { }
+                } except Exception {}
                 self._conn = None;
                 was_txn = self._in_txn;
                 self._in_txn = False;
                 if self.ensure_cb is not None {
                     try {
                         self.conninfo = self.ensure_cb();
-                    } except Exception { }
+                    } except Exception {}
                 }
                 if was_txn {
                     import from jaclang.data.pgwire { PgWireError }
@@ -328,7 +363,7 @@ impl PgStore._run(sql: str, params: dict) -> list {
             if self._in_txn {
                 try {
                     conn.run('ROLLBACK');
-                } except Exception { }
+                } except Exception {}
                 self._in_txn = False;
             }
             raise;
@@ -667,7 +702,7 @@ impl PgStore.begin(isolation: TxnIsolation = TxnIsolation.SERIALIZABLE) -> None 
         self._isolation = isolation;
         try {
             self._run("SET LOCAL lock_timeout = '10s'", {});
-        } except Exception { }
+        } except Exception {}
     }
 }
 
@@ -1025,6 +1060,7 @@ impl PgStore.listen(channel: str, callback: any) -> None {
         );
         conn: any = self._side();
         conn.run(f"LISTEN {_quote_channel(ident)}");
+        self._side_listened = True;
         if self._listen_thread is None {
             self._listen_stop = threading.Event();
             t: any = threading.Thread(
@@ -1265,19 +1301,23 @@ impl PgStore._property_graph_ddl -> None {
 
 impl PgStore.close -> None {
     parked: any = None;
+    main_conn: any = None;
+    side_conn: any = None;
+    was_txn = False;
+    listened = False;
     with self._lock {
         parked = self._stop_listen_thread();
         self._listeners = [];
-        for c in [self._conn, self._side_conn] {
-            if c is not None {
-                try {
-                    c.close();
-                } except Exception { }
-            }
-        }
+        main_conn = self._conn;
+        side_conn = self._side_conn;
+        was_txn = self._in_txn;
+        listened = self._side_listened;
         self._conn = None;
         self._side_conn = None;
         self._in_txn = False;
+        self._side_listened = False;
     }
     self._join_listen_thread(parked);
+    _park_conn(self.conninfo, main_conn, was_txn, False);
+    _park_conn(self.conninfo, side_conn, False, listened);
 }

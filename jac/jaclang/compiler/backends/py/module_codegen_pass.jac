@@ -1,3 +1,4 @@
+import from dataclasses { field }
 import from collections.abc { Sequence }
 import from jaclang.compiler.frontend.unitree {
     Ability,

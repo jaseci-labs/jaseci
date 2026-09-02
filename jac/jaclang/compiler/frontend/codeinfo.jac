@@ -144,6 +144,26 @@ def native_safe_sym(src: str) -> str {
     return f"{safe}_{hashlib.sha1(src.encode()).hexdigest()[:8]}";
 }
 
+def module_dotted_name(mod_path: str, mod_name: str = "") -> str {
+    import os;
+    path = mod_path.replace("\\", "/");
+    if not path {
+        return mod_name;
+    }
+    idx = path.rfind("/jaclang/");
+    stem = path[idx + 1:] if idx >= 0 else os.path.basename(path);
+    for ext in (".impl.jac", ".test.jac", ".jac", ".py") {
+        if stem.endswith(ext) {
+            stem = stem[:-len(ext)];
+            break;
+        }
+    }
+    if stem.endswith("/__init__") {
+        stem = stem[:-len("/__init__")];
+    }
+    return stem.replace("/", ".");
+}
+
 def native_module_key(path: str) -> str {
     import os;
     rp = os.path.realpath(path);
@@ -215,34 +235,15 @@ glob NATIVE_SUPPORTED_STDLIB: set[str] = {
 
 glob NATIVE_ERASED_ABC_BASES: frozenset = frozenset({"ABC"});
 
-glob NATIVE_ERASED_RIM_BASES: frozenset = frozenset({"PassRim"});
-
-glob NATIVE_ERASED_BASES: frozenset = (
-         NATIVE_ERASED_ABC_BASES | NATIVE_ERASED_RIM_BASES
-     );
+glob NATIVE_ERASED_BASES: frozenset = NATIVE_ERASED_ABC_BASES;
 
 glob NATIVE_ERASED_IDENTITY_CALLS: frozenset = frozenset({"cast"});
 
-glob _bun_host_decision_cache: dict[str, bool] = {},
-     _bun_host_guard_warned: list[bool] = [False];
+glob NATIVE_ERASED_FIELD_MARKERS: frozenset = frozenset({"field"});
 
-glob PASS_RIM_MODULE: str = "jaclang.compiler.passes.pass_rim";
-
-def clear_bun_host_decision_cache {
-    _bun_host_decision_cache.clear();
-    try {
-        import from jaclang.project.config { clear_discovered_config_cache }
-        clear_discovered_config_cache();
-    } except ImportError {
-        ;
-    }
-}
-
-glob NATIVE_ERASED_FIELD_MARKERS: frozenset = frozenset({"field"}),
-     NATIVE_ERASED_IMPORTS: dict[str, frozenset] = {
+glob NATIVE_ERASED_IMPORTS: dict[str, frozenset] = {
          "abc": NATIVE_ERASED_ABC_BASES,
          "dataclasses": NATIVE_ERASED_FIELD_MARKERS,
-         PASS_RIM_MODULE: NATIVE_ERASED_RIM_BASES,
          "typing": TYPE_PARAM_CONSTRUCTORS
              | NATIVE_ERASED_IDENTITY_CALLS
              | NATIVE_ERASED_TYPE_MARKERS
@@ -324,72 +325,6 @@ def native_stdlib_root -> (str | None) {
     return stdlib_dir if os.path.isdir(stdlib_dir) else None;
 }
 
-def cl_stdlib_root -> (str | None) {
-    import os;
-    import jaclang;
-    if not jaclang?.__file__ {
-        return None;
-    }
-    stdlib_dir = os.path.join(os.path.dirname(jaclang.__file__), "cl_stdlib");
-    return stdlib_dir if os.path.isdir(stdlib_dir) else None;
-}
-
-
-def project_uses_bun_host(base_path: str = '') -> bool {
-    import os;
-    key = os.path.abspath(base_path) if base_path.strip() else '';
-    if key in _bun_host_decision_cache {
-        return _bun_host_decision_cache[key];
-    }
-    try {
-        import from jaclang.jac0core.host { resolve_project_host_kind, HOST_BUN }
-        uses_bun = resolve_project_host_kind(base_path) == HOST_BUN;
-    } except ImportError {
-        if not _bun_host_guard_warned[0] {
-            import sys;
-            sys.stderr.write(
-                'warning: bun-host decision deferred: jaclang.jac0core.host '
-                'is still importing (bootstrap order); treating this '
-                'module as non-bun for now\n'
-            );
-            _bun_host_guard_warned[0] = True;
-        }
-        return False;
-    }
-    if key {
-        _bun_host_decision_cache[key] = uses_bun;
-    }
-    return uses_bun;
-}
-
-
-obj ClModuleRef {
-    has src_name: (str | None) = None,
-        path: (str | None) = None;
-}
-
-def resolve_cl_module(module_name: str, base_dir: str = '') -> ClModuleRef {
-    import os;
-    if not project_uses_bun_host(base_dir) {
-        return ClModuleRef();
-    }
-    stdlib_dir = cl_stdlib_root();
-    if stdlib_dir is None or not module_name {
-        return ClModuleRef();
-    }
-    clean = module_name.lstrip('.');
-    path_name = clean.replace('.', os.sep);
-    plain = os.path.join(stdlib_dir, path_name + '.jac');
-    if os.path.isfile(plain) {
-        return ClModuleRef(src_name=path_name, path=plain);
-    }
-    pkg_init = os.path.join(stdlib_dir, path_name, '__init__.jac');
-    if os.path.isfile(pkg_init) {
-        return ClModuleRef(src_name=path_name, path=pkg_init);
-    }
-    return ClModuleRef();
-}
-
 def is_native_by_location(file_path: str) -> bool {
     import os;
     import jaclang;
@@ -401,13 +336,40 @@ def is_native_by_location(file_path: str) -> bool {
     return ap.startswith(os.path.join(pkg, "runtime", "na_stdlib") + os.sep);
 }
 
+def bundled_stdlib_module_of(file_path: str) -> (str | None) {
+    import os;
+    import jaclang;
+    if not file_path or not jaclang?.__file__ {
+        return None;
+    }
+    ap = os.path.abspath(file_path);
+    pkg = os.path.dirname(os.path.abspath(str(jaclang.__file__)));
+    native_root = os.path.join(pkg, "runtime", "na_stdlib") + os.sep;
+    stub_root = os.path.join(pkg, "vendor", "typeshed", "stdlib") + os.sep;
+    if ap.startswith(native_root) and ap.endswith(".jac") {
+        rel = ap[len(native_root):-len(".jac")];
+        parts = rel.split(os.sep);
+
+        parts[-1] = parts[-1].split(".")[0];
+        return ".".join(parts);
+    }
+    if ap.startswith(stub_root) and ap.endswith(".pyi") {
+        rel = ap[len(stub_root):-len(".pyi")];
+        parts = rel.split(os.sep);
+        if parts[-1] == "__init__" {
+            parts = parts[:-1];
+        }
+        return ".".join(parts) if parts else None;
+    }
+    return None;
+}
+
 glob CLIENT_RUNTIME_SOURCE_PATHS: list[str] = [
          "client/client_runtime.jac",
          "client/client_runtime_core.jac",
          "client/solid_runtime.jac",
          "client/pwa_runtime.jac",
          "client/wasm_host.jac",
-         "client/server_runtime.jac",
          "client/client_mobui.jac",
          "client/client_react_core.jac",
          "client/client_runtime_native.jac",
@@ -423,10 +385,6 @@ def is_client_by_location(file_path: str) -> bool {
     }
     ap = os.path.abspath(file_path);
     pkg = os.path.dirname(os.path.abspath(str(jaclang.__file__)));
-    cl_root = os.path.join(pkg, "cl_stdlib");
-    if ap.startswith(cl_root + os.sep) {
-        return True;
-    }
     for rel in CLIENT_RUNTIME_SOURCE_PATHS {
         if ap == os.path.join(pkg, rel.replace("/", os.sep)) {
             return True;

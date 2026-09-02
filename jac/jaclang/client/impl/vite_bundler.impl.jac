@@ -40,7 +40,7 @@ impl ViteBundler._get_client_dir(self: ViteBundler) -> Path {
                 return config.get_client_dir();
             }
         }
-    } except ImportError { }
+    } except ImportError {}
 
     return self.project_dir / '.jac' / 'client';
 }
@@ -66,9 +66,7 @@ impl ViteBundler.create_package_json(
                     existing_data = json.load(f);
                     name = existing_data.get('name', '');
                 }
-            } except (json.JSONDecodeError, KeyError) {
-                ;
-            }
+            } except (json.JSONDecodeError, KeyError) {}
         }
     }
     if not name {
@@ -636,46 +634,23 @@ import {{ fileURLToPath }} from "url";
 const buildDir = path.resolve(__dirname, "..");
 const projectRoot = path.resolve(__dirname, "../../..");
 import jacFastRefresh from "./jac-fast-refresh.js";
-import jacDevStatus, {{ reportClientLoad }} from "./jac-dev-status.js";
+import jacClientEvents, {{ recordClientEvent }} from "./jac-client-events.js";
 
-// Vite plugin: forward client-side runtime errors to the terminal and browser overlay
+// Vite plugin: hand the browser's RAW error payload to the Jac process.
+// No path rewriting, no file derivation, no terminal rendering here: the Jac
+// side owns resolving a compiled coordinate back to a .jac location, and it
+// is the only place a client failure is printed.
 function jacErrorReporter() {{
   const seen = new Map();
   return {{
     name: "jac-error-reporter",
     configureServer(server) {{
       server.ws.on("jac:client-error", (data) => {{
-        const key = data.type + ":" + data.message;
+        const key = String(data.type) + ":" + String(data.message);
         const now = Date.now();
         if (seen.get(key) > now - 2000) return;
         seen.set(key, now);
-        let loc = "";
-        if (data.source) {{
-          try {{
-            var p = new URL(data.source).pathname.slice(1)
-              .replace("compiled/", "").replace(".vite/deps/", "");
-            if (p.endsWith(".js")) p = p.slice(0, -3) + ".jac";
-            loc = " (" + p;
-            if (data.line) loc += ":" + data.line;
-            if (data.column) loc += ":" + data.column;
-            loc += ")";
-          }} catch(e) {{}}
-        }}
-        // Timestamped: the log is append-only, so a fixed error otherwise reads as live.
-        console.error("[" + new Date(now).toISOString() + "] Client error: " + data.type + ": " + data.message + loc);
-        if (data.phase === "load") {{
-          try {{ reportClientLoad(data); }} catch (e) {{}}
-          server.ws.send({{
-            type: "error",
-            err: {{
-              message: data.message,
-              stack: data.stack || "",
-              id: data.source || "compiled/_entry.js",
-              frame: "",
-              plugin: "jac-error-reporter",
-            }},
-          }});
-        }}
+        try {{ recordClientEvent(data); }} catch (e) {{}}
       }});
     }},
   }};
@@ -727,11 +702,11 @@ function jacForceReload() {{
   }};
 }}
 
-// Vite plugin: surface Jac build errors via Vite's native error overlay.
-// The jac dev server mirrors build health to .jac-build-error.json; the file
-// existing means broken (show overlay), removed means recovered (reload).
+// Vite plugin: surface Jac diagnostics via Vite's native error overlay.
+// The jac dev server owns .jac-status.json; the file existing means broken
+// (show the rendered diagnostic), removed means recovered (reload).
 function jacBuildErrorOverlay() {{
-  const statusFile = path.resolve(buildDir, ".jac-build-error.json");
+  const statusFile = path.resolve(buildDir, ".jac-status.json");
   let lastRaw = null;
   const read = () => {{
     try {{ return fs.readFileSync(statusFile, "utf-8"); }} catch (e) {{ return ""; }}
@@ -754,15 +729,25 @@ function jacBuildErrorOverlay() {{
           server.ws.send({{ type: "full-reload", path: "*", jacTriggered: true }});
           return;
         }}
-        let file = "", message = raw;
+        // The Jac process already rendered the diagnostic; the overlay shows the
+        // headline as the message and the rendered block (location, snippet,
+        // help) as the frame.
+        let file = "", message = raw, frame = "", stack = "", loc = null;
         try {{
           const data = JSON.parse(raw);
-          file = data.file || "";
-          message = data.message || "Jac build error";
+          const all = data.diagnostics || [];
+          const diag = all[0] || {{}};
+          const more = all.length > 1 ? " (+" + (all.length - 1) + " more)" : "";
+          file = diag.file || "";
+          message = (diag.code ? diag.code + ": " : "")
+            + (diag.message || "Jac build error") + more;
+          frame = diag.rendered || "";
+          stack = diag.stack || "";
+          if (diag.line) loc = {{ file: file, line: diag.line, column: diag.column || 0 }};
         }} catch (e) {{}}
         server.ws.send({{
           type: "error",
-          err: {{ message: message, stack: "", id: file, plugin: "jac" }},
+          err: {{ message: message, stack: stack, id: file, loc: loc, frame: frame, plugin: "jac" }},
         }});
       }};
       try {{ server.watcher.add(statusFile); }} catch (e) {{}}
@@ -819,7 +804,7 @@ export default defineConfig({{
     jacErrorReporter(),
     jacPortReporter(),
     jacBuildErrorOverlay(),
-    jacDevStatus(),
+    jacClientEvents(),
     jacForceReload(),
     jacFastRefresh(),{compiled_reload_plug_in}{(
             newline + plugins_str + newline + '  '
@@ -935,22 +920,16 @@ import {{ fileURLToPath }} from "url";
 const buildDir = path.resolve(__dirname, "..");
 const projectRoot = path.resolve(__dirname, "../../..");
 
-// Jac source mapper plugin - maps errors back to original .jac files
-function jacSourceMapper() {{
-  const sourceMap = new Map(); // compiled path -> original jac path
-
+// Jac source mapper plugin - chains the per-file column maps the Jac client
+// compiler writes, so a bundled stack keeps its way back to .jac coordinates.
+// It derives no locations of its own: that is the Jac side's job.
+function jacSourceMapChain() {{
   return {{
-    name: 'jac-source-mapper',
+    name: 'jac-source-map-chain',
     enforce: 'pre',
 
-    // Extract source mapping and chain per-file source maps
     transform(code, id) {{
       if (id.includes('/compiled/') && id.endsWith('.js')) {{
-        const match = code.match(/^\\/\\* Source: (.+?) \\*\\//);
-        if (match) {{
-          sourceMap.set(id, match[1]);
-        }}
-        // Load per-file .map if it exists and return it so Vite chains it
         const mapPath = id + '.map';
         try {{
           if (fs.existsSync(mapPath)) {{
@@ -958,28 +937,6 @@ function jacSourceMapper() {{
             return {{ code, map: rawMap }};
           }}
         }} catch (e) {{}}
-      }}
-      return null;
-    }},
-
-    // Enhance error messages with original source info
-    buildEnd() {{
-      // Store source map for error reporting
-      this._jacSourceMap = sourceMap;
-    }},
-
-    // Handle resolve errors to show original source
-    resolveId(source, importer) {{
-      if (importer && sourceMap.has(importer)) {{
-        const originalSource = sourceMap.get(importer);
-        // Check for common issues like double slashes
-        if (source.includes('//') && !source.startsWith('http')) {{
-          this.error({{
-            message: `Cannot resolve "${{source}}" - path contains invalid double slash. Check your import in the original Jac file.`,
-            id: originalSource,
-            loc: {{ line: 1, column: 0 }}
-          }});
-        }}
       }}
       return null;
     }}
@@ -997,7 +954,7 @@ export default defineConfig({{
 {define_str}
   }},
   plugins: [
-    jacSourceMapper(),{(newline + plugins_str + newline + '  ')
+    jacSourceMapChain(),{(newline + plugins_str + newline + '  ')
             if plugins_str
             else ''}],
   root: buildDir, // base folder (.jac/client/) so vite can find node_modules
@@ -1069,7 +1026,7 @@ impl ViteBundler.create_vite_config(
     config_path.write_text(config_content, encoding='utf-8');
     if is_dev {
         self._write_fast_refresh_plugin(configs_dir);
-        self._write_dev_status_plugin(configs_dir);
+        self._write_client_events_plugin(configs_dir);
     }
     return config_path;
 }
@@ -1284,12 +1241,13 @@ def _is_vite_url_line(line: str) -> bool {
     return False;
 }
 
-def _forward_vite_output(
-    proc: subprocess.Popen[str],
-    ready_event: threading.Event,
+impl _forward_vite_output(
+    proc: any,
+    ready_event: any,
     sys_module: any,
-    output_buffer: list[str]
-) {
+    output_buffer: list[str],
+    dispatch: any = None
+) -> None {
     stream = proc.stdout;
     if stream is None {
         return;
@@ -1299,6 +1257,14 @@ def _forward_vite_output(
             line = stream.readline();
             if not line {
                 break;
+            }
+            if line.startswith(CLIENT_EVENT_PREFIX) {
+                if dispatch is not None {
+                    try {
+                        dispatch(line);
+                    } except Exception {}
+                }
+                continue;
             }
 
             if _is_vite_ready_line(line) {
@@ -1313,9 +1279,23 @@ def _forward_vite_output(
                 output_buffer.append(line);
             }
         }
-    } except Exception {
-        ;
+    } except Exception {}
+}
+
+impl ViteBundler._dispatch_client_event(self: ViteBundler, line: str) -> None {
+    handler = self.on_client_event;
+    if handler is None {
+        return;
     }
+    try {
+        data = json.loads(line[len(CLIENT_EVENT_PREFIX):]);
+    } except ValueError {
+        return;
+    }
+    if not isinstance(data, dict) {
+        return;
+    }
+    handler(str(data.get('slot') or ''), data.get('payload'));
 }
 
 impl ViteBundler.start_dev_server(
@@ -1488,52 +1468,56 @@ export default function jacFastRefresh() {
     (configs_dir / 'jac-fast-refresh.js').write_text(plugin_js, encoding='utf-8');
 }
 
-impl ViteBundler._write_dev_status_plugin(
+impl ViteBundler._write_client_events_plugin(
     self: ViteBundler, configs_dir: Path
 ) -> None {
-    plugin_js = r'''// jac-dev-status.js (generated) - Vite-layer + browser-load-layer build health.
-import path from "path";
-import fs from "fs";
-import { fileURLToPath } from "url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const statusFile = path.resolve(__dirname, "..", ".jac-dev-status.json");
-
-const state = { vite: null, client: null };
-
-function flush() {
+    plugin_js = (
+        '// jac-client-events.js (generated) - raw dev-loop event transport.\n'
+        '// This plugin resolves nothing, stores nothing and renders nothing.\n'
+        '// It writes one tagged JSON line per event to stdout, the stream the\n'
+        '// jac process already reads. That process is the side that maps a\n'
+        '// compiled coordinate back to a .jac (or jac.toml) location, classifies\n'
+        '// it, renders it with the same renderer `jac check` uses, and owns\n'
+        '// .jac-status.json.\n'
+        f'const PREFIX = "{CLIENT_EVENT_PREFIX}";\n'
+    )
+        + r'''
+function emit(slot, payload) {
   try {
-    if (!state.vite && !state.client) {
-      if (fs.existsSync(statusFile)) fs.unlinkSync(statusFile);
-      return;
-    }
-    fs.writeFileSync(statusFile, JSON.stringify(state), "utf-8");
+    process.stdout.write(PREFIX + JSON.stringify({ slot: slot, payload: payload }) + "\n");
   } catch (e) {}
 }
 
-// Called by jacErrorReporter when the browser reports a load-phase failure
-// (module link/eval errors that Vite serves with 200 and never sees).
-export function reportClientLoad(data) {
-  state.client = {
-    message: String((data && data.message) || "client module load failed"),
-    file: String((data && data.source) || ""),
-  };
-  flush();
+// Called by jacErrorReporter with the browser's own payload, verbatim.
+// A module-load failure means the app never came up, so it lands in the
+// build-health slot; anything thrown after load is reported to the terminal
+// but does not declare the build broken.
+export function recordClientEvent(data) {
+  const d = data || {};
+  emit(d.phase === "load" ? "client" : "runtime", {
+    "type": String(d.type || "Error"),
+    "message": String(d.message || "client module load failed"),
+    "stack": String(d.stack || ""),
+    "source": String(d.source || ""),
+    "line": Number(d.line || 0),
+    "column": Number(d.column || 0),
+    "phase": String(d.phase || ""),
+  });
 }
 
-export default function jacDevStatus() {
+export default function jacClientEvents() {
   return {
-    name: "jac-dev-status",
+    name: "jac-client-events",
     apply: "serve",
     configureServer(server) {
-      flush(); // both slots start null: removes stale state from a prior run
+      let viteBroken = false;
 
       // Vite announces every transform/resolve failure on its HMR channel
       // (the payload that drives its own error overlay), and update/full-reload
-      // on recovery. Mirror exactly those semantics into the vite slot.
+      // on recovery. Mirror exactly those semantics onto the vite slot.
       const wrap = (chan) => {
-        if (!chan || typeof chan.send !== "function" || chan.__jacDevStatus) return;
-        chan.__jacDevStatus = true;
+        if (!chan || typeof chan.send !== "function" || chan.__jacClientEvents) return;
+        chan.__jacClientEvents = true;
         const orig = chan.send.bind(chan);
         chan.send = (...args) => {
           try {
@@ -1541,16 +1525,21 @@ export default function jacDevStatus() {
             if (payload && payload.type === "error" && payload.err) {
               // jac* payloads are the Jac and browser layers, tracked elsewhere
               if (!String(payload.err.plugin || "").startsWith("jac")) {
-                state.vite = {
-                  message: String(payload.err.message || "Vite error"),
-                  file: String(payload.err.id || ""),
-                };
-                flush();
+                const err = payload.err;
+                viteBroken = true;
+                emit("vite", {
+                  "message": String(err.message || "Vite error"),
+                  "stack": String(err.stack || ""),
+                  "id": String(err.id || ""),
+                  "plugin": String(err.plugin || ""),
+                  "frame": String(err.frame || ""),
+                  "loc": err.loc || null,
+                });
               }
             } else if (
               payload
               && (payload.type === "update" || payload.type === "full-reload")
-              && state.vite
+              && viteBroken
               // Jac-recovery reloads (jacBuildErrorOverlay) say nothing about
               // the Vite layer; with no client connected nothing will re-arm
               // a still-broken module, so keep the error latched.
@@ -1558,8 +1547,8 @@ export default function jacDevStatus() {
               && server.ws.clients
               && server.ws.clients.size > 0
             ) {
-              state.vite = null;
-              flush();
+              viteBroken = false;
+              emit("vite", null);
             }
           } catch (e) {}
           return orig(...args);
@@ -1570,12 +1559,7 @@ export default function jacDevStatus() {
 
       // The dev index.html sends this after the entry module loads cleanly:
       // the only reliable "browser recovered" signal a server can get.
-      const onReady = () => {
-        if (state.client) {
-          state.client = null;
-          flush();
-        }
-      };
+      const onReady = () => { emit("ready", null); };
       server.ws.on("jac:client-ready", onReady);
       // mirror wrap(): register on the HMR channel too if it is distinct
       if (server.hot && server.hot !== server.ws && typeof server.hot.on === "function") {
@@ -1585,7 +1569,7 @@ export default function jacDevStatus() {
   };
 }
 ''';
-    (configs_dir / 'jac-dev-status.js').write_text(plugin_js, encoding='utf-8');
+    (configs_dir / 'jac-client-events.js').write_text(plugin_js, encoding='utf-8');
 }
 
 impl ViteBundler._ensure_dev_dependencies(self: ViteBundler, build_dir: Path) -> None {
@@ -1608,7 +1592,13 @@ impl ViteBundler._start_vite_with_output_capture(
     output_buffer: list[str] = [];
     output_thread = threading.Thread(
         target=_forward_vite_output,
-        args=(process, ready_event, sys_module, output_buffer),
+        args=(
+            process,
+            ready_event,
+            sys_module,
+            output_buffer,
+            self._dispatch_client_event
+        ),
         daemon=True
     );
     output_thread.start();
@@ -1624,9 +1614,7 @@ impl ViteBundler._start_vite_with_output_capture(
         }
         try {
             self.dev_server_port = int(port_file.read_text().strip());
-        } except (OSError, ValueError) {
-            ;
-        }
+        } except (OSError, ValueError) {}
         console.print("  ✔ Vite dev server ready", style="success");
     } else {
         exit_code = process.poll();

@@ -70,11 +70,12 @@ test "pascal_to_snake converts the shapes the compiler actually feeds it" {
 # The `@lru_cache(maxsize=256)` this function used to carry was sized to the
 # ~150 unitree node types, the fingerprint of the old reflective visitor
 # dispatch (`getattr(self, f"enter_{pascal_to_snake(type(nd).__name__)}")`).
-# `gen_uni_dispatch` (#6942 A.1) replaced that with static accept_enter /
-# accept_exit, so the hot loop the cache existed for is gone: what remains
-# are the generators and the `jac tool` surface, both of which call it a
-# bounded number of times. The cache was dropped rather
-# than re-spelled -- a dict memo is three lines if measurement ever asks.
+# Static accept dispatch replaced that, and pass hooks are now typed OSP
+# abilities dispatched by the walker kernel, so the hot loop the cache
+# existed for is gone: what remains are the generators and the `jac tool`
+# surface, both of which call it a bounded number of times. The cache was
+# dropped rather than re-spelled -- a dict memo is three lines if
+# measurement ever asks.
 test "pascal_to_snake is deterministic across repeat calls without a cache" {
     probe = "AVeryDistinctArchetypeName";
     first = pascal_to_snake(probe);

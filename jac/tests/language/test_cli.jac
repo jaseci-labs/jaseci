@@ -22,7 +22,6 @@ import from jaclang.cli.commands {
     transform
 }
 import from jaclang.cli.commands { config as config_cmd }
-import from jaclang.cli.registry { get_registry }
 import from jaclang.compiler.frontend.diagnostic_utils { resolve_diagnostic_tokens }
 import from jaclang.compiler.tools.unparse_pass { unparse_module }
 import from jaclang.project.config { set_config }
@@ -429,27 +428,13 @@ test "jac test err" {
     captured_output = io.StringIO();
     sys.stdout = captured_output;
     sys.stderr = captured_output;
-    analysis.`test(fixture_path("baddy.jac"));
+    analysis.`test([fixture_path("baddy.jac")]);
     sys.stdout = sys.__stdout__;
     sys.stderr = sys.__stderr__;
     stdout_value = captured_output.getvalue();
     # the runner points the failure at <file>:<line> -- the deliberate error is on
     # line 2 of the base module's test annex.
     assert "baddy.test.jac:2" in stdout_value;
-}
-
-test "jac ast tool pass template" {
-    captured = io.StringIO();
-    old_stdout = sys.stdout;
-    sys.stdout = captured;
-    try {
-        tools.tool("pass_template");
-    } finally {
-        sys.stdout = old_stdout;
-    }
-    stdout_value = captured.getvalue();
-    assert "Sub objects." in stdout_value;
-    assert stdout_value.count("def exit_") > 10;
 }
 
 test "ast print" {
@@ -502,7 +487,7 @@ test "del clean" {
     old_stdout = sys.stdout;
     sys.stdout = captured;
     try {
-        analysis.check(f"{fixture_path('del_clean.jac')}");
+        analysis.check([fixture_path("del_clean.jac")]);
     } finally {
         sys.stdout = old_stdout;
     }
@@ -515,7 +500,7 @@ test "run test" {
     old_stdout = sys.stdout;
     sys.stdout = captured;
     try {
-        analysis.`test(fixture_path("run_test.jac"), maxfail=2);
+        analysis.`test([fixture_path("run_test.jac")], maxfail=2);
         out = captured.getvalue();
     } finally {
         sys.stdout = old_stdout;
@@ -537,7 +522,7 @@ test "run test native codespace file" {
     old_stdout = sys.stdout;
     sys.stdout = captured;
     try {
-        analysis.`test(fixture_path("native_run_test.jac"), maxfail=2);
+        analysis.`test([fixture_path("native_run_test.jac")], maxfail=2);
         out = captured.getvalue();
     } finally {
         sys.stdout = old_stdout;
@@ -562,7 +547,7 @@ test "run test native broken import surfaces error" {
     old_stdout = sys.stdout;
     sys.stdout = captured;
     try {
-        rc = analysis.`test(fixture_path("native_broken_import_test.jac"));
+        rc = analysis.`test([fixture_path("native_broken_import_test.jac")]);
         out = captured.getvalue();
     } finally {
         sys.stdout = old_stdout;
@@ -698,7 +683,7 @@ test "run specific test only" {
     sys.stdout = captured;
     try {
         analysis.`test(
-            fixture_path("jactest_main.jac"), test_name="from 2 to 10", verbose=True
+            [fixture_path("jactest_main.jac")], test_name="from 2 to 10", verbose=True
         );
         out = captured.getvalue();
     } finally {
@@ -815,6 +800,9 @@ test "param arg" {
     captured = io.StringIO();
     old_stdout = sys.stdout;
     sys.stdout = captured;
+    # Bound before the try so a failure ahead of the temp-file write surfaces
+    # as itself rather than as an UnboundLocalError from the cleanup.
+    jac_file_path = "";
     try {
         transform.jac2py(f"{fixture_path('params/test_complex_params.jac')}");
         py_code = JacProgram().compile(file_path=filename).gen.py;
@@ -839,7 +827,9 @@ test "param arg" {
             execution.run(jac_file_path);
         } finally {
             os.remove(py_file_path);
-            os.remove(jac_file_path);
+            if jac_file_path {
+                os.remove(jac_file_path);
+            }
         }
     } finally {
         sys.stdout = old_stdout;

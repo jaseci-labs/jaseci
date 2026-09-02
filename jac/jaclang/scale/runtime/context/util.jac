@@ -71,9 +71,7 @@ def http_forward_timeout(service_name: str | None = None) -> float {
         if "http_forward_timeout" in ms_cfg {
             return float(ms_cfg["http_forward_timeout"]);
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return _DEFAULT_HTTP_FORWARD_TIMEOUT;
 }
 
@@ -85,9 +83,7 @@ def route_refresh_seconds -> float {
         if "route_refresh_seconds" in ms_cfg {
             return float(ms_cfg["route_refresh_seconds"]);
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return _DEFAULT_ROUTE_REFRESH_SECONDS;
 }
 
@@ -99,9 +95,7 @@ def boot_health_timeout -> float {
         if "boot_health_timeout" in ms_cfg {
             return float(ms_cfg["boot_health_timeout"]);
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return _DEFAULT_BOOT_HEALTH_TIMEOUT;
 }
 

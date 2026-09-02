@@ -13,14 +13,17 @@ import from jaclang.compiler.driver.jir {
     SEC_INTEROP,
     SEC_NATIVE_OBJ,
     SEC_PLACEMENT,
+    SEC_IFACE,
     FLAG_PRECOMPILED,
     get_module_cache_path,
     is_module_cache_valid,
     precompiled_jir_matches_source,
     cache_mode,
     read_bytecode_only,
+    read_section_bytes,
     read_sections,
     patch_co_filenames_bytes,
+    write_module_cache,
     SECTIONS_MAGIC,
     HEADER_SIZE
 }
@@ -31,7 +34,7 @@ import from jaclang.compiler.backends.py.jcir_gen_pass { JcirGenPass }
 import from jaclang.compiler.passes.boundary_analysis_pass { BoundaryAnalysisPass }
 import from jaclang.compiler.passes.semantic_analysis_pass { SemanticAnalysisPass }
 import from jaclang.compiler.passes.sym_tab_build_pass { SymTabBuildPass }
-import from jaclang.compiler.passes.transform { DiagnosticPolicy, Transform }
+import from jaclang.compiler.passes.transform { Transform }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.selfhost { SelfHostCache }
 import from jaclang.compiler.driver.pass_driver {
@@ -79,20 +82,20 @@ import from jaclang.compiler.driver.na_coverage {
     na_demotion_note
 }
 
+glob COMPILE_GC_THRESHOLDS: tuple[int, int, int] = (100000, 50, 100);
+
 obj JacCompiler {
     has _selfhost: (SelfHostCache | None) = None,
-        _reentrant_depth: int = 0;
+        _reentrant_depth: int = 0,
+        _stub_catalog: any = None,
+        _stub_catalog_tried: bool = False,
+        stub_catalog_disabled: bool = False,
+        unit_collect: bool = True;
 
     has selfhost: SelfHostCache { getter; }
 
-    def postinit {
-        import from jaclang.compiler.driver.native_brands {
-            DRIVER_ORIGIN,
-            ensure_native_brands_bound
-        }
-        ensure_native_brands_bound(DRIVER_ORIGIN);
-    }
-
+    def stub_catalog -> any;
+    def ensure_stub_catalog -> any;
     def get_native_interop_setup(
         full_target: str, target_program: JacProgram
     ) -> tuple[((object | None), (dict[(str, object)] | None))];
@@ -135,8 +138,7 @@ obj JacCompiler {
         source_str: str,
         file_path: str,
         target_program: JacProgram,
-        cancel_token: (Event | None) = None,
-        prefix_kind: str = ''
+        cancel_token: (Event | None) = None
     ) -> uni.Module;
 
     def resolve_absorb_imports(mod: uni.Module, target_program: JacProgram) -> None;
@@ -144,6 +146,10 @@ obj JacCompiler {
     def stamp_client_kind_facts(mod: uni.Module, target_program: JacProgram) -> None;
     def stamp_access_check_facts(mod: uni.Module) -> None;
     def stamp_native_import_facts(mod: uni.Module, target_program: JacProgram) -> None;
+    def _persist_module_cache(
+        full_target: str, result: uni.Module, actual_program: JacProgram
+    ) -> None;
+
     def _release_compile_scratch(target_program: JacProgram) -> None;
     def compile(
         file_path: str,
@@ -155,6 +161,13 @@ obj JacCompiler {
     def _compile_once(
         file_path: str,
         target_program: JacProgram,
+        use_str: (str | None) = None,
+        options: CompileOptions = CompileOptions()
+    ) -> uni.Module;
+
+    def _compile_pipeline(
+        file_path: str,
+        actual_program: JacProgram,
         use_str: (str | None) = None,
         options: CompileOptions = CompileOptions()
     ) -> uni.Module;

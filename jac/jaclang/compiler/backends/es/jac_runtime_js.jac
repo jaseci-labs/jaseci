@@ -511,6 +511,85 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       if (c instanceof Map) return c.get(i);
       return c[i];
     },
+    destroy(x) {
+      // `del` on a location: destroy every graph object the value holds, if
+      // an OSP runtime is loaded at all. Walks arrays, sets, map values and
+      // plain-object values, cycle-safe, and treats everything else as a leaf.
+      const core = globalThis.__jacOspCore;
+      if (!core) return 0;
+      const seen = new Set();
+      const stack = [x];
+      let n = 0;
+      while (stack.length) {
+        const v = stack.pop();
+        if (v === null || v === undefined || typeof v !== "object") continue;
+        const h = core.H.get(v);
+        if (h !== undefined) { n += core.osp_destroy(h); core.osp_forget(h); continue; }
+        if (seen.has(v)) continue;
+        if (Array.isArray(v) || v instanceof Set) { seen.add(v); for (const e of v) stack.push(e); }
+        else if (v instanceof Map) { seen.add(v); for (const e of v.values()) stack.push(e); }
+        else if (Object.getPrototypeOf(v) === Object.prototype) { seen.add(v); for (const e of Object.values(v)) stack.push(e); }
+      }
+      return n;
+    },
+    getslice(c, start, stop, step) {
+      // The elements `c[a:b:s]` denotes, read once before `del c[a:b:s]`.
+      if (!Array.isArray(c)) return [];
+      const n = c.length;
+      const st = (step === undefined || step === null) ? 1 : step;
+      if (st === 0) return [];
+      let lo = (start === undefined || start === null) ? (st > 0 ? 0 : n - 1) : start;
+      let hi = (stop === undefined || stop === null) ? (st > 0 ? n : -n - 1) : stop;
+      if (lo < 0) lo += n;
+      if (hi < 0) hi += n;
+      const out = [];
+      if (st > 0) { for (let k = Math.max(lo, 0); k < Math.min(hi, n); k += st) out.push(c[k]); }
+      else { for (let k = Math.min(lo, n - 1); k > Math.max(hi, -1); k += st) out.push(c[k]); }
+      return out;
+    },
+    delitem(c, i) {
+      // `del c[i]`. An array splices (Python removes the element rather than
+      // leaving a hole, which a raw `delete c[i]` would), a Map deletes, and
+      // any other object drops the property. Missing keys raise, as in Python.
+      if (Array.isArray(c)) {
+        const n = c.length;
+        const k = (typeof i === "number" && i < 0) ? n + i : i;
+        if (typeof k !== "number" || k < 0 || k >= n) {
+          throw new Error("list index out of range");
+        }
+        c.splice(k, 1);
+        return;
+      }
+      if (c instanceof Map) {
+        if (!c.has(i)) throw new Error("KeyError: " + String(i));
+        c.delete(i);
+        return;
+      }
+      if (c == null || !(i in Object(c))) throw new Error("KeyError: " + String(i));
+      delete c[i];
+    },
+    delslice(c, start, stop, step) {
+      // `del c[a:b:s]`. Only sequences support slice deletion; the indices
+      // that survive are compacted down in one pass so a strided delete costs
+      // the same as a contiguous one.
+      if (!Array.isArray(c)) throw new Error("object does not support slice deletion");
+      const n = c.length;
+      const st = (step === undefined || step === null) ? 1 : step;
+      if (st === 0) throw new Error("slice step cannot be zero");
+      let lo = (start === undefined || start === null) ? (st > 0 ? 0 : n - 1) : start;
+      let hi = (stop === undefined || stop === null) ? (st > 0 ? n : -n - 1) : stop;
+      if (lo < 0) lo += n;
+      if (hi < 0) hi += n;
+      const drop = new Set();
+      if (st > 0) {
+        for (let k = Math.max(lo, 0); k < Math.min(hi, n); k += st) drop.add(k);
+      } else {
+        for (let k = Math.min(lo, n - 1); k > Math.max(hi, -1); k += st) drop.add(k);
+      }
+      let w = 0;
+      for (let r = 0; r < n; r++) { if (!drop.has(r)) c[w++] = c[r]; }
+      c.length = w;
+    },
     setitem(c, i, v) {
       // Subscript assignment for a value of unknown/list static type. A
       // negative index writes the array element counted from the end (a raw
@@ -1835,15 +1914,19 @@ def build_osp_driver_js -> str {
 if (!globalThis.__jacOspCore) {
   globalThis.__jacOspCore = {
     O: [null], H: new Map(),
-    osp_conn, osp_refs, osp_refs_many, osp_wrap1, osp_disconnect,
-    osp_disconn_between, osp_edge_peer,
-    osp_spawn, osp_visit, osp_report, osp_disengage,
+    osp_conn, osp_conn_many, osp_refs, osp_refs_many, osp_refs_edge_pred,
+    osp_wrap1, osp_destroy, osp_is_dead,
+    osp_disconn_between, osp_disconn_between_many, osp_disconn_between_pred,
+    osp_edge_peer,
+    osp_spawn, osp_visit, osp_report, osp_disengage, osp_forget,
+    osp_register_type, osp_register_desc, osp_node_desc, osp_is_a,
     WalkerDesc, NodeDesc, Slot, OspRuntime
   };
 }
 var __ospC = globalThis.__jacOspCore;
 var __ospO = __ospC.O;
 var __ospH = __ospC.H;
+var __ospGenericEdge = globalThis.__jacOspGenericEdge ??= class __ospGenericEdge {};
 function __ospId(o) {
   if (o == null) return 0;
   let h = __ospH.get(o);
@@ -1853,9 +1936,12 @@ function __ospId(o) {
 function __ospConnW(src, tgt, mkEdge, undirected, tag = -1) {
   const srcs = Array.isArray(src) ? src : [src];
   const tgts = Array.isArray(tgt) ? tgt : [tgt];
-  for (const s of srcs) for (const t of tgts) {
-    __ospC.osp_conn(__ospId(s), __ospId(t), __ospId(mkEdge()), undirected ? 1 : 0, tag, 0, 0);
-  }
+  const sh = srcs.map(__ospId);
+  const th = tgts.map(__ospId);
+  const eh = [];
+  for (let i = 0; i < sh.length * th.length; i++) eh.push(__ospId(mkEdge()));
+  const r = __ospC.osp_conn_many(sh, th, eh, undirected ? 1 : 0, tag, 0, 0);
+  if (r < 0) throw new Error("cannot connect a destroyed node");
   return tgts.length === 1 ? tgts[0] : tgts;
 }
 function __ospRefsW(origin, dir, tag = -1, edgesOnly = 0, pred = null) {
@@ -1863,44 +1949,64 @@ function __ospRefsW(origin, dir, tag = -1, edgesOnly = 0, pred = null) {
   if (pred === null) {
     return __ospC.osp_refs(oh, dir, tag, edgesOnly ? 1 : 0).map((h) => __ospO[h]);
   }
-  if (edgesOnly) {
-    return __ospC.osp_refs(oh, dir, tag, 1).map((h) => __ospO[h]).filter(pred);
-  }
-  const inv = dir === 1 ? 2 : (dir === 2 ? 1 : 3);
-  const mine = __ospC.osp_refs(oh, dir, tag, 1);
-  const out = [];
-  for (const th of __ospC.osp_refs(oh, dir, tag, 0)) {
-    const theirs = new Set(__ospC.osp_refs(th, inv, tag, 1));
-    for (const eh of mine) {
-      if (theirs.has(eh) && pred(__ospO[eh])) { out.push(__ospO[th]); break; }
-    }
-  }
-  return out;
+  return __ospC.osp_refs_edge_pred(
+    [oh], dir, tag, edgesOnly ? 1 : 0, (eh) => !!pred(__ospO[eh])
+  ).map((h) => __ospO[h]);
 }
 function __ospRefsManyW(objs, dir, tag = -1, edgesOnly = 0, pred = null) {
+  const hs = [];
+  for (const o of objs) hs.push(__ospId(o));
   if (pred === null) {
-    const hs = [];
-    for (const o of objs) hs.push(__ospId(o));
     return __ospC.osp_refs_many(hs, dir, tag, edgesOnly ? 1 : 0).map((h) => __ospO[h]);
   }
-  const out = [];
+  return __ospC.osp_refs_edge_pred(
+    hs, dir, tag, edgesOnly ? 1 : 0, (eh) => !!pred(__ospO[eh])
+  ).map((h) => __ospO[h]);
+}
+function __ospDestroyW(x, strict = false) {
+  // `del` on a value target: flatten through arrays, sets, map values and
+  // plain-object values and destroy every archetype found. Strict, as the
+  // Python backend's `destroy(..., strict=True)`: a leaf that is not a graph
+  // object raises before anything is destroyed.
   const seen = new Set();
-  for (const o of objs) {
-    for (const r of __ospRefsW(o, dir, tag, edgesOnly, pred)) {
-      if (!seen.has(r)) { seen.add(r); out.push(r); }
+  const stack = [x];
+  const found = [];
+  while (stack.length) {
+    const v = stack.pop();
+    if (v !== null && v !== undefined && typeof v === "object") {
+      const h = __ospH.get(v);
+      if (h !== undefined) { found.push(h); continue; }
+      if (seen.has(v)) continue;
+      if (Array.isArray(v) || v instanceof Set) { seen.add(v); for (const e of v) stack.push(e); continue; }
+      if (v instanceof Map) { seen.add(v); for (const e of v.values()) stack.push(e); continue; }
+      if (Object.getPrototypeOf(v) === Object.prototype) { seen.add(v); for (const e of Object.values(v)) stack.push(e); continue; }
+    }
+    if (strict) {
+      throw new TypeError("cannot destroy " + (v === null ? "None" : typeof v)
+        + ": a `del` value target must yield nodes, edges or archetypes");
     }
   }
-  return out;
+  let n = 0;
+  for (const h of found) { n += __ospC.osp_destroy(h); __ospC.osp_forget(h); }
+  return n;
 }
-function __ospDiscW(eobj) {
-  return __ospC.osp_disconnect(__ospId(eobj));
+function __ospLiveStarts(starts) {
+  for (const o of starts) {
+    if (__ospC.osp_is_dead(__ospId(o))) {
+      throw new Error("cannot spawn on a destroyed graph object");
+    }
+  }
+  return starts;
 }
 function __ospDiscBetweenW(a, b, dir, tag = -1) {
-  return __ospC.osp_disconn_between(__ospId(a), __ospId(b), dir, tag);
+  const as = Array.isArray(a) ? a : [a];
+  const bs = Array.isArray(b) ? b : [b];
+  return __ospC.osp_disconn_between_many(as.map(__ospId), bs.map(__ospId), dir, tag);
 }
-function __ospIsA(t, b) {
-  const s = (typeof __ospISA !== 'undefined') && __ospISA[t];
-  return s ? s.has(b) : t === b;
+function __ospDiscBetweenPredW(a, b, dir, tag, pred) {
+  return __ospC.osp_disconn_between_pred(
+    __ospId(a), __ospId(b), dir, tag, (eh) => !!pred(__ospO[eh])
+  );
 }
 """;
 }

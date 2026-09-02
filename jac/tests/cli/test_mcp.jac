@@ -269,7 +269,7 @@ test "examples index content" {
     rp.index_resources();
     content = rp.read_resource("jac://examples/index");
     assert content;
-    assert "littleX" in content;
+    assert "chess" in content;
 }
 
 test "invalid uri returns error" {
@@ -299,7 +299,7 @@ test "all guide resources readable" {
 test "example category readable" {
     rp = ResourceProvider();
     rp.index_resources();
-    content = rp.read_resource("jac://examples/littleX");
+    content = rp.read_resource("jac://examples/chess");
     if not content.startswith("Error:") {
         assert ".jac" in content.lower() or "---" in content;
     }
@@ -385,7 +385,7 @@ test "list examples returns results when repo root is None (PyPI install)" {
     # Mock find_repo_root to return None, simulating a PyPI (non-editable) install,
     # and stub the GitHub API fetch so the test does not depend on live network
     # access (which is rate-limited and flaky in CI).
-    fake_categories = ["chess", "littleX"];
+    fake_categories = ["chess", "jaclang_org"];
     with patch("jaclang.cli.mcp.resources.find_repo_root", return_value=None) {
         with patch(
             "jaclang.cli.mcp.resources.ResourceProvider._fetch_github_categories",
@@ -399,7 +399,7 @@ test "list examples returns results when repo root is None (PyPI install)" {
     examples = result["examples"];
     assert len(examples) > 0 , "list_examples should return results via GitHub fallback when repo root is None";
     names = [e["name"] for e in examples];
-    assert "littleX" in names , "Expected 'littleX' in GitHub-fetched examples";
+    assert "chess" in names , "Expected 'chess' in GitHub-fetched examples";
     for ex in examples {
         assert "name" in ex;
         assert "uri" in ex;

@@ -13,6 +13,17 @@ impl JacProgram.init(
     self.mtir_map: dict[(str, Info)] = self.analysis.mtir_map;
     self.type_evaluator: (TypeEvaluator | None) = None;
     self._compiler: (JacCompiler | None) = None;
+    self._iface: any = None;
+}
+
+impl JacProgram.iface_registry(self: JacProgram) -> any {
+    reg = self._iface;
+    if reg is None {
+        import from jaclang.compiler.driver.ifacecache { IfaceRegistry }
+        reg = IfaceRegistry(prog=self);
+        self._iface = reg;
+    }
+    return reg;
 }
 
 impl JacProgram.hub_cache_stamp(self: JacProgram, resolved_path: str) -> None {
@@ -36,7 +47,7 @@ impl JacProgram.transitive_dependents(self: JacProgram, target_path: str) -> set
 impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None {
     self.hub.evict(resolved_path);
     if resolved_path in self.analysis.placement_summaries {
-        del (self.analysis.placement_summaries[resolved_path], );
+        del self.analysis.placement_summaries[resolved_path];
     }
 
     te = self.type_evaluator;
@@ -48,7 +59,43 @@ impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None 
         }
     }
 
+    if self._iface is not None {
+        self._iface.forget(resolved_path);
+    }
     self.deps.forget(resolved_path);
+}
+
+impl JacProgram.release_module(self: JacProgram, resolved_path: str) -> None {
+    released = self.hub.mod.hub.get(resolved_path) or self.find_module(resolved_path);
+    self.invalidate_module(resolved_path);
+    self.drop_module_alerts(resolved_path);
+    prog_root = self.mod;
+    main = prog_root.main_mod;
+    if (main is not None and JacProgram.hub_key(main.loc.mod_path) == resolved_path) {
+        released = released or main;
+        prog_root.main_mod = None;
+    }
+    if released is not None {
+        if prog_root.main_mod is released {
+            prog_root.main_mod = None;
+        }
+        prog_root.set_kids(
+            [
+                k
+                for k in prog_root.kid
+                if k is not released
+            ],
+            pos_update=False
+        );
+        del [edge released<-:ScopeChild:<-];
+        if prog_root.kid {
+            (first_tok, last_tok) = prog_root.resolve_tok_range();
+            prog_root.loc.update_token_range(first_tok, last_tok);
+        } else {
+            empty_tok = uni.EmptyToken();
+            prog_root.loc.update_token_range(empty_tok, empty_tok);
+        }
+    }
 }
 
 impl JacProgram.load_dependency_module(
@@ -60,6 +107,18 @@ impl JacProgram.load_dependency_module(
     import from pathlib { Path }
 
     resolved_path = str(Path(source_path).resolve());
+    if resolved_path.endswith('.pyi') {
+        catalog = self.stub_catalog();
+        if catalog is not None {
+            cat_mod = catalog.module_for_path(resolved_path);
+            if cat_mod is not None {
+                if importer_path is not None {
+                    self.record_dependency(importer_path, resolved_path);
+                }
+                return cat_mod;
+            }
+        }
+    }
     compiler = self._get_compiler();
     target_program = compiler.selfhost.resolve(resolved_path, self);
     target_hub = target_program.mod.hub;
@@ -94,21 +153,36 @@ impl JacProgram.load_dependency_module(
                 uni.PythonModuleAst(py_ast.parse(src), orig_src=uni_source,),
                 self
             ).ir_out;
+            mod.stub_only = True;
+
+            target_hub[resolved_path] = mod;
+            target_program.hub_cache_stamp(resolved_path);
             compiler.resolve_absorb_imports(mod, self);
             run_pass(SymTabBuildPass, mod, self);
-            mod.stub_only = True;
         } else {
+            import from jaclang.compiler.driver.compile_options {
+                CompileOptions as _DepOpts
+            }
             mod = self.compile(
-                source_path, use_str=use_str, no_cgen=True, symtab_ir_only=True
+                source_path,
+                use_str=use_str,
+                options=_DepOpts(no_cgen=True, symtab_ir_only=True, iface_ok=True)
             );
         }
-        target_hub[resolved_path] = mod;
-        target_program.hub_cache_stamp(resolved_path);
+        if not hasattr(mod, "cat_kids") {
+            target_hub[resolved_path] = mod;
+            target_program.hub_cache_stamp(resolved_path);
+        }
     }
 
     if importer_path is not None {
         self.record_dependency(importer_path, resolved_path);
     }
+    try {
+        if not compiler.selfhost.is_selfhost(self) {
+            self.iface_registry().note_dep(resolved_path);
+        }
+    } except Exception {}
     return mod;
 }
 
@@ -140,6 +214,10 @@ impl JacProgram._get_compiler(self: JacProgram) -> JacCompiler {
     import from jaclang.compiler.driver.compiler { JacCompiler }
     self._compiler = JacCompiler();
     return self._compiler;
+}
+
+impl JacProgram.stub_catalog(self: JacProgram) -> any {
+    return self._get_compiler().stub_catalog();
 }
 
 impl JacProgram.get_type_evaluator(self: JacProgram) -> TypeEvaluator {
@@ -224,7 +302,7 @@ impl JacProgram.release_check_caches(self: JacProgram) -> None {
 }
 
 impl JacProgram.release_compile_closure(
-    self: JacProgram, keep_stubs: bool = False
+    self: JacProgram, collect: bool = True
 ) -> None {
     import os;
     if os.environ.get("JAC_NO_UNIT_EVICT") {
@@ -232,12 +310,19 @@ impl JacProgram.release_compile_closure(
     }
 
     self.release_native_dep_units();
-    self.hub.reset(keep_stubs=keep_stubs);
+    self.hub.reset();
     self.mod = self.hub.mod;
     self.deps.clear();
     self.type_evaluator = None;
     self.diags.clear();
-    self.scratch = BuildScratch();
+    self.scratch.clear();
+    if self._iface is not None {
+        self._iface.on_closure_release();
+    }
+    if collect {
+        import gc;
+        gc.collect();
+    }
 }
 
 impl JacProgram._search_hubs(self: JacProgram) -> list[dict[(str, uni.Module)]] {
@@ -298,9 +383,7 @@ impl JacProgram.parse_str(
     if self.deps.tracking {
         try {
             self.deps.record_module(mod);
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
     return mod;
 }
@@ -325,9 +408,7 @@ impl JacProgram.compile(
     if self.deps.tracking {
         try {
             self.deps.record_module(mod);
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
     return mod;
 }

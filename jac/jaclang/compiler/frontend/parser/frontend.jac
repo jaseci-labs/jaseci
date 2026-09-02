@@ -8,43 +8,6 @@ import type from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.frontend.srcloc { Span }
 import from jaclang.compiler.frontend.unitree { CommentToken, Module, Source }
 
-glob _NATIVE_PARSE_MEMO: list = [];
-
-def _native_parse -> any {
-    import from jaclang.compiler.driver.native_brands { ensure_native_brands_bound }
-    return ensure_native_brands_bound("frontend:_native_parse");
-}
-
-def _bind_native_parser_once -> any {
-    if _NATIVE_PARSE_MEMO {
-        return _NATIVE_PARSE_MEMO[0];
-    }
-    import from jaclang.jac0core.sealed { native_artifact_for }
-    found = native_artifact_for("jaclang.compiler.native_materialize");
-    if found is None {
-        _NATIVE_PARSE_MEMO.append(None);
-        return None;
-    }
-    import from jaclang.compiler.frontend.parser.materialize { bind_native_parser }
-    lib_path: str = found[0];
-    layout_dict: dict[str, any] = found[1];
-    np = bind_native_parser(lib_path, layout_dict);
-    _NATIVE_PARSE_MEMO.append(np);
-    return np;
-}
-
-def _require_bootstrap_tier(op: str) {
-    import from jaclang.jac0core.sealed { native_tier_required }
-    if native_tier_required() {
-        raise RuntimeError(
-            f"{op}: this sealed image declares native parser roots, but the "
-            "bytecode parser was reached. The install is broken; reinstall "
-            "or rebuild the payload."
-        );
-    }
-}
-
-
 def _replay_diags(diags: any, from_pass: type, prog: JacProgram, diag_src: Source) {
     for d in diags {
         loc = d.loc;
@@ -56,7 +19,7 @@ def _replay_diags(diags: any, from_pass: type, prog: JacProgram, diag_src: Sourc
             (loc.pos_start, loc.pos_end)
         );
         code = DIAGNOSTICS.get(d.code_str) if d.code_str else None;
-        help_text = getattr(d, "help", "");
+        help_text = getattr(d, "help", "") or None;
         alrt = Alert(d.message, span, from_pass, code=code, help_text=help_text);
         if d.is_error {
             prog.errors_had.append(alrt);
@@ -67,12 +30,6 @@ def _replay_diags(diags: any, from_pass: type, prog: JacProgram, diag_src: Sourc
 }
 
 def parse_diags(source: str, file_path: str = "<input>") -> tuple[(bool, list, list)] {
-    _np = _native_parse();
-    if _np is not None {
-        (p_errs, lex_errs, p_diags, lex_diags) = _np.parse_diags(source, file_path);
-        return (p_errs > 0 or lex_errs > 0, list(p_diags), list(lex_diags));
-    }
-    _require_bootstrap_tier("parse_diags");
     (tokens, _comments, lex_diags, lex_errs) = na_lexer.tokenize_full(
         source, file_path
     );
@@ -85,23 +42,11 @@ def parse_diags(source: str, file_path: str = "<input>") -> tuple[(bool, list, l
 def parse(
     source: str, file_path: str = "<input>", prog: (JacProgram | None) = None
 ) -> tuple[Module, bool] {
-    _np = _native_parse();
-    if _np is not None {
-        (module, p_errs, p_diags, comments, lex_diags, lex_errs) = _np.parse(
-            source, file_path
-        );
-    } else {
-        _require_bootstrap_tier("parse");
-        (tokens, comments, lex_diags, lex_errs) = na_lexer.tokenize_full(
-            source, file_path
-        );
-        parser = Parser(tokens=tokens, file_path=file_path, source_code=source);
-        module = parser.parse();
-        p_errs = parser.error_count;
-        p_diags = parser.diags;
-    }
+    (tokens, comments, lex_diags, lex_errs) = na_lexer.tokenize_full(source, file_path);
+    parser = Parser(tokens=tokens, file_path=file_path, source_code=source);
+    module = parser.parse();
     had_error = _finish_parse(
-        module, p_errs, p_diags, comments, lex_diags, lex_errs, prog
+        module, parser.error_count, parser.diags, comments, lex_diags, lex_errs, prog
     );
     return (module, had_error);
 }
@@ -163,59 +108,6 @@ def _finish_parse(
     return p_errs > 0 or lex_errs > 0;
 }
 
-def _replay_prefix_rows(rows: any, claimed: tuple, prog: JacProgram, diag_src: Source) {
-    import from jaclang.compiler.driver.pass_driver { deliver_alerts }
-    import from jaclang.compiler.driver.schedules {
-        get_ir_gen_sched,
-        get_symtab_ir_sched
-    }
-
-    pool: dict[str, any] = {};
-    for sched in [
-        get_ir_gen_sched(gen_mtir=True),
-        get_ir_gen_sched(gen_mtir=False),
-        get_symtab_ir_sched()
-    ] {
-        for p in sched {
-            pool[p.__name__] = p;
-        }
-    }
-    errs: list = [];
-    warns: list = [];
-    for rr in rows {
-        sev = int(rr[0]);
-        code_str = str(rr[1]);
-        pass_idx = int(rr[8]);
-        span = Span.make(
-            diag_src.file_path,
-            diag_src.code,
-            (int(rr[4]), int(rr[4])),
-            (int(rr[5]), int(rr[5])),
-            (int(rr[6]), int(rr[7]))
-        );
-        from_pass: any = None;
-        if pass_idx >= 0 and pass_idx < len(claimed) {
-            from_pass = pool.get(str(claimed[pass_idx]));
-        }
-        if from_pass is None {
-            from_pass = Parser;
-        }
-        alrt = Alert(
-            str(rr[2]),
-            span,
-            from_pass,
-            code=DIAGNOSTICS.get(code_str) if code_str else None,
-            help_text=str(rr[3])
-        );
-        if sev {
-            errs.append(alrt);
-        } else {
-            warns.append(alrt);
-        }
-    }
-    deliver_alerts(errs, warns, prog);
-}
-
 def parse_woven(
     source_str: str, file_path: str, prog: (JacProgram | None), annexes: list
 ) -> tuple {
@@ -231,79 +123,38 @@ def parse_woven(
     return (module, had_error);
 }
 
-def parse_and_run_prefix(
-    source_str: str,
-    file_path: str,
-    prog: (JacProgram | None),
-    claimed: tuple,
-    facts: any,
-    annexes: list = []
-) -> tuple {
-    _np = _native_parse();
-    if _np is None or not _np.serves_prefix() {
-        raise RuntimeError(
-            "parse_and_run_prefix was entered without a prefix-serving "
-            "artifact; the flip predicate gates on the bound parser and "
-            "must have declined before reaching this entry"
-        );
+def annex_sources(file_path: str) -> list[tuple[str, str]] {
+    if not file_path.endswith(".jac") {
+        return [];
     }
-    import from jaclang.compiler.placement.prefix_flip { PREFIX_IR_GEN_NO_CGEN }
-    claimed_t = tuple(claimed or ());
-    _pin_n = len(PREFIX_IR_GEN_NO_CGEN);
-    claimed_n = len(claimed_t) if len(claimed_t) < _pin_n else _pin_n;
-    if list(claimed_t[:claimed_n]) != list(PREFIX_IR_GEN_NO_CGEN[:claimed_n]) {
-        (module, had_error) = parse_woven(source_str, file_path, prog, annexes);
-        return (
-            module,
-            had_error,
-            (),
-            "option-shape-unsupported",
-            "the claimed schedule does not lead with the sealed prefix order",
-
-        );
+    try {
+        import from jaclang.compiler.driver.bccache {
+            discover_annex_files,
+            discover_base_file
+        }
+        import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
+        if discover_base_file(file_path) is not None {
+            return [];
+        }
+        paths = [
+            *discover_annex_files(file_path, ".impl.jac"),
+            *discover_annex_files(file_path, ".test.jac")
+        ];
+    } except Exception {
+        return [];
     }
-    if _np.serves_annex() {
-        _np.annex_reset();
-        for (a_src, a_path) in annexes {
-            (a_errs, a_pd, a_ld, a_lex) = _np.annex_push(a_src, a_path);
-            if prog is not None and (a_pd or a_ld) {
-                a_src_obj = Source(a_src, mod_path=a_path);
-                if a_ld {
-                    _replay_diags(a_ld, Lexer, prog, a_src_obj);
-                }
-                if a_pd {
-                    _replay_diags(a_pd, Parser, prog, a_src_obj);
-                }
-            }
+    out: list[tuple[str, str]] = [];
+    seen: set[str] = set();
+    for pth in paths {
+        if pth in seen {
+            continue;
+        }
+        seen.add(pth);
+        try {
+            out.append((read_file_with_encoding(pth), pth, ));
+        } except Exception {
+            continue;
         }
     }
-    proj_root = facts?.jac_project_root;
-    r = _np.parse_and_run_prefix(
-        source_str,
-        file_path,
-        claimed_n,
-        str(proj_root) if proj_root is not None else "",
-        1 if proj_root is not None else 0,
-        1 if facts?.access_enforced else 0
-    );
-    (module, p_errs, p_diags, comments, lex_diags, lex_errs) = (
-        r[0],
-        r[1],
-        r[2],
-        r[3],
-        r[4],
-        r[5],
-
-    );
-    (executed_n, clause, detail, rows) = (int(r[6]), str(r[7]), str(r[8]), r[9], );
-    had_error = _finish_parse(
-        module, p_errs, p_diags, comments, lex_diags, lex_errs, prog
-    );
-    if had_error {
-        return (module, had_error, (), "prefix-declined", "the source did not parse");
-    }
-    if prog is not None and rows {
-        _replay_prefix_rows(rows, claimed_t, prog, module.source);
-    }
-    return (module, had_error, tuple(claimed_t[:executed_n]), clause, detail);
+    return out;
 }

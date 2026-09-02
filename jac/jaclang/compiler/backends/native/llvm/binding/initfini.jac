@@ -39,6 +39,16 @@ def initialize_all_asmprinters -> object {
 }
 
 """
+    Initialize all assembly parsers. Necessary before emitting an object
+    from a module that carries `module asm`, for any target other than the
+    host -- the streamer hands inline assembly to the target's parser, and
+    LLVM aborts the process when none is registered.
+    """
+def initialize_all_asmparsers -> object {
+    ffi.lib.LLVMPY_InitializeAllAsmParsers();
+}
+
+"""
     Initialize the native (host) target.  Necessary before doing any
     code generation.
     """

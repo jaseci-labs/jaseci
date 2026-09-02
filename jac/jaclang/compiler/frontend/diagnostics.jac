@@ -147,13 +147,14 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      E0013 = _err(
          "E0013",
          Category.SYNTAX,
-         "'{keyword}' is a keyword and cannot be used as a {context} name (prefix with backtick to escape: `{keyword})"
+         "'{keyword}' is a keyword and cannot be used as a {context} name",
+         help="The backtick escape is a prefix, not a pair. Put one backtick immediately before the keyword, with nothing after the name."
      ),
      E0014 = _err(
          "E0014",
          Category.SYNTAX,
          "'{name}' is not a keyword -- remove the backtick",
-         help="The backtick escape exists only to use a reserved keyword as an identifier. On a name that is not a keyword it is a stray mark, so write '{name}' directly."
+         help="The backtick escape exists only to use a reserved keyword as an identifier. On a name that is not a keyword it is a stray mark, so write the name directly."
      ),
      E0020 = _err(
          "E0020",
@@ -212,6 +213,13 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E0032",
          Category.SYNTAX,
          "Unexpected '{token}' -- must follow its parent statement (if/try/match/switch)"
+     ),
+     E0033 = _err(
+         "E0033",
+         Category.SEMANTIC,
+         "{what} is not known at compile time{reason}",
+         help="A comptime site needs a value the compiler can compute: a literal, a comptime binding, a comptime parameter, an enum member, a type, or a call to an evaluable function whose arguments are all comptime-known. Plain 'glob' bindings and runtime values do not qualify.",
+         blocks_codegen=True
      ),
      E0034 = _err(
          "E0034",
@@ -320,6 +328,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          help="Component body statements run on every render, and state writes are immediately visible, so this assignment would re-render forever. Move it into a `can` ability, an event handler, or a method.",
          blocks_codegen=True
      ),
+     E0083 = _err(
+         "E0083",
+         Category.SYNTAX,
+         "Cannot delete {what}",
+         help="`del` takes either a location to unbind -- a name, an attribute, or a subscript -- or an expression yielding graph objects to destroy. This target is neither."
+     ),
      W0060 = _warn(
          "W0060",
          Category.SYNTAX,
@@ -340,6 +354,19 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      E0106 = _err("E0106", Category.SYNTAX, "Unexpected character in JSX tag: '{ch}'"),
      E0107 = _err(
          "E0107", Category.SYNTAX, "Lexer stuck at EOF in mode {mode} (pos={pos})"
+     ),
+     E0108 = _err(
+         "E0108",
+         Category.SEMANTIC,
+         "Compile-time evaluation failed: {reason}",
+         help="Comptime code runs inside the compiler on a pure subset of Jac: no I/O, no foreign calls, no walkers, no module-level side effects, and a bounded amount of work ([build] comptime_fuel in jac.toml raises the budget).",
+         blocks_codegen=True
+     ),
+     E0109 = _err(
+         "E0109",
+         Category.SEMANTIC,
+         "Compile-time assertion failed{message}",
+         blocks_codegen=True
      ),
      E0110 = _err(
          "E0110",
@@ -789,6 +816,44 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          help="The literal is past what the target float can represent, so it"
          " would arrive as `inf`. Use a wider float type, or write the value the"
          " type can actually hold."
+     ),
+     E1131 = _err(
+         "E1131",
+         Category.TYPE,
+         "'{name}' is a type-only export of '{module}'{scope} and must be"
+         " imported with `import type`",
+         help="{why} With no runtime binding to import, a plain `import from`"
+         " emits a named specifier the loader cannot satisfy -- in the browser"
+         " that is an ESM link error that takes the whole module graph down."
+         " Move '{name}' to its own `import type from {module} {{ {name} }}`"
+         " statement, which the client backend erases and the server backend"
+         " lowers to a `typing.TYPE_CHECKING` guard; the value imports from"
+         " '{module}' stay where they are.",
+         blocks_codegen=True
+     ),
+     E1132 = _err(
+         "E1132",
+         Category.TYPE,
+         "'{name}' was imported with `import type` and cannot be used as a value",
+         help="An `import type` binding exists only for the checker: no"
+         " runtime import is emitted for it, so calling it, reading an"
+         " attribute off it, passing it to `isinstance`/`issubclass`,"
+         " decorating with it, inheriting from it, or assigning it all reach"
+         " a name nothing binds. Annotations, `as` casts, `has` field types,"
+         " generic arguments and `type` alias right-hand sides are type"
+         " position and stay legal. If '{name}' is genuinely needed as a"
+         " value, import it with a plain `import from` instead -- which"
+         " requires that it actually has a runtime export.",
+         blocks_codegen=True
+     ),
+     E1133 = _err(
+         "E1133",
+         Category.TYPE,
+         "`del` target of type '{type}' can never yield a graph object",
+         help="A `del` target that is not a name, an attribute or a subscript is a"
+         " destroy request, so it must yield nodes, edges or archetypes. Assign"
+         " `None` to the location that holds this value if you meant to drop a"
+         " reference."
      ),
      E1301 = _err(
          "E1301",
@@ -1340,10 +1405,8 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.LINT,
          "Implementation signature does not match declaration [fix-impl-signature]"
      ),
-     W3011 = _warn(
-         "W3011",
-         Category.LINT,
-         "Unnecessary semicolon after import [remove-import-semi]"
+     W3013 = _warn(
+         "W3013", Category.LINT, "Unnecessary semicolon [remove-redundant-semi]"
      ),
      E3012 = _err(
          "E3012", Category.LINT, "Calling print() is disallowed by rule [no-print]"
@@ -1467,7 +1530,8 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "simplify-ternary": "W3008",
          "remove-future-annotations": "W3009",
          "fix-impl-signature": "W3010",
-         "remove-import-semi": "W3011",
+         "remove-import-semi": "W3013",
+         "remove-redundant-semi": "W3013",
          "no-print": "E3012",
          "unnecessary-pass": "W3020",
          "unnecessary-else-after-return": "W3021",
@@ -1802,6 +1866,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          help="After emission the client module is audited for free identifiers: every name it references has to resolve to a declaration in the module, an import, a parameter, or the ambient surface a browser provides. '{name}' resolves to none of these, and the compiler did resolve it in the Jac source, so the module would load and then throw a ReferenceError on first use -- with `jac check` green and the build exiting 0, which is how this shipped twice before the audit existed. If '{name}' is yours, give it client presence: declare it, import it, or make it a `def:pub` endpoint so it bridges over RPC. If it is a browser or host global the compiler does not know about, reach it through `globalThis` so the intent is explicit. If neither is true, a lowering dropped a binding it was supposed to emit; please report it with the source line.",
          blocks_codegen=True
      ),
+     E5102 = _err(
+         "E5102",
+         Category.CODEGEN,
+         "OSP type-tag collision: archetypes '{name}' and '{other}' share one dispatch tag",
+         help="Object-spatial dispatch keys every archetype by a stable hash of its bare name, shared across backends. Two archetypes with the same bare name (or, astronomically rarely, colliding hashes) would dispatch each other's abilities; the server runtime also refuses the second registration at first use. Rename one of the archetypes."
+     ),
      E5089 = _err(
          "E5089",
          Category.CODEGEN,
@@ -1868,4 +1938,40 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.ICE,
          "ICE: missing semantic annotation -- {details}",
          help="Codegen required a fact the central analysis pipeline never recorded on the unitree. This is a compiler bug, not an error in your program."
+     ),
+     E7001 = _err(
+         "E7001",
+         Category.RUNTIME,
+         "The module '{module}' has no export named '{name}'",
+         help="The browser refused to link the module: it loaded '{module}' and found no runtime binding called '{name}'. The usual cause is a type-only export -- a TypeScript interface or type alias that lives in the package's .d.ts and is erased before the module runs -- so a value import of it always fails at link time. Import it with 'import type' if that is the case; otherwise check the package's exports for the name's real spelling, since a value import can only bind a name the package actually exports at runtime."
+     ),
+     E7002 = _err(
+         "E7002",
+         Category.RUNTIME,
+         "Failed to resolve import '{name}' from '{importer}'",
+         help="The dev server resolves every import in the compiled module graph before the browser runs it, and this one resolved to nothing. The location above is the Jac import the compiled module was lowered from, so check the path it names. When '{name}' is a bare npm package rather than a path, this diagnostic instead carries W1106's guidance and points at the jac.toml table that has to declare it."
+     ),
+     E7003 = _err(
+         "E7003",
+         Category.RUNTIME,
+         "Uncaught {kind} in client code: {message}",
+         help="The stack was resolved through the client source maps to the Jac line above. The raw JavaScript stack is kept on the diagnostic for frames that do not belong to your Jac sources."
+     ),
+     E7004 = _err(
+         "E7004",
+         Category.RUNTIME,
+         "Vite dev-server error: {message}",
+         help="The dev server rejected a module before the browser ever ran it. The location above is the Jac source of the compiled module Vite named."
+     ),
+     E7005 = _err(
+         "E7005",
+         Category.CODEGEN,
+         "Client build failed: {message}",
+         help="The client build could not produce a loadable module for this file. The compiler's own diagnostics are reported in place of this one whenever it emitted any; this code carries the failures that reach the dev loop as a bare exception."
+     ),
+     E7006 = _err(
+         "E7006",
+         Category.RUNTIME,
+         "Client error could not be traced to Jac source: {message}",
+         help="The dev loop kept the raw location it was given, but nothing under .jac/client/compiled claims it -- a browser extension, a dependency with no source map, or an artifact from a build that has since been replaced. Reload after a clean build if the location should be yours."
      );

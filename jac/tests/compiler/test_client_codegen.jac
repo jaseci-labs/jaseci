@@ -344,9 +344,7 @@ def slow_op() -> int {
     prog = JacProgram();
     try {
         compile_inline(code, prog=prog, client=True);
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     msgs = " ".join([str(e) for e in prog.errors_had]);
     assert "Client pathway does not yet support flow/wait concurrency" in msgs , f"client-placed flow/wait must be diagnosed, got: {msgs[0:600]}";
 }

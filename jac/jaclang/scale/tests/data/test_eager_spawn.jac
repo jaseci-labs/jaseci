@@ -370,9 +370,7 @@ test "peer url: a blank env value is never registered" {
 
         try {
             __jac_sv._ensure_available(_PROBE);
-        } except Exception {
-            ;
-        }
+        } except Exception {}
 
         assert _PROBE not in __jac_sv._registry , (
             "a blank override was cached as a registration"

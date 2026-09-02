@@ -33,7 +33,6 @@ test "register.jac registers built-in targets without a plugin group" {
     assert "registry.register(MobileTarget())" in content;
     assert "registry.register(NativeDesktopTarget())" in content;
     assert "registry.register(ReactNativeTarget())" in content;
-    assert "def sync_client_target_choices" in content;
     # The removed secondary plugin-group indirection must not have returned.
     assert "JacClientRuntime" not in content;
     assert "load_client_plugins" not in content;
@@ -41,15 +40,14 @@ test "register.jac registers built-in targets without a plugin group" {
     assert "with entry" not in content;
 }
 
-test "targets register lazily before sync reads them" {
+test "targets register lazily on first registry access" {
     # Registration was folded into first registry access (lazy init): the CLI
-    # no longer calls register_targets() eagerly. get_target_registry() self-
-    # registers on first access, so any reader -- including the CLI's import-
-    # time sync_client_target_choices() -- sees the built-in targets.
+    # no longer calls register_targets() eagerly, and the `build --client`
+    # choices are a compile-time literal in the command spec, so nothing at
+    # import time needs to read the registry either.
     cli_content = _cli_jac.read_text().replace("\r\n", "\n");
-    # The CLI still triggers the import-time sync that wires target choices.
-    assert "sync_client_target_choices();" in cli_content;
-    assert "with entry {" in cli_content;
+    assert "sync_client_target_choices" not in cli_content;
+    assert "with entry {" not in cli_content;
     # The eager register_targets() call must not have returned to cli.jac.
     assert "register_targets();" not in cli_content;
 

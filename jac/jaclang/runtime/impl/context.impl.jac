@@ -6,7 +6,7 @@ import from uuid { UUID }
 import from jaclang.runtime.archetype { NodeAnchor, Root }
 import from jaclang.compiler.frontend.constant { Constants as Con }
 import from jaclang.runtime.exceptions { MissingAnchorError }
-import from jaclang.server.session { Session }
+import from jaclang.runtime.memory { Memory }
 
 impl ExecutionContext.postinit -> None {
     import from jaclang.runtime.runtime { JacRuntime }
@@ -24,6 +24,11 @@ impl ExecutionContext.postinit -> None {
         self.full_target_path = JacRuntime.get_full_target_path();
     }
 
+    if self.base_path_dir is None {
+        self.mem = Memory();
+        return;
+    }
+    import from jaclang.server.session { Session }
     self.mem = Session(base_path=self.base_path_dir, target_path=self.full_target_path);
 }
 
@@ -126,7 +131,7 @@ impl ExecutionContext.run_pending_effects -> None {
 
 impl ExecutionContext.note_traversal_reads(origins: list[NodeAnchor]) -> None {
     for anchor in origins {
-        if isinstance(anchor, NodeAnchor) {
+        if isinstance(anchor, NodeAnchor) and anchor.id is not None {
             self.read_versions.setdefault(anchor.id, anchor.version);
         }
     }
