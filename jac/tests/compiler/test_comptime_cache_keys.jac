@@ -156,3 +156,26 @@ test "a fold still resolves when the producer is served from its cache" {
         f"the fold broke once the producer came back from cache: {again}"
     );
 }
+
+test "an embedded file is re-read when its content changes" {
+    tmp = tempfile.mkdtemp();
+    data = os.path.join(tmp, "payload.txt");
+    _write(data, "alpha payload", backdate=True);
+    src = os.path.realpath(os.path.join(tmp, "embedder.jac"));
+    _write(
+        src,
+        "import from jaclang.comptime { embed_file }\n\n"
+        "comptime BLOB: str = embed_file(\"payload.txt\");\n\n"
+        "with entry {\n"
+        "    print(BLOB);\n"
+        "}\n",
+        backdate=True
+    );
+    cold = _folded(src);
+    assert "alpha payload" in cold , f"cold compile did not embed: {cold}";
+    _write(data, "beta payload");
+    warm = _folded(src);
+    assert "beta payload" in warm , (
+        f"the embedder served the stale file content: {warm}"
+    );
+}
