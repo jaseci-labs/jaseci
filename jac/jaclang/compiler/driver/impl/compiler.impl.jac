@@ -1113,9 +1113,20 @@ impl JacCompiler.compile(
     use_str: (str | None) = None,
     options: CompileOptions = CompileOptions()
 ) -> uni.Module {
-    if options.aot_mode and options.default_codespace == 'native' {
-        import from jaclang.compiler.native_scope { activate_scope_lowering }
+    import from jaclang.compiler.native_scope {
+        activate_scope_lowering,
+        deactivate_scope_lowering,
+        scope_lowering_active
+    }
+    _scope_armed = False;
+    if (
+        options.aot_mode
+        and options.default_codespace == 'native'
+        and self._reentrant_depth == 0
+        and not scope_lowering_active()
+    ) {
         activate_scope_lowering();
+        _scope_armed = True;
     }
     if self._reentrant_depth == 0 and not self.stub_catalog_disabled {
         import from jaclang.compiler.driver.jir { is_compiler_tree_path }
@@ -1264,6 +1275,9 @@ impl JacCompiler.compile(
             options=options
         );
     } finally {
+        if _scope_armed {
+            deactivate_scope_lowering();
+        }
         native_ir_cache_set_suspended(_na_cache_prev);
         set_effective_default_codespace(_prev_cs);
         self._reentrant_depth = _depth_prev;

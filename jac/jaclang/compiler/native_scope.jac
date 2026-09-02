@@ -50,6 +50,21 @@ def scope_lowering_active -> bool {
     return len(_SCOPE_ACTIVE) > 0;
 }
 
+def deactivate_scope_lowering {
+    """Turn scope lowering back off once the build that armed it is done.
+
+    Scope lowering is a property of one ahead-of-time native build (the
+    kernel's), not of the process. While it is on, the selfhost resolver
+    hands NATIVE_SCOPE modules to the target program instead of the
+    compiler's own, so in a sealed image, where those are two different
+    trees, a compile that outlives the build sees the frontend twice:
+    `Source` from the checkout and `Source` from the shipped compiler, and
+    the checker reports "Cannot assign Source to parameter of type Source".
+    The outermost compile that armed it disarms it on exit.
+    """;
+    _SCOPE_ACTIVE.clear();
+}
+
 def native_scope_path_suffixes -> list[str] {
     if not _SCOPE_SUFFIX_CACHE {
         for e in NATIVE_SCOPE {
