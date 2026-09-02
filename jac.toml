@@ -61,6 +61,15 @@ serial = [
     "jac/jaclang/scale/tests/test_firebase_auth_sso.jac",
     "jac/jaclang/scale/tests/test_identity_password.jac",
     "jac/jaclang/scale/tests/test_firebase_env.jac",
+    # Each of these compiles a large slice of the compiler through the native
+    # kernel, and until the kernel drops a parse when it is done with it
+    # (#8824) that grows the worker by 3-9 GB in a single file, more than a
+    # 4-vcpu runner has to spare once three other workers hold their share.
+    # The pool cannot see growth until the item reports, so these get the
+    # machine to themselves after the parallel phase.
+    "jac/tests/compiler/tools/test_grammar_extract_pass.jac",
+    "jac/tests/compiler/backends/native/test_aot_lane_guardrail.jac",
+    "jac/tests/compiler/backends/native/test_move_elision.jac",
 ]
 
 [check.lint]
