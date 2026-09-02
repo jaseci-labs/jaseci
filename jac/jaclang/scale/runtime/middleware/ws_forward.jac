@@ -46,6 +46,11 @@ def _select_handshake_headers(
             out[k] = v;
         }
     }
+    offered: str = client_headers.get("sec-websocket-protocol", "")
+        or client_headers.get("Sec-WebSocket-Protocol", "");
+    if offered {
+        out["Sec-WebSocket-Protocol"] = offered;
+    }
     out["X-Forwarded-For"] = ", ".join(xff + [peer]);
     return out;
 }

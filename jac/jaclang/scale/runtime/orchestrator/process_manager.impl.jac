@@ -88,6 +88,21 @@ def _report_exit(name: str, exit_code: int, context: str) {
     logger.error(f"{name} exited with code {exit_code} {context}{suffix}");
 }
 
+def _signal_group(pid: int, sig: int) -> None {
+    import os;
+    if pid <= 0 {
+        return;
+    }
+    try {
+        os.killpg(os.getpgid(pid), sig);
+        return;
+    } except (ProcessLookupError, PermissionError, OSError) {}
+    try {
+        os.kill(pid, sig);
+    } except (ProcessLookupError, OSError) {}
+}
+
+
 def _pid_alive(pid: int) -> bool {
     import os;
     if pid <= 0 {
@@ -186,7 +201,12 @@ impl ServiceProcessManager.start_service(name: str) -> bool {
         log_fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND);
 
         proc = subprocess.Popen(
-            cmd, stdout=log_fd, stderr=log_fd, stdin=subprocess.DEVNULL, env=child_env
+            cmd,
+            stdout=log_fd,
+            stderr=log_fd,
+            stdin=subprocess.DEVNULL,
+            env=child_env,
+            start_new_session=True
         );
         os.close(log_fd);
         self.processes[name] = proc;
@@ -234,11 +254,12 @@ impl ServiceProcessManager.stop_service(name: str) -> bool {
 
     if proc {
         logger.info(f"Stopping {name} (pid={proc.pid})...");
-        proc.terminate();
+        _signal_group(proc.pid, int(signal.SIGTERM));
         try {
             proc.`wait(timeout=10);
         } except subprocess.TimeoutExpired {
             logger.warning(f"{name} did not exit gracefully, force killing");
+            _signal_group(proc.pid, int(signal.SIGKILL));
             proc.kill();
             proc.`wait();
         }
@@ -261,18 +282,14 @@ impl ServiceProcessManager.stop_service(name: str) -> bool {
             return True;
         }
         logger.info(f"Stopping {name} (pid={pid}) via pidfile...");
-        try {
-            os.kill(pid, int(signal.SIGTERM));
-        } except ProcessLookupError {}
+        _signal_group(pid, int(signal.SIGTERM));
         deadline = time.time() + 10.0;
         while time.time() < deadline and _pid_alive(pid) {
             time.sleep(0.2);
         }
         if _pid_alive(pid) {
             logger.warning(f"{name} did not exit gracefully, force killing");
-            try {
-                os.kill(pid, int(signal.SIGKILL));
-            } except ProcessLookupError {}
+            _signal_group(pid, int(signal.SIGKILL));
         }
     }
 
