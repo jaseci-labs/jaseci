@@ -293,6 +293,15 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
   // helpers, so each operation has a single implementation and no Python
   // method name can leak verbatim into the emitted JavaScript.
   poly: {
+    // A Python dict literal lowers to a plain JS object, so "carries no class
+    // of its own" is what separates a dict from an archetype instance or a
+    // host object.  One definition, used by both `call`'s dispatch and
+    // `_typename`, so the two can never disagree about what a dict is.
+    _isPlainObject(o) {
+      if (o === null || o === undefined || typeof o !== "object") return false;
+      const proto = Object.getPrototypeOf(o);
+      return proto === Object.prototype || proto === null;
+    },
     _typename(o) {
       if (o === null || o === undefined) return "NoneType";
       if (Array.isArray(o)) return "list";
@@ -304,6 +313,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       if (t === "boolean") return "bool";
       if (t === "number") return Number.isInteger(o) ? "int" : "float";
       if (t === "bigint") return "int";
+      if (_jac.poly._isPlainObject(o)) return "dict";
       if (t === "object") return (o.constructor && o.constructor.name) || "object";
       return t;
     },
@@ -448,11 +458,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
         if (_jac.poly._map[m]) return _jac.poly._map[m](o, ...args);
       } else if (o instanceof Uint8Array) {
         if (_jac.bytes[m]) return _jac.bytes[m](o, ...args);
-      } else if (
-        o !== null && o !== undefined && typeof o === "object"
-        && (Object.getPrototypeOf(o) === Object.prototype
-            || Object.getPrototypeOf(o) === null)
-      ) {
+      } else if (_jac.poly._isPlainObject(o)) {
         // A plain object is a Python dict literal.
         if (_jac.poly._dict[m]) return _jac.poly._dict[m](o, ...args);
       }
@@ -1173,7 +1179,10 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
   // roles, so it lowers to a single object here too: a callable whose body is
   // generated from the same emitters the direct-call path uses (so
   // `f = int; f(x)` can never drift from `int(x)`), carrying the
-  // `__jac_type__` tag that isinstance/issubclass compare against.
+  // `__jac_type__` tag that isinstance/issubclass compare against.  Being one
+  // object per type is also what makes `type(x) is str` work: `type()` returns
+  // the entry from this table, so the identity comparison has the same object
+  // on both sides.
   types: __JAC_TYPES_RUNTIME__,
 
   builtin: {
@@ -1252,6 +1261,23 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       if (sub === sup) return true;
       if (sup === "int" && sub === "bool") return true;
       return false;
+    },
+    // Python's `type(x)` -- the value's *type object*, not a name for it.  A
+    // builtin resolves to the very same `_jac.types.<tag>` singleton that a
+    // bare type name lowers to, so `type(x) is str` is an ordinary identity
+    // comparison and needs no special lowering; a user archetype resolves to
+    // its constructor, which is what `type(a) is MyClass` compares against.
+    // `object` is the universal fallback the subclass relation already treats
+    // as everything's base, which keeps this total for exotic values.
+    type(o) {
+      // Own-property lookup: the tag can be an archetype's own name, and an
+      // inherited key ("constructor") would otherwise resolve to a JS builtin.
+      const tag = _jac.poly._typename(o);
+      if (Object.prototype.hasOwnProperty.call(_jac.types, tag)) {
+        return _jac.types[tag];
+      }
+      if (o !== null && o !== undefined && o.constructor) return o.constructor;
+      return _jac.types.object;
     },
     isinstance(o, classinfo) {
       // isinstance(x, (A, B, ...)) -- the tuple of types lowers to a JS array;
@@ -1614,6 +1640,8 @@ def _build_types_runtime_js -> str {
         }
         entries.append("    " + name + ': _t("' + name + '", (...a) => ' + body + ")");
     }
+    entries.append('    object: _t("object", (...a) => ({}))');
+    entries.append('    NoneType: _t("NoneType", (...a) => null)');
     import from jaclang.runtime.scalars { numeric_shapes }
     sized_lines: list[str] = [];
     for shape in numeric_shapes() {
@@ -1644,6 +1672,7 @@ def _build_types_runtime_js -> str {
             "(() => {",
             "    const _t = (tag, fn) => Object.assign(fn, {",
             "      __jac_type__: tag,",
+            "      __name__: tag,",
             "      toString: () => \"<class '\" + tag + \"'>\"",
             "    });",
             "    const T = {",
