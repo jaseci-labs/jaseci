@@ -47,7 +47,7 @@ impl Route(props: dict[str, any]) -> JsxElement {
     }
     if props["component"] != undefined {
         routeProps["component"] = props["component"];
-    } elif props["element"] != undefined {
+    } elif "element" in props {
         routeProps["component"] = lambda (matched: any) -> any { return (
             <__JacOutletContext.Provider value={matched}>
                 {props["element"]}
@@ -115,7 +115,7 @@ impl useRouter -> dict {
     };
 }
 
-impl AuthGuard(redirect: str = "/login", children: any = None) -> JsxElement {
+impl AuthGuard(redirect: str = "/login", children: any = None) -> JsxElement | None {
     if not jacIsLoggedIn() {
         return Navigate({"to": redirect, "replace": True});
     }
