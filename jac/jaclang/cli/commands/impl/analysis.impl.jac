@@ -48,7 +48,7 @@ def _diag_wire(alert: any) -> dict[(str, any)] {
 
 def _check_rss_cap_mb -> int {
     import from jaclang.cli.workpool { env_int }
-    return env_int("JAC_CHECK_RECYCLE_MB", 4096);
+    return env_int("JAC_CHECK_RECYCLE_MB", 3072);
 }
 
 def _check_retire(served: int, rss_mb: int) -> bool {
