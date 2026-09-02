@@ -49,7 +49,7 @@ def _compile_and_run(rc_debug_codegen: bool) -> tuple[str, str] {
             [sys.executable, "-m", "jaclang", "nacompile", src, "-o", out_bin],
             capture_output=True,
             text=True,
-            timeout=900,
+            timeout=300,
             env=env,
         );
         assert comp.returncode == 0 , (

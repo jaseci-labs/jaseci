@@ -273,20 +273,15 @@ test "the /cl/__error__ endpoint logs a rendered diagnostic with a Jac location"
                 }
             )
         );
+        buf = io.StringIO();
+        sink = logging.StreamHandler(buf);
+        logger = logging.getLogger("jaclang.client_errors");
+        logger.addHandler(sink);
         _error_rate_limiter._seen = {};
         _error_rate_limiter._count = 0;
         client = JacTestClient.from_file(
             str((Path(FIXTURES) / "serve_api.jac").resolve()), base_path=str(proj)
         );
-        # Attach the sink after serve boot, and revive the logger: a boot-time
-        # logging config from an earlier test in this worker can disable or
-        # cap it, which silently drops the diagnostic this test asserts on.
-        buf = io.StringIO();
-        sink = logging.StreamHandler(buf);
-        logger = logging.getLogger("jaclang.client_errors");
-        logger.disabled = False;
-        logger.setLevel(logging.NOTSET);
-        logger.addHandler(sink);
         try {
             resp = client.post(
                 "/cl/__error__",
@@ -307,18 +302,8 @@ test "the /cl/__error__ endpoint logs a rendered diagnostic with a Jac location"
                 f"limiter seen={_error_rate_limiter._seen} "
                 f"count={_error_rate_limiter._count}"
             );
-            # The endpoint logs the rendered diagnostic from its handler
-            # thread; the response can land first, so wait for the marker.
-            import time;
-            logged = "";
-            for _ in range(100) {
-                sink.flush();
-                logged = buf.getvalue();
-                if "error[E7003]" in logged {
-                    break;
-                }
-                time.sleep(0.1);
-            }
+            sink.flush();
+            logged = buf.getvalue();
             assert "error[E7003]" in logged , (
                 f"diagnostic never reached the sink; response={body}; "
                 f"logger disabled={logger.disabled} level={logger.level} "
