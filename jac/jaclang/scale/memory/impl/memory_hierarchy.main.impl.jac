@@ -70,10 +70,6 @@ impl ScaleTieredMemory.postinit -> None {
     } else {
         import os;
         if os.environ.get('KUBERNETES_SERVICE_HOST', '').strip() {
-            # In a cluster the sqlite file lives on the pod filesystem: one
-            # store per replica, gone on the next restart. Running without
-            # persistence is what no database means; a store that pretends
-            # to persist is what loses the data.
             self.l3 = None;
             self._persistence_type = PersistenceType.NONE;
             logger.error(
