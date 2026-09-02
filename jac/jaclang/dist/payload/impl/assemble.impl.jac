@@ -22,6 +22,7 @@ import from jaclang.dist.payload.fsutil {
     sha256_hex,
     skip_jaclang,
     skip_none,
+    skip_site_template,
     skip_stage_site,
     source_file_mode,
     strip_best_effort,
@@ -111,6 +112,16 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
             os.path.join(repo_root, "bootstrap", "pins.json"),
             os.path.join(site, "jaclang", "dist", "payload", "pins.json")
         );
+
+        awesome_src = os.path.join(repo_root, "examples", "jaclang_org");
+        if os.path.isdir(awesome_src) {
+            log("==> bundling the jaclang.org site as the --awesome template");
+            copy_tree(
+                awesome_src, os.path.join(site, "awesome_template"), skip_site_template
+            );
+        } else {
+            log(f"==> no {awesome_src}; --awesome template not bundled");
+        }
     } else {
         log(
             f"==> linked-source mode: NOT bundling jaclang (compiler served from {opts.link_source})"

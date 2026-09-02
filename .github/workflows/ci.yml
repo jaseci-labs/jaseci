@@ -231,6 +231,24 @@ jobs:
           fi
           cat changed-jac.txt || true
 
+      # The analysis cache is content+env keyed (every entry folds the
+      # compiler-source digest), so restoring any prior cache is safe by
+      # construction: entries from another compiler generation simply miss
+      # and get swept. The key's digest segment covers the compiler digest
+      # roots, so a compiler edit starts cold exactly when it must, while
+      # app-and-test-only PRs restore a fully warm analysis cache and the
+      # whole-repo sweep collapses to diagnostics replay. Restored before
+      # jac-kit (which pins XDG_CACHE_HOME to this path) so the kit's own
+      # warm-up precompile re-wraps cached JIRs instead of compiling.
+      - name: Restore JIR analysis cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/.cache/jac/jir
+          key: jac-check-jir-${{ runner.os }}-${{ hashFiles('jac/jaclang/compiler/**', 'jac/jaclang/runtime/**', 'jac/jaclang/lib/**', 'jac/jaclang/jac0core/**', 'jac/jaclang/jac0.py', 'jac/jaclang/meta_importer.py', 'jac/jaclang/bootstrap_manifest.py', 'jac/jaclang/cli/cli_boot.jac', 'jac/jaclang/project/tomlio.jac', 'jac/jaclang/dist/precompile_bytecode.jac') }}-${{ github.sha }}
+          restore-keys: |
+            jac-check-jir-${{ runner.os }}-${{ hashFiles('jac/jaclang/compiler/**', 'jac/jaclang/runtime/**', 'jac/jaclang/lib/**', 'jac/jaclang/jac0core/**', 'jac/jaclang/jac0.py', 'jac/jaclang/meta_importer.py', 'jac/jaclang/bootstrap_manifest.py', 'jac/jaclang/cli/cli_boot.jac', 'jac/jaclang/project/tomlio.jac', 'jac/jaclang/dist/precompile_bytecode.jac') }}-
+            jac-check-jir-${{ runner.os }}-
+
       - uses: ./.github/actions/jac-kit
 
       - name: Install plugin deps so jac check resolves scale/byllm imports
@@ -311,10 +329,23 @@ jobs:
           git push origin "HEAD:$HEAD_REF"
           echo "::notice::Pushed jac fmt autofix to $HEAD_REF; the new commit's CI run supersedes this one."
 
+      # Fork PRs cannot receive autofix pushes; print the patch so the author
+      # can apply it locally.
+      - name: Show formatting diff
+        if: steps.fmt.outcome == 'failure'
+        run: |
+          set -euo pipefail
+          FILES="$(grep -vE '(/fixtures/|^scripts/|/passes/native/llvm/|_err\.jac$)' changed-jac.txt || true)"
+          if [ -n "$FILES" ]; then
+            printf '%s\n' "$FILES" | tr '\n' '\0' \
+              | xargs -0 --no-run-if-empty jac fmt --lintfix || true
+            git --no-pager diff
+          fi
+
       - name: Fail if formatting was not clean
         if: steps.fmt.outcome == 'failure'
         run: |
-          echo "::error::jac fmt --check --lintfix failed for this commit (an autofix was pushed to the branch if this is a same-repo PR)."
+          echo "::error::jac fmt --check --lintfix failed for this commit (an autofix was pushed to the branch if this is a same-repo PR; fork PRs: apply the 'Show formatting diff' patch above)."
           exit 1
 
       # Manifest freshness, the seed-manifest bootstrap invariants, and the
@@ -335,6 +366,13 @@ jobs:
           set -euo pipefail
           IGNORE_ARGS="tests checker_*.jac *_err.jac $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ')"
           jac check . --ignore $IGNORE_ARGS --nowarn
+
+      - name: Save JIR analysis cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/.cache/jac/jir
+          key: jac-check-jir-${{ runner.os }}-${{ hashFiles('jac/jaclang/compiler/**', 'jac/jaclang/runtime/**', 'jac/jaclang/lib/**', 'jac/jaclang/jac0core/**', 'jac/jaclang/jac0.py', 'jac/jaclang/meta_importer.py', 'jac/jaclang/bootstrap_manifest.py', 'jac/jaclang/cli/cli_boot.jac', 'jac/jaclang/project/tomlio.jac', 'jac/jaclang/dist/precompile_bytecode.jac') }}-${{ github.sha }}
 
       - name: Error-code breakdown (label "type-error-report")
         if: contains(github.event.pull_request.labels.*.name, 'type-error-report')
@@ -430,9 +468,13 @@ jobs:
           # The equivalence suite builds fixture paths from jaclang.__file__,
           # which only resolve in the checkout: it runs through the reroute,
           # over the kit's shim and floors ("" clears JAC_NO_DEV_SOURCE).
+          # JAC_IFACE_VERIFY makes every hydration/replay the analysis cache
+          # serves during the suite recompute-and-diff, so warmth can never
+          # change an equivalence verdict silently.
           - chunk: equivalence
             paths: jaclang/compiler/tests
             sealed: ""
+            iface_verify: "1"
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/jac-kit
@@ -444,6 +486,7 @@ jobs:
         working-directory: jac
         env:
           JAC_NO_DEV_SOURCE: ${{ matrix.sealed }}
+          JAC_IFACE_VERIFY: ${{ matrix.iface_verify || '' }}
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
@@ -861,68 +904,86 @@ jobs:
       # admin server), and fixture checks live in the suite now
       # (tests/cli/test_guide_docs.jac, tests/cli/test_plugin_integration.jac);
       # this job keeps only what needs the sealed artifact and the outside
-      # world: cold start, the jac_site fullstack smoke, and the eject path.
-      - name: Install scale serve deps (for the jac_site server)
+      # world: cold start, the in-tree site fullstack smoke, and the eject
+      # path.
+      - name: Install scale serve deps (for the site server)
         run: |
           jac install \
             "python-dotenv>=1.2.1,<2.0.0" \
             "requests>=2.32.0,<3.0.0" \
             --global
 
-      # jac_site fullstack smoke: JAC_NO_DEV_SOURCE=1 (job env) because the
-      # site's own jac.toml carries a [dev] stanza for its contributors.
-      - name: Clone jac_site
-        run: |
-          git clone --depth 1 https://github.com/jaseci-labs/jac_site jac_site
-          cd jac_site && jac install
+      # Fullstack smoke on the in-tree jaclang.org site
+      # (jac/examples/jaclang_org). JAC_NO_DEV_SOURCE=1 (job env) so the
+      # site's [dev] stanza is ignored and the sealed kit binary is what gets
+      # validated, not a live-source reroute.
+      - name: Install site deps (first run pulls npm deps)
+        working-directory: jac/examples/jaclang_org
+        run: jac install
 
-      - name: Type check jac_site
-        working-directory: jac_site
+      - name: Type check the site
+        working-directory: jac/examples/jaclang_org
         run: jac check main.jac
 
-      - name: Start jac_site server in background
-        working-directory: jac_site
+      # JAC_DOCS_LOCAL points the docs sync at this checkout so the docs
+      # journey stop is hermetic (no clone of the repo from inside CI).
+      - name: Start site server in background
+        working-directory: jac/examples/jaclang_org
+        env:
+          JAC_DOCS_LOCAL: ${{ github.workspace }}
         run: |
-          timeout 600 jac run --serve main.jac > /tmp/jac-site-server.log 2>&1 &
+          timeout 1200 jac run --serve main.jac > /tmp/site-server.log 2>&1 &
           SERVER_PID=$!
-          echo "JAC_SITE_PID=$SERVER_PID" >> $GITHUB_ENV
-          echo "jac_site server starting with PID $SERVER_PID..."
+          echo "SITE_PID=$SERVER_PID" >> $GITHUB_ENV
+          echo "site server starting with PID $SERVER_PID..."
           sleep 10
           if ! kill -0 $SERVER_PID 2>/dev/null; then
             echo "Server process died during startup"
-            cat /tmp/jac-site-server.log
+            cat /tmp/site-server.log
             exit 1
           fi
 
-      - name: Wait for jac_site server to be ready
+      # Cold runner budget: embedded-postgres bootstrap plus the site's own
+      # compile and client bundle all happen before the port answers.
+      - name: Wait for site server to be ready
         run: |
-          for i in $(seq 1 24); do
-            if ! kill -0 ${{ env.JAC_SITE_PID }} 2>/dev/null; then
+          for i in $(seq 1 60); do
+            if ! kill -0 ${{ env.SITE_PID }} 2>/dev/null; then
               echo "Server process exited unexpectedly"
-              cat /tmp/jac-site-server.log
+              cat /tmp/site-server.log
               exit 1
             fi
             if curl -sf --max-time 10 http://localhost:8000 -o /dev/null 2>&1; then
-              echo "jac_site server is ready (attempt $i)"
+              echo "site server is ready (attempt $i)"
               exit 0
             fi
-            echo "Attempt $i/24: not ready, waiting 15s..."
+            echo "Attempt $i/60: not ready, waiting 15s..."
             sleep 15
           done
-          echo "Server failed to respond after 24 attempts"
-          tail -100 /tmp/jac-site-server.log
+          echo "Server failed to respond after 60 attempts"
+          tail -100 /tmp/site-server.log
           exit 1
 
-      - name: Verify jac_site HTTP response
+      - name: Verify site HTTP response
         run: |
           HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 http://localhost:8000)
-          echo "jac_site root endpoint: HTTP $HTTP_CODE"
+          echo "site root endpoint: HTTP $HTTP_CODE"
           if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 500 ]; then
-            echo "jac_site server responding correctly"
+            echo "site server responding correctly"
           else
             echo "Unexpected HTTP $HTTP_CODE"
             exit 1
           fi
+
+      # @restspec routes only serve their payloads on the scale serving
+      # stack; this is the lane that proves them.
+      - name: Verify @restspec routes serve real payloads
+        run: |
+          curl -sf --max-time 30 http://localhost:8000/install.sh | head -1 | grep -q '^#!' \
+            || { echo "::error::/install.sh did not serve a shell script"; exit 1; }
+          curl -sf --max-time 30 http://localhost:8000/llms.txt | head -1 | grep -qi 'jac' \
+            || { echo "::error::/llms.txt did not serve the llms corpus"; exit 1; }
+          echo "install.sh and llms.txt serve their payloads"
 
       - name: Ensure a Chromium binary for jac browse
         run: |
@@ -934,46 +995,17 @@ jobs:
           done
           sudo apt-get update && sudo apt-get install -y chromium-browser
 
-      # Drive the rendered page: assert the install one-liner and the ninja
-      # book cover anchor (regex checks so copy edits don't break this).
-      - name: Browse jac_site landing page (rendered client checks)
-        timeout-minutes: 5
-        run: |
-          jac browse open http://localhost:8000
-          jac browse wait '#top'
-          jac browse eval '(() => {
-            const text = document.body.innerText;
-            if (!/curl\s+-fsSL\s+\S*install\.sh\s*\|\s*bash/.test(text)) {
-              throw new Error("install curl one-liner not rendered on the landing page");
-            }
-            return "install curl one-liner rendered";
-          })()'
-          jac browse eval '(async () => {
-            const section = document.querySelector("#book");
-            if (!section) throw new Error("no #book section on the landing page");
-            section.scrollIntoView({block: "center"});
-            const img = section.querySelector("a[href] img[src*=ninja-book-cover]");
-            if (!img) throw new Error("no ninja book cover image inside a link");
-            const href = img.closest("a").href;
-            if (!/doi\.org|zenodo/.test(href)) {
-              throw new Error("book cover links to " + href + ", not the book");
-            }
-            const deadline = Date.now() + 15000;
-            while (Date.now() < deadline) {
-              const rect = img.getBoundingClientRect();
-              const unobscured = img.checkVisibility
-                ? img.checkVisibility({checkOpacity: true, checkVisibilityCSS: true})
-                : true;
-              if (img.complete && img.naturalWidth > 0
-                  && rect.width > 0 && rect.height > 0 && unobscured) {
-                return "book cover visible, links to " + href;
-              }
-              await new Promise((resolve) => setTimeout(resolve, 200));
-            }
-            throw new Error("book cover image never became visible");
-          })()'
-          echo "--- client console output (informational) ---"
-          jac browse console
+      # Drive every page and fullstack flow with jac browse: landing content,
+      # live-source windows, the leaderboard shell, the whole socialize
+      # journey (signup, post, trending, like, comment, channels, reload
+      # persistence), docs served from this checkout, the 404 page, and a
+      # final console-error sweep. The journey lives in
+      # scripts/site-browse-journey.sh so it can run locally too.
+      - name: Browse the site (full journey)
+        timeout-minutes: 15
+        env:
+          SITE_JOURNEY_ARTIFACTS: /tmp
+        run: bash scripts/site-browse-journey.sh http://localhost:8000
 
       - name: Dump server thread stacks on failure
         if: failure()
@@ -986,25 +1018,27 @@ jobs:
 
       - name: Screenshot browse state on failure
         if: failure()
-        run: jac browse screenshot /tmp/jac-site-browse-failure.png || true
+        run: jac browse screenshot /tmp/site-browse-failure.png || true
 
-      - name: Upload browse failure screenshot
+      - name: Upload browse failure screenshots
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: jac-site-browse-failure
-          path: /tmp/jac-site-browse-failure.png
+          name: site-browse-failure
+          path: |
+            /tmp/site-browse-failure.png
+            /tmp/site-journey-failure.png
           retention-days: 7
           if-no-files-found: ignore
 
-      - name: Stop jac_site server
+      - name: Stop site server
         if: always()
         run: |
           jac browse close 2>/dev/null || true
-          if [ -n "${{ env.JAC_SITE_PID }}" ]; then
-            kill ${{ env.JAC_SITE_PID }} 2>/dev/null || true
+          if [ -n "${{ env.SITE_PID }}" ]; then
+            kill ${{ env.SITE_PID }} 2>/dev/null || true
             sleep 3
-            kill -9 ${{ env.JAC_SITE_PID }} 2>/dev/null || true
+            kill -9 ${{ env.SITE_PID }} 2>/dev/null || true
           fi
 
       - name: Create fullstack project and eject it
@@ -1053,12 +1087,12 @@ jobs:
             kill -9 ${{ env.EJECTED_PID }} 2>/dev/null || true
           fi
 
-      - name: Upload jac_site server logs
+      - name: Upload site server logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jac-site-test-logs
-          path: /tmp/jac-site-server.log
+          name: site-test-logs
+          path: /tmp/site-server.log
           retention-days: 7
 
       - name: Upload fullstack ejected backend logs
