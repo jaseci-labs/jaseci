@@ -25,17 +25,15 @@ import from jaclang.compiler.backends.es.es_unparse { es_to_js }
 import from jaclang.compiler.backends.es.backends.react { ReactBackend }
 import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
 import from jaclang.client.client_surface { with_runtime_globals }
+import from jaclang.client.npm_provider { CORE_RUNTIME_DEPS, OPTIONAL_RUNTIME_DEPS }
 import from jaclang.client.runtime_source { resolve_client_runtime_cl_path }
 
-# Mirrors `_default_client_deps("react")` runtime deps; jsdom is test-only.
+# The react deps the client pipeline itself pins, so a version bump reaches
+# these suites without a second edit here; jsdom is test-only.
 glob REACT_JSDOM_DEPS: dict[str, str] = {
          "jsdom": "^24.0.0",
-         "react": "^18.2.0",
-         "react-dom": "^18.2.0",
-         "react-router-dom": "^6.22.0",
-         "react-error-boundary": "^5.0.0",
-         "@tanstack/react-form": "^1.33.0",
-         "zod": "^4.3.6"
+         ** CORE_RUNTIME_DEPS,
+         ** OPTIONAL_RUNTIME_DEPS
      };
 
 """Skip unless the client toolchain is present (JAC_TEST_STRICT escalates)."""

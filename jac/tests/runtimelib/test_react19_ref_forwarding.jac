@@ -22,9 +22,9 @@ import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 
 import from jaclang.client.bun_installer { get_bun }
-import from jaclang.client.npm_provider { CORE_RUNTIME_DEPS, OPTIONAL_RUNTIME_DEPS }
 import from jaclang.compiler.backends.es.backends.react { ReactBackend }
 import from .react_jsdom_harness {
+    REACT_JSDOM_DEPS,
     bun_install,
     compile_page,
     require_client_integration,
@@ -157,19 +157,14 @@ test "a compiled component is a ref target, live in jsdom" {
         (work / "component.js").write_text(component_js, encoding="utf-8");
         write_runtime(work);
         (work / "harness.mjs").write_text(_HARNESS, encoding="utf-8");
-        # Install the versions the client pipeline itself pins, so this suite
-        # fails the moment the runtime pin drifts back off React 19. radix-ui
+        # REACT_JSDOM_DEPS is the pin the client pipeline itself ships, so
+        # this suite fails the moment it drifts back off React 19. radix-ui
         # supplies the `Slot` an `asChild` trigger renders.
         bun_install(
             bun,
             work,
             "react19-ref-forwarding-test",
-            deps={
-                ** CORE_RUNTIME_DEPS,
-                ** OPTIONAL_RUNTIME_DEPS,
-                "jsdom": "^24.0.0",
-                "radix-ui": "^1.6.7"
-            }
+            deps={** REACT_JSDOM_DEPS, "radix-ui": "^1.6.7"}
         );
         run_harness(bun, work, [], "react 19 ref forwarding");
     }
