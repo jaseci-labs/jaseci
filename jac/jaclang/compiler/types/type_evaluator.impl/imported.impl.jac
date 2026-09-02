@@ -311,7 +311,11 @@ impl TypeEvaluator.get_type_of_module(node_: ModulePath) -> TypeBase {
                     return npath.type;
                 }
                 npath.type = UnknownType(is_diagnosed=True);
-                self.emit_diag(W1100, npath);
+                if self._is_unresolvable_project_import(node_) {
+                    self.emit_diag(E1134, npath, module=node_.dot_path_str);
+                } else {
+                    self.emit_diag(W1100, npath);
+                }
                 return npath.type;
             }
 
@@ -513,4 +517,16 @@ impl TypeEvaluator.resolve_to_definition_symbol(symbol: Symbol) -> Symbol {
         cur = node_.sym;
     }
     return cur;
+}
+
+
+impl TypeEvaluator._is_unresolvable_project_import(node_: ModulePath) -> bool {
+    if node_.level <= 0 or node_.string_path_value is not None {
+        return False;
+    }
+    imp = node_.find_parent_of_type(Import);
+    if imp is None or imp.is_typed or imp.is_comptime {
+        return False;
+    }
+    return True;
 }

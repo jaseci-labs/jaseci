@@ -1483,10 +1483,16 @@ impl JacCompiler._compile_pipeline(
         or (mod_targ is not None and mod_targ.stub_only)
         or (mod_targ is not None and mod_targ.is_raised_from_py);
     import from jaclang.jac0core.ext_registry { is_annex as _cc_is_annex }
-    _standalone_annex = _cc_is_annex(file_path);
+    _annex_of_base = False;
+    if _cc_is_annex(file_path) {
+        import from jaclang.compiler.driver.bccache {
+            discover_base_file as _cc_base_file
+        }
+        _annex_of_base = _cc_base_file(str(file_path)) is not None;
+    }
     _analyze = _full_head
         and not _is_decl_stub
-        and not _standalone_annex
+        and not _annex_of_base
         and (
             is_native_mod
             or not self.selfhost.is_selfhost(actual_program)
