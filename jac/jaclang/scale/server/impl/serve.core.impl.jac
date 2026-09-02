@@ -23,7 +23,7 @@ impl _get_network_ips -> list[str] {
                 }
             }
         }
-    } except Exception { }
+    } except Exception {}
     return ips;
 }
 
@@ -550,7 +550,7 @@ impl JacAPIServerCore._setup_scheduler -> None {
             scheduler_cfg.get('system_user_password', '__no_login__'),
             role='system'
         );
-    } except Exception { }
+    } except Exception {}
     system_user = self.user_manager.get_user('__system__');
     if system_user is None {
         logger.error("Scheduler: __system__ user not found; using sentinel id");

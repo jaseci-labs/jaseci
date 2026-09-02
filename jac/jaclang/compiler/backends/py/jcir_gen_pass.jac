@@ -350,7 +350,7 @@ walker JcirGenPass(BaseAstGenPass[CgItem]) {
         _module_path: str = "",
         _interop_stub_node: (UniNode | None) = None;
 
-    with entry { }
+    with entry {}
 
     def _get_builtin_names -> set[str];
     def _get_ambient_typing_names -> set[str];

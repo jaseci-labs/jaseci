@@ -174,9 +174,7 @@ impl ConsoleRenderer.emit(spans: list[Span], stream: any = None) -> None {
     }
     try {
         out.flush();
-    } except (BrokenPipeError, OSError) {
-        ;
-    }
+    } except (BrokenPipeError, OSError) {}
 }
 
 impl ConsoleRenderer.emit_raw(
@@ -234,9 +232,7 @@ impl ConsoleRenderer.emit_raw(
     }
     try {
         out.flush();
-    } except (BrokenPipeError, OSError) {
-        ;
-    }
+    } except (BrokenPipeError, OSError) {}
 }
 
 impl ConsoleRenderer.header(title: str, version: str | None = None) -> None {
@@ -598,7 +594,7 @@ impl use_line_buffered_output(streams: (list[any] | None) = None) -> int {
         try {
             reconfigure(line_buffering=True);
             switched += 1;
-        } except (OSError, ValueError) { }
+        } except (OSError, ValueError) {}
     }
     return switched;
 }

@@ -1,4 +1,3 @@
-import importlib.util;
 import from importlib.machinery { ModuleSpec }
 import os;
 import sys;
@@ -17,6 +16,77 @@ def pop_import_base {
     if _import_base_stack {
         _import_base_stack.pop();
     }
+}
+
+def _finders_find_spec(name: str, search: (list[str] | None)) -> (ModuleSpec | None) {
+    for finder in `list(sys.meta_path) {
+        fs = finder?.find_spec;
+        if fs is None {
+            continue;
+        }
+        try {
+            spec = fs(name, search, None);
+        } except (ImportError, AttributeError, ValueError, KeyError, TypeError) {
+            continue;
+        }
+        if isinstance(spec, ModuleSpec) {
+            return spec;
+        }
+    }
+    return None;
+}
+
+def _find_spec_no_exec(target: str) -> (ModuleSpec | None) {
+    import from importlib.machinery { PathFinder }
+    loaded_target = sys.modules.get(target);
+    if loaded_target is not None {
+        tspec = loaded_target?.__spec__;
+        if isinstance(tspec, ModuleSpec) {
+            return tspec;
+        }
+    }
+    for finder in `list(sys.meta_path) {
+        if finder is PathFinder {
+            continue;
+        }
+        fs = finder?.find_spec;
+        if fs is None {
+            continue;
+        }
+        try {
+            whole = fs(target, None, None);
+        } except (ImportError, AttributeError, ValueError, KeyError, TypeError) {
+            continue;
+        }
+        if isinstance(whole, ModuleSpec) {
+            return whole;
+        }
+    }
+    parts = target.split('.');
+    search: (list[str] | None) = None;
+    spec: (ModuleSpec | None) = None;
+    prefix = '';
+    for (i, part) in enumerate(parts) {
+        prefix = part if i == 0 else f'{prefix}.{part}';
+        loaded = sys.modules.get(prefix);
+        if loaded is not None {
+            lspec = loaded?.__spec__;
+            spec = lspec if isinstance(lspec, ModuleSpec) else None;
+            lpath = loaded?.__path__;
+            search = `list(lpath) if lpath is not None else None;
+        } else {
+            spec = _finders_find_spec(prefix, search);
+            if spec is None {
+                return None;
+            }
+            sub = spec.submodule_search_locations;
+            search = `list(sub) if sub is not None else None;
+        }
+        if search is None and i < (len(parts) - 1) {
+            return None;
+        }
+    }
+    return spec;
 }
 
 def find_project_root(start: (Path | None) = None) -> (tuple | None) {
@@ -130,9 +200,7 @@ def _candidate_from(base: str, parts: list[str]) -> (tuple[(str, str)] | None) {
 def _self_tree_candidate(
     base_dir: str, actual_parts: list[str]
 ) -> (tuple[(str, str)] | None) {
-    if actual_parts[0] == COMPILER_PACKAGE {
-        return None;
-    }
+    is_compiler_pkg = actual_parts[0] == COMPILER_PACKAGE;
     cur = os.path.abspath(base_dir);
     while True {
         parent = os.path.dirname(cur);
@@ -140,9 +208,11 @@ def _self_tree_candidate(
             return None;
         }
         if os.path.basename(cur) == actual_parts[0] {
-            res = _candidate_from(parent, actual_parts);
-            if res {
-                return res;
+            if not is_compiler_pkg or os.path.isdir(os.path.join(cur, 'jac0core')) {
+                res = _candidate_from(parent, actual_parts);
+                if res {
+                    return res;
+                }
             }
         }
         cur = parent;
@@ -183,9 +253,7 @@ def _resolve_jac_virtual_module(target: str) -> (tuple[(str, str)] | None) {
                 }
             }
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return None;
 }
 
@@ -210,9 +278,7 @@ def resolve_jac_virtual_module_exports(target: str) -> list[str] {
                 }
             }
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return [];
 }
 
@@ -224,9 +290,7 @@ def _get_path_aliases -> dict[str, str] {
             client_config = config.get_plugin_config('client');
             return client_config.get('paths', {});
         }
-    } except (ImportError, AttributeError) {
-        ;
-    }
+    } except (ImportError, AttributeError) {}
     return {};
 }
 
@@ -357,7 +421,7 @@ def resolve_module(
 
     if not target.startswith('.') {
         try {
-            spec = importlib.util.find_spec(target);
+            spec = _find_spec_no_exec(target);
         } except (ImportError, AttributeError, ValueError) {
             spec = None;
         }

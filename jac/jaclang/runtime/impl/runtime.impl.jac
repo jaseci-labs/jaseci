@@ -42,9 +42,7 @@ impl JacAccessValidation._check_access(
             try {
                 ctx = JacRuntimeInterface.get_context();
                 ctx.diagnostics.append(diag);
-            } except Exception {
-                ;
-            }
+            } except Exception {}
             if JacRuntime.strict_permissions {
                 raise PermissionError(diag.message());
             }
@@ -462,17 +460,20 @@ impl JacBuiltin.printgraph(
 
 
 impl JacContext.get_context -> ExecutionContext {
-    ctx = _request_context.get();
-    if ctx is not None {
-        return ctx;
-    }
-
-    ctx = JacRuntime.exec_ctx;
+    ctx = JacRuntimeInterface.peek_context();
     if ctx is None {
         ctx = JacRuntimeInterface.create_j_context(user_root=None);
         JacRuntime.exec_ctx = ctx;
     }
     return ctx;
+}
+
+impl JacContext.peek_context -> (ExecutionContext | None) {
+    ctx = _request_context.get();
+    if ctx is not None {
+        return ctx;
+    }
+    return JacRuntime.exec_ctx;
 }
 
 impl JacPersistence.commit(anchor: Anchor | Archetype | None = None) -> None {
@@ -698,9 +699,7 @@ impl JacModule.impl_patch_filename(
                 code.co_cellvars
             );
             func.__code__ = new_code;
-        } except AttributeError {
-            ;
-        }
+        } except AttributeError {}
         return func;
     }
     return decorator;
@@ -1020,6 +1019,7 @@ impl JacGraph.refs(
 ) -> list[NodeArchetype] | list[EdgeArchetype] | list[(NodeArchetype | EdgeArchetype)] {
     import from jaclang.runtime.graph_walk {
         access_gated,
+        has_persistent_origin,
         needs_store,
         origin_anchors,
         walk_edges,
@@ -1031,8 +1031,11 @@ impl JacGraph.refs(
     if slc is not None and path.slc is None {
         path.slc = slc;
     }
-    ctx = JacRuntimeInterface.get_context();
     origins = origin_anchors(path);
+    ctx = JacRuntimeInterface.peek_context();
+    if ctx is None and has_persistent_origin(origins) {
+        ctx = JacRuntimeInterface.get_context();
+    }
 
     def _archetypes(planned: list) -> list {
         out: list[(NodeArchetype | EdgeArchetype)] = [];
@@ -1045,7 +1048,7 @@ impl JacGraph.refs(
         return out;
     }
 
-    if not needs_store(ctx.mem, origins) {
+    if ctx is None or not needs_store(ctx.mem, origins) {
         gated = access_gated();
         return _archetypes(
             walk_edges(origins, path, gated)
@@ -1053,18 +1056,21 @@ impl JacGraph.refs(
                 else walk_nodes(origins, path, gated)
         );
     }
+    import from typing { cast }
     import from jaclang.data.query_planner {
         LazyRefs,
         resolve_query,
         resolve_query_edges
     }
+    import from jaclang.server.session { Session }
     ctx.note_traversal_reads([nd.__jac__ for nd in path.origin]);
+    store_mem = cast(Session, ctx.mem);
 
     def _run(q: GraphQuery) -> list {
         return _archetypes(
-            resolve_query_edges(ctx.mem, q)
+            resolve_query_edges(store_mem, q)
                 if q.edges_only
-                else resolve_query(ctx.mem, q)
+                else resolve_query(store_mem, q)
         );
     }
     if lazy and path.slc is None {
@@ -1073,9 +1079,7 @@ impl JacGraph.refs(
     return _run(path);
 }
 
-impl JacGraph.arefs(path: GraphQuery | NodeArchetype | list[NodeArchetype]) -> None {
-    ;
-}
+impl JacGraph.arefs(path: GraphQuery | NodeArchetype | list[NodeArchetype]) -> None {}
 
 
 impl JacGraph.filter_on(
@@ -1693,9 +1697,7 @@ impl JacServe.sv_walker_call(
         if instance is not None and reports is not None {
             try {
                 instance.reports = reports;
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
         return instance;
     }
@@ -2103,9 +2105,7 @@ impl JacContext.thread_wait(future: any) -> None {
     return future.result();
 }
 
-impl JacConfig.on_config_loaded(config: dict[(str, any)]) -> None {
-    ;
-}
+impl JacConfig.on_config_loaded(config: dict[(str, any)]) -> None {}
 
 impl JacConfig.validate_config(config: dict[(str, any)]) -> list[str] {
     return [];
