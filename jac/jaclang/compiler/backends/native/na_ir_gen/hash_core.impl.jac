@@ -282,7 +282,9 @@ impl NaIRGenHashCore._emit_hash_core_helpers(
     old_order = brh.load(ord_prh, name="oorder");
     _ncap_dbl = brh.mul(old_cap, ir.Constant(i64, 2), name="ncap.dbl");
     _ocap_is0 = brh.icmp_unsigned("==", old_cap, ir.Constant(i64, 0), name="ocap.is0");
-    new_cap = brh.select(_ocap_is0, ir.Constant(i64, 8), _ncap_dbl, name="ncap");
+    new_cap = brh.select(
+        _ocap_is0, ir.Constant(i64, HASH_INIT_CAP), _ncap_dbl, name="ncap"
+    );
     new_mask = brh.sub(new_cap, ir.Constant(i64, 1), name="nmask");
 
     kgnr = brh.gep(
