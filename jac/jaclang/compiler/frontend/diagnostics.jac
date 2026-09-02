@@ -1879,6 +1879,24 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          help="After emission the client module is audited for free identifiers: every name it references has to resolve to a declaration in the module, an import, a parameter, or the ambient surface a browser provides. '{name}' resolves to none of these, and the compiler did resolve it in the Jac source, so the module would load and then throw a ReferenceError on first use -- with `jac check` green and the build exiting 0, which is how this shipped twice before the audit existed. If '{name}' is yours, give it client presence: declare it, import it, or make it a `def:pub` endpoint so it bridges over RPC. If it is a browser or host global the compiler does not know about, reach it through `globalThis` so the intent is explicit. If neither is true, a lowering dropped a binding it was supposed to emit; please report it with the source line.",
          blocks_codegen=True
      ),
+     E5103 = _err(
+         "E5103",
+         Category.CODEGEN,
+         "Client codegen emitted the builtin '{name}' unlowered",
+         help="A builtin has no JavaScript definition of its own: the client"
+         " backend rewrites every builtin call into its runtime form"
+         " (`_jac.builtin.{name}(...)` or an inline equivalent), so a bare"
+         " '{name}' in the bundle is a call the backend did not recognise as a"
+         " builtin and left as a free name -- the page loads and then throws"
+         " ReferenceError on first use. The classification the backend reads"
+         " ('FuncCall.call_kind') is stamped by the checker, so this means the"
+         " module reached codegen without its checker facts: it was served or"
+         " ingested with an analysis-free schedule and never re-analyzed."
+         " Compiling the module from source produces a correct bundle, so this"
+         " is a compiler defect rather than something the source can fix;"
+         " please report it with the module path.",
+         blocks_codegen=True
+     ),
      E5102 = _err(
          "E5102",
          Category.CODEGEN,

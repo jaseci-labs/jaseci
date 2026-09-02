@@ -11,10 +11,27 @@ impl _lookup_module_in_hub(path_key: str, hub: dict) -> (Module | None) {
     return None;
 }
 
-impl _ensure_js_generated(mod: Module, program: any) -> None {
+impl _ensure_client_facts(mod: Module, program: any) -> Module {
+    if not mod {
+        return mod;
+    }
+    if 'TypeOf' in program.analysis.analyses_run.get(id(mod), set()) {
+        return mod;
+    }
+    source = mod.loc.mod_path if mod.loc else '';
+    if not source or not os.path.isfile(source) {
+        return mod;
+    }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
+    rederived = program.compile(source, options=CompileOptions(no_cgen=True));
+    return rederived if rederived is not None else mod;
+}
+
+impl _ensure_js_generated(mod: Module, program: any) -> Module {
     if mod and not mod.gen.js {
         import from jaclang.compiler.backends.es.esast_gen_pass { EsastGenPass }
         import from jaclang.compiler.driver.pass_driver { run_pass }
+        mod = _ensure_client_facts(mod, program);
         _err_mark = len(program.errors_had);
         run_pass(EsastGenPass, mod, program);
         if len(program.errors_had) > _err_mark {
@@ -27,6 +44,7 @@ impl _ensure_js_generated(mod: Module, program: any) -> None {
             );
         }
     }
+    return mod;
 }
 
 impl ClientBundleBuilder.postinit -> None {
@@ -164,7 +182,7 @@ impl ClientBundleBuilder._compile_to_js(source_path: Path) -> tuple[str, Module]
         }
     }
 
-    _ensure_js_generated(mod, program);
+    mod = _ensure_js_generated(mod, program);
     return ((mod.gen.js or ''), mod) if mod else ('', mod);
 }
 

@@ -11,7 +11,9 @@ class MissingBunError(ClientBundleError) {}
 
 def _lookup_module_in_hub(path_key: str, hub: dict) -> (Module | None);
 
-def _ensure_js_generated(mod: Module, program: any) -> None;
+def _ensure_client_facts(mod: Module, program: any) -> Module;
+
+def _ensure_js_generated(mod: Module, program: any) -> Module;
 
 def _prebuilt_bundle(module: ModuleType, source_path: Path) -> (ClientBundle | None);
 
