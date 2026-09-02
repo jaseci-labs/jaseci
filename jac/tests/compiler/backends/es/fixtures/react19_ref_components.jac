@@ -11,7 +11,6 @@ what makes a radix `asChild` composition able to anchor on it.
 working, since React 19 still honours `forwardRef`.
 """
 
-
 def:pub Button(props: any) -> JsxElement {
     restProps = {};
     for key in Object.keys(props) {

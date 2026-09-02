@@ -21,6 +21,7 @@ import os;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 
+import from jaclang.cli.shadcn.shadcn_handler { load_registry }
 import from jaclang.client.bun_installer { get_bun }
 import from jaclang.compiler.backends.es.backends.react { ReactBackend }
 import from .react_jsdom_harness {
@@ -30,6 +31,16 @@ import from .react_jsdom_harness {
     require_client_integration,
     run_harness,
     write_runtime
+}
+
+"""The radix version the shipped shadcn registry installs.
+
+Read from the registry rather than pinned here, so the `Slot` this suite
+mounts is the one a `jac install --shadcn` project actually gets."""
+def radix_pin -> str {
+    shared = load_registry().get("depVersions", {});
+    pin = shared.get("radix-ui", "") if isinstance(shared, dict) else "";
+    return str(pin) if pin else "^1.6.7";
 }
 
 glob FIXTURES: str = str(
@@ -164,7 +175,7 @@ test "a compiled component is a ref target, live in jsdom" {
             bun,
             work,
             "react19-ref-forwarding-test",
-            deps={** REACT_JSDOM_DEPS, "radix-ui": "^1.6.7"}
+            deps={** REACT_JSDOM_DEPS, "radix-ui": radix_pin()}
         );
         run_harness(bun, work, [], "react 19 ref forwarding");
     }
