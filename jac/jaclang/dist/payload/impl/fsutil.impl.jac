@@ -165,6 +165,20 @@ impl skip_jaclang(p: str) -> bool {
     );
 }
 
+impl skip_site_template(p: str) -> bool {
+    if p == ".gitignore" {
+        return False;
+    }
+    base = p.rsplit("/", 1)[-1];
+    return (
+        p == ".jac"
+        or p.startswith(".jac/")
+        or "__pycache__" in p
+        or "node_modules" in p
+        or base.startswith(".")
+    );
+}
+
 impl skip_stage_site(p: str) -> bool {
     base = p.rsplit("/", 1)[-1];
     if base.startswith("._") or base == ".DS_Store" {
