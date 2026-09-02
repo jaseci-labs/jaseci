@@ -26,6 +26,9 @@ impl JacCompiler.note_stub_tree_served(path: str, program: JacProgram) -> None {
     if self._stub_trees_served or self.selfhost.is_selfhost(program) {
         return;
     }
+    if self.stub_catalog() is not None {
+        return;
+    }
     import from jaclang.compiler.driver.modresolver { _in_typeshed_tree }
     if _in_typeshed_tree(path) {
         self._stub_trees_served = True;
