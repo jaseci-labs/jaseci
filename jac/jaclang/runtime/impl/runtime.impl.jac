@@ -1557,7 +1557,8 @@ impl JacServe.get_api_server_class -> type {
         identity_owner,
         scale_stack_unavailable
     }
-    if identity_owner(JacRuntime.get_base_path_dir()) != SCALE_IDENTITY {
+    _served = JacRuntime.get_full_target_path() or JacRuntime.get_base_path_dir();
+    if identity_owner(_served) != SCALE_IDENTITY {
         import from jaclang.server.server { JacAPIServer }
         return JacAPIServer;
     }

@@ -121,28 +121,33 @@ test "a project pinning the scale identity keeps it from another directory" {
 }
 
 
-"""Serve `project_dir`, run `body`, and put the previous base path back."""
-def _with_base_path(project_dir: str, body: Callable[[], None]) {
-    previous = Jac.get_base_path_dir();
-    Jac.set_base_path(project_dir);
+"""Run `body` as `jac run` would with this base directory and target file."""
+def _serving(base_dir: str, target: str, body: Callable[[], None]) {
+    previous_base = Jac.get_base_path_dir();
+    previous_target = Jac.get_full_target_path();
+    Jac.set_base_path(base_dir);
+    Jac.set_full_target_path(target);
     try {
         body();
     } finally {
-        Jac.set_base_path(previous);
+        Jac.set_base_path(previous_base);
+        Jac.set_full_target_path(previous_target);
     }
 }
 
 
-test "the served base path decides the server class, not the current directory" {
+test "the served project decides the server class, not the current directory" {
     with TemporaryDirectory() as tmpdir {
         _project_pinning(tmpdir, SCALE_IDENTITY);
+        entry_file = os.path.join(tmpdir, "who.jac");
+        Path(entry_file).write_text("", encoding="utf-8");
         previous = _set_env(_cleared_env());
         try {
             assert identity_owner() == CORE_IDENTITY;
             def _check {
                 assert Jac.get_api_server_class().__module__ == SCALE_SERVER_MODULE;
             }
-            _with_base_path(tmpdir, _check);
+            _serving(tmpdir, entry_file, _check);
         } finally {
             _set_env(previous);
         }
@@ -150,18 +155,24 @@ test "the served base path decides the server class, not the current directory" 
 }
 
 
-test "a base path pinning the core identity gets the core server class" {
-    with TemporaryDirectory() as tmpdir {
-        _project_pinning(tmpdir, CORE_IDENTITY);
-        values = _cleared_env();
-        values["JAC_DB_URL"] = "postgresql://identity-owner-test/db";
-        previous = _set_env(values);
+test "a nested project keeps its own owner when run from the parent" {
+    with TemporaryDirectory() as outer {
+        _project_pinning(outer, SCALE_IDENTITY);
+        inner = os.path.join(outer, "inner");
+        os.makedirs(inner, exist_ok=True);
+        _project_pinning(inner, CORE_IDENTITY);
+        entry_file = os.path.join(inner, "who.jac");
+        Path(entry_file).write_text("", encoding="utf-8");
+        previous = _set_env(_cleared_env());
         try {
-            assert identity_owner() == SCALE_IDENTITY;
+            assert identity_owner(outer) == SCALE_IDENTITY;
+            assert identity_owner(entry_file) == CORE_IDENTITY;
             def _check {
                 assert Jac.get_api_server_class().__module__ == CORE_SERVER_MODULE;
             }
-            _with_base_path(tmpdir, _check);
+            # `jac run inner/who.jac` from the parent: the base path is the
+            # parent, the target is the inner project's file.
+            _serving(outer, entry_file, _check);
         } finally {
             _set_env(previous);
         }

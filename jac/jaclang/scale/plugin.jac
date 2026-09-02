@@ -674,7 +674,8 @@ class JacScalePlugin {
             scale_stack_unavailable
         }
         import from jaclang.runtime.runtime { JacRuntime }
-        if identity_owner(JacRuntime.get_base_path_dir()) != SCALE_IDENTITY {
+        served = JacRuntime.get_full_target_path() or JacRuntime.get_base_path_dir();
+        if identity_owner(served) != SCALE_IDENTITY {
             return None;
         }
         try {
