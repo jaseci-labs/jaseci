@@ -315,6 +315,10 @@ impl check(
         crash_prefix="jac-check-crash-"
     );
     if use_pool {
+        import from jaclang.runtime.runtime { JacRuntime }
+        try {
+            JacRuntime.get_compiler().ensure_stub_catalog();
+        } except Exception {}
         pool.run();
     } else {
         pool.run_inline();

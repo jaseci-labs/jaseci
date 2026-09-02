@@ -40,6 +40,9 @@ env:
 
 jobs:
   installer:
+    # Named explicitly: a matrix key like `optional` would otherwise be
+    # appended to the default job name and rename every leg's check.
+    name: installer (${{ matrix.os }}, ${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -52,14 +55,15 @@ jobs:
           # Mirrors `optional` in build-binaries.yml's LEGS: while the Intel
           # binary aborts on `jac --version` (#8805) that leg is non-blocking
           # there, so the latest release legitimately ships without a
-          # macos-x86_64 asset and this lane must not fail the workflow over
-          # it. The leg still runs and still shows red, so the signal stays.
-          # Drop both `optional` flags together when the leg is green again.
+          # macos-x86_64 asset. On this lane an optional leg whose asset is
+          # missing reports a warning and skips the install steps (the release
+          # said it may ship without one); an optional asset that IS shipped
+          # still gets installed and run, and a broken one still shows red
+          # without blocking. Drop both `optional` flags together when the leg
+          # is green again.
           - os: macos-15-intel
             platform: macos-x86_64
             optional: true
-    # A platform the release treats as optional is optional here too: one
-    # flag, one meaning, or the nightly stays red over a decision already made.
     continue-on-error: ${{ matrix.optional || false }}
     steps:
       - uses: actions/checkout@v5
@@ -69,27 +73,32 @@ jobs:
         run: shellcheck scripts/install.sh
 
       # A missing asset on the latest release is a release regression that
-      # breaks `curl ... | bash` -- fail loudly instead of skipping. On an
-      # optional leg it is the release's declared state: say so, and let
-      # continue-on-error keep it from blocking.
+      # breaks `curl ... | bash` -- fail loudly instead of skipping. Unless the
+      # release itself marks the platform optional: then it is the declared
+      # state, not a regression, and the lane says so and stands down.
       - name: Require a native binary asset on the latest release
+        id: asset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPTIONAL: ${{ matrix.optional || false }}
         run: |
           set -euo pipefail
-          if ! gh release view --repo "$GITHUB_REPOSITORY" \
+          if gh release view --repo "$GITHUB_REPOSITORY" \
                --json assets --jq '.assets[].name' 2>/dev/null \
                | grep -q "jac-.*-${{ matrix.platform }}$"; then
-            if [ "$OPTIONAL" = "true" ]; then
-              echo "::warning::Latest GitHub Release has no jac-*-${{ matrix.platform }} asset; the release marks this platform optional (build-binaries.yml LEGS), so 'curl ... | bash' has no binary for it until that leg is green again."
-            else
-              echo "::error::Latest GitHub Release has no jac-*-${{ matrix.platform }} asset; 'curl ... | bash' is broken for this platform."
-            fi
-            exit 1
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          echo "present=false" >> "$GITHUB_OUTPUT"
+          if [ "$OPTIONAL" = "true" ]; then
+            echo "::warning::Latest GitHub Release has no jac-*-${{ matrix.platform }} asset. The release marks this platform optional (build-binaries.yml LEGS), so 'curl ... | bash' has no binary for it until that leg is green again; install steps skipped."
+            exit 0
+          fi
+          echo "::error::Latest GitHub Release has no jac-*-${{ matrix.platform }} asset; 'curl ... | bash' is broken for this platform."
+          exit 1
 
       - name: "install: download + run the binary"
+        if: steps.asset.outputs.present == 'true'
         env:
           # install.sh authenticates its GitHub API calls when a token is set;
           # shared runners (macOS especially) exhaust the unauthenticated
@@ -98,21 +107,25 @@ jobs:
         run: bash scripts/install.sh
 
       - name: "install: verify jac"
+        if: steps.asset.outputs.present == 'true'
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           which jac
           jac --version
 
       - name: "install: run a test program"
+        if: steps.asset.outputs.present == 'true'
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           echo 'with entry { print("hello from the jac binary"); }' > /tmp/test_install.jac
           jac /tmp/test_install.jac
 
       - name: "install: uninstall"
+        if: steps.asset.outputs.present == 'true'
         run: bash scripts/install.sh --uninstall
 
       - name: "install: verify removal"
+        if: steps.asset.outputs.present == 'true'
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           if command -v jac &>/dev/null; then
