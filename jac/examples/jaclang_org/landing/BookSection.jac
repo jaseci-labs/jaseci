@@ -57,7 +57,7 @@ def:pub BookSection -> JsxElement {
                                 className="relative block"
                             >
                                 <img
-                                    src="/static/assets/ninja-book-cover.png"
+                                    src="/static/assets/ninja-book-cover.svg"
                                     alt="Cover of A Synechic and Topokinetic Programming Language"
                                     className="w-60 -rotate-2 rounded-lg border border-border/60 shadow-2xl transition-transform hover:rotate-0 sm:w-72"
                                 />

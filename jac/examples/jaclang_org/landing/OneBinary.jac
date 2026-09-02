@@ -91,7 +91,7 @@ def:pub OneBinary -> JsxElement {
                             className="mt-6 flex items-center justify-center gap-3 border-t border-border/60 pt-6"
                         >
                             <img
-                                src="/static/assets/jac-logo.png"
+                                src="/static/assets/jac-logo.svg"
                                 alt=""
                                 className="size-8"
                             />

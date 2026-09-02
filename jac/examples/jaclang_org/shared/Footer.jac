@@ -70,7 +70,7 @@ def:pub Footer -> JsxElement {
                     <div>
                         <div className="flex items-center gap-2.5">
                             <img
-                                src="/static/assets/jac-logo.png"
+                                src="/static/assets/jac-logo.svg"
                                 alt="Jac logo"
                                 className="size-8"
                             />

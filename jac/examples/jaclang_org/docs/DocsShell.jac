@@ -88,7 +88,7 @@ def:pub DocsShell -> JsxElement {
                             className="pulse-ring absolute inset-0 rounded-full bg-primary/10"
                         ></span>
                         <img
-                            src="/static/assets/jac-logo.png"
+                            src="/static/assets/jac-logo.svg"
                             alt=""
                             className="size-14"
                         />
