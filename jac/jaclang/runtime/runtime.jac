@@ -97,7 +97,7 @@ def _scale_provider -> any {
     try {
         import from jaclang.scale.plugin { JacScalePlugin }
         result = JacScalePlugin;
-    } except ImportError { }
+    } except ImportError {}
     _scale_provider_cache.append(result);
     return result;
 }

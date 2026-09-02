@@ -33,7 +33,7 @@ impl NaIRGenDebug._attach_di_subprogram(
         );
         func.set_metadata("dbg", _di_sp);
         self._di_current_sp = _di_sp;
-    } except Exception { }
+    } except Exception {}
     func.attributes.add("noinline");
 }
 
@@ -55,7 +55,7 @@ impl NaIRGenDebug._finalize_di_locations(
                 }
             }
         }
-    } except Exception { }
+    } except Exception {}
 }
 
 impl NaIRGenDebug.post_transform -> None {
@@ -85,7 +85,7 @@ impl NaIRGenDebug.post_transform -> None {
                     ]
                 )
             );
-        } except Exception { }
+        } except Exception {}
     }
 
     for _fn in self.llvm_module.functions {

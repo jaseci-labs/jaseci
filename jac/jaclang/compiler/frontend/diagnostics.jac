@@ -1442,10 +1442,8 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.LINT,
          "Implementation signature does not match declaration [fix-impl-signature]"
      ),
-     W3011 = _warn(
-         "W3011",
-         Category.LINT,
-         "Unnecessary semicolon after import [remove-import-semi]"
+     W3013 = _warn(
+         "W3013", Category.LINT, "Unnecessary semicolon [remove-redundant-semi]"
      ),
      E3012 = _err(
          "E3012", Category.LINT, "Calling print() is disallowed by rule [no-print]"
@@ -1569,7 +1567,8 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "simplify-ternary": "W3008",
          "remove-future-annotations": "W3009",
          "fix-impl-signature": "W3010",
-         "remove-import-semi": "W3011",
+         "remove-import-semi": "W3013",
+         "remove-redundant-semi": "W3013",
          "no-print": "E3012",
          "unnecessary-pass": "W3020",
          "unnecessary-else-after-return": "W3021",

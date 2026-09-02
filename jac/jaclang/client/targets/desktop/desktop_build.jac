@@ -24,9 +24,7 @@ def _jaclang_src_roots -> list[Path] {
         if jl {
             roots.append(Path(str(jl)).resolve().parent.parent);
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return roots;
 }
 

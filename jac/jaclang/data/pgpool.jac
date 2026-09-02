@@ -69,7 +69,7 @@ def _sock_gone(conn: any) -> bool {
 def _discard(conn: any) {
     try {
         conn.close();
-    } except Exception { }
+    } except Exception {}
 }
 
 

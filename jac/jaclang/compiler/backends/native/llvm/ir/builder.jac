@@ -177,126 +177,126 @@ class IRBuilder(object) {
             name = lhs << rhs
         """
     @_binop('shl')
-    def shl(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
+    def shl(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value {}
 
     """
         Logical (unsigned) right integer shift:
             name = lhs >> rhs
         """
     @_binop('lshr')
-    def lshr(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
+    def lshr(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value {}
 
     """
         Arithmetic (signed) right integer shift:
             name = lhs >> rhs
         """
     @_binop('ashr')
-    def ashr(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
+    def ashr(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value {}
 
     """
         Integer addition:
             name = lhs + rhs
         """
     @_binop('add')
-    def add(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
+    def add(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value {}
 
     """
         Floating-point addition:
             name = lhs + rhs
         """
     @_binop('fadd')
-    def fadd(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
+    def fadd(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value {}
 
     """
         Integer subtraction:
             name = lhs - rhs
         """
     @_binop('sub')
-    def sub(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
+    def sub(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value {}
 
     """
         Floating-point subtraction:
             name = lhs - rhs
         """
     @_binop('fsub')
-    def fsub(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
+    def fsub(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value {}
 
     """
         Integer multiplication:
             name = lhs * rhs
         """
     @_binop('mul')
-    def mul(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
+    def mul(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value {}
 
     """
         Floating-point multiplication:
             name = lhs * rhs
         """
     @_binop('fmul')
-    def fmul(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
+    def fmul(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value {}
 
     """
         Unsigned integer division:
             name = lhs / rhs
         """
     @_binop('udiv')
-    def udiv(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
+    def udiv(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value {}
 
     """
         Signed integer division:
             name = lhs / rhs
         """
     @_binop('sdiv')
-    def sdiv(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
+    def sdiv(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value {}
 
     """
         Floating-point division:
             name = lhs / rhs
         """
     @_binop('fdiv')
-    def fdiv(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
+    def fdiv(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value {}
 
     """
         Unsigned integer remainder:
             name = lhs % rhs
         """
     @_binop('urem')
-    def urem(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
+    def urem(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value {}
 
     """
         Signed integer remainder:
             name = lhs % rhs
         """
     @_binop('srem')
-    def srem(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
+    def srem(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value {}
 
     """
         Floating-point remainder:
             name = lhs % rhs
         """
     @_binop('frem')
-    def frem(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
+    def frem(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value {}
 
     """
         Bitwise integer OR:
             name = lhs | rhs
         """
     @_binop('or')
-    def or_(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
+    def or_(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value {}
 
     """
         Bitwise integer AND:
             name = lhs & rhs
         """
     @_binop('and')
-    def and_(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
+    def and_(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value {}
 
     """
         Bitwise integer XOR:
             name = lhs ^ rhs
         """
     @_binop('xor')
-    def xor(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value { }
+    def xor(self: IRBuilder, lhs: any, rhs: any, name: any = '') -> values.Value {}
 
     """
         Bitwise integer complement:
@@ -326,7 +326,7 @@ class IRBuilder(object) {
     @_unop('fneg')
     def fneg(
         self: IRBuilder, arg: any, name: any = '', flags: any = ()
-    ) -> values.Value { }
+    ) -> values.Value {}
 
     def _icmp(
         self: IRBuilder, prefix: str, cmpop: any, lhs: any, rhs: any, name: any
@@ -429,23 +429,21 @@ class IRBuilder(object) {
             name = (typ) value
         """
     @_castop('trunc')
-    def trunc(
-        self: IRBuilder, value: any, typ: any, name: any = ''
-    ) -> values.Value { }
+    def trunc(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value {}
 
     """
         Zero-extending integer upcast to a larger type:
             name = (typ) value
         """
     @_castop('zext')
-    def zext(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
+    def zext(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value {}
 
     """
         Sign-extending integer upcast to a larger type:
             name = (typ) value
         """
     @_castop('sext')
-    def sext(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value { }
+    def sext(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value {}
 
     """
         Floating-point downcast to a less precise type:
@@ -454,16 +452,14 @@ class IRBuilder(object) {
     @_castop('fptrunc')
     def fptrunc(
         self: IRBuilder, value: any, typ: any, name: any = ''
-    ) -> values.Value { }
+    ) -> values.Value {}
 
     """
         Floating-point upcast to a more precise type:
             name = (typ) value
         """
     @_castop('fpext')
-    def fpext(
-        self: IRBuilder, value: any, typ: any, name: any = ''
-    ) -> values.Value { }
+    def fpext(self: IRBuilder, value: any, typ: any, name: any = '') -> values.Value {}
 
     """
         Pointer cast to a different pointer type:
@@ -472,7 +468,7 @@ class IRBuilder(object) {
     @_castop('bitcast')
     def bitcast(
         self: IRBuilder, value: any, typ: any, name: any = ''
-    ) -> values.Value { }
+    ) -> values.Value {}
 
     """
         Convert unsigned integer to floating-point:
@@ -481,7 +477,7 @@ class IRBuilder(object) {
     @_castop('uitofp')
     def uitofp(
         self: IRBuilder, value: any, typ: any, name: any = ''
-    ) -> values.Value { }
+    ) -> values.Value {}
 
     """
         Convert floating-point to signed integer:
@@ -490,7 +486,7 @@ class IRBuilder(object) {
     @_castop('fptosi')
     def fptosi(
         self: IRBuilder, value: any, typ: any, name: any = ''
-    ) -> values.Value { }
+    ) -> values.Value {}
 
     """
         Convert floating-point to unsigned integer:
@@ -499,7 +495,7 @@ class IRBuilder(object) {
     @_castop('fptoui')
     def fptoui(
         self: IRBuilder, value: any, typ: any, name: any = ''
-    ) -> values.Value { }
+    ) -> values.Value {}
 
     """
         Convert signed integer to floating-point:
@@ -508,7 +504,7 @@ class IRBuilder(object) {
     @_castop('sitofp')
     def sitofp(
         self: IRBuilder, value: any, typ: any, name: any = ''
-    ) -> values.Value { }
+    ) -> values.Value {}
 
     """
         Cast pointer to integer:
@@ -517,7 +513,7 @@ class IRBuilder(object) {
     @_castop('ptrtoint')
     def ptrtoint(
         self: IRBuilder, value: any, typ: any, name: any = ''
-    ) -> values.Value { }
+    ) -> values.Value {}
 
     """
         Cast integer to pointer:
@@ -526,7 +522,7 @@ class IRBuilder(object) {
     @_castop('inttoptr')
     def inttoptr(
         self: IRBuilder, value: any, typ: any, name: any = ''
-    ) -> values.Value { }
+    ) -> values.Value {}
 
     """
         Stack-allocate a slot for *size* elements of the given type.
@@ -535,9 +531,7 @@ class IRBuilder(object) {
     def alloca(
         self: IRBuilder, typ: any, size: any = None, name: any = ''
     ) -> values.Value {
-        if (size is None) {
-            ;
-        } elif isinstance(size, (values.Value, values.Constant)) {
+        if (size is None) {} elif isinstance(size, (values.Value, values.Constant)) {
             assert isinstance(size.type, types.IntType);
         } else {
             size = values.Constant(types.IntType(32), size);

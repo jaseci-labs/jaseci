@@ -121,9 +121,7 @@ obj ServingServer {
                 await asyncio.wait_for(
                     self._server.wait_closed(), timeout=CLOSE_TIMEOUT_SECONDS
                 );
-            } except asyncio.TimeoutError {
-                ;
-            }
+            } except asyncio.TimeoutError {}
             await self.app.shutdown();
         }
     }
@@ -170,9 +168,7 @@ obj ServingServer {
         main_coro: any = self._serve(on_ready=on_ready, port_retries=port_retries);
         try {
             asyncio.run(main_coro);
-        } except KeyboardInterrupt {
-            ;
-        }
+        } except KeyboardInterrupt {}
     }
 
     def serve_background(
@@ -211,18 +207,14 @@ obj ServingServer {
         self._active.add(task);
         try {
             await self._connection_loop(reader, writer);
-        } except (ConnectionError, asyncio.IncompleteReadError, TimeoutError) {
-            ;
-        } except Exception {
+        } except (ConnectionError, asyncio.IncompleteReadError, TimeoutError) {} except Exception {
             _logger.exception("connection handler failed");
         } finally {
             self._active.discard(task);
             self._busy.discard(task);
             try {
                 writer.close();
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
     }
 
@@ -558,8 +550,6 @@ obj ServingServer {
         try {
             writer.write(blob + body);
             await writer.drain();
-        } except (ConnectionError, OSError) {
-            ;
-        }
+        } except (ConnectionError, OSError) {}
     }
 }

@@ -377,9 +377,7 @@ def _occ_policy -> tuple[str, int, int] {
             max_attempts = cfg.serve.conflict_max_attempts;
             backoff_ms = cfg.serve.conflict_backoff_ms;
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return (mode, max_attempts, backoff_ms);
 }
 
@@ -872,9 +870,7 @@ impl ModuleIntrospector._extract_access_levels -> None {
                     self._walker_access[name] = auth;
                 }
             }
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
 }
 
@@ -2382,9 +2378,7 @@ impl JacAPIServer.build_app -> ServingApp {
                 "serving stack (`jac run`)."
             );
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     for _w_name in _named_walkers {
         def _mk_walker_ep(bound: str) -> Callable {
             def _spawn_named(request: Request, node_id: str = '') -> any {

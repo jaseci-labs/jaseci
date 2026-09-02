@@ -27,30 +27,30 @@ class MetricsCollector {
 }
 
 class NoOpMetricsCollector(MetricsCollector) {
-    def init(self: NoOpMetricsCollector, config: dict[str, any] = {}) { }
+    def init(self: NoOpMetricsCollector, config: dict[str, any] = {}) {}
     def record_request(
         self: NoOpMetricsCollector,
         method: str,
         path: str,
         status_code: int,
         duration_seconds: float
-    ) { }
+    ) {}
 
-    def request_started(self: NoOpMetricsCollector) { }
-    def request_finished(self: NoOpMetricsCollector) { }
+    def request_started(self: NoOpMetricsCollector) {}
+    def request_finished(self: NoOpMetricsCollector) {}
     def record_walker(
         self: NoOpMetricsCollector,
         walker_name: str,
         duration_seconds: float,
         success: bool = True
-    ) { }
+    ) {}
 
-    def record_ws_connection_opened(self: NoOpMetricsCollector) { }
-    def record_ws_connection_closed(self: NoOpMetricsCollector) { }
-    def record_ws_broadcast(self: NoOpMetricsCollector) { }
-    def record_read_tier_retry(self: NoOpMetricsCollector, unit_key: str) { }
+    def record_ws_connection_opened(self: NoOpMetricsCollector) {}
+    def record_ws_connection_closed(self: NoOpMetricsCollector) {}
+    def record_ws_broadcast(self: NoOpMetricsCollector) {}
+    def record_read_tier_retry(self: NoOpMetricsCollector, unit_key: str) {}
     def get_endpoint_handler(self: NoOpMetricsCollector) -> Callable[..., any] {
-        def noop { }
+        def noop {}
         return noop;
     }
 

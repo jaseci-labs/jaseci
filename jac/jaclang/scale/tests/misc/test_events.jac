@@ -21,8 +21,8 @@ import from jaclang.scale.events.streams.postgres { PgEventStream }
 
 """Broker stub that raises on publish; verifies the facade swallows errors."""
 obj _ExplodingBroker(EventStreamBroker) {
-    def start { }
-    def stop(drain: bool = True) { }
+    def start {}
+    def stop(drain: bool = True) {}
     def publish(topic: str, event: Event, key: str | None = None) {
         raise RuntimeError("boom");
     }
@@ -33,7 +33,7 @@ obj _ExplodingBroker(EventStreamBroker) {
         group: str | None = None,
         retry: RetryPolicy | None = None,
         start_from: str = "latest"
-    ) { }
+    ) {}
 
     def consume(
         topic: str,
@@ -45,7 +45,7 @@ obj _ExplodingBroker(EventStreamBroker) {
         return [];
     }
 
-    def ack(event: Event) { }
+    def ack(event: Event) {}
     def health -> HealthStatus {
         return HealthStatus(healthy=True, broker="exploding");
     }
@@ -107,8 +107,8 @@ test "publish swallows broker errors" {
 obj _CapturingBroker(EventStreamBroker) {
     has last_event: Event | None = None;
 
-    def start { }
-    def stop(drain: bool = True) { }
+    def start {}
+    def stop(drain: bool = True) {}
     def publish(topic: str, event: Event, key: str | None = None) {
         self.last_event = event;
     }
@@ -119,7 +119,7 @@ obj _CapturingBroker(EventStreamBroker) {
         group: str | None = None,
         retry: RetryPolicy | None = None,
         start_from: str = "latest"
-    ) { }
+    ) {}
 
     def consume(
         topic: str,
@@ -131,7 +131,7 @@ obj _CapturingBroker(EventStreamBroker) {
         return [];
     }
 
-    def ack(event: Event) { }
+    def ack(event: Event) {}
     def health -> HealthStatus {
         return HealthStatus(healthy=True, broker="capturing");
     }
@@ -162,7 +162,7 @@ test "subscribe decorator registers entry" {
     before = len(get_subscriptions());
 
     @subscribe("orders.placed")
-    def _h1(ev: Event) { }
+    def _h1(ev: Event) {}
 
     after = get_subscriptions();
     assert len(after) == before + 1;
@@ -177,7 +177,7 @@ test "subscribe decorator preserves group and retry" {
     policy = RetryPolicy(max_attempts=5, dead_letter_suffix=".dead");
 
     @subscribe("orders.shipped", group="ops", retry=policy)
-    def _h2(ev: Event) { }
+    def _h2(ev: Event) {}
 
     last = get_subscriptions()[-1];
     assert last.topic == "orders.shipped";
@@ -190,7 +190,7 @@ test "subscribe decorator preserves group and retry" {
 
 test "subscribe decorator defaults start_from to latest" {
     @subscribe("orders.default")
-    def _h_default(ev: Event) { }
+    def _h_default(ev: Event) {}
 
     last = get_subscriptions()[-1];
     assert last.start_from == "latest";
@@ -198,7 +198,7 @@ test "subscribe decorator defaults start_from to latest" {
 
 test "subscribe decorator preserves start_from override" {
     @subscribe("orders.replay", start_from="earliest")
-    def _h_replay(ev: Event) { }
+    def _h_replay(ev: Event) {}
 
     last = get_subscriptions()[-1];
     assert last.start_from == "earliest";
@@ -219,16 +219,16 @@ obj _StartFromRecorder(EventStreamBroker) {
     has _stop_event: _ThreadStop = _ThreadStop(),
         seen_start_from: str = "";
 
-    def start { }
-    def stop(drain: bool = True) { }
-    def publish(topic: str, event: Event, key: str | None = None) { }
+    def start {}
+    def stop(drain: bool = True) {}
+    def publish(topic: str, event: Event, key: str | None = None) {}
     def register_handler(
         topic: str,
         handler: Callable[[Event], any],
         group: str | None = None,
         retry: RetryPolicy | None = None,
         start_from: str = "latest"
-    ) { }
+    ) {}
 
     def consume(
         topic: str,
@@ -242,7 +242,7 @@ obj _StartFromRecorder(EventStreamBroker) {
         return [];
     }
 
-    def ack(event: Event) { }
+    def ack(event: Event) {}
     def health -> HealthStatus {
         return HealthStatus(healthy=True, broker="recorder");
     }
