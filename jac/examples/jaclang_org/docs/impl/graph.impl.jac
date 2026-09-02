@@ -225,7 +225,7 @@ impl _version_list -> list[VersionInfo] {
     return [
         VersionInfo(
             label=best[l].label,
-            git_ref=best[l].git_ref,
+            jac_version=best[l].jac_version,
             pages=best[l].pages,
             fetched_at=best[l].fetched_at
         ) for l in labels

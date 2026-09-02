@@ -60,14 +60,14 @@ jobs:
 
       # JAC_NO_DEV_SOURCE: the site's jac.toml carries a [dev] live-source
       # stanza for contributors; a fresh user's released binary must serve it
-      # without that reroute. JAC_DOCS_LOCAL: the clone already holds the docs
-      # corpus, so the docs stop needs no second clone from inside the run.
+      # without that reroute. The docs section reads the corpus bundled with
+      # that binary, so the docs stop needs nothing beyond the install.
       - name: jac run in the background (the documented dev server)
         working-directory: jac/jac/examples/jaclang_org
         env:
           JAC_NO_DEV_SOURCE: "1"
         run: |
-          JAC_DOCS_LOCAL="$(cd ../.. && pwd)" nohup jac run > "$RUNNER_TEMP/jac-run.log" 2>&1 &
+          nohup jac run > "$RUNNER_TEMP/jac-run.log" 2>&1 &
           echo "jac run launched (pid $!)"
 
       - name: Wait for http://localhost:8000
