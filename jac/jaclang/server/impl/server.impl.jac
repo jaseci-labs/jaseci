@@ -12,6 +12,7 @@ import from jaclang.server.auth_types {
 import from jaclang.server.serving.authcrypt {
     hash_password,
     needs_rehash,
+    project_data_dir,
     verify_password
 }
 
@@ -23,9 +24,7 @@ impl UserManager.postinit -> None {
     import sqlite3;
     import threading;
 
-    data_path_override = os.environ.get('JAC_DATA_PATH');
-    effective_data_path = data_path_override or self.base_path;
-    data_dir = os.path.join(effective_data_path, ".jac", "data");
+    data_dir = project_data_dir(self.base_path);
     os.makedirs(data_dir, exist_ok=True);
     self._db_path = os.path.join(data_dir, "main.db");
     self._conn = None;
@@ -61,6 +60,7 @@ impl UserManager._ensure_connection -> None {
 
 impl UserManager.create_user(username: str, password: str) -> dict[str, str] {
     import from jaclang.runtime.constructs { Root }
+    password_hash = hash_password(password);
     self._ensure_connection();
     assert self._conn is not None;
     with self._lock {
@@ -77,7 +77,6 @@ impl UserManager.create_user(username: str, password: str) -> dict[str, str] {
         Jac.commit(root_anchor);
         root_id = root_anchor.ensure_id().hex;
         token = secrets.token_urlsafe(32);
-        password_hash = hash_password(password);
         self._conn.execute(
             "INSERT INTO users (username, password_hash, token, root_id) VALUES (?, ?, ?, ?)",
             (username, password_hash, token, root_id)
@@ -137,12 +136,13 @@ impl UserManager.authenticate(
 }
 
 impl UserManager._rehash_password(username: str, password: str) -> None {
+    rehashed = hash_password(password);
     self._ensure_connection();
     assert self._conn is not None;
     with self._lock {
         self._conn.execute(
             "UPDATE users SET password_hash = ? WHERE username = ?",
-            (hash_password(password), username)
+            (rehashed, username)
         );
         self._conn.commit();
     }
@@ -240,16 +240,18 @@ impl UserManager.update_password(
             "SELECT password_hash FROM users WHERE username = ?", (username, )
         );
         row = cursor.fetchone();
-        if not row or not verify_password(current_password, str(row[0])) {
-            return {'error': 'Current password is incorrect'};
-        }
+    }
+    if not row or not verify_password(current_password, str(row[0])) {
+        return {'error': 'Current password is incorrect'};
+    }
+    updated = hash_password(new_password);
+    with self._lock {
         self._conn.execute(
-            "UPDATE users SET password_hash = ? WHERE username = ?",
-            (hash_password(new_password), username)
+            "UPDATE users SET password_hash = ? WHERE username = ?", (updated, username)
         );
         self._conn.commit();
-        return {'username': username, 'message': 'Password updated successfully'};
     }
+    return {'username': username, 'message': 'Password updated successfully'};
 }
 
 impl UserManager.close -> None {

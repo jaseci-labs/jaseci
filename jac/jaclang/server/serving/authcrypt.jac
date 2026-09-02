@@ -48,9 +48,17 @@ def needs_rehash(stored: str) -> bool {
 }
 
 
+def project_data_dir(base_path: str) -> str {
+    import os;
+    data_path_override = os.environ.get('JAC_DATA_PATH');
+    effective = data_path_override or base_path or '.';
+    return os.path.join(effective, '.jac', 'data');
+}
+
+
 def project_signing_secret(base_path: str) -> str {
     import os;
-    data_dir = os.path.join(base_path or '.', '.jac', 'data');
+    data_dir = project_data_dir(base_path);
     path = os.path.join(data_dir, DEV_SECRET_FILENAME);
     existing = _read_secret(path);
     if existing {
@@ -60,16 +68,27 @@ def project_signing_secret(base_path: str) -> str {
     try {
         _persist_secret(data_dir, path, minted);
     } except OSError as e {
-        _warn_once(
-            path,
-            f"Could not persist a signing secret at {path} ({e}). Signing with "
-            'a secret this process keeps to itself, so every session ends when '
-            'it does. Make the project directory writable, or set '
-            '[scale.jwt] secret.'
-        );
-        return minted;
+        raise RuntimeError(_unpersistable_secret(path, f"{type(e).__name__}: {e}"));
     }
-    return _read_secret(path) or minted;
+    stored = _read_secret(path);
+    if not stored {
+        raise RuntimeError(
+            _unpersistable_secret(path, 'it is empty or unreadable after writing')
+        );
+    }
+    return stored;
+}
+
+
+def _unpersistable_secret(path: str, reason: str) -> str {
+    return (
+        f"no [scale.jwt] secret is configured and none could be kept at {path} "
+        f"({reason}). Refusing to sign with a secret this process would keep to "
+        'itself: every other process serving this project would reject the '
+        'tokens it issues, and every session would end when it does. Set '
+        '[scale.jwt] secret, or make the project data directory writable '
+        '(JAC_DATA_PATH points it elsewhere).'
+    );
 }
 
 
