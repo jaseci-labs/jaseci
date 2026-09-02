@@ -73,7 +73,7 @@ def project_signing_secret(base_path: str) -> str {
 }
 
 
-def _persist_secret(data_dir: str, path: str, minted: str) -> None {
+def _persist_secret(data_dir: str, path: str, minted: str) {
     import os;
     os.makedirs(data_dir, exist_ok=True);
     staging = os.path.join(data_dir, f"{DEV_SECRET_FILENAME}.{os.getpid()}.tmp");
