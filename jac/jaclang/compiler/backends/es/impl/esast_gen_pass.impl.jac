@@ -4083,6 +4083,18 @@ impl EsastGenPass.exit_ctrl_stmt with uni.CtrlStmt exit {
     stmt: (es.BreakStatement | es.ContinueStatement | es.ReturnStatement);
     if (here.ctrl.name == Tok.KW_BREAK) {
         stmt = self.sync_loc(es.BreakStatement(), jac_node=here);
+        if (self._loop_label_stack) {
+            label = self._loop_label_stack[-1];
+            if label != '' {
+                stmt = self.sync_loc(
+                    es.BreakStatement(
+                        label=self.sync_loc(es.Identifier(name=label), jac_node=here)
+                    ),
+                    jac_node=here
+                );
+                self._used_loop_labels.add(label);
+            }
+        }
     } elif (here.ctrl.name == Tok.KW_SKIP) {
         stmt = self.sync_loc(es.ReturnStatement(argument=None), jac_node=here);
     } else {
@@ -4504,6 +4516,46 @@ impl EsastGenPass._view_loop_stmt(
     return self.sync_loc(es.ExpressionStatement(expression=iife), jac_node=nd);
 }
 
+impl EsastGenPass._push_loop_label(nd: uni.UniNode) -> None {
+    if nd.else_body is not None {
+        self._loop_label_seq += 1;
+        self._loop_label_stack.append(f"__jac_loop_{self._loop_label_seq}");
+    } else {
+        self._loop_label_stack.append('');
+    }
+}
+
+impl EsastGenPass._finish_loop(
+    nd: uni.UniNode, loop_stmt: es.Statement
+) -> es.Statement {
+    label = '';
+    if self._loop_label_stack {
+        label = self._loop_label_stack.pop();
+    }
+    wrapped = self._view_loop_stmt(nd, loop_stmt);
+    if nd.else_body is None {
+        return wrapped;
+    }
+    else_stmts = self._collect_stmt_body(nd.else_body.body);
+    else_stmts = self._prepend_hoisted(nd, else_stmts);
+    else_block = self.sync_loc(
+        es.BlockStatement(body=else_stmts), jac_node=nd.else_body
+    );
+    seq_block = self.sync_loc(
+        es.BlockStatement(body=[wrapped, else_block]), jac_node=nd
+    );
+    if label == '' or label not in self._used_loop_labels {
+        return seq_block;
+    }
+    self._used_loop_labels.discard(label);
+    return self.sync_loc(
+        es.LabeledStatement(
+            label=self.sync_loc(es.Identifier(name=label), jac_node=nd), body=seq_block
+        ),
+        jac_node=nd
+    );
+}
+
 impl EsastGenPass._view_chain_open(nd: uni.UniNode) -> None {
     acc = self._cur_view_acc();
     if (acc is None) or (acc in self._view_dynamic_accs) {
@@ -4552,19 +4604,23 @@ impl EsastGenPass.enter_else_stmt with uni.ElseStmt entry {
 }
 
 impl EsastGenPass.enter_in_for_stmt with uni.InForStmt entry {
+    self._push_loop_label(here);
     self._view_open_loop_acc(here);
 }
 
 impl EsastGenPass.enter_iter_for_stmt with uni.IterForStmt entry {
+    self._push_loop_label(here);
     self._view_open_loop_acc(here);
 }
 
 impl EsastGenPass.enter_while_stmt with uni.WhileStmt entry {
+    self._push_loop_label(here);
     self._view_open_loop_acc(here);
 }
 
 impl EsastGenPass.enter_forever_stmt with uni.ForeverStmt entry {
     self._view_open_loop_acc(here);
+    self._loop_label_stack.append('');
 }
 
 impl EsastGenPass.exit_in_for_stmt with uni.InForStmt exit {
@@ -4636,7 +4692,7 @@ impl EsastGenPass.exit_in_for_stmt with uni.InForStmt exit {
         es.ForOfStatement(left=decl, right=right, body=body, await_=here.is_async),
         jac_node=here
     );
-    here.gen.es_ast = self._view_loop_stmt(here, for_stmt);
+    here.gen.es_ast = self._finish_loop(here, for_stmt);
 }
 
 impl EsastGenPass._target_to_pattern(target: es.Node, loc: uni.UniNode) -> es.Node {
@@ -4691,7 +4747,7 @@ impl EsastGenPass.exit_iter_for_stmt with uni.IterForStmt exit {
         update = cast(es.AssignmentExpression, here.count_by.gen.es_ast.expression);
     }
     body = self._build_block_statement(here, here.body);
-    here.gen.es_ast = self._view_loop_stmt(
+    here.gen.es_ast = self._finish_loop(
         here,
         self.sync_loc(
             es.ForStatement(`init=`init, `test=`test, update=update, body=body),
@@ -4716,7 +4772,7 @@ impl EsastGenPass.exit_while_stmt with uni.WhileStmt exit {
     while_stmt = self.sync_loc(
         es.WhileStatement(`test=`test, body=body), jac_node=here
     );
-    here.gen.es_ast = self._view_loop_stmt(here, while_stmt);
+    here.gen.es_ast = self._finish_loop(here, while_stmt);
 }
 
 impl EsastGenPass.exit_forever_stmt with uni.ForeverStmt exit {
