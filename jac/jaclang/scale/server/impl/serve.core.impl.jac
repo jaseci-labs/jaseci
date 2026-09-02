@@ -28,11 +28,6 @@ impl _get_network_ips -> list[str] {
 }
 
 impl JacAPIServerCore._make_user_manager -> CoreUserManager {
-    import from jaclang.server.identity_owner { SCALE_IDENTITY, identity_owner }
-    if identity_owner() != SCALE_IDENTITY {
-        import from jaclang.server.server { UserManager }
-        return UserManager(base_path=self.base_path);
-    }
     import from jaclang.scale.identity.user_manager { JacScaleUserManager }
     return JacScaleUserManager(base_path=self.base_path);
 }
