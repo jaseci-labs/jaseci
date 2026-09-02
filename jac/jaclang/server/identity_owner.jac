@@ -18,11 +18,13 @@ glob CORE_IDENTITY: str = 'core',
          'KNOWN_IDENTITY_OWNERS',
          'SCALE_IDENTITY',
          'identity_owner',
+         'identity_setting',
          'scale_stack_configured',
          'scale_stack_installed',
          'scale_stack_unavailable'
      ];
 
+def identity_setting(project_dir: (str | None) = None) -> str;
 def scale_stack_installed -> bool;
 def scale_stack_configured -> bool;
 def identity_owner(project_dir: (str | None) = None) -> str;

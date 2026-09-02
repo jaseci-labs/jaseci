@@ -28,24 +28,29 @@ def _configured_owner(project_dir: (str | None)) -> str {
     return str(config.serve.identity or '').strip().lower();
 }
 
-impl identity_owner(project_dir: (str | None) = None) -> str {
+impl identity_setting(project_dir: (str | None) = None) -> str {
     setting = os.environ.get(IDENTITY_BACKEND_ENV, '').strip().lower();
     source = IDENTITY_BACKEND_ENV;
     if not setting {
         setting = _configured_owner(project_dir);
         source = 'jac.toml [serve] identity';
     }
-    if setting in KNOWN_IDENTITY_OWNERS {
+    if setting in KNOWN_IDENTITY_OWNERS or setting in ('', AUTO_IDENTITY) {
         return setting;
     }
-    if setting and setting != AUTO_IDENTITY {
-        accepted = ', '.join(repr(name) for name in IDENTITY_SETTINGS);
-        raise ValueError(
-            f"{source} = {setting!r} does not name an identity owner. "
-            f"Accepted values are {accepted}. Which stack owns /user/* decides "
-            'which database the credentials live in, so there is no safe value '
-            'to guess here.'
-        );
+    accepted = ', '.join(repr(name) for name in IDENTITY_SETTINGS);
+    raise ValueError(
+        f"{source} = {setting!r} does not name an identity owner. Accepted "
+        f"values are {accepted}. Which stack owns /user/* decides which "
+        'database the credentials live in, so there is no safe value to guess '
+        'here.'
+    );
+}
+
+impl identity_owner(project_dir: (str | None) = None) -> str {
+    setting = identity_setting(project_dir);
+    if setting in KNOWN_IDENTITY_OWNERS {
+        return setting;
     }
     return SCALE_IDENTITY if scale_stack_configured() else CORE_IDENTITY;
 }
