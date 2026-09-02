@@ -234,9 +234,7 @@ impl _suite_source(filepath: str) -> str {
             if base {
                 return os.path.realpath(base);
             }
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
     return os.path.realpath(filepath);
 }
@@ -349,9 +347,7 @@ impl _cleanup_test_bases -> None {
         } else {
             try {
                 os.unlink(path);
-            } except OSError {
-                ;
-            }
+            } except OSError {}
         }
     }
 }
@@ -385,9 +381,7 @@ impl _capture_begin -> dict[(str, any)] {
     for stream in (sys.stdout, sys.stderr) {
         try {
             stream.flush();
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
     sink: any = None;
     if _CRASH_LOG[0] {
@@ -419,9 +413,7 @@ impl _capture_end(state: dict[(str, any)]) -> str {
         try {
             stream.flush();
             stream.close();
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
     sys.stdout = state["sys_out"];
     sys.stderr = state["sys_err"];
@@ -440,9 +432,7 @@ impl _capture_end(state: dict[(str, any)]) -> str {
     }
     try {
         sink.close();
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return text;
 }
 
@@ -773,9 +763,7 @@ impl run_file(
         for `entry in injected {
             try {
                 sys.path.remove(`entry);
-            } except ValueError {
-                ;
-            }
+            } except ValueError {}
         }
     }
     return outcomes;
@@ -923,9 +911,7 @@ impl _store_run_state(plan: TestPlan, reporter: Reporter) -> None {
     if not reporter.failure_count() {
         try {
             os.remove(path);
-        } except OSError {
-            ;
-        }
+        } except OSError {}
         return;
     }
     order = {p: i for (i, p) in enumerate(plan.files)};
@@ -946,9 +932,7 @@ impl _store_run_state(plan: TestPlan, reporter: Reporter) -> None {
         with open(path, "w", encoding="utf-8") as f {
             json.dump({"first_failed": first}, f);
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
 }
 
 impl run_tests(

@@ -21,7 +21,10 @@ import from jaclang.compiler.driver.jir {
     SEC_DEBUG_SRC,
     FORMAT_VERSION,
     compute_precompile_module_key,
+    get_module_cache_path,
+    is_module_cache_valid,
     precompiled_jir_matches_source,
+    read_section_bytes,
     running_compiler_digest,
     PRECOMPILE_SENTINEL
 }
@@ -265,6 +268,34 @@ def precompile_unit(
     import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from jaclang.compiler.driver.program { JacProgram }
     import from jaclang.cli.workpool { maybe_malloc_trim }
+
+    try {
+        import from jaclang.compiler.driver.jir { cache_mode }
+        (rebuild_units, _np) = cache_mode();
+        cache_path = get_module_cache_path(jac_path);
+        if (not rebuild_units) and is_module_cache_valid(jac_path, cache_path) {
+            cached_bc = read_section_bytes(cache_path.read_bytes(), SEC_BYTECODE);
+            if cached_bc is not None {
+                rewrapped = patch_co_filenames_bytes(
+                    cached_bc, pkg_root, PRECOMPILE_SENTINEL
+                );
+                wrap_extra: dict[int, bytes] | None = None;
+                if embed_src {
+                    wrap_extra = {
+                        int(SEC_DEBUG_SRC): zlib.compress(
+                            Path(jac_path).read_bytes(), 9
+                        )
+                    };
+                }
+                return write_precompiled_jir(
+                    rewrapped,
+                    compute_precompile_module_key(jac_path),
+                    FLAG_PRECOMPILED,
+                    wrap_extra
+                );
+            }
+        }
+    } except Exception {}
 
     compiler = Jac.get_compiler();
 
@@ -664,7 +695,6 @@ def main {
     seal_compile = "--seal-compile" in args;
     finalize_only = "--seal-finalize" in args;
     embed_src = "--debug-src" in args;
-    exclude_seed = seal or seal_compile;
     jobs_arg = "";
     for a in args {
         if a.startswith("--jobs=") {
@@ -678,11 +708,11 @@ def main {
     ];
     if not args {
         console.print(
-            "Usage: jac run dist/precompile_bytecode.jac<package-source-dir> [--seal|--seal-finalize] [--debug-src]"
+            "Usage: jac precompile <package-source-dir> [--seal|--seal-finalize] [--debug-src]"
         );
         console.print("\nExamples:");
-        console.print("  jac run dist/precompile_bytecode.jac./jac");
-        console.print("  jac run dist/precompile_bytecode.jac./jac/jaclang/scale");
+        console.print("  jac precompile ./jac");
+        console.print("  jac precompile ./jac/jaclang/scale");
         console.print("\n--seal: precompile, freeze the bootstrap seed tier, and emit");
         console.print("        MANIFEST.json (JIR-authoritative image; .jac sources");
         console.print(
@@ -710,8 +740,25 @@ def main {
         );
         sys.`exit(1);
     }
+    run_precompile(
+        args[0],
+        seal=seal,
+        seal_compile=seal_compile,
+        finalize_only=finalize_only,
+        embed_src=embed_src,
+        jobs_arg=jobs_arg
+    );
+}
 
-    source_dir = args[0];
+def run_precompile(
+    source_dir: str,
+    seal: bool = False,
+    seal_compile: bool = False,
+    finalize_only: bool = False,
+    embed_src: bool = False,
+    jobs_arg: str = ""
+) {
+    exclude_seed = seal or seal_compile;
     package_dir = find_package_dir(source_dir);
     if package_dir is None {
         console.error(f"Could not find a Python package in {source_dir}");

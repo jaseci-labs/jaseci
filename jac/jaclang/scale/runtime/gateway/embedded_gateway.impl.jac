@@ -71,9 +71,7 @@ impl EmbeddedGateway._serve_static(path: str, accept: str) -> Response {
                     or "application/octet-stream";
                 return Response(content=resolved.read_bytes(), media_type=ctype);
             }
-        } except OSError {
-            ;
-        }
+        } except OSError {}
     }
 
     index_file = dist / "index.html";

@@ -140,7 +140,5 @@ def _note_native_closure_cap(root_path: str, cap: int) {
             style="dim",
             file=sys.stderr
         );
-    } except Exception {
-        ;
-    }
+    } except Exception {}
 }

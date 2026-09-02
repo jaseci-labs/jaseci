@@ -290,7 +290,7 @@ impl DeclImplMatchPass._resolve_symbols_in_subtree(root_node: UniNode) -> None {
         if name_node.sym_tab {
             try {
                 name_node.sym_tab.use_lookup(name_node);
-            } except ValueError { }
+            } except ValueError {}
         }
     }
     for trailer_node in root_node.get_all_sub_nodes(AtomTrailer) {
@@ -298,7 +298,7 @@ impl DeclImplMatchPass._resolve_symbols_in_subtree(root_node: UniNode) -> None {
         if chain and chain[0].sym is None and trailer_node.sym_tab {
             try {
                 trailer_node.sym_tab.chain_use_lookup(chain);
-            } except ValueError { }
+            } except ValueError {}
         }
     }
 }

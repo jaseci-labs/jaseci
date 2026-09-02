@@ -77,15 +77,12 @@ impl EsastGenPass._literal_value(expr: (uni.UniNode | None)) -> (object | None) 
     return None;
 }
 
-impl EsastGenPass.exit_semi with uni.Semi exit {
-    ;
-}
+impl EsastGenPass.exit_semi with uni.Semi exit {}
 
 impl EsastGenPass.exit_token with uni.Token exit {
     if here.__class__ is not uni.Token {
         return;
     }
-    ;
 }
 
 impl EsastGenPass._collect_body_stmts(
@@ -545,9 +542,7 @@ impl EsastGenPass.exit_bool with uni.Bool exit {
     here.gen.es_ast = bool_lit;
 }
 
-impl EsastGenPass.exit_inner_compr with uni.InnerCompr exit {
-    ;
-}
+impl EsastGenPass.exit_inner_compr with uni.InnerCompr exit {}
 
 impl EsastGenPass.exit_list_compr with uni.ListCompr exit {
     if here.__class__ is not uni.ListCompr {
@@ -757,9 +752,7 @@ impl EsastGenPass._compr_param(
     return self.sync_loc(es.Identifier(name='x'), jac_node=jac_node);
 }
 
-impl EsastGenPass.exit_k_v_pair with uni.KVPair exit {
-    ;
-}
+impl EsastGenPass.exit_k_v_pair with uni.KVPair exit {}
 
 impl EsastGenPass.exit_dict_val with uni.DictVal exit {
     properties: list[(es.Property | es.SpreadElement)] = [];
@@ -4995,7 +4988,7 @@ impl EsastGenPass.exit_jsx_comment with uni.JsxComment exit {
     here.gen.es_ast = None;
 }
 
-impl EsastGenPass.exit_jsx_normal_attribute with uni.JsxNormalAttribute exit { }
+impl EsastGenPass.exit_jsx_normal_attribute with uni.JsxNormalAttribute exit {}
 
 impl EsastGenPass.exit_jsx_spread_attribute with uni.JsxSpreadAttribute exit {
     self.jsx_processor.spread_attribute(here);
@@ -7470,7 +7463,12 @@ impl EsastGenPass._emit_boundary_type_stubs(nd: uni.Module) -> list[es.Statement
                     alternate=None
                 )
             );
-            nested_set = set(info.nested_types);
+            nested_set = {
+                t
+                for t in info.nested_types
+                if t in manifest.boundary_types
+                    and manifest.boundary_types[t].kind != "enum"
+            };
             for fname in field_names {
                 ftype = field_types[fname];
 
@@ -8012,9 +8010,7 @@ impl EsastGenPass.exit_module with uni.Module exit {
             if (getattr(stmt, 'code_context', CodeContext.CLIENT) == CodeContext.CLIENT)
                 or is_shared_arch {
                 client_items.append(cast(es.Statement, stmt.gen.es_ast));
-            } else {
-                ;
-            }
+            } else {}
         }
     }
     target_body = client_items or fallback_items;

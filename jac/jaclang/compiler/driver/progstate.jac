@@ -227,12 +227,18 @@ class AnalysisCaches {
     has placement_summaries: dict[str, any],
         placement_state: dict[str, any],
         analyses_run: dict[int, set[str]],
-        mtir_map: dict[(str, Info)];
+        mtir_map: dict[(str, Info)],
+        pass_runs: dict[str, int],
+        pass_time: dict[str, float],
+        cache_events: dict[str, int];
 
     def init(self: AnalysisCaches) {
         self.placement_summaries: dict[str, any] = {};
         self.placement_state: dict[str, any] = {};
         self.analyses_run: dict[int, set[str]] = {};
         self.mtir_map: dict[(str, Info)] = {};
+        self.pass_runs: dict[str, int] = {};
+        self.pass_time: dict[str, float] = {};
+        self.cache_events: dict[str, int] = {};
     }
 }

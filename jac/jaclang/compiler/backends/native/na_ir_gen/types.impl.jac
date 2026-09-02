@@ -1004,7 +1004,7 @@ impl NaIRGenTypes._resolve_field_type(var: uni.UniNode) -> ir.Type {
             if isinstance(_ptb, _FieldFnType) {
                 return self._lower_function_type_raw(_ptb);
             }
-        } except ImportError { }
+        } except ImportError {}
         lowered = self._lower_type(_ptb);
         if lowered is not None {
             if self._str_desc_ty is not None and lowered == self._str_desc_ty {
@@ -1023,7 +1023,7 @@ impl NaIRGenTypes._resolve_field_type(var: uni.UniNode) -> ir.Type {
             if isinstance(_ptb, _RfTypeVarType) {
                 return ir.IntType(8).as_pointer();
             }
-        } except ImportError { }
+        } except ImportError {}
         if not self._type_base_is_unknown(_ptb) {
             return self._emit_unlowerable_type(var, _ptb);
         }
@@ -1265,7 +1265,7 @@ impl NaIRGenTypes._resolve_clib_type(type_expr: (uni.UniNode | None)) -> ir.Type
         if isinstance(type_expr?.type, _ClibSigFnType) {
             return self._lower_function_type_raw(type_expr.type);
         }
-    } except ImportError { }
+    } except ImportError {}
 
     return self._resolve_jac_type(type_expr);
 }

@@ -26,9 +26,8 @@ glob __all__ = [
 
 def access_gated -> bool {
     import from jaclang.runtime.runtime { JacRuntimeInterface }
-    try {
-        jctx = JacRuntimeInterface.get_context();
-    } except Exception {
+    jctx = JacRuntimeInterface.peek_context();
+    if jctx is None {
         return False;
     }
     ur = jctx?.user_root;
@@ -44,16 +43,21 @@ def acl_read_ok(anchor: Anchor) -> bool {
 }
 
 
-def needs_store(mem: any, origins: list[Anchor]) -> bool {
-    if not origins or mem?.store is None {
-        return False;
-    }
+def has_persistent_origin(origins: list[Anchor]) -> bool {
     for a in origins {
         if a.persistent {
             return True;
         }
     }
     return False;
+}
+
+
+def needs_store(mem: any, origins: list[Anchor]) -> bool {
+    if not origins or mem?.store is None {
+        return False;
+    }
+    return has_persistent_origin(origins);
 }
 
 

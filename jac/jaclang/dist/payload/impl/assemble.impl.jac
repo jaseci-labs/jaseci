@@ -22,6 +22,7 @@ import from jaclang.dist.payload.fsutil {
     sha256_hex,
     skip_jaclang,
     skip_none,
+    skip_site_template,
     skip_stage_site,
     source_file_mode,
     strip_best_effort,
@@ -111,6 +112,16 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
             os.path.join(repo_root, "bootstrap", "pins.json"),
             os.path.join(site, "jaclang", "dist", "payload", "pins.json")
         );
+
+        awesome_src = os.path.join(repo_root, "examples", "jaclang_org");
+        if os.path.isdir(awesome_src) {
+            log("==> bundling the jaclang.org site as the --awesome template");
+            copy_tree(
+                awesome_src, os.path.join(site, "awesome_template"), skip_site_template
+            );
+        } else {
+            log(f"==> no {awesome_src}; --awesome template not bundled");
+        }
     } else {
         log(
             f"==> linked-source mode: NOT bundling jaclang (compiler served from {opts.link_source})"
@@ -315,7 +326,7 @@ impl precompile(py: str, pbs_py_dir: str, site: str, seal: bool, debug_src: bool
 
     boot = os.path.join(site, "precompile_boot.py");
     write_text(boot, PRECOMPILE_BOOT_SRC);
-    argv = [py, "-S", boot, pc, site];
+    argv = [py, "-S", boot, site];
     if seal {
         argv.append("--seal-compile");
     }
@@ -339,7 +350,7 @@ impl precompile(py: str, pbs_py_dir: str, site: str, seal: bool, debug_src: bool
     if not seal {
         return;
     }
-    fin = [py, "-S", boot, pc, site, "--seal-finalize"];
+    fin = [py, "-S", boot, site, "--seal-finalize"];
     if debug_src {
         fin.append("--debug-src");
     }
@@ -682,7 +693,7 @@ impl zstd_compress(data: bytes) -> bytes {
         mt: dict[int, int] = dict(opts);
         mt[int(CompressionParameter.nb_workers)] = workers;
         return compress(data, options=mt);
-    } except Exception { }
+    } except Exception {}
     return compress(data, options=opts);
 }
 

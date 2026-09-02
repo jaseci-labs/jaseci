@@ -175,7 +175,7 @@ impl TypeEvaluator._map_ts_type(
         int_val: (int | None) = None;
         try {
             int_val = int(ts.name);
-        } except ValueError { }
+        } except ValueError {}
         if (int_val is not None and self.prefetch.int_class) {
             return self._convert_to_instance(
                 self.prefetch.int_class.clone_with_literal(int_val)
