@@ -97,10 +97,18 @@ arrived as a hydrated interface earlier in the same process is therefore not
 upgraded, which is why the ingestion is seeded before analysis rather than
 on demand.
 
-Precompiled bundles carry the section too, with paths rebased onto the
-package root so a relocated bundle still resolves them. An **unsealed**
-bundle is served only while its comptime dependencies are fresh; a sealed
-image is a frozen build and is served on its seal alone.
+Every carrier of a fold checks the same section, because any one of them
+that does not becomes the stale path:
+
+| Carrier | Rule |
+|---|---|
+| Module cache | `is_module_cache_valid` fails when a row's digest moved |
+| Unsealed precompiled bundle | served only while its rows are fresh; a sealed image is a frozen build and is served on its seal alone |
+| Bundle promoted into the module cache | the bundle's rows ride along on the promotion write, absolutized onto the package root |
+| Native dependency IR cache | `.ir_cache` is keyed on the module's own source, so its `.ir_meta` stamps the rows the fold read and a hit whose stamp moved is dropped and rebuilt |
+
+Bundle rows are stored relative to the package root so a relocated bundle
+still resolves them, and absolutized again on the way into a module cache.
 
 Dependency edges are recorded at the one seam every ingestion path goes
 through (`JacProgram.load_dependency_module`), attributed to the innermost
