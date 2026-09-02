@@ -140,6 +140,17 @@ test "a second client build lowers exactly what the first one did" {
 }
 
 
+# `_audit_free_identifiers` scans for bare builtins BEFORE its `has_client`
+# early return, and that ordering is the point of this test. A module whose
+# checker facts were never derived carries no `call_kind` on any call, so the
+# backend never routes one to the builtin emitter -- and, for the same reason,
+# `client_manifest.has_client` is False. Gating the whole audit on `has_client`
+# therefore skipped exactly the modules that needed it, which is how a bundle
+# full of bare `enumerate(` shipped without one diagnostic. The scan stays
+# unconditional; if that early return is ever hoisted back above it, this test
+# fails. (The rationale lives here because jaclang source is deslopped: the
+# repo's `[check.lint]` selects `strip-comments`/`strip-docstrings`, and
+# `*/tests/*` is the exclusion that lets a note like this survive.)
 test "an unlowered builtin in the bundle is an error, never silence" {
     (base, widget) = _project();
     try {

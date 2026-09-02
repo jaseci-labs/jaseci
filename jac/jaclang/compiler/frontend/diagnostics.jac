@@ -859,14 +859,17 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E1134",
          Category.IMPORT,
          "Relative import '{module}' names no module",
-         help="A relative import addresses a file inside this project, so its"
-         " target has to sit beside the importing module: '{module}' resolves"
-         " to no .jac, .py, .pyi or .js file and to no package directory."
-         " Create the module, correct the spelling, or drop the import. Only"
-         " a bare (non-relative) specifier may stay unresolved, since it can"
-         " name an npm package that is installed later; a relative one cannot,"
-         " and leaving it unresolved erases the binding from the emitted client"
-         " bundle, where it fails as an undefined name at runtime.",
+         help="A dotted relative import addresses a file inside this project, so"
+         " its target has to sit beside the importing module: '{module}'"
+         " resolves to no .jac, .py, .pyi or .js file and to no package"
+         " directory. Create the module, correct the spelling, or drop the"
+         " import. Leaving it unresolved erases the binding from the emitted"
+         " client bundle, where it fails as an undefined name at runtime. Two"
+         " shapes are exempt: a bare specifier, which can name an npm package"
+         " installed later, and an import inside a try that catches"
+         " ImportError, where the author means the failure and the handler is"
+         " the fallback. A string specifier ('./thing.tsx', './libfoo.so') is"
+         " not checked here, since another toolchain resolves it.",
          blocks_codegen=True
      ),
      E1301 = _err(

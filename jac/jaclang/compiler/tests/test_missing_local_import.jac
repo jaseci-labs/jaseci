@@ -164,3 +164,58 @@ test "a type-only import of a missing sibling stays a warning" {
         shutil.rmtree(base, ignore_errors=True);
     }
 }
+
+
+test "an optional dependency guarded by try/except ImportError stays a warning" {
+    (base, mod_path) = _project(
+        "def:pub Widget -> any {\n"
+        "    try {\n"
+        "        import from .optional_plugin { make }\n"
+        "        return make();\n"
+        "    } except ImportError {\n"
+        "        return None;\n"
+        "    }\n"
+        "}\n"
+    );
+    try {
+        prog = JacProgram();
+        prog.compile(mod_path);
+        assert "E1134" not in _codes(prog) , (
+            "an import whose failure the author handles must not be a compile"
+            f" error: {_codes(prog)}"
+        );
+    } finally {
+        shutil.rmtree(base, ignore_errors=True);
+    }
+}
+
+
+test "a missing sibling outside the guarded try is still an error" {
+    (base, mod_path) = _project(
+        "import from .label { Label }\n"
+        "\n"
+        "def:pub Widget -> any {\n"
+        "    try {\n"
+        "        import from .optional_plugin { make }\n"
+        "        return make();\n"
+        "    } except ImportError {\n"
+        "        return Label;\n"
+        "    }\n"
+        "}\n"
+    );
+    try {
+        prog = JacProgram();
+        prog.compile(mod_path);
+        codes = _codes(prog);
+        assert "E1134" in codes , codes;
+        named = [
+            str(e)
+            for e in prog.errors_had
+            if e.code and e.code.code == "E1134"
+        ];
+        assert len(named) == 1 , named;
+        assert any([".label" in m for m in named]) , named;
+    } finally {
+        shutil.rmtree(base, ignore_errors=True);
+    }
+}

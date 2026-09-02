@@ -95,7 +95,13 @@ test "the checker classifies calls inside a standalone test module" {
 }
 
 
-test "a standalone test module lowers its test-block calls for the client" {
+# Not a reproducer: this shape passes on main too, because the deleted
+# `BoundaryAnalysisPass.exit_func_call` stopgap stamped `call_kind` late
+# enough to lower these two calls. It is kept as the end-to-end guard that
+# the stopgap's removal did not cost anything the bundle depended on -- the
+# reproducer for the analysis skip is the checker-facts test above, which
+# reads `call_kind` and `target.type` off the tree.
+test "a standalone test module still lowers its test-block calls (stopgap retired)" {
     (base, mod_path) = _standalone_test_module();
     try {
         prog = JacProgram();

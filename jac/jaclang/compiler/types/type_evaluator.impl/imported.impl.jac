@@ -528,5 +528,30 @@ impl TypeEvaluator._relative_import_must_resolve(node_: ModulePath) -> bool {
     if imp is None or imp.is_typed or imp.is_comptime {
         return False;
     }
-    return True;
+    return not self._import_error_is_handled(imp);
+}
+
+
+impl TypeEvaluator._import_error_is_handled(imp: Import) -> bool {
+    caught = {'ImportError', 'ModuleNotFoundError', 'Exception', 'BaseException'};
+    prev: UniNode = imp;
+    cur: (UniNode | None) = imp.parent;
+    while cur is not None {
+        if isinstance(cur, TryStmt) and (prev in cur.body) {
+            for handler in cur.excepts {
+                for nm in handler.ex_type.get_all_sub_nodes(typ=Name) {
+                    if nm.value in caught {
+                        return True;
+                    }
+                }
+                if isinstance(handler.ex_type, Name)
+                    and handler.ex_type.value in caught {
+                    return True;
+                }
+            }
+        }
+        prev = cur;
+        cur = cur.parent;
+    }
+    return False;
 }
