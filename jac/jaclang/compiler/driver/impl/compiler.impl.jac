@@ -1474,6 +1474,10 @@ impl JacCompiler._compile_pipeline(
     is_native_mod = mod_targ is not None
         and mod_targ.declares_codespace(_CodeCtx.NATIVE, path_hint=file_path);
 
+    if is_native_mod {
+        options.need_full_ast = True;
+    }
+
     _is_decl_stub = str(file_path).endswith('.pyi')
         or str(file_path).endswith('.py')
         or (mod_targ is not None and mod_targ.stub_only)

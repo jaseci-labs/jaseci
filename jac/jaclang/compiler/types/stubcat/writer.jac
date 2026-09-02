@@ -7,6 +7,7 @@ import from jaclang.compiler.frontend.unitree {
     ElseIf,
     ElseStmt,
     Enum,
+    HasVar,
     IfStmt,
     Import,
     KWPair,
@@ -64,6 +65,8 @@ import from jaclang.compiler.types.stubcat.format {
     SH_STDLIB,
     SH_TYPEDDICT,
     SH_XREF,
+    SYMF_DEFER,
+    SYMF_HAS_DEFAULT,
     SYMF_NA_ESCAPES,
     SYMF_NA_REGION_HANDLE,
     SYMF_NA_STACK_OK,
@@ -296,7 +299,6 @@ obj CatalogWriter {
         forced_scopes: set[int] postinit,
         base_dir: str postinit,
         external_modules: set[int] postinit,
-        synthetic_syms: list postinit,
         boundary: (Module | None) = None,
         failures: int = 0,
         evaluated: int = 0,
@@ -331,63 +333,6 @@ obj CatalogWriter {
         self.forced_scopes = set();
         self.base_dir = os.path.realpath(self.pkg_dir);
         self.external_modules = set();
-        self.synthetic_syms = [];
-    }
-
-    def bake_implicit_init(scope: UniScopeNode, members: ScopeMembers) -> None {
-        if self.boundary is None or not isinstance(scope, (Archetype, Enum)) {
-            return;
-        }
-        if "init" in members.names or "__init__" in members.names {
-            return;
-        }
-        owner = scope.name_spec.sym;
-        if owner is None {
-            return;
-        }
-        cls_ty = self.sym_types.get(id(owner));
-        if not isinstance(cls_ty, ClassType) or not cls_ty.is_data_class() {
-            return;
-        }
-        init_ty: (FunctionType | None) = None;
-        try {
-            init_ty = self.evaluator._create_dataclass_init_method(cls_ty);
-        } except Exception {
-            init_ty = None;
-        }
-        if init_ty is None {
-            return;
-        }
-        src = scope.loc.orig_src if scope.loc else None;
-        if src is None {
-            return;
-        }
-        import from jaclang.compiler.frontend.unitree { Name }
-        import from jaclang.compiler.frontend.constant {
-            SymbolAccess,
-            SymbolType,
-            Tokens as Tok
-        }
-        tok = Name(
-            orig_src=src,
-            name=Tok.NAME.value,
-            value="init",
-            line=max(scope.loc.first_line, 1) if scope.loc else 1,
-            end_line=max(scope.loc.first_line, 1) if scope.loc else 1,
-            col_start=0,
-            col_end=0,
-            pos_start=0,
-            pos_end=0
-        );
-        tok.bind_sym(tok, "init", SymbolType.METHOD);
-        syn = Symbol(
-            defn=tok, access=SymbolAccess.PUBLIC, parent_tab=None, imported=False
-        );
-        self.synthetic_syms.append((tok, syn));
-        self.sym_types[id(syn)] = init_ty;
-        self.sym_props[id(syn)] = (0, 0, None);
-        members.names["init"] = syn;
-        members.names["__init__"] = syn;
     }
 
     def in_boundary(mod: (Module | None)) -> bool {
@@ -775,7 +720,6 @@ obj CatalogWriter {
                 }
             }
         }
-        self.bake_implicit_init(scope, members);
         put_uvar(out, len(members.names));
         kids: list[tuple[str, int]] = [];
         seen_kids: set[str] = set();
@@ -898,6 +842,17 @@ obj CatalogWriter {
         if sym.na_stack_ok {
             symbits |= SYMF_NA_STACK_OK;
         }
+        try {
+            decl_node = sym.decl.name_of if sym.decl else None;
+            if isinstance(decl_node, HasVar) {
+                if decl_node.value is not None {
+                    symbits |= SYMF_HAS_DEFAULT;
+                }
+                if decl_node.defer {
+                    symbits |= SYMF_DEFER;
+                }
+            }
+        } except Exception {}
         put_uvar(out, symbits);
         return bytes(out);
     }

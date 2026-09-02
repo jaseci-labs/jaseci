@@ -155,10 +155,12 @@ rather than the center:
   interop manifest from `SEC_INTEROP` into `hub.artifacts` (the carrier
   interop consumers check first) and continues traversal over the dep's
   client-context edges recorded in `SEC_DEPS` flags, tree-compiling only on
-  a miss. Implicit dataclass constructors are baked into each archetype's
-  interface at write time (under both `init` and `__init__`), because the
-  consumer-side synthesis walks `HasVar` nodes an interface module does not
-  carry.
+  a miss. Implicit dataclass constructors synthesize from the interface's
+  field-symbol surface (order, types, default and defer bits on each field
+  symbol) when a class in the mro is interface-borne, because the cold
+  synthesis walks `HasVar` nodes an interface module does not carry -- and
+  a subclass must keep regenerating its constructor rather than inheriting
+  a frozen one.
 
 ## Instrumentation
 

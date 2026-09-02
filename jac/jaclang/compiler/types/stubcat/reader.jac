@@ -93,6 +93,7 @@ obj CatProvider {
         prop_kind: int,
         write_kind: int,
         write_type_id: int,
+        symbits: int = 0,
         memo: (TypeBase | None) = None,
         memo_set: bool = False;
 
@@ -670,7 +671,8 @@ obj StubCatalog {
             alias_name=rec.alias_name,
             prop_kind=rec.prop_kind,
             write_kind=rec.write_kind,
-            write_type_id=rec.write_type
+            write_type_id=rec.write_type,
+            symbits=rec.symbits
         );
         if rec.ownership {
             try {
