@@ -284,9 +284,7 @@ impl WorkPool._quit_kid(kid: dict[(str, any)]) -> None {
     );
     try {
         os.write(kid["dispatch_fd"], b"q\n");
-    } except OSError {
-        ;
-    }
+    } except OSError {}
 }
 
 impl WorkPool._fill_slot(slot: int) -> None {
@@ -576,9 +574,7 @@ impl available_memory_mb -> int {
     if raw.strip() {
         try {
             return int(raw.strip());
-        } except ValueError {
-            ;
-        }
+        } except ValueError {}
     }
     try {
         with open("/proc/meminfo", encoding="utf-8") as f {
@@ -588,9 +584,7 @@ impl available_memory_mb -> int {
                 }
             }
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return -1;
 }
 
