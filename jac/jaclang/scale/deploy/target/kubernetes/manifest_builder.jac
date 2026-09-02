@@ -8,10 +8,6 @@ import from jaclang.scale.models.deploy_context { DeployContext }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
-import from jaclang.scale.deploy.autoscale.autoscaler {
-    DEFAULT_CPU_UTILIZATION_TARGET,
-    DEFAULT_MEMORY_UTILIZATION_TARGET
-}
 import from jaclang.scale.deploy.autoscale.http_activation_config {
     build_http_activation_spec
 }
@@ -1349,12 +1345,13 @@ obj ManifestBuilder {
             }
             behavior = {};
         }
+        cfg = self.k8s_config;
         return {
-            "min": int(hpa.get("min", 1)),
-            "max": int(hpa.get("max", 3)),
-            "cpu_target": int(hpa.get("cpu_target", DEFAULT_CPU_UTILIZATION_TARGET)),
+            "min": int(hpa.get("min", cfg.min_replicas)),
+            "max": int(hpa.get("max", cfg.max_replicas)),
+            "cpu_target": int(hpa.get("cpu_target", cfg.cpu_utilization_target)),
             "memory_target": int(
-                hpa.get("memory_target", DEFAULT_MEMORY_UTILIZATION_TARGET)
+                hpa.get("memory_target", cfg.memory_utilization_target)
             ),
             "has_memory_request": bool(
                 self._resolved_memory_request(svc, svc_name == GATEWAY_NAME)
