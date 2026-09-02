@@ -157,6 +157,7 @@ impl JacProgram.load_dependency_module(
 
             target_hub[resolved_path] = mod;
             target_program.hub_cache_stamp(resolved_path);
+            compiler.note_stub_tree_served(resolved_path, self);
             compiler.resolve_absorb_imports(mod, self);
             run_pass(SymTabBuildPass, mod, self);
         } else {
