@@ -571,88 +571,16 @@ jobs:
             "litellm>=1.70.0,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
             "httpx>=0.27.0" "loguru>=0.7.2,<0.8.0" \
             --global
-      # This step has taken a 4-vcpu runner down with it three times: the
-      # runner lost communication 14-18 minutes into a run that takes 30
-      # seconds when it passes, and a lost runner uploads no log at all. So
-      # the step is cut off at five minutes, while the runner can still
-      # upload, and the step after it records what the box looked like:
-      # memory, disk, the fattest processes, and the embedded Postgres
-      # cluster that `jac test` provisions on a fresh home (its server log
-      # and database count). JAC_TEST_RSS_LOG adds per-item worker RSS.
-      # The first cutoff showed the runner idle at five minutes with the
-      # `jac test` process gone; the second caught it alive: state R, two
-      # threads, 14 GB resident after four minutes and still allocating, with
-      # the embedded Postgres idle. A client-side loop, and none of it
-      # reproduces locally. So the step runs the test under the runtime's own
-      # CPython (3.14 ships sys.remote_exec) and injects a stack dump into the
-      # process the moment it passes 1.2 GB, then kills it and prints the
-      # dump: the loop names itself.
+      # Cut off at five minutes: this step takes 30 seconds, and the one time
+      # it did not (the analysis cache crawling all of litellm, #8876) it took
+      # the 4-vcpu runner down with it and uploaded no log. A regression now
+      # fails the step, with the log, instead of the runner.
       - name: MTIR integration (byllm)
         env:
           JAC_TEST_RSS_LOG: "1"
-          JAC_STACK_OUT: ${{ runner.temp }}/jac_stack.txt
         run: |
           set -o pipefail
-          cat > "$RUNNER_TEMP/dump_stack.py" <<'PY'
-          import faulthandler, os, sys, traceback
-          with open(os.environ.get("JAC_STACK_OUT", "/tmp/jac_stack.txt"), "a") as f:
-              f.write("=== dump pid %d\n" % os.getpid())
-              faulthandler.dump_traceback(file=f, all_threads=True)
-              for tid, fr in sys._current_frames().items():
-                  f.write("--- python thread %s\n" % tid)
-                  f.write("".join(traceback.format_stack(fr)))
-              f.flush()
-          PY
-          cat > "$RUNNER_TEMP/watch_test.py" <<'PY'
-          import os, subprocess, sys, time
-          kit, test, dump = sys.argv[1:4]
-          p = subprocess.Popen([kit, "test", test])
-          t0 = time.time(); dumped = 0
-          def rss(pid):
-              try:
-                  for line in open(f"/proc/{pid}/status"):
-                      if line.startswith("VmRSS:"):
-                          return int(line.split()[1]) // 1024
-              except Exception:
-                  pass
-              return -1
-          while p.poll() is None:
-              time.sleep(2); r = rss(p.pid); el = time.time() - t0
-              if int(el) % 20 < 2:
-                  print(f"[watch] {el:.0f}s rss={r}MB", flush=True)
-              if dumped < 2 and ((el > 30 and r > 1200) or el > 150):
-                  try:
-                      sys.remote_exec(p.pid, dump); dumped += 1
-                      print(f"[watch] injected stack dump at {el:.0f}s rss={r}MB", flush=True)
-                  except Exception as e:
-                      print(f"[watch] inject failed: {e}", flush=True)
-                  time.sleep(4)
-              if r > 4000 or el > 240:
-                  print(f"[watch] killing after {el:.0f}s at rss={r}MB", flush=True)
-                  p.kill(); p.wait(); sys.exit(124)
-          sys.exit(p.returncode)
-          PY
-          PY=$(ls -d "$HOME"/.cache/jac/rt/*/python/bin/python3.14 | head -1)
-          "$PY" "$RUNNER_TEMP/watch_test.py" "$(command -v jac)" jac/jaclang/byllm/tests/test_mtir_integration.jac "$RUNNER_TEMP/dump_stack.py"
-          rc=$?
-          if [ -s "$JAC_STACK_OUT" ]; then echo "::group::stack dump"; cat "$JAC_STACK_OUT"; echo "::endgroup::"; fi
-          exit $rc
-      - name: Runner state after the MTIR step
-        if: always()
-        run: |
-          echo "::group::memory and disk"
-          free -m || true
-          df -h "$HOME" /tmp || true
-          echo "::endgroup::"
-          echo "::group::processes by RSS"
-          ps -eo pid,ppid,rss,etimes,args --sort=-rss | head -30 || true
-          echo "::endgroup::"
-          echo "::group::embedded postgres"
-          PG="$HOME/.cache/jac/pg/main"
-          ls "$PG/base" 2>/dev/null | wc -l || true
-          du -sh "$PG" 2>/dev/null || true
-          tail -n 80 "$PG/server.log" 2>/dev/null || echo "(no server.log)"
-          echo "::endgroup::"
+          timeout --kill-after=30 300 jac test jac/jaclang/byllm/tests/test_mtir_integration.jac
       - name: HMR refresh (scale server)
         env:
           JAC_TEST_JOBS: "0"
