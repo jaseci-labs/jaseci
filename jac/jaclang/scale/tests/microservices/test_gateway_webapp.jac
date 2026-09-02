@@ -389,3 +389,40 @@ test "a client page the app does not have still reaches the service that does" {
         fleet.close();
     }
 }
+
+
+test "an app service that cannot take traffic falls back to the shell, not a 503" {
+    dist_dir: str = tempfile.mkdtemp();
+    base_dir: str = tempfile.mkdtemp();
+    (Path(dist_dir) / "index.html").write_text("<html>spa-shell</html>");
+
+    reg = ServiceRegistry();
+    reg.register(
+        ServiceEntry(
+            name="main",
+            file="main.jac",
+            prefix="/__main__",
+            port=1,
+            url="http://127.0.0.1:1",
+            status=ServiceStatus.UNHEALTHY,
+            is_app=True,
+            serves_client=True
+        )
+    );
+    gw = MicroserviceGateway(
+        registry=reg, client_dist_dir=dist_dir, base_path=base_dir
+    );
+    gw.setup();
+    client = ServingTestClient(gw.app);
+    try {
+        resp = client.get("/", headers={"Accept": "text/html"});
+        assert resp.status_code == 200 , (
+            f"an app that is not accepting traffic must not cost the gateway "
+            f"the static shell it can still serve; got {resp.status_code}"
+        );
+        assert "spa-shell" in resp.text;
+    } finally {
+        shutil.rmtree(dist_dir, ignore_errors=True);
+        shutil.rmtree(base_dir, ignore_errors=True);
+    }
+}

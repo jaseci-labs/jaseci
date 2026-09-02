@@ -71,6 +71,15 @@ def _remove_portfile(name: str) {
     } except OSError {}
 }
 
+def _log_size(name: str) -> int {
+    try {
+        return (_Path(".jac/logs") / f"{name}.log").stat().st_size;
+    } except OSError {
+        return 0;
+    }
+}
+
+
 def _log_tail(name: str, lines: int = 8) -> str {
     try {
         content = (_Path(".jac/logs") / f"{name}.log").read_text(
@@ -260,6 +269,7 @@ impl ServiceProcessManager._boot_order -> list[str] {
 }
 
 impl ServiceProcessManager._await_lead(name: str) -> None {
+    import time;
     import from jaclang.scale.runtime.context.util { wait_for_health }
     `entry = self.registry.entries[name];
     proc = self.processes.get(name);
@@ -272,8 +282,26 @@ impl ServiceProcessManager._await_lead(name: str) -> None {
         f"the fleet; a module analyzed for another service first reaches the "
         f"client backend with its calls unresolved"
     );
+    started: float = time.time();
+    spoke: list[float] = [started];
+
+    def _compile_progress -> int {
+        marker: int = _log_size(name);
+        now: float = time.time();
+        if now - spoke[0] >= _LEAD_HEARTBEAT_SECONDS {
+            spoke[0] = now;
+            logger.info(
+                f"  {name} still building its client "
+                f"({now - started:.0f}s elapsed, {marker} bytes logged)"
+            );
+        }
+        return marker;
+    }
     ok = wait_for_health(
-        `entry.url, lambda { live.poll() is None; }, timeout=self.app_boot_timeout
+        `entry.url,
+        lambda { live.poll() is None; },
+        timeout=self.app_boot_timeout,
+        progress=_compile_progress
     );
     if ok {
         `entry.status = ServiceStatus.HEALTHY;

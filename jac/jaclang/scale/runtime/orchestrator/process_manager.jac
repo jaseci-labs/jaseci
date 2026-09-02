@@ -10,7 +10,8 @@ import from jaclang.scale.runtime.gateway.service_registry {
     ServiceStatus
 }
 
-glob logger = logging.getLogger(__name__);
+glob logger = logging.getLogger(__name__),
+     _LEAD_HEARTBEAT_SECONDS: float = 30.0;
 
 obj ServiceProcessManager {
     has registry: ServiceRegistry,

@@ -670,7 +670,12 @@ class JacScalePluginConfig {
                         "health_monitor_interval": {
                             "type": "float",
                             "default": None,
-                            "description": "Cadence (seconds) of the background health check that restarts services which died after boot; absent uses the process manager default (10)."
+                            "description": "Cadence (seconds) of the background health check that restarts services which died after boot; absent uses the process manager default (10). While any service is not healthy the monitor polls at 2s regardless, and steps back to this cadence once the fleet settles."
+                        },
+                        "app_boot_timeout": {
+                            "type": "float",
+                            "default": 900.0,
+                            "description": "How long the orchestrator waits for the client-serving service to finish booting before it starts the rest of the fleet (seconds). That service compiles the client, and a module another service analyzed first reaches the client backend with its calls unresolved, so it goes first and alone. Like `boot_health_timeout` this is a stall budget, not a wall-clock cap: while the service is still writing to its log the clock resets, so a cold client build is not cut off. Only applies when a service serves the client (a local web-app run); a headless fleet starts every service in parallel."
                         },
                         "identity": {
                             "type": "dict",
