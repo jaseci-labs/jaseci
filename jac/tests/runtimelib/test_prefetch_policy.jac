@@ -88,6 +88,7 @@ test "markov prefetch policy reads per-start model plan" {
     with TemporaryDirectory() as raw_tmpdir_obj {
         raw_tmpdir: str = str(raw_tmpdir_obj);
         model_file = Path(raw_tmpdir) / "markov.json";
+        topology_file = Path(str(model_file) + ".topology.json");
         model_file.write_text(
             json.dumps(
                 {
@@ -101,11 +102,51 @@ test "markov prefetch policy reads per-start model plan" {
                 }
             )
         );
+        topology_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "kind": "markov_topology_snapshot",
+                    "policy": "markov",
+                    "ids": [str(id1), str(id2)],
+                    "rows": [],
+                    "query_count": 1
+                }
+            )
+        );
         cfg = JacConfig();
         cfg.run.prefetch_markov_file = str(model_file);
         start = PrefetchPolicyDummyStart(id=start_id);
         plan = get_prefetch_plan("markov", None, start, max_length=2, config=cfg);
         assert plan.ids == [id1, id2];
+    }
+}
+
+test "markov prefetch policy requires topology snapshot" {
+    start_id = UUID("00000000-0000-0000-0000-000000000110");
+    id1 = UUID("00000000-0000-0000-0000-000000000111");
+    with TemporaryDirectory() as raw_tmpdir_obj {
+        raw_tmpdir: str = str(raw_tmpdir_obj);
+        model_file = Path(raw_tmpdir) / "markov.json";
+        model_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "policy": "markov",
+                    "plans": {str(start_id): {"plan": [str(id1)]}}
+                }
+            )
+        );
+        cfg = JacConfig();
+        cfg.run.prefetch_markov_file = str(model_file);
+        start = PrefetchPolicyDummyStart(id=start_id);
+        raised = False;
+        try {
+            get_prefetch_plan("markov", None, start, max_length=1, config=cfg);
+        } except FileNotFoundError {
+            raised = True;
+        }
+        assert raised, "markov policy must fail when topology snapshot is missing";
     }
 }
 
@@ -117,6 +158,7 @@ test "coaccess prefetch policy reads per-start model plan" {
     with TemporaryDirectory() as raw_tmpdir_obj {
         raw_tmpdir: str = str(raw_tmpdir_obj);
         model_file = Path(raw_tmpdir) / "coaccess.json";
+        topology_file = Path(str(model_file) + ".topology.json");
         model_file.write_text(
             json.dumps(
                 {
@@ -130,11 +172,51 @@ test "coaccess prefetch policy reads per-start model plan" {
                 }
             )
         );
+        topology_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "kind": "coaccess_topology_snapshot",
+                    "policy": "coaccess",
+                    "ids": [str(id1), str(id2)],
+                    "rows": [],
+                    "query_count": 1
+                }
+            )
+        );
         cfg = JacConfig();
         cfg.run.prefetch_coaccess_file = str(model_file);
         start = PrefetchPolicyDummyStart(id=start_id);
         plan = get_prefetch_plan("coaccess", None, start, max_length=2, config=cfg);
         assert plan.ids == [id1, id2];
+    }
+}
+
+test "coaccess prefetch policy requires topology snapshot" {
+    start_id = UUID("00000000-0000-0000-0000-000000000210");
+    id1 = UUID("00000000-0000-0000-0000-000000000211");
+    with TemporaryDirectory() as raw_tmpdir_obj {
+        raw_tmpdir: str = str(raw_tmpdir_obj);
+        model_file = Path(raw_tmpdir) / "coaccess.json";
+        model_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "policy": "coaccess",
+                    "plans": {str(start_id): {"plan": [str(id1)]}}
+                }
+            )
+        );
+        cfg = JacConfig();
+        cfg.run.prefetch_coaccess_file = str(model_file);
+        start = PrefetchPolicyDummyStart(id=start_id);
+        raised = False;
+        try {
+            get_prefetch_plan("coaccess", None, start, max_length=1, config=cfg);
+        } except FileNotFoundError {
+            raised = True;
+        }
+        assert raised, "coaccess policy must fail when topology snapshot is missing";
     }
 }
 

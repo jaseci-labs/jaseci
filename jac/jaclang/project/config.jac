@@ -46,7 +46,11 @@ obj RunConfig {
         prefetch_oracle_topology_file: str = "",
         prefetch_oracle_record_topology_file: str = "",
         prefetch_markov_file: str = "",
+        prefetch_markov_topology_file: str = "",
+        prefetch_markov_record_topology_file: str = "",
         prefetch_coaccess_file: str = "",
+        prefetch_coaccess_topology_file: str = "",
+        prefetch_coaccess_record_topology_file: str = "",
         prefetch_limit: int = 200,
         async_prefetch: str = "",
         prefetch_workers: int = 1;
