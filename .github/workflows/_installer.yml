@@ -49,8 +49,18 @@ jobs:
             platform: linux-x86_64
           - os: macos-14
             platform: macos-aarch64
+          # Mirrors `optional` in build-binaries.yml's LEGS: while the Intel
+          # binary aborts on `jac --version` (#8805) that leg is non-blocking
+          # there, so the latest release legitimately ships without a
+          # macos-x86_64 asset and this lane must not fail the workflow over
+          # it. The leg still runs and still shows red, so the signal stays.
+          # Drop both `optional` flags together when the leg is green again.
           - os: macos-15-intel
             platform: macos-x86_64
+            optional: true
+    # A platform the release treats as optional is optional here too: one
+    # flag, one meaning, or the nightly stays red over a decision already made.
+    continue-on-error: ${{ matrix.optional || false }}
     steps:
       - uses: actions/checkout@v5
 
@@ -59,16 +69,23 @@ jobs:
         run: shellcheck scripts/install.sh
 
       # A missing asset on the latest release is a release regression that
-      # breaks `curl ... | bash` -- fail loudly instead of skipping.
+      # breaks `curl ... | bash` -- fail loudly instead of skipping. On an
+      # optional leg it is the release's declared state: say so, and let
+      # continue-on-error keep it from blocking.
       - name: Require a native binary asset on the latest release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPTIONAL: ${{ matrix.optional || false }}
         run: |
           set -euo pipefail
           if ! gh release view --repo "$GITHUB_REPOSITORY" \
                --json assets --jq '.assets[].name' 2>/dev/null \
                | grep -q "jac-.*-${{ matrix.platform }}$"; then
-            echo "::error::Latest GitHub Release has no jac-*-${{ matrix.platform }} asset; 'curl ... | bash' is broken for this platform."
+            if [ "$OPTIONAL" = "true" ]; then
+              echo "::warning::Latest GitHub Release has no jac-*-${{ matrix.platform }} asset; the release marks this platform optional (build-binaries.yml LEGS), so 'curl ... | bash' has no binary for it until that leg is green again."
+            else
+              echo "::error::Latest GitHub Release has no jac-*-${{ matrix.platform }} asset; 'curl ... | bash' is broken for this platform."
+            fi
             exit 1
           fi
 

@@ -571,7 +571,14 @@ jobs:
             "litellm>=1.70.0,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
             "httpx>=0.27.0" "loguru>=0.7.2,<0.8.0" \
             --global
+      # JAC_TEST_RSS_LOG: this step has taken a 4-vcpu runner down with it
+      # twice (the runner lost communication ~17 minutes into a run that
+      # takes 30 seconds when it passes), and a lost runner uploads no log.
+      # Per-item worker RSS on stderr is the one trace that survives long
+      # enough to show what grew.
       - name: MTIR integration (byllm)
+        env:
+          JAC_TEST_RSS_LOG: "1"
         run: jac test jac/jaclang/byllm/tests/test_mtir_integration.jac
       - name: HMR refresh (scale server)
         env:
