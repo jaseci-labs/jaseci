@@ -1,5 +1,6 @@
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.backends.es.framework_backend { FrameworkBackend }
+import from jaclang.compiler.backends.es.backends.bun { BunBackend }
 import from jaclang.compiler.frontend.diagnostics { E5081 }
 
 glob _BACKENDS: dict[str, FrameworkBackend] = {};
@@ -28,7 +29,6 @@ def resolve_framework_backend(framework: str) -> FrameworkBackend {
         return backend;
     }
     if framework == "bun" {
-        import from jaclang.compiler.backends.es.backends.bun { BunBackend }
         backend = BunBackend();
         _BACKENDS["bun"] = backend;
         return backend;

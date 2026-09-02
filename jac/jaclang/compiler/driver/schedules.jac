@@ -104,6 +104,7 @@ def get_ir_gen_sched(
     try {
         import jaclang.compiler.types.type_evaluator;
         import jaclang.compiler.backends.es.framework_backend;
+        import jaclang.compiler.backends.es.backends.registry;
         import jaclang.compiler.passes.pyast_load_pass;
         import from jaclang.compiler.passes.cfg_build_pass { CFGBuildPass }
         import from jaclang.compiler.passes.sem_def_match_pass { SemDefMatchPass }
@@ -280,6 +281,7 @@ def get_py_code_gen(
     }
     _tok = _codegen_sched_loading.set(True);
     try {
+        import jaclang.compiler.backends.es.backends.registry;
         import from jaclang.compiler.backends.es { EsastGenPass }
 
         passes: list[type[Transform]] = [EsastGenPass];

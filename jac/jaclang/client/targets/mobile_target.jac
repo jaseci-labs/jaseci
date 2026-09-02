@@ -1,11 +1,9 @@
 import from pathlib { Path }
 import from typing { Optional }
-import from jaclang.jac0core.host { HOST_WEBVIEW }
 import from jaclang.client.targets.web_target { WebTarget }
 
 obj MobileTarget(WebTarget) {
     has name: str = "mobile",
-        host_kind: str = HOST_WEBVIEW,
         `default: bool = False,
         requires_setup: bool = True,
         config_section: str = "mobile",

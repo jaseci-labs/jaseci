@@ -1,9 +1,10 @@
 import from pathlib { Path }
 import from typing { Optional }
 import from jaclang.client.targets.web_target { WebTarget }
+import from jaclang.client.targets.registry { TargetType }
 
 obj NativeDesktopTarget(WebTarget) {
-    has name: str = "desktop",
+    has name: str = TargetType.DESKTOP.value,
         `default: bool = False,
         requires_setup: bool = False,
         config_section: str = "desktop",

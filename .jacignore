@@ -91,3 +91,8 @@ jac/jaclang/compiler/backends/es/impl/esast_gen_pass.impl.jac
 # Example apps.
 jac/examples/mobui/hello/main.jac
 jac/examples/mobui/littlex/main.jac
+
+# Bun-host cl_stdlib glue: JS-runtime sources built by the Bun service
+# builder, never imported by the Python/native server toolchain.
+cl_stdlib/*.jac
+cl_stdlib/urllib/*.jac
