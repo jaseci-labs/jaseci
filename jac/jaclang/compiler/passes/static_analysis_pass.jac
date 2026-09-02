@@ -28,17 +28,21 @@ import from jaclang.compiler.frontend.unitree {
     Int,
     IterForStmt,
     KWPair,
+    ListVal,
     MatchPattern,
     Module,
     ModuleItem,
     ModulePath,
     Name,
+    NameAtom,
     Null,
     RaiseStmt,
     ReturnStmt,
     Semi,
     SubTag,
+    Symbol,
     Token,
+    TupleVal,
     UniNode,
     UniScopeNode,
     WhileStmt
@@ -268,6 +272,8 @@ walker StaticAnalysisPass(Transform) {
     def _run_impl(ir_in: Module) -> Module;
     can run_walk with Module entry;
     def _check_unused_symbols(scope: UniScopeNode) -> None;
+    def _is_write_target(nd: NameAtom) -> bool;
+    def _has_genuine_read(sym: Symbol) -> bool;
     def _check_undefined_names(mod: Module) -> None;
     def _literal_case_suggestion(name: str) -> (str | None);
     def _osp_shape_position(name_nd: Name) -> (str | None);

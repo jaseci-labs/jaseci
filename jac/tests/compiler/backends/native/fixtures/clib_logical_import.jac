@@ -7,11 +7,10 @@ extensionless surface instead of an explicit string path.
 """
 
 import from raylib {
-    def InitWindow(width: i32, height: i32, title: str) -> None;
-    def CloseWindow -> None;
+    def InitWindow(width: i32, height: i32, title: str) -> None;  def CloseWindow -> None;
 }
 
-def open_then_close(w: int, h: int, title: str) -> None {
+def open_then_close(w: int, h: int, title: str) {
     InitWindow(i32(w), i32(h), title);
     CloseWindow();
 }
