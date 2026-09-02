@@ -410,7 +410,7 @@ walker TypeEvaluator {
     def forget_module(resolved_path: str) -> None;
     def _resolve_from_path(from_mod: ModulePath) -> Path;
     def _resolve_client_npm_module(node_: ModulePath) -> (str | None);
-    def _is_unresolvable_project_import(node_: ModulePath) -> bool;
+    def _relative_import_must_resolve(node_: ModulePath) -> bool;
     def _client_npm_base(spec: str, mod_path: str) -> (str | None);
     def _client_entry_mod_path -> (str | None);
     def _get_ts_declared_item_type(
