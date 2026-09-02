@@ -13,6 +13,7 @@ import from jaclang.compiler.driver.jir {
     is_compiler_source_path,
     is_module_cache_valid,
     jir_cacheable_source_path,
+    module_cache_key,
     read_dep_hashes,
     read_section_bytes,
     write_module_cache
@@ -122,6 +123,7 @@ obj IfaceRegistry {
         checking: set[str] postinit,
         frames: list[str] postinit,
         direct_deps: dict[str, dict[str, str]] = {},
+        _iface_bytes: dict[str, tuple[str, bytes, str]] = {},
         verifying: bool = False,
         closure_token: int = 0,
         _pkg_dir_memo: str = "";
@@ -157,11 +159,15 @@ obj IfaceRegistry {
         if real in self.direct_deps {
             del self.direct_deps[real];
         }
+        if real in self._iface_bytes {
+            del self._iface_bytes[real];
+        }
     }
 
     def clear {
         self.entries.clear();
         self.direct_deps.clear();
+        self._iface_bytes.clear();
     }
 
     def frame_push(resolved_path: str) {
@@ -207,11 +213,37 @@ obj IfaceRegistry {
         bucket[real] = digest;
     }
 
-    def dep_pairs(resolved_path: str) -> list[tuple[str, str]] {
+    def _client_edges(mod: any) -> set[str] {
+        import jaclang.compiler.frontend.unitree as uni;
+        import from jaclang.compiler.frontend.constant { CodeContext }
+        out: set[str] = set();
+        try {
+            for imp in mod.get_all_sub_nodes(uni.Import) {
+                if imp.from_loc is None or imp.is_virtual_jac {
+                    continue;
+                }
+                if imp.code_context != CodeContext.CLIENT {
+                    continue;
+                }
+                try {
+                    target = imp.from_loc.resolve_relative_path();
+                } except Exception {
+                    continue;
+                }
+                if isinstance(target, str) and target.endswith(".jac") {
+                    out.add(os.path.realpath(target));
+                }
+            }
+        } except Exception {}
+        return out;
+    }
+
+    def dep_rows(resolved_path: str, mod: any) -> list[tuple[str, str, str]] {
         bucket = self.direct_deps.get(resolved_path, {});
-        out: list[tuple[str, str]] = [];
+        client = self._client_edges(mod) if mod is not None else set();
+        out: list[tuple[str, str, str]] = [];
         for (path, digest) in bucket.items() {
-            out.append((path, digest, ));
+            out.append((path, digest, "c" if path in client else "", ));
         }
         return out;
     }
@@ -621,11 +653,26 @@ obj IfaceRegistry {
             read_iface_hash
         }
         sections: dict[int, bytes] = {};
-        ev = self.prog.get_type_evaluator();
-        payload = build_module_iface(mod, ev, self._pkg_dir());
+        modkey = "";
+        try {
+            modkey = module_cache_key(resolved);
+        } except Exception {
+            modkey = "";
+        }
+        memo = self._iface_bytes.get(resolved);
+        if modkey and memo is not None and memo[0] == modkey {
+            payload = memo[1];
+            digest = memo[2];
+        } else {
+            ev = self.prog.get_type_evaluator();
+            payload = build_module_iface(mod, ev, self._pkg_dir());
+            digest = read_iface_hash(payload) or "";
+            if modkey {
+                self._iface_bytes[resolved] = (modkey, payload, digest, );
+            }
+        }
         sections[SEC_IFACE] = payload;
-        digest = read_iface_hash(payload) or "";
-        sections[SEC_DEPS] = deps_section(self.dep_pairs(resolved));
+        sections[SEC_DEPS] = deps_section(self.dep_rows(resolved, mod));
         try {
             import from jaclang.compiler.placement.placement {
                 get_module_summary,
@@ -697,6 +744,62 @@ obj IfaceRegistry {
         } except Exception {
             return {};
         }
+    }
+
+    def client_boundary_facts(dep_path: str) -> (list[str] | None) {
+        import json;
+        resolved = os.path.realpath(dep_path);
+        (rebuild, _) = cache_mode();
+        if rebuild or not jir_cacheable_source_path(resolved) {
+            return None;
+        }
+        import from jaclang.compiler.driver.jir { is_compiler_tree_path }
+        if is_compiler_tree_path(resolved) {
+            return None;
+        }
+        try {
+            cache_path = get_module_cache_path(resolved);
+            if not is_module_cache_valid(resolved, cache_path) {
+                return None;
+            }
+            data: bytes = cache_path.read_bytes();
+        } except Exception {
+            return None;
+        }
+        import from jaclang.compiler.driver.jir { SEC_INTEROP }
+        interop_bytes = read_section_bytes(data, SEC_INTEROP);
+        if interop_bytes is None {
+            return None;
+        }
+        try {
+            interop = json.loads(interop_bytes.decode("utf-8"));
+        } except Exception {
+            return None;
+        }
+        if not interop.get("bindings") {
+            return None;
+        }
+        try {
+            manifest = self.prog._get_compiler()._deserialize_interop_table(interop);
+        } except Exception {
+            return None;
+        }
+        import from jaclang.compiler.frontend.codeinfo { CodeGenTarget }
+        carrier = self.prog.hub.artifacts.get(resolved);
+        if carrier is None {
+            carrier = CodeGenTarget();
+            self.prog.hub.artifacts[resolved] = carrier;
+        }
+        carrier.interop_manifest = manifest;
+        edges: list[str] = [];
+        import from jaclang.compiler.driver.jir { read_dep_rows }
+        for (dep, _digest, flags) in read_dep_rows(data) {
+            if "c" in flags {
+                edges.append(dep);
+            }
+        }
+        self._event("boundary_facts");
+        return edges;
     }
 
     def resolve_module(path: str) -> any {

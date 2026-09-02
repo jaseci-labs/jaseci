@@ -137,6 +137,29 @@ The bootstrap and sealed-image paths are untouched: hydration never engages
 for selfhost programs or compiler-tree modules, and the jac0 seed path does
 not know the cache exists.
 
+## The codegen lane
+
+Codegen is the must-recompute core, so the cache helps it at the edges
+rather than the center:
+
+- **Precompile re-wraps the module cache.** A valid module-cache JIR already
+  holds a unit's bytecode; `precompile_unit` re-keys and re-roots it
+  directly instead of taking a `get_bytecode` round trip (which would still
+  pay hub churn, native-engine restoration, and closure release). A cold
+  `jac precompile` over a tree any prior run has compiled collapses to IO.
+- **Interface bytes are memoized by MODKEY**, so re-persisting an unchanged
+  module (a check after a run, a precompile after a check) reuses the
+  encoded payload instead of re-deriving it.
+- **The client-boundary walk consumes persisted facts.** When a changed
+  module's client dependency is cache-valid, the walk restores the dep's
+  interop manifest from `SEC_INTEROP` into `hub.artifacts` (the carrier
+  interop consumers check first) and continues traversal over the dep's
+  client-context edges recorded in `SEC_DEPS` flags, tree-compiling only on
+  a miss. Implicit dataclass constructors are baked into each archetype's
+  interface at write time (under both `init` and `__init__`), because the
+  consumer-side synthesis walks `HasVar` nodes an interface module does not
+  carry.
+
 ## Instrumentation
 
 Every pass execution and cache event is counted on the program

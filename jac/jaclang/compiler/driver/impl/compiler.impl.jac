@@ -1561,62 +1561,80 @@ impl JacCompiler._compile_pipeline(
         import os as _cb_os;
         cb_seen: set[str] = set();
         cb_worklist: list = [mod_targ];
+        cb_paths: list[str] = [];
 
         cb_opts = CompileOptions(
             no_cgen=True, force_target_program=True, cancel_token=options.cancel_token
         );
-        while cb_worklist {
-            cb_cur = cb_worklist.pop();
-            if cb_cur is None {
-                continue;
-            }
-            for cb_imp in cb_cur.get_all_sub_nodes(uni.Import) {
-                if not cb_imp.from_loc {
+        cb_reg = actual_program.iface_registry();
+        while cb_worklist or cb_paths {
+            if cb_worklist {
+                cb_cur = cb_worklist.pop();
+                if cb_cur is None {
                     continue;
                 }
+                for cb_imp in cb_cur.get_all_sub_nodes(uni.Import) {
+                    if not cb_imp.from_loc {
+                        continue;
+                    }
 
-                if cb_imp.is_virtual_jac {
+                    if cb_imp.is_virtual_jac {
+                        continue;
+                    }
+                    try {
+                        cb_src = cb_imp.from_loc.resolve_relative_path();
+                    } except Exception {
+                        continue;
+                    }
+                    cb_is_client_dep = isinstance(cb_src, str)
+                        and cb_imp.code_context == CodeContext.CLIENT
+                        and cb_src.endswith('.jac');
+                    if not cb_is_client_dep {
+                        continue;
+                    }
+                    cb_paths.append(_cb_os.path.abspath(cb_src));
+                }
+                continue;
+            }
+            cb_next = cb_paths.pop();
+            if cb_next in cb_seen {
+                continue;
+            }
+            cb_seen.add(cb_next);
+
+            cb_mod = actual_program.find_module(cb_next);
+            cb_has_facts = (
+                cb_mod is not None
+                and cb_mod.gen
+                and cb_mod.gen.interop_manifest
+                and bool(cb_mod.gen.interop_manifest.bindings)
+            );
+
+            cb_known_bad = actual_program.has_failed_parse(cb_next);
+            if not cb_has_facts and not cb_known_bad {
+                cb_served: (list[str] | None) = None;
+                try {
+                    cb_served = cb_reg.client_boundary_facts(cb_next);
+                } except Exception {
+                    cb_served = None;
+                }
+                if cb_served is not None {
+                    for cb_edge in cb_served {
+                        cb_paths.append(_cb_os.path.abspath(cb_edge));
+                    }
                     continue;
                 }
                 try {
-                    cb_src = cb_imp.from_loc.resolve_relative_path();
+                    cb_mod = self.compile(
+                        file_path=cb_next,
+                        target_program=actual_program,
+                        options=cb_opts
+                    );
                 } except Exception {
-                    continue;
+                    cb_mod = actual_program.mod.hub.get(cb_next);
                 }
-                cb_is_client_dep = isinstance(cb_src, str)
-                    and cb_imp.code_context == CodeContext.CLIENT
-                    and cb_src.endswith('.jac');
-                if not cb_is_client_dep {
-                    continue;
-                }
-                cb_src = _cb_os.path.abspath(cb_src);
-                if cb_src in cb_seen {
-                    continue;
-                }
-                cb_seen.add(cb_src);
-
-                cb_mod = actual_program.find_module(cb_src);
-                cb_has_facts = (
-                    cb_mod is not None
-                    and cb_mod.gen
-                    and cb_mod.gen.interop_manifest
-                    and bool(cb_mod.gen.interop_manifest.bindings)
-                );
-
-                cb_known_bad = actual_program.has_failed_parse(cb_src);
-                if not cb_has_facts and not cb_known_bad {
-                    try {
-                        cb_mod = self.compile(
-                            file_path=cb_src,
-                            target_program=actual_program,
-                            options=cb_opts
-                        );
-                    } except Exception {
-                        cb_mod = actual_program.mod.hub.get(cb_src);
-                    }
-                }
-                cb_worklist.append(cb_mod);
             }
+            cb_worklist.append(cb_mod);
         }
         actual_program.options = options;
     }

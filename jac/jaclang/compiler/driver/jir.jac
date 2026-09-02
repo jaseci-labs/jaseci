@@ -490,17 +490,17 @@ def ct_deps_fresh(data: bytes) -> bool {
     return True;
 }
 
-def deps_section(pairs: list[tuple[str, str]]) -> bytes {
+def deps_section(rows: list[tuple[str, str, str]]) -> bytes {
     lines: list[str] = [];
-    for (path, digest) in sorted(pairs) {
-        lines.append(f"{path}\t{digest}");
+    for (path, digest, flags) in sorted(rows) {
+        lines.append(f"{path}\t{digest}\t{flags}");
     }
     return "\n".join(lines).encode("utf-8");
 }
 
-def read_dep_hashes(data: bytes) -> list[tuple[str, str]] {
+def read_dep_rows(data: bytes) -> list[tuple[str, str, str]] {
     raw = _read_key_section(data, SEC_DEPS);
-    out: list[tuple[str, str]] = [];
+    out: list[tuple[str, str, str]] = [];
     if not raw {
         return out;
     }
@@ -508,7 +508,17 @@ def read_dep_hashes(data: bytes) -> list[tuple[str, str]] {
         if "\t" not in line {
             continue;
         }
-        (path, _sep, digest) = line.partition("\t");
+        parts = line.split("\t");
+        digest = parts[1] if len(parts) > 1 else "";
+        flags = parts[2] if len(parts) > 2 else "";
+        out.append((parts[0], digest, flags, ));
+    }
+    return out;
+}
+
+def read_dep_hashes(data: bytes) -> list[tuple[str, str]] {
+    out: list[tuple[str, str]] = [];
+    for (path, digest, _flags) in read_dep_rows(data) {
         out.append((path, digest, ));
     }
     return out;

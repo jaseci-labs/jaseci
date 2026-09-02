@@ -21,7 +21,10 @@ import from jaclang.compiler.driver.jir {
     SEC_DEBUG_SRC,
     FORMAT_VERSION,
     compute_precompile_module_key,
+    get_module_cache_path,
+    is_module_cache_valid,
     precompiled_jir_matches_source,
+    read_section_bytes,
     running_compiler_digest,
     PRECOMPILE_SENTINEL
 }
@@ -265,6 +268,32 @@ def precompile_unit(
     import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from jaclang.compiler.driver.program { JacProgram }
     import from jaclang.cli.workpool { maybe_malloc_trim }
+
+    try {
+        cache_path = get_module_cache_path(jac_path);
+        if is_module_cache_valid(jac_path, cache_path) {
+            cached_bc = read_section_bytes(cache_path.read_bytes(), SEC_BYTECODE);
+            if cached_bc is not None {
+                rewrapped = patch_co_filenames_bytes(
+                    cached_bc, pkg_root, PRECOMPILE_SENTINEL
+                );
+                wrap_extra: dict[int, bytes] | None = None;
+                if embed_src {
+                    wrap_extra = {
+                        int(SEC_DEBUG_SRC): zlib.compress(
+                            Path(jac_path).read_bytes(), 9
+                        )
+                    };
+                }
+                return write_precompiled_jir(
+                    rewrapped,
+                    compute_precompile_module_key(jac_path),
+                    FLAG_PRECOMPILED,
+                    wrap_extra
+                );
+            }
+        }
+    } except Exception {}
 
     compiler = Jac.get_compiler();
 
