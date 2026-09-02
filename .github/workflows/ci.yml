@@ -927,16 +927,19 @@ jobs:
 
       # JAC_DOCS_LOCAL points the docs sync at this checkout so the docs
       # journey stop is hermetic (no clone of the repo from inside CI).
-      # --no-ms: the site declares [scale.microservices.routes] for the cut it
-      # wants when deployed, and this lane smokes the single-process serving
-      # stack. `jac run --ms` is the other topology and is covered by the
+      # The site declares [scale.microservices.routes] for the cut it wants
+      # when deployed, so a bare `jac run --serve` there is the gateway
+      # topology. This lane smokes the single-process serving stack, and says
+      # so with the documented opt-out rather than carrying it in the site's
+      # own jac.toml. `jac run --ms` is the other topology, covered by the
       # microservices suite.
       - name: Start site server in background
         working-directory: jac/examples/jaclang_org
         env:
           JAC_DOCS_LOCAL: ${{ github.workspace }}
         run: |
-          timeout 1200 jac run --serve --no-ms main.jac > /tmp/site-server.log 2>&1 &
+          printf '\n[scale.microservices]\nenabled = false\n' >> jac.toml
+          timeout 1200 jac run --serve main.jac > /tmp/site-server.log 2>&1 &
           SERVER_PID=$!
           echo "SITE_PID=$SERVER_PID" >> $GITHUB_ENV
           echo "site server starting with PID $SERVER_PID..."
