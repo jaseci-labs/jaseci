@@ -8,11 +8,13 @@ test output at all, and the per-worker RSS ceiling never gets a chance to fire
 because it is only consulted between items.
 
 Dispatch is therefore gated on available memory. Before handing out an item
-the pool checks that at least the reserve (the largest single-item growth seen
-so far, floored at MEM_RESERVE_FLOOR_MB) is free, parks the worker otherwise,
-and retires a parked worker that already holds more than its share of the
-start budget so its memory returns while it waits. One item is always in
-flight, so a scarce machine slows the pool down instead of stopping it.
+the pool checks that the reserve (the largest single-item growth seen so far,
+floored at MEM_RESERVE_FLOOR_MB) is free for it and for every item already in
+flight, since each of those may still grow by that much before it reports;
+it parks the worker otherwise, and retires a parked worker that already holds
+more than its share of the start budget so its memory returns while it
+waits. One item is always in flight, so a scarce machine slows the pool down
+instead of stopping it.
 
 `JAC_WORKPOOL_MEM_AVAIL_MB` overrides the /proc/meminfo reading and
 `JAC_WORKPOOL_RESERVE_MB` the reserve, which is how these tests script a
@@ -74,7 +76,7 @@ def _on_record(idx: int, record: dict[(str, any)]) {
         and len(_done) >= _recover_after[0]
     ) {
         # Memory comes back: the vacated slots should refill.
-        os.environ["JAC_WORKPOOL_MEM_AVAIL_MB"] = "30";
+        os.environ["JAC_WORKPOOL_MEM_AVAIL_MB"] = "50";
         _recovered[0] = True;
     }
 }
@@ -142,18 +144,19 @@ test "workers parked mid-run over their share are retired, and refilled when mem
     if not pool_available() {
         return;
     }
-    # 30 MB available against a 25 MB reserve lets all four slots start, and
-    # the 18 MB start budget gives each slot a 4 MB share, under any worker
-    # that has served an item (a forked child reports only what it touched
-    # since the fork, about 10 MB here). After four items the machine is
-    # squeezed to 1 MB: from then on one item is in flight and every parked
-    # worker is over its share, so it is retired and its slot left vacant.
-    # After twelve items memory comes back and the vacant slots refill.
+    # 50 MB available against a 10 MB reserve lets all four slots start (the
+    # fourth needs 40 MB free), and the 30 MB start budget gives each slot a
+    # 7 MB share, under any worker that has served an item (a forked child
+    # reports only what it touched since the fork, about 10 MB here). After
+    # four items the machine is squeezed to 1 MB: from then on one item is in
+    # flight and every parked worker is over its share, so it is retired and
+    # its slot left vacant. After twelve items memory comes back and the
+    # vacant slots refill.
     _squeeze_after[0] = 4;
     _recover_after[0] = 12;
     try {
         peak = _run(
-            24, 4, {"JAC_WORKPOOL_MEM_AVAIL_MB": "30", "JAC_WORKPOOL_RESERVE_MB": "25"}
+            24, 4, {"JAC_WORKPOOL_MEM_AVAIL_MB": "50", "JAC_WORKPOOL_RESERVE_MB": "10"}
         );
     } finally {
         _squeeze_after[0] = 0;
@@ -182,7 +185,7 @@ test "workers parked on a machine that never recovers stay retired" {
     _squeeze_after[0] = 4;
     try {
         _run(
-            24, 4, {"JAC_WORKPOOL_MEM_AVAIL_MB": "30", "JAC_WORKPOOL_RESERVE_MB": "25"}
+            24, 4, {"JAC_WORKPOOL_MEM_AVAIL_MB": "50", "JAC_WORKPOOL_RESERVE_MB": "10"}
         );
     } finally {
         _squeeze_after[0] = 0;
@@ -212,4 +215,17 @@ test "available memory honors the override and otherwise reads the host" {
             os.environ["JAC_WORKPOOL_MEM_AVAIL_MB"] = saved;
         }
     }
+}
+
+test "an item in flight keeps its reserve, so a second one needs twice the room" {
+    if not pool_available() {
+        return;
+    }
+    # 15 MB free against a 10 MB reserve: the first item fits, the second would
+    # need 20 MB, so the pool runs one at a time even though four slots exist.
+    peak = _run(
+        12, 4, {"JAC_WORKPOOL_MEM_AVAIL_MB": "15", "JAC_WORKPOOL_RESERVE_MB": "10"}
+    );
+    assert sorted(_done) == list(range(12));
+    assert peak == 1 , f"{peak} items in flight with room for only one reserve";
 }

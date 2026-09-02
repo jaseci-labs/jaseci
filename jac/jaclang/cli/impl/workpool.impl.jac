@@ -245,11 +245,16 @@ impl WorkPool._reserve_mb -> int {
 }
 
 impl WorkPool._can_dispatch -> bool {
+    """Is there room for one more item, given what is already running?
+
+    Every item in flight may still grow by the reserve (the largest
+    single-item growth seen so far) before it reports, and so may the one
+    about to be dispatched, so the machine has to have that much free for
+    each of them. Nothing in flight always dispatches: a starved machine
+    slows the pool to one item, it never stops it.
+    """;
     avail = available_memory_mb();
     if avail < 0 {
-        return True;
-    }
-    if avail >= self._reserve_mb() {
         return True;
     }
     inflight = [
@@ -257,7 +262,10 @@ impl WorkPool._can_dispatch -> bool {
         for k in self.kids
         if k["alive"] and (k["inflight"] is not None)
     ];
-    return not inflight;
+    if not inflight {
+        return True;
+    }
+    return avail >= self._reserve_mb() * (len(inflight) + 1);
 }
 
 impl WorkPool._park(kid: dict[(str, any)]) -> None {
