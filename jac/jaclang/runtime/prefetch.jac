@@ -178,6 +178,7 @@ def run_prefetch_policy(ctx: any, cfg: any, warch: any, nd: NodeAnchor) -> tuple
         workers: int = int(getattr(run_cfg, "prefetch_workers", 1) or 1);
         if plan.single_query {
             workers = 1;
+            mode = "";
         }
         dispatch_prefetch(ctx, plan.ids, mode, workers);
         dispatch_ms = (_time.perf_counter() - prefetch_start) * 1000;

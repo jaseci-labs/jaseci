@@ -1134,6 +1134,70 @@ def _ttg_render_complete_origin_sql(
 }
 
 
+def _ttg_opt_complete_hops_enabled -> bool {
+    import os as _os;
+    raw = _os.environ.get("JAC_TTG_OPT_COMPLETE_HOPS", "").strip().lower();
+    return raw not in ("0", "false", "no", "off");
+}
+
+
+def _ttg_render_complete_hop_rows_sql -> str {
+    if _ttg_opt_complete_hops_enabled() {
+        return """
+            expected_complete_status AS (
+                SELECT
+                    exp.origin_id,
+                    exp.spec_idx,
+                    BOOL_AND(an.id IS NOT NULL AND ae.id IS NOT NULL)
+                        AS all_available
+                FROM expected_complete_edges exp
+                LEFT JOIN available_node_ids an ON an.id = exp.target_id
+                LEFT JOIN available_edge_ids ae ON ae.id = exp.edge_id
+                GROUP BY exp.origin_id, exp.spec_idx
+            ),
+            complete_hop_rows AS (
+                SELECT
+                    co.origin_id,
+                    co.spec_idx
+                FROM complete_origins co
+                LEFT JOIN expected_complete_status ecs
+                  ON ecs.origin_id = co.origin_id
+                 AND ecs.spec_idx = co.spec_idx
+                WHERE co.origin_id IS NOT NULL
+                  AND co.spec_idx IS NOT NULL
+                  AND COALESCE(ecs.all_available, TRUE)
+            )""";
+    }
+    return """
+            complete_hop_rows AS (
+                SELECT
+                    co.origin_id,
+                    co.spec_idx
+                FROM complete_origins co
+                WHERE co.origin_id IS NOT NULL
+                  AND co.spec_idx IS NOT NULL
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM expected_complete_edges exp
+                      WHERE exp.origin_id = co.origin_id
+                        AND exp.spec_idx = co.spec_idx
+                        AND (
+                            NOT EXISTS (
+                                SELECT 1
+                                FROM available_node_ids an
+                                WHERE an.id = exp.target_id
+                            )
+                            OR NOT EXISTS (
+                                SELECT 1
+                                FROM available_edge_ids ae
+                                WHERE ae.id = exp.edge_id
+                            )
+                        )
+                  )
+            )""";
+}
+
+
 def _ttg_render_specialized_set_based_sql(
     specs: list[dict],
     params: dict[str, object]
@@ -1146,6 +1210,7 @@ def _ttg_render_specialized_set_based_sql(
     (complete_origin_sql, complete_expected_filter) = _ttg_render_complete_origin_sql(
         specs, params
     );
+    complete_hop_rows_sql = _ttg_render_complete_hop_rows_sql();
     return f"""
 	            WITH RECURSIVE
 	            walk(
@@ -1465,32 +1530,7 @@ def _ttg_render_specialized_set_based_sql(
 	                WHERE c.parent_node_id IS NOT NULL
 	                  AND {complete_expected_filter}
 	            ),
-	            complete_hop_rows AS (
-	                SELECT
-	                    co.origin_id,
-	                    co.spec_idx
-	                FROM complete_origins co
-	                WHERE co.origin_id IS NOT NULL
-	                  AND co.spec_idx IS NOT NULL
-	                  AND NOT EXISTS (
-	                      SELECT 1
-	                      FROM expected_complete_edges exp
-	                      WHERE exp.origin_id = co.origin_id
-	                        AND exp.spec_idx = co.spec_idx
-	                        AND (
-	                            NOT EXISTS (
-	                                SELECT 1
-	                                FROM available_node_ids an
-	                                WHERE an.id = exp.target_id
-	                            )
-	                            OR NOT EXISTS (
-	                                SELECT 1
-	                                FROM available_edge_ids ae
-	                                WHERE ae.id = exp.edge_id
-	                            )
-	                        )
-	                  )
-	            ),
+	            {complete_hop_rows_sql},
             topology_node_rows AS (
                 SELECT
                     n.id,

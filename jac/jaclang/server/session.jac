@@ -33,6 +33,8 @@ glob logger = logging.getLogger(__name__),
          'hit_stats_reset',
          'hit_stats_add_checkpoint',
          'hit_stats_read_checkpoints',
+         'access_log_seen_ids_snapshot',
+         'access_log_seen_ids_reset',
          'mark_scratch_base',
          'scratch_requested',
          'scratch_lease',
@@ -110,6 +112,8 @@ def hit_stats_snapshot -> dict[str, int];
 def hit_stats_reset -> None;
 def hit_stats_add_checkpoint(label: str) -> None;
 def hit_stats_read_checkpoints -> list[tuple[str, dict[str, int]]];
+def access_log_seen_ids_snapshot -> list[UUID];
+def access_log_seen_ids_reset -> None;
 def _tiered_access_log(id: UUID, tier: str, anchor: any = None) -> None;
 def _access_log_reset_for_tests -> None;
 def mark_scratch_base(base_path: str) -> None;

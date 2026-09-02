@@ -1,5 +1,6 @@
 """Tests for the transient GTI used by TTG planning."""
 
+import os;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from uuid { UUID }
@@ -7,7 +8,10 @@ import from jaclang.runtime.archetype { EdgeAnchor, NodeAnchor, Root }
 import from jaclang.runtime.context { ExecutionContext }
 import from jaclang.runtime.runtime { JacRuntime }
 import from jaclang.runtime.topology_index { TopologyIndex }
-import from jaclang.runtime.ttg { JacTTGGenerator }
+import from jaclang.runtime.ttg {
+    JacTTGGenerator,
+    _ttg_render_specialized_set_based_sql
+}
 
 
 node GTIProfile {
@@ -402,6 +406,42 @@ test "TTG extractor skips explicit non-current edge-ref origins" {
         } finally {
             JacRuntime.exec_ctx = old;
             ctx2.close();
+        }
+    }
+}
+
+
+test "TTG complete-hop SQL optimization has env escape hatch" {
+    specs = [{
+        "idx": 0,
+        "from_type": "GTIProfile",
+        "chain": [("GTIFollow", "GTIProfile", 2)],
+        "is_visit": True,
+        "origin_name": ""
+    }];
+    old = os.environ.get("JAC_TTG_OPT_COMPLETE_HOPS");
+    try {
+        os.environ.pop("JAC_TTG_OPT_COMPLETE_HOPS", None);
+        sql = _ttg_render_specialized_set_based_sql(
+            specs,
+            {"origin_ids": [], "limit": 10, "max_depth": 10}
+        );
+        assert "expected_complete_status AS" in sql;
+        assert "BOOL_AND(an.id IS NOT NULL AND ae.id IS NOT NULL)" in sql;
+
+        os.environ["JAC_TTG_OPT_COMPLETE_HOPS"] = "0";
+        fallback_sql = _ttg_render_specialized_set_based_sql(
+            specs,
+            {"origin_ids": [], "limit": 10, "max_depth": 10}
+        );
+        assert "expected_complete_status AS" not in fallback_sql;
+        assert "AND NOT EXISTS (" in fallback_sql;
+        assert "FROM expected_complete_edges exp" in fallback_sql;
+    } finally {
+        if old is None {
+            os.environ.pop("JAC_TTG_OPT_COMPLETE_HOPS", None);
+        } else {
+            os.environ["JAC_TTG_OPT_COMPLETE_HOPS"] = old;
         }
     }
 }

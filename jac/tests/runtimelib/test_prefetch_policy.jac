@@ -39,13 +39,44 @@ test "oracle prefetch policy reads UUID list file" {
     with TemporaryDirectory() as raw_tmpdir_obj {
         raw_tmpdir: str = str(raw_tmpdir_obj);
         oracle_file = Path(raw_tmpdir) / "oracle.txt";
+        topology_file = Path(raw_tmpdir) / "oracle.txt.topology.json";
         oracle_file.write_text(
             f"# warmup log converted by external tooling\n{id1}\n{id2}\n{id1}\n{id3} # capped out\n"
         );
+        topology_file.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "kind": "oracle_topology_snapshot",
+                    "ids": [str(id1), str(id2), str(id3)],
+                    "rows": [],
+                    "query_count": 1
+                }
+            )
+        );
         cfg = JacConfig();
         cfg.run.prefetch_oracle_file = str(oracle_file);
+        cfg.run.prefetch_oracle_topology_file = str(topology_file);
         plan = get_prefetch_plan("oracle", None, None, max_length=2, config=cfg);
         assert plan.ids == [id1, id2];
+    }
+}
+
+test "oracle prefetch policy requires topology snapshot" {
+    id1 = UUID("00000000-0000-0000-0000-000000000001");
+    with TemporaryDirectory() as raw_tmpdir_obj {
+        raw_tmpdir: str = str(raw_tmpdir_obj);
+        oracle_file = Path(raw_tmpdir) / "oracle.txt";
+        oracle_file.write_text(f"{id1}\n");
+        cfg = JacConfig();
+        cfg.run.prefetch_oracle_file = str(oracle_file);
+        raised = False;
+        try {
+            get_prefetch_plan("oracle", None, None, max_length=1, config=cfg);
+        } except FileNotFoundError {
+            raised = True;
+        }
+        assert raised , "oracle policy must fail when topology snapshot is missing";
     }
 }
 

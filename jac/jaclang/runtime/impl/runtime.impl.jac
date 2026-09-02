@@ -261,6 +261,7 @@ impl JacWalker.spawn_call(
     ttg_total_time_ms = 0.0;
     resolve_total_ms = 0.0;
     cfg: any = None;
+    ctx_prefetch = None;
     ctx_observe = None;
     history_observe_enabled = False;
     try {
@@ -310,6 +311,12 @@ impl JacWalker.spawn_call(
                 ;
             }
         }
+    }
+    if ctx_prefetch is not None {
+        import from jaclang.runtime.prefetch_policy_oracle {
+            maybe_write_oracle_topology_snapshot
+        }
+        maybe_write_oracle_topology_snapshot(ctx_prefetch, cfg);
     }
     walker_time_ms = (walker_end - walker_start) * 1000;
     profile_csv_path = os.environ.get("JAC_PROFILE_CSV");
@@ -378,6 +385,7 @@ impl JacWalker.async_spawn_call(
     }
     warch = `walker.archetype;
     cfg: any = None;
+    ctx_prefetch = None;
     ctx_observe = None;
     history_observe_enabled = False;
     try {
@@ -419,6 +427,12 @@ impl JacWalker.async_spawn_call(
                 ;
             }
         }
+    }
+    if ctx_prefetch is not None {
+        import from jaclang.runtime.prefetch_policy_oracle {
+            maybe_write_oracle_topology_snapshot
+        }
+        maybe_write_oracle_topology_snapshot(ctx_prefetch, cfg);
     }
     return warch;
 }

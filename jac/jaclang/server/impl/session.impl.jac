@@ -68,6 +68,8 @@ glob _scratch_bases: set[str] = set(),
 
 glob _access_log_state: list = [None],
      _access_log_lock: threading.Lock = threading.Lock(),
+     _access_log_ids: list[UUID] = [],
+     _access_log_id_seen: set[UUID] = set(),
      _hit_stats: dict[str, int] = {"L1": 0, "L2": 0, "L3": 0, "MISS": 0},
      _hit_stats_lock: threading.Lock = threading.Lock(),
      _hit_stats_snapshots: list[tuple[str, dict[str, int]]] = [];
@@ -104,6 +106,34 @@ impl hit_stats_read_checkpoints -> list[tuple[str, dict[str, int]]] {
 }
 
 
+def _access_log_note_id_locked(raw: any) -> None {
+    try {
+        uid = raw if isinstance(raw, UUID) else UUID(str(raw));
+    } except Exception {
+        return;
+    }
+    if uid not in _access_log_id_seen {
+        _access_log_id_seen.add(uid);
+        _access_log_ids.append(uid);
+    }
+}
+
+
+impl access_log_seen_ids_snapshot -> list[UUID] {
+    with _access_log_lock {
+        return list(_access_log_ids);
+    }
+}
+
+
+impl access_log_seen_ids_reset -> None {
+    with _access_log_lock {
+        _access_log_ids.clear();
+        _access_log_id_seen.clear();
+    }
+}
+
+
 impl _access_log_reset_for_tests -> None {
     with _access_log_lock {
         state = _access_log_state[0];
@@ -115,6 +145,8 @@ impl _access_log_reset_for_tests -> None {
             }
         }
         _access_log_state[0] = None;
+        _access_log_ids.clear();
+        _access_log_id_seen.clear();
     }
 }
 
@@ -140,6 +172,8 @@ impl _tiered_access_log(id: UUID, tier: str, anchor: any = None) -> None {
                 p.parent.mkdir(parents=True, exist_ok=True);
                 fh = p.open('w');
                 fh.write("id,tier,type,root\n");
+                _access_log_ids.clear();
+                _access_log_id_seen.clear();
                 _access_log_state[0] = fh;
             } except Exception {
                 _access_log_state[0] = False;
@@ -171,6 +205,12 @@ impl _tiered_access_log(id: UUID, tier: str, anchor: any = None) -> None {
                 }
             } except Exception {
                 ;
+            }
+        }
+        if tier != "MISS" {
+            _access_log_note_id_locked(id);
+            if root_id {
+                _access_log_note_id_locked(root_id);
             }
         }
         fh.write(f"{id},{tier},{type_name},{root_id}\n");

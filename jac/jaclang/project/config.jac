@@ -43,6 +43,8 @@ obj RunConfig {
         sql_log: str = "",
         prefetching: str = "",
         prefetch_oracle_file: str = "",
+        prefetch_oracle_topology_file: str = "",
+        prefetch_oracle_record_topology_file: str = "",
         prefetch_markov_file: str = "",
         prefetch_coaccess_file: str = "",
         prefetch_limit: int = 200,
