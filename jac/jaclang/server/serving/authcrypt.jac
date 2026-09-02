@@ -15,12 +15,76 @@ glob SCRYPT_N: int = 16384,
      SCRYPT_SALT_BYTES: int = 16,
      SCRYPT_MAXMEM: int = 48 * 1024 * 1024,
      _BCRYPT_PREFIXES: tuple = ('$2a$', '$2b$', '$2y$'),
+     _SHA256_HEX_LEN: int = 64,
+     _HEX_DIGITS: str = '0123456789abcdef',
+     PLACEHOLDER_JWT_SECRET: str = 'supersecretkey_for_testing_only!',
+     DEV_SECRET_FILENAME: str = 'jwt_secret',
+     DEV_SECRET_BYTES: int = 48,
      _legacy_warned: set[str] = set(),
      logger = logging.getLogger(__name__);
 
 
 def is_prescrypt_hash(stored: str) -> bool {
     return isinstance(stored, str) and stored.startswith(_BCRYPT_PREFIXES);
+}
+
+
+def is_legacy_sha256_hash(stored: str) -> bool {
+    if not isinstance(stored, str) or len(stored) != _SHA256_HEX_LEN {
+        return False;
+    }
+    lowered = stored.lower();
+    for ch in lowered {
+        if ch not in _HEX_DIGITS {
+            return False;
+        }
+    }
+    return True;
+}
+
+
+def needs_rehash(stored: str) -> bool {
+    return is_legacy_sha256_hash(stored);
+}
+
+
+def project_signing_secret(base_path: str) -> str {
+    import os;
+    data_dir = os.path.join(base_path or '.', '.jac', 'data');
+    path = os.path.join(data_dir, DEV_SECRET_FILENAME);
+    existing = _read_secret(path);
+    if existing {
+        return existing;
+    }
+    os.makedirs(data_dir, exist_ok=True);
+    minted = secrets.token_urlsafe(DEV_SECRET_BYTES);
+    staging = os.path.join(data_dir, f"{DEV_SECRET_FILENAME}.{os.getpid()}.tmp");
+    fd = os.open(staging, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600);
+    with os.fdopen(fd, 'w', encoding='utf-8') as handle {
+        handle.write(minted);
+    }
+    try {
+        os.link(staging, path);
+    } except FileExistsError {} finally {
+        try {
+            os.unlink(staging);
+        } except OSError {}
+    }
+    try {
+        os.chmod(path, 0o600);
+    } except OSError {}
+    return _read_secret(path) or minted;
+}
+
+
+def _read_secret(path: str) -> str {
+    try {
+        with open(path, 'r', encoding='utf-8') as handle {
+            return handle.read().strip();
+        }
+    } except OSError {
+        return '';
+    }
 }
 
 
@@ -170,6 +234,17 @@ def verify_password(password: str, stored: str) -> bool {
             'accounts). The client sees generic invalid-credentials.'
         );
         return False;
+    }
+    if is_legacy_sha256_hash(stored) {
+        _warn_once(
+            stored,
+            'Verified a password against a legacy unsalted sha256 hash. The '
+            'row is rehashed to scrypt on this login; sha256 credentials are '
+            'accepted only to carry accounts written before the scrypt '
+            'migration.'
+        );
+        legacy = hashlib.sha256(password.encode('utf-8')).hexdigest();
+        return hmac.compare_digest(legacy, stored.lower());
     }
     try {
         parts = stored.split('$');

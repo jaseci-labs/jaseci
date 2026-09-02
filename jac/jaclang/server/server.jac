@@ -60,6 +60,7 @@ obj UserManager {
     def _ensure_connection -> None;
     def create_user(username: str, password: str) -> dict[str, str];
     def authenticate(username: str, password: str) -> (dict[(str, str)] | None);
+    def _rehash_password(username: str, password: str) -> None;
     def validate_token(token: str) -> (str | None);
     def get_root_id(username: str) -> (str | None);
     def reset_root(username: str) -> (str | None);
