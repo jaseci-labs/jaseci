@@ -17,6 +17,7 @@ import os;
 import sys;
 import tempfile;
 import time;
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.driver.compiler { JacCompiler }
 import from jaclang.compiler.driver.jir {
     SEC_CTDEPS,
@@ -289,31 +290,133 @@ test "a has-variable default edit is observed by its readers" {
     }
 }
 
-test "an unsealed precompiled bundle does not serve a stale fold" {
-    paths = _pair(
-        "comptime SPEC: str = \"spec one\";\n",
+def _bundle(paths: dict[str, str]) -> str {
+    pyver = f"cpython-{sys.version_info.major}{sys.version_info.minor}";
+    bundle = os.path.join(paths["root"], "_precompiled", pyver);
+    os.makedirs(bundle, exist_ok=True);
+    for src in (paths["producer"], paths["consumer"]) {
+        blob = precompile_unit(src, paths["root"]);
+        assert blob is not None , f"precompile produced nothing for {src}";
+        stem = os.path.splitext(os.path.basename(src))[0];
+        with open(os.path.join(bundle, f"{stem}.jir"), "wb") as fh {
+            fh.write(blob);
+        }
+    }
+    return bundle;
+}
+
+def _spec_pair(text: str) -> dict[str, str] {
+    return _pair(
+        f"comptime SPEC: str = \"{text}\";\n",
         "comptime import from prodmod { SPEC }\n\n"
         "comptime USED: str = SPEC;\n\n"
         "with entry {\n    print(USED);\n}\n"
     );
+}
+
+test "an unsealed precompiled bundle does not serve a stale fold" {
+    paths = _spec_pair("spec one");
     with _isolated(paths["root"]) {
         cold = _folded(paths["consumer"]);
         assert "spec one" in cold , f"cold compile did not fold: {cold}";
-        pyver = f"cpython-{sys.version_info.major}{sys.version_info.minor}";
-        bundle = os.path.join(paths["root"], "_precompiled", pyver);
-        os.makedirs(bundle, exist_ok=True);
-        for src in (paths["producer"], paths["consumer"]) {
-            blob = precompile_unit(src, paths["root"]);
-            assert blob is not None , f"precompile produced nothing for {src}";
-            stem = os.path.splitext(os.path.basename(src))[0];
-            with open(os.path.join(bundle, f"{stem}.jir"), "wb") as fh {
-                fh.write(blob);
-            }
-        }
+        _bundle(paths);
         _write(paths["producer"], "comptime SPEC: str = \"spec two\";\n");
         warm = _folded(paths["consumer"]);
         assert "spec two" in warm , (
             f"the unsealed precompiled bundle served a stale fold: {warm}"
+        );
+    }
+}
+
+test "a bundle promoted into the module cache carries its comptime deps" {
+    paths = _spec_pair("spec one");
+    with _isolated(paths["root"]) {
+        cold = _folded(paths["consumer"]);
+        assert "spec one" in cold , f"cold compile did not fold: {cold}";
+        _bundle(paths);
+        get_module_cache_path(paths["consumer"]).unlink();
+        promoted = _folded(paths["consumer"]);
+        assert "spec one" in promoted , (
+            f"the bundle did not serve the consumer: {promoted}"
+        );
+        data = get_module_cache_path(paths["consumer"]).read_bytes();
+        raw = read_section_bytes(data, SEC_CTDEPS);
+        assert raw is not None , (
+            "the promoted module cache recorded no comptime dependencies"
+        );
+        assert paths["producer"] in raw.decode("utf-8") , (
+            f"the promoted rows are not absolute: {raw.decode('utf-8')}"
+        );
+        _write(paths["producer"], "comptime SPEC: str = \"spec two\";\n");
+        warm = _folded(paths["consumer"]);
+        assert "spec two" in warm , (
+            f"the promoted module cache served a stale fold: {warm}"
+        );
+    }
+}
+
+def _native_compile(path: str) {
+    prog = JacProgram();
+    prog.compile(path, options=CompileOptions(force_target_program=True));
+    assert not prog.errors_had , (
+        f"native compile of {path} failed: "
+        f"{[a.pretty_print() for a in prog.errors_had]}"
+    );
+}
+
+def _native_ir(path: str) -> str {
+    import from jaclang.compiler.driver.jir { get_native_cache_dir }
+    cache_dir = str(get_native_cache_dir(path));
+    stem = os.path.splitext(os.path.basename(path))[0];
+    text = "";
+    if os.path.isdir(cache_dir) {
+        for name in sorted(os.listdir(cache_dir)) {
+            if name.startswith(f"{stem}.") and name.endswith(".ir_cache") {
+                with open(os.path.join(cache_dir, name), "r") as fh {
+                    text += fh.read();
+                }
+            }
+        }
+    }
+    return text;
+}
+
+test "a native-placed fold is not served from a stale IR cache" {
+    tmp = tempfile.mkdtemp();
+    with _isolated(tmp) {
+        _write(
+            os.path.join(tmp, "jac.toml"),
+            "[project]\nname = \"natfold\"\n\n"
+            "[placement.pins]\nnatmod = \"native\"\n",
+            backdate=True
+        );
+        producer = os.path.realpath(os.path.join(tmp, "tagmod.jac"));
+        native = os.path.realpath(os.path.join(tmp, "natmod.jac"));
+        main_mod = os.path.realpath(os.path.join(tmp, "entrymod.jac"));
+        _write(producer, "comptime TAG: str = \"alpha\";\n", backdate=True);
+        _write(
+            native,
+            "comptime import from tagmod { TAG }\n\n"
+            "comptime LABEL: str = TAG;\n\n"
+            "def tagged -> str {\n    return LABEL;\n}\n",
+            backdate=True
+        );
+        _write(
+            main_mod,
+            "import from natmod { tagged }\n\n"
+            "with entry {\n    print(tagged());\n}\n",
+            backdate=True
+        );
+        _native_compile(main_mod);
+        cold = _native_ir(native);
+        assert cold , "the native lane wrote no IR cache for the pinned module";
+        assert "alpha" in cold , f"the cold native IR did not fold the producer";
+        _write(producer, "comptime TAG: str = \"beta\";\n");
+        _native_compile(main_mod);
+        warm = _native_ir(native);
+        assert "beta" in warm , (
+            "the native IR cache served a stale fold after its comptime "
+            "producer changed"
         );
     }
 }

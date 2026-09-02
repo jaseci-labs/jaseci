@@ -518,14 +518,41 @@ def rebase_ct_deps_section(raw: bytes, base: str) -> bytes {
     return "\n".join(lines).encode("utf-8");
 }
 
-def ct_deps_fresh(data: bytes, base: str = "") -> bool {
-    for (path, digest, is_body) in read_ct_deps(data) {
+def _ct_rows_fresh(rows: list[tuple[(str, str, bool)]], base: str) -> bool {
+    for (path, digest, is_body) in rows {
         full = path if os.path.isabs(path) else os.path.join(base, path);
         if not digest or ct_dep_digest(full, is_body) != digest {
             return False;
         }
     }
     return True;
+}
+
+def ct_deps_fresh(data: bytes, base: str = "") -> bool {
+    return _ct_rows_fresh(read_ct_deps(data), base);
+}
+
+def ct_dep_text_fresh(text: str, base: str = "") -> bool {
+    return _ct_rows_fresh(_ct_dep_rows(text), base);
+}
+
+def module_ct_deps_text(mod: any) -> str {
+    return ct_deps_section(
+        getattr(mod, "ct_file_deps", []) or [], getattr(mod, "ct_body_deps", []) or []
+    ).decode(
+        "utf-8"
+    );
+}
+
+def absolutize_ct_deps_section(raw: bytes, base: str) -> bytes {
+    lines: list[str] = [];
+    for (path, digest, is_body) in _ct_dep_rows(raw.decode("utf-8")) {
+        full = path
+            if os.path.isabs(path)
+            else os.path.normpath(os.path.join(base, path));
+        lines.append(_ct_dep_line(full, digest, is_body, ""));
+    }
+    return "\n".join(lines).encode("utf-8");
 }
 
 def deps_section(rows: list[tuple[str, str, str]]) -> bytes {

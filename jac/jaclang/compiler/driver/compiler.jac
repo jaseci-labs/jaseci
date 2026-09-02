@@ -129,7 +129,7 @@ obj JacCompiler {
 
     def _get_precompiled_jir_bytecode(
         full_target: str, allow_unsealed: bool = True
-    ) -> (bytes | None);
+    ) -> (tuple[bytes, bytes] | None);
 
     def _sealed_jir_data(full_target: str) -> (tuple[bytes, str] | None);
     def _build_interop_dict(result: uni.Module) -> dict;

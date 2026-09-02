@@ -197,10 +197,21 @@ impl JacCompiler.get_bytecode(
     }
 
     allow_unsealed = (not rebuild) and (not no_precompile);
-    precompiled_bc = self._get_precompiled_jir_bytecode(full_target, allow_unsealed);
-    if precompiled_bc is not None {
+    precompiled = self._get_precompiled_jir_bytecode(full_target, allow_unsealed);
+    if precompiled is not None {
+        (precompiled_bc, precompiled_ctdeps) = precompiled;
         try {
-            write_module_cache(full_target, precompiled_bc, flags=FLAG_PRECOMPILED);
+            import from jaclang.compiler.driver.jir { SEC_CTDEPS as _PC_CTDEPS }
+            _pc_sections: dict[int, bytes] = {};
+            if precompiled_ctdeps {
+                _pc_sections[_PC_CTDEPS] = precompiled_ctdeps;
+            }
+            write_module_cache(
+                full_target,
+                precompiled_bc,
+                flags=FLAG_PRECOMPILED,
+                extra_sections=_pc_sections
+            );
         } except Exception {}
         return marshal.loads(precompiled_bc);
     }
@@ -462,10 +473,12 @@ impl JacCompiler._sealed_jir_data(full_target: str) -> (tuple[bytes, str] | None
 
 impl JacCompiler._get_precompiled_jir_bytecode(
     full_target: str, allow_unsealed: bool = True
-) -> (bytes | None) {
+) -> (tuple[bytes, bytes] | None) {
     import from pathlib { Path as _Path }
     import from jaclang.compiler.driver.jir {
         PRECOMPILE_SENTINEL,
+        SEC_CTDEPS,
+        absolutize_ct_deps_section,
         cache_mode,
         ct_deps_fresh
     }
@@ -505,7 +518,14 @@ impl JacCompiler._get_precompiled_jir_bytecode(
                     if trusted {
                         bc = read_bytecode_only(jir_data);
                         if bc is not None {
-                            return patch_co_filenames_bytes(bc, PRECOMPILE_SENTINEL, d);
+                            _ct_raw = read_section_bytes(jir_data, SEC_CTDEPS);
+                            return (
+                                patch_co_filenames_bytes(bc, PRECOMPILE_SENTINEL, d),
+                                absolutize_ct_deps_section(_ct_raw, norm_root)
+                                    if _ct_raw
+                                    else b"",
+
+                            );
                         }
                     }
                 } except Exception {}
