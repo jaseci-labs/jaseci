@@ -159,3 +159,34 @@ test "bootstrap refuses to provision an admin without a configured password" {
         }
     }
 }
+
+
+test "rotating through update_password clears a pending reset" {
+    import from jaclang.scale.identity.user_manager { JacScaleUserManager }
+    import tempfile;
+    import shutil;
+
+    tmp = tempfile.mkdtemp();
+    env = {"JAC_ADMIN_ENABLED": "true", "JAC_ADMIN_PASSWORD": "boot-pass-1"};
+    with patch.dict(os.environ, env, clear=True) {
+        reset_scale_config();
+        try {
+            manager = JacScaleUserManager(base_path=tmp);
+            result = manager.bootstrap_admin_user();
+            assert "error" not in result;
+            user_id = result["user_id"];
+            assert manager.requires_password_reset(user_id);
+
+            failed = manager.update_password(user_id, "wrong-pass", "rotated-pass-1");
+            assert "error" in failed;
+            assert manager.requires_password_reset(user_id);
+
+            rotated = manager.update_password(user_id, "boot-pass-1", "rotated-pass-1");
+            assert "error" not in rotated;
+            assert not manager.requires_password_reset(user_id);
+        } finally {
+            reset_scale_config();
+            shutil.rmtree(tmp, ignore_errors=True);
+        }
+    }
+}

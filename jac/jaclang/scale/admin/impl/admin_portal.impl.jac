@@ -685,8 +685,6 @@ impl JacAPIServerAdmin.reset_password(
         );
     }
 
-    self._require_user_manager().set_requires_password_reset(user_id, False);
-
     new_token = self._require_user_manager().create_jwt_token(user_id);
     return TransportResponse.success(
         data={'message': 'Password updated successfully', 'token': new_token},

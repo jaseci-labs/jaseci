@@ -155,9 +155,13 @@ impl JacScaleUserManager.ensure_user_root(user_id: str) -> str | None {
 impl JacScaleUserManager.update_password(
     user_id: str, current_password: str, new_password: str
 ) -> dict[str, str] {
-    return self._identity_storage.update_password(
+    result = self._identity_storage.update_password(
         user_id, current_password, new_password
     );
+    if 'error' not in result {
+        self.set_requires_password_reset(user_id, False);
+    }
+    return result;
 }
 
 impl JacScaleUserManager.reset_password_by_user_id(
