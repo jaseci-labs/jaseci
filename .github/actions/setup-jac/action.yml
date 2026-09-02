@@ -55,7 +55,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: jac/jaclang/vendor/typeshed/stdlib
-        key: typeshed-stdlib-${{ hashFiles('jac/jaclang/vendor/typeshed/PIN', 'jac/jaclang/vendor/typeshed/TARBALL_SHA256', 'jac/launcher/payload.zig') }}
+        key: typeshed-stdlib-${{ hashFiles('jac/jaclang/vendor/typeshed/PIN', 'jac/jaclang/vendor/typeshed/TARBALL_SHA256', 'jac/jaclang/dist/payload/**') }}
 
     # The four caches below (pbs, shim, LLVM, bun) are big (0.2-0.6 GB each) and
     # read-mostly: their keys only change on a pin bump, not on ordinary code

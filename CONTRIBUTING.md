@@ -26,7 +26,7 @@ git remote -v
 
 **1. Install Zig**
 
-The binary is built with [Zig](https://ziglang.org/) **0.16.0** (the version is pinned -- newer/older majors will fail to build). Zig plus a network connection are the only build-time deps: `launcher/payload.zig` does all the HTTP fetching, integrity checks, and (de)compression in Zig's std, so there's nothing else to install (the old `curl`/`git`/`zstd`/`tar` shellouts are gone).
+The binary is built with [Zig](https://ziglang.org/) **0.16.0** (the version is pinned -- newer/older majors will fail to build). Zig plus a network connection are the only build-time deps: the payload tool (`jaclang.dist.payload`, Jac on the bundled Python tier that `zig build` boots) does all the HTTP fetching, integrity checks, and compression, so there's nothing else to install (the old `curl`/`git`/`zstd`/`tar` shellouts are gone).
 
 ```bash
 # Zig: download the 0.16.0 tarball for your platform and put it on PATH
