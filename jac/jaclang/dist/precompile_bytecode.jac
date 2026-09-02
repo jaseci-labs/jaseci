@@ -270,8 +270,10 @@ def precompile_unit(
     import from jaclang.cli.workpool { maybe_malloc_trim }
 
     try {
+        import from jaclang.compiler.driver.jir { cache_mode }
+        (rebuild_units, _np) = cache_mode();
         cache_path = get_module_cache_path(jac_path);
-        if is_module_cache_valid(jac_path, cache_path) {
+        if (not rebuild_units) and is_module_cache_valid(jac_path, cache_path) {
             cached_bc = read_section_bytes(cache_path.read_bytes(), SEC_BYTECODE);
             if cached_bc is not None {
                 rewrapped = patch_co_filenames_bytes(

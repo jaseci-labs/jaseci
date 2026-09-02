@@ -685,6 +685,13 @@ obj IfaceRegistry {
         if mod.ct_file_deps {
             sections[SEC_CTDEPS] = ct_deps_section(mod.ct_file_deps);
         }
+        if not options.symtab_ir_only {
+            try {
+                import from jaclang.compiler.driver.jir { SEC_INTEROP }
+                interop_dict = self.prog._get_compiler()._build_interop_dict(mod);
+                sections[SEC_INTEROP] = json.dumps(interop_dict).encode("utf-8");
+            } except Exception {}
+        }
         if options.no_cgen {
             profiles = self._existing_profiles(resolved);
             errors: list = [];
@@ -776,21 +783,22 @@ obj IfaceRegistry {
         } except Exception {
             return None;
         }
-        if not interop.get("bindings") {
-            return None;
+        if interop.get("bindings") {
+            try {
+                manifest = self.prog._get_compiler()._deserialize_interop_table(
+                    interop
+                );
+            } except Exception {
+                return None;
+            }
+            import from jaclang.compiler.frontend.codeinfo { CodeGenTarget }
+            carrier = self.prog.hub.artifacts.get(resolved);
+            if carrier is None {
+                carrier = CodeGenTarget();
+                self.prog.hub.artifacts[resolved] = carrier;
+            }
+            carrier.interop_manifest = manifest;
         }
-        try {
-            manifest = self.prog._get_compiler()._deserialize_interop_table(interop);
-        } except Exception {
-            return None;
-        }
-        import from jaclang.compiler.frontend.codeinfo { CodeGenTarget }
-        carrier = self.prog.hub.artifacts.get(resolved);
-        if carrier is None {
-            carrier = CodeGenTarget();
-            self.prog.hub.artifacts[resolved] = carrier;
-        }
-        carrier.interop_manifest = manifest;
         edges: list[str] = [];
         import from jaclang.compiler.driver.jir { read_dep_rows }
         for (dep, _digest, flags) in read_dep_rows(data) {
