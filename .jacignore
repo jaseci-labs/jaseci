@@ -91,10 +91,3 @@ jac/jaclang/compiler/backends/es/impl/esast_gen_pass.impl.jac
 # Example apps.
 jac/examples/mobui/hello/main.jac
 jac/examples/mobui/littlex/main.jac
-
-# jac-shadcn registry: component templates, not modules of this project.
-# Each one carries a placeholder `import from ...lib.utils { cn }` that
-# `jac shadcn add` rewrites (_retarget_utils_import) to the destination
-# project's own utils module; in this tree that relative import deliberately
-# resolves to nothing, which is E1134.
-jac/jaclang/cli/shadcn/registry/components/ui/*.jac
