@@ -1,5 +1,5 @@
 import from uuid { UUID }
-import from jaclang.runtime.archetype { Anchor }
+import from jaclang.runtime.archetype { Anchor, anchor_key }
 
 glob QUERY_OPS: frozenset[str] = frozenset(
          {'==', '!=', '<', '<=', '>', '>=', 'in'}
@@ -37,6 +37,8 @@ obj QHop {
 
     def add_node_constraint(node_type: (type | None)) -> None;
     def only_ids -> (set | None);
+    def only_anchors -> list[Anchor];
+    def only_keys -> (set | None);
     def repr -> str;
 }
 

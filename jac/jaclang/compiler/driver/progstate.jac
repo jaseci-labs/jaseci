@@ -1,4 +1,5 @@
 import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.frontend.relations { ScopeChild }
 import from jaclang.compiler.passes.transform { Alert }
 import type from jaclang.compiler.driver.mtp { Info }
 
@@ -36,31 +37,49 @@ obj ModuleHub {
 
     def evict(resolved_path: str) {
         if resolved_path in self.mod.hub {
-            del (self.mod.hub[resolved_path], );
+            self.mod.hub.pop(resolved_path);
         }
         if resolved_path in self.stamps {
-            del (self.stamps[resolved_path], );
+            del self.stamps[resolved_path];
         }
         if resolved_path in self.artifacts {
-            del (self.artifacts[resolved_path], );
+            del self.artifacts[resolved_path];
         }
     }
 
-    def reset(keep_stubs: bool = False) {
+    def reset {
         retained_mods: dict[str, uni.Module] = {};
         retained_stamps: dict[str, float] = {};
-        if keep_stubs {
-            for path in self.mod.hub.keys() {
-                if path.endswith(".pyi") {
-                    retained_mods[path] = self.mod.hub[path];
-                    if path in self.stamps {
-                        retained_stamps[path] = self.stamps[path];
-                    }
+        dropped: list[uni.Module] = [];
+        for (path, mod) in self.mod.hub.items() {
+            if path.endswith(".pyi") {
+                retained_mods[path] = mod;
+                if path in self.stamps {
+                    retained_stamps[path] = self.stamps[path];
                 }
+            } else {
+                dropped.append(mod);
             }
         }
-        self.mod = uni.ProgramModule();
-        self.mod.hub.update(retained_mods);
+        dropped_ids: set[int] = set(id(m) for m in dropped);
+        prog_root = self.mod;
+        main = prog_root.main_mod;
+        if main is not None and id(main) in dropped_ids {
+            prog_root.main_mod = None;
+        }
+        prog_root.set_kids(
+            [
+                k
+                for k in prog_root.kid
+                if id(k) not in dropped_ids
+            ],
+            pos_update=False
+        );
+        for mod in dropped {
+            del [edge mod<-:ScopeChild:<-];
+        }
+        prog_root.hub.clear();
+        prog_root.hub.update(retained_mods);
         self.stamps.clear();
         self.stamps.update(retained_stamps);
     }
@@ -191,6 +210,16 @@ obj BuildScratch {
     def postinit {
         self.na_dep_inflight = set();
         self.na_verdict_resolving = set();
+    }
+
+    def clear {
+        self.na_dep_units.clear();
+        self.na_dep_inflight.clear();
+        self.na_verdict_resolving.clear();
+        self.na_unverified_live.clear();
+        self.na_verdict_misses = 0;
+        self.boundary_parse_memo.clear();
+        self.compile_depth = 0;
     }
 }
 

@@ -47,9 +47,7 @@ def _start_server(handler: any) -> tuple {
             held.append(conn);
             try {
                 handler(conn);
-            } except OSError {
-                ;
-            }
+            } except OSError {}
         }
     }
     t = threading.Thread(target=serve, daemon=True);
@@ -61,15 +59,11 @@ def _start_server(handler: any) -> tuple {
 def _stop_server(srv: any, held: list) {
     try {
         srv.close();
-    } except OSError {
-        ;
-    }
+    } except OSError {}
     for conn in held {
         try {
             conn.close();
-        } except OSError {
-            ;
-        }
+        } except OSError {}
     }
 }
 

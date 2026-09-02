@@ -32,9 +32,7 @@ def _remove_pidfile(name: str) {
         if path.exists() {
             path.unlink();
         }
-    } except OSError {
-        ;
-    }
+    } except OSError {}
     _remove_portfile(name);
 }
 
@@ -70,9 +68,7 @@ def _remove_portfile(name: str) {
         if path.exists() {
             path.unlink();
         }
-    } except OSError {
-        ;
-    }
+    } except OSError {}
 }
 
 def _log_tail(name: str, lines: int = 8) -> str {
@@ -263,9 +259,7 @@ impl ServiceProcessManager.stop_service(name: str) -> bool {
         logger.info(f"Stopping {name} (pid={pid}) via pidfile...");
         try {
             os.kill(pid, int(signal.SIGTERM));
-        } except ProcessLookupError {
-            ;
-        }
+        } except ProcessLookupError {}
         deadline = time.time() + 10.0;
         while time.time() < deadline and _pid_alive(pid) {
             time.sleep(0.2);
@@ -274,9 +268,7 @@ impl ServiceProcessManager.stop_service(name: str) -> bool {
             logger.warning(f"{name} did not exit gracefully, force killing");
             try {
                 os.kill(pid, int(signal.SIGKILL));
-            } except ProcessLookupError {
-                ;
-            }
+            } except ProcessLookupError {}
         }
     }
 

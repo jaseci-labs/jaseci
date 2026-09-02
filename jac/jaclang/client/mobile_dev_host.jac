@@ -23,9 +23,7 @@ def detect_lan_ipv4 -> str | None {
         if addr and addr != "127.0.0.1" {
             return addr;
         }
-    } except OSError {
-        ;
-    } finally {
+    } except OSError {} finally {
         s.close();
     }
     return None;
@@ -92,7 +90,7 @@ def is_android_emulator_adb -> bool {
             if r.returncode == 0 {
                 return (r.stdout or "").strip();
             }
-        } except Exception { }
+        } except Exception {}
         return "";
     }
     if _shell_getprop("ro.kernel.qemu") == "1" {
@@ -117,7 +115,7 @@ def is_android_emulator_adb -> bool {
         if s.startswith("emulator-") {
             return True;
         }
-    } except Exception { }
+    } except Exception {}
     return False;
 }
 

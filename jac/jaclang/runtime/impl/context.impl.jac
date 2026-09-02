@@ -126,7 +126,7 @@ impl ExecutionContext.run_pending_effects -> None {
 
 impl ExecutionContext.note_traversal_reads(origins: list[NodeAnchor]) -> None {
     for anchor in origins {
-        if isinstance(anchor, NodeAnchor) {
+        if isinstance(anchor, NodeAnchor) and anchor.id is not None {
             self.read_versions.setdefault(anchor.id, anchor.version);
         }
     }

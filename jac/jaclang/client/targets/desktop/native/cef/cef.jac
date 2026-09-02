@@ -17,8 +17,8 @@ import from "libcef_dispatch.so" {
 obj:pub CefBrowser {
     has browser_handle: int = 0;
 
-    def title(_text: str) { }
-    def size(_width: int, _height: int, _hint: int = 0) { }
+    def title(_text: str) {}
+    def size(_width: int, _height: int, _hint: int = 0) {}
     def navigate(url: str) {
         if self.browser_handle != 0 {
             frame = cef_dispatch_browser_get_main_frame(self.browser_handle);
@@ -36,7 +36,7 @@ obj:pub CefBrowser {
         cef_quit_message_loop();
     }
 
-    def destroy { }
+    def destroy {}
 }
 
 def:pub cef_execute_subprocess -> i32 {

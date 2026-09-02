@@ -72,7 +72,7 @@ impl NaIRGenHashCore._emit_hash_core_helpers(
                 _fh = bhe.bitcast(_fv, i64, name=f"tk.fb{_fi}");
             } elif _fk == "ptr" {
                 _fh = bhe.ptrtoint(_fv, i64, name=f"tk.pi{_fi}");
-            } elif _fv.type.width == 64 {
+            } elif isinstance(_fv.type, ir.IntType) and _fv.type.width == 64 {
                 _fh = _fv;
             } else {
                 _fh = bhe.zext(_fv, i64, name=f"tk.zx{_fi}");

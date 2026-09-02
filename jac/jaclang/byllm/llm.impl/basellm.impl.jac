@@ -302,9 +302,7 @@ def _attach_call_cost(
     } else {
         try {
             setattr(usage_obj, "cost", cost);
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
 }
 
