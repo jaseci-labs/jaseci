@@ -18,7 +18,8 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 import from jaclang.scale.config.app_config { AppConfig }
 
 
-glob _K8S_E2E_FIXTURE: Path = Path(__file__).parent / "fixtures" / "k8s_e2e";
+glob _K8S_E2E_FIXTURE: Path = Path(__file__).parent / "fixtures" / "k8s_e2e",
+     _SV_MODULE_FIXTURE: Path = Path(__file__).parent / "fixtures" / "sv_module_service";
 
 
 test "generate_service_pod_specs auto-discovers services when no routes declared" {
@@ -51,6 +52,30 @@ test "build_env injects JAC_SV_ROUTES so pods get routes without a toml table" {
     pairs = {e["name"]: e["value"] for e in env};
     assert "JAC_SV_ROUTES" in pairs;
     assert json.loads(pairs["JAC_SV_ROUTES"]) == routes;
+}
+
+
+test "a discovered .sv.jac service is told which module to run" {
+    # jac#8693: generate_service_pod_specs merges discovered services in via
+    # resolve_routes but never calls the paired resolve_service_files, so a
+    # discovered service got a Deployment with no JAC_SV_FILE. The entrypoint
+    # then falls back to `find . -name "<svc>.jac"`, which cannot match the
+    # `<svc>.sv.jac` modules discovery exists to register, and every such pod
+    # crash-loops on "couldn't read 'thing.jac'".
+    cfg = KubernetesConfig(app_name="svmod", namespace="ns");
+    builder = ManifestBuilder(k8s_config=cfg, project_dir=str(_SV_MODULE_FIXTURE));
+    app_cfg = AppConfig(
+        code_folder=str(_SV_MODULE_FIXTURE), app_name="svmod", file_name="main.jac"
+    );
+
+    specs = builder.generate_service_pod_specs(app_cfg, "img");
+
+    assert "thing" in specs , sorted(specs.keys());
+    env = {e["name"]: e["value"] for e in specs["thing"]["containers"][0]["env"]};
+    assert env["JAC_SV_NAME"] == "thing" , env;
+    assert env.get("JAC_SV_FILE") == "services/thing.sv.jac" , (
+        f"discovered service got no module to run: {env.get('JAC_SV_FILE')!r}"
+    );
 }
 
 

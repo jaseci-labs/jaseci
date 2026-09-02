@@ -419,11 +419,25 @@ obj ManifestBuilder {
     ) -> dict[str, dict[str, any]] {
         app_name = app_config.app_name or self.k8s_config.app_name;
 
-        import from jaclang.scale.runtime.discovery.discovery { resolve_routes }
+        import from jaclang.scale.runtime.discovery.discovery {
+            resolve_routes,
+            resolve_service_files
+        }
         ms_cfg = dict(self._ms_cfg());
         proj = self.project_dir or app_config.code_folder;
         routes: dict[str, str] = resolve_routes(proj, dict(ms_cfg.get("routes", {})));
         ms_cfg["routes"] = routes;
+        if routes {
+            services: dict[str, any] = dict(ms_cfg.get("services", {}));
+            for (svc_name, svc_module) in resolve_service_files(proj, routes).items() {
+                declared = dict(services.get(svc_name, {}));
+                if not declared.get("file") {
+                    declared["file"] = svc_module;
+                    services[svc_name] = declared;
+                }
+            }
+            ms_cfg["services"] = services;
+        }
         self.microservices_config = ms_cfg;
 
         if not routes {
