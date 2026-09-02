@@ -419,7 +419,10 @@ obj CodeIntelligence {
 
     def _full_compile_one(file: str) {
         try {
-            mod = self.prog.compile(file_path=file, no_cgen=True);
+            import from jaclang.compiler.driver.compile_options { CompileOptions }
+            mod = self.prog.compile(
+                file_path=file, options=CompileOptions(no_cgen=True, need_full_ast=True)
+            );
             if mod is not None and mod.loc {
                 self._compiled[_real(mod.loc.mod_path)] = mod;
             }
