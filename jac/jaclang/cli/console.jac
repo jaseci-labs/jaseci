@@ -39,9 +39,7 @@ obj _Spinner {
         try {
             self.stream.write("\r\033[K");
             self.stream.flush();
-        } except (BrokenPipeError, OSError) {
-            ;
-        }
+        } except (BrokenPipeError, OSError) {}
     }
 
     def _run {

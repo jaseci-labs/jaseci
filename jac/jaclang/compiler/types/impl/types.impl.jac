@@ -1,14 +1,804 @@
-impl UnionType.postinit -> None {
-    member_types: list[TypeBase] = self.types or [];
-    flattened_types: list[TypeBase] = [];
-    for ty in member_types {
+impl ModuleType.symbol_table.getter -> (SymbolTable | None) {
+    c = self._acc_cache;
+    if (c is not None) and ("symbol_table" in c) {
+        return c["symbol_table"];
+    }
+    found = [self->:DeclScopeOf:->];
+    val = found[0] if found else None;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["symbol_table"] = val;
+    return val;
+}
+
+impl ModuleType.symbol_table.setter(symbol_table: (SymbolTable | None)) -> None {
+    del [edge self->:DeclScopeOf:->];
+    if symbol_table is not None {
+        self +>:DeclScopeOf:+> symbol_table;
+    }
+    c = self._acc_cache;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["symbol_table"] = symbol_table;
+}
+
+impl TypeVarType.bound.getter -> (TypeBase | None) {
+    c = self._acc_cache;
+    if (c is not None) and ("bound" in c) {
+        return c["bound"];
+    }
+    found = [self->:BoundOf:->];
+    val = found[0] if found else None;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["bound"] = val;
+    return val;
+}
+
+impl TypeVarType.bound.setter(bound: (TypeBase | None)) -> None {
+    del [edge self->:BoundOf:->];
+    if bound is not None {
+        self +>:BoundOf:+> bound;
+    }
+    c = self._acc_cache;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["bound"] = bound;
+}
+
+impl TypeVarType.constraints.getter -> (list[TypeBase] | None) {
+    c = self._acc_cache;
+    if (c is not None) and ("constraints" in c) {
+        return c["constraints"];
+    }
+    val = [self->:ConstraintOf:->];
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["constraints"] = val;
+    return val;
+}
+
+impl TypeVarType.constraints.setter(constraints: (list[TypeBase] | None)) -> None {
+    del [edge self->:ConstraintOf:->];
+    for t in (constraints or []) {
+        self +>:ConstraintOf:+> t;
+    }
+    c = self._acc_cache;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["constraints"] = `list(constraints or []);
+}
+
+impl ClassDetailsShared.symbol_table.getter -> SymbolTable {
+    c = self._acc_cache;
+    if (c is not None) and ("symbol_table" in c) {
+        return c["symbol_table"];
+    }
+    val = [self->:DeclScopeOf:->][0];
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["symbol_table"] = val;
+    return val;
+}
+
+impl ClassDetailsShared.symbol_table.setter(symbol_table: SymbolTable) -> None {
+    del [edge self->:DeclScopeOf:->];
+
+    if symbol_table is not None {
+        self +>:DeclScopeOf:+> symbol_table;
+    }
+    c = self._acc_cache;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["symbol_table"] = symbol_table;
+}
+
+impl ClassDetailsShared.mro.getter -> list[ClassType] {
+    if self._mro_cache is None {
+        self._mro_cache = [self->:MroOf:->];
+    }
+    return self._mro_cache;
+}
+
+impl ClassDetailsShared.mro.setter(mro: list[ClassType]) -> None {
+    del [edge self->:MroOf:->];
+    for t in (mro or []) {
+        self +>:MroOf:+> t;
+    }
+    self._mro_cache = `list(mro or []);
+}
+
+impl ClassDetailsShared.type_params.getter -> (list[TypeVarType] | None) {
+    c = self._acc_cache;
+    if (c is not None) and ("type_params" in c) {
+        return c["type_params"];
+    }
+    val = [self->:TypeParamOf:->];
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["type_params"] = val;
+    return val;
+}
+
+impl ClassDetailsShared.type_params.setter(
+    type_params: (list[TypeVarType] | None)
+) -> None {
+    del [edge self->:TypeParamOf:->];
+    for t in (type_params or []) {
+        self +>:TypeParamOf:+> t;
+    }
+    c = self._acc_cache;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["type_params"] = `list(type_params or []);
+}
+
+impl ClassDetailsShared.base_classes.getter -> (list[TypeBase] | None) {
+    c = self._acc_cache;
+    if (c is not None) and ("base_classes" in c) {
+        return c["base_classes"];
+    }
+    val = [self->:BaseOf:->];
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["base_classes"] = val;
+    return val;
+}
+
+impl ClassDetailsShared.base_classes.setter(
+    base_classes: (list[TypeBase] | None)
+) -> None {
+    del [edge self->:BaseOf:->];
+    for t in (base_classes or []) {
+        self +>:BaseOf:+> t;
+    }
+    c = self._acc_cache;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["base_classes"] = `list(base_classes or []);
+}
+
+impl ClassDetailsShared.enum_value_type.getter -> (TypeBase | None) {
+    c = self._acc_cache;
+    if (c is not None) and ("enum_value_type" in c) {
+        return c["enum_value_type"];
+    }
+    found = [self->:ValueTypeOf:->];
+    val = found[0] if found else None;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["enum_value_type"] = val;
+    return val;
+}
+
+impl ClassDetailsShared.enum_value_type.setter(
+    enum_value_type: (TypeBase | None)
+) -> None {
+    del [edge self->:ValueTypeOf:->];
+    if enum_value_type is not None {
+        self +>:ValueTypeOf:+> enum_value_type;
+    }
+    c = self._acc_cache;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["enum_value_type"] = enum_value_type;
+}
+
+impl ClassDetailsShared.typeddict_fields.getter -> (dict[str, TypeBase] | None) {
+    d: dict[str, TypeBase] = {};
+    for ea in [edge self->:TypeMemberOf:->] {
+        d[ea.name] = getattr(ea, "__jac__").target.archetype;
+    }
+    return d;
+}
+
+impl ClassDetailsShared.typeddict_fields.setter(
+    typeddict_fields: (dict[str, TypeBase] | None)
+) -> None {
+    del [edge self->:TypeMemberOf:->];
+    for (k, v) in (typeddict_fields or {}).items() {
+        self +>:TypeMemberOf(name=k):+> v;
+    }
+}
+
+impl ClassDetailsShared.enum_members.getter -> (dict[str, EnumMemberInfo] | None) {
+    d: dict[str, EnumMemberInfo] = {};
+    for ea in [edge self->:EnumMemberOf:->] {
+        d[ea.name] = getattr(ea, "__jac__").target.archetype;
+    }
+    return d;
+}
+
+impl ClassDetailsShared.enum_members.setter(
+    enum_members: (dict[str, EnumMemberInfo] | None)
+) -> None {
+    del [edge self->:EnumMemberOf:->];
+    for (k, v) in (enum_members or {}).items() {
+        self +>:EnumMemberOf(name=k):+> v;
+    }
+}
+
+impl ClassDetailsShared.init(
+    *,
+    class_name: str,
+    symbol_table: SymbolTable,
+    mro: (list[ClassType] | None) = None,
+    type_params: (list[TypeVarType] | None) = None,
+    base_classes: (list[TypeBase] | None) = None,
+    is_builtin_class: bool = False,
+    is_from_stdlib_stub: bool = False,
+    is_data_class: bool = False,
+    is_namedtuple: bool = False,
+    is_typeddict: bool = False,
+    typeddict_fields: (dict[str, TypeBase] | None) = None,
+    is_root_class: bool = False,
+    is_enum_class: bool = False,
+    enum_value_type: (TypeBase | None) = None,
+    enum_members: (dict[str, EnumMemberInfo] | None) = None,
+    _identity_key: (tuple[str, int, int, str] | None) = None,
+    _derived_special_types: (dict[str, ClassType] | None) = None,
+    ct_params: (list[str] | None) = None
+) -> None {
+    self.class_name = class_name;
+    self.is_builtin_class = is_builtin_class;
+    self.is_from_stdlib_stub = is_from_stdlib_stub;
+    self.is_data_class = is_data_class;
+    self.is_namedtuple = is_namedtuple;
+    self.is_typeddict = is_typeddict;
+    self.is_root_class = is_root_class;
+    self.is_enum_class = is_enum_class;
+    self._identity_key = _identity_key;
+    self._derived_special_types = _derived_special_types;
+    self.ct_params = ct_params;
+    self.symbol_table = symbol_table;
+    self.mro = [];
+    self.type_params = type_params;
+    self.base_classes = base_classes;
+    self.typeddict_fields = typeddict_fields;
+    self.enum_value_type = enum_value_type;
+    self.enum_members = enum_members;
+}
+
+impl ClassDetailsPrivate.init(
+    *,
+    type_args: (list[TypeBase] | None) = None,
+    ct_args: (dict[str, any] | None) = None,
+    alias_name: (str | None) = None,
+    literal_value: (str | int | bool | None) = None,
+    distinct_key: (str | None) = None
+) -> None {
+    self.ct_args = ct_args;
+    self.alias_name = alias_name;
+    self.literal_value = literal_value;
+    self.distinct_key = distinct_key;
+    self.type_args = type_args;
+}
+
+impl ClassDetailsPrivate.type_args.getter -> (list[TypeBase] | None) {
+    if self._targs_cache is None {
+        self._targs_cache = [self->:TypeArgOf:->];
+    }
+    return self._targs_cache;
+}
+
+impl ClassDetailsPrivate.type_args.setter(type_args: (list[TypeBase] | None)) -> None {
+    del [edge self->:TypeArgOf:->];
+    for t in (type_args or []) {
+        self +>:TypeArgOf:+> t;
+    }
+    self._targs_cache = `list(type_args or []);
+}
+
+impl ClassType._shared.getter -> (ClassDetailsShared | None) {
+    c = self._acc_cache;
+    if (c is not None) and ("_shared" in c) {
+        return c["_shared"];
+    }
+    found = [self->:SharedOf:->];
+    val = found[0] if found else None;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["_shared"] = val;
+    return val;
+}
+
+impl ClassType._shared.setter(_shared: (ClassDetailsShared | None)) -> None {
+    del [edge self->:SharedOf:->];
+    if _shared is not None {
+        self +>:SharedOf:+> _shared;
+    }
+    c = self._acc_cache;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["_shared"] = _shared;
+}
+
+impl ClassType.private.getter -> ClassDetailsPrivate {
+    c = self._acc_cache;
+    if (c is not None) and ("private" in c) {
+        return c["private"];
+    }
+    val = [self->:PrivOf:->][0];
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["private"] = val;
+    return val;
+}
+
+impl ClassType.private.setter(private: ClassDetailsPrivate) -> None {
+    del [edge self->:PrivOf:->];
+    self +>:PrivOf:+> private;
+    c = self._acc_cache;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["private"] = private;
+}
+
+impl ClassType.init(
+    *,
+    _shared: (ClassDetailsShared | None) = None,
+    private: (ClassDetailsPrivate | None) = None,
+    flags: TypeFlags = TypeFlags.Null
+) -> None {
+    self.flags = flags;
+    self._shared = _shared;
+    self.private = private or ClassDetailsPrivate();
+}
+
+impl ModuleType.init(
+    *,
+    mod_name: str = "",
+    file_uri: Path = Path(""),
+    symbol_table: (SymbolTable | None) = None,
+    is_external: bool = False,
+    flags: TypeFlags = TypeFlags.Null
+) -> None {
+    self.mod_name = mod_name;
+    self.file_uri = file_uri;
+    self.is_external = is_external;
+    self.flags = flags;
+    self.symbol_table = symbol_table;
+}
+
+impl TypeVarType.init(
+    *,
+    name: str = "",
+    is_covariant: bool = False,
+    is_contravariant: bool = False,
+    is_self: bool = False,
+    is_param_spec: bool = False,
+    is_class_type_param: bool = False,
+    bound: (TypeBase | None) = None,
+    constraints: (list[TypeBase] | None) = None,
+    flags: TypeFlags = TypeFlags.Null
+) -> None {
+    self.name = name;
+    self.is_covariant = is_covariant;
+    self.is_contravariant = is_contravariant;
+    self.is_self = is_self;
+    self.is_param_spec = is_param_spec;
+    self.is_class_type_param = is_class_type_param;
+    self.flags = flags;
+    self.bound = bound;
+    self.constraints = constraints;
+}
+
+impl Parameter.init(
+    *,
+    name: str,
+    category: (ParameterCategory | None),
+    param_type: (TypeBase | None),
+    default_value: (Expr | None) = None,
+    is_self: bool = False,
+    is_cls: bool = False,
+    param_kind: ParamKind = ParamKind.NORMAL,
+    has_default: bool = False,
+    is_comptime: bool = False
+) -> None {
+    self.name = name;
+    self.category = category;
+    self.is_self = is_self;
+    self.is_cls = is_cls;
+    self.param_kind = param_kind;
+    self.has_default = has_default;
+    self.is_comptime = is_comptime;
+    self.param_type = param_type;
+    self.default_value = default_value;
+}
+
+impl Parameter.param_type.getter -> (TypeBase | None) {
+    c = self._acc_cache;
+    if (c is not None) and ("param_type" in c) {
+        return c["param_type"];
+    }
+    found = [self->:ParamTypeOf:->];
+    val = found[0] if found else None;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["param_type"] = val;
+    return val;
+}
+
+impl Parameter.param_type.setter(param_type: (TypeBase | None)) -> None {
+    del [edge self->:ParamTypeOf:->];
+    if param_type is not None {
+        self +>:ParamTypeOf:+> param_type;
+    }
+    c = self._acc_cache;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["param_type"] = param_type;
+}
+
+impl Parameter.default_value.getter -> (Expr | None) {
+    c = self._acc_cache;
+    if (c is not None) and ("default_value" in c) {
+        return c["default_value"];
+    }
+    found = [self->:ParamDefaultOf:->];
+    val = found[0] if found else None;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["default_value"] = val;
+    return val;
+}
+
+impl Parameter.default_value.setter(default_value: (Expr | None)) -> None {
+    del [edge self->:ParamDefaultOf:->];
+    if default_value is not None {
+        self +>:ParamDefaultOf:+> default_value;
+    }
+    c = self._acc_cache;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["default_value"] = default_value;
+}
+
+impl FunctionType.init(
+    *,
+    func_name: str = "",
+    return_type: (TypeBase | None) = None,
+    parameters: (list[Parameter] | None) = None,
+    function_flags: int = 0,
+    type_params: (list[TypeVarType] | None) = None,
+    is_async: bool = False,
+    type_guard: (TypeBase | None) = None,
+    type_guard_is_strict: bool = False,
+    flags: TypeFlags = TypeFlags.Null
+) -> None {
+    self.func_name = func_name;
+    self.function_flags = function_flags;
+    self.is_async = is_async;
+    self.type_guard_is_strict = type_guard_is_strict;
+    self.flags = flags;
+    self.return_type = return_type;
+    self.parameters = parameters or [];
+    self.type_params = type_params;
+    self.type_guard = type_guard;
+}
+
+impl FunctionType.return_type.getter -> (TypeBase | None) {
+    c = self._acc_cache;
+    if (c is not None) and ("return_type" in c) {
+        return c["return_type"];
+    }
+    found = [self->:ReturnsOf:->];
+    val = found[0] if found else None;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["return_type"] = val;
+    return val;
+}
+
+impl FunctionType.return_type.setter(return_type: (TypeBase | None)) -> None {
+    del [edge self->:ReturnsOf:->];
+    if return_type is not None {
+        self +>:ReturnsOf:+> return_type;
+    }
+    c = self._acc_cache;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["return_type"] = return_type;
+}
+
+impl FunctionType.parameters.getter -> list[Parameter] {
+    if self._params_cache is None {
+        self._params_cache = [self->:ParamOf:->];
+    }
+    return self._params_cache;
+}
+
+impl FunctionType.parameters.setter(parameters: (list[Parameter] | None)) -> None {
+    del [edge self->:ParamOf:->];
+    for t in (parameters or []) {
+        self +>:ParamOf:+> t;
+    }
+    self._params_cache = `list(parameters or []);
+}
+
+impl FunctionType.type_params.getter -> (list[TypeVarType] | None) {
+    c = self._acc_cache;
+    if (c is not None) and ("type_params" in c) {
+        return c["type_params"];
+    }
+    val = [self->:TypeParamOf:->];
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["type_params"] = val;
+    return val;
+}
+
+impl FunctionType.type_params.setter(type_params: (list[TypeVarType] | None)) -> None {
+    del [edge self->:TypeParamOf:->];
+    for t in (type_params or []) {
+        self +>:TypeParamOf:+> t;
+    }
+    c = self._acc_cache;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["type_params"] = `list(type_params or []);
+}
+
+impl FunctionType.type_guard.getter -> (TypeBase | None) {
+    c = self._acc_cache;
+    if (c is not None) and ("type_guard" in c) {
+        return c["type_guard"];
+    }
+    found = [self->:GuardOf:->];
+    val = found[0] if found else None;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["type_guard"] = val;
+    return val;
+}
+
+impl FunctionType.type_guard.setter(type_guard: (TypeBase | None)) -> None {
+    del [edge self->:GuardOf:->];
+    if type_guard is not None {
+        self +>:GuardOf:+> type_guard;
+    }
+    c = self._acc_cache;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["type_guard"] = type_guard;
+}
+
+impl OverloadedType.overloads.getter -> (list[FunctionType] | None) {
+    c = self._acc_cache;
+    if (c is not None) and ("overloads" in c) {
+        return c["overloads"];
+    }
+    val = [self->:OverloadOf:->];
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["overloads"] = val;
+    return val;
+}
+
+impl OverloadedType.overloads.setter(overloads: (list[FunctionType] | None)) -> None {
+    del [edge self->:OverloadOf:->];
+    for t in (overloads or []) {
+        self +>:OverloadOf:+> t;
+    }
+    c = self._acc_cache;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["overloads"] = `list(overloads or []);
+}
+
+impl OverloadedType.init(
+    *, overloads: (list[FunctionType] | None) = None, flags: TypeFlags = TypeFlags.Null
+) -> None {
+    self.flags = flags;
+    self.overloads = overloads;
+}
+
+impl UnionType.types.getter -> (list[TypeBase] | None) {
+    c = self._acc_cache;
+    if (c is not None) and ("types" in c) {
+        return c["types"];
+    }
+    val = [self->:UnionMemberOf:->];
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["types"] = val;
+    return val;
+}
+
+impl UnionType.types.setter(types: (list[TypeBase] | None)) -> None {
+    del [edge self->:UnionMemberOf:->];
+    for t in (types or []) {
+        self +>:UnionMemberOf:+> t;
+    }
+    c = self._acc_cache;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["types"] = `list(types or []);
+}
+
+impl UnionType.init(
+    *, types: (list[TypeBase] | None) = None, flags: TypeFlags = TypeFlags.Null
+) -> None {
+    self.flags = flags;
+    flattened: list[TypeBase] = [];
+    for ty in (types or []) {
         if isinstance(ty, UnionType) {
-            flattened_types.extend(ty.types or []);
+            flattened.extend(ty.types or []);
         } else {
-            flattened_types.append(ty);
+            flattened.append(ty);
         }
     }
-    self.types = flattened_types;
+    self.types = flattened;
+}
+
+impl EnumMemberInfo.value_type.getter -> (TypeBase | None) {
+    c = self._acc_cache;
+    if (c is not None) and ("value_type" in c) {
+        return c["value_type"];
+    }
+    found = [self->:ValueTypeOf:->];
+    val = found[0] if found else None;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["value_type"] = val;
+    return val;
+}
+
+impl EnumMemberInfo.value_type.setter(value_type: (TypeBase | None)) -> None {
+    del [edge self->:ValueTypeOf:->];
+    if value_type is not None {
+        self +>:ValueTypeOf:+> value_type;
+    }
+    c = self._acc_cache;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["value_type"] = value_type;
+}
+
+impl EnumMemberInfo.init(
+    *,
+    member_name: str,
+    value_type: (TypeBase | None) = None,
+    literal_value: (int | str | None) = None
+) -> None {
+    self.member_name = member_name;
+    self.literal_value = literal_value;
+    self.value_type = value_type;
+}
+
+impl EnumMemberType.enum_class.getter -> (ClassType | None) {
+    c = self._acc_cache;
+    if (c is not None) and ("enum_class" in c) {
+        return c["enum_class"];
+    }
+    found = [self->:EnumClassOf:->];
+    val = found[0] if found else None;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["enum_class"] = val;
+    return val;
+}
+
+impl EnumMemberType.enum_class.setter(enum_class: (ClassType | None)) -> None {
+    del [edge self->:EnumClassOf:->];
+    if enum_class is not None {
+        self +>:EnumClassOf:+> enum_class;
+    }
+    c = self._acc_cache;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["enum_class"] = enum_class;
+}
+
+impl EnumMemberType.member_info.getter -> (EnumMemberInfo | None) {
+    c = self._acc_cache;
+    if (c is not None) and ("member_info" in c) {
+        return c["member_info"];
+    }
+    found = [self->:MemberInfoOf:->];
+    val = found[0] if found else None;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["member_info"] = val;
+    return val;
+}
+
+impl EnumMemberType.member_info.setter(member_info: (EnumMemberInfo | None)) -> None {
+    del [edge self->:MemberInfoOf:->];
+    if member_info is not None {
+        self +>:MemberInfoOf:+> member_info;
+    }
+    c = self._acc_cache;
+    if c is None {
+        c = {};
+        self._acc_cache = c;
+    }
+    c["member_info"] = member_info;
+}
+
+impl EnumMemberType.init(
+    *,
+    enum_class: (ClassType | None) = None,
+    member_info: (EnumMemberInfo | None) = None,
+    flags: TypeFlags = TypeFlags.Null
+) -> None {
+    self.flags = flags;
+    self.enum_class = enum_class;
+    self.member_info = member_info;
 }
 
 impl UnionType.__str__ -> str {
@@ -56,7 +846,8 @@ impl Parameter.clone -> Parameter {
         is_self=self.is_self,
         is_cls=self.is_cls,
         param_kind=self.param_kind,
-        has_default=self.has_default
+        has_default=self.has_default,
+        is_comptime=self.is_comptime
     );
 }
 
@@ -128,10 +919,6 @@ impl FunctionType.specialize_func_type_vars(
     return clone;
 }
 
-impl FunctionType.postinit -> None {
-    self.parameters = self.parameters or [];
-}
-
 impl FunctionType.__str__ -> str {
     if self.is_from_callable_annotation() {
         if self.is_gradual_callable_form() {
@@ -169,40 +956,39 @@ impl FunctionType.__str__ -> str {
     return f"<function {func_name}({params_str}){return_type_str}>";
 }
 
-impl OverloadedType.postinit -> None {
-    self.overloads = self.overloads or [];
-}
-
 impl OverloadedType.__str__ -> str {
     count = len(self.overloads) if self.overloads else 0;
     return f"<overload {count} overloads>";
 }
 
-impl ClassType.is_node_type -> bool {
+def _class_scope_category(scope: any) -> any {
     import from jaclang.compiler.frontend.unitree { Archetype }
+    if isinstance(scope, Archetype) {
+        return scope.sym_category;
+    }
+    import from jaclang.compiler.types.stubcat.reader { CatScope }
+    if isinstance(scope, CatScope) and scope.cat_owner_sym is not None {
+        return scope.cat_owner_sym.sym_type;
+    }
+    return None;
+}
+
+impl ClassType.is_node_type -> bool {
     import from jaclang.compiler.frontend.constant { SymbolType }
     if self.shared.is_root_class {
         return True;
     }
-    arch = self.shared.symbol_table;
-    assert isinstance(arch, Archetype);
-    return (arch.sym_category == SymbolType.NODE_ARCH);
+    return _class_scope_category(self.shared.symbol_table) == SymbolType.NODE_ARCH;
 }
 
 impl ClassType.is_edge_type -> bool {
-    import from jaclang.compiler.frontend.unitree { Archetype }
     import from jaclang.compiler.frontend.constant { SymbolType }
-    arch = self.shared.symbol_table;
-    assert isinstance(arch, Archetype);
-    return (arch.sym_category == SymbolType.EDGE_ARCH);
+    return _class_scope_category(self.shared.symbol_table) == SymbolType.EDGE_ARCH;
 }
 
 impl ClassType.is_walker_type -> bool {
-    import from jaclang.compiler.frontend.unitree { Archetype }
     import from jaclang.compiler.frontend.constant { SymbolType }
-    arch = self.shared.symbol_table;
-    assert isinstance(arch, Archetype);
-    return (arch.sym_category == SymbolType.WALKER_ARCH);
+    return _class_scope_category(self.shared.symbol_table) == SymbolType.WALKER_ARCH;
 }
 
 impl ClassType.is_data_class -> bool {
@@ -314,15 +1100,20 @@ impl ClassType.lookup_member_symbol(
 impl ClassType.get_class_symbol -> (Symbol | None) {
     import from jaclang.compiler.frontend.unitree { Archetype }
     symbol_table = self.shared.symbol_table;
-    if not isinstance(symbol_table, Archetype) {
-        return None;
+    if isinstance(symbol_table, Archetype) {
+        return symbol_table.name.sym;
     }
-    return symbol_table.name.sym;
+    import from jaclang.compiler.types.stubcat.reader { CatScope }
+    if isinstance(symbol_table, CatScope) {
+        return symbol_table.cat_owner_sym;
+    }
+    return None;
 }
 
 impl ClassType.specialize_generics(type_args: list[TypeBase]) -> ClassType {
     new_private = ClassDetailsPrivate(
         type_args=type_args,
+        ct_args=self.private.ct_args,
         alias_name=self.private.alias_name,
         literal_value=self.private.literal_value,
         distinct_key=self.private.distinct_key
@@ -336,6 +1127,7 @@ impl ClassType.clone_as_class -> ClassType {
     }
     private = ClassDetailsPrivate(
         type_args=self.private.type_args[:],
+        ct_args=self.private.ct_args,
         alias_name=self.private.alias_name,
         literal_value=self.private.literal_value,
         distinct_key=self.private.distinct_key
@@ -353,6 +1145,7 @@ impl ClassType.clone_as_instance -> ClassType {
     }
     private = ClassDetailsPrivate(
         type_args=self.private.type_args[:],
+        ct_args=self.private.ct_args,
         alias_name=self.private.alias_name,
         literal_value=self.private.literal_value,
         distinct_key=self.private.distinct_key
@@ -416,16 +1209,6 @@ impl ClassType.shared.getter -> ClassDetailsShared {
     return self._shared;
 }
 
-impl ClassDetailsPrivate.postinit -> None {
-    self.type_args = self.type_args or [];
-}
-
-impl ClassDetailsShared.postinit -> None {
-    self.type_params = self.type_params or [];
-    self.base_classes = self.base_classes or [];
-    self.mro = [];
-}
-
 impl ClassDetailsShared.canonical_key -> (tuple[str, int, int, str] | None) {
     if self._identity_key is not None {
         return self._identity_key;
@@ -454,7 +1237,17 @@ impl ClassDetailsShared.same_class(other: ClassDetailsShared) -> bool {
     if key is None {
         return False;
     }
-    return key == other.canonical_key();
+    other_key = other.canonical_key();
+    if key == other_key {
+        return True;
+    }
+
+    if other_key is None or self.class_name != other.class_name {
+        return False;
+    }
+    import from jaclang.compiler.frontend.codeinfo { bundled_stdlib_module_of }
+    mod_name = bundled_stdlib_module_of(key[0]);
+    return mod_name is not None and mod_name == bundled_stdlib_module_of(other_key[0]);
 }
 
 impl TypeBase.is_class_instance -> bool {

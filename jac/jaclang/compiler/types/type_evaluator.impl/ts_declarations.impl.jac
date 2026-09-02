@@ -1,6 +1,4 @@
-impl TypeEvaluator._get_ts_declared_item_type(
-    from_loc: ModulePath, item_name: str
-) -> (TypeBase | None) {
+impl TypeEvaluator._ts_decl_path(from_loc: ModulePath) -> (str | None) {
     if not from_loc.in_client_context() {
         return None;
     }
@@ -15,34 +13,64 @@ impl TypeEvaluator._get_ts_declared_item_type(
 
     cache_key = spec + "\n" + mod_path;
     if cache_key in self._ts_decl_path_cache {
-        dts_path = self._ts_decl_path_cache[cache_key];
-    } else {
-        import from jaclang.compiler.driver.modresolver {
-            resolve_client_npm_declarations,
-            sibling_declaration_file
-        }
-        dts_path: (str | None) = None;
-        try {
-            if spec.startswith('.') {
-                js_path = from_loc.resolve_relative_path();
-                if js_path {
-                    dts_path = sibling_declaration_file(js_path);
-                }
-            } else {
-                base = self._client_npm_base(spec, mod_path);
-                if base is not None {
-                    dts_path = resolve_client_npm_declarations(spec, base);
-                }
-            }
-        } except Exception {
-            dts_path = None;
-        }
-        self._ts_decl_path_cache[cache_key] = dts_path;
+        return self._ts_decl_path_cache[cache_key];
     }
+    import from jaclang.compiler.driver.modresolver {
+        resolve_client_npm_declarations,
+        sibling_declaration_file
+    }
+    dts_path: (str | None) = None;
+    try {
+        if spec.startswith('.') {
+            js_path = from_loc.resolve_relative_path();
+            if js_path {
+                dts_path = sibling_declaration_file(js_path);
+            }
+        } else {
+            base = self._client_npm_base(spec, mod_path);
+            if base is not None {
+                dts_path = resolve_client_npm_declarations(spec, base);
+            }
+        }
+    } except Exception {
+        dts_path = None;
+    }
+    self._ts_decl_path_cache[cache_key] = dts_path;
+    return dts_path;
+}
+
+impl TypeEvaluator._get_ts_declared_item_type(
+    from_loc: ModulePath, item_name: str
+) -> (TypeBase | None) {
+    dts_path = self._ts_decl_path(from_loc);
     if dts_path is None {
         return None;
     }
     return self._ts_declared_type_from_file(dts_path, item_name);
+}
+
+impl TypeEvaluator._ts_declared_kind(
+    from_loc: ModulePath, item_name: str
+) -> (BindingKind | None) {
+    dts_path = self._ts_decl_path(from_loc);
+    if dts_path is None {
+        return None;
+    }
+    return self._ts_declared_kind_from_file(dts_path, item_name);
+}
+
+impl TypeEvaluator._ts_declared_kind_from_file(
+    dts_path: str, item_name: str
+) -> (BindingKind | None) {
+    decls = self._load_ts_declarations(dts_path);
+    if not decls {
+        return None;
+    }
+    decl = decls.get(item_name);
+    if decl is None {
+        return None;
+    }
+    return ts_decl_binding_kind(decl, decls);
 }
 
 impl TypeEvaluator._ts_declared_type_from_file(
@@ -147,7 +175,7 @@ impl TypeEvaluator._map_ts_type(
         int_val: (int | None) = None;
         try {
             int_val = int(ts.name);
-        } except ValueError { }
+        } except ValueError {}
         if (int_val is not None and self.prefetch.int_class) {
             return self._convert_to_instance(
                 self.prefetch.int_class.clone_with_literal(int_val)
@@ -266,8 +294,10 @@ impl TypeEvaluator._ts_synth_class_types(
             continue;
         }
         shells[name] = ClassType(
-            _shared=ClassDetailsShared(
-                class_name=name, symbol_table=Module.make_stub(inject_name=name),
+            _shared=self._intern_shared(
+                ClassDetailsShared(
+                    class_name=name, symbol_table=Module.make_stub(inject_name=name),
+                )
             ),
             flags=TypeFlags.Instantiable,
         );
@@ -405,9 +435,8 @@ impl TypeEvaluator._install_synth_member(
         pos_end=0,
     );
     field_node.type = member_type;
-    scope.names_in_scope[mname] = Symbol(
-        defn=field_node, access=SymbolAccess.PUBLIC, parent_tab=scope
-    );
+    _field_sym = Symbol(defn=field_node, access=SymbolAccess.PUBLIC, parent_tab=scope);
+    scope.adopt_primary(_field_sym, mname);
 }
 
 impl TypeEvaluator._synthesize_ts_decl_class(

@@ -80,7 +80,7 @@ impl delete_tree(path: str) {
 impl delete_file(path: str) {
     try {
         os.unlink(path);
-    } except OSError { }
+    } except OSError {}
 }
 
 impl copy_file(src: str, dst: str) {

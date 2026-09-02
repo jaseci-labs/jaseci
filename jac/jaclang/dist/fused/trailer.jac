@@ -3,7 +3,34 @@ glob MAGIC: bytes = b"JACBIN01",
      MAGIC_LEN: int = 8,
      HASH_LEN: int = 64,
      TRAILER_LEN: int = 80,
-     RT_KEY_LEN: int = 33;
+     RT_KEY_LEN: int = 33,
+     REGION_MAGIC: bytes = b"JSCATRG1",
+     REGION_DESC_LEN: int = 32,
+     REGION_ALIGN: int = 16384;
+
+obj Region {
+    has off: int = 0,
+        length: int = 0;
+}
+
+def:pub build_region_desc(off: int, length: int) -> bytes {
+    return (
+        REGION_MAGIC
+        + off.to_bytes(8, "little")
+        + length.to_bytes(8, "little")
+        + b"\x00\x00\x00\x00\x00\x00\x00\x00"
+    );
+}
+
+def:pub parse_region_desc(raw: bytes) -> Region | None {
+    if len(raw) != REGION_DESC_LEN or raw[0:MAGIC_LEN] != REGION_MAGIC {
+        return None;
+    }
+    return Region(
+        off=int.from_bytes(raw[MAGIC_LEN:MAGIC_LEN + 8], "little"),
+        length=int.from_bytes(raw[MAGIC_LEN + 8:MAGIC_LEN + 16], "little")
+    );
+}
 
 obj Trailer {
     has payload_len: int = 0,

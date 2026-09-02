@@ -226,14 +226,17 @@ cli/commands/
 
 ### Real example
 
-**[`jaclang/cli/commands/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/cli/commands)** -- The command group files, each declaring functions with rich decorator metadata (command names, argument specs, help text, usage examples). The [`impl/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/cli/commands/impl) directory holds the actual command logic.
+**[`jaclang/cli/commands/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/cli/commands)** -- The command group files, each declaring functions next to a `comptime` command spec (command name, argument specs, help text, usage examples). The [`impl/`](https://github.com/Jaseci-Labs/jaseci/tree/7b0f5297ac87d7bf2cc06922d7e77cd979c3c7f2/jac/jaclang/cli/commands/impl) directory holds the actual command logic.
 
 The declaration file functions as a **command catalog** -- study this example carefully:
 
 ```jac
 """Execution commands: run, enter, serve, debug."""
 
-@registry.command(
+import from jaclang.cli.command { Arg, ArgKind, CommandSpec }
+import from jaclang.comptime { name as ct_name }
+
+comptime SPEC_RUN: CommandSpec = CommandSpec(
     name="run",
     help="Run a Jac program",
     args=[
@@ -243,10 +246,13 @@ The declaration file functions as a **command catalog** -- study this example ca
     examples=[
         ("jac run hello.jac", "Run a simple program"),
     ],
-    group="execution"
-)
+    group="execution",
+    handler_name=ct_name(run)
+);
 def run(filename: str, main: bool = True, cache: bool = True) -> int;
 ```
+
+The spec is a compile-time value: `jaclang/cli/manifest.jac` imports every `SPEC_*` binding with `comptime import` and folds them into one `ROUTES` table, so the CLI's help, completions, and dispatch all read a table that was computed while the manifest compiled.
 
 The impl file then provides the body:
 

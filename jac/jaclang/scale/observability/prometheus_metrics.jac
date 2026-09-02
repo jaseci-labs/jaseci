@@ -36,7 +36,8 @@ obj PrometheusMetricsCollector(MetricsCollector) {
         _active_requests: any = None,
         _walker_latency: any = None,
         _ws_connections_active: any = None,
-        _ws_broadcasts_total: any = None;
+        _ws_broadcasts_total: any = None,
+        _read_tier_retries: any = None;
 
     def postinit {
         self._enabled = bool(self.config.get("enabled", True));
@@ -60,7 +61,7 @@ obj PrometheusMetricsCollector(MetricsCollector) {
             ProcessCollector(registry=self._registry);
             PlatformCollector(registry=self._registry);
             GCCollector(registry=self._registry);
-        } except Exception { }
+        } except Exception {}
 
         buckets = self.config.get("histogram_buckets");
         if buckets {
@@ -73,6 +74,13 @@ obj PrometheusMetricsCollector(MetricsCollector) {
             f"{self._namespace}_http_requests_total",
             "Total HTTP requests processed",
             ["method", "path", "status_code"],
+            registry=self._registry
+        );
+
+        self._read_tier_retries = Counter(
+            f"{self._namespace}_read_tier_retries_total",
+            "Requests re-run at SERIALIZABLE after a unit wrote inside a read-only snapshot",
+            ["unit"],
             registry=self._registry
         );
 
@@ -111,6 +119,12 @@ obj PrometheusMetricsCollector(MetricsCollector) {
             "WebSocket broadcast publishes",
             registry=self._registry
         );
+    }
+
+    def record_read_tier_retry(unit_key: str) {
+        if self._read_tier_retries is not None {
+            self._read_tier_retries.labels(unit=unit_key).inc();
+        }
     }
 
     def record_ws_connection_opened {

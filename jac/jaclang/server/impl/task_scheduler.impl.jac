@@ -58,7 +58,7 @@ impl Scheduler.`wait -> None {
         return;
     }
     try {
-        while not self._done_event.`wait(timeout=0.5) { }
+        while not self._done_event.`wait(timeout=0.5) {}
     } except KeyboardInterrupt {
         logger.info("Scheduler interrupted, shutting down...");
     }
@@ -202,20 +202,20 @@ impl Scheduler._cron_field_matches(
                 if step > 0 and (value - min_val) % step == 0 {
                     return True;
                 }
-            } except ValueError { }
+            } except ValueError {}
         } elif '-' in part {
             try {
                 (lo, hi) = part.split('-', 1);
                 if int(lo) <= value <= int(hi) {
                     return True;
                 }
-            } except ValueError { }
+            } except ValueError {}
         } else {
             try {
                 if int(part) == value {
                     return True;
                 }
-            } except ValueError { }
+            } except ValueError {}
         }
     }
     return False;

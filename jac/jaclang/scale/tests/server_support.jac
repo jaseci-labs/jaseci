@@ -159,7 +159,7 @@ def start_server(fixtures_dir: Path, jac_file: Path, port: int) -> subprocess.Po
         env=env
     );
     base_url = f"http://localhost:{port}";
-    for _ in range(30) {
+    for _ in range(120) {
         try {
             r = requests.get(f"{base_url}/healthz", timeout=1);
             if r.status_code == 200 {
@@ -168,7 +168,11 @@ def start_server(fixtures_dir: Path, jac_file: Path, port: int) -> subprocess.Po
         } except Exception {
             time.sleep(1);
         }
+        if server.poll() is not None {
+            break;
+        }
     }
-    (stdout, stderr) = server.communicate(timeout=2);
+    server.kill();
+    (stdout, stderr) = server.communicate(timeout=5);
     raise RuntimeError(f"server failed\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}");
 }

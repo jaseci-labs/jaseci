@@ -141,9 +141,7 @@ test "consume_sse_stream raises RuntimeError on event: error" {
     resp = _FakeResp(body=_sse_body([], trailer="error"));
     raised_msg = "";
     try {
-        for _ in consume_sse_stream(resp.iter_lines(), "test.func") {
-            ;
-        }
+        for _ in consume_sse_stream(resp.iter_lines(), "test.func") {}
     } except RuntimeError as e {
         raised_msg = str(e);
     }
@@ -204,9 +202,7 @@ test "sv_service_call SSE path surfaces producer error as RuntimeError" {
         gen = JacScalePlugin.sv_service_call("stream_err_mod", "stream_events", {});
         raised_msg = "";
         try {
-            for _ in gen {
-                ;
-            }
+            for _ in gen {}
         } except RuntimeError as e {
             raised_msg = str(e);
         }
