@@ -29,17 +29,17 @@ def run_jac(cmd: str, path: str) -> str {
     return result.stdout + result.stderr;
 }
 
-test "a six thousand operand chain runs" {
+test "a ten thousand operand chain runs" {
     with tempfile.TemporaryDirectory() as dir {
-        out = run_jac("run", write_chain(dir, 6000));
-        assert "6000" in out , out;
+        out = run_jac("run", write_chain(dir, 10000));
+        assert "10000" in out , out;
         assert "\u2716 Error" not in out , out;
     }
 }
 
-test "a six thousand operand chain type checks" {
+test "a ten thousand operand chain type checks" {
     with tempfile.TemporaryDirectory() as dir {
-        out = run_jac("check", write_chain(dir, 6000));
+        out = run_jac("check", write_chain(dir, 10000));
         assert "maximum recursion depth" not in out , out;
         assert "1 passed" in out , out;
     }
