@@ -123,7 +123,7 @@ Execute a Jac file, a prebuilt `.jab` artifact, or (with no filename) run the cu
 **Note:** `jac <file>` is shorthand for `jac run <file>` - both work identically.
 
 ```bash
-jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [-e DIAGNOSTICS] [--profile PROFILE] [--entry ENTRY] [-n NODE] [-r ROOT] [--debug] [--serve | --no-serve] [-p PORT] [-d | --dev] [--api-port API_PORT] [--no-client] [-f | --faux] [--client {web,pwa,mobile,desktop}] [--host HOST] [--platform {auto,android,ios}] [--takeover] [filename] [args ...]
+jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [-e DIAGNOSTICS] [--profile PROFILE] [--entry ENTRY] [-n NODE] [-r ROOT] [--debug] [--serve | --no-serve] [-p PORT] [-d | --dev] [--api-port API_PORT] [--no-client] [-f | --faux] [--client {web,pwa,mobile,desktop}] [--host HOST] [--platform {auto,android,ios}] [--takeover | --no-takeover] [filename] [args ...]
 ```
 
 | Option | Description | Default |
@@ -158,7 +158,7 @@ Serving only -- rejected when the resolved action is *execute* or *build*:
 | `--client` | Client build target (`web`, `pwa`, `mobile`, `desktop`) | `web` |
 | `--host` | Mobile dev (`--client mobile --dev`) optional live-reload host/IP override | `""` |
 | `--platform` | Mobile platform selector for `--client mobile` (`auto`, `android`, `ios`) | `auto` |
-| `--takeover` | Evict any other session holding this project's database before serving | `False` |
+| `--takeover` | Run a named file as the surrounding project even when the file lives outside it (`--no-takeover` runs it standalone), and evict any other session holding this project's database before serving | `False` |
 
 Like Python, everything after the filename is passed to the script. Jac flags must come **before** the filename.
 

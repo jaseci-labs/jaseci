@@ -164,8 +164,10 @@ comptime SPEC_RUN: CommandSpec = CommandSpec(
                  typ=bool,
                  `default=None,
                  help=(
-                     "Evict any other session holding this project's database "
-                     "before serving (use when a previous jac process is stuck)"
+                     "Run a named file as the surrounding project even when the "
+                     "file lives outside it (--no-takeover runs it standalone), "
+                     "and evict any other session holding this project's "
+                     "database before serving"
                  ),
                  short=""
              ),
@@ -206,6 +208,10 @@ comptime SPEC_RUN: CommandSpec = CommandSpec(
              (
                  "jac run --takeover",
                  "Evict a stuck session holding this project's database"
+             ),
+             (
+                 "jac run --no-takeover tool.jac",
+                 "Run a project file standalone, leaving the project untouched"
              ),
 
          ],
