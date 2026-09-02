@@ -2,7 +2,8 @@ import os;
 
 glob WORKER_MEM_BYTES: int = 2 * 1024 * 1024 * 1024,
      MEM_HEADROOM: float = 0.6,
-     MAX_AUTO_JOBS: int = 12;
+     MAX_AUTO_JOBS: int = 12,
+     MEM_RESERVE_FLOOR_MB: int = 1024;
 
 obj WorkPool {
     has items: list[str],
@@ -18,10 +19,15 @@ obj WorkPool {
         isolate: (set[str] | None) = None,
         rss_log_env: str = "JAC_WORKPOOL_RSS_LOG",
         crash_prefix: str = "jac-work-crash-",
+        mem_reserve_mb: int = 0,
         cursor: int = 0,
         stopping: bool = False,
         kids: list[dict[(str, any)]] postinit,
-        crashlogs: list[str] postinit;
+        crashlogs: list[str] postinit,
+        vacant: list[int] postinit,
+        mem_budget_mb: int postinit,
+        peak_growth_mb: int postinit,
+        spawned: int postinit;
 
     def postinit -> None;
     def run -> None;
@@ -31,6 +37,13 @@ obj WorkPool {
     def _spawn(slot: int) -> dict[(str, any)];
     def _worker_loop(dispatch_fd: int, result_fd: int) -> None;
     def _dispatch(kid: dict[(str, any)]) -> bool;
+    def _can_dispatch -> bool;
+    def _reserve_mb -> int;
+    def _park(kid: dict[(str, any)]) -> None;
+    def _quit_kid(kid: dict[(str, any)]) -> None;
+    def _fill_slot(slot: int) -> None;
+    def _dispatch_pending -> None;
+    def _log_mem(msg: str) -> None;
     def _handle_record(kid: dict[(str, any)], line: str) -> None;
     def _log_footprint(
         kid: dict[(str, any)], record: dict[(str, any)], done: any
@@ -44,6 +57,8 @@ obj WorkPool {
 def pool_available -> bool;
 
 def worker_rss_mb -> int;
+
+def available_memory_mb -> int;
 
 def should_retire(served: int, recycle: int, rss_mb: int, rss_cap: int) -> bool;
 

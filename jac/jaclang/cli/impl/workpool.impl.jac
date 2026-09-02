@@ -1,6 +1,10 @@
 impl WorkPool.postinit -> None {
     self.kids = [];
     self.crashlogs = [];
+    self.vacant = [];
+    self.mem_budget_mb = 0;
+    self.peak_growth_mb = 0;
+    self.spawned = 0;
 }
 
 impl WorkPool._should_stop -> bool {
@@ -68,6 +72,11 @@ impl WorkPool.run -> None {
         self.run_inline();
         return;
     }
+    avail = available_memory_mb();
+    self.mem_budget_mb = int(avail * MEM_HEADROOM) if avail > 0 else 0;
+    if self.mem_reserve_mb <= 0 {
+        self.mem_reserve_mb = env_int("JAC_WORKPOOL_RESERVE_MB", 0);
+    }
     slots = max(1, min(self.jobs, len(self.items)));
     for slot in range(slots) {
         self.kids.append(self._spawn(slot));
@@ -118,6 +127,7 @@ impl WorkPool._spawn(slot: int) -> dict[(str, any)] {
     }
     os.close(dispatch_r);
     os.close(result_w);
+    self.spawned += 1;
     (log_fd, log_path) = tempfile.mkstemp(prefix=self.crash_prefix);
     os.close(log_fd);
     self.crashlogs.append(log_path);
@@ -129,6 +139,8 @@ impl WorkPool._spawn(slot: int) -> dict[(str, any)] {
         "buf": b"",
         "inflight": None,
         "alive": True,
+        "parked": False,
+        "rss": worker_rss_mb(),
         "crashlog": log_path
     };
 }
@@ -205,8 +217,14 @@ impl WorkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
 impl WorkPool._dispatch(kid: dict[(str, any)]) -> bool {
     import json;
     if self._should_stop() or (self.cursor >= len(self.items)) {
+        kid["parked"] = False;
         return False;
     }
+    if not self._can_dispatch() {
+        self._park(kid);
+        return False;
+    }
+    kid["parked"] = False;
     idx = self.cursor;
     self.cursor += 1;
     path = self.items[idx];
@@ -223,6 +241,105 @@ impl WorkPool._dispatch(kid: dict[(str, any)]) -> bool {
         dispatch_hook(idx, path);
     }
     return True;
+}
+
+impl WorkPool._reserve_mb -> int {
+    if self.mem_reserve_mb > 0 {
+        return self.mem_reserve_mb;
+    }
+    return max(self.peak_growth_mb, MEM_RESERVE_FLOOR_MB);
+}
+
+impl WorkPool._can_dispatch -> bool {
+    avail = available_memory_mb();
+    if avail < 0 {
+        return True;
+    }
+    if avail >= self._reserve_mb() {
+        return True;
+    }
+    inflight = [
+        k
+        for k in self.kids
+        if k["alive"] and (k["inflight"] is not None)
+    ];
+    return not inflight;
+}
+
+impl WorkPool._park(kid: dict[(str, any)]) -> None {
+    if not kid.get("parked") {
+        kid["parked"] = True;
+        self._log_mem(
+            f"slot={kid['slot']} parked: available memory is under the "
+            f"{self._reserve_mb()}MB reserve"
+        );
+    }
+    share = self.mem_budget_mb // max(1, self.jobs);
+    if share > 0 and int(kid.get("rss") or 0) >= share {
+        self._quit_kid(kid);
+    }
+}
+
+impl WorkPool._quit_kid(kid: dict[(str, any)]) -> None {
+    kid["retired"] = True;
+    kid["parked"] = False;
+    self.vacant.append(int(kid["slot"]));
+    self._log_mem(
+        f"slot={kid['slot']} retired while parked at {kid.get('rss')}MB "
+        f"(share {self.mem_budget_mb // max(1, self.jobs)}MB)"
+    );
+    try {
+        os.write(kid["dispatch_fd"], b"q\n");
+    } except OSError {
+        ;
+    }
+}
+
+impl WorkPool._fill_slot(slot: int) -> None {
+    if self._should_stop() or (self.cursor >= len(self.items)) {
+        return;
+    }
+    if not self._can_dispatch() {
+        if slot not in self.vacant {
+            self.vacant.append(slot);
+        }
+        return;
+    }
+    replacement = self._spawn(slot);
+    self.kids.append(replacement);
+    self._dispatch(replacement);
+}
+
+impl WorkPool._dispatch_pending -> None {
+    for kid in list(self.kids) {
+        if kid["alive"] and kid.get("parked") and not kid.get("retired") {
+            if not self._dispatch(kid) and kid.get("parked") {
+                break;
+            }
+        }
+    }
+    while (
+        self.vacant
+        and not self._should_stop()
+        and (self.cursor < len(self.items))
+        and self._can_dispatch()
+    ) {
+        slot = self.vacant.pop(0);
+        replacement = self._spawn(slot);
+        self.kids.append(replacement);
+        if not self._dispatch(replacement) {
+            break;
+        }
+    }
+}
+
+impl WorkPool._log_mem(msg: str) -> None {
+    import sys;
+    if not self.rss_log_env or not os.environ.get(self.rss_log_env, "") {
+        return;
+    }
+    sys.stderr.write(f"[rss] {msg}\n");
+    sys.stderr.flush();
 }
 
 impl WorkPool._log_footprint(
@@ -258,16 +375,20 @@ impl WorkPool._handle_record(kid: dict[(str, any)], line: str) -> None {
     done = kid["inflight"];
     kid["inflight"] = None;
     self._log_footprint(kid, record, done);
+    rss = record.get("rss");
+    if isinstance(rss, int) and rss > 0 {
+        prev = int(kid.get("rss") or 0);
+        if prev > 0 and (rss - prev) > self.peak_growth_mb {
+            self.peak_growth_mb = rss - prev;
+        }
+        kid["rss"] = rss;
+    }
     if done is not None {
         self.on_record(done, record);
     }
     if record.get("retire") {
         kid["retired"] = True;
-        if not self._should_stop() and (self.cursor < len(self.items)) {
-            replacement = self._spawn(kid["slot"]);
-            self.kids.append(replacement);
-            self._dispatch(replacement);
-        }
+        self._fill_slot(int(kid["slot"]));
         return;
     }
     self._dispatch(kid);
@@ -311,39 +432,49 @@ impl WorkPool._reap(kid: dict[(str, any)]) -> None {
         }
         self.on_record(idx, {"crash": detail});
     }
-    if (
-        not kid.get("retired")
-        and not self._should_stop()
-        and (self.cursor < len(self.items))
-    ) {
-        replacement = self._spawn(kid["slot"]);
-        self.kids.append(replacement);
-        self._dispatch(replacement);
+    if not kid.get("retired") {
+        self._fill_slot(int(kid["slot"]));
     }
 }
 
 impl WorkPool._pump -> None {
     import select;
+    import time;
     while True {
         self.kids = [
             k
             for k in self.kids
             if k["alive"]
         ];
-        if not self.kids {
-            break;
-        }
         busy = [
             k
             for k in self.kids
             if (k["inflight"] is not None) or k.get("retired")
         ];
+        parked = [
+            k
+            for k in self.kids
+            if k.get("parked") and not k.get("retired")
+        ];
+        pending = (not self._should_stop()) and (self.cursor < len(self.items));
+        waiting = pending and bool(parked or self.vacant);
         if not busy {
-            break;
+            if not waiting {
+                break;
+            }
+            self._dispatch_pending();
+            if not [
+                k
+                for k in self.kids
+                if k["inflight"] is not None
+            ] {
+                time.sleep(0.05);
+            }
+            continue;
         }
         fds = [k["result_fd"] for k in busy];
         try {
-            (ready, _, _) = select.select(fds, [], []);
+            (ready, _, _) = select.select(fds, [], [], 0.5 if waiting else None);
         } except OSError {
             break;
         }
@@ -377,6 +508,9 @@ impl WorkPool._pump -> None {
                 self._handle_record(kid, line.decode("utf-8", "replace"));
             }
             kid["buf"] = buf;
+        }
+        if waiting {
+            self._dispatch_pending();
         }
     }
 }
@@ -455,6 +589,29 @@ impl worker_rss_mb -> int {
     return int(peak // (1024 * 1024))
         if sys.platform == "darwin"
         else int(peak // 1024);
+}
+
+impl available_memory_mb -> int {
+    raw = os.environ.get("JAC_WORKPOOL_MEM_AVAIL_MB", "");
+    if raw.strip() {
+        try {
+            return int(raw.strip());
+        } except ValueError {
+            ;
+        }
+    }
+    try {
+        with open("/proc/meminfo", encoding="utf-8") as f {
+            for line in f {
+                if line.startswith("MemAvailable:") {
+                    return int(line.split()[1]) // 1024;
+                }
+            }
+        }
+    } except Exception {
+        ;
+    }
+    return -1;
 }
 
 impl should_retire(served: int, recycle: int, rss_mb: int, rss_cap: int) -> bool {
