@@ -1332,6 +1332,7 @@ impl SubTag.postinit -> None {
 impl Module.postinit -> None {
     self.src_terminals = self.terminals;
     self.ct_file_deps = [];
+    self.ct_body_deps = [];
     self.rc_last_use = {};
     _rc_move_in: set[int] = set();
     self.rc_move_in = _rc_move_in;

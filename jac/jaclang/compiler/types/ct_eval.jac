@@ -298,7 +298,7 @@ obj CtEvaluator {
         return prev;
     }
 
-    def _note_ct_path(path: str) {
+    def _note_ct_path(path: str, body: bool = False) {
         owner = self._ct_root;
         if owner is None or not path {
             return;
@@ -310,9 +310,12 @@ obj CtEvaluator {
         if path not in owner.ct_file_deps {
             owner.ct_file_deps.append(path);
         }
+        if body and path not in owner.ct_body_deps {
+            owner.ct_body_deps.append(path);
+        }
     }
 
-    def _note_producer(home: (Module | None)) {
+    def _note_producer(home: (Module | None), body: bool = False) {
         if home is None or home is self._ct_root {
             return;
         }
@@ -321,7 +324,7 @@ obj CtEvaluator {
             return;
         }
         try {
-            self._note_ct_path(os.path.realpath(path));
+            self._note_ct_path(os.path.realpath(path), body=body);
         } except OSError {}
     }
 
@@ -375,12 +378,12 @@ obj CtEvaluator {
     def eval_with_bindings(nd: Expr, bindings: dict[str, any]) -> any {
         saved_demand = self.demand;
         saved_root = self._enter_root(nd);
-        self.demand = True;
-        self.push_frame(barrier=True);
-        for (k, v) in bindings.items() {
-            self.bind(k, v);
-        }
         try {
+            self.demand = True;
+            self.push_frame(barrier=True);
+            for (k, v) in bindings.items() {
+                self.bind(k, v);
+            }
             return self._eval_inner(nd);
         } finally {
             self.pop_frame();
@@ -1153,6 +1156,7 @@ obj CtEvaluator {
     }
 
     def _enum_members(nd: Enum) -> list[CtEnumMember] {
+        self._note_producer(nd.find_parent_of_type(Module), body=True);
         key = id(nd);
         if key in self._enum_cache {
             return self._enum_cache[key];
@@ -1861,6 +1865,7 @@ obj CtEvaluator {
             for hv in self._has_vars_of(ct)
             if not hv.accessors
         ];
+        self._note_producer(node_.find_parent_of_type(Module), body=True);
         fields: dict[str, any] = {};
         init_ab = self._user_method(ct, "init") or self._user_method(ct, "__init__");
         if init_ab is not None {
@@ -1956,7 +1961,7 @@ obj CtEvaluator {
         }
         params = ability.signature.get_parameters();
         kw = `dict(kwargs);
-        self._note_producer(ability.find_parent_of_type(Module));
+        self._note_producer(ability.find_parent_of_type(Module), body=True);
         self.push_frame(barrier=True);
         self.call_stack.append(name);
         try {
@@ -2378,6 +2383,7 @@ obj CtEvaluator {
             }
             rec_asn = self._class_binding(base.class_type, name);
             if rec_asn is not None and rec_asn.value is not None {
+                self._note_producer(rec_asn.find_parent_of_type(Module), body=True);
                 return self.eval_with_bindings(rec_asn.value, base.ct_args or {});
             }
             m = self._find_method(base.class_type, name);
@@ -2411,6 +2417,7 @@ obj CtEvaluator {
             }
             bound_asn = self._class_binding(self._class_type_of(base), name);
             if bound_asn is not None and bound_asn.value is not None {
+                self._note_producer(bound_asn.find_parent_of_type(Module), body=True);
                 return self.eval_with_bindings(bound_asn.value, base.ct_args or {});
             }
             meth = self._find_method(self._class_type_of(base), name);

@@ -445,27 +445,30 @@ def read_envkey(data: bytes) -> (str | None) {
     return _read_key_section(data, SEC_ENVKEY);
 }
 
-def read_ct_deps(data: bytes) -> list[tuple[(str, str)]] {
-    raw = _read_key_section(data, SEC_CTDEPS);
-    out: list[tuple[(str, str)]] = [];
-    if not raw {
-        return out;
-    }
-    for line in raw.split("\n") {
+def _ct_dep_rows(text: str) -> list[tuple[(str, str, bool)]] {
+    out: list[tuple[(str, str, bool)]] = [];
+    for line in text.split("\n") {
         if "\t" not in line {
             continue;
         }
-        (path, _sep, digest) = line.partition("\t");
-        out.append((path, digest, ));
+        parts = line.split("\t");
+        digest = parts[1] if len(parts) > 1 else "";
+        mode = parts[2] if len(parts) > 2 else "";
+        out.append((parts[0], digest, mode == "b", ));
     }
     return out;
 }
 
-def ct_dep_digest(path: str) -> str {
+def read_ct_deps(data: bytes) -> list[tuple[(str, str, bool)]] {
+    raw = _read_key_section(data, SEC_CTDEPS);
+    return _ct_dep_rows(raw) if raw else [];
+}
+
+def ct_dep_digest(path: str, with_annexes: bool = False) -> str {
     try {
         h = hashlib.sha256();
         h.update(compute_content_sha256(path).encode());
-        if path.endswith('.jac') {
+        if with_annexes and path.endswith('.jac') {
             for (rel, digest) in _related_files(path) {
                 h.update(rel.encode());
                 h.update(digest.encode());
@@ -477,17 +480,48 @@ def ct_dep_digest(path: str) -> str {
     }
 }
 
-def ct_deps_section(paths: list[str]) -> bytes {
+def _ct_dep_store_path(path: str, base: str) -> str {
+    if not base {
+        return path;
+    }
+    try {
+        if os.path.commonpath([path, base]) == base {
+            return os.path.relpath(path, base);
+        }
+    } except ValueError {}
+    return path;
+}
+
+def _ct_dep_line(path: str, digest: str, is_body: bool, base: str) -> str {
+    flag = "b" if is_body else "";
+    stored = _ct_dep_store_path(path, base);
+    return f"{stored}\t{digest}\t{flag}";
+}
+
+def ct_deps_section(
+    paths: list[str], body_paths: (list[str] | None) = None, base: str = ""
+) -> bytes {
+    body: set = set(body_paths or []);
     lines: list[str] = [];
-    for path in sorted(set(paths)) {
-        lines.append(f"{path}\t{ct_dep_digest(path)}");
+    for path in sorted(set(paths) | body) {
+        is_body = path in body;
+        lines.append(_ct_dep_line(path, ct_dep_digest(path, is_body), is_body, base));
     }
     return "\n".join(lines).encode("utf-8");
 }
 
-def ct_deps_fresh(data: bytes) -> bool {
-    for (path, digest) in read_ct_deps(data) {
-        if not digest or ct_dep_digest(path) != digest {
+def rebase_ct_deps_section(raw: bytes, base: str) -> bytes {
+    lines: list[str] = [];
+    for (path, digest, is_body) in _ct_dep_rows(raw.decode("utf-8")) {
+        lines.append(_ct_dep_line(path, digest, is_body, base));
+    }
+    return "\n".join(lines).encode("utf-8");
+}
+
+def ct_deps_fresh(data: bytes, base: str = "") -> bool {
+    for (path, digest, is_body) in read_ct_deps(data) {
+        full = path if os.path.isabs(path) else os.path.join(base, path);
+        if not digest or ct_dep_digest(full, is_body) != digest {
             return False;
         }
     }

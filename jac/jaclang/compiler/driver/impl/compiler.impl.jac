@@ -464,7 +464,11 @@ impl JacCompiler._get_precompiled_jir_bytecode(
     full_target: str, allow_unsealed: bool = True
 ) -> (bytes | None) {
     import from pathlib { Path as _Path }
-    import from jaclang.compiler.driver.jir { PRECOMPILE_SENTINEL, cache_mode }
+    import from jaclang.compiler.driver.jir {
+        PRECOMPILE_SENTINEL,
+        cache_mode,
+        ct_deps_fresh
+    }
     import from jaclang.jac0core { sealed as _sealed }
     (rebuild_flag, no_precompile) = cache_mode();
     if rebuild_flag or no_precompile {
@@ -493,7 +497,10 @@ impl JacCompiler._get_precompiled_jir_bytecode(
                     jir_data = _Path(jir_path).read_bytes();
                     trusted = (
                         sealed_img is not None
-                        or precompiled_jir_matches_source(jir_data, norm_file)
+                        or (
+                            precompiled_jir_matches_source(jir_data, norm_file)
+                            and ct_deps_fresh(jir_data, norm_root)
+                        )
                     );
                     if trusted {
                         bc = read_bytecode_only(jir_data);
@@ -1327,7 +1334,9 @@ impl JacCompiler._persist_module_cache(
             write_module_cache
         }
         if result.ct_file_deps {
-            sections[SEC_CTDEPS] = ct_deps_section(result.ct_file_deps);
+            sections[SEC_CTDEPS] = ct_deps_section(
+                result.ct_file_deps, result.ct_body_deps
+            );
         }
         write_module_cache(full_target, cache_bc, extra_sections=sections);
     } except Exception {}
@@ -1450,7 +1459,13 @@ impl JacCompiler._ingest_comptime_producers(
                 actual_program.load_dependency_module(
                     target, importer_path=file_path, full_ast=True
                 );
-            } except Exception {}
+            } except Exception as ct_ingest_err {
+                import logging as _ct_logging;
+                _ct_logging.getLogger(__name__).debug(
+                    f"comptime producer {target} of {file_path} "
+                    f"could not be ingested: {ct_ingest_err}"
+                );
+            }
         }
     } finally {
         actual_program.options = saved_opts;

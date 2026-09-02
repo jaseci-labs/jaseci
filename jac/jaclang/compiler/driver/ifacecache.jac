@@ -696,7 +696,7 @@ obj IfaceRegistry {
             );
         } except Exception {}
         if mod.ct_file_deps {
-            sections[SEC_CTDEPS] = ct_deps_section(mod.ct_file_deps);
+            sections[SEC_CTDEPS] = ct_deps_section(mod.ct_file_deps, mod.ct_body_deps);
         }
         if not options.symtab_ir_only {
             try {
