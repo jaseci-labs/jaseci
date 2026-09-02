@@ -1100,7 +1100,13 @@ jobs:
         timeout-minutes: 20
         env:
           SITE_JOURNEY_ARTIFACTS: /tmp
-        run: bash scripts/site-browse-journey.sh http://localhost:8000
+        run: |
+          if bash scripts/site-browse-journey.sh http://localhost:8000; then
+            echo "gateway journey passed; #8881 may be in - drop continue-on-error"
+            exit 0
+          fi
+          echo "::warning::gateway journey failed, expected until #8881 lands: this job warmed .jac/cache serving the site single-process, and a module served warm reaches ES codegen with call_kind unset"
+          exit 1
 
       - name: Gateway and service logs
         if: always()
