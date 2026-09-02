@@ -36,7 +36,7 @@ def _autoscaler(k8s_config: KubernetesConfig, services: dict) -> dict {
         bundle = builder.generate_manifests(
             AppConfig(code_folder=project, app_name="shop"), ""
         );
-        scaling = bundle["scaling"]["api"];
+        scaling = bundle["scaling"]["orders"];
         assert scaling["mode"] == ScalingMode.METRIC;
         return dict(scaling["autoscaler"]);
     }
@@ -54,7 +54,7 @@ test "declared config bounds reach the autoscaler" {
             cpu_utilization_target=40,
             memory_utilization_target=70
         ),
-        {"api": {"file": "api.jac"}}
+        {"orders": {"file": "orders.jac"}}
     );
     assert auto["min"] == 3;
     assert auto["max"] == 5;
@@ -73,7 +73,7 @@ test "a per-service hpa key still beats the config-level bound" {
             max_replicas=5,
             cpu_utilization_target=40
         ),
-        {"api": {"file": "api.jac", "hpa": {"min": 2, "max": 9}}}
+        {"orders": {"file": "orders.jac", "hpa": {"min": 2, "max": 9}}}
     );
     assert auto["min"] == 2;
     assert auto["max"] == 9;
@@ -86,7 +86,7 @@ test "nothing configured keeps the built-in defaults" {
         KubernetesConfig(
             app_name="shop", namespace="shop-ns", bundle_storage_class="standard"
         ),
-        {"api": {"file": "api.jac"}}
+        {"orders": {"file": "orders.jac"}}
     );
     assert auto["min"] == 1;
     assert auto["max"] == 3;
