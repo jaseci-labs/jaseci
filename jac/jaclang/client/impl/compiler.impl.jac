@@ -27,20 +27,33 @@ impl ViteCompiler.compile_and_bundle(
     return (bundle_code, bundle_hash, client_exports, client_globals);
 }
 
-impl ViteCompiler._emit_na_wasm(self: ViteCompiler, module_path: Path) -> None {
+impl ViteCompiler._owes_wasm(self: ViteCompiler, module_path: Path) -> bool {
     import from jaclang.compiler.frontend.constant { CodeContext }
     import from jaclang { JacRuntime as Jac }
-    has_na = False;
-    compiled = Jac.get_program().mod.hub.get(str(module_path.resolve()));
-    if compiled is None {
-        console.warning(
-            f"'{module_path.name}' not found in the compile hub; cannot "
-                + "check for native code, so no wasm will be emitted for it."
-        );
-    } else {
-        has_na = compiled.declares_codespace(CodeContext.NATIVE);
+    target = str(module_path.resolve());
+    compiled = Jac.get_program().mod.hub.get(target);
+    if compiled is not None {
+        return bool(compiled.declares_codespace(CodeContext.NATIVE));
     }
-    if has_na {
+    declared = getattr(self.jac_client_compiler, 'na_wasm_modules', None) or set();
+    for known in declared {
+        try {
+            if str(Path(known).resolve()) == target {
+                return True;
+            }
+        } except OSError {
+            continue;
+        }
+    }
+    console.warning(
+        f"'{module_path.name}' not found in the compile hub and not recorded "
+            + "as a client native import, so no wasm will be emitted for it."
+    );
+    return False;
+}
+
+impl ViteCompiler._emit_na_wasm(self: ViteCompiler, module_path: Path) -> None {
+    if self._owes_wasm(module_path) {
         self._emit_wasm_module(module_path);
     }
 

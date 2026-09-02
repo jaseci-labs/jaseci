@@ -27,6 +27,7 @@ class ViteCompiler {
     def compile_desktop_sdk(self: ViteCompiler);
     def create_entry_file(self: ViteCompiler, module_path: Path) -> None;
     def _create_pages_entry_content(self: ViteCompiler, module_path: Path) -> str;
+    def _owes_wasm(self: ViteCompiler, module_path: Path) -> bool;
     def _emit_na_wasm(self: ViteCompiler, module_path: Path) -> None;
     def _emit_wasm_module(self: ViteCompiler, module_path: Path) -> None;
     def compile_and_bundle(

@@ -129,3 +129,36 @@ test "an ordinary module change does not re-emit wasm" {
         f"only tracked native modules owe a wasm re-emit; got {emitted}"
     );
 }
+
+
+test "a tracked native module owes a wasm even when the hub has forgotten it" {
+    # After a server-module reload the na module is no longer in the compile
+    # hub -- it is imported by client code, not by the server -- so the hub
+    # lookup that decides "does this owe a wasm" answered no and the emit was
+    # skipped with a warning. The client compile already recorded the module
+    # as a native import; that record is the answer.
+    import from jaclang.client.vite_client_bundle { make_client_bundle_builder }
+
+    with TemporaryDirectory() as tmp {
+        Path(os.path.join(tmp, "jac.toml")).write_text(
+            '[project]\nname = "wasmproj"\n', encoding="utf-8"
+        );
+        na_file = Path(tmp) / "game" / "arena.jac";
+        na_file.parent.mkdir(parents=True);
+        na_file.write_text(
+            'na {\n    def tick(x: int) -> int {\n        return x + 1;\n    }\n}\n',
+            encoding="utf-8"
+        );
+        compiler = make_client_bundle_builder(base_path=Path(tmp))._get_compiler();
+        compiler.jac_client_compiler.na_wasm_modules = {str(na_file.resolve())};
+        owed = compiler._owes_wasm(na_file);
+        stranger = Path(tmp) / "game" / "unrelated.jac";
+        stranger.write_text("glob READY: bool = True;\n", encoding="utf-8");
+        not_owed = compiler._owes_wasm(stranger);
+    }
+    assert owed , (
+        "a module the client compile recorded as a native import owes a wasm "
+        "even when the compile hub no longer holds it"
+    );
+    assert not not_owed , "an unrelated module must not be compiled to wasm";
+}
