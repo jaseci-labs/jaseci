@@ -98,9 +98,9 @@ og_description = "One language, one compiler, the whole stack. No glue. AI, grap
 og_type = "website"
 og_url = "https://jaclang.org/"
 og_site_name = "jaclang.org"
-og_image = "https://jaclang.org/static/assets/jac-logo.svg"
-twitter_card = "summary"
-twitter_image = "https://jaclang.org/static/assets/jac-logo.svg"
+og_image = "https://jaclang.org/static/assets/og-card.png"
+twitter_card = "summary_large_image"
+twitter_image = "https://jaclang.org/static/assets/og-card.png"
 
 # The service cut: scoring runs as its own process, routed by the gateway,
 # and the socialize section's social graph is its own service the same way.
