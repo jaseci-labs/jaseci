@@ -134,8 +134,14 @@ cheap phase) -- they participate in `SEC_DEPS` through their content key
 instead, so a stub edit still re-analyzes its importers.
 
 The bootstrap and sealed-image paths are untouched: hydration never engages
-for selfhost programs or compiler-tree modules, and the jac0 seed path does
-not know the cache exists.
+for the selfhost program (the compiler compiling itself), and the jac0 seed
+path does not know the cache exists. The firewall is the program, not the
+path: a regular program analyzing compiler-tree files (`jac check` over the
+jaclang tree) hydrates and replays like anything else, and those files are
+the most replay-stable of all -- every ENVKEY folds the compiler digest, so
+any compiler edit invalidates them wholesale. For the same reason,
+compiler-tree dependencies carry no `SEC_DEPS` edges: the ENVKEY already
+subsumes them.
 
 ## The codegen lane
 

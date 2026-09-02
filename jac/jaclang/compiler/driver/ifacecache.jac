@@ -202,6 +202,7 @@ obj IfaceRegistry {
         }
         importer = self.frames[-1];
         real = os.path.realpath(dep_path);
+
         if real == importer or is_compiler_source_path(real) {
             return;
         }
@@ -509,11 +510,8 @@ obj IfaceRegistry {
         if compiler.stub_catalog_disabled {
             return False;
         }
+
         if compiler.selfhost.is_selfhost(self.prog) {
-            return False;
-        }
-        import from jaclang.compiler.driver.jir { is_compiler_tree_path }
-        if is_compiler_tree_path(resolved) {
             return False;
         }
         return True;
@@ -773,10 +771,6 @@ obj IfaceRegistry {
         resolved = os.path.realpath(dep_path);
         (rebuild, _) = cache_mode();
         if rebuild or not jir_cacheable_source_path(resolved) {
-            return None;
-        }
-        import from jaclang.compiler.driver.jir { is_compiler_tree_path }
-        if is_compiler_tree_path(resolved) {
             return None;
         }
         try {
