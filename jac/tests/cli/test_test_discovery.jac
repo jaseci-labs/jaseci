@@ -308,3 +308,24 @@ test "bare `jac test` outside any project collects the working directory" {
         f"bare `jac test` with no jac.toml must scan the cwd; got exit {rc}"
     );
 }
+
+
+test "`--test_name` without a filepath still refuses to run" {
+    # The project-root fallback fills in `paths`, so the "name across all
+    # files is ambiguous" guard has to be asked before the fallback runs,
+    # not after.
+    proj = make_unconfigured_project();
+    old = os.getcwd();
+    os.chdir(proj);
+    reset_config();
+    try {
+        rc = int(getattr(analysis_cmds, "test")([], test_name="root suite"));
+    } finally {
+        os.chdir(old);
+        reset_config();
+        shutil.rmtree(proj, ignore_errors=True);
+    }
+    assert rc == 1 , (
+        f"`jac test --test_name X` with no filepath must still error; got exit {rc}"
+    );
+}
