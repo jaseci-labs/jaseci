@@ -155,7 +155,7 @@ class NativeCompiler {
             for f in dataclasses.fields(cls) {
                 out[f.name] = str(f.`type);
             }
-        } except TypeError { }
+        } except TypeError {}
         return out;
     }
 
