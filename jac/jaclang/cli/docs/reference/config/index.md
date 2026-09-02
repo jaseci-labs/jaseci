@@ -226,6 +226,15 @@ main = true              # Run as main module
 cl_route_prefix = "cl"   # URL prefix for client apps
 base_route_app = ""      # Client app to serve at /
 
+# Which identity stack owns /user/* -- register, login, tokens, and the
+# credential store behind them. "auto" is the scale (Postgres) identity when
+# the scale package is installed and the core (sqlite .jac/data/main.db)
+# identity when it is not. Set it explicitly to pin one; the setting alone
+# decides, so a scale stack that will not import fails the boot instead of
+# quietly serving the other store, which holds none of the same accounts.
+# JAC_IDENTITY_BACKEND overrides it for one run.
+identity = "auto"        # "auto" | "core" | "scale"
+
 # Optimistic-concurrency policy for concurrent check-then-create races
 # (see Persistence -> Concurrent writes).
 on_conflict = "retry"        # "retry": abort + replay so the loser converges

@@ -678,13 +678,18 @@ class JacScalePlugin {
     }
 
     static def get_user_manager(base_path: str) -> UserManager | None {
-        if not _scale_runtime_active() {
+        import from jaclang.server.identity_owner {
+            SCALE_IDENTITY,
+            identity_owner,
+            scale_stack_unavailable
+        }
+        if identity_owner() != SCALE_IDENTITY {
             return None;
         }
         try {
             import from .identity.user_manager { JacScaleUserManager }
-        } except ImportError {
-            return None;
+        } except ImportError as e {
+            raise scale_stack_unavailable('jaclang.scale.identity.user_manager', e);
         }
         return JacScaleUserManager(base_path=base_path);
     }
