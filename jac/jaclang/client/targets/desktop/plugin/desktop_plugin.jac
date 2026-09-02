@@ -44,9 +44,9 @@ obj DesktopPlugin {
         return config is not False and config is not None;
     }
 
-    def init { }
-    def setup(wv_handle: int, wv_lib: ctypes.CDLL) { }
-    def setup_cef(host: object) { }
+    def init {}
+    def setup(wv_handle: int, wv_lib: ctypes.CDLL) {}
+    def setup_cef(host: object) {}
     def handle(command: str, args: dict) -> dict {
         raise PluginError(
             ErrorCode.UNKNOWN_COMMAND,

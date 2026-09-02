@@ -2,8 +2,8 @@ import os;
 import sys;
 import platform;
 
+import from jaclang.cli.command { CommandSpec }
 import from jaclang.cli.manifest {
-    CommandMeta,
     GROUP_DISPLAY,
     GROUP_ORDER,
     TIER_ORDER,
@@ -38,12 +38,12 @@ def _color(text: str, code: str, use_color: bool | None = None) -> str {
     return f"{code}{text}{_RESET}";
 }
 
-def _by_name(cmd: CommandMeta) -> str {
+def _by_name(cmd: CommandSpec) -> str {
     return cmd.name;
 }
 
 def _render_command_block(
-    cmds: list[CommandMeta], col: int, use_color: bool
+    cmds: list[CommandSpec], col: int, use_color: bool
 ) -> list[str] {
     cmds.sort(key=_by_name);
     lines: list[str] = [];
@@ -74,7 +74,7 @@ impl format_verbose_help(prog: str = "jac") -> str {
     lines.append('          Print help');
     lines.append('');
 
-    grouped: dict[str, list[CommandMeta]] = {};
+    grouped: dict[str, list[CommandSpec]] = {};
     for cmd in commands {
         grouped.setdefault(cmd.group or 'general', []).append(cmd);
     }
@@ -126,7 +126,7 @@ impl format_curated_help(prog: str = "jac") -> str {
     );
     lines.append('');
 
-    by_tier: dict[str, list[CommandMeta]] = {};
+    by_tier: dict[str, list[CommandSpec]] = {};
     for cmd in commands {
         if cmd.tier {
             by_tier.setdefault(cmd.tier, []).append(cmd);

@@ -2,6 +2,7 @@ import sys;
 import types;
 import from threading { Event }
 import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.frontend.relations { ScopeChild }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.passes.transform { Alert }
 import from jaclang.compiler.driver.progstate {
@@ -39,8 +40,9 @@ class JacProgram {
     def init(self: JacProgram, main_mod: (uni.ProgramModule | None) = None) -> None;
     def _get_compiler(self: JacProgram) -> JacCompiler;
     def get_type_evaluator(self: JacProgram) -> TypeEvaluator;
+    def stub_catalog(self: JacProgram) -> any;
     def clear_type_system(self: JacProgram, clear_hub: bool = False) -> None;
-    def release_compile_closure(self: JacProgram, keep_stubs: bool = False) -> None;
+    def release_compile_closure(self: JacProgram, collect: bool = True) -> None;
     def release_native_dep_units(self: JacProgram) -> None;
     def release_check_caches(self: JacProgram) -> None;
     def hub_cache_stamp(self: JacProgram, resolved_path: str) -> None;
@@ -51,6 +53,7 @@ class JacProgram {
 
     def transitive_dependents(self: JacProgram, target_path: str) -> set[str];
     def invalidate_module(self: JacProgram, resolved_path: str) -> None;
+    def release_module(self: JacProgram, resolved_path: str) -> None;
     def load_dependency_module(
         self: JacProgram,
         source_path: str,

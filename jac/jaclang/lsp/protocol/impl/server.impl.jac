@@ -494,9 +494,7 @@ impl LanguageServer._write_message(body: dict) -> None {
             self._transport_writer.write(header);
             self._transport_writer.write(content);
             self._transport_writer.flush();
-        } except (BrokenPipeError, OSError) {
-            ;
-        }
+        } except (BrokenPipeError, OSError) {}
     }
 }
 

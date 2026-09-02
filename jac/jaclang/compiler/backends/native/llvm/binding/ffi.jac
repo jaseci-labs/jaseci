@@ -178,9 +178,7 @@ class OutputString {
             if _is_shutting_down is not None and not _is_shutting_down() {
                 self.close();
             }
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
 
     def __str__(self: OutputString) -> str {
@@ -250,9 +248,7 @@ class ObjectRef {
         }
     }
 
-    def _dispose(self: ObjectRef) {
-        ;
-    }
+    def _dispose(self: ObjectRef) {}
 
     has closed: bool {
         getter {
@@ -276,9 +272,7 @@ class ObjectRef {
             if _is_shutting_down is not None and not _is_shutting_down() {
                 self.close();
             }
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
 
     def __bool__(self: ObjectRef) -> bool {

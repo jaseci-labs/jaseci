@@ -82,7 +82,7 @@ def canonical_logical_path(path: str, project_root: (str | None) = None) -> str 
             if not rel.startswith("..") {
                 return rel.replace(os.sep, "/");
             }
-        } except ValueError { }
+        } except ValueError {}
     }
     return norm.replace(os.sep, "/");
 }
@@ -211,13 +211,13 @@ obj FormatCache {
         if not data.startswith(_ENTRY_MARKER) {
             try {
                 path.unlink();
-            } except OSError { }
+            } except OSError {}
             return False;
         }
 
         try {
             os.utime(path, None);
-        } except OSError { }
+        } except OSError {}
         return True;
     }
 
@@ -236,7 +236,7 @@ obj FormatCache {
             } finally {
                 try {
                     tmp.unlink();
-                } except OSError { }
+                } except OSError {}
             }
         } except OSError {
             return;
@@ -254,7 +254,7 @@ obj FormatCache {
             if now - sentinel.stat().st_mtime < self.prune_interval {
                 return;
             }
-        } except OSError { }
+        } except OSError {}
         try {
             sentinel.touch();
         } except OSError {
