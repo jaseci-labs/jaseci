@@ -250,8 +250,9 @@ trap carries an always-failing `test` block. Returns the project root."""
 def make_unconfigured_project -> str {
     proj = tempfile.mkdtemp(prefix="jacroot-");
     (Path(proj) / "jac.toml").write_text('[project]\nname = "r"\n');
+    (Path(proj) / "shared.jac").write_text("glob VALUE: int = 7;\n");
     (Path(proj) / "shared.test.jac").write_text(
-        'test "root suite" {\n    assert True;\n}\n'
+        'test "root suite" {\n    assert VALUE == 7;\n}\n'
     );
     nested = Path(proj) / "socialize";
     nested.mkdir();
@@ -263,11 +264,11 @@ def make_unconfigured_project -> str {
     for skipped in [".jac", "node_modules", "__pycache__"] {
         d = Path(proj) / skipped;
         d.mkdir();
-        (d / "stale.test.jac").write_text(trap);
+        (d / "test_stale.jac").write_text(trap);
     }
     fixtures = nested / "fixtures";
     fixtures.mkdir();
-    (fixtures / "input.test.jac").write_text(trap);
+    (fixtures / "test_input.jac").write_text(trap);
     return proj;
 }
 
@@ -297,7 +298,7 @@ test "bare `jac test` outside any project collects the working directory" {
     # No jac.toml at all is the same question with `cfg is None`: the cwd is
     # the only root there is.
     proj = tempfile.mkdtemp(prefix="jacnotoml-");
-    (Path(proj) / "solo.test.jac").write_text('test "solo" {\n    assert True;\n}\n');
+    (Path(proj) / "test_solo.jac").write_text('test "solo" {\n    assert True;\n}\n');
     try {
         rc = run_in(proj, []);
     } finally {
