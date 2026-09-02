@@ -262,13 +262,14 @@ impl ServiceProcessManager.stop_service(name: str) -> bool {
 
     if proc {
         logger.info(f"Stopping {name} (pid={proc.pid})...");
+        proc.terminate();
         _signal_group(proc.pid, int(signal.SIGTERM));
         try {
             proc.`wait(timeout=10);
         } except subprocess.TimeoutExpired {
             logger.warning(f"{name} did not exit gracefully, force killing");
-            _signal_group(proc.pid, int(signal.SIGKILL));
             proc.kill();
+            _signal_group(proc.pid, int(signal.SIGKILL));
             proc.`wait();
         }
         del self.processes[name];
