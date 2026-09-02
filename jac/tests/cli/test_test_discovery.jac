@@ -240,3 +240,70 @@ test "a suite below a non-package directory still resolves its package root" {
         f"gapped suite must import gappkg.support and pass; got exit {rc}"
     );
 }
+
+
+"""Create a temp project with NO `[test]` table at all, holding conventionally
+named suites at two depths plus traps that collection must never sweep in:
+tool-owned directories (`.jac/`, `node_modules/`, `__pycache__/`), a
+`fixtures/` input, and a plain module that is not named like a test. Every
+trap carries an always-failing `test` block. Returns the project root."""
+def make_unconfigured_project -> str {
+    proj = tempfile.mkdtemp(prefix="jacroot-");
+    (Path(proj) / "jac.toml").write_text('[project]\nname = "r"\n');
+    (Path(proj) / "shared.test.jac").write_text(
+        'test "root suite" {\n    assert True;\n}\n'
+    );
+    nested = Path(proj) / "socialize";
+    nested.mkdir();
+    (nested / "test_graph.jac").write_text(
+        'test "nested suite" {\n    assert True;\n}\n'
+    );
+    trap = 'test "must not be collected" {\n    assert False;\n}\n';
+    (Path(proj) / "app.jac").write_text(trap);
+    for skipped in [".jac", "node_modules", "__pycache__"] {
+        d = Path(proj) / skipped;
+        d.mkdir();
+        (d / "stale.test.jac").write_text(trap);
+    }
+    fixtures = nested / "fixtures";
+    fixtures.mkdir();
+    (fixtures / "input.test.jac").write_text(trap);
+    return proj;
+}
+
+
+test "bare `jac test` collects the project root when no [test] table exists" {
+    # Regression guard: with no `[test] directories` the no-argument default
+    # resolved to an empty root, `discover` skipped it, and the run exited 5
+    # ("no tests ran (no test files collected)") in a project full of suites.
+    # The documented contract is that an unset `[test]` scope walks the
+    # project root, under the same naming rules a positional directory
+    # target uses -- so `app.jac` (a module, not a suite) stays out.
+    proj = make_unconfigured_project();
+    try {
+        rc = run_in(proj, []);
+    } finally {
+        shutil.rmtree(proj, ignore_errors=True);
+    }
+    # exit 5 = nothing collected (the bug); exit 1 = a trap was collected.
+    assert rc == 0 , (
+        "bare `jac test` must collect the project root's suites and skip the "
+        f"traps; got exit {rc}"
+    );
+}
+
+
+test "bare `jac test` outside any project collects the working directory" {
+    # No jac.toml at all is the same question with `cfg is None`: the cwd is
+    # the only root there is.
+    proj = tempfile.mkdtemp(prefix="jacnotoml-");
+    (Path(proj) / "solo.test.jac").write_text('test "solo" {\n    assert True;\n}\n');
+    try {
+        rc = run_in(proj, []);
+    } finally {
+        shutil.rmtree(proj, ignore_errors=True);
+    }
+    assert rc == 0 , (
+        f"bare `jac test` with no jac.toml must scan the cwd; got exit {rc}"
+    );
+}
