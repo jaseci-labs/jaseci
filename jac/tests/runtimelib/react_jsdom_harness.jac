@@ -97,15 +97,19 @@ def write_runtime(work: Path) {
     );
 }
 
-"""`bun install` the shared dep set into `work`."""
-def bun_install(bun: str, work: Path, name: str) {
+"""`bun install` a dep set into `work`; defaults to the shared one.
+
+`deps` lets a suite install exactly the versions the client pipeline pins
+(plus its own extras) instead of the shared mirror, so a pin drift shows up
+as that suite failing rather than as a silently stale harness."""
+def bun_install(bun: str, work: Path, name: str, deps: (dict[str, str] | None) = None) {
     (work / "package.json").write_text(
         json.dumps(
             {
                 "name": name,
                 "private": True,
                 "type": "module",
-                "dependencies": REACT_JSDOM_DEPS
+                "dependencies": REACT_JSDOM_DEPS if deps is None else deps
             }
         ),
         encoding="utf-8"
