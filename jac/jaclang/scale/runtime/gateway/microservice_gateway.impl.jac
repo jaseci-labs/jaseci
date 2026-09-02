@@ -49,12 +49,14 @@ def _install_ws_catchall(gw: MicroserviceGateway) {
             if full_path.startswith(matched.prefix)
             else full_path;
         remaining = remaining or "/";
+        offered: str = str(websocket.headers.get("sec-websocket-protocol") or "");
+        chosen: str = offered.split(",")[0].strip() if offered else "";
         query: str = str(websocket.url.query);
         target_http: str = f"{page_base or matched.url}{remaining}";
         if query {
             target_http = f"{target_http}?{query}";
         }
-        await websocket.accept();
+        await websocket.accept(subprotocol=chosen);
         req_headers: dict[str, str] = dict(websocket.headers.items());
         logger.info(f"ws proxy: {full_path} -> {target_http}");
         await websocket_forward(websocket, target_http, req_headers);
