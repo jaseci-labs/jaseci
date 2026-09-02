@@ -179,3 +179,30 @@ test "an embedded file is re-read when its content changes" {
         f"the embedder served the stale file content: {warm}"
     );
 }
+
+def _fn_src(text: str) -> str {
+    return ("comptime def banner -> str {\n" f"    return \"{text}\";\n" "}\n");
+}
+
+test "a comptime function body edit is observed by its callers" {
+    tmp = tempfile.mkdtemp();
+    fnmod = os.path.realpath(os.path.join(tmp, "fnmod.jac"));
+    caller = os.path.realpath(os.path.join(tmp, "callmod.jac"));
+    _write(fnmod, _fn_src("banner one"), backdate=True);
+    _write(
+        caller,
+        "comptime import from fnmod { banner }\n\n"
+        "comptime TITLE: str = banner();\n\n"
+        "with entry {\n"
+        "    print(TITLE);\n"
+        "}\n",
+        backdate=True
+    );
+    cold = _folded(caller);
+    assert "banner one" in cold , f"cold compile did not fold the call: {cold}";
+    _write(fnmod, _fn_src("banner two"));
+    warm = _folded(caller);
+    assert "banner two" in warm , (
+        f"the caller served a stale fold after the function body changed: {warm}"
+    );
+}
