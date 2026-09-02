@@ -412,6 +412,15 @@ jobs:
         with:
           submodules: true
 
+      - name: Restore JIR analysis cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/.cache/jac/jir
+          key: jac-check-jir-${{ runner.os }}-${{ hashFiles('jac/jaclang/compiler/**', 'jac/jaclang/runtime/**', 'jac/jaclang/lib/**', 'jac/jaclang/jac0core/**', 'jac/jaclang/jac0.py', 'jac/jaclang/meta_importer.py', 'jac/jaclang/bootstrap_manifest.py', 'jac/jaclang/cli/cli_boot.jac', 'jac/jaclang/project/tomlio.jac', 'jac/jaclang/dist/precompile_bytecode.jac') }}-${{ github.sha }}
+          restore-keys: |
+            jac-check-jir-${{ runner.os }}-${{ hashFiles('jac/jaclang/compiler/**', 'jac/jaclang/runtime/**', 'jac/jaclang/lib/**', 'jac/jaclang/jac0core/**', 'jac/jaclang/jac0.py', 'jac/jaclang/meta_importer.py', 'jac/jaclang/bootstrap_manifest.py', 'jac/jaclang/cli/cli_boot.jac', 'jac/jaclang/project/tomlio.jac', 'jac/jaclang/dist/precompile_bytecode.jac') }}-
+            jac-check-jir-${{ runner.os }}-
+
       - uses: ./.github/actions/jac-kit
 
       - name: Install plugin deps so jac check resolves scale/byllm imports
