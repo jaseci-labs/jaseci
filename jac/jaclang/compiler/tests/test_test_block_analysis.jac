@@ -101,9 +101,10 @@ test "a standalone test module lowers its test-block calls for the client" {
         prog = JacProgram();
         mod = prog.compile(mod_path);
         js = mod.gen.js;
-        assert "new TestClient()" in js , js;
-        assert "jid(" in js , js;
-        assert "\njid(" not in js , (
+        assert "new TestClient()" in js , (
+            f"the archetype constructor reached the bundle as a plain call: {js}"
+        );
+        assert "_jac.builtin.jid(" in js , (
             f"the jid() builtin reached the bundle un-lowered: {js}"
         );
     } finally {
