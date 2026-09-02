@@ -398,7 +398,7 @@ impl WasmLinker.link(
     old2new = {};
     oi = 0;
     for im in obj_func_imports {
-        if im[2] in _PLACEHOLDER { } else {
+        if im[2] in _PLACEHOLDER {} else {
             fld = im[2];
             if host_abi is not None and fld in host_abi {
                 im = [im[0], host_module, fld, im[3]];
@@ -444,7 +444,7 @@ impl WasmLinker.link(
         }
         if rt == 1 or rt == 2 {
             fi = _sym_val(ob, r[3], old2new, seg_base, heap_base);
-            if fi in slot_of { } else {
+            if fi in slot_of {} else {
                 slot_of[fi] = nslot;
                 nslot += 1;
             }
@@ -483,7 +483,7 @@ impl WasmLinker.link(
             _patch(
                 code, off, _u32le(_sym_val(ob, sym, old2new, seg_base, heap_base) + add)
             );
-        } elif rt == 6 { } elif rt == 7 {
+        } elif rt == 6 {} elif rt == 7 {
             _patch(code, off, _uleb5(_sym_val(ob, sym, old2new, seg_base, heap_base)));
         } elif rt == 20 {
             _patch(code, off, _uleb5(0));

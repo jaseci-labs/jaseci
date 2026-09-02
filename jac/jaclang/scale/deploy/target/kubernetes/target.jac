@@ -575,11 +575,11 @@ obj KubernetesTarget(KubernetesTargetBase) {
             app: str = "";
             try {
                 app = str(dep["spec"]["selector"]["matchLabels"]["app"]);
-            } except Exception { }
+            } except Exception {}
             if not app {
                 try {
                     app = str((dep["metadata"].get("labels") or {}).get("app") or "");
-                } except Exception { }
+                } except Exception {}
             }
             if app {
                 app_labels.append(app);

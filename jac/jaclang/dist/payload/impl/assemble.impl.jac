@@ -266,7 +266,7 @@ impl precompile(py: str, pbs_py_dir: str, site: str, seal: bool, debug_src: bool
 
     boot = os.path.join(site, "precompile_boot.py");
     write_text(boot, PRECOMPILE_BOOT_SRC);
-    argv = [py, "-S", boot, pc, site];
+    argv = [py, "-S", boot, site];
     if seal {
         argv.append("--seal-compile");
     }
@@ -290,7 +290,7 @@ impl precompile(py: str, pbs_py_dir: str, site: str, seal: bool, debug_src: bool
     if not seal {
         return;
     }
-    fin = [py, "-S", boot, pc, site, "--seal-finalize"];
+    fin = [py, "-S", boot, site, "--seal-finalize"];
     if debug_src {
         fin.append("--debug-src");
     }
@@ -621,7 +621,7 @@ impl zstd_compress(data: bytes) -> bytes {
         mt: dict[int, int] = dict(opts);
         mt[int(CompressionParameter.nb_workers)] = workers;
         return compress(data, options=mt);
-    } except Exception { }
+    } except Exception {}
     return compress(data, options=opts);
 }
 

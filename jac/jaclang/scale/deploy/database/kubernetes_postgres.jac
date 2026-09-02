@@ -344,7 +344,7 @@ obj KubernetesPostgresProvider {
         };
     }
 
-    def cleanup { }
+    def cleanup {}
     def get_init_container(
         app_name: str, wait_image: str
     ) -> (dict[(str, any)] | None) {

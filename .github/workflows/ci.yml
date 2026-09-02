@@ -87,6 +87,8 @@ jobs:
               - 'jac/_jac_finder.py'
               - 'jac/sitecustomize.py'
               - 'jac/jaclang/dist/precompile_bytecode.jac'
+              - 'jac/jaclang/cli/commands/precompile.jac'
+              - 'jac/jaclang/cli/commands/impl/precompile.impl.jac'
               - '.github/actions/**'
 
   # The kit lane: build the binary from this checkout, smoke it, vendor the

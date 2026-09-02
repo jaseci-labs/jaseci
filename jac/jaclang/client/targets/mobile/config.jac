@@ -19,9 +19,7 @@ def _load_mobile_config(project_dir: Path) -> dict {
             config = tomllib.loads(content);
             return config.get("client", {}).get("mobile", {});
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return {};
 }
 

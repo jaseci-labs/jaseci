@@ -456,9 +456,7 @@ impl delete_if_exists(
     try {
         delete_func(name, namespace);
     } except ApiException as e {
-        if (e.status == 404) {
-            ;
-        } else {
+        if (e.status == 404) {} else {
             raise;
         }
     }

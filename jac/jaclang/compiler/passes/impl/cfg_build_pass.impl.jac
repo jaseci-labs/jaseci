@@ -253,7 +253,7 @@ impl CoalesceBBPass.before_pass -> None {
     self.bb_counter = 0;
 }
 
-impl CFGBuildPass.before_pass -> None { }
+impl CFGBuildPass.before_pass -> None {}
 
 impl CFGBuildPass.link_bbs(source: UniCFGNode, target: UniCFGNode) -> None {
     if source and target {

@@ -75,7 +75,7 @@ impl NaIRGenStruct._emit_struct_call(name: str, nd: uni.FuncCall) -> (ir.Value |
                 fields.append(("float", _sz, False));
                 total = total + _sz;
             }
-        } elif ch == " " { } else {
+        } elif ch == " " {} else {
             parse_ok = False;
             break;
         }

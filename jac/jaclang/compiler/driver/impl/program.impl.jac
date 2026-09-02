@@ -354,9 +354,7 @@ impl JacProgram.parse_str(
     if self.deps.tracking {
         try {
             self.deps.record_module(mod);
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
     return mod;
 }
@@ -381,9 +379,7 @@ impl JacProgram.compile(
     if self.deps.tracking {
         try {
             self.deps.record_module(mod);
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
     return mod;
 }

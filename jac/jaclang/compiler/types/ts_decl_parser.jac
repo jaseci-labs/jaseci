@@ -953,9 +953,7 @@ def _parse_dts_inner(source: str) -> (dict[str, TsDecl] | None) {
                 continue;
             }
             start_pos = pos;
-            while (eat_id('export') or eat_id('declare')) {
-                ;
-            }
+            while (eat_id('export') or eat_id('declare')) {}
             common = _parse_common_decl();
             if common is not None {
                 for d in common {
