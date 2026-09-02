@@ -70,12 +70,13 @@ def:pub TextInput() -> JsxElement {
 **Props-bundle component (a single `props` param) - already receives it.** `props["ref"]` is set; spread the bundle (or a rest copy that does not exclude `ref`) onto the host tag:
 
 ```jac
+# jac:ignore[W5015]
 def:pub FancyInput(props: dict) -> JsxElement {
     <input className="fancy" {**props} />
 }
 ```
 
-This is the shape every installed `components/ui/` primitive uses, and it is why they work as radix `asChild` anchors with no ref plumbing of their own.
+This is the shape every installed `components/ui/` primitive uses, and it is why they work as radix `asChild` anchors with no ref plumbing of their own. A `props` bundle emits **W5015** (`jac-cl-components` tells you to default to named params for that reason) - being a ref target is the intentional forwarding that warning leaves room for, so `# jac:ignore[W5015]` is expected on these and only these.
 
 **Named-param component - declare a trailing `Ref` param.** Named params destructure only what they declare, so `ref` is not among them. A trailing parameter typed `Ref` lowers to React's `forwardRef((props, ref) => ...)`:
 
@@ -84,10 +85,14 @@ def:pub FancyLabel(text: str, ref: Ref[HTMLElement] = Ref()) -> JsxElement {
     <span ref={ref} className="fancy">{text}</span>
 }
 
-# Parent (either shape): point a ref at the component, reach the host node
+# Parent: both shapes are pointed at the same way from the call site
 def:pub ParentForm() -> JsxElement {
     has inputRef: Ref[HTMLInputElement] = Ref();
-    <FancyInput ref={inputRef} placeholder="Type here" />
+    has labelRef: Ref[HTMLElement] = Ref();
+    <div>
+        <FancyInput ref={inputRef} placeholder="Type here" />
+        <FancyLabel ref={labelRef} text="Hello" />
+    </div>
 }
 ```
 

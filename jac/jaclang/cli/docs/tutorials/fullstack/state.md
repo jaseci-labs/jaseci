@@ -276,12 +276,15 @@ The compiler never threads it onto an element for you. A ref reaches a DOM node 
 **A props-bundle component already receives it.** `props["ref"]` is set, so any spread of the bundle -- or of a rest copy that does not exclude `ref` -- lands it on the host element:
 
 ```jac
+# jac:ignore[W5015]
 def:pub FancyInput(props: any) -> JsxElement {
     <input className="fancy" {**props} />
 }
 ```
 
 That is the whole mechanism behind every installed `components/ui/` primitive, and it is why they work as radix `asChild` anchors with no ref plumbing of their own.
+
+A props bundle costs per-attribute call-site validation, so [components](components.md#props) tells you to default to named parameters and the compiler emits **W5015** on every single-`props` definition. Being a ref target is precisely the intentional forwarding that warning leaves room for: keep the bundle here and silence it with `# jac:ignore[W5015]`, and keep named parameters everywhere else.
 
 **A named-param component does not**, because named params destructure only what they declare and `ref` is not among them. Declare a trailing parameter typed `Ref` to receive it; that lowers to React's `forwardRef((props, ref) => ...)` render signature:
 
