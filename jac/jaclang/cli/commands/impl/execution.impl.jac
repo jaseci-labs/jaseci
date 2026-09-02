@@ -69,6 +69,30 @@ def _project_serves(config: any) -> bool {
 }
 
 
+def _project_entry_path(config: any) -> str {
+    import from pathlib { Path }
+    import from jaclang.project.kinds { kind_entry }
+    proj_root = config.project_root if config?.project_root else None;
+    if proj_root is None {
+        return "";
+    }
+    declared = str(config.project.entry_point or "") if config?.project else "";
+    if not declared {
+        declared = kind_entry(
+            str(config.project.kind or "") if config?.project else ""
+        );
+    }
+    if not declared {
+        return "";
+    }
+    try {
+        return str((Path(proj_root) / declared).resolve());
+    } except OSError {
+        return "";
+    }
+}
+
+
 def _scope_notice(message: str) {
     console.print(f"jac run: {message}", file=sys.stderr, style="muted");
 }
@@ -95,28 +119,42 @@ def _pin_run_scope(filename: str, takeover: (bool | None)) -> None {
     }
 
     chosen = owner;
+    notice = "";
     if takeover is False {
         chosen = None;
         context = owner or ambient;
         if context is not None {
-            _scope_notice(
+            notice = (
                 f"{file_path.name} runs standalone (--no-takeover); it will not "
                 f"touch the project {_project_label(context)}"
             );
         }
-    } elif owner is None and ambient is not None {
-        if takeover {
-            chosen = ambient;
-            _scope_notice(
-                f"takeover: {file_path.name} runs as the project "
-                f"{_project_label(ambient)}"
-            );
-        } elif _project_serves(ambient) {
-            _scope_notice(
-                f"{file_path.name} is outside the project {_project_label(ambient)}; "
-                "running it standalone (--takeover runs it as this project)"
-            );
+    } elif owner is None {
+        if ambient is not None {
+            if takeover {
+                chosen = ambient;
+                notice = (
+                    f"takeover: {file_path.name} runs as the project "
+                    f"{_project_label(ambient)}, rewriting its client build"
+                );
+            } elif _project_serves(ambient) {
+                notice = (
+                    f"{file_path.name} is outside the project "
+                    f"{_project_label(ambient)}; running it standalone "
+                    "(--takeover runs it as this project)"
+                );
+            }
         }
+    } elif takeover
+        or (_project_serves(owner) and str(file_path) != _project_entry_path(owner)) {
+        notice = (
+            f"takeover: {file_path.name} runs as the project "
+            f"{_project_label(owner)}, rewriting its client build "
+            "(--no-takeover runs it standalone)"
+        );
+    }
+    if notice {
+        _scope_notice(notice);
     }
 
     if chosen is not None and active_profile {
@@ -984,13 +1022,18 @@ impl serve(
                 vite_port, skip_port=actual_port, strict=port_pinned
             );
             declared_paths: list = [];
+            claimed_paths: list = [];
             try {
+                import from jaclang.client.vite_bundler { DEV_PROXY_PREFIXES }
                 declared_paths = server.introspector.declared_api_paths();
+                claimed_paths = server.introspector.client_claimed_paths(
+                    DEV_PROXY_PREFIXES
+                );
             } except Exception as e {
                 console.warning(f"Could not read declared API paths: {e}");
             }
             (started_vite, bound_port) = _start_vite_dev_server(
-                base, free_vite_port, actual_port, declared_paths
+                base, free_vite_port, actual_port, declared_paths, claimed_paths
             );
             if started_vite {
                 vite_holder.append(started_vite);
@@ -1190,7 +1233,11 @@ def _find_free_port(start: int, skip_port: int = 0, strict: bool = False) -> int
 }
 
 def _start_vite_dev_server(
-    base_path: str, vite_port: int, api_port: int, api_paths: (list[str] | None) = None
+    base_path: str,
+    vite_port: int,
+    api_port: int,
+    api_paths: (list[str] | None) = None,
+    client_paths: (list[str] | None) = None
 ) -> any {
     import from pathlib { Path }
 
@@ -1204,7 +1251,11 @@ def _start_vite_dev_server(
         entry_file = client_dir / 'build' / 'main.js';
 
         bundler.create_vite_config(
-            entry_file, is_dev=True, api_port=api_port, api_paths=api_paths
+            entry_file,
+            is_dev=True,
+            api_port=api_port,
+            api_paths=api_paths,
+            client_paths=client_paths
         );
 
         if not (client_dir / 'configs' / 'package.json').exists() {

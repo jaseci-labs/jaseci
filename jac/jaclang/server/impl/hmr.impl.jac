@@ -228,7 +228,7 @@ impl HotReloader._dispatch_change(file_path: str, is_directory: bool = False) ->
         return;
     }
 
-    (has_client, has_server, has_native) = self._classify_declarations(target_path);
+    (has_client, has_server, _has_native) = self._classify_declarations(target_path);
 
     if has_server {
         self._reload_server_module(target_path);
@@ -239,7 +239,7 @@ impl HotReloader._dispatch_change(file_path: str, is_directory: bool = False) ->
         self._recompile_client_code(target_path, visited);
     }
 
-    if has_native or self._tracked_wasm_module(target_path) {
+    if self._tracked_wasm_module(target_path) {
         self._reemit_native_wasm(target_path);
     }
 
@@ -271,13 +271,15 @@ impl HotReloader._reemit_native_wasm(file_path: str) -> None {
         return;
     }
     try {
-        self.client_compiler._emit_na_wasm(Path(file_path).resolve());
+        emitted = self.client_compiler._emit_wasm_module(Path(file_path).resolve());
     } except Exception as e {
         console.error(f"na wasm re-emit failed for {file_path}: {e}");
         self.record_error(file_path, f"na wasm re-emit failed: {e}");
         return;
     }
-    self._signal_full_reload();
+    if emitted {
+        self._signal_full_reload();
+    }
 }
 
 impl HotReloader._entry_module_path -> Path {

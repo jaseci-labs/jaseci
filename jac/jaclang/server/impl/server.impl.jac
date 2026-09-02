@@ -1530,15 +1530,29 @@ impl ModuleIntrospector.declared_api_paths -> list[str] {
     paths: list[str] = [];
     for (_name, _kind, spec) in self.restspec_routes() {
         path = str(spec.path or '');
-        if not path.startswith('/') {
+        if not path.startswith('/') or path == '/' {
             continue;
         }
-        prefix = path.split('{')[0].rstrip('/') or path;
-        if prefix not in paths {
-            paths.append(prefix);
+        if path not in paths {
+            paths.append(path);
         }
     }
     return sorted(paths);
+}
+
+
+impl ModuleIntrospector.client_claimed_paths(candidates: list[str]) -> list[str] {
+    claimed: list[str] = [];
+    for candidate in candidates {
+        try {
+            if self.has_client_route(candidate) {
+                claimed.append(candidate);
+            }
+        } except Exception {
+            continue;
+        }
+    }
+    return claimed;
 }
 
 
@@ -1915,6 +1929,16 @@ impl JacAPIServer.build_app -> ServingApp {
         return parsed if isinstance(parsed, dict) else {};
     }
 
+    def _dev_client_elsewhere -> ServingResponse {
+        return JSONResponse(
+            content={
+                'error': 'Not found',
+                'detail': 'in dev the client is served by the dev server on the web port'
+            },
+            status_code=404
+        );
+    }
+
     def _render_page_response(
         request: Request, func_name: str, args: dict[str, any], status: int = 200
     ) -> ServingResponse {
@@ -2037,6 +2061,9 @@ impl JacAPIServer.build_app -> ServingApp {
     }
 
     def _client_js(request: Request) -> ServingResponse {
+        if server.dev_mode {
+            return _dev_client_elsewhere();
+        }
         try {
             js_code = Jac.get_client_js(server.introspector);
         } except RuntimeError as exc {
@@ -2058,6 +2085,9 @@ impl JacAPIServer.build_app -> ServingApp {
         configured_root = config.serve.base_route_app if config else '';
         base_route_app = server.introspector.resolve_root_app(configured_root);
         if base_route_app {
+            if server.dev_mode {
+                return _dev_client_elsewhere();
+            }
             return _render_page_response(
                 request,
                 base_route_app,
@@ -2087,6 +2117,9 @@ impl JacAPIServer.build_app -> ServingApp {
     }
 
     def _cl_page(request: Request, name: str) -> ServingResponse {
+        if server.dev_mode {
+            return _dev_client_elsewhere();
+        }
         return _render_page_response(request, name, _query_args(request));
     }
 
@@ -2096,7 +2129,7 @@ impl JacAPIServer.build_app -> ServingApp {
             return _serve_static(request, path[1:]);
         }
         if server.dev_mode {
-            return JSONResponse(content={'error': 'Not found'}, status_code=404);
+            return _dev_client_elsewhere();
         }
         configured_root = config.serve.base_route_app if config else '';
         base_route_app = server.introspector.resolve_root_app(configured_root);
@@ -2420,7 +2453,15 @@ impl JacAPIServer.build_app -> ServingApp {
             if isinstance(payload, dict) and 'result' in payload {
                 payload = payload['result'];
             }
-            body = payload if isinstance(payload, str) else json.dumps(payload);
+            if isinstance(payload, bytes) {
+                body = payload;
+            } elif isinstance(payload, str) {
+                body = payload.encode('utf-8');
+            } elif payload is None {
+                body = b"";
+            } else {
+                body = json.dumps(payload).encode('utf-8');
+            }
             return ServingResponse(content=body, media_type=media_type);
         }
         return outcome;
@@ -2456,8 +2497,19 @@ impl JacAPIServer.build_app -> ServingApp {
         return _serve_spec;
     }
     _unserved_specs: list[str] = [];
+    _registered_spec_routes: dict = {};
     for (_spec_name, _spec_kind, _spec) in server.introspector.restspec_routes() {
+        _is_walker = _spec_kind == 'walker';
         _spec_path = str(_spec.path or '');
+        _spec_method = HTTPMethod(str(_spec.method or 'POST').upper());
+        if not _spec_path {
+            if _spec_method == HTTPMethod.POST {
+                continue;
+            }
+            _spec_path = (
+                f'/walker/{_spec_name}' if _is_walker else f'/function/{_spec_name}'
+            );
+        }
         _spec_http = _spec.protocol == APIProtocol.HTTP;
         if (
             not _spec_path.startswith('/')
@@ -2468,16 +2520,20 @@ impl JacAPIServer.build_app -> ServingApp {
             _unserved_specs.append(_spec_name);
             continue;
         }
-        _spec_media = (_spec.produces or 'text/plain') if not _spec.envelope else '';
-        _spec_method = HTTPMethod(str(_spec.method or 'POST').upper());
+        _spec_media = (
+            (_spec.produces or 'text/plain')
+                if (not _spec.envelope and not _is_walker)
+                else ''
+        );
+        if _spec_path in _registered_spec_routes.get(_spec_method, set()) {
+            continue;
+        }
+        _registered_spec_routes.setdefault(_spec_method, set()).add(_spec_path);
         _ep(
             _spec_method,
             _spec_path,
             _mk_spec_ep(
-                _spec_name,
-                _spec_kind == 'walker',
-                _spec_media,
-                _spec_method == HTTPMethod.GET
+                _spec_name, _is_walker, _spec_media, _spec_method == HTTPMethod.GET
             ),
             in_schema=True
         );

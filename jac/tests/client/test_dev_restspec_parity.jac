@@ -67,6 +67,16 @@ def _restspec_app(project_dir: str) -> str {
         '@restspec(method=HTTPMethod.GET, path="/echo", envelope=False)\n'
         'def:pub echo(word: str = "none") -> str {\n'
         '    return "you said " + word;\n'
+        '}\n'
+        '\n'
+        '@restspec(method=HTTPMethod.GET, produces="application/octet-stream", envelope=False)\n'
+        'def:pub raw_bytes -> bytes {\n'
+        '    return b"\\x00binary";\n'
+        '}\n'
+        '\n'
+        '@restspec(method=HTTPMethod.GET, path="/nothing", envelope=False)\n'
+        'def:pub nothing -> str | None {\n'
+        '    return None;\n'
         '}\n',
         encoding="utf-8"
     );
@@ -89,10 +99,10 @@ test "the dev vite config proxies the paths @restspec claims" {
             api_paths=["/install.sh", "/llms.txt"]
         );
         text = config_path.read_text(encoding="utf-8");
-        assert '"/install.sh"' in text , (
+        assert '"^/install\\\\.sh$"' in text , (
             f"declared restspec paths must reach the dev proxy table; got:\n{text}"
         );
-        assert '"/llms.txt"' in text , (
+        assert '"^/llms\\\\.txt$"' in text , (
             f"declared restspec paths must reach the dev proxy table; got:\n{text}"
         );
         assert "http://localhost:8123" in text , (
@@ -185,6 +195,145 @@ test "a GET @restspec binds its arguments from the query string" {
         assert "you said hello" in body , (
             "a GET route has no body, so its arguments come from the query "
             f"string; got {body[:200]!r}"
+        );
+    }
+}
+
+
+test "in dev the API port never builds a production client bundle" {
+    # The hang: the SPA fallback called ensure_bundle() inside the request
+    # thread, which in dev is a cold `bun install` plus a full vite build,
+    # untimed and under a lock, so the request got no response head at all.
+    import from jaclang.client.client_bundle { ClientBundleError }
+
+    with TemporaryDirectory() as tmp {
+        app = _restspec_app(tmp);
+        client = JacTestClient.from_file(app, base_path=tmp);
+        try {
+            client.server.introspector.dev_mode = True;
+            raised = "";
+            try {
+                client.server.introspector.ensure_bundle();
+            } except ClientBundleError as e {
+                raised = str(e);
+            }
+            unknown = client.get("/no-such-page");
+            status = unknown.status_code;
+        } finally {
+            client.close();
+        }
+        assert raised , (
+            "in dev the bundle belongs to the dev server; ensure_bundle must "
+            "refuse rather than build one in a request thread"
+        );
+        assert status == 404 , (
+            f"an unknown dev path must answer, not hang; got {status}"
+        );
+    }
+}
+
+
+test "the dev proxy drops built-in prefixes the app claims as client routes" {
+    # /docs is a built-in proxy prefix AND a page route on the jaclang.org
+    # site. Forwarding it to the API port, which in dev no longer renders the
+    # SPA, 404s every /docs/* URL in dev while --serve serves them.
+    import from jaclang.client.vite_bundler { ViteBundler, DEV_PROXY_PREFIXES }
+
+    with TemporaryDirectory() as tmp {
+        entry_file = _min_project(tmp);
+        bundler = ViteBundler(Path(tmp));
+        config_path = bundler.create_vite_config(
+            entry_file, is_dev=True, api_port=8123, client_paths=["/docs"]
+        );
+        text = config_path.read_text(encoding="utf-8");
+    }
+    assert '"/docs"' not in text , (
+        f"a client-claimed prefix must not be proxied to the api port:\n{text}"
+    );
+    assert '"/walker"' in text , (
+        f"unclaimed built-in prefixes must still be proxied:\n{text}"
+    );
+    assert "/docs" in DEV_PROXY_PREFIXES , (
+        "the built-in list is what the server filters against"
+    );
+}
+
+
+test "a declared literal path is proxied as an exact match, not a prefix" {
+    # A prefix key routes /install.sh.bak and /install.shed to the API too.
+    import from jaclang.client.vite_bundler { ViteBundler }
+
+    with TemporaryDirectory() as tmp {
+        entry_file = _min_project(tmp);
+        bundler = ViteBundler(Path(tmp));
+        config_path = bundler.create_vite_config(
+            entry_file,
+            is_dev=True,
+            api_port=8123,
+            api_paths=["/install.sh", "/board/{id}", "/"]
+        );
+        text = config_path.read_text(encoding="utf-8");
+    }
+    assert '"^/install\\\\.sh$"' in text , (
+        f"a parameter-free path must proxy as an anchored regex:\n{text}"
+    );
+    assert '"/board"' in text , (
+        f"a parameterised path keeps its static prefix:\n{text}"
+    );
+    assert '\n      "/": {' not in text , (
+        f'"/" would route every SPA route to the api port:\n{text}'
+    );
+}
+
+
+test "a path-less @restspec still serves its declared method" {
+    # A spec that names only a method used to be filed under "path parameters,
+    # websockets, webhooks and broadcast" and dropped: none of which applied.
+    # The default route is the one the server already publishes for the name.
+    with TemporaryDirectory() as tmp {
+        app = _restspec_app(tmp);
+        client = JacTestClient.from_file(app, base_path=tmp);
+        try {
+            paths = client.server.introspector.declared_api_paths();
+            response = client.get("/function/raw_bytes");
+            status = response.status_code;
+        } finally {
+            client.close();
+        }
+        assert status == 200 , (
+            f"GET /function/raw_bytes must honor the declared method; got {status}"
+        );
+        assert "/function/raw_bytes" not in paths , (
+            "a default route is already proxied by the built-in /function "
+            f"prefix and needs no extra entry; got {paths}"
+        );
+    }
+}
+
+
+test "a raw payload is written through, bytes and None included" {
+    # json.dumps(bytes) raises, and None used to serialise to the literal
+    # text "null" instead of an empty body.
+    with TemporaryDirectory() as tmp {
+        app = _restspec_app(tmp);
+        client = JacTestClient.from_file(app, base_path=tmp);
+        try {
+            raw = client.get("/function/raw_bytes");
+            empty = client.get("/nothing");
+        } finally {
+            client.close();
+        }
+        assert raw.status_code == 200 , (
+            f"a bytes payload must not 500 on serialisation; got {raw.status_code}"
+        );
+        assert "binary" in raw.text , (
+            f"the bytes payload must reach the wire; got {raw.text[:80]!r}"
+        );
+        assert empty.status_code == 200 , (
+            f"a None payload must still answer; got {empty.status_code}"
+        );
+        assert empty.text == "" , (
+            f"a None payload is an empty body, not \"null\"; got {empty.text!r}"
         );
     }
 }

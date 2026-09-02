@@ -329,3 +329,41 @@ test "`--test_name` without a filepath still refuses to run" {
         f"`jac test --test_name X` with no filepath must still error; got exit {rc}"
     );
 }
+
+
+"""Create a temp project whose `[test] directories` (plural) names two roots,
+with a third directory holding an always-failing suite that neither root
+covers. Returns the project root."""
+def make_multi_root_project -> str {
+    proj = tempfile.mkdtemp(prefix="jacdirs-");
+    (Path(proj) / "jac.toml").write_text(
+        '[project]\nname = "r"\n\n[test]\ndirectories = ["alpha", "beta"]\n'
+    );
+    for name in ["alpha", "beta"] {
+        d = Path(proj) / name;
+        d.mkdir();
+        (d / "suite.jac").write_text(f'test "{name} runs" {{\n    assert True;\n}}\n');
+    }
+    outside = Path(proj) / "gamma";
+    outside.mkdir();
+    (outside / "suite.jac").write_text(
+        'test "must not be collected" {\n    assert False;\n}\n'
+    );
+    return proj;
+}
+
+
+test "`[test] directories` collects every named root and nothing else" {
+    # The plural key is what the jaclang.org example used; only the singular
+    # `directory` had a guard.
+    proj = make_multi_root_project();
+    try {
+        rc = run_in(proj, []);
+    } finally {
+        shutil.rmtree(proj, ignore_errors=True);
+    }
+    # exit 5 = a root was skipped, exit 1 = gamma/ was swept in.
+    assert rc == 0 , (
+        f"both declared roots must run and gamma/ must not; got exit {rc}"
+    );
+}

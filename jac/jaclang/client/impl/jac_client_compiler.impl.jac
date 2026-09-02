@@ -683,14 +683,20 @@ impl JacClientCompiler._generate_routes_manifest(self: JacClientCompiler) -> boo
     manifest_path.parent.mkdir(parents=True, exist_ok=True);
     new_content = "\n".join(lines);
 
-    try {
-        if manifest_path.exists()
-            and manifest_path.read_text(encoding='utf-8') == new_content {
-            return False;
+    previous: (str | None) = None;
+    readable = True;
+    if manifest_path.exists() {
+        try {
+            previous = manifest_path.read_text(encoding='utf-8');
+        } except OSError {
+            readable = False;
         }
-    } except OSError {}
+    }
+    if readable and previous == new_content {
+        return False;
+    }
     manifest_path.write_text(new_content, encoding='utf-8');
-    return True;
+    return readable;
 }
 
 impl JacClientCompiler.init(

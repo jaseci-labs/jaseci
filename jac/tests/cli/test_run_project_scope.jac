@@ -170,3 +170,71 @@ test "--no-takeover runs an inside file standalone" {
         f"--no-takeover must state that it is running standalone; got:\n{out}"
     );
 }
+
+
+test "an in-tree file that is not the entry announces the takeover" {
+    # The destructive case: `jac run scoring_service.jac` inside a serving
+    # project with the dev server up rewrites _entry.js. It ran silently.
+    (world, _) = make_world();
+    proj = os.path.join(world, "site");
+    inside = os.path.join(proj, "helper.jac");
+    try {
+        out = show_from(proj, inside);
+    } finally {
+        shutil.rmtree(world, ignore_errors=True);
+    }
+    assert "takeover" in out , (
+        f"taking over a serving project's build must say so; got:\n{out}"
+    );
+    assert "--no-takeover" in out , (
+        f"the notice must name the flag that opts out; got:\n{out}"
+    );
+}
+
+
+test "the project's own entry-point runs without a notice" {
+    (world, _) = make_world();
+    proj = os.path.join(world, "site");
+    entry_file = os.path.join(proj, "main.jac");
+    try {
+        out = show_from(proj, entry_file);
+    } finally {
+        shutil.rmtree(world, ignore_errors=True);
+    }
+    assert "takeover" not in out , (
+        f"serving a project's own entry is the plain case; got:\n{out}"
+    );
+}
+
+
+test "explicit --takeover on an owned file still reports what it did" {
+    (world, _) = make_world();
+    proj = os.path.join(world, "site");
+    entry_file = os.path.join(proj, "main.jac");
+    try {
+        out = show_from(proj, entry_file, takeover=True);
+    } finally {
+        shutil.rmtree(world, ignore_errors=True);
+    }
+    assert "takeover" in out , (
+        f"an explicit --takeover must always report; got:\n{out}"
+    );
+}
+
+
+test "an in-tree file keeps its project when the shell is somewhere else" {
+    # Ownership is the file's, not the shell's: running the project's file
+    # from outside the tree must still resolve to that project.
+    (world, _) = make_world();
+    proj = os.path.join(world, "site");
+    entry_file = os.path.join(proj, "main.jac");
+    outside_cwd = os.path.join(world, "elsewhere");
+    try {
+        out = show_from(outside_cwd, entry_file);
+    } finally {
+        shutil.rmtree(world, ignore_errors=True);
+    }
+    assert "project kind : web-app" in out , (
+        f"a file's own project follows it wherever the shell is; got:\n{out}"
+    );
+}

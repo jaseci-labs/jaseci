@@ -75,14 +75,14 @@ impl ViteCompiler._emit_na_wasm(self: ViteCompiler, module_path: Path) -> None {
     }
 }
 
-impl ViteCompiler._emit_wasm_module(self: ViteCompiler, module_path: Path) -> None {
+impl ViteCompiler._emit_wasm_module(self: ViteCompiler, module_path: Path) -> bool {
     import from jaclang.compiler.backends.native.wasm_build { compile_to_wasm }
     import from jaclang.compiler.frontend.codeinfo { native_wasm_stem }
     try {
         wasm = compile_to_wasm(str(module_path));
     } except Exception as e {
         console.error(f"na->wasm failed for '{module_path.name}': {e}");
-        return;
+        return False;
     }
     stem = native_wasm_stem(str(module_path));
     dist = self.jac_client_compiler._get_client_dir() / 'dist';
@@ -116,6 +116,7 @@ impl ViteCompiler._emit_wasm_module(self: ViteCompiler, module_path: Path) -> No
     } except Exception as e {
         console.warning(f"Could not write wasm import manifest: {e}");
     }
+    return True;
 }
 
 impl ViteCompiler.create_entry_file(self: ViteCompiler, module_path: Path) -> None {

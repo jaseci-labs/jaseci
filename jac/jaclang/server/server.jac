@@ -164,6 +164,7 @@ obj ModuleIntrospector {
     def is_auth_required_for_walker(walker_name: str) -> bool;
     def restspec_routes -> list[tuple[str, str, any]];
     def declared_api_paths -> list[str];
+    def client_claimed_paths(candidates: list[str]) -> list[str];
 }
 
 obj AuthHandler {
