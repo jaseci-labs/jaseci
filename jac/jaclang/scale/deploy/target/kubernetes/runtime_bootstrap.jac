@@ -167,6 +167,8 @@ def build_bootstrap_init_container(
         'offline"; fi'
     );
 
+    bootstrap_env: list[dict[str, str]] = [];
+
     cache_eligible = False;
     venv_cache_dir = "";
     venv_cache_root = f"{BUNDLE_MOUNT_PATH}/.cache/venv";
@@ -175,23 +177,19 @@ def build_bootstrap_init_container(
         venv_cache_dir = f"{venv_cache_root}/{venv_cache_key(
             resolved_specs, base_image
         )}";
-        commands.append(
-            f'JAC_VENV_CACHE_DIR="{venv_cache_dir}" JAC_VENV_DIR="{venv_dir}" '
-            'jac scale venv-cache-restore'
-        );
+        bootstrap_env.append({"name": "JAC_VENV_CACHE_DIR", "value": venv_cache_dir});
+        bootstrap_env.append({"name": "JAC_VENV_DIR", "value": venv_dir});
+        commands.append('jac scale venv-cache-restore');
     }
 
     if cache_eligible {
-        commands.append(f'JAC_VENV_CACHE_IMAGE_ID="{base_image}" jac install');
-    } else {
-        commands.append("jac install");
+        bootstrap_env.append({"name": "JAC_VENV_CACHE_IMAGE_ID", "value": base_image});
     }
+    commands.append("jac install");
 
     if cache_eligible {
-        commands.append(
-            f'JAC_VENV_DIR="{venv_dir}" JAC_VENV_CACHE_DIR="{venv_cache_dir}" '
-            f'JAC_VENV_CACHE_ROOT="{venv_cache_root}" jac scale venv-cache-publish'
-        );
+        bootstrap_env.append({"name": "JAC_VENV_CACHE_ROOT", "value": venv_cache_root});
+        commands.append('jac scale venv-cache-publish');
     }
 
     script = ' && '.join(commands);
@@ -214,6 +212,9 @@ def build_bootstrap_init_container(
             {"name": BUNDLE_VOLUME_NAME, "mountPath": BUNDLE_MOUNT_PATH}
         ]
     };
+    if bootstrap_env {
+        container["env"] = bootstrap_env;
+    }
     policy = image_pull_policy(base_image);
     if policy {
         container["imagePullPolicy"] = policy;
