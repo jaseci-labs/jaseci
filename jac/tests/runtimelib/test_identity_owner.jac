@@ -1,13 +1,16 @@
 """Regression tests for issue 12(a): which identity stack owns /user/*.
 
-The owner must be a pure function of configuration. It must never depend on
-whether an optional import happened to succeed at boot: the two stacks keep
-credentials in different stores (core: sqlite .jac/data/main.db, scale:
-Postgres), so a silent flip strands every account created before it.
+The owner must be a pure function of configuration, resolved for the project
+being served rather than for whatever directory the process happens to sit in.
+It must never depend on whether an optional import succeeded at boot: the two
+stacks keep credentials in different stores (core: sqlite .jac/data/main.db,
+scale: Postgres), so a silent flip strands every account created before it.
 """
 
 import os;
 import sys;
+import from pathlib { Path }
+import from tempfile { TemporaryDirectory }
 import from unittest.mock { patch }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.server.identity_owner {
@@ -15,72 +18,230 @@ import from jaclang.server.identity_owner {
     IDENTITY_BACKEND_ENV,
     SCALE_IDENTITY,
     identity_owner,
+    scale_stack_configured,
     scale_stack_installed
 }
 
 glob CORE_SERVER_MODULE: str = "jaclang.server.server",
-     SCALE_SERVER_MODULE: str = "jaclang.scale.server.serve";
+     SCALE_SERVER_MODULE: str = "jaclang.scale.server.serve",
+     SCALE_ENV_KEYS: list[str] = [
+         "JAC_DB_URL",
+         "JAC_SCALE_RUNTIME",
+         "JAC_SV_SIBLING",
+         IDENTITY_BACKEND_ENV
+     ];
 
 
-"""Point the configured owner at `value`, returning the previous setting."""
-def _set_backend(value: str | None) -> str | None {
-    previous = os.environ.get(IDENTITY_BACKEND_ENV);
-    if value is None {
-        os.environ.pop(IDENTITY_BACKEND_ENV, None);
-    } else {
-        os.environ[IDENTITY_BACKEND_ENV] = value;
+"""Apply `values` over the identity-relevant environment, returning the old one."""
+def _set_env(values: dict[str, str | None]) -> dict[str, str | None] {
+    previous: dict[str, str | None] = {};
+    for (key, value) in values.items() {
+        previous[key] = os.environ.get(key);
+        if value is None {
+            os.environ.pop(key, None);
+        } else {
+            os.environ[key] = value;
+        }
     }
     return previous;
 }
 
 
-"""Put the configured owner back the way `_set_backend` found it."""
-def _restore_backend(previous: str | None) {
-    _set_backend(previous);
+"""Every identity-relevant variable cleared, so a sibling test cannot leak in."""
+def _cleared_env -> dict[str, str | None] {
+    return {key: None for key in SCALE_ENV_KEYS};
 }
 
 
-test "an unconfigured project resolves to the scale identity in this tree" {
-    previous = _set_backend(None);
+"""A project directory whose jac.toml pins `[serve] identity`."""
+def _project_pinning(project_dir: str, owner: str) -> str {
+    (Path(project_dir) / "jac.toml").write_text(
+        f'[project]\nname = "pinned"\n\n[serve]\nidentity = "{owner}"\n',
+        encoding="utf-8"
+    );
+    return project_dir;
+}
+
+
+test "an unconfigured project resolves to the core identity" {
+    previous = _set_env(_cleared_env());
     try {
         assert scale_stack_installed() is True;
-        assert identity_owner() == SCALE_IDENTITY;
-        assert Jac.get_api_server_class().__module__ == SCALE_SERVER_MODULE;
-    } finally {
-        _restore_backend(previous);
-    }
-}
-
-
-test "configuration alone can hand /user/* to the core identity" {
-    previous = _set_backend(CORE_IDENTITY);
-    try {
+        assert scale_stack_configured() is False;
         assert identity_owner() == CORE_IDENTITY;
         assert Jac.get_api_server_class().__module__ == CORE_SERVER_MODULE;
     } finally {
-        _restore_backend(previous);
+        _set_env(previous);
     }
 }
 
 
-test "an explicit scale setting keeps the scale identity" {
-    previous = _set_backend(SCALE_IDENTITY);
+test "a configured database hands /user/* to the scale identity" {
+    values = _cleared_env();
+    values["JAC_DB_URL"] = "postgresql://identity-owner-test/db";
+    previous = _set_env(values);
     try {
+        assert scale_stack_configured() is True;
         assert identity_owner() == SCALE_IDENTITY;
         assert Jac.get_api_server_class().__module__ == SCALE_SERVER_MODULE;
     } finally {
-        _restore_backend(previous);
+        _set_env(previous);
+    }
+}
+
+
+test "the owner comes from the served project, not the current directory" {
+    with TemporaryDirectory() as tmpdir {
+        _project_pinning(tmpdir, CORE_IDENTITY);
+        values = _cleared_env();
+        values["JAC_DB_URL"] = "postgresql://identity-owner-test/db";
+        previous = _set_env(values);
+        try {
+            assert Path.cwd().resolve() != Path(tmpdir).resolve();
+            assert identity_owner() == SCALE_IDENTITY;
+            assert identity_owner(tmpdir) == CORE_IDENTITY;
+        } finally {
+            _set_env(previous);
+        }
+    }
+}
+
+
+test "a project pinning the scale identity keeps it from another directory" {
+    with TemporaryDirectory() as tmpdir {
+        _project_pinning(tmpdir, SCALE_IDENTITY);
+        previous = _set_env(_cleared_env());
+        try {
+            assert identity_owner() == CORE_IDENTITY;
+            assert identity_owner(tmpdir) == SCALE_IDENTITY;
+        } finally {
+            _set_env(previous);
+        }
+    }
+}
+
+
+"""Serve `project_dir`, run `body`, and put the previous base path back."""
+def _with_base_path(project_dir: str, body: Callable[[], None]) {
+    previous = Jac.get_base_path_dir();
+    Jac.set_base_path(project_dir);
+    try {
+        body();
+    } finally {
+        Jac.set_base_path(previous);
+    }
+}
+
+
+test "the served base path decides the server class, not the current directory" {
+    with TemporaryDirectory() as tmpdir {
+        _project_pinning(tmpdir, SCALE_IDENTITY);
+        previous = _set_env(_cleared_env());
+        try {
+            assert identity_owner() == CORE_IDENTITY;
+            def _check {
+                assert Jac.get_api_server_class().__module__ == SCALE_SERVER_MODULE;
+            }
+            _with_base_path(tmpdir, _check);
+        } finally {
+            _set_env(previous);
+        }
+    }
+}
+
+
+test "a base path pinning the core identity gets the core server class" {
+    with TemporaryDirectory() as tmpdir {
+        _project_pinning(tmpdir, CORE_IDENTITY);
+        values = _cleared_env();
+        values["JAC_DB_URL"] = "postgresql://identity-owner-test/db";
+        previous = _set_env(values);
+        try {
+            assert identity_owner() == SCALE_IDENTITY;
+            def _check {
+                assert Jac.get_api_server_class().__module__ == CORE_SERVER_MODULE;
+            }
+            _with_base_path(tmpdir, _check);
+        } finally {
+            _set_env(previous);
+        }
+    }
+}
+
+
+test "an environment setting overrides the project setting" {
+    with TemporaryDirectory() as tmpdir {
+        _project_pinning(tmpdir, CORE_IDENTITY);
+        values = _cleared_env();
+        values[IDENTITY_BACKEND_ENV] = SCALE_IDENTITY;
+        previous = _set_env(values);
+        try {
+            assert identity_owner(tmpdir) == SCALE_IDENTITY;
+            assert Jac.get_api_server_class().__module__ == SCALE_SERVER_MODULE;
+        } finally {
+            _set_env(previous);
+        }
+    }
+}
+
+
+test "an unrecognized environment setting is refused, not guessed" {
+    values = _cleared_env();
+    values[IDENTITY_BACKEND_ENV] = "bogus";
+    previous = _set_env(values);
+    try {
+        with testraises(ValueError) as exc {
+            identity_owner();
+        }
+        message = str(exc.value);
+        assert "bogus" in message;
+        assert CORE_IDENTITY in message;
+        assert SCALE_IDENTITY in message;
+    } finally {
+        _set_env(previous);
+    }
+}
+
+
+test "an unrecognized jac.toml setting is refused, not guessed" {
+    with TemporaryDirectory() as tmpdir {
+        _project_pinning(tmpdir, "postgres");
+        previous = _set_env(_cleared_env());
+        try {
+            with testraises(ValueError) as exc {
+                identity_owner(tmpdir);
+            }
+            assert "postgres" in str(exc.value);
+        } finally {
+            _set_env(previous);
+        }
+    }
+}
+
+
+test "an unreadable project config is refused, not resolved automatically" {
+    with TemporaryDirectory() as tmpdir {
+        (Path(tmpdir) / "jac.toml").write_text(
+            '[project]\nname = "broken\n', encoding="utf-8"
+        );
+        previous = _set_env(_cleared_env());
+        try {
+            with testraises(Exception) as exc {
+                identity_owner(tmpdir);
+            }
+            assert not isinstance(exc.value, AssertionError);
+        } finally {
+            _set_env(previous);
+        }
     }
 }
 
 
 test "a broken scale import fails loudly instead of changing the owner" {
-    previous = _set_backend(SCALE_IDENTITY);
+    values = _cleared_env();
+    values[IDENTITY_BACKEND_ENV] = SCALE_IDENTITY;
+    previous = _set_env(values);
     try {
-        # A None entry in sys.modules is how CPython spells "this import
-        # fails"; any real failure inside the scale serve import graph (a
-        # compile error, a half-written cache entry, a missing dependency)
-        # reaches the boot path the same way.
         with patch.dict(sys.modules, {SCALE_SERVER_MODULE: None}) {
             with testraises(RuntimeError) as exc {
                 Jac.get_api_server_class();
@@ -90,6 +251,6 @@ test "a broken scale import fails loudly instead of changing the owner" {
             assert "identity" in message.lower();
         }
     } finally {
-        _restore_backend(previous);
+        _set_env(previous);
     }
 }

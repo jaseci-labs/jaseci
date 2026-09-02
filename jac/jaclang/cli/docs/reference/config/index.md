@@ -228,11 +228,13 @@ base_route_app = ""      # Client app to serve at /
 
 # Which identity stack owns /user/* -- register, login, tokens, and the
 # credential store behind them. "auto" is the scale (Postgres) identity when
-# the scale package is installed and the core (sqlite .jac/data/main.db)
-# identity when it is not. Set it explicitly to pin one; the setting alone
-# decides, so a scale stack that will not import fails the boot instead of
-# quietly serving the other store, which holds none of the same accounts.
-# JAC_IDENTITY_BACKEND overrides it for one run.
+# the scale stack is configured for the project (a [scale.database] url, or
+# JAC_DB_URL / JAC_SCALE_RUNTIME in the environment) and the core identity
+# (sqlite .jac/data/main.db) when it is not. Set it explicitly to pin one; the
+# setting alone decides, resolved for the project being served rather than the
+# current directory, so a scale stack that will not import fails the boot
+# instead of quietly serving the other store, which holds none of the same
+# accounts. JAC_IDENTITY_BACKEND overrides it for one run.
 identity = "auto"        # "auto" | "core" | "scale"
 
 # Optimistic-concurrency policy for concurrent check-then-create races
@@ -882,7 +884,8 @@ A `jac scale deploy` reads the same file when it stages the app bundle, so a par
 | `NO_EMOJI` | Disable emoji in terminal output |
 | `JAC_PROFILE` | Activate a configuration profile (e.g., `production`) |
 | `JAC_BASE_PATH` | Override base directory for data/storage |
-| `JAC_DATA_PATH` | Override the base directory for application data (graph storage, user db) |
+| `JAC_DATA_PATH` | Override the base directory for application data (graph storage, user db, dev signing secret) |
+| `JAC_IDENTITY_BACKEND` | Which stack owns `/user/*` for one run: `auto` (default), `core`, or `scale`. Overrides `[serve] identity` |
 | `JACPATH` | Colon-separated extra search path for Jac module resolution (like `PYTHONPATH`) |
 | `JAC_SCHEMA_REPAIR` | Schema-drift handling on load: `repair` (default) or `strict` |
 | `JAC_STRICT_PERMISSIONS` | Enable strict permission checking for security-sensitive operations (`1`/`true`) |

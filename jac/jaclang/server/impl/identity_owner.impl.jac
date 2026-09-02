@@ -1,9 +1,3 @@
-import logging;
-import from pathlib { Path }
-
-glob _logger = logging.getLogger(__name__),
-     _warned_settings: set[str] = set();
-
 impl scale_stack_installed -> bool {
     import importlib.util;
     try {
@@ -13,14 +7,21 @@ impl scale_stack_installed -> bool {
     }
 }
 
-def _configured_owner(project_dir: (str | None)) -> str {
-    try {
-        import from jaclang.project.config { JacConfig }
-        config = JacConfig.discover(Path(project_dir) if project_dir else None);
-    } except Exception as e {
-        _logger.debug(f"[serve] identity unreadable, resolving automatically: {e}");
-        return '';
+impl scale_stack_configured -> bool {
+    if not scale_stack_installed() {
+        return False;
     }
+    try {
+        import from jaclang.scale.plugin { scale_runtime_configured }
+    } except ImportError as e {
+        raise scale_stack_unavailable('jaclang.scale.plugin', e);
+    }
+    return scale_runtime_configured();
+}
+
+def _configured_owner(project_dir: (str | None)) -> str {
+    import from jaclang.project.config { get_config, get_config_for_dir }
+    config = get_config_for_dir(project_dir) if project_dir else get_config();
     if config is None {
         return '';
     }
@@ -37,14 +38,16 @@ impl identity_owner(project_dir: (str | None) = None) -> str {
     if setting in KNOWN_IDENTITY_OWNERS {
         return setting;
     }
-    if setting and setting != AUTO_IDENTITY and setting not in _warned_settings {
-        _warned_settings.add(setting);
-        _logger.warning(
-            f"{source} = {setting!r} is not one of 'auto', "
-            f"'{CORE_IDENTITY}', '{SCALE_IDENTITY}'; resolving automatically."
+    if setting and setting != AUTO_IDENTITY {
+        accepted = ', '.join(repr(name) for name in IDENTITY_SETTINGS);
+        raise ValueError(
+            f"{source} = {setting!r} does not name an identity owner. "
+            f"Accepted values are {accepted}. Which stack owns /user/* decides "
+            'which database the credentials live in, so there is no safe value '
+            'to guess here.'
         );
     }
-    return SCALE_IDENTITY if scale_stack_installed() else CORE_IDENTITY;
+    return SCALE_IDENTITY if scale_stack_configured() else CORE_IDENTITY;
 }
 
 impl scale_stack_unavailable(module_name: str, error: any = None) -> RuntimeError {

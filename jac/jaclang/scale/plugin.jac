@@ -41,7 +41,7 @@ def _print_local_ms_banner(routes: dict[str, str]) {
     }
 }
 
-def _scale_runtime_active -> bool {
+def scale_runtime_configured -> bool {
     if (
         os.environ.get("JAC_SCALE_RUNTIME") == "1"
         or os.environ.get("JAC_SV_SIBLING") == "1"
@@ -652,7 +652,7 @@ class JacScalePlugin {
         base_path_dir: (str | None) = None,
         full_target_path: (str | None) = None
     ) -> ExecutionContext | None {
-        if not _scale_runtime_active() {
+        if not scale_runtime_configured() {
             return None;
         }
         import from .memory.context { JScaleExecutionContext }
@@ -668,7 +668,15 @@ class JacScalePlugin {
     }
 
     static def get_api_server_class -> type | None {
-        import from jaclang.server.identity_owner { scale_stack_unavailable }
+        import from jaclang.server.identity_owner {
+            SCALE_IDENTITY,
+            identity_owner,
+            scale_stack_unavailable
+        }
+        import from jaclang.runtime.runtime { JacRuntime }
+        if identity_owner(JacRuntime.get_base_path_dir()) != SCALE_IDENTITY {
+            return None;
+        }
         try {
             import from .server.serve { JacAPIServer }
         } except ImportError as e {
@@ -683,7 +691,7 @@ class JacScalePlugin {
             identity_owner,
             scale_stack_unavailable
         }
-        if identity_owner() != SCALE_IDENTITY {
+        if identity_owner(base_path) != SCALE_IDENTITY {
             return None;
         }
         try {

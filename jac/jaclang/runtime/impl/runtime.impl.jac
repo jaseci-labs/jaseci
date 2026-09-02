@@ -1557,7 +1557,7 @@ impl JacServe.get_api_server_class -> type {
         identity_owner,
         scale_stack_unavailable
     }
-    if identity_owner() != SCALE_IDENTITY {
+    if identity_owner(JacRuntime.get_base_path_dir()) != SCALE_IDENTITY {
         import from jaclang.server.server { JacAPIServer }
         return JacAPIServer;
     }
@@ -1565,14 +1565,25 @@ impl JacServe.get_api_server_class -> type {
     if _sp is None {
         raise scale_stack_unavailable('jaclang.scale.plugin', scale_provider_error());
     }
-    return _sp.get_api_server_class();
+    _scaled = _sp.get_api_server_class();
+    if _scaled is None {
+        raise scale_stack_unavailable('jaclang.scale.server.serve');
+    }
+    return _scaled;
 }
 
 impl JacServe.ensure_sv_service(module_name: str, base_path: str) -> None {
+    import from jaclang.server.identity_owner {
+        scale_stack_installed,
+        scale_stack_unavailable
+    }
     _sp = _scale_provider();
     if _sp is not None {
         _sp.ensure_sv_service(module_name, base_path);
         return;
+    }
+    if scale_stack_installed() {
+        raise scale_stack_unavailable('jaclang.scale.plugin', scale_provider_error());
     }
     import os;
     import time;
