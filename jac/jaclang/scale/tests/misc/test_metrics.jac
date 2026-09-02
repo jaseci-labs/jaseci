@@ -107,6 +107,7 @@ test "parse prometheus text and calculate summary" {
         "# TYPE http_requests_total counter\n"
         "http_requests_total{method=\"GET\",status_code=\"200\"} 100\n"
         "http_requests_total{method=\"POST\",status_code=\"500\"} 5\n"
+        "http_requests_total{method=\"POST\",status_code=\"404\"} 7\n"
         "# HELP requests_in_progress Active requests\n"
         "# TYPE requests_in_progress gauge\n"
         "requests_in_progress 3\n"
@@ -121,14 +122,15 @@ test "parse prometheus text and calculate summary" {
     assert len(metrics) == 3;
     assert metrics[0]['name'] == 'http_requests_total';
     assert metrics[0]['type'] == 'counter';
-    assert len(metrics[0]['values']) == 2;
+    assert len(metrics[0]['values']) == 3;
     assert metrics[0]['values'][0]['labels']['method'] == 'GET';
     assert metrics[0]['values'][0]['value'] == 100.0;
 
     summary = _calculate_metrics_summary(metrics);
 
-    assert summary['total_requests'] == 105;
+    assert summary['total_requests'] == 112;
     assert summary['error_count'] == 5;
+    assert summary['client_error_count'] == 7;
     assert summary['active_requests'] == 3;
     assert summary['avg_latency_ms'] == 50.0;
 }

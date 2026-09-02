@@ -1219,6 +1219,7 @@ def _calculate_metrics_summary(metrics_data: list[dict[str, any]]) -> dict {
         'total_requests': 0,
         'active_requests': 0,
         'error_count': 0,
+        'client_error_count': 0,
         'avg_latency_ms': 0.0
     };
 
@@ -1228,8 +1229,11 @@ def _calculate_metrics_summary(metrics_data: list[dict[str, any]]) -> dict {
             for v in metric['values'] {
                 if isinstance(v['value'], (int, float)) {
                     summary['total_requests'] += int(v['value']);
-                    if v['labels'].get('status_code', '').startswith('5') {
+                    status_code = v['labels'].get('status_code', '');
+                    if status_code.startswith('5') {
                         summary['error_count'] += int(v['value']);
+                    } elif status_code.startswith('4') {
+                        summary['client_error_count'] += int(v['value']);
                     }
                 }
             }
