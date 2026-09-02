@@ -123,6 +123,7 @@ def _check_file_job(request: dict[(str, any)]) -> dict[(str, any)] {
                     no_cgen=not bool(opts.get("native_coverage")),
                     native_parity=True,
                     force_target_program=True,
+                    iface_ok=True,
                     suppress_codes=list(opts.get("suppress_codes") or [])
                 )
             );

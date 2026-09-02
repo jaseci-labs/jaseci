@@ -57,12 +57,21 @@ def _digest_under_seed(seed: str) -> tuple[str, str] {
 }
 
 test "a comptime set compiles to identical bytecode under any hash seed" {
-    results = [_digest_under_seed(s) for s in ["1", "2", "3"]];
-    digests = {r[0] for r in results};
-    orders = {r[1] for r in results};
+    digests: set = set();
+    orders: set = set();
+    sampled = 0;
+    for s in [str(i) for i in range(1, 13)] {
+        r = _digest_under_seed(s);
+        digests.add(r[0]);
+        orders.add(r[1]);
+        sampled += 1;
+        if len(orders) > 1 and sampled >= 3 {
+            break;
+        }
+    }
     assert len(orders) > 1 , (
-        "PYTHONHASHSEED did not vary set iteration order, so this test cannot "
-        "detect the defect it guards"
+        "PYTHONHASHSEED did not vary set iteration order across "
+        f"{sampled} seeds, so this test cannot detect the defect it guards"
     );
     assert len(digests) == 1 , (
         f"comptime lowering is hash-seed dependent: {len(digests)} distinct "

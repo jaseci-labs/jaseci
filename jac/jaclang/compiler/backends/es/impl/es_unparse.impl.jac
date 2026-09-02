@@ -685,7 +685,11 @@ impl JSCodeGenerator.build_segments(code: str) -> list[tuple[int, int, int, int,
         (frame, offset, inherited) = pending.pop();
         (nd, text, kids) = frame;
         loc = nd.loc
-            if (nd.loc is not None and nd.loc.start is not None)
+            if (
+                nd.loc is not None
+                and nd.loc.start is not None
+                and nd.loc.start.line >= 1
+            )
             else inherited;
         start = loc.start if loc is not None else None;
         if start is not None {
