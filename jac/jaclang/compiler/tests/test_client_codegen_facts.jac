@@ -17,15 +17,16 @@ the bundle builder found that analysis-free module in the hub and emitted from
 it: every builtin came out bare and the client-to-native import binding was
 never generated.
 
-The client codegen seam now demands the facts and re-derives them when they
-are missing, and the emitted-bundle audit reports a bare builtin (`E5103`)
-rather than shipping it, so this class cannot go silent again.
+An analysis-free hub entry is now a miss at the client codegen seam, so a warm
+build compiles the source exactly as a cold one does, and the emitted-bundle
+audit reports a bare builtin (`E5103`) rather than shipping it, so this class
+cannot go silent again.
 """
 
 import os;
 import shutil;
 import tempfile;
-import from jaclang.client.client_bundle { _ensure_js_generated }
+import from jaclang.client.client_bundle { _client_target_module, _ensure_js_generated }
 import from jaclang.compiler.backends.es.esast_gen_pass { EsastGenPass }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.driver.pass_driver { run_pass }
@@ -54,7 +55,7 @@ glob _HELPER_SRC: str = (
 
 """Write a two-module client project; return (project dir, widget path)."""
 def _project -> tuple[str, str] {
-    base = tempfile.mkdtemp(prefix="jac_codegen_facts_");
+    base = os.path.realpath(tempfile.mkdtemp(prefix="jac_codegen_facts_"));
     with open(os.path.join(base, "jac.toml"), "w") as f {
         f.write("[project]\nname = \"codegenfacts\"\nkind = \"web-app\"\n");
     }
@@ -77,6 +78,20 @@ def _ingest_as_dependency(prog: JacProgram, path: str) -> Module {
 }
 
 
+"""The first handful of lines where two bundles part ways."""
+def _first_delta(cold: str, warm: str) -> str {
+    import difflib;
+    lines = [
+        ln
+        for ln in difflib.unified_diff(
+            cold.splitlines(), warm.splitlines(), "cold", "warm", lineterm=""
+        )
+        if ln.startswith(("+", "-", "@"))
+    ];
+    return '\n'.join(lines[:24]);
+}
+
+
 def _codes(prog: JacProgram) -> list[str] {
     return [
         e.code.code
@@ -93,25 +108,32 @@ test "a second client build lowers exactly what the first one did" {
         cold_mod = cold.compile(widget, options=CompileOptions(no_cgen=True));
         run_pass(EsastGenPass, cold_mod, cold);
         assert _codes(cold) == [] , _codes(cold);
+        assert _client_target_module(widget, cold) is cold_mod , (
+            "a fully compiled module is the client codegen target for its source"
+        );
 
         warm = JacProgram();
-        warm_mod = _ingest_as_dependency(warm, widget);
-        assert "TypeOf" not in warm.analysis.analyses_run.get(id(warm_mod), set()) , (
+        warm_dep = _ingest_as_dependency(warm, widget);
+        assert "TypeOf" not in warm.analysis.analyses_run.get(id(warm_dep), set()) , (
             "the dependency schedule is supposed to leave the module unanalyzed;"
             " this test no longer reproduces the warm shape"
         );
+        assert _client_target_module(widget, warm) is None , (
+            "an analysis-free hub entry was handed to client codegen as a target"
+        );
 
-        emitted = _ensure_js_generated(warm_mod, warm);
+        warm_mod = warm.compile(widget, options=CompileOptions(no_cgen=True));
+        assert _client_target_module(widget, warm) is warm_mod , (
+            "the warm build never reached a module carrying checker facts"
+        );
+        _ensure_js_generated(warm_mod, warm);
         assert _codes(warm) == [] , _codes(warm);
-        assert "TypeOf" in warm.analysis.analyses_run.get(id(emitted), set()) , (
-            "client codegen ran on a module whose checker facts were never derived"
-        );
-        assert emitted.gen.js == cold_mod.gen.js , (
+        assert warm_mod.gen.js == cold_mod.gen.js , (
             "the warm bundle differs from the cold one:\n"
-            f"cold:\n{cold_mod.gen.js}\n\nwarm:\n{emitted.gen.js}"
+            + _first_delta(cold_mod.gen.js, warm_mod.gen.js)
         );
-        assert "_jac.builtin.enumerate(" in emitted.gen.js , emitted.gen.js;
-        assert "_jac.builtin.range(" in emitted.gen.js , emitted.gen.js;
+        assert "_jac.builtin.enumerate(" in warm_mod.gen.js , warm_mod.gen.js;
+        assert "_jac.builtin.range(" in warm_mod.gen.js , warm_mod.gen.js;
     } finally {
         shutil.rmtree(base, ignore_errors=True);
     }
