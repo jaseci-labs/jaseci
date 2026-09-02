@@ -196,6 +196,16 @@ impl JacProgram.has_failed_parse(self: JacProgram, path: str) -> bool {
     return mod is not None and mod.parse_failed;
 }
 
+impl JacProgram.is_dep_view_live(
+    self: JacProgram, resolved_path: str, view: any
+) -> bool {
+    if view is None or hasattr(view, "cat_kids") {
+        return True;
+    }
+    live = self.find_module(resolved_path);
+    return live is None or live is view;
+}
+
 impl JacProgram.drop_module_alerts(self: JacProgram, resolved_path: str) -> None {
     self.diags.drop_module(resolved_path);
 }
