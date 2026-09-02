@@ -216,6 +216,7 @@ obj CtEvaluator {
         _active: set[any] = set(),
         _enum_cache: dict[int, list] = {},
         _ret: any = None,
+        _ct_root: (Module | None) = None,
         _builtins: dict = {};
 
     def postinit {
@@ -289,6 +290,41 @@ obj CtEvaluator {
         return out;
     }
 
+    def _enter_root(nd: UniNode) -> (Module | None) {
+        prev = self._ct_root;
+        if prev is None {
+            self._ct_root = nd.find_parent_of_type(Module);
+        }
+        return prev;
+    }
+
+    def _note_ct_path(path: str) {
+        owner = self._ct_root;
+        if owner is None or not path {
+            return;
+        }
+        owner_path = _norm_path(owner.loc.mod_path if owner.loc else "");
+        if owner_path and os.path.realpath(owner_path) == path {
+            return;
+        }
+        if path not in owner.ct_file_deps {
+            owner.ct_file_deps.append(path);
+        }
+    }
+
+    def _note_producer(home: (Module | None)) {
+        if home is None or home is self._ct_root {
+            return;
+        }
+        path = _norm_path(home.loc.mod_path if home.loc else "");
+        if not path.endswith(".jac") {
+            return;
+        }
+        try {
+            self._note_ct_path(os.path.realpath(path));
+        } except OSError {}
+    }
+
     def try_eval(nd: Expr, demand: bool = False) -> (CtValue | None) {
         self.last_error = None;
         key = id(nd);
@@ -299,6 +335,7 @@ obj CtEvaluator {
         saved_frames = self.frames;
         saved_barriers = self.barriers;
         saved_demand = self.demand;
+        saved_root = self._enter_root(nd);
         self.frames = [];
         self.barriers = [];
         self.demand = demand;
@@ -331,11 +368,13 @@ obj CtEvaluator {
             self.frames = saved_frames;
             self.barriers = saved_barriers;
             self.demand = saved_demand;
+            self._ct_root = saved_root;
         }
     }
 
     def eval_with_bindings(nd: Expr, bindings: dict[str, any]) -> any {
         saved_demand = self.demand;
+        saved_root = self._enter_root(nd);
         self.demand = True;
         self.push_frame(barrier=True);
         for (k, v) in bindings.items() {
@@ -346,6 +385,7 @@ obj CtEvaluator {
         } finally {
             self.pop_frame();
             self.demand = saved_demand;
+            self._ct_root = saved_root;
         }
     }
 
@@ -1041,6 +1081,7 @@ obj CtEvaluator {
     }
 
     def _eval_binding(asn: Assignment) -> any {
+        self._note_producer(asn.find_parent_of_type(Module));
         if asn.value is None {
             raise CtError("comptime binding has no initializer");
         }
@@ -1915,6 +1956,7 @@ obj CtEvaluator {
         }
         params = ability.signature.get_parameters();
         kw = `dict(kwargs);
+        self._note_producer(ability.find_parent_of_type(Module));
         self.push_frame(barrier=True);
         self.call_stack.append(name);
         try {
@@ -1995,6 +2037,7 @@ obj CtEvaluator {
         if mod is not None and path not in mod.ct_file_deps {
             mod.ct_file_deps.append(path);
         }
+        self._note_ct_path(path);
         self.burn(len(data) // 64 + 1);
         if as_bytes {
             return data;

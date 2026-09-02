@@ -138,10 +138,10 @@ test "an edit to a module no fold read leaves the consumer's cache alone" {
     paths = _project();
     _folded(paths["consmod"]);
     cache = get_module_cache_path(paths["consmod"]);
-    stamp = os.path.getmtime(str(cache));
+    stamp = os.path.getmtime(cache);
     _write(paths["othermod"], OTHER_SRC_EDIT);
     _folded(paths["consmod"]);
-    assert os.path.getmtime(str(cache)) == stamp , (
+    assert os.path.getmtime(cache) == stamp , (
         "a body-only edit to an ordinary dependency rebuilt the consumer"
     );
 }

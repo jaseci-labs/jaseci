@@ -165,6 +165,10 @@ obj JacCompiler {
         options: CompileOptions = CompileOptions()
     ) -> uni.Module;
 
+    def _ingest_comptime_producers(
+        mod_targ: uni.Module, actual_program: JacProgram, file_path: str
+    ) -> None;
+
     def _compile_pipeline(
         file_path: str,
         actual_program: JacProgram,

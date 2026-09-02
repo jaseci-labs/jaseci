@@ -102,7 +102,8 @@ impl JacProgram.load_dependency_module(
     self: JacProgram,
     source_path: str,
     importer_path: (str | None) = None,
-    use_str: (str | None) = None
+    use_str: (str | None) = None,
+    full_ast: bool = False
 ) -> uni.Module {
     import from pathlib { Path }
 
@@ -166,7 +167,12 @@ impl JacProgram.load_dependency_module(
             mod = self.compile(
                 source_path,
                 use_str=use_str,
-                options=_DepOpts(no_cgen=True, symtab_ir_only=True, iface_ok=True)
+                options=_DepOpts(
+                    no_cgen=True,
+                    symtab_ir_only=True,
+                    iface_ok=not full_ast,
+                    need_full_ast=full_ast
+                )
             );
         }
         if not hasattr(mod, "cat_kids") {

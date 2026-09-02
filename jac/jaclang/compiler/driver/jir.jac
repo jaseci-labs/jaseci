@@ -445,9 +445,9 @@ def read_envkey(data: bytes) -> (str | None) {
     return _read_key_section(data, SEC_ENVKEY);
 }
 
-def read_ct_deps(data: bytes) -> list[tuple[(str, float)]] {
+def read_ct_deps(data: bytes) -> list[tuple[(str, str)]] {
     raw = _read_key_section(data, SEC_CTDEPS);
-    out: list[tuple[(str, float)]] = [];
+    out: list[tuple[(str, str)]] = [];
     if not raw {
         return out;
     }
@@ -455,35 +455,39 @@ def read_ct_deps(data: bytes) -> list[tuple[(str, float)]] {
         if "\t" not in line {
             continue;
         }
-        (path, _sep, stamp) = line.partition("\t");
-        try {
-            out.append((path, float(stamp), ));
-        } except ValueError {
-            continue;
-        }
+        (path, _sep, digest) = line.partition("\t");
+        out.append((path, digest, ));
     }
     return out;
 }
 
+def ct_dep_digest(path: str) -> str {
+    try {
+        h = hashlib.sha256();
+        h.update(compute_content_sha256(path).encode());
+        if path.endswith('.jac') {
+            for (rel, digest) in _related_files(path) {
+                h.update(rel.encode());
+                h.update(digest.encode());
+            }
+        }
+        return h.hexdigest();
+    } except OSError {
+        return "";
+    }
+}
+
 def ct_deps_section(paths: list[str]) -> bytes {
     lines: list[str] = [];
-    for path in paths {
-        try {
-            lines.append(f"{path}\t{os.path.getmtime(path)}");
-        } except OSError {
-            lines.append(f"{path}\t0");
-        }
+    for path in sorted(set(paths)) {
+        lines.append(f"{path}\t{ct_dep_digest(path)}");
     }
     return "\n".join(lines).encode("utf-8");
 }
 
 def ct_deps_fresh(data: bytes) -> bool {
-    for (path, stamp) in read_ct_deps(data) {
-        try {
-            if os.path.getmtime(path) != stamp {
-                return False;
-            }
-        } except OSError {
+    for (path, digest) in read_ct_deps(data) {
+        if not digest or ct_dep_digest(path) != digest {
             return False;
         }
     }

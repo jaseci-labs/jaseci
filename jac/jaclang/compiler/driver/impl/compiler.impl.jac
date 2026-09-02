@@ -1422,6 +1422,41 @@ impl JacCompiler._compile_once(
     return _mod_out;
 }
 
+impl JacCompiler._ingest_comptime_producers(
+    mod_targ: uni.Module, actual_program: JacProgram, file_path: str
+) -> None {
+    if mod_targ is None or self.selfhost.is_selfhost(actual_program) {
+        return;
+    }
+    saved_opts = actual_program.options;
+    here_real = os.path.realpath(str(file_path));
+    try {
+        for imp in mod_targ.get_all_sub_nodes(uni.Import) {
+            if not imp.is_comptime or imp.from_loc is None or imp.is_virtual_jac {
+                continue;
+            }
+            try {
+                target = imp.from_loc.resolve_relative_path();
+            } except Exception {
+                continue;
+            }
+            if not isinstance(target, str) or not target.endswith('.jac') {
+                continue;
+            }
+            if not os.path.isfile(target) or os.path.realpath(target) == here_real {
+                continue;
+            }
+            try {
+                actual_program.load_dependency_module(
+                    target, importer_path=file_path, full_ast=True
+                );
+            } except Exception {}
+        }
+    } finally {
+        actual_program.options = saved_opts;
+    }
+}
+
 impl JacCompiler._compile_pipeline(
     file_path: str,
     actual_program: JacProgram,
@@ -1434,6 +1469,7 @@ impl JacCompiler._compile_pipeline(
         keep_str, file_path, actual_program, cancel_token=options.cancel_token
     );
     had_parse_errors = len(actual_program.errors_had) > had_parse_errors;
+    self._ingest_comptime_producers(mod_targ, actual_program, file_path);
 
     cur_mod_path = os.path.normpath(file_path);
     blocking_errs_pre_ir = self._count_module_blocking_errors(
