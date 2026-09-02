@@ -86,8 +86,8 @@ a second connection register while the first one's subscribe is still in flight.
 obj _FailingBackplane(BaseBackplane) {
     has delay: float = 0.0;
 
-    async def start { }
-    async def publish(channel: str, message: dict) { }
+    async def start {}
+    async def publish(channel: str, message: dict) {}
     async def subscribe(channel: str, handler: any) {
         if self.delay {
             await asyncio.sleep(self.delay);
@@ -95,8 +95,8 @@ obj _FailingBackplane(BaseBackplane) {
         raise RuntimeError('backplane unavailable');
     }
 
-    async def unsubscribe(channel: str, handler: any) { }
-    async def close { }
+    async def unsubscribe(channel: str, handler: any) {}
+    async def close {}
 }
 
 

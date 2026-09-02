@@ -1223,6 +1223,9 @@ impl _parse_toml_data(
         test_data = data["test"];
         config.`test = TestConfig(
             directory=test_data.get("directory", ""),
+            directories=[str(_d) for _d in test_data.get("directories", [])],
+            isolate=[str(_p) for _p in test_data.get("isolate", [])],
+            serial=[str(_p) for _p in test_data.get("serial", [])],
             filter=test_data.get("filter", ""),
             verbose=test_data.get("verbose", False),
             fail_fast=test_data.get("fail_fast", False),
@@ -1318,7 +1321,10 @@ impl _parse_toml_data(
 
         config.dev = DevConfig(
             jaclang_source=str(dev_data.get("jaclang_source", "")),
-            test_jobs=str(dev_data.get("test_jobs", "auto"))
+            jobs=str(dev_data.get("jobs", "")),
+            test_jobs=str(dev_data.get("test_jobs", "")),
+            check_jobs=str(dev_data.get("check_jobs", "")),
+            fmt_jobs=str(dev_data.get("fmt_jobs", ""))
         );
     }
     _warn_legacy_plugins_table(data);

@@ -17,12 +17,12 @@ obj NaIRGenGcDebug(NaIRGenState) {
     def _set_rc_ctx(op: str, loc: str) -> None;
     def _clear_rc_ctx -> None;
     def _emit_live_list_remove(
-        b: object,
-        target_ptr: object,
-        i8_ptr: object,
-        i64_ptr: object,
-        done_bb: object,
-        free_bb: object
+        b: ir.IRBuilder,
+        target_ptr: ir.Value,
+        i8_ptr: ir.Type,
+        i64_ptr: ir.Type,
+        done_bb: ir.Block,
+        free_bb: ir.Block
     ) -> None;
 
     def _emit_rc_live_dump -> None;

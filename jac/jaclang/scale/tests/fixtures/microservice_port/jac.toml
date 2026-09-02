@@ -1,0 +1,9 @@
+[project]
+name = "microservice-port-fixture"
+entry-point = "main.jac"
+
+# One route is enough to put `jac run --serve` on the gateway path: declaring
+# [scale.microservices.routes] is what turns microservice mode on, and that is
+# the path whose port handling this fixture exists to pin.
+[scale.microservices.routes]
+echo_service = "/echo"

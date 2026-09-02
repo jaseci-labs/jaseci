@@ -18,7 +18,7 @@ impl MTIRGenPass.postinit -> None {
     super.postinit();
 }
 
-impl MTIRGenPass.transform(ir_in: Module) -> Module {
+impl MTIRGenPass._run_impl(ir_in: Module) -> Module {
     for nd in ir_in.get_all_sub_nodes(Ability) {
         self._process_ability(nd);
     }
@@ -100,9 +100,7 @@ impl MTIRGenPass._parse_type_expr(
             }
             return tuple([base] + resolved_parts);
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     sym = self._extract_type_symbol(type_expr, scope);
     if sym is not None {
         if sym.sym_type.value == 'enum' {
@@ -442,9 +440,7 @@ impl MTIRGenPass._extract_tools_from_expr(
                                 tools.append(tool_info);
                             }
                         }
-                    } except Exception {
-                        ;
-                    }
+                    } except Exception {}
                 }
             }
         }
@@ -619,4 +615,16 @@ impl MTIRGenPass._register_archetype_light(nd: Archetype) -> None {
         methods=methods
     );
     Jac.add_mtir_to_map(self._get_scope_str(nd), class_info);
+}
+
+impl MTIRGenPass.transform(ir_in: Module) -> Module {
+    self.ir_out = ir_in;
+    ir_in spawn self;
+    out = self.ir_out;
+    assert isinstance(out, Module);
+    return out;
+}
+
+impl MTIRGenPass.run_walk with Module entry {
+    self.ir_out = self._run_impl(here);
 }
