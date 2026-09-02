@@ -338,7 +338,22 @@ For the full Kubernetes deployment story (image building, ingress, autoscaling),
 
 ### Microservice Mode + Gateway
 
-For projects with more than a handful of services, the built-in `scale` subsystem ships a microservice mode that puts a single API gateway in front of all of them. `jac setup microservice` writes the plumbing into `jac.toml` and `jac run` on the project root brings the whole stack up -- one public port, one unified `/docs`, one `/metrics` endpoint, one shared anchor store. The same source still runs as a monolith when microservice mode is disabled.
+For projects with more than a handful of services, the built-in `scale` subsystem ships a microservice mode that puts a single API gateway in front of all of them. `jac setup microservice` writes the plumbing into `jac.toml` and `jac run --serve` on the project root brings the whole stack up -- one public port, one unified `/docs`, one `/metrics` endpoint, one shared anchor store. The same source still runs as a monolith when microservice mode is disabled.
+
+#### Which topology a local run picks
+
+The routes table describes the cut you want when the project is *deployed*, so it does not by itself take your dev loop away:
+
+| Command | Topology |
+|---------|----------|
+| `jac run` on a web-app kind | One process: the vite dev server with HMR, exactly as if no routes were declared |
+| `jac run --serve` | Gateway + one subprocess per declared service |
+| `jac run --ms` | Gateway + subprocesses, dev client included (the entry module's service runs vite and HMR behind the gateway) |
+| `jac run --no-ms` | One process, whatever the kind |
+
+`[scale.microservices] enabled` is the same choice in `jac.toml`: `true` asks for the gateway even on a dev-client run, `false` keeps every local run single-process while the routes table still describes the deployed cut. A `--ms` / `--no-ms` flag overrides it. A deployed fleet pod ignores the key -- the deploy already realized the topology.
+
+In microservice mode the entry module's service is the *app service*: it owns the project root, so `/`, `/cl/<page>`, `[serve] base_route_app`, `/static/client.js` and any client-side route reach it through the gateway. A service still compiling never costs the fleet its routes: the gateway keeps asking for its `/openapi.json` until it is healthy, and until then its paths fall back to the app service.
 
 The gateway exposes a standard error envelope (`{ok, error: {code, message, service?, trace_id}, meta}`) across every failure path (proxy, passthrough, aggregation). Drop-in observability: `X-Trace-Id` is minted if absent and threaded through every service RPC hop. The following knobs all live under `[scale.microservices]` and are emitted as commented reference blocks by `jac setup microservice`:
 

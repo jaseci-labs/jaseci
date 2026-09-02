@@ -635,7 +635,7 @@ class JacScalePluginConfig {
                         "enabled": {
                             "type": "bool",
                             "default": None,
-                            "description": "Deprecated - declaring [scale.microservices.routes] is what turns microservice mode on; set false to force single-process while keeping the routes table. Absent means auto-detect (enable when routes exist). Ignored inside deployed fleet pods (the deploy already realized the topology). A future release removes this key."
+                            "description": "Whether `jac run` realizes the declared routes as local microservice subprocesses behind a gateway. Absent (the default) means: yes when serving without a dev client, no for a dev-client run (`jac run` on a web-app stays single-process with vite and HMR). true asks for the gateway even in dev; false keeps every local run single-process while the routes table still describes the deployed cut. `jac run --ms` / `--no-ms` overrides this per invocation. Ignored inside deployed fleet pods (the deploy already realized the topology)."
                         },
                         "gateway_port": {
                             "type": "int",
