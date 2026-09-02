@@ -118,6 +118,54 @@ test "bootstrap calls venv-cache-restore before install and venv-cache-publish a
     assert "chmod 0777" not in script.split("jac install")[1];
 }
 
+test "bootstrap sets JAC_VENV_CACHE_DIR, JAC_VENV_DIR and JAC_VENV_CACHE_ROOT via the container's structured env, not shell text" {
+    # Regression test: these were previously built as one f-string setting
+    # two vars at once (`JAC_VENV_CACHE_DIR="X" JAC_VENV_DIR="Y" cmd`), and
+    # at runtime the second one never became its own environment variable -
+    # it was silently appended as literal text onto the first's value
+    # instead (confirmed via `kubectl get pod -o json`, not just
+    # `describe`'s text rendering, on a real deploy). restore()'s first
+    # line is `if not os.path.isdir(venv_dir): return`, so an empty
+    # JAC_VENV_DIR made every restore call a silent no-op - same for
+    # publish() against an empty JAC_VENV_CACHE_DIR. The tests above only
+    # ever checked substring presence and ordering in the generated shell
+    # text, which stayed true either way and caught neither bug.
+    #
+    # The fix moves these off shell text entirely: they're static once
+    # resolved, so they're set via the container's own `env` list (the
+    # same mechanism the sibling service container already uses), which
+    # Kubernetes applies directly with no shell parsing step to corrupt.
+    # This checks the structured value, not string content - the class of
+    # bug this guards against can't reproduce in a field that was never
+    # shell text to begin with.
+    specs = ["requests>=2.28.0"];
+    pinned_image = "jaseci/jaclang@sha256:" + "b" * 64;
+    expected_cache_dir = f"{BUNDLE_MOUNT_PATH}/.cache/venv/{venv_cache_key(
+        specs, pinned_image
+    )}";
+    expected_venv_dir = "/app/.jac/venv";
+    expected_cache_root = f"{BUNDLE_MOUNT_PATH}/.cache/venv";
+    ctr = build_bootstrap_init_container(
+        KubernetesConfig(), pinned_image, resolved_specs=specs
+    );
+    env: list[dict[str, str]] = ctr.get("env", []);
+    assert {"name": "JAC_VENV_CACHE_DIR", "value": expected_cache_dir} in env;
+    assert {"name": "JAC_VENV_DIR", "value": expected_venv_dir} in env;
+    assert {"name": "JAC_VENV_CACHE_ROOT", "value": expected_cache_root} in env;
+    # Each name appears exactly once - no leftover duplicate from the old
+    # two-writes-of-the-same-vars shape (once before restore, again before
+    # publish).
+    names = [e["name"] for e in env];
+    assert names.count("JAC_VENV_CACHE_DIR") == 1;
+    assert names.count("JAC_VENV_DIR") == 1;
+    # And the script itself is now just the commands to run - no env
+    # assignment text of any kind for these variables.
+    script = str(ctr["args"][0]);
+    assert "JAC_VENV_CACHE_DIR=" not in script;
+    assert "JAC_VENV_DIR=" not in script;
+    assert "JAC_VENV_CACHE_ROOT=" not in script;
+}
+
 test "bootstrap threads the pinned image into jac install's marker hash" {
     # venv_cache_key gates restore on (specs, base_image); _venv_deps_hash
     # gates the plain `jac install` skip on the marker it writes. Without
@@ -131,9 +179,8 @@ test "bootstrap threads the pinned image into jac install's marker hash" {
     ctr = build_bootstrap_init_container(
         KubernetesConfig(), pinned_image, resolved_specs=specs
     );
-    script = str(ctr["args"][0]);
-    assert f'JAC_VENV_CACHE_IMAGE_ID="{pinned_image}"' in script;
-    assert (script.index("JAC_VENV_CACHE_IMAGE_ID") < script.index("jac install"));
+    env: list[dict[str, str]] = ctr.get("env", []);
+    assert {"name": "JAC_VENV_CACHE_IMAGE_ID", "value": pinned_image} in env;
 }
 
 test "bootstrap skips the venv cache entirely for a mutable-tag image" {
@@ -144,5 +191,5 @@ test "bootstrap skips the venv cache entirely for a mutable-tag image" {
     script = str(ctr["args"][0]);
     assert "venv-cache-restore" not in script;
     assert "venv-cache-publish" not in script;
-    assert "JAC_VENV_CACHE_IMAGE_ID" not in script;
+    assert "env" not in ctr;
 }
