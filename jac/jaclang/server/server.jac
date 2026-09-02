@@ -161,6 +161,8 @@ obj ModuleIntrospector {
     def _spa_route_matches(pattern: str, segments: list[str]) -> bool;
     def is_auth_required_for_function(func_name: str) -> bool;
     def is_auth_required_for_walker(walker_name: str) -> bool;
+    def restspec_routes -> list[tuple[str, str, any]];
+    def declared_api_paths -> list[str];
 }
 
 obj AuthHandler {
@@ -221,7 +223,8 @@ obj JacAPIServer {
         execution_handler: ExecutionHandler postinit,
         server: any postinit,
         app: any postinit,
-        scheduler: Scheduler postinit;
+        scheduler: Scheduler postinit,
+        dev_mode: bool = False;
 
     def _make_user_manager -> UserManager;
 

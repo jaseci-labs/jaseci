@@ -123,7 +123,11 @@ test "the core server answers a GET @restspec path with its own payload" {
         try {
             response = client.get("/install.sh");
             body = response.text;
-            content_type = response.headers.get("content-type", "");
+            content_type = "".join(
+                v
+                for (k, v) in response.headers.items()
+                if k.lower() == "content-type"
+            );
             status = response.status_code;
         } finally {
             client.close();

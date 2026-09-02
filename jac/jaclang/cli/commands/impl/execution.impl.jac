@@ -967,8 +967,14 @@ impl serve(
             free_vite_port = _find_free_port(
                 vite_port, skip_port=actual_port, strict=port_pinned
             );
+            declared_paths: list = [];
+            try {
+                declared_paths = server.introspector.declared_api_paths();
+            } except Exception as e {
+                console.warning(f"Could not read declared API paths: {e}");
+            }
             (started_vite, bound_port) = _start_vite_dev_server(
-                base, free_vite_port, actual_port
+                base, free_vite_port, actual_port, declared_paths
             );
             if started_vite {
                 vite_holder.append(started_vite);
@@ -1167,7 +1173,9 @@ def _find_free_port(start: int, skip_port: int = 0, strict: bool = False) -> int
     }
 }
 
-def _start_vite_dev_server(base_path: str, vite_port: int, api_port: int) -> any {
+def _start_vite_dev_server(
+    base_path: str, vite_port: int, api_port: int, api_paths: (list[str] | None) = None
+) -> any {
     import from pathlib { Path }
 
     try {
@@ -1179,7 +1187,9 @@ def _start_vite_dev_server(base_path: str, vite_port: int, api_port: int) -> any
         client_dir = bundler._get_client_dir();
         entry_file = client_dir / 'build' / 'main.js';
 
-        bundler.create_vite_config(entry_file, is_dev=True, api_port=api_port);
+        bundler.create_vite_config(
+            entry_file, is_dev=True, api_port=api_port, api_paths=api_paths
+        );
 
         if not (client_dir / 'configs' / 'package.json').exists() {
             bundler.create_package_json();

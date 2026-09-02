@@ -406,7 +406,8 @@ impl ViteBundler._generate_vite_config_content(
     mobile_hmr_host: str = "",
     mobile_hmr_port: int = 0,
     for_desktop_dev: bool = False,
-    desktop_broker_port: int = 0
+    desktop_broker_port: int = 0,
+    api_paths: (list[str] | None) = None
 ) -> str {
     build_dir = self._get_client_dir();
     vite_config_data = self.config_loader.get_vite_config();
@@ -550,6 +551,18 @@ impl ViteBundler._generate_vite_config_content(
             host_value = '"127.0.0.1"';
         } else {
             host_value = 'true';
+        }
+        declared_proxy_str: str = "";
+        for declared_path in (api_paths or []) {
+            if not declared_path.startswith('/') {
+                continue;
+            }
+            declared_proxy_str += (
+                f'\n      "{declared_path}": {{'
+                f'\n        target: "http://localhost:{api_port}",'
+                '\n        changeOrigin: true,'
+                '\n      },'
+            );
         }
         desktop_server_extras: str = "";
         desktop_proxy_str: str = "";
@@ -881,7 +894,7 @@ export default defineConfig({{
       "/assets": {{
         target: "http://localhost:{api_port}",
         changeOrigin: true,
-      }},{desktop_proxy_str}
+      }},{declared_proxy_str}{desktop_proxy_str}
     }},
 {server_config_str}{mobile_hmr_str}{desktop_server_extras}
   }},
@@ -1001,7 +1014,8 @@ impl ViteBundler.create_vite_config(
     mobile_hmr_host: str = "",
     mobile_hmr_port: int = 0,
     for_desktop_dev: bool = False,
-    desktop_broker_port: int = 0
+    desktop_broker_port: int = 0,
+    api_paths: (list[str] | None) = None
 ) -> Path {
     build_dir = self._get_client_dir();
     build_dir.mkdir(parents=True, exist_ok=True);
@@ -1021,7 +1035,8 @@ impl ViteBundler.create_vite_config(
         mobile_hmr_host=mobile_hmr_host,
         mobile_hmr_port=mobile_hmr_port,
         for_desktop_dev=for_desktop_dev,
-        desktop_broker_port=desktop_broker_port
+        desktop_broker_port=desktop_broker_port,
+        api_paths=api_paths
     );
     config_path.write_text(config_content, encoding='utf-8');
     if is_dev {

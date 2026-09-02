@@ -1497,6 +1497,44 @@ impl ModuleIntrospector.is_auth_required_for_walker(walker_name: str) -> bool {
 }
 
 
+impl ModuleIntrospector.restspec_routes -> list[tuple[str, str, any]] {
+    routes: list[tuple[str, str, any]] = [];
+    try {
+        for (name, target) in sorted(self.get_walkers().items()) {
+            spec = target?.restspec;
+            if spec is not None {
+                routes.append((name, 'walker', spec));
+            }
+        }
+        for (name, target) in sorted(self.get_functions().items()) {
+            fn_spec = target?.restspec;
+            if fn_spec is not None {
+                routes.append((name, 'function', fn_spec));
+            }
+        }
+    } except Exception {
+        return routes;
+    }
+    return routes;
+}
+
+
+impl ModuleIntrospector.declared_api_paths -> list[str] {
+    paths: list[str] = [];
+    for (_name, _kind, spec) in self.restspec_routes() {
+        path = str(spec.path or '');
+        if not path.startswith('/') {
+            continue;
+        }
+        prefix = path.split('{')[0].rstrip('/') or path;
+        if prefix not in paths {
+            paths.append(prefix);
+        }
+    }
+    return sorted(paths);
+}
+
+
 impl AuthHandler.create_user(username: str, password: str) -> TransportResponse {
     if (not username or not password) {
         return TransportResponse.fail(
@@ -2050,6 +2088,9 @@ impl JacAPIServer.build_app -> ServingApp {
         if is_asset_request(path, cl_route_path) {
             return _serve_static(request, path[1:]);
         }
+        if server.dev_mode {
+            return JSONResponse(content={'error': 'Not found'}, status_code=404);
+        }
         configured_root = config.serve.base_route_app if config else '';
         base_route_app = server.introspector.resolve_root_app(configured_root);
         if base_route_app {
@@ -2360,25 +2401,67 @@ impl JacAPIServer.build_app -> ServingApp {
         _named_walkers = [];
         _named_functions = [];
     }
-    try {
-        _all_targets = dict(server.introspector.get_walkers());
-        _all_targets.update(server.introspector.get_functions());
-        _spec_carriers = [
-            n
-            for (n, t) in _all_targets.items()
-            if t?.restspec is not None
-        ];
-        if _spec_carriers {
-            import logging;
-            logging.getLogger(__name__).warning(
-                "@restspec is ignored by the core server: "
-                f"{', '.join(sorted(_spec_carriers))} will serve at the "
-                "default /walker/ and /function/ POST routes only. Custom "
-                "methods, paths, webhooks, and websockets need the scale "
-                "serving stack (`jac run`)."
-            );
+    def _raw_spec_response(outcome: any, media_type: str) -> any {
+        if isinstance(outcome, ServingResponse) {
+            return outcome;
         }
-    } except Exception {}
+        if isinstance(outcome, TransportResponse) {
+            if not outcome.ok {
+                return transport_to_response(outcome);
+            }
+            payload = outcome.data;
+            if isinstance(payload, dict) and 'result' in payload {
+                payload = payload['result'];
+            }
+            body = payload if isinstance(payload, str) else json.dumps(payload);
+            return ServingResponse(content=body, media_type=media_type);
+        }
+        return outcome;
+    }
+
+    def _mk_spec_ep(bound: str, is_walker: bool, media_type: str) -> Callable {
+        def _serve_spec(request: Request) -> any {
+            outcome = _spawn_walker(request, bound)
+                if is_walker
+                else _call_function(request, bound);
+            if not media_type {
+                return outcome;
+            }
+            return _raw_spec_response(outcome, media_type);
+        }
+        return _serve_spec;
+    }
+    _unserved_specs: list[str] = [];
+    for (_spec_name, _spec_kind, _spec) in server.introspector.restspec_routes() {
+        _spec_path = str(_spec.path or '');
+        _spec_http = _spec.protocol == APIProtocol.HTTP;
+        if (
+            not _spec_path.startswith('/')
+            or '{' in _spec_path
+            or not _spec_http
+            or _spec.broadcast
+        ) {
+            _unserved_specs.append(_spec_name);
+            continue;
+        }
+        _spec_media = (_spec.produces or 'text/plain') if not _spec.envelope else '';
+        _ep(
+            HTTPMethod(str(_spec.method or 'POST').upper()),
+            _spec_path,
+            _mk_spec_ep(_spec_name, _spec_kind == 'walker', _spec_media),
+            in_schema=True
+        );
+    }
+    if _unserved_specs {
+        import logging;
+        logging.getLogger(__name__).warning(
+            "@restspec on "
+            f"{', '.join(sorted(_unserved_specs))} declares a surface this "
+            "server does not build: path parameters, websockets, webhooks and "
+            "broadcast need the scale serving stack. The declared method and "
+            "path of every other @restspec is served here."
+        );
+    }
     for _w_name in _named_walkers {
         def _mk_walker_ep(bound: str) -> Callable {
             def _spawn_named(request: Request, node_id: str = '') -> any {
@@ -2544,6 +2627,7 @@ impl JacAPIServer.start(
             "Cannot start server: no socket was bound (test mode, port=0)"
         );
     }
+    self.dev_mode = dev;
     self.app = self.build_app();
     serving = ServingServer(app=self.app, host='0.0.0.0', port=self.port);
     self.server = serving;

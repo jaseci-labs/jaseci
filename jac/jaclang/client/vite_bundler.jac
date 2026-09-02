@@ -60,7 +60,8 @@ class ViteBundler {
         mobile_hmr_host: str = "",
         mobile_hmr_port: int = 0,
         for_desktop_dev: bool = False,
-        desktop_broker_port: int = 0
+        desktop_broker_port: int = 0,
+        api_paths: (list[str] | None) = None
     ) -> Path;
 
     def _format_config_object(self: ViteBundler, config: dict, indent: int = 0) -> str;
@@ -94,7 +95,8 @@ class ViteBundler {
         mobile_hmr_host: str = "",
         mobile_hmr_port: int = 0,
         for_desktop_dev: bool = False,
-        desktop_broker_port: int = 0
+        desktop_broker_port: int = 0,
+        api_paths: (list[str] | None) = None
     ) -> str;
 
     def create_package_json(
