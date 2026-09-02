@@ -397,12 +397,14 @@ jobs:
   # independent full-tree `jac check` on a fresh runner, so one CI run gives
   # six samples of the lane instead of one. DELETE THIS JOB before merge.
   jac-check-probe:
-    needs: [changes, build-kit]
+    # needs jac-check so its saved JIR cache (keyed on this run's sha) is an
+    # exact-match warm restore here: one cold world-compile per run, not six.
+    needs: [changes, build-kit, jac-check]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 3
       matrix:
         probe: [1, 2, 3, 4, 5]
     env:
