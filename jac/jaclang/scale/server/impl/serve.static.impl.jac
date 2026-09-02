@@ -128,8 +128,20 @@ impl JacAPIServerStatic.register_client_js_endpoint -> None {
     );
 }
 
+def _dev_client_elsewhere -> Response {
+    return Response(
+        content='Not found: in dev the client is served by the dev server on the web port',
+        status_code=404,
+        media_type='text/plain'
+    );
+}
+
+
 impl JacAPIServerStatic.serve_client_js_callback -> Callable[..., Response] {
     def callback -> Response {
+        if self.introspector.dev_mode {
+            return _dev_client_elsewhere();
+        }
         try {
             return Response(
                 content=Jac.get_client_js(self.introspector),
@@ -189,6 +201,9 @@ impl JacAPIServerStatic.register_page_endpoint -> None {
 
 impl JacAPIServerStatic.render_page_callback -> Callable[..., HTMLResponse] {
     def callback(page_name: str, **kwargs: JsonValue) -> HTMLResponse {
+        if self.introspector.dev_mode {
+            return HTMLResponse(content='Not found', status_code=404);
+        }
         try {
             render_payload = self.introspector.render_page(
                 page_name, kwargs, Con.GUEST.value
@@ -210,6 +225,9 @@ impl JacAPIServerStatic.render_base_route_callback(
     app_name: str
 ) -> Callable[..., HTMLResponse] {
     def callback(**kwargs: JsonValue) -> HTMLResponse {
+        if self.introspector.dev_mode {
+            return HTMLResponse(content='Not found', status_code=404);
+        }
         try {
             render_payload = self.introspector.render_page(
                 app_name, kwargs, Con.GUEST.value
