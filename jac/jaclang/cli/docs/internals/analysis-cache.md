@@ -69,7 +69,20 @@ changes the hash and exactly the affected importers re-analyze.
 Comptime dependencies (`SEC_CTDEPS`) fold in through validity rather than
 through the hash: a changed comptime input invalidates the module's cache
 entirely, the interface is rebuilt, and the rebuild cascades only if the
-exported surface actually moved -- the same cutoff rule.
+exported surface actually moved -- the same cutoff rule. The inputs are
+whatever the comptime evaluation actually read -- every `embed_file` target,
+plus the home module of every comptime binding it unfolded and every ability
+body it interpreted -- attributed to the module whose expression started the
+evaluation, so a value that travelled through an intermediate producer lands
+on the consumer that baked it in. Each is keyed on a content digest (source
+plus impl and test annexes), so a rebuild or a `touch` is not an
+invalidation. The interface hash cannot serve this role: a producer whose
+comptime value changed still exports the same interface, which is why folds
+need their own section rather than a `SEC_DEPS` row.
+
+A module that folds across a `comptime import` also ingests those producers
+with full trees rather than from `SEC_IFACE`: an interface carries the
+declared surface, not the initializer the fold has to evaluate.
 
 Dependency edges are recorded at the one seam every ingestion path goes
 through (`JacProgram.load_dependency_module`), attributed to the innermost
