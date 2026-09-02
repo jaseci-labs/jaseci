@@ -56,8 +56,26 @@ def project_signing_secret(base_path: str) -> str {
     if existing {
         return existing;
     }
-    os.makedirs(data_dir, exist_ok=True);
     minted = secrets.token_urlsafe(DEV_SECRET_BYTES);
+    try {
+        _persist_secret(data_dir, path, minted);
+    } except OSError as e {
+        _warn_once(
+            path,
+            f"Could not persist a signing secret at {path} ({e}). Signing with "
+            'a secret this process keeps to itself, so every session ends when '
+            'it does. Make the project directory writable, or set '
+            '[scale.jwt] secret.'
+        );
+        return minted;
+    }
+    return _read_secret(path) or minted;
+}
+
+
+def _persist_secret(data_dir: str, path: str, minted: str) -> None {
+    import os;
+    os.makedirs(data_dir, exist_ok=True);
     staging = os.path.join(data_dir, f"{DEV_SECRET_FILENAME}.{os.getpid()}.tmp");
     fd = os.open(staging, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600);
     with os.fdopen(fd, 'w', encoding='utf-8') as handle {
@@ -73,7 +91,6 @@ def project_signing_secret(base_path: str) -> str {
     try {
         os.chmod(path, 0o600);
     } except OSError {}
-    return _read_secret(path) or minted;
 }
 
 
@@ -236,6 +253,10 @@ def verify_password(password: str, stored: str) -> bool {
         return False;
     }
     if is_legacy_sha256_hash(stored) {
+        legacy = hashlib.sha256(password.encode('utf-8')).hexdigest();
+        if not hmac.compare_digest(legacy, stored.lower()) {
+            return False;
+        }
         _warn_once(
             stored,
             'Verified a password against a legacy unsalted sha256 hash. The '
@@ -243,8 +264,7 @@ def verify_password(password: str, stored: str) -> bool {
             'accepted only to carry accounts written before the scrypt '
             'migration.'
         );
-        legacy = hashlib.sha256(password.encode('utf-8')).hexdigest();
-        return hmac.compare_digest(legacy, stored.lower());
+        return True;
     }
     try {
         parts = stored.split('$');
