@@ -67,14 +67,10 @@ class NativeCompiler {
         }
         self._keep = [];
         self.classes = {};
-        self._finishes = 0;
-
-        self.teardown = os.environ.get("JAC_COMPILER_TEARDOWN", "leak");
         self._bind();
         self._register();
-        if self.teardown == "leak" {
-            self.lib.jc_set_wipe(0);
-        }
+
+        self.lib.jc_set_wipe(0);
     }
 
     def _bind(self: NativeCompiler) {
@@ -159,7 +155,7 @@ class NativeCompiler {
             for f in dataclasses.fields(cls) {
                 out[f.name] = str(f.`type);
             }
-        } except TypeError {}
+        } except TypeError { }
         return out;
     }
 
@@ -381,14 +377,7 @@ class NativeCompiler {
     }
 
     def finish(self: NativeCompiler) -> any {
-        out = self._take(self.lib.jc_finish());
-        self._finishes += 1;
-        if self.teardown != "leak" and self._finishes % 4 == 0 {
-            try {
-                self.lib.jac_gc_cycles();
-            } except AttributeError {}
-        }
-        return out;
+        return self._take(self.lib.jc_finish());
     }
 
     def diags(self: NativeCompiler) -> list {

@@ -12,17 +12,25 @@ import os;
 
 glob SHAPE_EXPORTED: set[str] = {"BodyRole", "SpecRole", "AccessorsRole"};
 
-def _frontend_dir -> str {
+def _frontend_dir -> (str | None) {
     import jaclang.compiler.frontend as fe;
-    return os.path.dirname(os.path.abspath(fe.__file__));
+    f = fe?.__file__;
+    if f is None {
+        return None;
+    }
+    return os.path.dirname(os.path.abspath(f));
 }
 
-def _shape_consulted_roles -> set[str] {
+def _shape_consulted_roles -> (set[str] | None) {
     import re;
+    base = _frontend_dir();
+    if base is None {
+        return None;
+    }
     pat = re.compile(r"_role_shaped\(\s*(\w+)");
     found: set[str] = set();
     for rel in ("unitree.impl/roles.impl.jac", "impl/unitree.impl.jac") {
-        path = os.path.join(_frontend_dir(), rel);
+        path = os.path.join(base, rel);
         if not os.path.isfile(path) {
             continue;
         }
@@ -39,6 +47,11 @@ def _shape_consulted_roles -> set[str] {
 
 test "every shape-consulted role is exported by the kernel" {
     consulted = _shape_consulted_roles();
+    if consulted is None {
+        # Sealed image: no source tree to scan; the guard runs in checkouts.
+        assert True;
+        return;
+    }
     assert consulted , "no _role_shaped call sites found; guard is stale";
     assert consulted <= SHAPE_EXPORTED , (
         f"roles {consulted - SHAPE_EXPORTED} are shape-consulted but not "

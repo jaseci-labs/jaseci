@@ -13,7 +13,7 @@ import from jaclang.compiler.jc_materialize {
 
 import from jaclang.compiler.frontend.parser.parser { parse_program }
 import from jaclang.compiler.frontend.parser.tokens { SrcDiag, CommentData }
-import from jaclang.compiler.frontend.unitree { Module, Token, UniNode }
+import from jaclang.compiler.frontend.unitree { Module, UniNode }
 import from jaclang.compiler.frontend.roles { AccessorsRole, BodyRole, SpecRole }
 
 obj JcState {
@@ -25,8 +25,7 @@ obj JcState {
         lex_errs: int = 0;
 }
 
-glob _JC: JcState = JcState(),
-     _SENT: list[Token] = [];
+glob _JC: JcState = JcState();
 
 def:pub jc_probe -> int {
     return 44061;
@@ -156,10 +155,6 @@ def _packed_shapes(nd: UniNode) -> int {
 }
 
 def _apply_shapes(mod: Module) {
-    if not _SENT {
-        _SENT.append(mod.loc.first_tok);
-    }
-    sent = _SENT[0];
     stack: list[UniNode] = [mod];
     seen: set[int] = set();
     while stack {
@@ -175,7 +170,5 @@ def _apply_shapes(mod: Module) {
         for k in cur._children() {
             stack.append(k);
         }
-        cur._ctx_parent = None;
-        cur.loc.update_token_range(sent, sent);
     }
 }
