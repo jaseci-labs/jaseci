@@ -668,15 +668,11 @@ class JacScalePlugin {
     }
 
     static def get_api_server_class -> type | None {
+        import from jaclang.server.identity_owner { scale_stack_unavailable }
         try {
             import from .server.serve { JacAPIServer }
         } except ImportError as e {
-            import logging;
-            logging.getLogger(__name__).debug(
-                "scale API server unavailable, falling back to core server: "
-                f"missing module '{e?.name or ''}' ({e})"
-            );
-            return None;
+            raise scale_stack_unavailable('jaclang.scale.server.serve', e);
         }
         return JacAPIServer;
     }

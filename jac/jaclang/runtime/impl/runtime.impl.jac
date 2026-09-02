@@ -1552,15 +1552,20 @@ impl JacBuiltin.get_console -> ConsoleImpl {
 }
 
 impl JacServe.get_api_server_class -> type {
-    _sp = _scale_provider();
-    if _sp is not None {
-        _scaled = _sp.get_api_server_class();
-        if _scaled is not None {
-            return _scaled;
-        }
+    import from jaclang.server.identity_owner {
+        SCALE_IDENTITY,
+        identity_owner,
+        scale_stack_unavailable
     }
-    import from jaclang.server.server { JacAPIServer }
-    return JacAPIServer;
+    if identity_owner() != SCALE_IDENTITY {
+        import from jaclang.server.server { JacAPIServer }
+        return JacAPIServer;
+    }
+    _sp = _scale_provider();
+    if _sp is None {
+        raise scale_stack_unavailable('jaclang.scale.plugin', scale_provider_error());
+    }
+    return _sp.get_api_server_class();
 }
 
 impl JacServe.ensure_sv_service(module_name: str, base_path: str) -> None {
