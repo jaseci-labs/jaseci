@@ -9,7 +9,7 @@ These are complementary: the guides tell a model *how* Jac works; MCP lets it *v
 
 ## `jac guide` -- the built-in reference
 
-The guides ship inside the `jac` CLI -- one per topic (`jac-core-cheatsheet`, `jac-types`, `jac-walker-patterns`, `jac-by-llm`, the `jac-sv-*` server guides, the `jac-cl-*` client guides, and more). They are always version-matched to the compiler you have installed.
+The guides ship inside the `jac` CLI -- one per topic (`jac-core-cheatsheet`, `jac-types`, `jac-comptime`, `jac-walker-patterns`, `jac-by-llm`, the `jac-sv-*` server guides, the `jac-cl-*` client guides, and more). They are always version-matched to the compiler you have installed.
 
 ```bash
 jac guide                      # list every available guide

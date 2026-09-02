@@ -18,6 +18,13 @@ def _shim_name -> str {
 def _find_shim -> str {
     import from jaclang.compiler.driver.compile_options { env_llvm_shim_override }
     `override = env_llvm_shim_override();
+    if `override and (`override.strip().lower() in ("none", "off", "disabled")) {
+        raise OSError(
+            "LLVM shim disabled by JAC_LLVM_SHIM="
+                + `override
+                + "; the native pipeline is unavailable in this process."
+        );
+    }
     if `override and os.path.isfile(`override) {
         return `override;
     }
@@ -171,9 +178,7 @@ class OutputString {
             if _is_shutting_down is not None and not _is_shutting_down() {
                 self.close();
             }
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
 
     def __str__(self: OutputString) -> str {
@@ -243,9 +248,7 @@ class ObjectRef {
         }
     }
 
-    def _dispose(self: ObjectRef) {
-        ;
-    }
+    def _dispose(self: ObjectRef) {}
 
     has closed: bool {
         getter {
@@ -269,9 +272,7 @@ class ObjectRef {
             if _is_shutting_down is not None and not _is_shutting_down() {
                 self.close();
             }
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
 
     def __bool__(self: ObjectRef) -> bool {

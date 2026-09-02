@@ -15,7 +15,7 @@ surfaces read as one system. Coloring is gated through `JacConsole.use_color`
 
 import re;
 import from jaclang.cli.console { _get_console }
-import from jaclang.cli.manifest { CommandMeta }
+import from jaclang.cli.command { CommandSpec }
 import from jaclang.cli.manifest_help { format_curated_help, format_verbose_help }
 
 
@@ -25,9 +25,9 @@ glob _HEADER: str = "\033[1;34m",  # bold blue  -> section/group headers
      _PROG: str = "\033[1;35m";  # bold magenta -> program name
 
 
-def _sample_commands -> list[CommandMeta] {
+def _sample_commands -> list[CommandSpec] {
     return [
-        CommandMeta(
+        CommandSpec(
             name="run",
             help="Run a Jac program",
             group="execution",
@@ -36,7 +36,7 @@ def _sample_commands -> list[CommandMeta] {
             handler_module="jaclang.cli.commands.execution",
             handler_name="run"
         ),
-        CommandMeta(
+        CommandSpec(
             name="check",
             help="Type check Jac files",
             group="analysis",

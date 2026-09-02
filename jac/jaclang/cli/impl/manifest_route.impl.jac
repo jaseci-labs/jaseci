@@ -10,7 +10,7 @@ def _read_version_from_toml(toml_path: Path) -> (str | None) {
                 return ver;
             }
         }
-    } except Exception { }
+    } except Exception {}
     return None;
 }
 

@@ -1,11 +1,16 @@
 import jaclang.runtime.osp_graph as _graph;
 import from dataclasses { field }
-import from jaclang.runtime.archetype { Anchor, EdgeAnchor, NodeAnchor }
+import from jaclang.runtime.archetype {
+    Anchor,
+    EdgeAnchor,
+    NodeAnchor,
+    anchor_key,
+    same_anchor
+}
 
 obj _SvStore {
-    has h_of_id: dict[str, int] = {},
-        registered: set[str] = field(default_factory=`set),
-        forgotten: set[str] = field(default_factory=`set),
+    has h_of_key: dict[any, int] = {},
+        forgotten: set[int] = field(default_factory=`set),
         region: int = 0;
 }
 
@@ -20,12 +25,12 @@ def _mem_or_ctx(mem: any) -> any {
     if mem is not None {
         return mem;
     }
-    import from jaclang.runtime.runtime { JacRuntimeInterface }
-    try {
-        return JacRuntimeInterface.get_context().mem;
-    } except Exception {
-        return None;
+    import from jaclang.runtime.runtime { JacRuntime, _request_context }
+    ctx = _request_context.get();
+    if ctx is None {
+        ctx = JacRuntime.exec_ctx;
     }
+    return ctx.mem if ctx is not None else None;
 }
 
 def _store_for(m: any) -> _SvStore {
@@ -42,18 +47,33 @@ def _store_for(m: any) -> _SvStore {
     return st;
 }
 
+def _handle_of(st: _SvStore, anchor: Anchor) -> int {
+    aid = anchor.id;
+    if aid is None {
+        return st.h_of_key.get(id(anchor), 0);
+    }
+    h = st.h_of_key.get(aid, 0);
+    return h if h != 0 else st.h_of_key.get(id(anchor), 0);
+}
+
 def _mint(st: _SvStore, anchor: Anchor) -> int {
-    key = str(anchor.id);
-    h = st.h_of_id.get(key, 0);
+    aid = anchor.id;
+    key: any = id(anchor) if aid is None else aid;
+    h = st.h_of_key.get(key, 0);
     if h == 0 {
-        if _h_free {
-            h = _h_free.pop();
-            _obj_of_h[h] = anchor;
-        } else {
-            _obj_of_h.append(anchor);
-            h = len(_obj_of_h) - 1;
+        if aid is not None {
+            h = st.h_of_key.pop(id(anchor), 0);
         }
-        st.h_of_id[key] = h;
+        if h == 0 {
+            if _h_free {
+                h = _h_free.pop();
+                _obj_of_h[h] = anchor;
+            } else {
+                _obj_of_h.append(anchor);
+                h = len(_obj_of_h) - 1;
+            }
+        }
+        st.h_of_key[key] = h;
         return h;
     }
     if anchor.is_populated() or _obj_of_h[h] is None {
@@ -93,7 +113,7 @@ def tag_for(edge_a: EdgeAnchor) -> int {
 }
 
 def _resolve(cand: (Anchor | None), m: any) -> (Anchor | None) {
-    if cand is None or m is None {
+    if cand is None or m is None or cand.id is None {
         return cand;
     }
     cur = m.get_mem().get(cand.id);
@@ -112,13 +132,13 @@ def sv_conn(
 ) -> None {
     m = _mem_or_ctx(mem);
     st = _store_for(m);
-    key = str(edge_a.id);
-    if key in st.registered {
-        _mint(st, edge_a);
+    eh = _mint(st, edge_a);
+    if _graph.osp_has_edge(eh) != 0 {
         return;
     }
-    st.forgotten.discard(key);
-    eh = _mint(st, edge_a);
+    if st.forgotten {
+        st.forgotten.discard(eh);
+    }
     _graph.osp_conn(
         _mint(st, src_a),
         _mint(st, tgt_a),
@@ -128,7 +148,6 @@ def sv_conn(
         st.region,
         st.region
     );
-    st.registered.add(key);
 }
 
 def sv_live_edges(
@@ -151,7 +170,6 @@ def sv_live_edges(
         }
         return out;
     }
-    okey = str(origin_a.id);
     hits: list[EdgeAnchor] = [];
     for h in _graph.osp_refs(oh, dir_int, -1, 1) {
         e = _resolve(obj_of(h), m);
@@ -166,14 +184,14 @@ def sv_live_edges(
         return hits;
     }
     ends: list[Anchor] = [];
-    seen: set[str] = set();
+    seen: set[any] = set();
     for e in hits {
-        o_a = e.target if str(e.source.id) == okey else e.source;
+        o_a = e.target if same_anchor(e.source, origin_a) else e.source;
         ra = _resolve(o_a, m);
         if ra is None {
             continue;
         }
-        rk = str(ra.id);
+        rk = anchor_key(ra);
         if rk not in seen {
             seen.add(rk);
             ends.append(ra);
@@ -185,15 +203,13 @@ def sv_live_edges(
 def sv_candidate_edges_between(
     src_a: NodeAnchor, tgt_a: NodeAnchor, dir_int: int, mem: any = None
 ) -> list[EdgeAnchor] {
-    skey = str(src_a.id);
-    tkey = str(tgt_a.id);
     out: list[EdgeAnchor] = [];
     for e in sv_live_edges(src_a, dir_int, None, True, mem) {
         if not isinstance(e, EdgeAnchor) or not e.is_populated() {
             continue;
         }
-        okey = str(e.target.id) if str(e.source.id) == skey else str(e.source.id);
-        if okey == tkey {
+        other = e.target if same_anchor(e.source, src_a) else e.source;
+        if same_anchor(other, tgt_a) {
             out.append(e);
         }
     }
@@ -245,22 +261,24 @@ def sv_register_hydrated(
 
 def sv_edge_alive(edge_a: EdgeAnchor, mem: any = None) -> bool {
     st = _store_for(_mem_or_ctx(mem));
-    return str(edge_a.id) not in st.forgotten;
+    return _handle_of(st, edge_a) not in st.forgotten;
 }
 
-def sv_forget_by_id(anchor_id: any, mem: any = None) {
-    st = _store_for(_mem_or_ctx(mem));
-    key = str(anchor_id);
-    st.registered.discard(key);
-    st.forgotten.add(key);
-    h = st.h_of_id.get(key, 0);
+def _forget_handle(st: _SvStore, h: int) {
     if h > 0 {
+        st.forgotten.add(h);
         _graph.osp_disconnect(h);
     }
 }
 
+def sv_forget_by_id(anchor_id: any, mem: any = None) {
+    st = _store_for(_mem_or_ctx(mem));
+    _forget_handle(st, st.h_of_key.get(anchor_id, 0));
+}
+
 def sv_forget_edge(edge_a: EdgeAnchor, mem: any = None) {
-    sv_forget_by_id(edge_a.id, mem);
+    st = _store_for(_mem_or_ctx(mem));
+    _forget_handle(st, _handle_of(st, edge_a));
 }
 
 def sv_store_closed(mem: any) -> int {
@@ -275,7 +293,7 @@ def sv_store_closed(mem: any) -> int {
     if st.region != 0 {
         n = _graph.osp_region_died(st.region);
     }
-    for h in st.h_of_id.values() {
+    for h in st.h_of_key.values() {
         if h > 0 and h < len(_obj_of_h) {
             _obj_of_h[h] = None;
             _h_free.append(h);

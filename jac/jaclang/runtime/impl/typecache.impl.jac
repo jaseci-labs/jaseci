@@ -18,9 +18,7 @@ def _resolve_hints(cls: type) -> dict[str, object] {
             if isinstance(value, str) {
                 try {
                     value = eval(value, globalns, localns);
-                } except Exception {
-                    ;
-                }
+                } except Exception {}
             }
             hints[name] = value;
         }

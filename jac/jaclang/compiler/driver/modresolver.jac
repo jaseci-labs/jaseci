@@ -183,9 +183,7 @@ def _resolve_jac_virtual_module(target: str) -> (tuple[(str, str)] | None) {
                 }
             }
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return None;
 }
 
@@ -210,9 +208,7 @@ def resolve_jac_virtual_module_exports(target: str) -> list[str] {
                 }
             }
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return [];
 }
 
@@ -224,9 +220,7 @@ def _get_path_aliases -> dict[str, str] {
             client_config = config.get_plugin_config('client');
             return client_config.get('paths', {});
         }
-    } except (ImportError, AttributeError) {
-        ;
-    }
+    } except (ImportError, AttributeError) {}
     return {};
 }
 
@@ -322,19 +316,28 @@ def resolve_module(
             level += 1;
         }
         actual_parts = parts[level:];
-        res = _candidate_from(base_dir, actual_parts);
-        if res {
-            return res;
-        }
-        res = _self_tree_candidate(base_dir, actual_parts);
-        if res {
-            return res;
-        }
-        typeshed_paths = get_typeshed_paths();
-        for typeshed_dir in typeshed_paths {
-            res = _candidate_from_typeshed(typeshed_dir, actual_parts);
+
+        if not _in_typeshed_tree(base_path) {
+            res = _candidate_from(base_dir, actual_parts);
             if res {
                 return res;
+            }
+            res = _self_tree_candidate(base_dir, actual_parts);
+            if res {
+                return res;
+            }
+        }
+        res = _candidate_from_stub_catalog(actual_parts);
+        if res {
+            return res;
+        }
+        if not _stub_catalog_active() {
+            typeshed_paths = get_typeshed_paths();
+            for typeshed_dir in typeshed_paths {
+                res = _candidate_from_typeshed(typeshed_dir, actual_parts);
+                if res {
+                    return res;
+                }
             }
         }
 
@@ -899,6 +902,31 @@ def get_typeshed_paths -> list[str] {
         paths.append(stdlib);
     }
     return paths;
+}
+
+def _in_typeshed_tree(path: str) -> bool {
+    return "/vendor/typeshed/" in path.replace("\\", "/");
+}
+
+def _stub_catalog_active -> bool {
+    import from jaclang.jac0core.stubcat_hook { active }
+    return active() is not None;
+}
+
+def _candidate_from_stub_catalog(parts: list[str]) -> (tuple[(str, str)] | None) {
+    if not parts {
+        return None;
+    }
+    import from jaclang.jac0core.stubcat_hook { active }
+    catalog: any = active();
+    if catalog is None {
+        return None;
+    }
+    path = catalog.module_path(parts);
+    if path is None {
+        return None;
+    }
+    return (path, 'pyi');
 }
 
 def _candidate_from_typeshed(

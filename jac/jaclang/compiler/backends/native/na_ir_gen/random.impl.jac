@@ -334,8 +334,16 @@ impl NaIRGenRandom._emit_random_call(name: str, nd: uni.FuncCall) -> (ir.Value |
     }
 
     if name == "uniform" and len(params) >= 2 {
-        av = self._coerce_type(self._codegen_expr(params[0]), f64);
-        bv = self._coerce_type(self._codegen_expr(params[1]), f64);
+        _av_val = self._codegen_expr(params[0]);
+        if _av_val is None {
+            return None;
+        }
+        av = self._coerce_type(_av_val, f64);
+        _bv_val = self._codegen_expr(params[1]);
+        if _bv_val is None {
+            return None;
+        }
+        bv = self._coerce_type(_bv_val, f64);
         a2 = self.builder.lshr(self.builder.call(f_gen, []), ir.Constant(i32, 5));
         b2 = self.builder.lshr(self.builder.call(f_gen, []), ir.Constant(i32, 6));
         a_f = self.builder.uitofp(self.builder.zext(a2, i64), f64);
@@ -351,19 +359,39 @@ impl NaIRGenRandom._emit_random_call(name: str, nd: uni.FuncCall) -> (ir.Value |
     }
 
     if name == "randint" and len(params) >= 2 {
-        av = self._coerce_type(self._codegen_expr(params[0]), i64);
-        bv = self._coerce_type(self._codegen_expr(params[1]), i64);
+        _av_val = self._codegen_expr(params[0]);
+        if _av_val is None {
+            return None;
+        }
+        av = self._coerce_type(_av_val, i64);
+        _bv_val = self._codegen_expr(params[1]);
+        if _bv_val is None {
+            return None;
+        }
+        bv = self._coerce_type(_bv_val, i64);
         width = self.builder.add(self.builder.sub(bv, av), ir.Constant(i64, 1));
         return self.builder.add(av, self.builder.call(f_rb, [width]));
     }
 
     if name == "randrange" and params {
         if len(params) == 1 {
-            stop = self._coerce_type(self._codegen_expr(params[0]), i64);
+            _stop_val = self._codegen_expr(params[0]);
+            if _stop_val is None {
+                return None;
+            }
+            stop = self._coerce_type(_stop_val, i64);
             return self.builder.call(f_rb, [stop]);
         }
-        start = self._coerce_type(self._codegen_expr(params[0]), i64);
-        stop = self._coerce_type(self._codegen_expr(params[1]), i64);
+        _start_val = self._codegen_expr(params[0]);
+        if _start_val is None {
+            return None;
+        }
+        start = self._coerce_type(_start_val, i64);
+        _stop_val = self._codegen_expr(params[1]);
+        if _stop_val is None {
+            return None;
+        }
+        stop = self._coerce_type(_stop_val, i64);
         return self.builder.add(
             start, self.builder.call(f_rb, [self.builder.sub(stop, start)])
         );

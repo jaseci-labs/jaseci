@@ -38,14 +38,10 @@ glob REACT_JSDOM_DEPS: dict[str, str] = {
          "zod": "^4.3.6"
      };
 
-"""Skip unless the client toolchain integration flag is set."""
+"""Skip unless the client toolchain is present (JAC_TEST_STRICT escalates)."""
 def require_client_integration(suite: str) {
-    if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        testskip(
-            f"{suite} jsdom test does a real bun install; "
-            "set JAC_CLIENT_INTEGRATION=1 to run"
-        );
-    }
+    import from jaclang.testing.requires { require_tool }
+    require_tool("bun");
 }
 
 """Compile a `.jac` to JS with the React backend; type errors are non-fatal.

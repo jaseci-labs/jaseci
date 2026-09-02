@@ -90,7 +90,7 @@ impl NaIRGenCore.postinit -> None {
     super.postinit();
 }
 
-impl NaIRGenCore.transform(ir_in: uni.Module) -> uni.Module {
+impl NaIRGenCore._run_impl(ir_in: uni.Module) -> uni.Module {
     import from jaclang.compiler.passes.capability_check_pass {
         native_capability_violations,
         partition_native_capability_violations
@@ -230,7 +230,7 @@ impl NaIRGenCore._rename_demoted_symbol(name: str, func: ir.Function) -> None {
         self.llvm_module.globals.pop(func.name, None);
         func.name = f"{name}.__jac_demoted";
         self.llvm_module.globals[func.name] = func;
-    } except Exception { }
+    } except Exception {}
 }
 
 impl NaIRGenCore._llvm_type_str(ty: ir.Type) -> str {
@@ -1028,6 +1028,11 @@ impl NaIRGenCore._forward_declare_archetype_methods(arch: uni.Archetype) -> None
             if stmt.signature is not None
                 and isinstance(stmt.signature, uni.FuncSignature) {
                 self._forward_declare_method(aname, stmt, imported=True);
+                if stmt.name_ref is not None {
+                    self._record_linked_decl(
+                        self.method_funcs.get(f"{aname}.{stmt.name_ref.sym_name}"), stmt
+                    );
+                }
             } elif isinstance(stmt.signature, uni.EventSignature)
                 and (arch.arch_kind is not None) {
                 self._forward_declare_event_method(aname, stmt);
@@ -1093,11 +1098,11 @@ impl NaIRGenCore._register_imported_archetype(arch: uni.Archetype) -> None {
     _arch_src = _arch_mod.loc.mod_path if _arch_mod?.loc else "";
     _seen_src = self._struct_source_mod.get(aname);
     if _seen_src is not None and _arch_src and _seen_src != _arch_src {
-        import sys as _rc_sys;
-        _rc_sys.stderr.write(
-            f"warning: native struct name collision -- '{aname}' from "
+        import from jaclang.cli.console { console }
+        console.warning(
+            f"native struct name collision -- '{aname}' from "
             f"{_arch_src} shadows the one from {_seen_src}; skipping "
-            f"re-registration\n"
+            f"re-registration"
         );
         return;
     }
@@ -1193,6 +1198,16 @@ impl NaIRGenCore._forward_declare_imported_ability(
         }
     }
     self._maybe_declare_ability(nd);
+    self._record_linked_decl(self.func_symtab.get(name), nd);
+}
+
+impl NaIRGenCore._record_linked_decl(
+    func: (ir.Function | None), decl: uni.Ability
+) -> None {
+    if func is None or id(func) in self._linked_fn_decls {
+        return;
+    }
+    self._linked_fn_decls[id(func)] = (func, decl);
 }
 
 impl NaIRGenCore._ensure_dep_inference(dep_mod: uni.Module) -> None {
@@ -1201,22 +1216,20 @@ impl NaIRGenCore._ensure_dep_inference(dep_mod: uni.Module) -> None {
         _provided = set();
         self.prog.analysis.analyses_run[id(dep_mod)] = _provided;
     }
-    if 'inference' in _provided {
+    if 'TypeOf' in _provided {
         return;
     }
-    _provided.add('inference');
+    _provided.add('TypeOf');
     try {
         import from jaclang.compiler.driver.pass_driver { run_pass }
         import from jaclang.compiler.passes.cfg_build_pass { CFGBuildPass }
         import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
-        if 'cfg' not in _provided {
+        if 'CfgSucc' not in _provided {
             run_pass(CFGBuildPass, dep_mod, self.prog);
-            _provided.add('cfg');
+            _provided.add('CfgSucc');
         }
         run_pass(TypeCheckPass, dep_mod, self.prog);
-    } except Exception {
-        ;
-    }
+    } except Exception {}
 }
 
 impl NaIRGenCore._imported_function_demotions(
@@ -1239,7 +1252,10 @@ impl NaIRGenCore._imported_function_demotions(
             CompileOptions as _FdOpts
         }
         _opts_src = self.prog?.options or _FdOpts();
-        if not bool(getattr(_opts_src, "no_ir_cache", False)) {
+        import from jaclang.compiler.driver.jir {
+            native_ir_cache_suspended as _fd_suspended
+        }
+        if not (bool(getattr(_opts_src, "no_ir_cache", False)) or _fd_suspended()) {
             try {
                 import from jaclang.compiler.backends.native.na_compile_pass {
                     native_dep_cache_paths
@@ -1255,7 +1271,7 @@ impl NaIRGenCore._imported_function_demotions(
                         return set(_fd_meta.get("demoted_symbols") or []);
                     }
                 }
-            } except Exception { }
+            } except Exception {}
         }
         if not bool(_opts_src.aot_mode)
             or real_path in self.prog.scratch.na_dep_inflight
@@ -1296,7 +1312,7 @@ impl NaIRGenCore._imported_function_demotions(
             for _fd_fn in _fd_mod.functions {
                 _fd_names.append(_fd_fn.name);
             }
-        } except Exception { }
+        } except Exception {}
     }
     for _fd_gname in _fd_names {
         if _fd_gname.endswith(".__jac_demoted") {
@@ -1626,5 +1642,50 @@ impl NaIRGenCore._split_call_kwargs(nd: uni.FuncCall) -> dict {
             out[param.key.sym_name] = param.value;
         }
     }
+    for (ct_name, ct_expr) in self._ct_ctor_slots(nd.target) {
+        out[ct_name] = ct_expr;
+    }
     return out;
+}
+
+impl NaIRGenCore._ct_ctor_slots(target: uni.UniNode) -> list[tuple] {
+    out: list[tuple] = [];
+    if not isinstance(target, uni.AtomTrailer) or target.is_attr {
+        return out;
+    }
+    if not isinstance(target.right, uni.IndexSlice) or target.right.is_range {
+        return out;
+    }
+    t = target.target.type;
+    shared = t?.shared;
+    if shared is None or not shared.ct_params {
+        return out;
+    }
+    arch = shared.symbol_table;
+    if not isinstance(arch, uni.Archetype) {
+        return out;
+    }
+    s0 = target.right.slices[0] if target.right.slices else None;
+    head = s0.start if s0 is not None else None;
+    vals: list = `list(head.values)
+        if isinstance(head, uni.TupleVal)
+        else ([head] if head else []);
+    for (i, tp) in enumerate(arch.type_params or []) {
+        if tp.is_comptime and i < len(vals) {
+            out.append((tp.name.value, vals[i], ));
+        }
+    }
+    return out;
+}
+
+impl NaIRGenCore.transform(ir_in: uni.Module) -> uni.Module {
+    self.ir_out = ir_in;
+    ir_in spawn self;
+    out = self.ir_out;
+    assert isinstance(out, uni.Module);
+    return out;
+}
+
+impl NaIRGenCore.run_walk with uni.Module entry {
+    self.ir_out = self._run_impl(here);
 }
