@@ -1,11 +1,11 @@
-impl BoundaryAnalysisPass.before_pass(self: BoundaryAnalysisPass) -> None {
+impl BoundaryAnalysisPass.before_pass -> None {
     self._func_defs = {};
     self._imported_native_funcs = {};
     self._imported_native_modules = {};
 }
 
 impl BoundaryAnalysisPass._resolved_native_decl(
-    self: BoundaryAnalysisPass, name_node: (UniNode | None)
+    name_node: (UniNode | None)
 ) -> (Ability | None) {
     if name_node is None or not isinstance(name_node, AstSymbolNode) {
         return None;
@@ -18,7 +18,7 @@ impl BoundaryAnalysisPass._resolved_native_decl(
 }
 
 impl BoundaryAnalysisPass._signature_of_decl(
-    self: BoundaryAnalysisPass, decl: (Ability | None)
+    decl: (Ability | None)
 ) -> tuple[(str, list[str], list[str])] {
     ret_type: str = 'int';
     param_types: list[str] = [];
@@ -46,9 +46,7 @@ impl BoundaryAnalysisPass._signature_of_decl(
     return (ret_type, param_types, param_names);
 }
 
-impl BoundaryAnalysisPass._get_context(
-    self: BoundaryAnalysisPass, nd: UniNode
-) -> InteropContext {
+impl BoundaryAnalysisPass._get_context(nd: UniNode) -> InteropContext {
     import from jaclang.compiler.frontend.constant { CodeContext }
     cs = nd.codespace();
     if cs == CodeContext.NATIVE {
@@ -60,9 +58,7 @@ impl BoundaryAnalysisPass._get_context(
     return InteropContext.SERVER;
 }
 
-impl BoundaryAnalysisPass._extract_type_name(
-    self: BoundaryAnalysisPass, expr: (UniNode | None)
-) -> str {
+impl BoundaryAnalysisPass._extract_type_name(expr: (UniNode | None)) -> str {
     if (expr is None) {
         return 'int';
     }
@@ -92,7 +88,7 @@ impl BoundaryAnalysisPass._extract_type_name(
     return 'int';
 }
 
-impl BoundaryAnalysisPass._in_native_module(self: BoundaryAnalysisPass) -> bool {
+impl BoundaryAnalysisPass._in_native_module -> bool {
     if not (self.ir_in and self.ir_in.loc) {
         return False;
     }
@@ -100,7 +96,7 @@ impl BoundaryAnalysisPass._in_native_module(self: BoundaryAnalysisPass) -> bool 
 }
 
 impl BoundaryAnalysisPass._native_source_module_of(
-    self: BoundaryAnalysisPass, mod: (Module | None)
+    mod: (Module | None)
 ) -> (str | None) {
     import os;
     if mod is None or mod is self.ir_in or mod.loc is None or not mod.loc.mod_path {
@@ -128,9 +124,7 @@ impl BoundaryAnalysisPass._native_source_module_of(
     return None;
 }
 
-impl BoundaryAnalysisPass._register_native_absorb(
-    self: BoundaryAnalysisPass, nd: Import
-) -> None {
+impl BoundaryAnalysisPass._register_native_absorb(nd: Import) -> None {
     import from jaclang.compiler.frontend.constant { SymbolAccess }
     item = nd.items[0];
     if not (isinstance(item, ModulePath) and item.path) {
@@ -180,11 +174,11 @@ impl BoundaryAnalysisPass._register_native_absorb(
     }
 }
 
-impl BoundaryAnalysisPass.enter_import(self: BoundaryAnalysisPass, nd: Import) -> None {
-    import_context = self._get_context(nd);
-    facts = nd.boundary_facts;
-    if (nd.from_loc and isinstance(nd.from_loc, ModulePath)) {
-        from_loc = nd.from_loc;
+impl BoundaryAnalysisPass.enter_import with Import entry {
+    import_context = self._get_context(here);
+    facts = here.boundary_facts;
+    if (here.from_loc and isinstance(here.from_loc, ModulePath)) {
+        from_loc = here.from_loc;
         module_name = from_loc.dot_path_str;
         if (not module_name and from_loc.path) {
             module_name = '.'.join(p.value for p in from_loc.path);
@@ -195,24 +189,24 @@ impl BoundaryAnalysisPass.enter_import(self: BoundaryAnalysisPass, nd: Import) -
             if (is_sv and not native_path) {
                 sv_module_name = from_loc.base_module_name;
                 caller_ctx = InteropContext.CLIENT
-                    if nd.in_client_context()
+                    if here.in_client_context()
                     else InteropContext.SERVER;
-                self._register_sv_import(nd, sv_module_name, caller_ctx);
+                self._register_sv_import(here, sv_module_name, caller_ctx);
             }
-            if nd.items and not is_sv {
+            if here.items and not is_sv {
                 if (facts and facts.pinned_server) {
                     self._register_sv_import(
-                        nd, from_loc.base_module_name, InteropContext.CLIENT
+                        here, from_loc.base_module_name, InteropContext.CLIENT
                     );
                 } elif (facts and facts.client_native_edge) {
-                    self._register_na_client_import(nd);
+                    self._register_na_client_import(here);
                 } else {
-                    self._register_client_bridged_import(nd);
+                    self._register_client_bridged_import(here);
                 }
             }
-            if (native_path and nd.items) {
+            if (native_path and here.items) {
                 manifest = self.ir_in.gen.interop_manifest;
-                for item in nd.items {
+                for item in here.items {
                     if isinstance(item, ModuleItem) {
                         func_name = item.name.value;
                         _item_sym = item.name.sym
@@ -251,13 +245,16 @@ impl BoundaryAnalysisPass.enter_import(self: BoundaryAnalysisPass, nd: Import) -
         }
     }
 
-    if (not nd.from_loc) and nd.is_absorb and nd.items and (not nd.clib_decls) {
-        self._register_native_absorb(nd);
+    if (not here.from_loc)
+        and here.is_absorb
+        and here.items
+        and (not here.clib_decls) {
+        self._register_native_absorb(here);
         return;
     }
 
-    if (not nd.from_loc) and nd.items and (not nd.clib_decls) {
-        for item in nd.items {
+    if (not here.from_loc) and here.items and (not here.clib_decls) {
+        for item in here.items {
             if isinstance(item, ModulePath) and item.path {
                 whole_name = '.'.join(p.value for p in item.path);
                 item_path = facts.native_item_paths.get(whole_name) if facts else None;
@@ -273,7 +270,7 @@ impl BoundaryAnalysisPass.enter_import(self: BoundaryAnalysisPass, nd: Import) -
 }
 
 impl BoundaryAnalysisPass._register_sv_import(
-    self: BoundaryAnalysisPass, nd: Import, module_name: str, caller_ctx: InteropContext
+    nd: Import, module_name: str, caller_ctx: InteropContext
 ) -> None {
     facts = nd.boundary_facts;
     source_abilities: dict[(str, Ability)] = facts.sv_abilities if facts else {};
@@ -319,9 +316,7 @@ impl BoundaryAnalysisPass._register_sv_import(
     }
 }
 
-impl BoundaryAnalysisPass._register_na_client_import(
-    self: BoundaryAnalysisPass, nd: Import
-) -> None {
+impl BoundaryAnalysisPass._register_na_client_import(nd: Import) -> None {
     import from jaclang.compiler.frontend.codeinfo { native_wasm_stem }
     import from jaclang.compiler.frontend.diagnostics { E5083, E5100 }
     if not nd.from_loc or not nd.items {
@@ -373,9 +368,7 @@ impl BoundaryAnalysisPass._register_na_client_import(
     }
 }
 
-impl BoundaryAnalysisPass._register_client_bridged_import(
-    self: BoundaryAnalysisPass, nd: Import
-) -> None {
+impl BoundaryAnalysisPass._register_client_bridged_import(nd: Import) -> None {
     facts = nd.boundary_facts;
     if not facts or not facts.bridged_decls {
         return;
@@ -408,7 +401,7 @@ impl BoundaryAnalysisPass._register_client_bridged_import(
 }
 
 impl BoundaryAnalysisPass._extract_walker_has_fields(
-    self: BoundaryAnalysisPass, walker_nd: any
+    walker_nd: any
 ) -> tuple[list[str], list[str]] {
     names: list[str] = [];
     types: list[str] = [];
@@ -443,7 +436,7 @@ impl BoundaryAnalysisPass._extract_walker_has_fields(
 }
 
 impl BoundaryAnalysisPass._find_archetype(
-    self: BoundaryAnalysisPass, nd: UniNode, target: str
+    nd: UniNode, target: str
 ) -> (Archetype | Enum | None) {
     if (isinstance(nd, (Archetype, Enum)) and nd.sym_name == target) {
         return nd;
@@ -457,37 +450,33 @@ impl BoundaryAnalysisPass._find_archetype(
     return None;
 }
 
-impl BoundaryAnalysisPass.enter_ability(
-    self: BoundaryAnalysisPass, nd: Ability
-) -> None {
+impl BoundaryAnalysisPass.enter_ability with Ability entry {
     if (
-        nd.sym_name
-        and isinstance(nd.signature, FuncSignature)
-        and nd.find_parent_of_type(Ability) is None
-        and nd.find_parent_of_type(LambdaExpr) is None
+        here.sym_name
+        and isinstance(here.signature, FuncSignature)
+        and here.find_parent_of_type(Ability) is None
+        and here.find_parent_of_type(LambdaExpr) is None
     ) {
-        nd_cc = nd.code_context;
+        nd_cc = here.code_context;
         ctx: InteropContext = InteropContext.SERVER;
         if nd_cc == CodeContext.NATIVE {
             ctx = InteropContext.NATIVE;
         } elif nd_cc == CodeContext.CLIENT {
             ctx = InteropContext.CLIENT;
         } else {
-            ctx = self._get_context(nd);
+            ctx = self._get_context(here);
         }
-        self._func_defs[nd.sym_name] = (ctx, nd);
+        self._func_defs[here.sym_name] = (ctx, here);
     }
 }
 
-impl BoundaryAnalysisPass.enter_func_call(
-    self: BoundaryAnalysisPass, nd: FuncCall
-) -> None {
+impl BoundaryAnalysisPass.enter_func_call with FuncCall entry {
     if (
-        isinstance(nd.target, Name)
-        and nd.target.sym is not None
-        and nd.target.sym.decl is not None
+        isinstance(here.target, Name)
+        and here.target.sym is not None
+        and here.target.sym.decl is not None
     ) {
-        _decl_ab = nd.target.sym.decl.find_parent_of_type(Ability);
+        _decl_ab = here.target.sym.decl.find_parent_of_type(Ability);
         if (
             _decl_ab is not None and _decl_ab.find_parent_of_type(Ability) is not None
         ) {
@@ -495,12 +484,12 @@ impl BoundaryAnalysisPass.enter_func_call(
         }
     }
     func_name = None;
-    if isinstance(nd.target, Name) {
-        func_name = nd.target.value;
-    } elif isinstance(nd.target, NameAtom) {
-        func_name = nd.target.sym_name;
-    } elif isinstance(nd.target, AtomTrailer) and nd.target.is_attr {
-        base = nd.target.target;
+    if isinstance(here.target, Name) {
+        func_name = here.target.value;
+    } elif isinstance(here.target, NameAtom) {
+        func_name = here.target.sym_name;
+    } elif isinstance(here.target, AtomTrailer) and here.target.is_attr {
+        base = here.target.target;
         base_name = None;
         if isinstance(base, Name) {
             base_name = base.value;
@@ -508,7 +497,7 @@ impl BoundaryAnalysisPass.enter_func_call(
             base_name = base.sym_name;
         }
         if base_name is not None and base_name in self._imported_native_modules {
-            right = nd.target.right;
+            right = here.target.right;
             right_name: (str | None) = None;
             if isinstance(right, AstSymbolNode) {
                 right_name = right.sym_name;
@@ -518,14 +507,14 @@ impl BoundaryAnalysisPass.enter_func_call(
             }
 
             _is_native_ctx = (
-                self._get_context(nd) == InteropContext.NATIVE
+                self._get_context(here) == InteropContext.NATIVE
                 or self._in_native_module()
             );
             if isinstance(right_name, str) and right_name and _is_native_ctx {
                 (mod_path, _ctx) = self._imported_native_modules[base_name];
                 _mfst = self.ir_in.gen.interop_manifest;
                 if right_name not in _mfst.bindings {
-                    _decl = self._resolved_native_decl(nd.target.right);
+                    _decl = self._resolved_native_decl(here.target.right);
                     (_rt, _pts, _pns) = self._signature_of_decl(_decl);
                     _mfst.bindings[right_name] = InteropBinding(
                         name=right_name,
@@ -548,13 +537,13 @@ impl BoundaryAnalysisPass.enter_func_call(
     if not func_name {
         return;
     }
-    caller_ctx = self._get_context(nd);
+    caller_ctx = self._get_context(here);
     manifest = self.ir_in.gen.interop_manifest;
     if (func_name in self._imported_native_funcs) {
         (source_module, import_ctx) = self._imported_native_funcs[func_name];
         if (caller_ctx == InteropContext.NATIVE or self._in_native_module()) {
             if (func_name not in manifest.bindings) {
-                _decl = self._resolved_native_decl(nd.target);
+                _decl = self._resolved_native_decl(here.target);
                 (_rt, _pts, _pns) = self._signature_of_decl(_decl);
                 binding = InteropBinding(
                     name=func_name,
@@ -597,9 +586,7 @@ impl BoundaryAnalysisPass.enter_func_call(
     }
 }
 
-impl BoundaryAnalysisPass._extract_subscript_inner(
-    self: BoundaryAnalysisPass, expr: (UniNode | None)
-) -> str {
+impl BoundaryAnalysisPass._extract_subscript_inner(expr: (UniNode | None)) -> str {
     if expr is None {
         return '';
     }
@@ -643,7 +630,7 @@ impl BoundaryAnalysisPass._extract_subscript_inner(
 }
 
 impl BoundaryAnalysisPass._extract_all_subscript_types(
-    self: BoundaryAnalysisPass, expr: (UniNode | None)
+    expr: (UniNode | None)
 ) -> list[str] {
     if expr is None {
         return [];
@@ -666,9 +653,7 @@ impl BoundaryAnalysisPass._extract_all_subscript_types(
     return result;
 }
 
-impl BoundaryAnalysisPass._extract_all_type_names(
-    self: BoundaryAnalysisPass, expr: (UniNode | None)
-) -> list[str] {
+impl BoundaryAnalysisPass._extract_all_type_names(expr: (UniNode | None)) -> list[str] {
     prims = {
         'str',
         'int',
@@ -725,7 +710,7 @@ impl BoundaryAnalysisPass._extract_all_type_names(
 }
 
 impl BoundaryAnalysisPass._collect_boundary_type(
-    self: BoundaryAnalysisPass, type_name: str, source_mod: (Module | None)
+    type_name: str, source_mod: (Module | None)
 ) -> None {
     prims = {
         'str',
@@ -888,7 +873,7 @@ impl BoundaryAnalysisPass._collect_boundary_type(
                             try {
                                 member_val = int(item.value.value);
                                 next_auto = member_val + 1;
-                            } except ValueError { }
+                            } except ValueError {}
                         }
                     } else {
                         member_val = next_auto;
@@ -907,7 +892,7 @@ impl BoundaryAnalysisPass._collect_boundary_type(
 }
 
 impl BoundaryAnalysisPass._literal_default(
-    self: BoundaryAnalysisPass, expr: (UniNode | None)
+    expr: (UniNode | None)
 ) -> tuple[(bool, any)] {
     if isinstance(expr, Null) {
         return (True, None);
@@ -966,7 +951,7 @@ impl BoundaryAnalysisPass._literal_default(
     return (False, None);
 }
 
-impl BoundaryAnalysisPass.after_pass(self: BoundaryAnalysisPass) -> None {
+impl BoundaryAnalysisPass.after_pass -> None {
     import from jaclang.compiler.frontend.diagnostics { E5093 }
     import from jaclang.runtime.scalars { sized_scalar_names }
     manifest = self.ir_in.gen.interop_manifest;
@@ -1089,9 +1074,7 @@ impl BoundaryAnalysisPass.after_pass(self: BoundaryAnalysisPass) -> None {
     self._record_access_levels(manifest);
 }
 
-impl BoundaryAnalysisPass._record_access_levels(
-    self: BoundaryAnalysisPass, manifest: any
-) -> None {
+impl BoundaryAnalysisPass._record_access_levels(manifest: any) -> None {
     if not (self.ir_in and self.ir_in.body) {
         return;
     }

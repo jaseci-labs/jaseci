@@ -268,17 +268,17 @@ runs:
           PRE_ARG=(-Dskip-precompile)
         fi
         # Retried: the cold-store fetches time out transiently, and one
-        # flake otherwise costs a whole run. A seal
-        # refusal is deterministic, though, so it exits on the first attempt
-        # rather than burning two more full builds to reprint itself.
+        # flake otherwise costs a whole run. A precompile failure is
+        # deterministic, though, so it exits on the first attempt rather
+        # than burning two more full builds to reprint itself.
         set -o pipefail
         LOG="$(mktemp)"
         for attempt in 1 2 3; do
           if zig build "${PRE_ARG[@]}" "${SHIM_ARG[@]}" --summary all 2>&1 | tee "$LOG"; then
             exit 0
           fi
-          if grep -qE 'NATIVE SEAL:|Seal aborted|seal-finalize failed' "$LOG"; then
-            echo "::error::zig build failed on a native-seal refusal; that is deterministic, so it is not retried."
+          if grep -qE 'Seal aborted|Seal incomplete|seal-finalize failed' "$LOG"; then
+            echo "::error::zig build failed in the precompile step; that is deterministic, so it is not retried."
             exit 1
           fi
           echo "zig build failed (attempt $attempt); retrying in 30s"

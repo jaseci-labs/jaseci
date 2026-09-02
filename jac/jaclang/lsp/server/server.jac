@@ -37,7 +37,7 @@ def lintfix_formatting(
     ls: JacLangServer, params: lspt.DocumentFormattingParams
 ) -> list[lspt.TextEdit];
 
-def did_create_files(ls: JacLangServer, params: lspt.CreateFilesParams) { }
+def did_create_files(ls: JacLangServer, params: lspt.CreateFilesParams) {}
 
 def did_rename_files(ls: JacLangServer, params: lspt.RenameFilesParams) -> None;
 

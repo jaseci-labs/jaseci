@@ -74,15 +74,47 @@ if [ ${#DIRECTLY_MODIFIED[@]} -gt 0 ]; then
 fi
 
 # Fragment path with the PR number captured in group 1.
-FRAGMENT_REGEX='release_notes/unreleased/[^/]+/([0-9]+)\.(feature|bugfix|breaking|refactor|docs)\.md$'
+FRAGMENT_REGEX='release_notes/unreleased/[^/]+/([0-9]+)\.(feature|bugfix|breaking)\.md$'
+
+# Categories the release notes no longer carry. A PR that is only an internal
+# refactor or a docs edit has nothing to tell a user at release time, so it
+# takes the skip label instead of filing a fragment.
+REJECTED_REGEX='release_notes/unreleased/[^/]+/([0-9]+)\.(refactor|docs)\.md$'
 
 CHANGED_FRAGMENTS=()
+REJECTED_FRAGMENTS=()
 while IFS= read -r file; do
     [ -z "$file" ] && continue
     # Deleted fragments (cleanup of stale entries) are not "this PR's fragment"
     [ -f "$file" ] || continue
     [[ "$file" =~ $FRAGMENT_REGEX ]] && CHANGED_FRAGMENTS+=("$file")
+    [[ "$file" =~ $REJECTED_REGEX ]] && REJECTED_FRAGMENTS+=("$file")
 done <<< "$CHANGED_FILES"
+
+if [ ${#REJECTED_FRAGMENTS[@]} -gt 0 ]; then
+    echo ""
+    echo "=========================================="
+    echo "ERROR: 'refactor' and 'docs' release notes are not accepted!"
+    echo "=========================================="
+    echo ""
+    echo "This PR adds or edits fragments in a retired category:"
+    echo ""
+    for item in "${REJECTED_FRAGMENTS[@]}"; do
+        echo "  - $item"
+    done
+    echo ""
+    echo "Release notes carry user-facing changes only. The accepted"
+    echo "categories are: feature, bugfix, breaking."
+    echo ""
+    echo "If the change IS user-facing, rename the fragment to the category"
+    echo "that fits:"
+    echo "  release_notes/unreleased/<package>/<PR#>.<feature|bugfix|breaking>.md"
+    echo ""
+    echo "If it is a pure internal refactor or a docs-only edit, do not file a"
+    echo "fragment at all: add the 'skip-release-notes-check' label to your PR."
+    echo ""
+    exit 1
+fi
 
 # A PR may only add/edit a fragment named after its own number; skipped locally
 # where PR_NUMBER is unknown.
@@ -131,7 +163,7 @@ for folder in "${!FOLDER_TO_FRAGMENTS[@]}"; do
         if [[ "$file" == "${folder}"* ]] && [[ "$file" != */tests/* ]]; then
             folder_changed=true
         fi
-        if [[ "$file" == "${fragments_dir}"* ]] && [[ "$file" =~ /([0-9]+)\.(feature|bugfix|breaking|refactor|docs)\.md$ ]]; then
+        if [[ "$file" == "${fragments_dir}"* ]] && [[ "$file" =~ /([0-9]+)\.(feature|bugfix|breaking)\.md$ ]]; then
             if [ -z "$PR_NUMBER" ] || [ "${BASH_REMATCH[1]}" == "$PR_NUMBER" ]; then
                 fragment_added=true
             fi
@@ -139,7 +171,7 @@ for folder in "${!FOLDER_TO_FRAGMENTS[@]}"; do
     done <<< "$CHANGED_FILES"
 
     if $folder_changed && ! $fragment_added; then
-        MISSING_NOTES+=("${folder} -> ${fragments_dir}<PR#>.<feature|bugfix|breaking|refactor|docs>.md")
+        MISSING_NOTES+=("${folder} -> ${fragments_dir}<PR#>.<feature|bugfix|breaking>.md")
     fi
 done
 

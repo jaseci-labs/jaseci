@@ -145,6 +145,12 @@ def module_own_native_anchor(module: (uni.Module | None)) -> bool {
     return False;
 }
 
+def module_demoted_native(path: str) -> bool {
+    import from jaclang.compiler.placement.placement_pins { _is_demoted_native }
+    return _is_demoted_native(os.path.realpath(path));
+}
+
+
 def plain_native_import_target(nd: uni.Import, prog: object) -> (str | None) {
     import from jaclang.compiler.placement.placement_pins {
         _is_demoted_native,
@@ -229,12 +235,9 @@ def native_only_import_target(nd: uni.Import, prog: object) -> (str | None) {
 }
 
 def is_client_native_edge_import(nd: uni.Import, prog: object) -> bool {
-    if nd.code_context == CodeContext.CLIENT {
-        ;
-    } elif nd.code_context == CodeContext.SERVER
-        and module_has_client_top(nd.find_parent_of_type(uni.Module)) {
-        ;
-    } else {
+    if nd.code_context == CodeContext.CLIENT {} elif nd.code_context
+        == CodeContext.SERVER
+        and module_has_client_top(nd.find_parent_of_type(uni.Module)) {} else {
         return False;
     }
     return plain_native_import_target(nd, prog) is not None;

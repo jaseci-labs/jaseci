@@ -1494,11 +1494,11 @@ def _run_precompiler(src_dir: str, flags: list[str]) -> int {
 
     code = (
         "import _jac_finder as _jf; _jf.apply_dev_source_override(); _jf.install(); "
-        "import sys; sys.argv = ['precompile', "
+        "import sys; sys.argv = ['jac', 'precompile', "
         + repr(src_dir)
         + "] + "
         + repr(list(flags))
-        + "; from jaclang.dist.precompile_bytecode import main; main()"
+        + "; from jaclang.cli.cli_boot import start_cli; start_cli()"
     );
     return subprocess.call([sys.executable, "-c", code]);
 }
@@ -1596,9 +1596,7 @@ def _build_serve_manifest(entry_file: Path, proj_root: Path) -> (dict | None) {
             if man0 and not (man0.walker_access or man0.func_access) {
                 try {
                     Jac.get_program().run_schedule(hmod, get_boundary_analysis_sched());
-                } except Exception {
-                    ;
-                }
+                } except Exception {}
             }
         }
     }
@@ -1803,7 +1801,7 @@ def _make_sealed_image(
         try {
             rel0 = Path(out_dir).resolve().relative_to(Path(proj_root).resolve());
             out_names.add(rel0.parts[0]);
-        } except ValueError { }
+        } except ValueError {}
     }
 
     def copy_ignore(d: str, items: list) -> list {
