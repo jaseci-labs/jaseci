@@ -13,11 +13,7 @@ import subprocess;
 import time;
 import requests;
 import from pathlib { Path }
-import from jaclang.scale.tests.auth_test_helpers {
-    data as _data,
-    register_and_login as _register_and_login
-}
-import from jaclang.scale.tests.server_support { get_free_port }
+import from jaclang.scale.tests.support { extract, get_free_port, register_user }
 
 glob FIXTURES_DIR: Path = Path(__file__).parent.parent
          / "fixtures"
@@ -112,7 +108,7 @@ test "add_identity_contract" {
         primary = _unique_user("alice");
         secondary = f"{primary}_alt";
         email_addr = f"{primary}@example.com";
-        token = _register_and_login(base, primary, "pw12345");
+        token = register_user(base, primary, "pw12345");
 
         # 1. Unauthenticated → 401
         r = requests.post(
@@ -129,8 +125,8 @@ test "add_identity_contract" {
             headers={"Authorization": f"Bearer {token}"},
             timeout=5
         ).json();
-        assert _data(rj)["status"] == "added";
-        assert _data(rj)["verified"] == False;
+        assert extract(rj)["status"] == "added";
+        assert extract(rj)["verified"] == False;
 
         # 3. Duplicate identity → 409 IDENTITY_TAKEN.
         r = requests.post(
@@ -149,8 +145,8 @@ test "add_identity_contract" {
             headers={"Authorization": f"Bearer {token}"},
             timeout=5
         ).json();
-        assert _data(rj)["status"] == "added";
-        assert _data(rj)["verified"] == False;
+        assert extract(rj)["status"] == "added";
+        assert extract(rj)["verified"] == False;
 
         # 5. send-verification for that email → 202 pending_verification + mail sent.
         rj = requests.post(
@@ -159,8 +155,8 @@ test "add_identity_contract" {
             headers={"Authorization": f"Bearer {token}"},
             timeout=5
         ).json();
-        assert _data(rj)["status"] == "pending_verification";
-        assert _data(rj)["email_sent"] == True;
+        assert extract(rj)["status"] == "pending_verification";
+        assert extract(rj)["email_sent"] == True;
 
         # 6. send-verification with no auth → 401.
         r = requests.post(
@@ -195,7 +191,7 @@ test "forgot_and_reset_password_contract" {
     try {
         proc = _start_server(port);
         bob_user = _unique_user("bob");
-        _register_and_login(base, bob_user, "pw12345");
+        register_user(base, bob_user, "pw12345");
 
         # forgot-password for known user → 200.
         r = requests.post(
@@ -204,7 +200,7 @@ test "forgot_and_reset_password_contract" {
             timeout=5
         );
         assert r.status_code == 200;
-        assert _data(r.json())["status"] == "ok";
+        assert extract(r.json())["status"] == "ok";
 
         # forgot-password for unknown user → still 200 (no leak).
         r = requests.post(
@@ -213,7 +209,7 @@ test "forgot_and_reset_password_contract" {
             timeout=5
         );
         assert r.status_code == 200;
-        assert _data(r.json())["status"] == "ok";
+        assert extract(r.json())["status"] == "ok";
 
         # reset-password with bogus token → 400 INVALID_TOKEN.
         r = requests.post(
