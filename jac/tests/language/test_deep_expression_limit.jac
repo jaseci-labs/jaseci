@@ -14,8 +14,8 @@ import from jaclang.compiler.frontend.parser.frontend { parse }
 import from jaclang.compiler.frontend.unitree { BinaryExpr }
 import from tests.support { JAC_ROOT }
 
-glob TREE_DEPTH = 20000,
-     IR_DEPTH = 50000;
+glob TREE_DEPTH: int = 20000,
+     IR_DEPTH: int = 50000;
 
 def chain_source(operands: int) -> str {
     return f"with entry {{\n    x = {'+'.join(['1'] * operands)};\n    print(x);\n}}\n";
@@ -47,16 +47,13 @@ def deep_cg_node(depth: int) -> CgNode {
     return tree;
 }
 
-test "the sub-node table is built for a tree far deeper than any stack allows" {
+test "the sub-node table and flatten handle a tree far deeper than any stack allows" {
     (mod, had_error) = parse(chain_source(TREE_DEPTH));
     assert not had_error;
+
     ops = mod.get_all_sub_nodes(BinaryExpr);
     assert len(ops) == TREE_DEPTH - 1 , len(ops);
-}
 
-test "flatten walks a tree far deeper than any stack allows" {
-    (mod, had_error) = parse(chain_source(TREE_DEPTH));
-    assert not had_error;
     nodes = mod.flatten();
     assert len(nodes) > TREE_DEPTH , len(nodes);
     assert nodes[0] is mod;
