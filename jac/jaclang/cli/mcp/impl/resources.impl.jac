@@ -128,7 +128,7 @@ impl ResourceProvider._index_bundled -> None {
 
 impl ResourceProvider._index_shared_guides -> None {
     try {
-        import from jaclang.cli.guide_store { list_docs, list_guides }
+        import from jaclang.cli.guide_store { docs_dir, list_docs, list_guides }
     } except ImportError {
         return;
     }
@@ -150,6 +150,19 @@ impl ResourceProvider._index_shared_guides -> None {
             "description": g.description,
             "mimeType": "text/markdown",
             "path": g.path
+        };
+    }
+    nav_path = docs_dir() / "nav.json";
+    if nav_path.is_file() {
+        self._resources["jac://docs/nav"] = {
+            "uri": "jac://docs/nav",
+            "name": "nav",
+            "description": (
+                "Docs navigation manifest: sections, titles, and reading order "
+                "(the same tree as 'jac guide --nav')"
+            ),
+            "mimeType": "application/json",
+            "path": str(nav_path)
         };
     }
 }

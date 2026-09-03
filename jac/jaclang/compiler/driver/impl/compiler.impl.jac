@@ -701,6 +701,7 @@ impl JacCompiler.parse_str(
             (_na_ok, _na_why) = native_default_verdict(mod);
             if _na_ok {
                 _coerce_native_module(mod);
+                mod.codespace_inferred = True;
                 na_coverage_record(mod.loc.mod_path, 'native');
             } elif _na_why == 'previously-demoted' {
                 import from jaclang.compiler.placement.placement_pins {
