@@ -324,7 +324,9 @@ test "a sealed .jab ships exactly the sources the resolution ran against" {
         [
             n
             for n in names
-            if not n.startswith("_precompiled/") and not n.startswith("_vendor/")
+            if not n.startswith("_precompiled/")
+                and not n.startswith("_vendor/")
+                and not n.startswith(".jac/venv/")
         ]
     );
     assert shipped_sources == sorted(_members(base) + ["jac.toml"]) , (
