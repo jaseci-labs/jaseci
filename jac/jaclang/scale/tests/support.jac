@@ -16,9 +16,11 @@ import shutil;
 import socket;
 import subprocess;
 import time;
+import unittest;
 import requests;
 import from pathlib { Path }
 import from typing { cast }
+import from jaclang.testing.test_runner { STRICT_ENV, strict_mode }
 
 """A port nothing is listening on."""
 def get_free_port -> int {
@@ -33,6 +35,25 @@ def get_free_port -> int {
 """The jac binary `zig build` writes, resolved from this file's depth in tests/."""
 def pod_binary -> Path {
     return Path(__file__).parents[3] / "zig-out" / "bin" / "jac";
+}
+
+"""The pod binary, or a named skip that JAC_TEST_STRICT turns into a failure.
+
+Mirrors `jaclang.testing.requires`, which cannot express a build artifact:
+this one is neither an importable module nor a tool on PATH.
+"""
+def require_pod_binary -> Path {
+    binary = pod_binary();
+    if not binary.is_file() {
+        detail = f"missing build artifact '{binary}' (run `zig build` to produce it)";
+        if strict_mode() {
+            raise AssertionError(
+                f"{detail}; {STRICT_ENV} is set, so this is a failure"
+            );
+        }
+        raise unittest.SkipTest(detail);
+    }
+    return binary;
 }
 
 """Delete SQLite, legacy shelf, and client-build leftovers under fixtures_dir."""
@@ -114,7 +135,7 @@ def register_user(base_url: str, username: str, password: str = "pass123") -> st
 `env` overlays the inherited environment, for fixtures that need a variable
 set for the server process (a PYTHONPATH entry, say). A server that exits
 before answering is reported immediately with its output rather than waited
-out. The 120s budget covers a cold compile cache, where the first boot must
+out. The 300s budget covers a cold compile cache, where the first boot must
 compile the app before it can serve /healthz.
 """
 def start_server(
