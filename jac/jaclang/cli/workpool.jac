@@ -51,14 +51,16 @@ def env_int(name: str, fallback: int) -> int;
 
 def maybe_malloc_trim -> None;
 
-def default_jobs -> int;
+def default_jobs(worker_bytes: int = 0, avail_bytes: int = 0) -> int;
 
 def jobs_setting(
     command: str, requested: (str | int | None) = None, dev: any = None
 ) -> str;
 
 def resolve_jobs(
-    requested: (str | int | None) = None, env_var: str = "JAC_JOBS"
+    requested: (str | int | None) = None,
+    env_var: str = "JAC_JOBS",
+    worker_bytes: int = 0
 ) -> int;
 
 def forced_serial(requested: (str | int | None) = None) -> bool;

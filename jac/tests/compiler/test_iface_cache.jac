@@ -36,6 +36,7 @@ import from jaclang.compiler.driver.jir {
     write_precompiled_jir,
     _manifest_compiler_digest
 }
+import from jaclang.compiler.types.stubcat.modiface { read_iface_hash }
 
 glob DEP_V1: str = "def f() -> int { return 1; }\n",
      DEP_V1_BODY_EDIT: str = "def f() -> int { return 2; }\n",
@@ -271,4 +272,281 @@ test "the compiler digest manifest reproduces the full sweep exactly" {
     assert _manifest_compiler_digest(pkg) == changed , (
         "manifest digest missed an edited file"
     );
+}
+
+test "a third-party Python dependency is fingerprinted, never compiled as a target" {
+    # A byllm fixture imports litellm, and the sealed in-package lane died
+    # on it: `.py` under site-packages counted as a cacheable dependency, so
+    # a cache miss compiled it as an interface target, whose interface walk
+    # loaded everything it imported, each of which missed and compiled in
+    # turn -- 1,450 litellm modules and 14 GB on a 16 GB runner. Third-party
+    # Python is opaque to the cutoff now, the way typeshed stubs are: its
+    # row carries a content digest, no miss ever compiles it, and it is
+    # never served or persisted as an interface target.
+    import sys;
+    import from jaclang.compiler.driver.jir { compute_stub_module_key }
+    tmp = tempfile.mkdtemp();
+    sp = os.path.join(tmp, "site-packages");
+    pkg = os.path.join(sp, "thirdmod");
+    os.makedirs(pkg);
+    with open(os.path.join(pkg, "__init__.py"), "w") as fh {
+        fh.write("from .sub import helper\n\n__all__ = ['helper']\n");
+    }
+    with open(os.path.join(pkg, "sub.py"), "w") as fh {
+        fh.write("from .deep import base\n\ndef helper() -> int:\n    return base()\n");
+    }
+    with open(os.path.join(pkg, "deep.py"), "w") as fh {
+        fh.write("def base() -> int:\n    return 7\n");
+    }
+    main = os.path.join(tmp, "usesthird.jac");
+    with open(main, "w") as fh {
+        fh.write(
+            "import from thirdmod { helper }\n\nwith entry { print(helper()); }\n"
+        );
+    }
+    main = os.path.realpath(main);
+    init_py = os.path.realpath(os.path.join(pkg, "__init__.py"));
+    sys.path.insert(0, sp);
+    try {
+        (prog, rendered) = _check(main);
+        assert not prog.errors_had , f"the third-party import did not check clean: {rendered}";
+        events = prog.analysis.cache_events;
+        assert events.get("dep_miss_compile", 0) == 0 , (
+            f"a site-packages module was compiled as a dependency target (events: {events})"
+        );
+        for name in ("__init__.py", "sub.py", "deep.py") {
+            leaf = os.path.realpath(os.path.join(pkg, name));
+            assert not get_module_cache_path(leaf).exists() , (
+                f"{name} got its own cache entry; third-party Python must stay opaque"
+            );
+        }
+        reg = prog.iface_registry();
+        compiler = prog._get_compiler();
+        assert not reg.eligible(compiler, init_py, _check_opts()) , "a site-packages module must never be served or persisted as an interface target";
+        before = dict(reg.prog.analysis.cache_events);
+        assert reg.ensure(init_py) is None , "ensure() must not manufacture an entry for third-party Python";
+        assert reg.prog.analysis.cache_events.get("dep_miss_compile", 0)
+            == before.get("dep_miss_compile", 0) , "ensure() compiled a site-packages module on a miss";
+        assert not get_module_cache_path(init_py).exists() , "ensure() wrote a cache entry for third-party Python";
+        reg.frame_push(main);
+        try {
+            reg.note_dep(init_py);
+        } finally {
+            reg.frame_pop();
+        }
+        rows = reg.direct_deps.get(main, {});
+        assert rows.get(init_py) == compute_stub_module_key(init_py) , f"a third-party Python dependency is fingerprinted by content, like a stub (rows: {rows})";
+    } finally {
+        if sp in sys.path {
+            sys.path.remove(sp);
+        }
+    }
+}
+
+test "an analysis that ended in errors is not memoized for replay" {
+    (main, dep) = _project();
+    _rewrite(
+        main,
+        "import from depmod { f }\n\nwith entry { print(f() + undefined_name); }\n"
+    );
+    (cold_prog, cold_diags) = _check(main);
+    assert cold_prog.errors_had , "the fixture must fail analysis to be meaningful";
+    (warm_prog, warm_diags) = _check(main);
+    events = warm_prog.analysis.cache_events;
+    assert events.get("analysis_replay", 0) == 0 , (
+        f"a failed analysis was replayed from cache (events: {events})"
+    );
+    assert warm_prog.analysis.pass_runs , "the warm check of a failed module must re-run analysis";
+    assert len(warm_prog.errors_had) == len(cold_prog.errors_had) , (
+        "re-analysis must report the same errors as the cold run"
+    );
+}
+
+test "a compile acting on an inferred native verdict persists no interface" {
+    # Only the codegen flavor runs the native verdict for a marker-less
+    # module in a native-default project, and a module analyzed under it
+    # exports native typing that dependency ingestion and jac check never
+    # see. Its persist must leave the analysis-flavor interface on disk, or
+    # every importer's cutoff row flips with whichever flavor ran last.
+    (main, dep) = _project();
+    ana = JacProgram();
+    ana.compile(dep, options=_check_opts());
+    before = read_iface_hash(
+        read_section_bytes(get_module_cache_path(dep).read_bytes(), SEC_IFACE)
+    );
+    gen = JacProgram();
+    gen.compile(dep);
+    after = read_iface_hash(
+        read_section_bytes(get_module_cache_path(dep).read_bytes(), SEC_IFACE)
+    );
+    mod = gen.mod.hub.get(dep);
+    assert mod is not None , "the codegen compile left no module in the hub";
+    if mod.decided_codespace == "native" {
+        assert mod.codespace_inferred , "a marker-less native verdict must be marked inferred";
+    }
+    assert before == after , (
+        f"a codegen compile rewrote the interface: {before} vs {after}"
+    );
+    # The rule itself, on a machine whose native toolchain may not let the
+    # verdict pass: an inferred verdict skips the interface, a declared one
+    # does not.
+    reg = gen.iface_registry();
+    encodes = reg.prog.analysis.cache_events.get("iface_encode", 0);
+    mod.decided_codespace = "native";
+    mod.codespace_inferred = True;
+    reg.persist_after_compile(dep, mod, CompileOptions(), 0, 0);
+    assert reg.prog.analysis.cache_events.get("iface_encode", 0) == encodes , "an inferred verdict was encoded into an interface";
+    assert read_iface_hash(
+        read_section_bytes(get_module_cache_path(dep).read_bytes(), SEC_IFACE)
+    )
+        == before , "an inferred verdict overwrote the persisted interface";
+    mod.codespace_inferred = False;
+    reg.persist_after_compile(dep, mod, CompileOptions(), 0, 0);
+    assert read_iface_hash(
+        read_section_bytes(get_module_cache_path(dep).read_bytes(), SEC_IFACE)
+    )
+        != before , "a declared native placement must reach the interface";
+}
+
+test "the interface-bytes memo outlives the compile closure" {
+    # Encoding an interface forces every exported symbol's type, which pulls
+    # the module's dependencies in; re-persisting an unchanged module (the
+    # client-boundary walk re-enters package modules dozens of times per
+    # unit) must reuse the encoded bytes across closures instead of paying
+    # that again.
+    (main, dep) = _project();
+    prog = JacProgram();
+    mod = prog.compile(dep, options=_check_opts());
+    reg = prog.iface_registry();
+    events = prog.analysis.cache_events;
+    assert events.get("iface_encode", 0) == 1 , f"the cold persist did not encode (events: {events})";
+    prog.release_compile_closure();
+    reg.persist_after_compile(dep, mod, _check_opts(), 0, 0);
+    events = prog.analysis.cache_events;
+    assert events.get("iface_persist", 0) == 2 , f"expected a second persist of the unchanged module (events: {events})";
+    assert events.get("iface_encode", 0) == 1 , f"the unchanged module was re-encoded after closure release (events: {events})";
+}
+
+glob NARROW_DEP: str = """
+obj Info {
+    has help_text: str = "";
+}
+
+obj Alert {
+    has code: (Info | None) = None,
+        help_text: (str | None) = None;
+
+    def postinit {
+        if (self.help_text is None) and self.code {
+            self.help_text = self.code.help_text;
+        }
+    }
+}
+""",
+     NARROW_MAIN: str = "import type from depmod { Alert }\n\ndef show(a: Alert) -> str { return str(a.help_text); }\n\nwith entry { print(show); }\n";
+
+test "persisting a dependency interface neither reports nor mistypes its narrowing sites" {
+    (main, dep) = _project(NARROW_DEP);
+    with open(main, "w") as fh {
+        fh.write(NARROW_MAIN);
+    }
+    (prog, rendered) = _check(main);
+    assert rendered == [] , (
+        "a type-only import compiled its dependency lazily inside the type "
+        f"checker and persisting that interface leaked diagnostics: {rendered}"
+    );
+    events = prog.analysis.cache_events;
+    assert events.get("iface_encode", 0) >= 2 , (
+        f"expected both modules to be encoded on a cold cache (events: {events})"
+    );
+    assert events.get("iface_cfg", 0) >= 1 , (
+        f"the dependency's flow graph must be built before its interface is forced (events: {events})"
+    );
+}
+
+test "a tree-demanding closure does not disable hydration for later compiles" {
+    # need_full_ast is a closure's demand (code intelligence, native-decided
+    # targets): it must flow to that closure's dependency ingestion and stop
+    # there. It was read from the program's last options instead, so one
+    # such compile turned hydration off for the rest of the program's life;
+    # in the check pool that is every target after the first native one.
+    (main, dep) = _project();
+    _check(main);
+    prog = JacProgram();
+    prog.compile(
+        main,
+        options=CompileOptions(
+            no_cgen=True, force_target_program=True, need_full_ast=True
+        )
+    );
+    assert prog.analysis.cache_events.get("dep_hydrate", 0) == 0 , "a tree-demanding closure must not hydrate its dependencies";
+    prog.release_compile_closure();
+    prog.load_dependency_module(dep);
+    events = prog.analysis.cache_events;
+    assert events.get("dep_hydrate", 0) == 1 , (
+        f"hydration stayed off after the tree-demanding closure ended (events: {events})"
+    );
+}
+
+test "a module-level comprehension variable is not part of the interface" {
+    # Comprehension scopes are Python scopes; their loop variables must not
+    # be exported as module members (the writer walked them as block scopes,
+    # and name-level verify flagged every such module as diverging).
+    (main, dep) = _project(
+        "glob NAMES: set = {v for v in ['a', 'b']};\ndef f() -> int { return 1; }\n"
+    );
+    _check(main);
+    prog = JacProgram();
+    mod = prog.load_dependency_module(dep);
+    assert prog.analysis.cache_events.get("dep_hydrate", 0) == 1 , "the dependency was not hydrated";
+    names = set(mod.names_in_scope.keys());
+    assert "NAMES" in names and "f" in names , f"exports lost: {sorted(names)}";
+    assert "v" not in names , "a comprehension variable leaked into the interface";
+}
+
+test "an interface is identical however many twins of its module are reachable" {
+    # A long-lived program (the compiler's own, here) can hold an older tree
+    # of a module through memoized types when the module is compiled again in
+    # a fresh program; the writer keyed scopes and symbols by object identity
+    # while judging the boundary by path, so both twins were emitted and the
+    # second interface carried every name twice with a different digest.
+    import from tests.support { JAC_ROOT }
+    import from jaclang.compiler.types.stubcat.locate { jaclang_pkg_dir }
+    import from jaclang.compiler.types.stubcat.modiface {
+        build_module_iface,
+        open_module_iface,
+        iface_module
+    }
+    target = os.path.join(
+        JAC_ROOT,
+        "jaclang",
+        "compiler",
+        "backends",
+        "native",
+        "llvm",
+        "ir",
+        "__init__.jac"
+    );
+    pkg = jaclang_pkg_dir();
+    digests: list[str] = [];
+    names: list[int] = [];
+    for i in range(2) {
+        prog = JacProgram();
+        mod = prog.compile(
+            target,
+            options=CompileOptions(
+                no_cgen=True,
+                symtab_ir_only=True,
+                force_target_program=True,
+                need_full_ast=True
+            )
+        );
+        payload = build_module_iface(mod, prog.get_type_evaluator(), pkg);
+        digests.append(read_iface_hash(payload) or "");
+        cat = open_module_iface(payload, pkg);
+        served = iface_module(cat) if cat is not None else None;
+        names.append(len(served.names_in_scope) if served is not None else -1);
+    }
+    assert digests[0] == digests[1] , f"the interface digest changed between two compiles of one module: {digests}";
+    assert names[0] == names[1] , f"the interface's name count changed between compiles: {names}";
 }
