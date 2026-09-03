@@ -147,7 +147,7 @@ test "env overrides enter the options object at construction" {
     }
 }
 
-test "JIR module key changes when a codegen env flag flips" {
+test "JIR module key follows analysis env flags, not native-only codegen flags" {
     saved_rc = os.environ.pop("JAC_RC_DEBUG_CODEGEN", None);
     saved_tgt = os.environ.pop("JAC_NATIVE_TARGET", None);
     try {
@@ -164,7 +164,10 @@ test "JIR module key changes when a codegen env flag flips" {
             os.environ["JAC_NATIVE_TARGET"] = "wasm32-unknown-unknown";
             tgt_key = compute_module_key(src);
             os.environ.pop("JAC_NATIVE_TARGET", None);
-            assert rc_key != base_key , "JAC_RC_DEBUG_CODEGEN flip kept the key";
+            assert rc_key == base_key , (
+                "JAC_RC_DEBUG_CODEGEN is a native-only codegen knob and must "
+                "not change a bytecode module key"
+            );
             assert tgt_key != base_key , "JAC_NATIVE_TARGET flip kept the key";
             assert compute_module_key(src) == base_key;
         }

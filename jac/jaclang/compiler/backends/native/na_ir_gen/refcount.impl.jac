@@ -623,6 +623,12 @@ impl NaIRGenRefcount._release_owned_args(
     for _arg in call_args {
         if isinstance(_arg.type, ir.PointerType) and self._is_owned(_arg) {
             self._emit_rc_release_simple(_arg, op=op, loc="");
+        } elif (
+            self?.jacval_type is not None
+            and _arg.type == self.jacval_type
+            and self._is_owned(_arg)
+        ) {
+            self.builder.call(self._emit_jacval_release_fn(), [_arg]);
         }
     }
 }

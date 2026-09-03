@@ -3,6 +3,7 @@ import tarfile;
 import tempfile;
 import json;
 import from pathlib { Path }
+import from jaclang.scale.tests.support { pod_binary }
 import from jaclang.scale.injector.bundle {
     content_address,
     fat_bundle_enabled,
@@ -23,7 +24,7 @@ def _app(toml: str) -> str {
 def _pod_binary -> bytes | None {
     # The checkout's own binary stands in for the downloaded pod binary, same
     # as test_app_precompile; skip when the toolchain has not been built.
-    jac_bin = Path(__file__).parents[4] / "zig-out" / "bin" / "jac";
+    jac_bin = pod_binary();
     if not jac_bin.is_file() {
         return None;
     }

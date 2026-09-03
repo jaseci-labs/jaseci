@@ -1004,6 +1004,90 @@ impl NaIRGenArena._emit_arena_helpers -> None {
     b = ir.IRBuilder(_rh_zero);
     b.ret(ir.Constant(i64, 0));
     self.region_handle_of_fn = _rh_fn;
+
+    _cur_gv = ir.GlobalVariable(self.llvm_module, i8p, name="__jac_region_cur");
+    _cur_gv.linkage = "weak";
+    _cur_gv.initializer = ir.Constant(i8p, None);
+    self.region_cur_gv = _cur_gv;
+
+    _enter_fn = self._define_function(
+        "__jac_region_enter", ir.FunctionType(i8p, [i8p])
+    );
+    _enter_fn.linkage = "private";
+    _enter_fn.args[0].name = "hdl";
+    b = ir.IRBuilder(_enter_fn.append_basic_block("entry"));
+    _en_prev = b.load(_cur_gv, name="rgn.prev");
+    b.store(_enter_fn.args[0], _cur_gv);
+    b.ret(_en_prev);
+    self.region_enter_fn = _enter_fn;
+
+    _leave_fn = self._define_function(
+        "__jac_region_leave", ir.FunctionType(ir.VoidType(), [i8p])
+    );
+    _leave_fn.linkage = "private";
+    _leave_fn.args[0].name = "prev";
+    b = ir.IRBuilder(_leave_fn.append_basic_block("entry"));
+    b.store(_leave_fn.args[0], _cur_gv);
+    b.ret_void();
+    self.region_leave_fn = _leave_fn;
+
+    _dyn_fn = self._define_function(
+        "__jac_region_dyn_alloc", ir.FunctionType(i8p, [i64, i8p, i8p])
+    );
+    _dyn_fn.linkage = "private";
+    _dyn_fn.args[0].name = "size";
+    _dyn_fn.args[1].name = "dtor";
+    _dyn_fn.args[2].name = "release";
+    _dy_entry = _dyn_fn.append_basic_block("entry");
+    _dy_arena = _dyn_fn.append_basic_block("arena");
+    _dy_log = _dyn_fn.append_basic_block("log.dtor");
+    _dy_ret_a = _dyn_fn.append_basic_block("ret.arena");
+    _dy_heap = _dyn_fn.append_basic_block("heap");
+    _dy_slot = _dyn_fn.append_basic_block("heap.dtor");
+    _dy_ret_h = _dyn_fn.append_basic_block("ret.heap");
+    b = ir.IRBuilder(_dy_entry);
+    _dy_cur = b.load(_cur_gv, name="dy.cur");
+    b.cbranch(
+        b.icmp_unsigned("==", _dy_cur, ir.Constant(i8p, None), name="dy.none"),
+        _dy_heap,
+        _dy_arena
+    );
+    b = ir.IRBuilder(_dy_arena);
+    _dy_obj = b.call(_alloc_fn, [_dy_cur, _dyn_fn.args[0]], name="dy.obj");
+    b.cbranch(
+        b.icmp_unsigned(
+            "==", _dyn_fn.args[1], ir.Constant(i8p, None), name="dy.dtor.null"
+        ),
+        _dy_ret_a,
+        _dy_log
+    );
+    b = ir.IRBuilder(_dy_log);
+    b.call(_log_fn, [_dy_cur, _dy_obj, _dyn_fn.args[1]]);
+    b.branch(_dy_ret_a);
+    b = ir.IRBuilder(_dy_ret_a);
+    b.ret(_dy_obj);
+    b = ir.IRBuilder(_dy_heap);
+    _dy_raw = b.call(self.rc_alloc_fn, [_dyn_fn.args[0]], name="dy.rc");
+    b.cbranch(
+        b.icmp_unsigned(
+            "==", _dyn_fn.args[2], ir.Constant(i8p, None), name="dy.rel.null"
+        ),
+        _dy_ret_h,
+        _dy_slot
+    );
+    b = ir.IRBuilder(_dy_slot);
+    b.store(
+        b.ptrtoint(_dyn_fn.args[2], i64, name="dy.rel.i64"),
+        b.bitcast(
+            b.gep(_dy_raw, [ir.Constant(i64, HDR_DTOR_OFF)], name="dy.dt.s"),
+            i64p,
+            name="dy.dt.p"
+        )
+    );
+    b.branch(_dy_ret_h);
+    b = ir.IRBuilder(_dy_ret_h);
+    b.ret(_dy_raw);
+    self.region_dyn_alloc_fn = _dyn_fn;
 }
 
 
@@ -1098,6 +1182,35 @@ impl NaIRGenArena._region_log_dtor_if_needed(obj_i8: ir.Value, type_name: str) -
         _fields_fn, ir.IntType(8).as_pointer(), name="dtor.fn.i8"
     );
     self.builder.call(self.region_log_dtor_fn, [self.region_stack[-1], obj_i8, _fn_i8]);
+}
+
+impl NaIRGenArena._dynamic_region_module -> bool {
+    import from jaclang.compiler.native_scope { in_native_scope_path }
+    if self._nogc_headerless() {
+        return False;
+    }
+    return in_native_scope_path(self.ir_in.loc.mod_path);
+}
+
+impl NaIRGenArena._dyn_region_alloc(size: ir.Value, type_name: str) -> ir.Value {
+    self._emit_arena_helpers();
+    i8p = ir.IntType(8).as_pointer();
+    size = self._coerce_type(size, ir.IntType(64));
+    _fields_fn = self._emit_struct_drop_fields_fn(type_name);
+    _fields_i8: ir.Value = ir.Constant(i8p, None);
+    if _fields_fn is not None {
+        _fields_i8 = self.builder.bitcast(_fields_fn, i8p, name="dyn.dtor.i8");
+    }
+    self._emit_struct_release_fn(type_name);
+    _rel_fn = self.struct_release_fns.get(type_name);
+    _rel_i8: ir.Value = ir.Constant(i8p, None);
+    if _rel_fn is not None {
+        _rel_i8 = self.builder.bitcast(_rel_fn, i8p, name="dyn.rel.i8");
+    }
+    self.rc_region_allocs += 1;
+    return self.builder.call(
+        self.region_dyn_alloc_fn, [size, _fields_i8, _rel_i8], name="dyn.obj"
+    );
 }
 
 impl NaIRGenArena._open_anon_region(gidx: int) -> None {

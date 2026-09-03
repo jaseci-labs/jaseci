@@ -68,12 +68,12 @@ jobs:
         working-directory: jac/jac/examples/jaclang_org
         run: jac install
 
-      # JAC_DOCS_LOCAL: the clone already holds the docs corpus, so the docs
-      # stop needs no second clone from inside the run.
+      # The docs section reads the corpus bundled with the released binary, so
+      # the docs stop needs nothing beyond the install.
       - name: jac run in the background (the documented dev server)
         working-directory: jac/jac/examples/jaclang_org
         run: |
-          JAC_DOCS_LOCAL="$(cd ../.. && pwd)" nohup jac run > "$RUNNER_TEMP/jac-run.log" 2>&1 &
+          nohup jac run > "$RUNNER_TEMP/jac-run.log" 2>&1 &
           echo "jac run launched (pid $!)"
 
       - name: Wait for http://localhost:8000

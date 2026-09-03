@@ -1250,6 +1250,7 @@ impl _parse_toml_data(
             main=serve_data.get("main", True),
             cl_route_prefix=serve_data.get("cl_route_prefix", "cl"),
             base_route_app=serve_data.get("base_route_app", ""),
+            identity=str(serve_data.get("identity", "auto")),
             on_conflict=on_conflict,
             conflict_max_attempts=serve_data.get("conflict_max_attempts", 5),
             conflict_backoff_ms=serve_data.get("conflict_backoff_ms", 0)

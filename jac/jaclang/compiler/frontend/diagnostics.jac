@@ -855,6 +855,23 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " `None` to the location that holds this value if you meant to drop a"
          " reference."
      ),
+     E1134 = _err(
+         "E1134",
+         Category.IMPORT,
+         "Relative import '{module}' names no module",
+         help="A dotted relative import addresses a file inside this project, so"
+         " its target has to sit beside the importing module: '{module}'"
+         " resolves to no .jac, .py, .pyi or .js file and to no package"
+         " directory. Create the module, correct the spelling, or drop the"
+         " import. Leaving it unresolved erases the binding from the emitted"
+         " client bundle, where it fails as an undefined name at runtime. Two"
+         " shapes are exempt: a bare specifier, which can name an npm package"
+         " installed later, and an import inside a try that catches"
+         " ImportError, where the author means the failure and the handler is"
+         " the fallback. A string specifier ('./thing.tsx', './libfoo.so') is"
+         " not checked here, since another toolchain resolves it.",
+         blocks_codegen=True
+     ),
      E1301 = _err(
          "E1301",
          Category.SEMANTIC,
@@ -1864,6 +1881,24 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.CODEGEN,
          "Client codegen emitted '{name}', which the module never binds",
          help="After emission the client module is audited for free identifiers: every name it references has to resolve to a declaration in the module, an import, a parameter, or the ambient surface a browser provides. '{name}' resolves to none of these, and the compiler did resolve it in the Jac source, so the module would load and then throw a ReferenceError on first use -- with `jac check` green and the build exiting 0, which is how this shipped twice before the audit existed. If '{name}' is yours, give it client presence: declare it, import it, or make it a `def:pub` endpoint so it bridges over RPC. If it is a browser or host global the compiler does not know about, reach it through `globalThis` so the intent is explicit. If neither is true, a lowering dropped a binding it was supposed to emit; please report it with the source line.",
+         blocks_codegen=True
+     ),
+     E5103 = _err(
+         "E5103",
+         Category.CODEGEN,
+         "Client codegen emitted the builtin '{name}' unlowered",
+         help="A builtin has no JavaScript definition of its own: the client"
+         " backend rewrites every builtin call into its runtime form"
+         " (`_jac.builtin.{name}(...)` or an inline equivalent), so a bare"
+         " '{name}' in the bundle is a call the backend did not recognise as a"
+         " builtin and left as a free name -- the page loads and then throws"
+         " ReferenceError on first use. The classification the backend reads"
+         " ('FuncCall.call_kind') is stamped by the checker, so this means the"
+         " module reached codegen without its checker facts: it was served or"
+         " ingested with an analysis-free schedule and never re-analyzed."
+         " Compiling the module from source produces a correct bundle, so this"
+         " is a compiler defect rather than something the source can fix;"
+         " please report it with the module path.",
          blocks_codegen=True
      ),
      E5102 = _err(

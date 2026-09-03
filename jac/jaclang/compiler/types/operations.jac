@@ -237,7 +237,7 @@ def is_annotation_type(evaluator: TypeEvaluator, ty: TypeBase) -> bool {
 
     none_type_class = evaluator.prefetch.none_type_class;
     if isinstance(ty, ClassType) and none_type_class is not None {
-        return ty.shared == none_type_class.shared;
+        return ty.shared.same_class(none_type_class.shared);
     }
     return False;
 }

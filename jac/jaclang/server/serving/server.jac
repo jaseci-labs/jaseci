@@ -473,18 +473,24 @@ obj ServingServer {
     ) -> bool {
         is_head = request.method == 'HEAD';
         stream = response.stream;
-        chunked = stream is not None and not is_head;
+        bodiless = response.status_code in (204, 304)
+            or 100 <= response.status_code < 200;
+        chunked = stream is not None and not is_head and not bodiless;
         body = b'';
-        if not chunked and not (is_head and stream is not None) {
+        if not chunked and not bodiless and not (is_head and stream is not None) {
             body = response.body_bytes();
         }
         reason = _REASONS.get(response.status_code, 'OK');
         head_lines = [f"HTTP/1.1 {response.status_code} {reason}"];
-        if response.headers.get('Content-Type') is None {
+        if response.headers.get('Content-Type') is None and not bodiless {
             head_lines.append(f"Content-Type: {response.content_type_header()}");
         }
         if chunked {
             head_lines.append('Transfer-Encoding: chunked');
+        } elif bodiless {
+            if response.headers.get('Content-Length') is None {
+                head_lines.append('Content-Length: 0');
+            }
         } else {
             head_lines.append(f"Content-Length: {len(body)}");
         }
@@ -503,6 +509,10 @@ obj ServingServer {
             if chunked {
                 await self._write_stream(writer, stream);
                 writer.write(b'0\r\n\r\n');
+            } elif bodiless {
+                if stream is not None {
+                    await self._discard_stream(stream);
+                }
             } elif not is_head {
                 writer.write(body);
             }
@@ -511,6 +521,20 @@ obj ServingServer {
         } except (ConnectionError, OSError) {
             return False;
         }
+    }
+
+    async def _discard_stream(stream: any) {
+        try {
+            if inspect.isasyncgen(stream) or hasattr(stream, '__aiter__') {
+                async for _chunk in stream {
+                    continue;
+                }
+            } else {
+                for _chunk in stream {
+                    continue;
+                }
+            }
+        } except Exception {}
     }
 
     async def _write_stream(writer: asyncio.StreamWriter, stream: any) {
