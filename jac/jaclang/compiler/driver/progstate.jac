@@ -223,10 +223,60 @@ obj BuildScratch {
     }
 }
 
+class AnalysisLedger {
+    has _tags: dict[int, set[str]],
+        _owners: dict[int, any];
+
+    def init(self: AnalysisLedger) {
+        self._tags: dict[int, set[str]] = {};
+        self._owners: dict[int, any] = {};
+    }
+
+    def _drop(self: AnalysisLedger, key: int) {
+        try {
+            self._tags.pop(key, None);
+            self._owners.pop(key, None);
+        } except Exception {}
+    }
+
+    def provided(self: AnalysisLedger, mod: any) -> set[str] {
+        import weakref;
+        key = id(mod);
+        owner = self._owners.get(key);
+        if owner is not None and owner() is mod {
+            return self._tags[key];
+        }
+        tags: set[str] = set();
+        self._tags[key] = tags;
+        self._owners[key] = weakref.ref(mod, lambda (_ref: any) { self._drop(key); });
+        return tags;
+    }
+
+    def provides(self: AnalysisLedger, mod: any, tag: str) -> bool {
+        owner = self._owners.get(id(mod));
+        return owner is not None and owner() is mod and tag in self._tags[id(mod)];
+    }
+
+    def mark(self: AnalysisLedger, mod: any, tags: set[str]) {
+        live = self.provided(mod);
+        live.clear();
+        live.update(tags);
+    }
+
+    def clear(self: AnalysisLedger) {
+        self._tags.clear();
+        self._owners.clear();
+    }
+
+    def __len__(self: AnalysisLedger) -> int {
+        return len(self._tags);
+    }
+}
+
 class AnalysisCaches {
     has placement_summaries: dict[str, any],
         placement_state: dict[str, any],
-        analyses_run: dict[int, set[str]],
+        analyses_run: AnalysisLedger,
         mtir_map: dict[(str, Info)],
         pass_runs: dict[str, int],
         pass_time: dict[str, float],
@@ -235,7 +285,7 @@ class AnalysisCaches {
     def init(self: AnalysisCaches) {
         self.placement_summaries: dict[str, any] = {};
         self.placement_state: dict[str, any] = {};
-        self.analyses_run: dict[int, set[str]] = {};
+        self.analyses_run: AnalysisLedger = AnalysisLedger();
         self.mtir_map: dict[(str, Info)] = {};
         self.pass_runs: dict[str, int] = {};
         self.pass_time: dict[str, float] = {};

@@ -453,7 +453,7 @@ obj IfaceRegistry {
 
     def _prepare(ent: IfaceEntry, mod: any) {
         self._restore_placement(ent);
-        self.prog.analysis.analyses_run[id(mod)] = _symtab_provides();
+        self.prog.analysis.analyses_run.mark(mod, _symtab_provides());
     }
 
     def _profiles_of(diag_bytes: (bytes | None)) -> (dict | None) {
