@@ -15,6 +15,7 @@ import from jaclang.project.template_loader {
 }
 import from jaclang.project.template_registry {
     ProjectTemplate,
+    TemplateRegistry,
     get_template_registry,
     initialize_template_registry
 }
@@ -299,6 +300,28 @@ test "template dir with [apps] loads as a workspace template" {
     }
 }
 
+test "a single-app [apps] template takes that app's kind" {
+    with TemporaryDirectory() as tmpdir {
+        template_dir = Path(tmpdir) / "mob";
+        template_dir.mkdir();
+        (template_dir / "jac.toml").write_text(
+            '[project]\nname = "{{name}}"\ndefault-app = "main"\n\n'
+            '[apps.main]\nkind = "mobile"\nclient = "react-native"\nclient_kind = "mobui"\n\n'
+            '[dependencies.npm]\nreact = "^18.2.0"\n\n'
+            '[dependencies.npm.native]\nreact-native-svg = "^15.13.0"\n\n'
+            '[jacpack]\nname = "mobile"\ndescription = "mobUI app"\n'
+        );
+        (template_dir / "main.jac").write_text("with entry {}\n");
+        tmpl = load_template_from_directory(template_dir);
+        assert tmpl.kind == "mobile" , "one app: the template is that app's kind";
+        registry = TemplateRegistry();
+        registry.register(tmpl.to_dict());
+        found = registry.get_by_kind("mobile");
+        assert found is not None and found.name == "mobile";
+        assert registry.get_by_kind("workspace") is None;
+    }
+}
+
 test "template dir with an invalid [apps] table is rejected" {
     with TemporaryDirectory() as tmpdir {
         template_dir = Path(tmpdir) / "ws";
@@ -345,6 +368,72 @@ test "scaffold_app appends an [apps] table and copies the template" {
         assert cfg.apps["api"].kind == "service";
         assert cfg.apps["api"].path == "services/api";
         assert cfg.apps["api"].entry_point == "" , "the kind default entry is not spelled out";
+    }
+}
+
+def _mobile_template() -> ProjectTemplate {
+    return ProjectTemplate(
+        name="mobile",
+        description="mobUI app",
+        kind="mobile",
+        config={
+            "project": {"name": "{{name}}", "default-app": "main"},
+            "apps": {
+                "main": {
+                    "kind": "mobile",
+                    "client": "react-native",
+                    "client_kind": "mobui",
+                    "platform": "ios",
+                    "entry-point": "app.jac"
+                }
+            },
+            "dependencies": {
+                "npm": {
+                    "react": "^18.2.0",
+                    "lucide-react-native": "^0.469.0",
+                    "native": {"react-native-svg": "^15.13.0"}
+                }
+            }
+        },
+        files={"app.jac": "with entry {}\n", "theme.jac": "obj Theme {}\n"}
+    );
+}
+
+test "scaffold_app copies the sole app's keys and npm deps as overlays" {
+    with TemporaryDirectory() as tmpdir {
+        root = Path(tmpdir) / "proj";
+        (root / "web").mkdir(parents=True);
+        (root / "jac.toml").write_text(
+            '[project]\nname = "acme"\n\n'
+            '[apps.web]\nkind = "web-app"\npath = "web"\n\n'
+            '[dependencies.npm]\nreact = "^19"\n'
+        );
+        (root / "web" / "main.jac").write_text("with entry {}\n");
+        created = scaffold_app(str(root), "mobile", "mobile", "mobile", _mobile_template());
+        assert str(root / "mobile" / "app.jac") in created;
+        assert str(root / "mobile" / "theme.jac") in created;
+        text = (root / "jac.toml").read_text();
+        assert "[apps.mobile.dependencies.npm]" in text;
+        assert "[apps.mobile.dependencies.npm.native]" in text;
+        cfg = JacConfig.load(root / "jac.toml");
+        app = cfg.apps["mobile"];
+        assert app.kind == "mobile";
+        assert app.path == "mobile";
+        assert app.client == "react-native";
+        assert app.client_kind == "mobui";
+        assert app.platform == "ios";
+        assert app.entry_point == "app.jac" , "entry-point comes from the app table";
+        assert app.entry_path(str(root)) == str(root / "mobile" / "app.jac");
+        assert app.overlays["dependencies"]["npm"]["lucide-react-native"] == "^0.469.0";
+        assert app.overlays["dependencies"]["npm"]["native"]["react-native-svg"] == "^15.13.0";
+        eff = cfg.effective_for_app("mobile");
+        assert eff.plugin_dependencies["npm"]["react"] == "^18.2.0" , "app overlay wins";
+        assert eff.plugin_dependencies["npm"]["lucide-react-native"] == "^0.469.0";
+        assert eff.get_plugin_deps("npm")["lucide-react-native"] == "^0.469.0";
+        assert "native" not in eff.get_plugin_deps("npm");
+        assert cfg.plugin_dependencies["npm"] == {"react": "^19"} , "base deps untouched";
+        assert "lucide-react-native" not in cfg.effective_for_app("web").plugin_dependencies["npm"];
+        assert cfg.app_for_path(str(root / "mobile" / "app.jac")).name == "mobile";
     }
 }
 

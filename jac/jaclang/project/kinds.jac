@@ -128,7 +128,10 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              ),
              KindSpec(
                  name="mobile",
-                 description="Jac mobile client app (Capacitor + Vite)",
+                 description=(
+                     "Jac mobile app (mobUI, React Native; Capacitor via "
+                     'client = "mobile")'
+                 ),
                  `entry="main.jac",
                  action="build",
                  verb="build",

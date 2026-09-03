@@ -249,7 +249,11 @@ impl scaffold_app(
     import os;
     import tomllib;
     import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
-    import from jaclang.project.apps { parse_apps, validate_app_name }
+    import from jaclang.project.apps {
+        APP_TABLE_KEYS,
+        parse_apps,
+        validate_app_name
+    }
     import from jaclang.project.config {
         JacConfig,
         _toml_append_section,
@@ -321,16 +325,29 @@ impl scaffold_app(
         );
     }
     table: dict[str, any] = {"kind": kind, "path": app_path};
-    tmpl_project = template.config.get("project", {});
-    tmpl_entry = (
-        str(tmpl_project.get("entry-point", "") or "")
-            if isinstance(tmpl_project, dict)
-            else ""
+    tmpl_app = template_app_table(template);
+    tmpl_entry = str(
+        tmpl_app.get("entry-point", tmpl_app.get("entry_point", "")) or ""
     );
     if tmpl_entry and tmpl_entry != kind_entry(kind) {
         table["entry-point"] = tmpl_entry;
     }
+    for (key, value) in tmpl_app.items() {
+        attr = str(key).replace("-", "_");
+        if attr in ("kind", "path", "entry_point") or attr not in APP_TABLE_KEYS {
+            continue;
+        }
+        if isinstance(value, dict) or value is None or value == "" {
+            continue;
+        }
+        table[str(key)] = value;
+    }
     _toml_append_section(lines, ("apps", name), table);
+    tmpl_deps = template.config.get("dependencies", {});
+    tmpl_npm = tmpl_deps.get("npm") if isinstance(tmpl_deps, dict) else None;
+    if isinstance(tmpl_npm, dict) and tmpl_npm {
+        _append_overlay_tables(lines, ("apps", name, "dependencies", "npm"), tmpl_npm);
+    }
     new_text = "\n".join(lines);
     new_doc = tomllib.loads(new_text);
     parse_apps(new_doc.get("project", {}), new_doc.get("apps", {}));
@@ -353,4 +370,42 @@ impl scaffold_app(
         created.append(str(full));
     }
     return created;
+}
+
+impl template_app_table(template: ProjectTemplate) -> dict[str, any] {
+    apps = template.config.get("apps");
+    if isinstance(apps, dict) and len(apps) == 1 {
+        sole = next(iter(apps.values()));
+        if isinstance(sole, dict) {
+            return {k: v for (k, v) in sole.items() if not isinstance(v, dict)};
+        }
+        return {};
+    }
+    project = template.config.get("project", {});
+    if not isinstance(project, dict) {
+        return {};
+    }
+    entry = str(project.get("entry-point", "") or "");
+    return {"entry-point": entry} if entry else {};
+}
+
+impl _append_overlay_tables(
+    lines: list[str], parts: tuple[str, ...], table: dict[str, any]
+) -> None {
+    import from jaclang.project.config { _toml_append_section }
+    flat: dict[str, any] = {};
+    nested: list[tuple[str, dict[str, any]]] = [];
+    for (k, v) in table.items() {
+        if isinstance(v, dict) {
+            nested.append((str(k), v));
+        } else {
+            flat[str(k)] = v;
+        }
+    }
+    if flat {
+        _toml_append_section(lines, parts, flat);
+    }
+    for (sub, sub_table) in nested {
+        _append_overlay_tables(lines, parts + (sub, ), sub_table);
+    }
 }

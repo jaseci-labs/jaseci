@@ -242,11 +242,9 @@ def _register_core_templates(registry: TemplateRegistry) {
     );
 
     for info in [
-        _core_template("cli", _hello),
         _core_template("cli-native", _hello),
         _core_template("native-binary", _hello),
         _core_template("native-lib", _shared),
-        _core_template("service", _service),
         _core_template("service-mesh", _service),
         _core_template("py-package", _lib),
         _core_template("js-package", _lib)
@@ -261,7 +259,12 @@ impl template_kind_for(config: dict[str, any], explicit: str = "") -> str {
     }
     apps = config.get("apps") if isinstance(config, dict) else None;
     if isinstance(apps, dict) and apps {
-        return "workspace";
+        if len(apps) > 1 {
+            return "workspace";
+        }
+        sole = next(iter(apps.values()));
+        sole_kind = sole.get("kind", "") if isinstance(sole, dict) else "";
+        return str(sole_kind or "") or "cli";
     }
     project = config.get("project", {}) if isinstance(config, dict) else {};
     kind = project.get("kind", "") if isinstance(project, dict) else "";
