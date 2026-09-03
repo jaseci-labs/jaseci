@@ -32,6 +32,7 @@ obj DepClibMeta {
         owned_symbols: list[str] = [],
         demoted_symbols: list[str] = [],
         transitive_deps: list[str] = [],
+        ct_deps: str = "",
         options_fingerprint: str = "",
         unverified_live_calls: dict[str, list[str]] = {},
         coverage: dict = {};

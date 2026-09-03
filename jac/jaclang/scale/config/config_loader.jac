@@ -36,7 +36,12 @@ def normalize_microservices_config(
 ) -> dict[str, any];
 
 glob _scale_config_instance: JacScaleConfig | None = None,
-     _ms_enabled_deprecation_warned: bool = False;
+     _ms_enabled_deprecation_warned: bool = False,
+     _placeholder_jwt_secret_warned: bool = False,
+     _minted_jwt_secret_announced: bool = False;
+
+def _warn_placeholder_jwt_secret -> None;
+def _announce_minted_jwt_secret(path: str) -> None;
 
 def sanitize_prometheus_namespace(name: str) -> str;
 def _ws_positive(ws_config: dict, key: str, fallback: (int | float)) -> float;

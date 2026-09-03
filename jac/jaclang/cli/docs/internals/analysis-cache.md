@@ -48,7 +48,14 @@ object graph, so payloads stay small and identity survives round trips.
 
 The payload is prefixed with its own sha256 -- the **interface hash**. The
 hash names the encoding, so byte-identical surfaces hash identically and any
-semantic change to the surface changes the hash.
+semantic change to the surface changes the hash. A compile that acted on an
+*inferred* native placement verdict never persists an interface: only the
+codegen flavor runs that verdict, and a module analyzed under it exports
+native typing that analysis-only compiles (dependency ingestion, `jac
+check`) never see, so a hash that depended on which flavor last persisted
+the module would defeat the cutoff for every importer. Declared and pinned
+placement is coerced at parse time in every flavor and is part of the
+interface.
 
 `compiler/types/stubcat/modiface.jac` holds the build/open entry points;
 the typeshed stub catalog itself is the degenerate case of the same format
@@ -69,7 +76,46 @@ changes the hash and exactly the affected importers re-analyze.
 Comptime dependencies (`SEC_CTDEPS`) fold in through validity rather than
 through the hash: a changed comptime input invalidates the module's cache
 entirely, the interface is rebuilt, and the rebuild cascades only if the
-exported surface actually moved -- the same cutoff rule.
+exported surface actually moved -- the same cutoff rule. The inputs are
+whatever the comptime evaluation actually read: every `embed_file` target,
+plus the home module of every comptime binding it unfolded, every ability
+body it interpreted, every enum whose member values it read, every
+class-body constant it reached through an attribute, and every archetype
+whose `has` defaults it folded during construction. Each is attributed to
+the module whose expression started the evaluation, so a value that
+travelled through an intermediate producer lands on the consumer that baked
+it in. The interface hash cannot serve this role: a producer whose comptime
+value changed still exports the same interface, which is why folds need
+their own section rather than a `SEC_DEPS` row.
+
+Entries are keyed on a content digest, so a rebuild or a `touch` is not an
+invalidation. A row records whether the evaluator read the module's source
+or interpreted a body out of it, and only the body rows fold in the impl and
+test annex digests. That split is what keeps the dev loop cheap: editing an
+impl annex of a CLI command module does not rebuild `cli/manifest.jac`,
+while editing the declaration that holds the folded `SPEC_*` value does.
+
+A module that folds across a `comptime import` also ingests those producers
+with full trees rather than from `SEC_IFACE`: an interface carries the
+declared surface, not the initializer the fold has to evaluate. The
+ingestion runs at the top of the compile pipeline, so a producer already
+resident in the program's hub is taken as it stands; a hub entry that
+arrived as a hydrated interface earlier in the same process is therefore not
+upgraded, which is why the ingestion is seeded before analysis rather than
+on demand.
+
+Every carrier of a fold checks the same section, because any one of them
+that does not becomes the stale path:
+
+| Carrier | Rule |
+|---|---|
+| Module cache | `is_module_cache_valid` fails when a row's digest moved |
+| Unsealed precompiled bundle | served only while its rows are fresh; a sealed image is a frozen build and is served on its seal alone |
+| Bundle promoted into the module cache | the bundle's rows ride along on the promotion write, absolutized onto the package root |
+| Native dependency IR cache | `.ir_cache` is keyed on the module's own source, so its `.ir_meta` stamps the rows the fold read and a hit whose stamp moved is dropped and rebuilt |
+
+Bundle rows are stored relative to the package root so a relocated bundle
+still resolves them, and absolutized again on the way into a module cache.
 
 Dependency edges are recorded at the one seam every ingestion path goes
 through (`JacProgram.load_dependency_module`), attributed to the innermost
@@ -154,8 +200,12 @@ rather than the center:
   pay hub churn, native-engine restoration, and closure release). A cold
   `jac precompile` over a tree any prior run has compiled collapses to IO.
 - **Interface bytes are memoized by MODKEY**, so re-persisting an unchanged
-  module (a check after a run, a precompile after a check) reuses the
-  encoded payload instead of re-deriving it.
+  module (a check after a run, a precompile after a check, a dependency the
+  client-boundary walk re-enters) reuses the encoded payload instead of
+  re-deriving it. Encoding forces every exported symbol's type, which pulls
+  the module's own dependencies in, so the memo is bounded by count at
+  closure release, never cleared: clearing it made a cold littleX precompile
+  re-ingest 64 dependency modules.
 - **The client-boundary walk consumes persisted facts.** When a changed
   module's client dependency is cache-valid, the walk restores the dep's
   interop manifest from `SEC_INTEROP` into `hub.artifacts` (the carrier
