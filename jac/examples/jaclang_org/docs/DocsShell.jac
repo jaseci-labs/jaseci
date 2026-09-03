@@ -100,11 +100,11 @@ def:pub DocsShell -> JsxElement {
                             The docs graph is still growing.
                         </p>
                         <p className="mt-2 text-balance text-sm text-muted-foreground">
-                            The server syncs the docs in the background — this page takes over the moment it lands.
+                            The server is ingesting the docs bundled with its jac binary — this page takes over the moment it lands.
                         </p>
                     </div>
                     <p className="font-mono text-[11px] text-muted-foreground/70">
-                        {"root.shared ++> DocsHub ++> DocVersion × (dev + releases)"}
+                        {"root.shared ++> DocsHub ++> DocVersion ++> DocDir ++> DocPage"}
                     </p>
                 </div>
             </div>;
