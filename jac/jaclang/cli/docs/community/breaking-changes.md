@@ -7,6 +7,43 @@ This page documents significant breaking changes in Jac and Jaseci that may affe
 
 ---
 
+### Workspaces: `[apps]` replaces `[scale.microservices]`, `client_kind`, `base_route_app`, `--client`-as-mode and `JAC_ENV` ([#8823](https://github.com/jaseci-labs/jac/issues/8823), unreleased)
+
+A project is now a set of **apps** over shared code. Each app is an `[apps.<name>]` table in `jac.toml` with a `kind`, an optional directory `path` (or a file `entry-point` for a file-rooted app), a `client` target, a `client_kind`, a `platform` and a `route`; everything under no app root is shared. The app boundary is structural -- it always compiles and type-checks as a cut -- and where the apps run is profile: `jac run <app>` colocates the workspace's service apps in one process, `--fleet` (or `[scale.gateway] colocate = false`) runs them as separate local processes, and `jac scale deploy` always deploys a fleet. A project with no `[apps]` table is one implicit app and its `jac.toml` is unchanged. Full reference: [Workspaces & Apps](../reference/apps.md).
+
+The whole old service and client-target surface is gone, not deprecated:
+
+| Old | New |
+|---|---|
+| `[scale.microservices.routes]` (the service cut) | an `[apps.<name>]` table with `kind = "service"` and the module as `entry-point` (`jac create --app <name> --kind service`) |
+| `[scale.microservices.services.<name>.*]` (`replicas`, `rpc_timeout`, `env`, `http_activation`, `hpa`, `pdb`, `triggers`, `deployment_overlay`, ...) | `[apps.<name>.scale.*]` (the same keys, as a per-app overlay) |
+| `[scale.microservices]` infra keys (`gateway_port`, `gateway_host`, `drain_timeout_seconds`, `http_forward_timeout`, `boot_health_timeout`, `boot_max_wait`, `health_monitor_interval`, `identity`, `ingress`, `rate_limit`, `cors`, `logs`, `tracing`, `shared_volumes`) | `[scale.gateway]` (same keys) plus the new `colocate = true` |
+| `[scale.microservices] enabled` / `routes` / `services` / `client` / `service_files` | gone -- fleet membership is every app whose kind has a server |
+| `[[scale.microservices.shared_volumes]] services = [...]` | `[[scale.gateway.shared_volumes]] apps = [...]` |
+| `jac scale split <module>` / `jac setup microservice` | `jac create --app <name> --kind service` |
+| `JAC_SV_<MODULE>_URL` / `JAC_SV_ROUTES` (module-stem keyed) | `JAC_APP_<APP>_URL` / `JAC_APP_<APP>_ROUTE` (app-name keyed) |
+| sv-to-sv stubs: synchronous, keyed by module stem; `RuntimeError("sv-to-sv RPC ... failed")` | typed-async stubs keyed by provider app name -- `await` them (`E1042` otherwise); awaited failures raise `BridgeError` / `BridgeUnavailable` / `BridgeTimeout` / `BridgeRejected` from `jaclang.server.bridge` (and `@jac/runtime`); an un-awaited statement-level walker spawn is a deferred outbox delivery |
+| `sv_client.register(module, url)`, `register_test_client(module, client)`, `resolve_url(module)` | the same functions keyed by **app name**, plus `register_local(app, module)` |
+| `__jac_provider_module__` on generated walker stubs | `__jac_provider_app__` |
+| `Import.is_service_module_stem`, `service_cut.jac`, `cut_digest` | `classify_cross_app_import` (`compiler/driver/boundary_classify.jac`) and `app_fact_digest` |
+| `[project] client_kind = "mobui"` | `client_kind = "mobui"` on the app's `[apps.<name>]` table (an app property; `[project] client_kind` is a parse error) |
+| `[client] target`, `JAC_CLIENT_TARGET` | `[apps.<name>] client` (the kind's `client_target` by default); `--client <target>` on `run`/`build` is an override of the app's target |
+| `TargetType`, `get_target_type`, `TargetFactory.create_by_type` (`client/targets/registry.jac`) | string-keyed targets normalized by `jaclang.project.kinds.normalize_client_target` |
+| `[serve] base_route_app`, `[serve] cl_route_prefix` | gone -- the served app is at `/`, every other client-capable app with a built bundle at `/cl/<app-name>/` |
+| `JAC_ENV` | gone -- `--profile`, `JAC_PROFILE`, or `[environment] default_profile` |
+| legacy `[plugins.<name>]` tables, `discover_config_files` | gone -- capability tables are top-level (`[byllm]`, `[scale]`, `[client]`, `[mcp]`, `[desktop]`) |
+| `plan_project_run`, `resolve_project_kind`, `CompileOptions.project_kind` | `plan_app_run` / `plan_workspace`, `resolve_app_kind`, `CompileOptions.app_kind` + `target_app` |
+| `jac run [file]`, `jac build [file]`, `jac test [file]`, `jac setup <target>` | the positional is an **app name or a path**: `jac run web`, `jac build --all`, `jac test mobile`, `jac setup mobile`; no target = `[project] default-app` or the sole app |
+| `jac check` on the project root | with no paths: one program per app + an orphan sweep, diagnostics prefixed `[<app>]`; `--app <name>` for one app |
+| `examples/mobui/hello`, `examples/mobui/littlex` | deleted; the mobUI example is the flagship's `jac/examples/jaclang_org/mobile` (`jac create <name> --awesome`) |
+| `E5087` "Project kind ... has no server" | `E5087` "App kind ... has no server" |
+
+New diagnostics: `E2039`/`W2039` (an app using another app's declaration outside its bridge surface), `E2040`/`W2040` (shared code importing from an app), `E5103` (a server-placed shared module with no single owner), `E5104` (an app dependency cycle), `E5105` (a `.native.jac` variant disagreeing with its base module), `E5106` (bridging to a non-`pub` element). `[project] kind` / `entry-point` alongside `[apps]` is a hard config error (exit 2).
+
+**Impact:** replace every `[scale.microservices.*]` table with `[apps.<name>]` tables and `[scale.gateway]`; add `await` to every server-to-server call across an app boundary (and `async` to the enclosing function); rename `JAC_SV_*` env vars to `JAC_APP_*`; move `client_kind` from `[project]` onto the mobile app's table; drop `base_route_app` / `cl_route_prefix` / `[client] target` / `JAC_ENV` from configs and scripts; pass an app name instead of a filename to `run`/`build`/`test`/`setup` in a workspace. Config keys that no longer exist are hard errors, not warnings.
+
+---
+
 ### `jac run` absorbs `jac start` and `jac dev`; deploying is `jac scale deploy` ([#8596](https://github.com/jaseci-labs/jac/pull/8596), unreleased)
 
 One verb runs and serves. `jac run` resolves the project kind and executes, serves, or builds accordingly; `--serve` and `--dev` force the serve projections; a named file now resolves the kind too, so `jac run main.jac` in a `web-app` or `service` project serves just like the bare form. `jac start` and `jac dev` are tombstoned -- they hard-error with the replacement spelling. Deployment leaves the serve path entirely: the `--scale` flag is gone and `jac scale deploy [app.jac] [--target T] [--enable-tls] [--dry-run] [--show-yaml]` is the deploy command (with no file it deploys `[project] entry-point`).
@@ -141,14 +178,14 @@ What replaces them:
 
 - **Inference** places every declaration: JSX, browser globals, and npm imports seed client; extern C declarations seed native; python imports and graph archetypes anchor server (the default). Placement propagates from those seeds through symbol references.
 - **`[placement.pins]` in `jac.toml`** is the override when a decision must be forced. A module-level `"client"` / `"native"` pin coerces the whole module the way the old suffix did; an element-level pin (`"mod.helper" = "server"`) forces one declaration.
-- **`[scale.microservices.routes]`** is the authoritative microservice cut (`jac scale split <module>` writes an entry); imports of cut members lower to service RPC automatically -- this replaces the `sv import` boundary marker.
+- **`[scale.microservices.routes]`** was the authoritative microservice cut at the time (`jac scale split <module>` wrote an entry); imports of cut members lowered to service RPC automatically -- this replaced the `sv import` boundary marker. (Superseded by `[apps.<name>]` service apps; see the workspaces entry above.)
 
 | Old | New |
 |---|---|
 | `cl { ... }` block / `cl` prefix | plain code (inferred client) or a `"client"` pin |
 | `sv { ... }` block / `sv` prefix | plain code (server is the default) or a `"server"` pin |
 | `mod.cl.jac` / `mod.sv.jac` | `mod.jac` (placement inferred; pin the module to coerce it whole) |
-| `sv import from .svc { f }` | plain import + `[scale.microservices.routes]` entry (or a `"server"` module pin) |
+| `sv import from .svc { f }` | plain import + a `[scale.microservices.routes]` entry at the time (now an `[apps.<name>]` service app; see above) |
 | `variant client;` / `variant native;` | nothing -- placement has no per-file spelling |
 
 **Impact:** run `jac fix placement` -- it strips markers, renames retired suffixed files, preserves service topology into the routes table, and pins any element whose inferred placement differs from its old marker. Review the result with `jac check <entry> --placements`. The placement lockfile briefly introduced alongside this work (`jac.placements.lock`, `jac check --update-placements-lock`) was removed before release: placement is the compiler's business, reviewed on demand, never snapshotted.

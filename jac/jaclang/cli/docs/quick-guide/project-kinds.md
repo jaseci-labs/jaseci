@@ -11,7 +11,24 @@ curl -fsSL https://raw.githubusercontent.com/jaseci-labs/jaseci/main/scripts/ins
 This installs the self-contained `jac` binary -- no Python, pip, or uv required.
 
 !!! tip "`jac run` is kind-aware"
-    Set `kind` under `[project]` in `jac.toml` (or let it be inferred from the entry-point's *inferred* codespace: a server entry implies `service`, a client entry implies `web-app`; `cli-native` is always set explicitly), and a bare `jac run` does the right thing for that kind: **execute** runnable kinds (`cli`, `cli-native`), **serve** server kinds (`service`, `web-app`, ...), or **build** artifact kinds (`native-binary`, `native-lib`, `py-package`, `js-package`). `jac run --show` prints the resolved plan and the equivalent primitive command without running it.
+    Set `kind` under `[project]` in `jac.toml` (or let it be inferred from the entry-point's *inferred* codespace: a server entry implies `service`, a client entry implies `web-app`; `cli-native` is always set explicitly), and a bare `jac run` does the right thing for that kind: **execute** runnable kinds (`cli`, `cli-native`), **serve** server kinds (`service`, `web-app`, ...), or **build** artifact kinds (`native-binary`, `native-lib`, `py-package`, `js-package`). `jac run --show` prints the resolved plan and the equivalent primitive command without running it. A project can hold several apps of different kinds at once -- see [One project, several apps](#one-project-several-apps) below.
+
+Every kind also fixes two facts the compiler and the CLI read: its default **client target** (the shell `jac run` / `jac build` produce; `--client` overrides it) and whether it **has a server** (which decides whether `def:pub` means an endpoint or an export, and whether the app joins a deployed fleet):
+
+| Kind | Action of a bare `jac run` | Client target | Has a server |
+|---|---|:--:|:--:|
+| `cli` | execute | -- | no |
+| `cli-native` | execute | -- | no |
+| `native-binary` | build (`nacompile`) | -- | no |
+| `native-lib` | build (`nacompile --shared`) | -- | no |
+| `service` | serve (API only) | -- | **yes** |
+| `service-mesh` | serve | -- | **yes** |
+| `web-app` | serve (dev mode) | `web` | **yes** |
+| `web-static` | serve as a static page | `static` | no |
+| `desktop` | run the OS webview app | `desktop` | no |
+| `mobile` | build the mobile bundle | `mobile` (`react-native` for mobUI) | no |
+| `py-package` | build a wheel | -- | no |
+| `js-package` | build an npm tarball | `web` | no |
 
 ## The recipes at a glance
 
@@ -25,7 +42,7 @@ Jac is also batteries-included -- it bundles LLVM, ships its own native linker, 
 | [Native CLI tool](../build/cli-and-native.md#cli-native) | ✅ | | | ● | | | | -- |
 | [Native binary](../build/cli-and-native.md#native-binary) | ✅ | | | ● | | | | -- |
 | [API service](../build/backend-apis.md#service) | ✅ | ● | | | ● | | | -- |
-| [Microservices](../build/backend-apis.md#service-mesh) | ✅ | ● ×N | | | ● | | | -- |
+| [Service apps](../build/backend-apis.md#service-mesh) | ✅ | ● ×N | | | ● | | | -- |
 | [Python package (PyPI)](../build/libraries.md#py-package) | ✅ | ● | | | | wheel | | twine¹ |
 | [npm package (npmjs.com)](../build/libraries.md#js-package) | ✅ | | ● | | | npm | | npm³ |
 | [Shared library (C ABI)](../build/libraries.md#native-lib) | ✅ | | | ● | | .so/.dll | | -- |
@@ -40,7 +57,13 @@ Jac is also batteries-included -- it bundles LLVM, ships its own native linker, 
 
 <small>¹ Only to *upload* to PyPI; `jac build --as wheel` itself needs nothing. &nbsp; ² The desktop target ships with `jaclang` core (no Rust); it embeds the OS webview. On Linux you need the WebKitGTK system libraries (a bundled helper script installs them). &nbsp; ³ Only to *publish* (`npm publish`); `jac build --as npm` builds the `.tgz` with no Node/npm. &nbsp; ⁴ The binary renders your `cl` UI and runs `sv` walkers in-process, with HMR dev mode; per-OS installers/code-signing remain open ([#6436](https://github.com/jaseci-labs/jaseci/issues/6436)). &nbsp; ⁵ Frontend-only Capacitor wrapper -- the app talks to a Jac server you deploy separately. &nbsp; ⁶ Beta React Native (Expo/Metro) frontend built from a mobUI source tree (`@jac/mobui` primitives, no HTML) that also compiles for the web; it talks to a Jac server you deploy separately.</small>
 
-Read across a row and the composition is the point: a full-stack app is just a *service* plus a *client*; in-browser native swaps the server for an `na` module compiled to wasm; a desktop app is a full-stack app plus a *shell*; microservices are a *service* replicated. The 🚧 rows aren't missing "kinds" -- they're capability combinations that aren't wired yet.
+Read across a row and the composition is the point: a full-stack app is just a *service* plus a *client*; in-browser native swaps the server for an `na` module compiled to wasm; a desktop app is a full-stack app plus a *shell*; service apps are a *service* replicated. The 🚧 rows aren't missing "kinds" -- they're capability combinations that aren't wired yet.
+
+## One project, several apps
+
+The kinds compose across a project, too. A `jac.toml` with an `[apps.<name>]` table per app is a **workspace**: a `web-app`, a `mobile` app, a `cli` and a couple of `service` apps over one shared `core/` directory, each with its own kind, entry, client target and effective config, all type-checked as one program by `jac check`. Everything under no app's directory is shared code that any app may import; a walker or `def:pub` that another app owns is reached through a bridge the compiler generates, so `jac run web` can colocate the services in one process while `jac run web --fleet` and `jac scale deploy` run them apart -- *the boundary is structural, the topology is profile*. `jac create <name> --awesome` scaffolds the flagship example (jaclang.org itself) and `jac create --app <name> --kind <kind>` adds an app to any project.
+
+:octicons-arrow-right-24: Reference: [Workspaces & Apps](../reference/apps.md) · Tutorial: [Service Apps](../tutorials/production/microservices.md)
 
 ## Ship it: one file or one executable
 
@@ -84,11 +107,11 @@ A server with no frontend. Mark a walker `walker:pub` (or a function `def:pub`) 
 
 :octicons-arrow-right-24: Recipe & guided path: [Backend APIs & services](../build/backend-apis.md#service) · Full tutorial: [Local API Server](../tutorials/production/local.md)
 
-### Microservices
+### Service apps
 
-The same code runs as a monolith *or* as several independently-deployed services -- the only change is a `[scale.microservices.routes]` entry in `jac.toml` (written for you by `jac scale split <module>`). Imports of a routed module compile to HTTP client stubs: calls become RPCs, but the source still reads like a normal import.
+The same code runs in one process *or* as several independently-deployed services -- the only change is an `[apps.<name>]` table with `kind = "service"` in `jac.toml` (written for you by `jac create --app <name> --kind service`). Imports of what that app owns compile to typed-async bridge stubs: calls become RPCs you `await`, but the source still reads like a normal import, and `jac run` colocates the apps until you ask for a fleet.
 
-:octicons-arrow-right-24: Recipe & guided path: [Backend APIs & services](../build/backend-apis.md#service-mesh) · Full tutorial: [Microservices](../tutorials/production/microservices.md)
+:octicons-arrow-right-24: Recipe & guided path: [Backend APIs & services](../build/backend-apis.md#service-mesh) · Full tutorial: [Service Apps](../tutorials/production/microservices.md)
 
 ### Python package (PyPI)
 
@@ -148,7 +171,7 @@ Ship a **true native** mobile app (Android + iOS) using [React Native](https://r
 
 These aren't missing "kinds" -- they're **capability combinations that aren't wired end-to-end yet**. Here's the status, stated plainly, and the closest thing you can do today.
 
-- **Full-stack package** (`sv` + `cl` + *attach*) -- An installable feature that brings its own routes, UI components, and data models into your app (think "drop in payments and get a checkout button + endpoints + models"). The routes table composes *services* over HTTP, but there's no attachable in-process package yet. This needs a no-entry "package" artifact and conflict-resolution semantics across the three runtimes.
+- **Full-stack package** (`sv` + `cl` + *attach*) -- An installable feature that brings its own routes, UI components, and data models into your app (think "drop in payments and get a checkout button + endpoints + models"). Service apps compose over HTTP, but there's no attachable in-process package yet. This needs a no-entry "package" artifact and conflict-resolution semantics across the three runtimes.
 
 !!! info "Want to follow the design?"
     The unified `jac build` verb and the sealed `.jab` artifact have shipped ([see Ship it](#ship-it-one-file-or-one-executable)). What remains for this row is the attachable *package* form: a no-entry `.jab` a host app can mount, plus its conflict-resolution semantics, tracked in the Jac repo's proposals and issues.

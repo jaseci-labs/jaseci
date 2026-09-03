@@ -13,9 +13,13 @@ Embedded Framework (CEF). The embedded interpreter is also where the `sv`
 backend runs in-process.
 
 The `desktop` and `cef` targets register automatically as part of
-`jaclang` core, so `jac build --client desktop`,
-`jac run --client desktop`, `jac build --client cef`, and
-`jac run --client cef` work out of the box.
+`jaclang` core. An app declared with `kind = "desktop"` (`jac create myapp
+--kind desktop`, or `jac create --app studio --kind desktop` inside a
+workspace) has `desktop` as its client target, so `jac build <app>` and
+`jac run <app>` produce and launch the native window with no flag; `client =
+"cef"` on the app (or `engine = "cef"` under `[desktop]`) selects Chromium.
+`--client desktop` / `--client cef` force either shell on any app for one
+command.
 
 ---
 
@@ -45,13 +49,23 @@ that installs these.)
 
 There is **no setup step** - the native host is generated at build time.
 
-```bash
-jac build --client desktop      # -> .jac/client/desktop/<app>  (single binary + dist/)
-jac run --client desktop        # build, then launch the native window
-
-jac build --client cef  # -> .jac/client/cef/  (Chromium/CEF)
-jac run --client cef    # build, then launch the CEF window
+```toml
+[apps.studio]          # or [project] kind = "desktop" in a single-app project
+kind = "desktop"
+path = "studio"
 ```
+
+```bash
+jac build studio       # -> .jac/client/desktop/<app>  (single binary + dist/)
+jac run studio         # build, then launch the native window
+
+jac build studio --client cef   # -> .jac/client/cef/  (Chromium/CEF)
+jac run studio --client cef     # build, then launch the CEF window
+```
+
+In a single-app project the app name is implied: `jac build` / `jac run`. On
+an app of another kind, `--client desktop` (or `--client cef`) forces the
+desktop shell.
 
 The output directory `.jac/client/desktop/` contains the self-contained binary,
 its `dist/` (the served bundle), and `libwebview.so`. The binary resolves its
@@ -94,11 +108,11 @@ Chromium Embedded Framework:
 engine = "cef"
 ```
 
-Then build or launch the matching target:
+Then build or launch the app as usual:
 
 ```bash
-jac build --client cef
-jac run --client cef
+jac build studio
+jac run studio
 ```
 
 The example app at `jac/examples/notes-app/` is a small notes editor that uses
@@ -220,8 +234,8 @@ The CEF binding, pinned CEF fetch tooling, and QA checklist live under
 
 ## Status
 
-Beta 🧪. `jac build --client desktop` produces a working, self-contained native
-desktop binary that renders your `cl` UI and runs `sv` walkers/functions
+Beta 🧪. `jac build <app>` on a `desktop` app produces a working, self-contained
+native desktop binary that renders your `cl` UI and runs `sv` walkers/functions
 in-process on the embedded interpreter, with HMR dev mode via
-`jac run --client desktop --dev`. Per-OS packaging/signing remains open. See
+`jac run --dev <app>`. Per-OS packaging/signing remains open. See
 [issue #6436](https://github.com/jaseci-labs/jaseci/issues/6436).

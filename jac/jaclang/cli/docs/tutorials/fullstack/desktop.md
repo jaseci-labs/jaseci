@@ -9,10 +9,10 @@ renders it in either the OS-native webview (WebKitGTK on Linux, WKWebView on
 macOS, WebView2 on Windows) or Chromium Embedded Framework (CEF).
 
 !!! note "Status: beta 🧪"
-    `jac build --client desktop` produces a working, self-contained desktop
+    `jac build` on a `desktop` app produces a working, self-contained desktop
     binary that renders your `cl` UI and runs `sv` walkers/functions
     **in-process** on the embedded interpreter, with full HMR dev mode via
-    `jac run --client desktop --dev`. Only per-OS installers/code-signing
+    `jac run --dev`. Only per-OS installers/code-signing
     remain open - see [issue #6436](https://github.com/jaseci-labs/jaseci/issues/6436).
 
 > **Prerequisites**
@@ -26,9 +26,22 @@ macOS, WebView2 on Windows) or Chromium Embedded Framework (CEF).
 
 ---
 
-## 1. Configure the window
+## 1. Make it a desktop app
 
-Add a `[desktop]` section to your `jac.toml` (all fields optional):
+Give the app the `desktop` kind. In a single-app project that is `kind =
+"desktop"` under `[project]`; in a workspace it is an `[apps.<name>]` table
+(`jac create --app desktop --kind desktop` writes one). The kind's client
+target is `desktop`, so every `jac run` / `jac build` of this app builds the
+native shell -- no `--client` flag:
+
+```toml
+[project]
+name = "my-app"
+kind = "desktop"
+entry-point = "main.jac"
+```
+
+Then add a `[desktop]` section to your `jac.toml` (all fields optional):
 
 ```toml
 [desktop]
@@ -48,7 +61,7 @@ There is no `jac setup desktop` step - the native host is generated at build tim
 ## 2. Build the desktop app
 
 ```bash
-jac build --client desktop
+jac build            # a desktop app builds its shell; `jac build <app>` in a workspace
 ```
 
 This:
@@ -79,7 +92,7 @@ engine = "cef"
 ```
 
 ```bash
-jac build --client cef
+jac build            # engine = "cef" selects the CEF shell (or pass --client cef once)
 ```
 
 The CEF output lands in `.jac/client/cef/` and includes the app binary,
@@ -93,10 +106,10 @@ runtime and staged bundle.
 ## 3. Run it
 
 ```bash
-jac run --client desktop        # builds (if needed) and launches the window
+jac run              # builds (if needed) and launches the window
 ```
 
-For the CEF renderer:
+For the CEF renderer, with `engine = "cef"` the same command applies; to force it once:
 
 ```bash
 jac run --client cef

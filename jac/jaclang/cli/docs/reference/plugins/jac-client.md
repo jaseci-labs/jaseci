@@ -161,7 +161,7 @@ import from .database { connect_db }
 node SecretData { has value: str; }
 ```
 
-> **Note on imports between two server modules.** When both the importer and the importee are server modules running as separate microservices (the importee is listed in `[scale.microservices.routes]`), the import generates HTTP client stubs instead of pulling the provider into the consumer's process. The same source also works as a monolith. See [Microservice Interop (sv-to-sv)](jac-scale-http.md#microservice-interop-sv-to-sv) in the Scale reference for details.
+> **Note on imports between two server modules.** When the importer and the importee belong to different **apps** of a workspace (the importee is a walker or `def:pub` owned by an `[apps.<name>]` service app), the import generates a typed-async bridge stub instead of pulling the provider into the consumer's process -- `await` the call. The same source runs colocated or as a fleet. See [Service apps](jac-scale-http.md#service-apps-cross-app-bridging) in the Scale reference and [Workspaces & Apps](../apps.md).
 
 ### REST API with jac run
 
@@ -1304,8 +1304,7 @@ name = "myapp"
 version = "0.1.0"
 
 [serve]
-base_route_app = "app"        # Serve at /
-cl_route_prefix = "/cl"       # Client route prefix
+port = 8000                   # the served app's client is at /; sibling apps at /cl/<app>/
 
 [client]
 enabled = true
@@ -1655,17 +1654,18 @@ Defaults to `"/"`. Can also be set to `"./"` for relative path resolution if nee
 | Command | Description |
 |---------|-------------|
 | `jac create myapp --kind web-static` | Create new full-stack project |
-| `jac run` | Start dev server |
-| `jac run --dev` | Dev server with HMR |
-| `jac run --client pwa` | Start PWA (builds then serves) |
-| `jac run --client desktop` | Start desktop app (see [jac-desktop](jac-desktop.md)) |
-| `jac run --client mobile` | Start mobile app on device/simulator |
-| `jac run --client react-native --dev` | Start React Native app with Fast Refresh |
-| `jac build` | Build for production (web) |
-| `jac build --client desktop` | Build desktop app (see [jac-desktop](jac-desktop.md)) |
-| `jac build --client mobile` | Build mobile app (Android/iOS) |
-| `jac build --client react-native` | Build React Native app (Android/iOS, native views) |
-| `jac setup react-native` | One-time React Native scaffold (`.jac/mobile-rn/`) |
+| `jac create --app mobile --kind mobile` | Add a mobile app to the current project (`[apps.mobile]`) |
+| `jac run [app]` | Start dev server (the app's kind and `client` decide the shell) |
+| `jac run --dev [app]` | Dev server with HMR |
+| `jac run --client pwa` | Start as a PWA (builds then serves) |
+| `jac run desktop_app` | Start a `kind = "desktop"` app (see [jac-desktop](jac-desktop.md)); `--client desktop` forces it elsewhere |
+| `jac run mobile` | Start a `kind = "mobile"` app on device/simulator (Capacitor, or React Native when `client = "react-native"`) |
+| `jac run --dev mobile` | React Native app with Fast Refresh (`client = "react-native"`) |
+| `jac build [app]` | Build for production (web) |
+| `jac build --all` | Build every app of the workspace into `dist/<app>/` |
+| `jac build desktop_app` | Build a desktop app (see [jac-desktop](jac-desktop.md)) |
+| `jac build mobile --platform android` | Build a mobile app (Android/iOS) |
+| `jac setup mobile` | One-time setup of the `mobile` app's client target (Capacitor `android/`/`ios/`, or the Expo scaffold at `.jac/mobile-rn/` for React Native) |
 | `jac build --client pwa` | Build PWA with offline support |
 | `jac build --client static` | Build client-only app as a portable, self-contained page (opens from `file://`) |
 | `jac run --client static` | Serve a client-only app with a minimal static server |
@@ -1689,46 +1689,50 @@ For private packages from custom registries, see [NPM Registry Configuration](#n
 
 ### jac build
 
-Build a Jac application for a specific target.
+Build an app's client for its target.
 
 ```bash
-jac build [filename] [--client TARGET] [-p PLATFORM]
+jac build [target] [--client TARGET] [-p PLATFORM]
 ```
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `filename` | Path to .jac file | `main.jac` |
-| `--client` | Build target (`web`, `pwa`, `static`, `desktop`, `mobile`, `react-native`) | `web` |
-| `-p, --platform` | Platform for **mobile** / **react-native** (`android`, `ios`) or **desktop sidecar naming** (`windows` selects `.exe`; no cross-compilation yet) | Current platform |
+| `target` | App name from `[apps]`, or a `.jac` entry file | (default app) |
+| `--client` | Override the app's client target (`web`, `pwa`, `static`, `desktop`, `mobile`, `cef`, `react-native`) | the app's `client`, else its kind's target |
+| `-p, --platform` | Platform for **mobile** / **react-native** (`android`, `ios`) or **desktop sidecar naming** (`windows` selects `.exe`; no cross-compilation yet) | the app's `platform`, else the current platform |
 
-A project whose `jac.toml` declares `kind = "web-static"` is built with the
-`static` target automatically -- no `--client` flag needed (see [Client-only apps](#client-only-apps)).
+Every app carries its client target: `[apps.<name>] client` when set, else the
+kind's default -- `web` for `web-app`, `static` for `web-static`, `desktop`
+for `desktop`, `mobile` for `mobile`. So a `web-static` app is built with the
+`static` target and a `desktop` app with the desktop shell, with no `--client`
+flag (see [Client-only apps](#client-only-apps)). `[dependencies.npm.<target>]`
+tables are scoped by that same target, and an app's
+`[apps.<name>.dependencies.npm]` overlay is merged in.
 
 For desktop builds, see the [jac-desktop Reference](jac-desktop.md): the desktop target compiles your client UI into a single native binary that embeds the OS webview. In all desktop builds the build environment sets `JAC_BUILD=1` so import-time server starts stay inert.
 
 **Examples:**
 
 ```bash
-# Build web target (default)
+# Build the default app for its target
 jac build
 
-# Build specific file
+# Build a named app / a specific file
+jac build web
 jac build main.jac
 
 # Build PWA with offline support
 jac build --client pwa
 
-# Build desktop app (sidecar for current OS; use --platform windows for .exe name)
-jac build --client desktop
+# Build a desktop app (sidecar for current OS; use --platform windows for .exe name)
+jac build desktop_app
 
 # Name sidecar jac-sidecar.exe (build on Windows for a Windows binary)
-jac build --client desktop --platform windows
+jac build desktop_app --platform windows
 
-# Build mobile app for Android
-jac build --client mobile --platform android
-
-# Build mobile app for iOS
-jac build --client mobile --platform ios
+# Build a mobile app for Android / iOS
+jac build mobile --platform android
+jac build mobile --platform ios
 ```
 
 ### Client-only apps
@@ -1792,30 +1796,32 @@ the web target (no API server).
 
 ### jac setup
 
-One-time initialization for a build target.
+One-time initialization of an app's client target.
 
 ```bash
-jac setup <target> [-p PLATFORM]
+jac setup [app|target] [-p PLATFORM]
 ```
 
 | Option | Description |
 |--------|-------------|
-| `target` | Target to setup (`desktop`, `mobile`, `pwa`, `react-native`) |
+| `target` | An app name from `[apps]` -- sets up that app's client target -- or a client target name (`desktop`, `mobile`, `pwa`, `react-native`) for the default app. Omit to set up the default app's target |
 | `-p, --platform` | Mobile (Capacitor) setup platform (`android`, `ios`, `all`); the React Native scaffold is platform-neutral |
 
 **Examples:**
 
 ```bash
+# Set up the default app's client target
+jac setup
+
 # Setup PWA target (creates pwa_icons/ directory)
 jac setup pwa
 
-# Setup mobile target for one platform only
-jac setup mobile --platform ios
+# The app named `mobile`: Capacitor android/ + ios/, or the Expo scaffold when its client is react-native
+jac setup mobile
+jac setup mobile --platform ios      # one Capacitor platform only
+jac setup mobile --platform all      # both (macOS only)
 
-# Setup both mobile platforms (macOS only)
-jac setup mobile --platform all
-
-# Setup React Native target (scaffolds .jac/mobile-rn/ with Expo/Metro)
+# The React Native target of the default app (scaffolds .jac/mobile-rn/ with Expo/Metro)
 jac setup react-native
 ```
 
@@ -1826,8 +1832,9 @@ jac-client extends several core commands:
 | Command | Added Option | Description |
 |---------|-------------|-------------|
 | `jac create` | `--kind web-static` | Create full-stack project template |
+| `jac create` | `--app <name> --kind <kind>` | Add a client app to the current project |
 | `jac create` | `--skip` | Skip npm package installation |
-| `jac run` | `--client <target>` | Client build target for dev server |
+| `jac run` | `--client <target>` | Override the app's client target for the dev server |
 | `jac install` | `--npm` | Add npm (client-side) dependency |
 | `jac install` | `--npm --dev` | Add npm dev dependency |
 | `jac remove` | `--npm` | Remove npm (client-side) dependency |
@@ -1836,16 +1843,16 @@ jac-client extends several core commands:
 
 ## Multi-Target Architecture
 
-jac-client supports building for multiple deployment targets from a single codebase.
+jac-client supports building for multiple deployment targets from a single codebase. The target is a property of the **app** -- `[apps.<name>] client`, defaulting to the kind's target -- and `--client <target>` overrides it for one command. In a workspace, one shared `core/` typically feeds a `web-app`, a `mobile` app and a `desktop` app side by side (see [Workspaces & Apps](../apps.md)).
 
-| Target | Command | Output | Setup Required |
-|--------|---------|--------|----------------|
-| **Web** (default) | `jac build` | `.jac/client/dist/` | No |
-| **Desktop** (native webview) | `jac build --client desktop` | Single binary under `.jac/client/desktop/` | No |
-| **CEF** (Chromium) | `jac build --client cef` | CEF bundle under `.jac/client/cef/` | No |
-| **Mobile** (Capacitor) | `jac build --client mobile --platform android` | Android APK / iOS build products | Yes |
-| **React Native** (beta) | `jac build --client react-native --platform android` | Android APK / iOS `.app` bundle (native views; `.ipa` via EAS) | Yes |
-| **PWA** | `jac build --client pwa` | Installable web app | No |
+| Target | App table | Command | Output | Setup Required |
+|--------|-----------|---------|--------|----------------|
+| **Web** (default) | `kind = "web-app"` | `jac build web` | `.jac/client/dist/` | No |
+| **Desktop** (native webview) | `kind = "desktop"` | `jac build desktop_app` | Single binary under `.jac/client/desktop/` | No |
+| **CEF** (Chromium) | `kind = "desktop"`, `client = "cef"` | `jac build desktop_app` | CEF bundle under `.jac/client/cef/` | No |
+| **Mobile** (Capacitor) | `kind = "mobile"` | `jac build mobile --platform android` | Android APK / iOS build products | Yes |
+| **React Native** (beta) | `kind = "mobile"`, `client = "react-native"`, `client_kind = "mobui"` | `jac build mobile --platform android` | Android APK / iOS `.app` bundle (native views; `.ipa` via EAS) | Yes |
+| **PWA** | `client = "pwa"` on a `web-app` | `jac build web` | Installable web app | No |
 
 ### Web Target (Default)
 
@@ -1956,22 +1963,25 @@ A React Native app is a **mobUI** project: one source tree that compiles to both
 - **Android**: Java/JDK 21+, Android SDK ([Android Studio](https://developer.android.com/studio))
 - **iOS** (macOS only): Xcode, Xcode Command Line Tools, [CocoaPods](https://cocoapods.org/)
 
-**Setup & Build:**
+**Setup & Build** (for an app declared with `client = "react-native"` -- see *Opting in* below):
 
 ```bash
 # 1. One-time setup (scaffolds Expo/Metro project at .jac/mobile-rn/)
-jac setup react-native
+jac setup mobile
 
 # 2. Development: Fast Refresh on device/emulator
-jac run --client react-native --dev main.jac
+jac run --dev mobile
 # Metro serves both platforms; pick the device in the Expo CLI
 # (press `a` for Android, `i` for iOS simulator) or scan the QR in Expo Go.
 
 # 3. Build for Android
-jac build --client react-native --platform android
+jac build mobile --platform android
 
 # 4. Build for iOS (macOS only; non-macOS points at EAS Build)
-jac build --client react-native --platform ios
+jac build mobile --platform ios
+
+# The same UI in a browser, through react-native-web
+jac run --client web --dev mobile
 ```
 
 **Dev-loop knobs:** Metro defaults to port `8081` (override with `JAC_RN_METRO_PORT`); the device-visible host is auto-detected from your LAN IPv4 (override with `JAC_RN_DEV_HOST`). Each `--dev` run starts Metro with `--clear`, so warm starts re-bundle from scratch.
@@ -1980,7 +1990,7 @@ jac build --client react-native --platform ios
 
 - Android: APK via `gradlew assembleDebug` (or EAS Build with `android_builder = "eas"`)
 - iOS: simulator `.app` bundle via `xcodebuild` on macOS -- `jac build` prints the
-  `xcrun simctl install booted <app>` command, and `jac run --client react-native`
+  `xcrun simctl install booted <app>` command, and `jac run <app>`
   builds, installs, and launches it for you; a distributable `.ipa` comes from the
   EAS Build path (`ios_builder = "eas"`)
 
@@ -1990,7 +2000,7 @@ jac build --client react-native --platform ios
 [client.react_native]
 project_dir = ".jac/mobile-rn"   # Expo project location (under the .jac build root; override to relocate)
 release = false                  # true for release variants
-default_platform = "android"     # platform used by plain `jac run --client react-native`
+default_platform = "android"     # platform used by a plain `jac run <app>` ([apps.<name>] platform wins)
 android_builder = "gradle"       # "gradle" (local) or "eas" (EAS Build)
 ios_builder = "xcodebuild"       # "xcodebuild" (local, macOS) or "eas" (EAS Build)
 eas_profile = ""                 # "" -> "production" (release) / "preview" (debug)
@@ -2000,18 +2010,25 @@ eas_update_branch = ""           # "" -> "production" (release) / "preview" (deb
 eas_update_message = ""          # "" -> pass --auto to `eas update`
 ```
 
-**Opting in:** set `client_kind = "mobui"` under `[project]` in `jac.toml` to mark the project as targeting React Native as well as the web:
+**Opting in:** a React Native app is an `[apps.<name>]` table with `client = "react-native"` and `client_kind = "mobui"`. `jac create --app mobile --kind mobile` (or `jac create myapp --kind mobile` for a single-app project) writes exactly this:
 
 ```toml
 [project]
 name = "myapp"
-version = "0.1.0"
+default-app = "mobile"
+
+[apps.mobile]
+kind = "mobile"
+client = "react-native"
 client_kind = "mobui"
+platform = "android"      # optional default for `jac run mobile`
 ```
+
+`client_kind` is an **app** property: it turns on the `@jac/mobui` host-tag guard for every module the app claims (its directory, or its entry file for a file-rooted app) and nothing outside it, so a workspace can hold a mobUI app next to an HTML-based web app over the same shared `core/`. It does not exist under `[project]`.
 
 **Notes:**
 
-- `jac setup react-native` scaffolds an Expo project at `.jac/mobile-rn/` (configurable via `[client.react_native].project_dir`; under the centralized `.jac` build root, so it stays out of the source tree). Capacitor keeps `android/` + `ios/` -- both targets can coexist in one repo.
+- `jac setup mobile` (an app whose client is `react-native`, or `jac setup react-native` for the default app) scaffolds an Expo project at `.jac/mobile-rn/` (configurable via `[client.react_native].project_dir`; under the centralized `.jac` build root, so it stays out of the source tree). Capacitor keeps `android/` + `ios/` -- both targets can coexist in one repo.
 - Dev networking is auto-resolved (LAN IPv4 > `127.0.0.1`); `adb reverse` is auto-attempted for Android. The dev API base URL is injected into `app.json` and restored on exit.
 - iOS device builds and App Store archives require Xcode signing. On non-macOS hosts, `--platform ios` errors out and points at EAS Build.
 - Release/debug variants via `[client.react_native].release = true`.
@@ -2062,9 +2079,10 @@ Both targets produce mobile apps. They are **complementary**, not replacements:
 | Setup complexity | Lower | Higher |
 | Native feel | Moderate | High |
 | Web-only npm libs | Work | Break |
-| CLI | `jac setup mobile` | `jac setup react-native` |
+| App table | `kind = "mobile"` (client defaults to `mobile`) | `kind = "mobile"`, `client = "react-native"`, `client_kind = "mobui"` |
+| Setup | `jac setup <app>` scaffolds `android/` + `ios/` | `jac setup <app>` scaffolds `.jac/mobile-rn/` |
 
-Authors choose per project -- or ship both targets from one repo while keeping selection in the build target (`--client`) layer.
+Authors choose per app -- or ship both from one workspace as two `[apps.*]` tables over the same shared code, each with its own `client`.
 
 #### The `@jac/mobui` vocabulary
 
@@ -2128,16 +2146,16 @@ error[E1105]: JSX tag '<div>' is not in scope in a mobUI project; use View inste
 - **Uppercase components** (`<Card>`, `<Image>`) are always allowed.
 - **Lowercase components that resolve to an in-scope symbol are allowed** (e.g. a local `counter` component used as `<counter .../>`).
 - Only unresolved lowercase names (`div`, `span`, ...) are rejected.
-- **`.jac` web-boundary files are exempt** (raw HTML stays valid where the code can only run in a browser) -- but `.native.jac` files are not, since they target React Native. Modules outside the project root (framework and third-party code) are exempt too. The kind is discovered from each module's own project `jac.toml`, never the process cwd.
+- **`.jac` web-boundary files are exempt** (raw HTML stays valid where the code can only run in a browser) -- but `.native.jac` files are not, since they target React Native. Modules outside the project root (framework and third-party code) are exempt too. The client kind is an app fact: the driver stamps it from the `[apps.<name>]` table that claims each module, never from the process cwd, so only the mobUI app's own modules are guarded.
 
-See [`E1105`](../diagnostics.md#mobui-project-jsx-host-tags) in the diagnostics reference. Web projects (`client_kind` unset) are unaffected -- HTML tags remain valid there.
+See [`E1105`](../diagnostics.md#mobui-project-jsx-host-tags) in the diagnostics reference. Web apps (`client_kind` unset) are unaffected -- HTML tags remain valid there.
 
 #### Platform divergence
 
 Platform differences are handled in priority order:
 
 1. **The vocabulary absorbs divergence** (primary). Components own their platform differences internally -- `ScrollView`, `Image`, and future additions present one API and branch inside `@jac/mobui`. Authors see a single component.
-2. **`.native.jac` platform files** (rare). For wrapping platform-exclusive native modules -- see `examples/mobui/littlex`'s `icon.jac` / `icon.native.jac` split. The compiler picks the `.native.jac` variant when `--client react-native` is selected and falls back to `.jac` when not found. Reach for a file pair only when the two platforms need *different imports*; for branching on values, `Platform` is already part of the vocabulary, so `Platform.OS` and `Platform.select({ios: ..., android: ..., default: ...})` work inline.
+2. **`.native.jac` platform files** (rare). For wrapping platform-exclusive native modules -- see the flagship mobile app's `icon.jac` / `icon.native.jac` split in [`jac/examples/jaclang_org/mobile`](https://github.com/jaseci-labs/jaseci/tree/main/jac/examples/jaclang_org/mobile). The variant is selected by the app's client target (`react-native`), not by the filename: the compiler picks `.native.jac` when the app targets React Native and falls back to `.jac` otherwise. The two files must agree on their public surface -- the same names, kinds, parameters and annotations -- and every disagreement is a build error (`E5105`, reported on the variant). Reach for a file pair only when the two platforms need *different imports*; for branching on values, `Platform` is already part of the vocabulary, so `Platform.OS` and `Platform.select({ios: ..., android: ..., default: ...})` work inline.
 
 #### What carries over from web
 

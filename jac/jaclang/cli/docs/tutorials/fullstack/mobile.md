@@ -1,9 +1,11 @@
 # Building a Mobile App
 
-This tutorial walks you through shipping an existing Jac full-stack app as a native mobile app for Android and iOS. Jac ships **two** mobile targets:
+This tutorial walks you through shipping an existing Jac full-stack app as a native mobile app for Android and iOS. A mobile app is an app of kind `mobile` -- `[project] kind = "mobile"` in a single-app project, or an `[apps.<name>]` table in a workspace next to your web app (`jac create --app mobile --kind mobile` writes one). Jac ships **two** mobile client targets, selected by the app's `client`:
 
-- **Capacitor** (`--client mobile`) -- wraps your web bundle in a native webview. Covered in the first half of this page.
-- **React Native** (`--client react-native`, beta) -- compiles your `cl` UI to platform-native views. Covered in [React Native target](#react-native-target) below.
+- **Capacitor** (`client = "mobile"`, the kind's default) -- wraps your web bundle in a native webview. Covered in the first half of this page.
+- **React Native** (`client = "react-native"`, beta) -- compiles your `cl` UI to platform-native views. Covered in [React Native target](#react-native-target) below.
+
+The examples below name the app `mobile`; in a single-app project drop the name (`jac run --dev`, `jac build --platform android`). `--client <target>` overrides the app's target for one command.
 
 > **Prerequisites**
 >
@@ -17,7 +19,7 @@ This tutorial walks you through shipping an existing Jac full-stack app as a nat
 
 ## How a Mobile Build Works
 
-When you run `jac build --client mobile --platform android`, the build does four things:
+When you run `jac build mobile --platform android`, the build does four things:
 
 1. **Compiles the client bundle** -- the same Vite build the web target produces.
 2. **Syncs with Capacitor** -- copies the web bundle into the native project (`android/` or `ios/`) and updates native plugins.
@@ -36,7 +38,7 @@ From your project root:
 jac setup mobile
 ```
 
-This installs Capacitor dependencies, creates `capacitor.config.json`, and scaffolds the selected platform. By default, setup follows `[client.mobile].default_platform` and falls back to `ios` on macOS or `android` elsewhere.
+This sets up the `mobile` app's client target: it installs Capacitor dependencies, creates `capacitor.config.json`, and scaffolds the selected platform. By default, setup follows the app's `[apps.mobile] platform` (else `[client.mobile].default_platform`) and falls back to `ios` on macOS or `android` elsewhere.
 
 You can force a specific scaffold explicitly:
 
@@ -75,7 +77,7 @@ app_id = "com.example.myapp"
 | `app_id` | Reverse-DNS identifier (used by both app stores) | `com.jac.app` |
 | `release` | Build release variant instead of debug | `false` |
 | `bundle` | Produce AAB (Android App Bundle) instead of APK | `false` |
-| `default_platform` | Default platform for `jac run --client mobile` | `android` |
+| `default_platform` | Default platform for `jac run mobile` (the app's `[apps.mobile] platform` wins) | `android` |
 | `ios_sdk` | Xcode SDK for iOS builds | `iphonesimulator` |
 | `ios_destination` | Xcode destination string | `platform=iOS Simulator,name=iPhone 16,OS=latest` |
 
@@ -90,7 +92,7 @@ These values feed into `capacitor.config.json` and the native build commands aut
 Build the web bundle, sync it into the Android project, and launch on a connected device or emulator:
 
 ```bash
-jac run --client mobile main.jac
+jac run mobile
 ```
 
 This runs `cap sync android` followed by `cap run android`.
@@ -98,7 +100,7 @@ This runs `cap sync android` followed by `cap run android`.
 If you need to force a specific host/IP for live reload, use:
 
 ```bash
-jac run --client mobile --dev --host 192.168.1.25 main.jac
+jac run --dev --host 192.168.1.25 mobile
 ```
 
 jac-client auto-attempts `adb reverse` for the Vite and API ports before launching Capacitor on Android, so manual `adb reverse` is usually not required.
@@ -107,7 +109,7 @@ jac-client auto-attempts `adb reverse` for the Vite and API ports before launchi
 
 ```bash
 # Debug APK (default)
-jac build --client mobile --platform android
+jac build mobile --platform android
 
 # Release APK (set release = true in jac.toml)
 # Or release AAB (set bundle = true in jac.toml)
@@ -138,7 +140,7 @@ android/app/build/outputs/apk/release/app-release.apk
 ### Dev Loop
 
 ```bash
-jac run --client mobile --platform ios main.jac
+jac run --platform ios mobile
 ```
 
 This syncs the web bundle and opens the project on the iOS Simulator via `cap run ios`.
@@ -146,7 +148,7 @@ This syncs the web bundle and opens the project on the iOS Simulator via `cap ru
 ### Production Build
 
 ```bash
-jac build --client mobile --platform ios
+jac build mobile --platform ios
 ```
 
 This runs `xcodebuild` targeting the iOS Simulator by default. For device builds or App Store archives, open the project in Xcode:
@@ -193,23 +195,23 @@ npx cap sync
 
 ### Mobile Dev Networking
 
-When using `jac run --client mobile --dev ...`, jac-client auto-selects a reachable host by default:
+When using `jac run --dev mobile`, jac-client auto-selects a reachable host by default:
 
 ```bash
 # Auto host selection (recommended)
-jac run --client mobile --dev main.jac
+jac run --dev mobile
 ```
 
 Override host selection only when needed:
 
 ```bash
-jac run --client mobile --dev --host 192.168.1.25 main.jac
+jac run --dev --host 192.168.1.25 mobile
 ```
 
 You can still force iOS or Android in dev with:
 
 ```bash
-jac run --client mobile --dev --platform ios main.jac
+jac run --dev --platform ios mobile
 ```
 
 ### Debugging
@@ -237,7 +239,7 @@ If mobile dev starts but the app does not load correctly:
 
 ## React Native target
 
-The React Native target (`--client react-native`, beta) is the **native** mobile path: instead of wrapping a web bundle in a webview, it compiles your `cl` UI to platform-native views via Expo/Metro/Hermes. This gives native gesture/scroll performance and access to the React Native ecosystem, at the cost of a different rendering and styling model.
+The React Native target (`client = "react-native"` on the app, beta) is the **native** mobile path: instead of wrapping a web bundle in a webview, it compiles your `cl` UI to platform-native views via Expo/Metro/Hermes. This gives native gesture/scroll performance and access to the React Native ecosystem, at the cost of a different rendering and styling model.
 
 ### mobUI projects and `@jac/mobui`
 
@@ -261,22 +263,23 @@ Styling is `style={{...}}` objects over a flexbox subset -- no CSS files, no `cl
 
 ### One-time setup
 
-From your project root:
+Declare the app as a mobUI app in `jac.toml` -- `jac create --app mobile --kind mobile` writes this (and `jac create myapp --kind mobile` writes the single-app form):
+
+```toml
+[apps.mobile]
+kind = "mobile"
+path = "mobile"
+client = "react-native"
+client_kind = "mobui"
+```
+
+`client = "react-native"` selects the Expo/Metro target; `client_kind = "mobui"` turns on the `@jac/mobui` host-tag guard for every module under `mobile/` -- and only there, so a web app in the same workspace keeps its HTML. Then, from the project root:
 
 ```bash
-jac setup react-native
+jac setup mobile
 ```
 
 This scaffolds an Expo/Metro project at `.jac/mobile-rn/` (configurable via `[client.react_native].project_dir`; it lives under the centralized `.jac` build root, so it stays out of the source tree) and prints next steps.
-
-Then opt in to the mobUI project kind in `jac.toml`:
-
-```toml
-[project]
-name = "myapp"
-version = "0.1.0"
-client_kind = "mobui"
-```
 
 ### Authoring UI with `@jac/mobui`
 
@@ -308,12 +311,12 @@ def:pub app -> JsxElement {
 }
 ```
 
-The same source builds for web (`jac build`) and native (`jac build --client react-native`).
+The same source builds for native (`jac build mobile`) and, through `react-native-web`, for the browser (`jac build mobile --client web`).
 
 ### Development
 
 ```bash
-jac run --client react-native --dev main.jac
+jac run --dev mobile
 ```
 
 This launches the Jac backend, compiles `.jac` to JS, and runs `expo start` on the bundled Bun. Metro serves both platforms -- pick the device in the Expo CLI (press `a` for Android, `i` for the iOS simulator) or scan the QR code in Expo Go. Editing a `.jac` file recompiles and Metro Fast Refreshes the device. Dev networking is auto-resolved (LAN IPv4 > `127.0.0.1`, override with `JAC_RN_DEV_HOST`); Metro defaults to port `8081` (`JAC_RN_METRO_PORT`); `adb reverse` is auto-attempted for Android.
@@ -322,17 +325,17 @@ This launches the Jac backend, compiles `.jac` to JS, and runs `expo start` on t
 
 ```bash
 # Android
-jac build --client react-native --platform android
+jac build mobile --platform android
 
 # iOS (macOS only; non-macOS points at EAS Build)
-jac build --client react-native --platform ios
+jac build mobile --platform ios
 ```
 
 Android produces an APK via `gradlew assembleDebug`. iOS produces a simulator-installable `.app` bundle via `xcodebuild` on macOS (a distributable `.ipa` comes from the EAS Build path); on other platforms the build errors out and points you at EAS Build. Release variants via `[client.react_native].release = true`.
 
 ### EAS Update (OTA)
 
-`jac setup react-native` scaffolds a baseline `eas.json` (with `preview` and `production` profiles). To push OTA updates after each build:
+`jac setup mobile` (on a `react-native` app) scaffolds a baseline `eas.json` (with `preview` and `production` profiles). To push OTA updates after each build:
 
 1. **One-time** (inside `.jac/mobile-rn/`): install the updates module and link your EAS project:
 
@@ -351,13 +354,13 @@ Android produces an APK via `gradlew assembleDebug`. iOS produces a simulator-in
    eas_update_branch = "production"   # "" -> "production" (release) / "preview" (debug)
    ```
 
-3. **Build** as usual -- a successful `jac build --client react-native` then runs `eas update --branch <branch>` automatically. Set `eas_update_message` to pin a message; leave it empty to let EAS derive one.
+3. **Build** as usual -- a successful `jac build mobile` then runs `eas update --branch <branch>` automatically. Set `eas_update_message` to pin a message; leave it empty to let EAS derive one.
 
 See the [jac-client Reference -> EAS Update (OTA)](../../reference/plugins/jac-client.md#eas-update-ota) for the full field list.
 
 ### Platform-specific files
 
-When you need platform-exclusive native modules, add a `.native.jac` variant alongside a `.jac` module. The compiler picks up the `.native.jac` file when `--client react-native` is selected and falls back to `.jac` otherwise. This is a last resort -- prefer components from the `@jac/mobui` vocabulary, which absorb platform divergence internally. Use a file pair only when the platforms need *different imports*; to branch on values, `Platform` is part of the vocabulary already, so `Platform.OS` and `Platform.select({ios: ..., android: ..., default: ...})` work inline.
+When you need platform-exclusive native modules, add a `.native.jac` variant alongside a `.jac` module. The variant is selected by the app's client target: the compiler picks up the `.native.jac` file when the app targets `react-native` and falls back to `.jac` otherwise -- the filename alone decides nothing. The two files must agree on their public surface (names, kinds of declaration, parameters, annotations, `has` fields); each disagreement is `E5105` on the variant, so a drifted pair is caught by `jac check` rather than at first launch. The flagship workspace's `mobile/icon.jac` / `mobile/icon.native.jac` is the worked example. This is a last resort -- prefer components from the `@jac/mobui` vocabulary, which absorb platform divergence internally. Use a file pair only when the platforms need *different imports*; to branch on values, `Platform` is part of the vocabulary already, so `Platform.OS` and `Platform.select({ios: ..., android: ..., default: ...})` work inline.
 
 ### What carries over
 

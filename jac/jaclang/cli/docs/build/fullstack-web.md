@@ -55,9 +55,6 @@ typescript = "^5.3.3"
 "@types/react" = "^18.2.0"
 "@types/react-dom" = "^18.2.0"
 
-[serve]
-base_route_app = "app"
-
 [client]
 ```
 

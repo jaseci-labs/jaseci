@@ -30,8 +30,8 @@ Every interop edge is one of two fundamentally different things:
   (CPython ↔ V8, CPython ↔ machine code, machine code ↔ a wasm host). A call
   becomes an RPC or an FFI thunk, and every value that crosses must be
   *serialised* into a representation both sides understand. `cl↔sv`,
-  `sv↔na`, `na↔C`, `na↔cl`, and the opt-in `sv→sv` microservice split are
-  marshalled.
+  `sv↔na`, `na↔C`, `na↔cl`, and the `sv→sv` crossing between two apps of a
+  workspace are marshalled.
 
 The compiler decides which is which automatically. One analysis pass does
 the discovery:
@@ -42,9 +42,9 @@ the discovery:
   native code, etc.) and re-reads the *provider* module's AST to extract
   the public surface -- walker `has`-fields, `def` signatures, struct
   layouts -- into an `InteropBinding`. On an import, service-boundary
-  status is a config fact (the target module is in
-  `[scale.microservices.routes]` or pinned `"server"` in
-  `[placement.pins]`); the import's own `code_context` is its
+  status is an **app fact**: the target element's `owner_app` (stamped by
+  the driver from `[apps]` in `jac.toml`) differs from the importing
+  module's; the import's own `code_context` is its
   placement, which determines the caller side of the binding. The same pass
   walks call sites, records the caller's and callee's `CodeContext` plus
   the boundary types, and accumulates every binding into an
@@ -68,7 +68,7 @@ remaining rows.
 | # | Direction | Boundary kind | Mechanism | What crosses | Synthesised by |
 |---|-----------|---------------|-----------|--------------|----------------|
 | 1 | **`sv → sv`** (in-process) | Free | Direct Python call | Live CPython objects (by ref) | -- (plain `import`) |
-| 2 | **`sv → sv`** (microservice) | Marshalled | HTTP `POST` between deployments | JSON (`_to_wire`/`_from_wire`) | `JcirGenPass` (service RPC stub for routes-table imports) + `jaclang.scale` |
+| 2 | **`sv → sv`** (cross-app) | Marshalled | Typed-async stub keyed by provider app: in-process when colocated, HTTP `POST` when the provider app runs apart | JSON (`_to_wire`/`_from_wire`) | `JcirGenPass` (service bridge stub) + `jaclang.server.sv_client` + `jaclang.scale` |
 | 3 | **`cl → cl`** | Free | Direct JS call | JS values (by ref) | -- (plain client-side `import`) |
 | 4 | **`na → na`** | Free | Linker symbol reference | Native values / pointers | `NativeCompilePass` relocation |
 | 5 | **`cl → sv`** | Marshalled | HTTP `POST /walker/*` or `/function/*` | JSON envelope | `EsastGenPass` (`__jacSpawn`/`__jacCallFunction`) + `jaclang.scale` |
@@ -457,31 +457,64 @@ Underneath, the interop model is the standard wasm import/export contract:
 
 ---
 
-## `sv → sv` microservice split (row 2)
+## One cross-app import rule
+
+Every import that reaches across modules is classified exactly once, by
+`classify_cross_app_import(nd, manifest)` in
+`compiler/driver/boundary_classify.jac`, from the app facts the driver stamps
+on each module before any pass runs (`app`, `app_root`, `app_kind`,
+`owner_app`; see [Placement -- App facts](../reference/placement.md#app-facts)):
+
+| `CrossAppKind` | When | Transport |
+|---|---|---|
+| `LOCAL` | same app, or shared code, in the same codespace | a plain import (rows 1, 3, 4) |
+| `CLIENT_BRIDGE` | a `CLIENT`-context consumer importing server-placed elements (same app or another) | HTTP from the browser (row 5) |
+| `SERVICE_BRIDGE` | a `SERVER` (or `NATIVE`) consumer importing server-placed elements whose `owner_app` differs from its own | the typed-async `__jac_sv_client` stub (row 2) |
+| `NATIVE_BIND` | a client consumer binding a decidedly-native module | the wasm edge (rows 9, 10) |
+
+`Import.is_client_boundary_import` and `Import.is_service_import` are thin
+predicates over the classifier. There is no routes table, no import form, and
+no module-stem vocabulary: one rule, three transports, all keyed by **app
+name**. `BoundaryAnalysisPass` records each `consumer app → provider app`
+edge into the `InteropManifest`; the driver checks the edges for cycles
+(`E5104`) and every bridged binding for a `pub` provider element (`E5106`).
+
+## `sv → sv` across apps (row 2)
 
 By default an import between two server modules is a free, in-process
-Python import. Listing the provider in `[scale.microservices.routes]` (or
-pinning it `"server"` at module level in `[placement.pins]`) turns the same
-import into an HTTP boundary even between two server deployments:
+Python import. When the imported element is **owned by a different app** of
+the workspace (a walker or `def:pub` in a file-rooted `service` app, or a
+server-placed shared module whose owner is another serving app), the same
+import is a `SERVICE_BRIDGE`:
 
 ```jac
-import from billing { ChargeCard }   # billing is in the routes table
+import from core.billing { ChargeCard }   # core/billing.jac is [apps.billing]'s entry file
 ```
 
-`exit_import` checks `Import.is_service_import` (routes-table membership /
-module-level server pin via `compiler/placement/service_cut.jac` and
-`compiler/placement/placement_pins.jac` -- not `code_context`, which is `SERVER` for
-everything by default) and calls `_generate_sv_to_sv_stubs`, replacing the
-import with generated Python:
+`exit_import` asks the classifier and calls `_generate_sv_to_sv_stubs`,
+replacing the import with generated Python keyed by the **provider app name**:
 
-- functions → a stub whose body is
-  `__jac_sv_client.call('<module>', '<func>', {args})`, with boundary types
+- functions → `async def f(a, b): return T._from_wire(await
+  __jac_sv_client.call('<app>', '<fn>', {...}))`, with boundary types
   serialised via `_to_wire()` / `<Type>._from_wire(...)`;
-- walkers → `__jac_sv_client.spawn_walker(...)`.
+- walkers → a stub class carrying `__jac_fields__`, `__jac_walker_name__`,
+  `__jac_provider_app__` and `__jac_boundary_types__`, whose construction
+  returns the coroutine from `__jac_sv_client.spawn_walker('<app>',
+  '<Walker>', kwargs, cls)`, so `await Greet(name=x)` yields the rehydrated
+  instance with `reports` attached; plus a `_deferred(**kwargs)` classmethod.
+- an expression statement that spawns a bridged walker and is not awaited
+  lowers to `Stub._deferred(**kwargs)` -- an outbox enqueue, delivered
+  at-least-once with an idempotency key (`jaclang.server.outbox`).
 
-At runtime the provider URL comes from `JAC_SV_<MODULE>_URL`, else an
-auto-started loopback sibling. This is the only place a `.jac` → Python
-lowering converts an import into an RPC; it is consumed by the built-in `scale` subsystem.
+The type evaluator treats every `SERVICE_BRIDGE` and `CLIENT_BRIDGE` symbol as
+coroutine-returning, so a missing `await` is `E1042` in server code exactly as
+in client code. At runtime `jaclang.server.sv_client` resolves the provider by
+app name: a locally registered module when the app is colocated
+(`register_local`, no HTTP), else a registered URL, else `JAC_APP_<APP>_URL`;
+failures raise the `BridgeError` family from `jaclang.server.bridge`. This is
+the only place a `.jac` → Python lowering converts an import into an RPC; the
+built-in `scale` subsystem boots providers before consumers from the
+manifest's app edges.
 
 ---
 
@@ -632,10 +665,13 @@ jac run --client desktop --dev     # HMR: Vite on 127.0.0.1 + recompile on .jac 
 (cd .jac/client/desktop && ./my-app)   # or run the binary directly
 ```
 
-`--client desktop` resolves through the client framework's target registry
-(`get_target_type("desktop") → TargetType.DESKTOP`), which lazy-loads the
+The client target is the app's `client` (`[apps.<name>] client`, defaulting
+to the kind's `client_target` -- `desktop` for `kind = "desktop"`), or the
+`--client` override; the name is normalized by
+`jaclang.project.kinds.normalize_client_target` and resolved through the
+client framework's string-keyed target registry, which lazy-loads the
 core-registered `NativeDesktopTarget`. There is no separate CLI verb -- the
-core `build`/`start` commands delegate to the target.
+core `build`/`run` commands delegate to the target.
 
 ### How the targets combine
 

@@ -1,6 +1,6 @@
 ---
 name: jac-config
-description: The jac.toml control plane - every section ([project], [dependencies], [serve], [run], [check.lint], [test], [scripts], [environments], capability tables ([byllm], [scale], [client] incl. app_meta_data, [desktop]), [jac-shadcn], [npm], [jacpack]), ${VAR} interpolation, profiles via JAC_PROFILE, .jacignore, and the CLI verbs that manage it (jac config/install/remove/update/x). Load before editing jac.toml or wiring project settings, dependencies, scripts, or environment profiles.
+description: The jac.toml control plane - every section ([project], [apps.<name>] workspace tables with per-app overlays, [dependencies], [serve], [run], [check.lint], [test], [scripts], [environments], capability tables ([byllm], [scale] incl. [scale.gateway], [client] incl. app_meta_data, [desktop]), [jac-shadcn], [npm], [jacpack]), ${VAR} interpolation, profiles via JAC_PROFILE, .jacignore, and the CLI verbs that manage it (jac config/install/remove/update/x). Load before editing jac.toml or wiring project settings, apps, dependencies, scripts, or environment profiles.
 ---
 
 `jac.toml` is the single config file (think `pyproject.toml` + `package.json`). Commands find it by walking up from cwd. Generate it with `jac create`, then edit sections directly or via `jac config set` / `jac install <pkg>` - hand-editing is normal and expected.
@@ -9,7 +9,9 @@ description: The jac.toml control plane - every section ([project], [dependencie
 
 | Section | Purpose |
 |---|---|
-| `[project]` | name (required), version, description, **`entry-point`** (default for `jac run`, defaults to `main.jac`), **`kind`** (project kind that makes a bare `jac run` execute / serve / build the project - empty = inferred from the entry-point codespace; see `jac-project-kinds`), `jac-version` compiler pin; publishing fields (`license`, `readme`, `requires-python`, `classifiers`, `authors`) feed `jac build --as wheel` (see `jac-packaging`) |
+| `[project]` | name (required), version, description, **`entry-point`** (default for `jac run`, defaults to `main.jac`), **`kind`** (project kind that makes a bare `jac run` execute / serve / build the project - empty = inferred from the entry-point codespace; see `jac-project-kinds`), **`default-app`** (workspaces: the app a bare `jac run`/`build`/`test`/`setup` targets), `jac-version` compiler pin; publishing fields (`license`, `readme`, `requires-python`, `classifiers`, `authors`) feed `jac build --as wheel` (see `jac-packaging`). `entry-point` and `kind` are single-app only - alongside `[apps]` they are a hard error |
+| `[apps.<name>]` | one table per app turns the project into a **workspace**: `kind` (required), `path` (dir root) or `entry-point` (file-rooted), `client` (target; default = the kind's), `client_kind` (`"web"`/`"mobui"`), `platform`, `route` (default `/api/<name>`). Modules under no app root are shared. No `[apps]` = one implicit app. See `jac-sv-microservices` for service apps |
+| `[apps.<name>.<section>]` | per-app **overlay** of any section (`[apps.web.serve]`, `[apps.mobile.dependencies.npm]`, `[apps.svc.scale]`, `[apps.web.placement.pins]`), deep-merged over the base for that app only. Effective config = base → app overlays → profile → `jac.local.toml` |
 | `[dependencies]` | PyPI packages, pip-style specs (`requests = ">=2.28.0"`) |
 | `[dependencies.npm]` / `[dependencies.npm.dev]` | npm packages for client code (see `jac-npm-packages`) |
 | `[dependencies.git]` | `mylib = { git = "https://...", branch = "main" }` |
@@ -25,7 +27,7 @@ description: The jac.toml control plane - every section ([project], [dependencie
 | `[scripts]` | named command shortcuts run via `jac x <name>` |
 | `[environments]` / `[environment]` | per-profile overrides (below) |
 | `[byllm]` / `[byllm.model]` / `[byllm.call_params]` | AI settings: model identity, API keys, call params (see `jac-by-llm`) |
-| `[scale.*]` | serving/deployment settings: `[scale.server]`, `[scale.database]`, `[scale.kubernetes]`, ... (see `jac-sv-deploy`) |
+| `[scale.*]` | serving/deployment settings: `[scale.server]`, `[scale.database]`, `[scale.kubernetes]`, `[scale.gateway]` (the fleet gateway: `colocate`, ports, timeouts, `cors`, `rate_limit`, `logs`, `shared_volumes`), ... (see `jac-sv-deploy`, `jac-sv-microservices`) |
 | `[client]` | `framework` = `"react"` (default) / `"preact"` / `"solid"` (experimental) - which JS framework the client target emits; `[client.routing] auth_redirect = "/path"` for unauthenticated redirects |
 | `[client.app_meta_data]` | served page's head/SEO config: `title`, `description`, `keywords`, `author`, `theme_color`, `icon` |
 | `[desktop]` / `[desktop.plugins]` | desktop app identity + window geometry; per-capability OS-plugin gates (`fs`/`clipboard`/`shell` allow-lists) - see `jac-desktop-app` |
@@ -58,7 +60,7 @@ jac config path               # where the jac.toml is         jac config list -o
 
 ## Environment variables and profiles
 
-`${VAR}` interpolation works in any string value:
+`${VAR}` interpolation works in **every** string value, uniformly - app tables, overlays, profiles, capability tables:
 
 ```toml
 [byllm.model]
@@ -92,7 +94,8 @@ byLLM, scale, the client/desktop framework, and the MCP server all ship inside t
 
 ## Pitfalls
 
-- **Hyphen vs underscore is per-key and unforgiving**: `entry-point`, `requires-python`, `jac-version` (hyphens) but `fail_fast`, `max_failures`, `on_conflict` (underscores). A wrong form is silently ignored - verify with `jac config get <key>`.
+- **Hyphen vs underscore is per-key and unforgiving**: `entry-point`, `requires-python`, `jac-version`, `default-app` (hyphens) but `fail_fast`, `max_failures`, `on_conflict`, `client_kind` (underscores). A wrong form is silently ignored - verify with `jac config get <key>` (`jac config list -g apps` for the app tables).
+- **`[apps]` is exclusive with `[project] kind` / `entry-point` / `client_kind`** - a hard config error (exit 2), and `client_kind` exists only on apps. An unknown key inside an `[apps.<name>]` table is also a hard error naming the accepted keys.
 - **`jac install <pkg>` without a version pins `~=major.minor`** of whatever pip resolved - pass an explicit spec (`jac install "requests>=2.28"`) when you need a different constraint.
 - **CLI flags override jac.toml for that run** (`jac run --port 3000`, `jac test -v`, `jac run -e all`); jac.toml only sets defaults.
 - **After editing `[dependencies*]`, run `jac install`** - editing the file alone installs nothing.

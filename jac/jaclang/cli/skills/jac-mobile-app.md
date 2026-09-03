@@ -1,9 +1,11 @@
 ---
 name: jac-mobile-app
-description: Shipping a Jac client as a native Android/iOS app via Capacitor - `jac setup mobile`, dev loop with live reload and auto adb reverse, `jac build --client mobile`, `[client.mobile]` config, Capacitor plugins, on-device debugging. Load when targeting phones or tablets.
+description: Shipping a Jac client as a native Android/iOS app via Capacitor - a `kind = "mobile"` app (`[apps.<name>]` in a workspace), `jac setup <app>`, dev loop with live reload and auto adb reverse, `jac build <app> --platform android|ios`, `[client.mobile]` config, Capacitor plugins, on-device debugging. Load when targeting phones or tablets with a webview shell (for native views see `jac-mobui`).
 ---
 
-The mobile target wraps your web bundle in a native shell via [Capacitor](https://capacitorjs.com/), producing an Android APK or iOS app from the same client codebase. **Architecture first: the mobile app is FRONTEND ONLY.** The native shell is a webview running your client bundle; every walker/`def:pub` call goes over HTTP to a Jac server you deploy separately (see `jac-sv-deploy`). There is no embedded backend - plan the server deployment before shipping the app.
+The mobile target wraps your web bundle in a native shell via [Capacitor](https://capacitorjs.com/), producing an Android APK or iOS app from the same client codebase. **Architecture first: the mobile app is FRONTEND ONLY.** The native shell is a webview running your client bundle; every walker/`def:pub` call bridges over HTTP to a Jac server you deploy separately (see `jac-sv-deploy`) - in a workspace, the `web-app` or `service` app that owns the walkers. There is no embedded backend - plan the server deployment before shipping the app.
+
+A mobile app is an app of kind `mobile`, whose default client target is `mobile` (Capacitor). In a workspace it is an `[apps.<name>]` table beside the web app (`jac create --app mobile --kind mobile` writes `kind = "mobile"`, `path = "mobile"`; add `platform = "android"` for a default platform); in a single-app project it is `[project] kind = "mobile"`. The commands below name the app `mobile` - drop the name in a single-app project. `--client mobile` forces the Capacitor shell on an app of another kind.
 
 ## Prerequisites
 
@@ -16,10 +18,10 @@ The mobile target wraps your web bundle in a native shell via [Capacitor](https:
 ## One-time scaffold
 
 ```bash
-jac setup mobile --platform android   # or ios (macOS only), or all
+jac setup mobile --platform android   # the app named mobile; or ios (macOS only), or all
 ```
 
-Installs Capacitor deps, creates `capacitor.config.json`, scaffolds `android/` (and/or `ios/`), checks for the required tools, and adds `[client.mobile]` to `jac.toml`. With no `--platform` it uses `[client.mobile].default_platform`, else the host default (`ios` on macOS, `android` elsewhere).
+Installs Capacitor deps, creates `capacitor.config.json`, scaffolds `android/` (and/or `ios/`), checks for the required tools, and adds `[client.mobile]` to `jac.toml`. With no `--platform` it uses the app's `[apps.mobile] platform`, else `[client.mobile].default_platform`, else the host default (`ios` on macOS, `android` elsewhere).
 
 ## Configuration - `[client.mobile]`
 
@@ -29,7 +31,7 @@ app_name = "My Jac App"        # display name           (default "Jac App")
 app_id = "com.example.myapp"   # reverse-DNS id, both stores (default "com.jac.app")
 release = false                # true = release variant instead of debug
 bundle = false                 # true = AAB instead of APK (Android)
-default_platform = "android"   # default for jac run --client mobile
+default_platform = "android"   # default for jac run mobile ([apps.mobile] platform wins)
 ios_sdk = "iphonesimulator"    # "iphoneos" for device builds
 ios_destination = "platform=iOS Simulator,name=iPhone 16,OS=latest"
 ```
@@ -39,9 +41,9 @@ Values feed `capacitor.config.json` and the native build commands automatically.
 ## Dev loop
 
 ```bash
-jac run --client mobile --dev main.jac                    # live reload on device/emulator
-jac run --client mobile --dev --platform ios main.jac     # force iOS
-jac run --client mobile --dev --host 192.168.1.25 main.jac     # only when auto host fails
+jac run --dev mobile                          # live reload on device/emulator
+jac run --dev --platform ios mobile           # force iOS
+jac run --dev --host 192.168.1.25 mobile      # only when auto host fails
 ```
 
 Runs `cap sync` + `cap run`. Host selection is automatic; on Android, jac-client auto-attempts `adb reverse` for the Vite and API ports before launching Capacitor, so manual port forwarding is usually unnecessary. If the app loads blank: check the printed host/port, confirm `adb devices` shows the target as authorized, and fall back to manual `adb reverse tcp:5173 tcp:5173` / `tcp:8000 tcp:8000`.
@@ -49,11 +51,11 @@ Runs `cap sync` + `cap run`. Host selection is automatic; on Android, jac-client
 ## Production build
 
 ```bash
-jac build --client mobile --platform android
+jac build mobile --platform android
 # -> android/app/build/outputs/apk/debug/app-debug.apk
 #    (release/app-release.apk with release = true; .aab with bundle = true)
 
-jac build --client mobile --platform ios     # xcodebuild, simulator SDK by default
+jac build mobile --platform ios              # xcodebuild, simulator SDK by default
 npx cap open ios                             # device builds, signing, App Store archive
 ```
 
