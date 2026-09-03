@@ -433,49 +433,114 @@ def read_envkey(data: bytes) -> (str | None) {
     return _read_key_section(data, SEC_ENVKEY);
 }
 
-def read_ct_deps(data: bytes) -> list[tuple[(str, float)]] {
-    raw = _read_key_section(data, SEC_CTDEPS);
-    out: list[tuple[(str, float)]] = [];
-    if not raw {
-        return out;
-    }
-    for line in raw.split("\n") {
+def _ct_dep_rows(text: str) -> list[tuple[(str, str, bool)]] {
+    out: list[tuple[(str, str, bool)]] = [];
+    for line in text.split("\n") {
         if "\t" not in line {
             continue;
         }
-        (path, _sep, stamp) = line.partition("\t");
-        try {
-            out.append((path, float(stamp), ));
-        } except ValueError {
-            continue;
-        }
+        parts = line.split("\t");
+        digest = parts[1] if len(parts) > 1 else "";
+        mode = parts[2] if len(parts) > 2 else "";
+        out.append((parts[0], digest, mode == "b", ));
     }
     return out;
 }
 
-def ct_deps_section(paths: list[str]) -> bytes {
-    lines: list[str] = [];
-    for path in paths {
-        try {
-            lines.append(f"{path}\t{os.path.getmtime(path)}");
-        } except OSError {
-            lines.append(f"{path}\t0");
+def read_ct_deps(data: bytes) -> list[tuple[(str, str, bool)]] {
+    raw = _read_key_section(data, SEC_CTDEPS);
+    return _ct_dep_rows(raw) if raw else [];
+}
+
+def ct_dep_digest(path: str, with_annexes: bool = False) -> str {
+    try {
+        h = hashlib.sha256();
+        h.update(compute_content_sha256(path).encode());
+        if with_annexes and path.endswith('.jac') {
+            for (rel, digest) in _related_files(path) {
+                h.update(rel.encode());
+                h.update(digest.encode());
+            }
         }
+        return h.hexdigest();
+    } except OSError {
+        return "";
+    }
+}
+
+def _ct_dep_store_path(path: str, base: str) -> str {
+    if not base {
+        return path;
+    }
+    try {
+        if os.path.commonpath([path, base]) == base {
+            return os.path.relpath(path, base);
+        }
+    } except ValueError {}
+    return path;
+}
+
+def _ct_dep_line(path: str, digest: str, is_body: bool, base: str) -> str {
+    flag = "b" if is_body else "";
+    stored = _ct_dep_store_path(path, base);
+    return f"{stored}\t{digest}\t{flag}";
+}
+
+def ct_deps_section(
+    paths: list[str], body_paths: (list[str] | None) = None, base: str = ""
+) -> bytes {
+    body: set = set(body_paths or []);
+    lines: list[str] = [];
+    for path in sorted(set(paths) | body) {
+        is_body = path in body;
+        lines.append(_ct_dep_line(path, ct_dep_digest(path, is_body), is_body, base));
     }
     return "\n".join(lines).encode("utf-8");
 }
 
-def ct_deps_fresh(data: bytes) -> bool {
-    for (path, stamp) in read_ct_deps(data) {
-        try {
-            if os.path.getmtime(path) != stamp {
-                return False;
-            }
-        } except OSError {
+def rebase_ct_deps_section(raw: bytes, base: str) -> bytes {
+    lines: list[str] = [];
+    for (path, digest, is_body) in _ct_dep_rows(raw.decode("utf-8")) {
+        lines.append(_ct_dep_line(path, digest, is_body, base));
+    }
+    return "\n".join(lines).encode("utf-8");
+}
+
+def _ct_rows_fresh(rows: list[tuple[(str, str, bool)]], base: str) -> bool {
+    for (path, digest, is_body) in rows {
+        full = path if os.path.isabs(path) else os.path.join(base, path);
+        if not digest or ct_dep_digest(full, is_body) != digest {
             return False;
         }
     }
     return True;
+}
+
+def ct_deps_fresh(data: bytes, base: str = "") -> bool {
+    return _ct_rows_fresh(read_ct_deps(data), base);
+}
+
+def ct_dep_text_fresh(text: str, base: str = "") -> bool {
+    return _ct_rows_fresh(_ct_dep_rows(text), base);
+}
+
+def module_ct_deps_text(mod: any) -> str {
+    return ct_deps_section(
+        getattr(mod, "ct_file_deps", []) or [], getattr(mod, "ct_body_deps", []) or []
+    ).decode(
+        "utf-8"
+    );
+}
+
+def absolutize_ct_deps_section(raw: bytes, base: str) -> bytes {
+    lines: list[str] = [];
+    for (path, digest, is_body) in _ct_dep_rows(raw.decode("utf-8")) {
+        full = path
+            if os.path.isabs(path)
+            else os.path.normpath(os.path.join(base, path));
+        lines.append(_ct_dep_line(full, digest, is_body, ""));
+    }
+    return "\n".join(lines).encode("utf-8");
 }
 
 def deps_section(rows: list[tuple[str, str, str]]) -> bytes {

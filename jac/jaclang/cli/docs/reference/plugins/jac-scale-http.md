@@ -639,12 +639,12 @@ exp_delta_days = 7
 
 | Variable | `jac.toml` key | Description | Default |
 |----------|---------------|-------------|---------|
-| `JWT_SECRET` | `secret` | Secret key for JWT signing | `supersecretkey_for_testing_only!` |
+| `JWT_SECRET` | `secret` | Secret key for JWT signing | unset: a dev server mints one per project into `.jac/data/jwt_secret` |
 | `JWT_ALGORITHM` | `algorithm` | JWT signing algorithm | `HS256` |
 | `JWT_EXP_DELTA_DAYS` | `exp_delta_days` | Token expiration in days | `7` |
 
-!!! warning "Production: change the JWT secret"
-    The default JWT secret is for development only. In production, set a long, random secret via environment variable or `jac.toml`. Anyone who knows the secret can forge valid tokens for any user.
+!!! warning "Production: set the JWT secret"
+    Left unset, the secret is minted per project into `.jac/data/jwt_secret` -- fine for a dev server, wrong for a cluster, where it would be per-replica. A deployment must set a long, random secret via environment variable or `jac.toml`; a cluster with none configured signs with the shipped placeholder and warns at boot, and anyone who knows that placeholder can forge valid tokens for any user.
 
 **JWT claims:**
 

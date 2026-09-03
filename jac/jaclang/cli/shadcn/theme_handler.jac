@@ -214,6 +214,14 @@ glob _DEFAULTS: dict[str, str] = {
      ],
      _UTILS_CONTENT: str = 'import from "clsx" { clsx }\nimport from "tailwind-merge" { twMerge }\n\ndef:pub cn(*inputs: any) -> str {\n    return twMerge(clsx(inputs));\n}\n';
 
+def _utils_source -> str {
+    src = _registry_dir() / "lib" / "utils.jac";
+    if src.is_file() {
+        return src.read_text();
+    }
+    return _UTILS_CONTENT;
+}
+
 def normalize_shadcn_config(raw: (dict | None)) -> dict[str, str] {
     cfg: dict[str, str] = {};
     cfg.update(_DEFAULTS);
@@ -496,7 +504,7 @@ def materialize_themed_starter(
 
     lib_dir = pr / "lib";
     lib_dir.mkdir(parents=True, exist_ok=True);
-    (lib_dir / "utils.jac").write_text(_UTILS_CONTENT);
+    (lib_dir / "utils.jac").write_text(_utils_source());
 
     styles_dir = pr / "styles";
     styles_dir.mkdir(parents=True, exist_ok=True);

@@ -18,6 +18,7 @@ import from jaclang.compiler.driver.jir {
     HEADER_SIZE,
     SECTIONS_MAGIC,
     SEC_BYTECODE,
+    SEC_CTDEPS,
     SEC_DEBUG_SRC,
     FORMAT_VERSION,
     compute_precompile_module_key,
@@ -25,6 +26,7 @@ import from jaclang.compiler.driver.jir {
     is_module_cache_valid,
     precompiled_jir_matches_source,
     read_section_bytes,
+    rebase_ct_deps_section,
     running_compiler_digest,
     PRECOMPILE_SENTINEL
 }
@@ -262,6 +264,24 @@ def _emit_unit_diagnostics(jac_path: str, programs: list) {
 
 glob _unit_program: list = [];
 
+def _ct_deps_extra(jac_path: str, pkg_root: str) -> dict[int, bytes] {
+    try {
+        cache_path = get_module_cache_path(jac_path);
+        if not cache_path.exists() {
+            return {};
+        }
+        raw = read_section_bytes(cache_path.read_bytes(), SEC_CTDEPS);
+        if not raw {
+            return {};
+        }
+        return {
+            int(SEC_CTDEPS): rebase_ct_deps_section(raw, os.path.normpath(pkg_root))
+        };
+    } except Exception {
+        return {};
+    }
+}
+
 def precompile_unit(
     jac_path: str, pkg_root: str, embed_src: bool = False, collect: bool = True
 ) -> bytes | None {
@@ -279,13 +299,11 @@ def precompile_unit(
                 rewrapped = patch_co_filenames_bytes(
                     cached_bc, pkg_root, PRECOMPILE_SENTINEL
                 );
-                wrap_extra: dict[int, bytes] | None = None;
+                wrap_extra: dict[int, bytes] = _ct_deps_extra(jac_path, pkg_root);
                 if embed_src {
-                    wrap_extra = {
-                        int(SEC_DEBUG_SRC): zlib.compress(
-                            Path(jac_path).read_bytes(), 9
-                        )
-                    };
+                    wrap_extra[int(SEC_DEBUG_SRC)] = zlib.compress(
+                        Path(jac_path).read_bytes(), 9
+                    );
                 }
                 return write_precompiled_jir(
                     rewrapped,
@@ -317,9 +335,9 @@ def precompile_unit(
     patched = patch_co_filenames_bytes(
         marshal.dumps(code), pkg_root, PRECOMPILE_SENTINEL
     );
-    extra: dict[int, bytes] | None = None;
+    extra: dict[int, bytes] = _ct_deps_extra(jac_path, pkg_root);
     if embed_src {
-        extra = {int(SEC_DEBUG_SRC): zlib.compress(Path(jac_path).read_bytes(), 9)};
+        extra[int(SEC_DEBUG_SRC)] = zlib.compress(Path(jac_path).read_bytes(), 9);
     }
     return write_precompiled_jir(
         patched, compute_precompile_module_key(jac_path), FLAG_PRECOMPILED, extra

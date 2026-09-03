@@ -366,11 +366,14 @@ def check_guide_block(code: str) -> tuple[int, str] {
         # nowarn: guide examples may warn (unresolved @jac/runtime imports in
         # standalone .jac, etc.) -- only hard errors should fail a guide.
         # no-print: examples intentionally use print() for readable output.
+        # E1134: the block is written to a bare temp file with no siblings, so
+        # a project-relative import (`.ui.button`) can never resolve here. That
+        # is a property of this harness, not of the example.
         rc = analysis.check(
             [path],
             print_errs=True,
             nowarn=True,
-            disable_error_code=["no-print", "E3012"]
+            disable_error_code=["no-print", "E3012", "E1134"]
         );
     } finally {
         if prev_explicit is not None {

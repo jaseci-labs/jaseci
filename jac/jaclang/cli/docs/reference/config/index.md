@@ -281,6 +281,19 @@ port = 8000              # Server port
 session = ""             # Session name
 main = true              # Run as main module
 
+# Which identity stack owns /user/* -- register, login, tokens, and the
+# credential store behind them. "auto" is the scale (Postgres) identity when
+# the scale stack is configured for the project, and the core identity
+# (sqlite .jac/data/main.db) when it is not. Serving is itself one of the
+# things that configures it: `jac run --serve` turns the scale runtime on, so
+# under "auto" a served project always gets the scale identity, whether or not
+# it names a database. Set identity = "core" to serve from the core store
+# instead. The setting is resolved for the project being served rather than
+# the current directory, and a scale stack that will not import fails the boot
+# instead of quietly serving the other store, which holds none of the same
+# accounts. JAC_IDENTITY_BACKEND overrides it for one run.
+identity = "auto"        # "auto" | "core" | "scale"
+
 # Optimistic-concurrency policy for concurrent check-then-create races
 # (see Persistence -> Concurrent writes).
 on_conflict = "retry"        # "retry": abort + replay so the loser converges
@@ -290,6 +303,19 @@ conflict_backoff_ms = 0      # linear backoff between replay attempts (0 = none)
 ```
 
 The served app's client is at `/`. Other client-capable apps in the workspace whose bundle exists (`jac build --all` writes `dist/<app>/`) are served at `/cl/<app-name>/` -- a fixed prefix with no config key. Serving apps answer under their `route` (default `/api/<name>`, see [`[apps]`](#apps)).
+
+`identity` decides which stack owns `/user/*`, and with it which database the
+credentials live in: the scale identity keeps them in Postgres as `scrypt$`
+hashes, the core identity in sqlite at `.jac/data/main.db`. The two never share
+rows, so moving between them strands every account that already exists -- which
+is why an unrecognized value, an unreadable `jac.toml`, and a scale stack that
+will not import are all refused rather than resolved to something. Under `auto`
+the answer depends on whether the scale runtime is on for the project, and
+serving turns it on: a served project gets the scale identity even with no
+`[scale.database]` url. The same project asked outside a serving process (a
+direct `identity_owner()` or `Jac.get_user_manager` call, which nothing in the
+tree does today) answers `core`, because nothing has turned the scale runtime
+on there. Pin `identity` explicitly if a project needs the same answer in both.
 
 `on_conflict` controls what happens when two concurrent requests race a "look it up, create it if missing" against the same node and the loser's commit is rejected. `retry` (default) re-runs the request against the now-current graph so it converges on the winner's node; `fail` surfaces a typed `409 write_conflict` for the client to handle. See [Persistence -> Concurrent writes: check-then-create](../persistence.md#concurrent-writes-check-then-create-and-convergence) for the full model.
 
@@ -952,7 +978,9 @@ A `jac scale deploy` reads the same file when it stages the app bundle, so a par
 | `NO_EMOJI` | Disable emoji in terminal output |
 | `JAC_PROFILE` | Activate a configuration profile (e.g., `production`) |
 | `JAC_BASE_PATH` | Override base directory for data/storage |
-| `JAC_DATA_PATH` | Override the base directory for application data (graph storage, user db) |
+| `JAC_DATA_PATH` | Override the base directory for application data (graph storage, user db, dev signing secret) |
+| `JAC_IDENTITY_BACKEND` | Which stack owns `/user/*` for one run: `auto` (default), `core`, or `scale`. Overrides `[serve] identity` |
+| `JAC_SCALE_RUNTIME` | Set to `1` by the serving path; under `auto` it is what makes a served project use the scale identity |
 | `JACPATH` | Colon-separated extra search path for Jac module resolution (like `PYTHONPATH`) |
 | `JAC_SCHEMA_REPAIR` | Schema-drift handling on load: `repair` (default) or `strict` |
 | `JAC_STRICT_PERMISSIONS` | Enable strict permission checking for security-sensitive operations (`1`/`true`) |

@@ -73,7 +73,12 @@ def app_scale_overrides(config: any, app_name: str) -> dict[str, any];
 def _pick_app_scale_keys(section: dict[str, any] | None) -> dict[str, any];
 
 glob _scale_config_instance: JacScaleConfig | None = None,
-     _app_scale_cache: dict[str, dict[str, any]] = {};
+     _app_scale_cache: dict[str, dict[str, any]] = {},
+     _placeholder_jwt_secret_warned: bool = False,
+     _minted_jwt_secret_announced: bool = False;
+
+def _warn_placeholder_jwt_secret -> None;
+def _announce_minted_jwt_secret(path: str) -> None;
 
 def sanitize_prometheus_namespace(name: str) -> str;
 def _ws_positive(ws_config: dict, key: str, fallback: (int | float)) -> float;

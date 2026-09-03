@@ -88,6 +88,7 @@ obj ServeConfig {
     has port: int = 8000,
         session: str = "",
         main: bool = True,
+        identity: str = "auto",
         on_conflict: str = "retry",
         conflict_max_attempts: int = 5,
         conflict_backoff_ms: int = 0;

@@ -644,6 +644,7 @@ node Module(AstDocNode, UniScopeNode) {
         owner_app: (str | None) = None,
         ct_resolved: bool = False,
         ct_file_deps: list[str] postinit,
+        ct_body_deps: list[str] postinit,
         native_viols_reported: bool = False,
         client_viols_reported: bool = False,
         rc_last_use: dict[int, list[str]] postinit,

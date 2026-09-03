@@ -1195,6 +1195,7 @@ impl _parse_toml_data(
             port=serve_data.get("port", 8000),
             session=serve_data.get("session", ""),
             main=serve_data.get("main", True),
+            identity=str(serve_data.get("identity", "auto")),
             on_conflict=on_conflict,
             conflict_max_attempts=serve_data.get("conflict_max_attempts", 5),
             conflict_backoff_ms=serve_data.get("conflict_backoff_ms", 0)

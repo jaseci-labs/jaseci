@@ -13,8 +13,8 @@ import from datetime { UTC, datetime, timedelta }
 import from jaclang.server.serving.authcrypt { jwt_encode }
 import from jaclang.scale.config.config_loader { normalize_gateway_config }
 import from jaclang.scale.identity.user_manager {
-    JWT_ALGORITHM,
-    JWT_SECRET,
+    jwt_algorithm,
+    jwt_secret,
     JacScaleUserManager
 }
 
@@ -25,7 +25,7 @@ glob _SV_ENV: str = "JAC_SV_NAME";
 def _gateway_token(user_id: str) -> str {
     expires = datetime.now(UTC) + timedelta(days=1);
     return jwt_encode(
-        {"sub": user_id, "exp": expires}, JWT_SECRET, algorithm=JWT_ALGORITHM
+        {"sub": user_id, "exp": expires}, jwt_secret(), algorithm=jwt_algorithm()
     );
 }
 
@@ -104,8 +104,8 @@ test "an expired gateway token is never provisioned into existence" {
     user_id = str(uuid.uuid4());
     expired = jwt_encode(
         {"sub": user_id, "exp": datetime.now(UTC) - timedelta(days=1)},
-        JWT_SECRET,
-        algorithm=JWT_ALGORITHM
+        jwt_secret(),
+        algorithm=jwt_algorithm()
     );
     detail = manager.validate_jwt_token_detail(expired);
     assert detail["status"] == "expired";

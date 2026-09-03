@@ -1,26 +1,7 @@
 impl BoundaryAnalysisPass.before_pass -> None {
-    import os;
-    import sys;
     self._func_defs = {};
     self._imported_native_funcs = {};
     self._imported_native_modules = {};
-    self._stamp_call_kinds = False;
-    _su = sys.modules.get("jaclang.compiler.symbol_utils");
-    if _su is None or _su?.classify_call is None {
-        return;
-    }
-    _jl = sys.modules.get("jaclang");
-    _jl_file = _jl?.__file__ if _jl is not None else None;
-    _mod_path = self.ir_in.loc.mod_path
-        if (isinstance(self.ir_in, Module) and self.ir_in.loc)
-        else "";
-    if _jl_file and _mod_path {
-        _pkg_dir = os.path.dirname(os.path.abspath(_jl_file)) + os.sep;
-        if os.path.abspath(_mod_path).startswith(_pkg_dir) {
-            return;
-        }
-    }
-    self._stamp_call_kinds = True;
 }
 
 impl BoundaryAnalysisPass._resolved_native_decl(
@@ -722,19 +703,6 @@ impl BoundaryAnalysisPass._find_archetype(
         }
     }
     return None;
-}
-
-impl BoundaryAnalysisPass.exit_func_call with FuncCall exit {
-    if not self._stamp_call_kinds or here.call_kind is not None {
-        return;
-    }
-    import sys;
-    _su = sys.modules.get("jaclang.compiler.symbol_utils");
-    _classify = _su?.classify_call if _su is not None else None;
-    if _classify is None {
-        return;
-    }
-    here.call_kind = _classify(here).value;
 }
 
 impl BoundaryAnalysisPass.enter_ability with Ability entry {
