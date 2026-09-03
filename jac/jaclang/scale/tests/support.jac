@@ -130,7 +130,12 @@ def start_server(
         env=proc_env
     );
     base_url = f"http://localhost:{port}";
-    for _ in range(120) {
+    # A subprocess that has to compile the tree cold takes minutes, and a
+    # health check that answers anything but 200 used to burn the whole budget
+    # without pausing, so the wait is a wall clock that sleeps on every outcome
+    # short of ready. A server that exits still ends the wait immediately.
+    deadline = time.monotonic() + 300.0;
+    while time.monotonic() < deadline {
         if server.poll() is not None {
             (stdout, stderr) = server.communicate();
             raise RuntimeError(
@@ -143,15 +148,14 @@ def start_server(
             if r.status_code == 200 {
                 return server;
             }
-        } except Exception {
-            time.sleep(1);
-        }
+        } except Exception {}
+        time.sleep(1);
     }
     server.kill();
     (stdout, stderr) = server.communicate(timeout=5);
     raise RuntimeError(
         f"server did not answer /healthz for {jac_file.name} on port {port} "
-        f"within 120s\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}"
+        f"within 300s\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}"
     );
 }
 
