@@ -825,7 +825,8 @@ test "finish tool invocation failure raises FinishToolError not TypeError" {
 # finish_tool argument robustness end to end (issue #8169): a misnamed
 # argument is healed into the typed output; an unusable one comes back as a
 # recoverable tool error that must not masquerade as the finish call.
-glob _HEALABLE_FINISH = '{"output": {"name": "Dana", "age": 33}}',
+glob _WELL_FORMED_FINISH = '{"final_output": {"name": "Amy", "age": 30}}',
+     _HEALABLE_FINISH = '{"output": {"name": "Dana", "age": 33}}',
      _UNUSABLE_FINISH = '{"a": 1, "b": 2}';
 
 test "dispatch heals a misnamed finish argument and recovers an unusable one" {
@@ -1378,10 +1379,12 @@ test "forced answer and recovery force finish_tool, keep the tools array, and he
     }
     forced_choice = {"type": "function", "function": {"name": "finish_tool"}};
 
-    for (why, arguments, expect_typed) in [
-        ("healable", _HEALABLE_FINISH, True),
-        ("unusable", _UNUSABLE_FINISH, False)
+    for (why, arguments, expected_name) in [
+        ("well-formed", _WELL_FORMED_FINISH, "Amy"),
+        ("healable", _HEALABLE_FINISH, "Dana"),
+        ("unusable", _UNUSABLE_FINISH, None)
     ] {
+        expect_typed = expected_name is not None;
         llm = FakeLLM(
             model_name="anthropic/claude-test",
             replies=[tool_call("finish_tool", arguments)]
@@ -1396,7 +1399,7 @@ test "forced answer and recovery force finish_tool, keep the tools array, and he
             f"force {why}: must force finish_tool specifically, not just narrow the tools list"
         );
         if expect_typed {
-            assert out.name == "Dana" , f"force {why}: expected the healed typed output, got: {out}";
+            assert out.name == expected_name , f"force {why}: expected the typed output, got: {out}";
         } else {
             assert not isinstance(out, _TestPerson) , f"force {why}: expected degradation, got: {out}";
         }
@@ -1417,7 +1420,7 @@ test "forced answer and recovery force finish_tool, keep the tools array, and he
             f"recover {why}: is_finish_call should be {expect_typed}"
         );
         if expect_typed {
-            assert recovered.get_output().name == "Dana" , f"recover {why}: expected healed typed output";
+            assert recovered.get_output().name == expected_name , f"recover {why}: expected typed output";
         }
     }
 }

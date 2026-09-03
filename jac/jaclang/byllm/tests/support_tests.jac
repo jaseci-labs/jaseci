@@ -98,9 +98,11 @@ def finish(output: object, call_id: str = "call_finish") -> Reply {
 }
 
 
-"""Raise `error` instead of answering; on a stream, after `after` chunks."""
-def fail(error: Exception, after: int = 0) -> Reply {
-    return Reply(error=error, error_after=after);
+"""Raise `error` instead of answering. On a stream, `content` is delivered
+first and the error fires after `after` of its chunks, so a mid-stream drop is
+`fail(err, content="partial text", after=1)`."""
+def fail(error: Exception, content: str = "", after: int = 0) -> Reply {
+    return Reply(content=content, error=error, error_after=after);
 }
 
 
@@ -151,7 +153,24 @@ def _chunk(
 }
 
 
-"""The stream `model_call_with_stream` yields for `reply`, as real litellm chunks."""
+"""A usage-only chunk with no choices, which is how OpenAI ends a stream when
+`include_usage` is set (and the product sets it on every stream)."""
+def _usage_chunk(model: str, usage: dict) -> object {
+    return litellm.ModelResponseStream(
+        **{
+            "id": "chunk",
+            "object": "chat.completion.chunk",
+            "created": 1,
+            "model": model,
+            "choices": [],
+            "usage": usage
+        }
+    );
+}
+
+
+"""The stream `model_call_with_stream` yields for `reply`, as real litellm chunks.
+Usage arrives on a trailing empty-choices chunk, as it does from OpenAI."""
 def chunks(reply: Reply, model: str = "gpt-4o-mini", size: int = 12) -> list {
     out: list = [];
     first = True;
@@ -182,7 +201,10 @@ def chunks(reply: Reply, model: str = "gpt-4o-mini", size: int = 12) -> list {
             first = False;
         }
     }
-    out.append(_chunk(model, {}, reply.reason(), reply.usage));
+    out.append(_chunk(model, {}, reply.reason()));
+    if reply.usage {
+        out.append(_usage_chunk(model, reply.usage));
+    }
     return out;
 }
 
