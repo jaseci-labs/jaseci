@@ -1211,7 +1211,7 @@ impl NaIRGenCore._record_linked_decl(
 }
 
 impl NaIRGenCore._ensure_dep_inference(dep_mod: uni.Module) -> None {
-    _provided = self.prog.analysis.ledger_of(dep_mod);
+    _provided = self.prog.analysis.analyses_run.provided(dep_mod);
     if 'TypeOf' in _provided {
         return;
     }

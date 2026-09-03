@@ -36,6 +36,7 @@ import from jaclang.compiler.driver.jir {
     write_precompiled_jir,
     _manifest_compiler_digest
 }
+import from jaclang.compiler.types.stubcat.modiface { read_iface_hash }
 
 glob DEP_V1: str = "def f() -> int { return 1; }\n",
      DEP_V1_BODY_EDIT: str = "def f() -> int { return 2; }\n",
@@ -340,4 +341,125 @@ test "a third-party Python dependency is fingerprinted, never compiled as a targ
             sys.path.remove(sp);
         }
     }
+}
+
+test "an analysis that ended in errors is not memoized for replay" {
+    (main, dep) = _project();
+    _rewrite(
+        main,
+        "import from depmod { f }\n\nwith entry { print(f() + undefined_name); }\n"
+    );
+    (cold_prog, cold_diags) = _check(main);
+    assert cold_prog.errors_had , "the fixture must fail analysis to be meaningful";
+    (warm_prog, warm_diags) = _check(main);
+    events = warm_prog.analysis.cache_events;
+    assert events.get("analysis_replay", 0) == 0 , (
+        f"a failed analysis was replayed from cache (events: {events})"
+    );
+    assert warm_prog.analysis.pass_runs , "the warm check of a failed module must re-run analysis";
+    assert len(warm_prog.errors_had) == len(cold_prog.errors_had) , (
+        "re-analysis must report the same errors as the cold run"
+    );
+}
+
+test "a compile acting on an inferred native verdict persists no interface" {
+    # Only the codegen flavor runs the native verdict for a marker-less
+    # module in a native-default project, and a module analyzed under it
+    # exports native typing that dependency ingestion and jac check never
+    # see. Its persist must leave the analysis-flavor interface on disk, or
+    # every importer's cutoff row flips with whichever flavor ran last.
+    (main, dep) = _project();
+    ana = JacProgram();
+    ana.compile(dep, options=_check_opts());
+    before = read_iface_hash(
+        read_section_bytes(get_module_cache_path(dep).read_bytes(), SEC_IFACE)
+    );
+    gen = JacProgram();
+    gen.compile(dep);
+    after = read_iface_hash(
+        read_section_bytes(get_module_cache_path(dep).read_bytes(), SEC_IFACE)
+    );
+    mod = gen.mod.hub.get(dep);
+    assert mod is not None , "the codegen compile left no module in the hub";
+    if mod.decided_codespace == "native" {
+        assert mod.codespace_inferred , "a marker-less native verdict must be marked inferred";
+    }
+    assert before == after , (
+        f"a codegen compile rewrote the interface: {before} vs {after}"
+    );
+    # The rule itself, on a machine whose native toolchain may not let the
+    # verdict pass: an inferred verdict skips the interface, a declared one
+    # does not.
+    reg = gen.iface_registry();
+    encodes = reg.prog.analysis.cache_events.get("iface_encode", 0);
+    mod.decided_codespace = "native";
+    mod.codespace_inferred = True;
+    reg.persist_after_compile(dep, mod, CompileOptions(), 0, 0);
+    assert reg.prog.analysis.cache_events.get("iface_encode", 0) == encodes , "an inferred verdict was encoded into an interface";
+    assert read_iface_hash(
+        read_section_bytes(get_module_cache_path(dep).read_bytes(), SEC_IFACE)
+    )
+        == before , "an inferred verdict overwrote the persisted interface";
+    mod.codespace_inferred = False;
+    reg.persist_after_compile(dep, mod, CompileOptions(), 0, 0);
+    assert read_iface_hash(
+        read_section_bytes(get_module_cache_path(dep).read_bytes(), SEC_IFACE)
+    )
+        != before , "a declared native placement must reach the interface";
+}
+
+test "the interface-bytes memo outlives the compile closure" {
+    # Encoding an interface forces every exported symbol's type, which pulls
+    # the module's dependencies in; re-persisting an unchanged module (the
+    # client-boundary walk re-enters package modules dozens of times per
+    # unit) must reuse the encoded bytes across closures instead of paying
+    # that again.
+    (main, dep) = _project();
+    prog = JacProgram();
+    mod = prog.compile(dep, options=_check_opts());
+    reg = prog.iface_registry();
+    events = prog.analysis.cache_events;
+    assert events.get("iface_encode", 0) == 1 , f"the cold persist did not encode (events: {events})";
+    prog.release_compile_closure();
+    reg.persist_after_compile(dep, mod, _check_opts(), 0, 0);
+    events = prog.analysis.cache_events;
+    assert events.get("iface_persist", 0) == 2 , f"expected a second persist of the unchanged module (events: {events})";
+    assert events.get("iface_encode", 0) == 1 , f"the unchanged module was re-encoded after closure release (events: {events})";
+}
+
+glob NARROW_DEP: str = """
+obj Info {
+    has help_text: str = "";
+}
+
+obj Alert {
+    has code: (Info | None) = None,
+        help_text: (str | None) = None;
+
+    def postinit {
+        if (self.help_text is None) and self.code {
+            self.help_text = self.code.help_text;
+        }
+    }
+}
+""",
+     NARROW_MAIN: str = "import type from depmod { Alert }\n\ndef show(a: Alert) -> str { return str(a.help_text); }\n\nwith entry { print(show); }\n";
+
+test "persisting a dependency interface neither reports nor mistypes its narrowing sites" {
+    (main, dep) = _project(NARROW_DEP);
+    with open(main, "w") as fh {
+        fh.write(NARROW_MAIN);
+    }
+    (prog, rendered) = _check(main);
+    assert rendered == [] , (
+        "a type-only import compiled its dependency lazily inside the type "
+        f"checker and persisting that interface leaked diagnostics: {rendered}"
+    );
+    events = prog.analysis.cache_events;
+    assert events.get("iface_encode", 0) >= 2 , (
+        f"expected both modules to be encoded on a cold cache (events: {events})"
+    );
+    assert events.get("iface_cfg", 0) >= 1 , (
+        f"the dependency's flow graph must be built before its interface is forced (events: {events})"
+    );
 }

@@ -235,11 +235,12 @@ Many language tests use **fixture files** -- small `.jac` programs in `fixtures/
 The entire documentation set lives inside the jaclang package at
 `jac/jaclang/cli/docs/` and ships with the `jac` binary -- `jac guide`
 serves it offline, the MCP server exposes it as `jac://docs/*` resources,
-and the website renders the same corpus:
+and the website reads the same corpus straight out of the jac binary that
+serves it:
 
 ```
 jac/jaclang/cli/docs/
-├── nav.json                # Section hierarchy, titles, and page order
+├── nav.json                # Section hierarchy, titles, and page order (`jac guide --nav`)
 ├── quick-guide/            # Getting-started content
 ├── build/                  # "I like to build..." task-oriented entry points
 ├── reference/              # Comprehensive language & API reference

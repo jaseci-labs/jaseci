@@ -647,6 +647,15 @@ impl JacCompiler.parse_str(
             }
         }
         if not codespace {
+            import from jaclang.compiler.native_scope {
+                in_native_scope_path as _in_scope,
+                scope_lowering_active as _scope_on
+            }
+            if _scope_on() and _in_scope(file_path) {
+                codespace = 'native';
+            }
+        }
+        if not codespace {
             _p_opts = target_program.options;
             _forced_pre = _p_opts.force_codespace if _p_opts is not None else '';
             if (
@@ -702,10 +711,22 @@ impl JacCompiler.parse_str(
     if run_codespace_infer {
         _opts = target_program.options;
         _analysis_only = _opts is not None and _opts.no_cgen;
+        import from jaclang.compiler.native_scope {
+            in_native_scope_path,
+            scope_lowering_active
+        }
+        _scope_native = (
+            scope_lowering_active() and in_native_scope_path(mod.loc.mod_path or '')
+        );
         _native_eligible = (
             not _analysis_only
-            and not self.selfhost.is_selfhost(target_program)
-            and _default_codespace_for(target_program) == 'native'
+            and (
+                _scope_native
+                or (
+                    not self.selfhost.is_selfhost(target_program)
+                    and _default_codespace_for(target_program) == 'native'
+                )
+            )
         );
         if _native_eligible {
             import from jaclang.compiler.placement.placement_solver {
@@ -714,6 +735,7 @@ impl JacCompiler.parse_str(
             (_na_ok, _na_why) = native_default_verdict(mod);
             if _na_ok {
                 _coerce_native_module(mod);
+                mod.codespace_inferred = True;
                 na_coverage_record(mod.loc.mod_path, 'native');
             } elif _na_why == 'previously-demoted' {
                 import from jaclang.compiler.placement.placement_pins {
@@ -1105,6 +1127,23 @@ impl JacCompiler.compile(
     use_str: (str | None) = None,
     options: CompileOptions = CompileOptions()
 ) -> uni.Module {
+    import from jaclang.compiler.native_scope {
+        activate_scope_lowering,
+        deactivate_scope_lowering,
+        in_native_scope_path,
+        scope_lowering_active
+    }
+    _scope_armed = False;
+    if (
+        options.aot_mode
+        and options.default_codespace == 'native'
+        and self._reentrant_depth == 0
+        and in_native_scope_path(str(file_path))
+        and not scope_lowering_active()
+    ) {
+        activate_scope_lowering();
+        _scope_armed = True;
+    }
     if self._reentrant_depth == 0 and not self.stub_catalog_disabled {
         if not self.selfhost.is_selfhost(target_program) {
             import from jaclang.compiler.types.stubcat.locate { StubCatalogUnavailable }
@@ -1251,6 +1290,9 @@ impl JacCompiler.compile(
             options=options
         );
     } finally {
+        if _scope_armed {
+            deactivate_scope_lowering();
+        }
         native_ir_cache_set_suspended(_na_cache_prev);
         set_effective_default_codespace(_prev_cs);
         self._reentrant_depth = _depth_prev;
@@ -1506,7 +1548,7 @@ impl JacCompiler._compile_pipeline(
         );
 
     if _analyze {
-        if 'TypeOf' not in actual_program.analysis.provided_of(mod_targ) {
+        if not actual_program.analysis.analyses_run.provides(mod_targ, 'TypeOf') {
             self.run_schedule(
                 mod=mod_targ,
                 target_program=actual_program,
@@ -1538,7 +1580,7 @@ impl JacCompiler._compile_pipeline(
         and not options.symtab_ir_only
         and not had_parse_errors
         and not had_blocking_errors
-        and 'TypeOf' in actual_program.analysis.provided_of(mod_targ)
+        and actual_program.analysis.analyses_run.provides(mod_targ, 'TypeOf')
     ) {
         import from jaclang.compiler.backends.py.module_codegen_pass {
             ModuleCodegenPass as _PtyMcp
@@ -1668,7 +1710,7 @@ impl JacCompiler._compile_pipeline(
             or ModuleCodegenPass.has_native_context_stmts(mod_targ);
 
         if needs_native
-            and 'TypeOf' not in actual_program.analysis.provided_of(mod_targ) {
+            and not actual_program.analysis.analyses_run.provides(mod_targ, 'TypeOf') {
             self.run_schedule(
                 mod=mod_targ,
                 target_program=actual_program,
@@ -1681,7 +1723,7 @@ impl JacCompiler._compile_pipeline(
             target_program=actual_program,
             passes=get_py_code_gen(
                 native=needs_native,
-                provided=actual_program.analysis.provided_of(mod_targ)
+                provided=actual_program.analysis.analyses_run.provided(mod_targ)
             ),
             cancel_token=options.cancel_token
         );
@@ -1714,7 +1756,7 @@ impl JacCompiler.run_schedule(
     passes: list[type[Transform]],
     cancel_token: (Event | None) = None
 ) -> None {
-    provided = target_program.analysis.ledger_of(mod);
+    provided = target_program.analysis.analyses_run.provided(mod);
     validate_schedule(
         passes,
         preprovided=provided,

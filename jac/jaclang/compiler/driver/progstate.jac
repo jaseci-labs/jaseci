@@ -223,10 +223,60 @@ obj BuildScratch {
     }
 }
 
+class AnalysisLedger {
+    has _tags: dict[int, set[str]],
+        _owners: dict[int, any];
+
+    def init(self: AnalysisLedger) {
+        self._tags: dict[int, set[str]] = {};
+        self._owners: dict[int, any] = {};
+    }
+
+    def _drop(self: AnalysisLedger, key: int) {
+        try {
+            self._tags.pop(key, None);
+            self._owners.pop(key, None);
+        } except Exception {}
+    }
+
+    def provided(self: AnalysisLedger, mod: any) -> set[str] {
+        import weakref;
+        key = id(mod);
+        owner = self._owners.get(key);
+        if owner is not None and owner() is mod {
+            return self._tags[key];
+        }
+        tags: set[str] = set();
+        self._tags[key] = tags;
+        self._owners[key] = weakref.ref(mod, lambda (_ref: any) { self._drop(key); });
+        return tags;
+    }
+
+    def provides(self: AnalysisLedger, mod: any, tag: str) -> bool {
+        owner = self._owners.get(id(mod));
+        return owner is not None and owner() is mod and tag in self._tags[id(mod)];
+    }
+
+    def mark(self: AnalysisLedger, mod: any, tags: set[str]) {
+        live = self.provided(mod);
+        live.clear();
+        live.update(tags);
+    }
+
+    def clear(self: AnalysisLedger) {
+        self._tags.clear();
+        self._owners.clear();
+    }
+
+    def __len__(self: AnalysisLedger) -> int {
+        return len(self._tags);
+    }
+}
+
 class AnalysisCaches {
     has placement_summaries: dict[str, any],
         placement_state: dict[str, any],
-        analyses_run: dict[int, tuple[any, set[str]]],
+        analyses_run: AnalysisLedger,
         mtir_map: dict[(str, Info)],
         pass_runs: dict[str, int],
         pass_time: dict[str, float],
@@ -235,46 +285,10 @@ class AnalysisCaches {
     def init(self: AnalysisCaches) {
         self.placement_summaries: dict[str, any] = {};
         self.placement_state: dict[str, any] = {};
-        self.analyses_run: dict[int, tuple[any, set[str]]] = {};
+        self.analyses_run: AnalysisLedger = AnalysisLedger();
         self.mtir_map: dict[(str, Info)] = {};
         self.pass_runs: dict[str, int] = {};
         self.pass_time: dict[str, float] = {};
         self.cache_events: dict[str, int] = {};
-    }
-
-    def ledger_of(self: AnalysisCaches, mod: any) -> set[str] {
-        import weakref;
-        key = id(mod);
-        ent = self.analyses_run.get(key);
-        if ent is not None and ent[0]() is mod {
-            return ent[1];
-        }
-        provided: set[str] = set();
-        self.analyses_run[key] = (weakref.ref(mod), provided);
-        return provided;
-    }
-
-    def provided_of(self: AnalysisCaches, mod: any) -> set[str] {
-        ent = self.analyses_run.get(id(mod));
-        if ent is None or ent[0]() is not mod {
-            return set();
-        }
-        return ent[1];
-    }
-
-    def stamp_provided(self: AnalysisCaches, mod: any, names: set[str]) {
-        import weakref;
-        self.analyses_run[id(mod)] = (weakref.ref(mod), set(names));
-    }
-
-    def purge_dead(self: AnalysisCaches) {
-        dead = [
-            key
-            for (key, ent) in self.analyses_run.items()
-            if ent[0]() is None
-        ];
-        for key in dead {
-            del self.analyses_run[key];
-        }
     }
 }

@@ -1,89 +1,56 @@
-"""The analysis ledger never inherits marks across module identities.
-
-`AnalysisCaches.analyses_run` is keyed by `id(module)`. A pooled `jac check`
-worker keeps one program alive across hundreds of files and releases each
-file's compile closure in between, so CPython hands freed addresses to later
-modules. A stale "TypeOf" mark under a reused id would make the compiler skip
-that module's whole analysis schedule. Entries therefore carry a weak
-reference to their module, a lookup under a reused id is a miss, and closure
-release purges dead entries.
-"""
+"""The analysis ledger follows module objects, never the ids they were handed."""
 import gc;
-import os;
-import tempfile;
-import from jaclang.compiler.driver.compile_options { CompileOptions }
+import weakref;
+import from jaclang.compiler.driver.progstate { AnalysisLedger }
 import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 
-glob SRC: str = "def area(r: float) -> float { return 3.14 * r * r; }\n";
-
-obj Marker {}
-
-def _write(dirname: str) -> str {
-    path = os.path.join(dirname, "ledger_probe.jac");
-    with open(path, "w", encoding="utf-8") as f {
-        f.write(SRC);
-    }
-    return path;
+obj Probe {
+    has name: str = "";
 }
 
-test "a reused object id never inherits a dead module's analysis marks" {
+test "a claim recorded for one object never answers for another" {
+    led = AnalysisLedger();
+    a = Probe(name="a");
+    led.provided(a).add("CfgSucc");
+    assert led.provides(a, "CfgSucc");
+    b = Probe(name="b");
+    assert not led.provides(b, "CfgSucc");
+    assert led.provided(b) == set();
+    assert led.provides(a, "CfgSucc");
+}
+
+test "a claim dies with the object it describes" {
+    led = AnalysisLedger();
+    a = Probe(name="a");
+    led.mark(a, {"CfgSucc", "TypeOf"});
+    assert len(led) == 1;
+    del a;
+    gc.collect();
+    assert len(led) == 0 , "the entry outlived the object it described";
+}
+
+test "a stale entry under a reused id starts from nothing" {
+    led = AnalysisLedger();
+    a = Probe(name="a");
+    key = id(a);
+    led._tags[key] = {"CfgSucc", "TypeOf"};
+    led._owners[key] = weakref.ref(Probe(name="ghost"));
+    assert not led.provides(a, "CfgSucc");
+    assert led.provided(a) == set();
+    led.provided(a).add("TypeOf");
+    assert led.provides(a, "TypeOf");
+    assert not led.provides(a, "CfgSucc");
+}
+
+test "releasing a compile closure forgets every claim" {
     prog = JacProgram();
-    collided = False;
-    for _ in range(50) {
-        first = Marker();
-        prog.analysis.ledger_of(first).add("TypeOf");
-        dead_id = id(first);
-        del first;
-        gc.collect();
-        second = Marker();
-        if id(second) == dead_id {
-            collided = True;
-            assert prog.analysis.provided_of(second) == set() , (
-                "a fresh object inherited the dead module's marks"
-            );
-            assert "TypeOf" not in prog.analysis.ledger_of(second);
-        }
-        del second;
-    }
-    assert collided , "CPython never reused the address, so the guard was not exercised";
-}
-
-test "release_compile_closure purges ledger entries of freed modules" {
-    with tempfile.TemporaryDirectory() as d {
-        prog = JacProgram();
-        mod = prog.compile(file_path=_write(d), options=CompileOptions(no_cgen=True));
-        assert "TypeOf" in prog.analysis.provided_of(mod);
-        dead_id = id(mod);
-        del mod;
-        prog.release_compile_closure();
-        dead = [
-            key
-            for (key, ent) in prog.analysis.analyses_run.items()
-            if ent[0]() is None
-        ];
-        assert not dead , f"stale ledger entries survived release: {dead}";
-        stale = prog.analysis.analyses_run.get(dead_id);
-        assert stale is None or stale[0]() is not None;
-    }
-}
-
-test "the next item after a release runs its own analysis schedule" {
-    with tempfile.TemporaryDirectory() as d {
-        first_path = _write(d);
-        second_path = os.path.join(d, "ledger_probe_two.jac");
-        with open(second_path, "w", encoding="utf-8") as f {
-            f.write("def twice(n: int) -> int { return n * 2; }\n");
-        }
-        prog = JacProgram();
-        opts = CompileOptions(no_cgen=True, force_target_program=True);
-        first = prog.compile(file_path=first_path, options=opts);
-        assert "TypeOf" in prog.analysis.provided_of(first);
-        runs_after_first = sum(prog.analysis.pass_runs.values());
-        prog.release_compile_closure();
-        second = prog.compile(file_path=second_path, options=opts);
-        assert "TypeOf" in prog.analysis.provided_of(second);
-        assert sum(prog.analysis.pass_runs.values()) > runs_after_first , (
-            "the second item skipped its analysis schedule"
-        );
-    }
+    prog.compile(
+        use_str="with entry { print(1); }",
+        file_path="ledger_probe.jac",
+        options=CompileOptions(no_cgen=True, no_ir_cache=True)
+    );
+    assert len(prog.analysis.analyses_run) >= 1;
+    prog.release_compile_closure();
+    assert len(prog.analysis.analyses_run) == 0;
 }

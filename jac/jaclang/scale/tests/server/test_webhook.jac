@@ -15,7 +15,6 @@ import from jaclang.scale.tests.scale_test_client {
     make_client,
     extract_data
 }
-import from jaclang.scale.tests.server_support { _extract_transport_response_data }
 
 """Generate HMAC-SHA256 signature for webhook payload."""
 def _generate_webhook_signature(payload: bytes, secret: str) -> str {
