@@ -3,6 +3,7 @@ impl precompile(
     seal: bool = False,
     seal_compile: bool = False,
     seal_finalize: bool = False,
+    force: bool = False,
     debug_src: bool = False,
     jobs: str = ""
 ) -> int {
@@ -13,6 +14,7 @@ impl precompile(
         seal=seal,
         seal_compile=seal_compile,
         finalize_only=seal_finalize,
+        force=force,
         embed_src=debug_src,
         jobs_arg=jobs
     );
