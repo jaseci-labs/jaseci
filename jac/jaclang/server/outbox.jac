@@ -1,0 +1,164 @@
+import hashlib;
+import json;
+import logging;
+import os;
+import sqlite3;
+import threading;
+import time;
+import uuid;
+import from collections { OrderedDict }
+import from jaclang.data.store { PgStore, Store, TxnIsolation }
+import from jaclang.server.bridge { BridgeRejected }
+
+glob logger = logging.getLogger(__name__),
+     STATUS_PENDING = "pending",
+     STATUS_DELIVERING = "delivering",
+     STATUS_DELIVERED = "delivered",
+     STATUS_DEAD = "dead",
+     DEFAULT_MAX_ATTEMPTS = 8,
+     BACKOFF_BASE_S = 1.0,
+     BACKOFF_CAP_S = 300.0,
+     DELIVER_BATCH = 100,
+     SEEN_LRU_SIZE = 4096,
+     DEFAULT_SEEN_TTL_S = 86400,
+     OUTBOX_DB_REL = os.path.join(".jac", "data", "outbox.sqlite"),
+     __all__ = [
+         'OutboxEntry',
+         'OutboxStore',
+         'SqlOutboxStore',
+         'PgOutboxStore',
+         'SqliteOutboxStore',
+         'enqueue',
+         'deliver_pending',
+         'dead_letters',
+         'start_worker',
+         'stop_worker',
+         'worker_running',
+         'seen_idempotency_key',
+         'remember_idempotency_key',
+         'cached_result',
+         'default_idempotency_key',
+         'canonical_kwargs',
+         'backoff_seconds',
+         'outbox_db_path',
+         'use_store',
+         'STATUS_PENDING',
+         'STATUS_DELIVERING',
+         'STATUS_DELIVERED',
+         'STATUS_DEAD',
+         'DEFAULT_MAX_ATTEMPTS'
+     ];
+
+
+obj OutboxEntry {
+    has id: str,
+        app: str,
+        `walker: str,
+        kwargs: dict,
+        idempotency_key: str,
+        attempts: int = 0,
+        created_at: float = 0.0,
+        status: str = STATUS_PENDING,
+        last_error: str = "",
+        next_attempt_at: float = 0.0;
+}
+
+
+obj OutboxStore {
+    def put(item: OutboxEntry) -> None abst;
+    def get_by_key(key: str) -> (OutboxEntry | None) abst;
+    def list_pending(now: float, limit: int = DELIVER_BATCH) -> list[OutboxEntry] abst;
+    def claim(id: str) -> bool abst;
+    def update(item: OutboxEntry) -> None abst;
+    def list_status(status: str) -> list[OutboxEntry] abst;
+    def recall_key(key: str, now: float) -> (str | None) abst;
+    def remember_key(key: str, ttl_s: int, result: str, now: float) -> None abst;
+    def close -> None abst;
+}
+
+
+obj SqlOutboxStore(OutboxStore) {
+    def _exec(sql: str, params: dict) -> list[tuple] abst;
+    def ensure_schema -> None;
+    def put(item: OutboxEntry) -> None;
+    def get_by_key(key: str) -> (OutboxEntry | None);
+    def list_pending(now: float, limit: int = DELIVER_BATCH) -> list[OutboxEntry];
+    def update(item: OutboxEntry) -> None;
+    def list_status(status: str) -> list[OutboxEntry];
+    def recall_key(key: str, now: float) -> (str | None);
+    def remember_key(key: str, ttl_s: int, result: str, now: float) -> None;
+}
+
+
+obj PgOutboxStore(SqlOutboxStore) {
+    has store: Store,
+        _schema_done: bool = False;
+
+    def _exec(sql: str, params: dict) -> list[tuple];
+    def ensure_schema -> None;
+    def claim(id: str) -> bool;
+    def close -> None;
+}
+
+
+obj SqliteOutboxStore(SqlOutboxStore) {
+    has path: str,
+        _conn: (sqlite3.Connection | None) = None,
+        _lock: threading.RLock = threading.RLock();
+
+    def postinit -> None;
+    def _exec(sql: str, params: dict) -> list[tuple];
+    def claim(id: str) -> bool;
+    def close -> None;
+}
+
+
+obj OutboxState {
+    has explicit: (OutboxStore | None) = None,
+        worker_store: (OutboxStore | None) = None,
+        sqlite_store: (SqliteOutboxStore | None) = None,
+        schema_ready: set[int] = set(),
+        worker: (threading.Thread | None) = None,
+        stop_event: (threading.Event | None) = None,
+        lock: threading.RLock = threading.RLock(),
+        seen_lru: OrderedDict = OrderedDict();
+}
+
+
+glob _state: OutboxState = OutboxState();
+
+
+def canonical_kwargs(kwargs: dict) -> str;
+def default_idempotency_key(app: str, `walker: str, kwargs: dict) -> str;
+def backoff_seconds(attempts: int) -> float;
+def outbox_db_path -> str;
+def use_store(store: (OutboxStore | None)) -> None;
+
+def enqueue(app: str, `walker: str, kwargs: dict, idempotency_key: str = "") -> str;
+def deliver_pending(max_attempts: int = DEFAULT_MAX_ATTEMPTS) -> int;
+def dead_letters -> list[OutboxEntry];
+
+def start_worker(interval_s: float = 1.0) -> None;
+def stop_worker(timeout_s: float = 5.0) -> None;
+def worker_running -> bool;
+
+def seen_idempotency_key(key: str) -> bool;
+def cached_result(key: str) -> (str | None);
+def remember_idempotency_key(
+    key: str, ttl_s: int = DEFAULT_SEEN_TTL_S, result: str = ""
+) -> None;
+
+def _row_to_entry(row: tuple) -> OutboxEntry;
+def _current_memory -> any;
+def _primary_pg_store -> (PgStore | None);
+def _writable_txn(mem: any, store: Store) -> None;
+def _derive_worker_store(primary: PgStore) -> PgOutboxStore;
+def _ensure_pg_schema(primary: PgStore) -> None;
+def _sqlite_store -> SqliteOutboxStore;
+def _store_for_request(writable: bool = True) -> OutboxStore;
+def _store_for_worker -> OutboxStore;
+def _lru_get(key: str, now: float) -> (str | None);
+def _lru_put(key: str, expires_at: float, result: str) -> None;
+def _run_coro(coro: any) -> any;
+async def _deliver_one(item: OutboxEntry) -> any;
+def _worker_loop(interval_s: float, stop: threading.Event) -> None;
