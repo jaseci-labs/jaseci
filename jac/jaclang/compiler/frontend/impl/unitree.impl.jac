@@ -1083,37 +1083,21 @@ impl UniNode._sub_node_tab.getter -> dict[(type, list[UniNode])] {
 }
 
 impl UniNode._construct_sub_node_tab -> None {
-    frames: list[list] = [[self, self.kid, 0]];
-    while frames {
-        fr = frames[-1];
-        kids = fr[_FRAME_KIDS];
-        idx = fr[_FRAME_POS];
-        if idx < len(kids) {
-            fr[_FRAME_POS] = idx + 1;
-            i = kids[idx];
-            if i and not i.ct_pruned and i.__sub_node_tab is None {
-                i.__sub_node_tab = {};
-                frames.append([i, i.kid, 0]);
-            }
+    for i in self.kid {
+        if not i or i.ct_pruned {
             continue;
         }
-        tab = frames.pop()[_FRAME_NODE].__sub_node_tab;
-        for i in kids {
-            if not i or i.ct_pruned {
-                continue;
-            }
-            for (k, v) in i._sub_node_tab.items() {
-                if (k in tab) {
-                    tab[k].extend(v);
-                } else {
-                    tab[k] = `list(v);
-                }
-            }
-            if (`type(i) in tab) {
-                tab[`type(i)].append(i);
+        for (k, v) in i._sub_node_tab.items() {
+            if (k in self.__sub_node_tab) {
+                self.__sub_node_tab[k].extend(v);
             } else {
-                tab[`type(i)] = [i];
+                self.__sub_node_tab[k] = `list(v);
             }
+        }
+        if (`type(i) in self.__sub_node_tab) {
+            self.__sub_node_tab[`type(i)].append(i);
+        } else {
+            self.__sub_node_tab[`type(i)] = [i];
         }
     }
 }
@@ -1367,16 +1351,12 @@ impl Module.declares_codespace(ctx: CodeContext, path_hint: str = '') -> bool {
 }
 
 impl UniNode.flatten -> list[UniNode] {
-    ret: list[UniNode] = [];
-    stack: list[UniNode] = [self];
-    while stack {
-        nd = stack.pop();
-        ret.append(nd);
-        for k in reversed(nd.kid) {
-            if not k.ct_pruned {
-                stack.append(k);
-            }
+    ret: list[UniNode] = [self];
+    for k in self.kid {
+        if k.ct_pruned {
+            continue;
         }
+        ret += k.flatten();
     }
     return ret;
 }
