@@ -50,11 +50,27 @@ obj ClassInfo(Info) {
     def postinit -> object;
 }
 
+obj UseSiteInfo {
+    has resolved: bool = False,
+        reason: str = '',
+        consumer_name: str = '',
+        consumer_semstr: (str | None) = None,
+        consumer_module: (str | None) = None,
+        consumer_parent_class: (str | None) = None,
+        param_name: str = '',
+        param_semstr: (str | None) = None,
+        param_type: str = '',
+        fields_read: (list[str] | None) = None;
+
+    def postinit -> object;
+}
+
 obj FunctionInfo(Info) {
     has params: (list[ParamInfo] | None) = None,
         return_type: (str | ClassInfo | EnumInfo | tuple | None) = None,
         tools: (list[FunctionInfo] | None) = None,
-        by_call: bool = False;
+        by_call: bool = False,
+        use_site: (UseSiteInfo | None) = None;
 
     def postinit -> object;
 }
@@ -112,10 +128,9 @@ def type_to_str(t: object) -> str {
     return str(t);
 }
 
-def fetch_mtir(func: Callable) -> Info | None {
+def scope_of(func: Callable) -> str {
     import sys;
     import from pathlib { Path }
-    import from jaclang.runtime.runtime { JacRuntime }
     module_name = None;
     try {
         module_name = getattr(func, "__module__");
@@ -143,11 +158,13 @@ def fetch_mtir(func: Callable) -> Info | None {
     } else {
         module = "__main__";
     }
+    return ".".join([module, func.__qualname__]);
+}
 
+def fetch_mtir(func: Callable) -> Info | None {
+    import from jaclang.runtime.runtime { JacRuntime }
     try {
-        qualname = func.__qualname__;
-        current_scope = ".".join([module, qualname]);
-        return JacRuntime.get_mtir_from_map(current_scope);
+        return JacRuntime.get_mtir_from_map(scope_of(func));
     } except (KeyError, AttributeError) {
         return None;
     }

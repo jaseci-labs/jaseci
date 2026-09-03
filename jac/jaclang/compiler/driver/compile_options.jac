@@ -42,6 +42,7 @@ obj CompileOptions {
         debug_ir: (bool | None) = None,
         rc_stats: (bool | None) = None,
         nogc_debug: (bool | None) = None,
+        use_site_report: (bool | None) = None,
         na_debug: (bool | None) = None,
         suppress_codes: list[str] = field(default_factory=`list),
         default_codespace: str = "",
@@ -97,6 +98,12 @@ obj CompileOptions {
         }
         if self.nogc_debug is None {
             self.nogc_debug = bool(os.environ.get("JAC_NOGC_DEBUG", ""));
+        }
+        if self.use_site_report is None {
+            self.use_site_report = os.environ.get(
+                "JAC_USE_SITE_REPORT", ""
+            ).strip().lower()
+                in ("1", "true", "yes");
         }
         if self.na_debug is None {
             self.na_debug = env_na_debug();

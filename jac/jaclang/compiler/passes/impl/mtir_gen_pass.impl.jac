@@ -354,7 +354,7 @@ impl MTIRGenPass._extract_method_info(
     );
 }
 
-impl MTIRGenPass._get_scope_str(nd: UniScopeNode) -> str {
+impl mtir_scope_str(nd: UniScopeNode) -> str {
     import from jaclang.jac0core.ext_registry { STEM_REKEY_SUFFIXES }
 
     if isinstance(nd, Module) {
@@ -377,10 +377,14 @@ impl MTIRGenPass._get_scope_str(nd: UniScopeNode) -> str {
     }
     self_name = nd.scope_name;
     if nd.parent_scope and isinstance(nd.parent_scope, UniScopeNode) {
-        parent_scope_str = self._get_scope_str(nd.parent_scope);
+        parent_scope_str = mtir_scope_str(nd.parent_scope);
         return f"{parent_scope_str}.{self_name}";
     }
     return self_name;
+}
+
+impl MTIRGenPass._get_scope_str(nd: UniScopeNode) -> str {
+    return mtir_scope_str(nd);
 }
 
 impl MTIRGenPass._extract_tools_from_expr(

@@ -6,6 +6,7 @@ import from typing { get_type_hints }
 import from jaclang.byllm.schema { json_to_instance, type_to_schema }
 import from jaclang.byllm.exceptions { ConfigurationError, OutputConversionError }
 import from jaclang.byllm.config_loader { get_byllm_config }
+import from jaclang.byllm.use_site { use_site_suffix }
 import from jaclang.byllm.types {
     LiteLLMMessage,
     Media,

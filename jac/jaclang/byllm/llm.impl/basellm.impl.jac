@@ -1375,6 +1375,7 @@ impl BaseLLM.dispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
     self.api_base = params.pop("api_base", DEFAULT_BASE_URL);
     params.pop("api_key", None);
     attempt = 0;
+    _call_t0 = time.monotonic();
     while True {
         try {
             response = self.model_call_no_stream(params);
@@ -1423,6 +1424,9 @@ impl BaseLLM.dispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
         else output_content;
     usage_data = response.get("usage", {});
     _attach_call_cost(usage_data, self.model_name, response);
+    emit_usage_record(
+        mt_run, usage_data, self.model_name, (time.monotonic() - _call_t0) * 1000.0
+    );
     return CompletionResult(
         output=output_value, tool_calls=tool_calls, usage=usage_data
     );
@@ -1611,6 +1615,7 @@ impl BaseLLM.adispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
     self.api_base = params.pop("api_base", DEFAULT_BASE_URL);
     params.pop("api_key", None);
     attempt = 0;
+    _call_t0 = time.monotonic();
     while True {
         try {
             response = await self.model_call_no_stream_async(params);
@@ -1655,6 +1660,9 @@ impl BaseLLM.adispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
         else output_content;
     usage_data = response.get("usage", {});
     _attach_call_cost(usage_data, self.model_name, response);
+    emit_usage_record(
+        mt_run, usage_data, self.model_name, (time.monotonic() - _call_t0) * 1000.0
+    );
     return CompletionResult(
         output=output_value, tool_calls=tool_calls, usage=usage_data
     );
