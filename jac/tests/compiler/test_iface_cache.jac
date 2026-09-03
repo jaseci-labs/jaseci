@@ -550,3 +550,40 @@ test "an interface is identical however many twins of its module are reachable" 
     assert digests[0] == digests[1] , f"the interface digest changed between two compiles of one module: {digests}";
     assert names[0] == names[1] , f"the interface's name count changed between compiles: {names}";
 }
+
+test "a comptime import takes the dependency's tree and rides its edits" {
+    # A comptime import needs the dependency's values, which an interface
+    # does not carry: served from the cache, the initializer was "not known
+    # at compile time" (false E0033s on every warm check). And a value edit
+    # that leaves the interface unchanged must still re-analyze the importer.
+    tmp = tempfile.mkdtemp();
+    dep = os.path.join(tmp, "routes.jac");
+    main = os.path.join(tmp, "app.jac");
+    with open(dep, "w") as fh {
+        fh.write('comptime ROUTES: list[str] = ["home", "about"];\n');
+    }
+    with open(main, "w") as fh {
+        fh.write(
+            "comptime import from routes { ROUTES }\n"
+            "comptime NAMES: list[str] = ROUTES;\n"
+            "comptime assert len(NAMES) == 2;\n"
+            "with entry { print(NAMES); }\n"
+        );
+    }
+    main = os.path.realpath(main);
+    dep = os.path.realpath(dep);
+    (cold, cold_diags) = _check(main);
+    assert not cold.errors_had , f"cold: {cold_diags}";
+    _rewrite(main, open(main).read() + "# touched\n");
+    (warm, warm_diags) = _check(main);
+    assert not warm.errors_had , f"the importer re-analyzed against the cached dependency: {warm_diags}";
+    assert warm.analysis.cache_events.get("dep_hydrate", 0) == 0 , (
+        f"a comptime import was served from the interface (events: {warm.analysis.cache_events})"
+    );
+    _rewrite(dep, 'comptime ROUTES: list[str] = ["home", "about", "help"];\n');
+    (edited, edited_diags) = _check(main);
+    assert edited.errors_had , "a comptime value edit that keeps the interface did not re-analyze the importer";
+    assert edited.analysis.cache_events.get("analysis_replay", 0) == 0 , (
+        f"the importer replayed stale diagnostics after a comptime input changed (events: {edited.analysis.cache_events})"
+    );
+}
