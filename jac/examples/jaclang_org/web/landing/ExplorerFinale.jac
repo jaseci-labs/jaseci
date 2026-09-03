@@ -16,13 +16,7 @@ import from "@hugeicons/core-free-icons" {
 }
 
 glob BOOK_URL: str = "https://doi.org/10.5281/zenodo.21464040",
-     RUN_LINES: list[str] = [
-         "git clone https://github.com/jaseci-labs/jac",
-         "cd jac/jac/examples/jaclang_org",
-         "jac install",
-         "jac run",
-
-     ];
+     RUN_LINES: list[str] = ["jac create mysite --awesome", "cd mysite", "jac run"];
 
 def:pub CodespaceCard(icon: any, tag: str, title: str, body: str) -> JsxElement {
     return
@@ -109,7 +103,7 @@ def:pub ExplorerFinale -> JsxElement {
                             <span className="font-medium text-foreground">
                                 your machine
                             </span>
-                            , right now, in four commands:
+                            , right now, in three commands:
                         </p>
                         <div className="mt-4 flex justify-center">
                             <CopyCommandBlock

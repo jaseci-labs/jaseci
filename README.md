@@ -65,16 +65,15 @@ Install the self-contained `jac` binary. No Python, pip, Node, or C toolchain re
 curl -fsSL https://raw.githubusercontent.com/jaseci-labs/jaseci/main/scripts/install.sh | bash
 ```
 
-Then clone and run [**jac_site**](https://github.com/jaseci-labs/jac_site) -- the official jaclang.org website, built end to end in Jac (naturally):
+Then scaffold and run the official **jaclang.org website** -- the site is a full technology demonstration and it ships inside the binary, built end to end in Jac (naturally):
 
 ```bash
-git clone https://github.com/jaseci-labs/jac_site
-cd jac_site
-jac install   # first run: pulls npm deps
-jac run       # builds the frontend + wasm, serves on http://localhost:8000
+jac create mysite --awesome   # dumps the whole site as your project, pulls npm deps
+cd mysite
+jac run                       # builds the frontend + wasm, serves on http://localhost:8000
 ```
 
-One language spans all three codespaces in this single codebase: the pages and components compile to JavaScript, the endpoints compile to Python and serve over RPC, and the arcade game in `game/arena.jac` compiles through LLVM to in-browser WebAssembly -- fully borrow-checked, with zero reference counting in the artifact. The docs reader serves the language corpus straight from a real graph, the Ninja Leaderboard persists scores through walkers with no database, and the whole thing is one typechecked, contiguous, synechic codebase.
+One language spans all three codespaces in this single codebase: the pages and components compile to JavaScript, the endpoints compile to Python and serve over RPC, and the arcade game in `game/arena.jac` compiles through LLVM to in-browser WebAssembly -- fully borrow-checked, with zero reference counting in the artifact. The docs reader serves the language corpus straight from a real graph, the Ninja Leaderboard persists scores through walkers with no database, and the whole thing is one typechecked, contiguous, synechic codebase. The same tree is the site's source of truth at [jac/examples/jaclang_org](jac/examples/jaclang_org), and it is what CI runs as its full-stack smoke test.
 
 > Prebuilt binaries ship for **macOS and Linux**; on Windows, use WSL (a native PowerShell installer is coming soon). See the [installation guide](https://www.jaclang.org/docs/latest/quick-guide/install) for versions, upgrading, and IDE setup.
 
