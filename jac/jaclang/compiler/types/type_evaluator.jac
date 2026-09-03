@@ -402,7 +402,7 @@ walker TypeEvaluator {
     def resolve_to_definition_symbol(symbol: Symbol) -> Symbol;
     def _widen_literal_for_declaration(ty: TypeBase) -> TypeBase;
     def _import_module_from_path(
-        path: str, importer_path: (str | None) = None
+        path: str, importer_path: (str | None) = None, need_tree: bool = False
     ) -> Module;
 
     def _resolve_importer_path(ast_node: UniNode) -> (str | None);

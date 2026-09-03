@@ -3241,7 +3241,8 @@ impl TypeEvaluator.is_none_type(ty: TypeBase) -> bool {
         return False;
     }
     return (
-        isinstance(ty, ClassType) and ty.shared == self.prefetch.none_type_class.shared
+        isinstance(ty, ClassType)
+        and ty.shared.same_class(self.prefetch.none_type_class.shared)
     );
 }
 
@@ -5656,7 +5657,7 @@ impl TypeEvaluator._union_contains_none(union_type: TypeBase) -> bool {
     }
     none_shared = self.prefetch.none_type_class.shared;
     for t in union_type.types {
-        if isinstance(t, ClassType) and t.shared == none_shared {
+        if isinstance(t, ClassType) and t.shared.same_class(none_shared) {
             return True;
         }
     }

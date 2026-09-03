@@ -29,7 +29,7 @@ obj TreeNode {
 
 obj VersionInfo {
     has label: str = "",
-        git_ref: str = "",
+        jac_version: str = "",
         pages: int = 0,
         fetched_at: str = "";
 }
@@ -89,9 +89,9 @@ node DocContainer(PublicNode) {}
 
 node DocVersion(DocContainer) {
     has label: str = "",
-        git_ref: str = "",
+        jac_version: str = "",
         fetched_at: str = "",
-        sha: str = "",
+        fingerprint: str = "",
         pages: int = 0;
 
     def tree -> list[TreeNode];
