@@ -89,6 +89,18 @@ class JacByllmPluginConfig {
                         }
                     }
                 },
+                "optimizations": {
+                    "type": "dict",
+                    "default": {},
+                    "description": "Prompt-shape optimizations that are off by default",
+                    "nested": {
+                        "invariant_prompt_hoisting": {
+                            "type": "bool",
+                            "default": False,
+                            "description": "Split each by-llm prompt into a byte-stable invariant prefix (contract block) and a variant suffix, so provider prefix caching covers the function-specific invariants across calls. Also settable with BYLLM_INVARIANT_HOISTING=1."
+                        }
+                    }
+                },
                 "system_prompt": {
                     "type": "string",
                     "default": "",

@@ -1644,6 +1644,7 @@ test "model pool streaming fallback" {
 
 import from jaclang.byllm.llm {
     _is_prompt_caching_eligible,
+    _config_prompt_caching,
     _apply_prompt_caching,
     _CACHE_CONTROL_EPHEMERAL
 }
@@ -1694,6 +1695,39 @@ test "prompt caching disabled via config" {
         assert _is_prompt_caching_eligible("anthropic/claude-sonnet-4-20250514")
             == False;
     }
+}
+
+test "a per-model override beats the toml prompt-caching default" {
+    # toml default on: an explicit model-level False still turns it off
+    with unittest.mock.patch.object(
+        _byllm_llm_mod._byllm_config,
+        'get_prompt_caching_config',
+        return_value={'enabled': True}
+    ) {
+        assert _is_prompt_caching_eligible("claude-3-opus-20240229", False) == False;
+        assert _is_prompt_caching_eligible("claude-3-opus-20240229", True) == True;
+    }
+    # toml default off: an explicit model-level True forces it back on
+    with unittest.mock.patch.object(
+        _byllm_llm_mod._byllm_config,
+        'get_prompt_caching_config',
+        return_value={'enabled': False}
+    ) {
+        assert _is_prompt_caching_eligible("claude-3-opus-20240229", True) == True;
+        # None means "no model override" and defers to the toml default
+        assert _is_prompt_caching_eligible("claude-3-opus-20240229", None) == False;
+    }
+    # the model family gate still applies: caching never turns on for non-Claude
+    assert _is_prompt_caching_eligible("gpt-4o", True) == False;
+}
+
+test "model config prompt_caching is read as bool or enabled-dict" {
+    assert _config_prompt_caching({}) is None;
+    assert _config_prompt_caching({"prompt_caching": False}) == False;
+    assert _config_prompt_caching({"prompt_caching": True}) == True;
+    assert _config_prompt_caching({"prompt_caching": {"enabled": False}}) == False;
+    assert _config_prompt_caching({"prompt_caching": {"enabled": True}}) == True;
+    assert _config_prompt_caching({"prompt_caching": {}}) is None;
 }
 
 """Tool-call deltas are read by dict subscript; content deltas by attribute."""

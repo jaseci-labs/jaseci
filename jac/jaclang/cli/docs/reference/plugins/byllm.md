@@ -506,6 +506,9 @@ enabled = false                   # Parallel tool execution (concurrent dispatch
 [byllm.prompt_caching]
 enabled = true                    # Anthropic prompt caching (auto for Claude models)
 
+[byllm.optimizations]
+invariant_prompt_hoisting = false # Split each prompt into a byte-stable prefix + variant suffix
+
 [byllm.compaction]
 enabled                = true     # Auto-compact long ReAct loops before hitting the context limit
 threshold_ratio        = 0.80     # Compact when prompt_tokens / ctx_window >= 80 %
@@ -551,6 +554,24 @@ compaction_model       = ""       # Empty = copy of the active model; set to use
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `enabled` | bool | `true` | Automatically add Anthropic `cache_control` markers to the system prompt and tool schemas. Caches the static prefix across ReAct iterations for up to 90% input token savings. Only applies to Claude models; no effect on other providers |
+
+This `[byllm.prompt_caching]` block is the global default. A single model can override it without touching the toml by passing `prompt_caching` in its own config, which wins over the global setting:
+
+```jac
+# force caching off for this model, whatever the toml says
+glob model = Model(model_name="anthropic/claude-sonnet-4-6", config={"prompt_caching": False});
+
+# force it on for one model while the toml default is off
+glob cached = Model(model_name="anthropic/claude-sonnet-4-6", config={"prompt_caching": True});
+```
+
+The value is a bool, or a `{"enabled": <bool>}` dict mirroring the toml shape; omit it to inherit the global default. The Claude-only model gate still applies: setting `prompt_caching` `True` on a non-Claude model does nothing.
+
+**`[byllm.optimizations]` options:**
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `invariant_prompt_hoisting` | bool | `false` | Move every prompt component the compiler already knows (description, parameter names/types/semstrings, `self` semstring, return type, schema hint, a literal `tools=[...]` list) out of the user message and into a second system message that is byte-identical across calls to the same ability. Also settable with `BYLLM_INVARIANT_HOISTING=1`. See [Invariant Prompt Hoisting](#invariant-prompt-hoisting) |
 
 **`[byllm.compaction]` options:**
 
@@ -2177,6 +2198,69 @@ byLLM validates that responses match the declared return type, coercing when pos
     ```
 
 ---
+
+## Invariant Prompt Hoisting
+
+Every `by llm()` prompt mixes two kinds of text: components fixed by the program (the ability's semstring, its parameter names, types and semstrings, the `self` class semstring, the return type and its schema hint, a literal `tools=[...]` list) and the argument values of this particular call. By default they are interleaved, so no two calls to the same ability share a byte-identical prefix and provider prefix caching can only pay off across ReAct iterations within one invocation.
+
+Turning on `invariant_prompt_hoisting` splits them:
+
+```
+[system]  persona + configured system prompt (+ a literal call-site system_prompt) (+ tool instruction)
+[system]  contract block: description, params (name (type): semstring), self semstring,
+          return type, schema hint if needed, static tool names
+[conversation, if any]
+[user]    name = value, one per argument (plus incl_info and media)
+```
+
+The compiler records, per ability, which components are invariant (`FunctionInfo.invariant_plan`, plus the `static_tools` and `static_system_prompt` flags). The runtime renders the contract block once per ability and memoizes it, and marks it as scaffolding so it never enters persisted conversation history. On Claude models the existing prompt-caching pass puts the `cache_control` breakpoint on the contract block; on other providers the reordering alone is the win.
+
+The same split applies to `visit ... by llm()` routing when every candidate archetype is one the compiler registered: the candidate list moves to its own system message and the walker and current-node state stay in the user message.
+
+### Enabling it
+
+=== "jac.toml"
+    ```toml
+    [byllm.optimizations]
+    invariant_prompt_hoisting = true
+    ```
+
+=== "Environment"
+    ```bash
+    export BYLLM_INVARIANT_HOISTING=1
+    ```
+
+The flag is off by default, and with it off every message is byte-identical to what byLLM produced before the feature existed.
+
+### What it does not change
+
+- No semstring, type, or schema text is dropped or repeated. The same information moves position.
+- Prompts are never padded to reach a provider's cache minimum.
+- Retry, ReAct, and streaming behaviour are untouched.
+
+Hoisting is skipped for an ability with no runtime inputs (there would be no variant half to separate), for any caller the compiler never planned (such as Python library mode), and for a call that passes a `system_prompt` the compiler could not prove constant - a callable or a variable. That text sits in front of the contract block, so a prefix containing it would not be byte-stable; the call falls back to the unhoisted layout instead. A string literal `system_prompt` is constant and stays in the cached prefix.
+
+### Measuring the effect
+
+Point `BYLLM_USAGE_LOG` at a file to append one JSON object per completion call:
+
+```bash
+export BYLLM_USAGE_LOG=/tmp/byllm-usage.jsonl
+```
+
+| Field | Description |
+|-------|-------------|
+| `scope` | `module.qualname` of the ability that issued the call |
+| `model` | Model name used for the call |
+| `hoisted` | Whether the prompt was split for this call |
+| `prompt_tokens` / `completion_tokens` | Usage as reported by the provider |
+| `cache_read_input_tokens` | Prefix tokens served from the provider cache (OpenAI's `prompt_tokens_details.cached_tokens` is read too) |
+| `cache_creation_input_tokens` | Prefix tokens written to the provider cache |
+| `invariant_tokens` | Token count of the hoisted prefix, computed once per ability |
+| `cost` | Cost attributed to the call by LiteLLM |
+| `latency_ms` | Wall-clock time of the provider call |
+
+Invariant fraction is `invariant_tokens / prompt_tokens`, computed offline from the log.
 
 ## Agent Telemetry
 

@@ -54,7 +54,10 @@ obj FunctionInfo(Info) {
     has params: (list[ParamInfo] | None) = None,
         return_type: (str | ClassInfo | EnumInfo | tuple | None) = None,
         tools: (list[FunctionInfo] | None) = None,
-        by_call: bool = False;
+        by_call: bool = False,
+        invariant_plan: (dict[str, bool] | None) = None,
+        static_tools: bool = False,
+        static_system_prompt: bool = False;
 
     def postinit -> object;
 }

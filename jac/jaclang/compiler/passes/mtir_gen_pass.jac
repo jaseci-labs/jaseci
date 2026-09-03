@@ -89,6 +89,16 @@ walker MTIRGenPass(Transform) {
         expr: Expr, scope: UniScopeNode
     ) -> list[FunctionInfo];
 
+    def _by_call_params(expr: Expr) -> list;
+    def _static_by_flags(expr: Expr, resolved_tools: int) -> tuple;
+    def _build_invariant_plan(
+        nd: Ability,
+        parameters: list[ParamInfo],
+        return_type: (str | ClassInfo | EnumInfo | tuple | None),
+        static_tools: bool,
+        static_system_prompt: bool
+    ) -> dict[str, bool];
+
     def _process_ability(nd: Ability) -> None;
     def _collect_routing_archetypes(ir_in: Module) -> list[Archetype];
     def _archetype_from_event(ab: Ability | None) -> Archetype | None;

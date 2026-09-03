@@ -4,6 +4,7 @@ import from dataclasses { fields, is_dataclass }
 import from types { UnionType }
 import from jaclang.byllm._optdeps.loguru { logger }
 import from jaclang.byllm.llm { BaseLLM }
+import from jaclang.byllm.invariant { hoisting_enabled }
 import from jaclang.compiler.driver.mtp { ClassInfo }
 import from jaclang.runtime.archetype { Anchor, Archetype, ObjectSpatialFunction }
 
@@ -339,7 +340,15 @@ def route_visit(candidates: list[object], model: BaseLLM) -> list {
     if here_anchor is not None {
         user_parts.append(f"Current node:\n{_describe_arch(here_anchor.archetype)}");
     }
-    user_parts.append(f"Candidates (choose by handle):\n{candidates_block}");
+    candidates_text = f"Candidates (choose by handle):\n{candidates_block}";
+    hoist = (
+        bool(user_parts)
+        and hoisting_enabled()
+        and all(_class_info(r["node"]) is not None for r in recs)
+    );
+    if not hoist {
+        user_parts.append(candidates_text);
+    }
     if incl_info and isinstance(incl_info, dict) {
         user_parts.append("\n".join([f"{k} = {v}" for (k, v) in incl_info.items()]));
     }
@@ -365,12 +374,13 @@ def route_visit(candidates: list[object], model: BaseLLM) -> list {
         for (k, v) in call_params.items()
         if k not in ("select", "intent", "incl_info")
     };
+    route_msgs: list = [Message(role=MessageRole.SYSTEM, content=sys_txt)];
+    if hoist {
+        route_msgs.append(Message(role=MessageRole.SYSTEM, content=candidates_text));
+    }
+    route_msgs.append(Message(role=MessageRole.USER, content="\n\n".join(user_parts)));
     mt_run = MTRuntime(
-        messages=[
-            Message(role=MessageRole.SYSTEM, content=sys_txt),
-            Message(role=MessageRole.USER, content="\n\n".join(user_parts)),
-
-        ],
+        messages=route_msgs,
         resp_type=resp_type,
         stream=bool(call_params.get("stream", False)),
         tools=[],

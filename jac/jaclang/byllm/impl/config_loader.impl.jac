@@ -17,6 +17,7 @@ impl JacByllmConfig.get_default_config(self: JacByllmConfig) -> dict[str, any] {
         'litellm': {'local_cost_map': True, 'drop_params': True, 'debug': False},
         'fallback': {'strategy': 'fallback', 'num_retries': 1, 'timeout': 60.0},
         'prompt_caching': {'enabled': True},
+        'optimizations': {'invariant_prompt_hoisting': False},
         'parallel': {'enabled': False},
         'streaming': {
             'read_timeout': 90.0,
@@ -98,6 +99,22 @@ impl JacByllmConfig.get_prompt_caching_config(self: JacByllmConfig) -> dict[str,
     config = self.load();
     pc_config = config.get('prompt_caching', {});
     return {'enabled': bool(pc_config.get('enabled', True))};
+}
+
+impl JacByllmConfig.get_optimizations_config(self: JacByllmConfig) -> dict[str, any] {
+    config = self.load();
+    opt_config = config.get('optimizations', {});
+
+    import os;
+    env_raw = os.environ.get('BYLLM_INVARIANT_HOISTING', '').strip().lower();
+    toml_enabled = bool(opt_config.get('invariant_prompt_hoisting', False));
+    enabled = toml_enabled;
+    if env_raw in ('1', 'true', 'yes', 'on') {
+        enabled = True;
+    } elif env_raw in ('0', 'false', 'no', 'off') {
+        enabled = False;
+    }
+    return {'invariant_prompt_hoisting': enabled};
 }
 
 impl get_byllm_config(project_dir: Path | None = None) -> JacByllmConfig {
