@@ -14,6 +14,8 @@ impl create(
     name: str = '',
     force: bool = False,
     kind: str = "",
+    app: str = "",
+    path: str = "",
     use: str = "default",
     awesome: bool = False,
     `list: bool = False,
@@ -40,6 +42,8 @@ impl create(
             name,
             force,
             kind,
+            app,
+            path,
             use,
             awesome,
             `list,
@@ -67,6 +71,8 @@ def _create_body(
     name: str,
     force: bool,
     kind: str,
+    app_name: str,
+    app_path: str,
     use: str,
     awesome: bool,
     list_kinds: bool,
@@ -139,6 +145,16 @@ def _create_body(
     }
 
     explicit_use = use != "default";
+    if app_name {
+        if awesome or explicit_use {
+            console.error(
+                "--app scaffolds a built-in kind inside the current project; drop --awesome/--use.",
+                hint="jac create --app <name> --kind <kind>"
+            );
+            return 1;
+        }
+        return _create_app(registry, app_name, kind, app_path, force);
+    }
     if kind and explicit_use {
         console.error(
             "Use either --kind or --use, not both.",
@@ -159,6 +175,13 @@ def _create_body(
             console.error(
                 "The awesome template is not available in this jac build.",
                 hint="It ships inside the released binary's payload (awesome_template beside the jaclang package) or a source checkout's examples/jaclang_org."
+            );
+            return 1;
+        }
+        if "apps" not in tmpl.config {
+            console.error(
+                "The awesome template has no [apps] table; the flagship is a workspace.",
+                hint="examples/jaclang_org/jac.toml declares [apps.*]; refresh the bundled awesome_template."
             );
             return 1;
         }
@@ -314,7 +337,13 @@ def _create_body(
     if not deps_installed {
         steps.append("jac install           Install dependencies");
     }
-    steps.append(f"jac run               {_run_blurb(tmpl.kind)}");
+    if "apps" in render_config {
+        steps.append(
+            "jac run               Run the default app (jac run --show lists every app)"
+        );
+    } else {
+        steps.append(f"jac run               {_run_blurb(tmpl.kind)}");
+    }
     console.print_next_steps(steps);
     console.print();
     return 0;
@@ -343,8 +372,106 @@ def _run_blurb(kind: str) -> str {
     return blurbs.get(kind, "Run the project");
 }
 
-def _stamp_kind(config: dict, kind: str) -> None {
+def _create_app(
+    registry: TemplateRegistry, app_name: str, kind: str, app_path: str, force: bool
+) -> int {
+    import from jaclang.project.config { find_project_root }
+    import from jaclang.project.kinds { is_valid_kind, VALID_KINDS }
+    import from jaclang.project.template_loader { scaffold_app }
+
+    existing = find_project_root(Path.cwd());
+    if existing is None {
+        console.error(
+            "jac create --app needs an existing project.",
+            hint="Run inside a project (jac.toml), or scaffold one first: jac create <name>"
+        );
+        return 1;
+    }
+    (project_root, toml_path) = existing;
     if not kind {
+        console.error(
+            "--app requires --kind.", hint=f"Valid kinds: {', '.join(VALID_KINDS)}"
+        );
+        return 1;
+    }
+    if not is_valid_kind(kind) {
+        console.error(
+            f"Unknown app kind '{kind}'.", hint=f"Valid kinds: {', '.join(VALID_KINDS)}"
+        );
+        return 1;
+    }
+    if "/" in app_name or "\\" in app_name or app_name.endswith(".jac") {
+        console.error(
+            f"'{app_name}' is not a valid app name.",
+            hint="App names carry no path separators and no .jac suffix."
+        );
+        return 1;
+    }
+    tmpl = registry.get_by_kind(kind);
+    if tmpl is None {
+        console.error(
+            f"No template registered for kind '{kind}'.",
+            hint="This is unexpected for a core kind; please report it."
+        );
+        return 1;
+    }
+    rel_path = app_path or app_name;
+    app_dir = Path(project_root) / rel_path;
+    if app_dir.exists() and any(app_dir.iterdir()) and not force {
+        console.error(
+            f"Directory '{rel_path}' already exists and is not empty. Use --force to scaffold into it."
+        );
+        return 1;
+    }
+    console.print(
+        f"\nAdding app '{app_name}' ({kind}) to {toml_path}\n", style="bold cyan"
+    );
+    apps_before = _toml_apps(Path(toml_path));
+    try {
+        written = scaffold_app(str(project_root), app_name, kind, rel_path, tmpl);
+    } except ValueError as e {
+        console.error(str(e));
+        return 1;
+    }
+    for rel in written {
+        console.print(f"  ✔ {rel}", style="success");
+    }
+    console.print(f"  ✔ jac.toml [apps.{app_name}]", style="success");
+    (apps_after, default_app) = _toml_apps_and_default(Path(toml_path));
+    for migrated in apps_after {
+        if migrated not in apps_before and migrated != app_name {
+            console.print(
+                f"  ✔ jac.toml [apps.{migrated}] (the project's entry, now a "
+                f"file-rooted app; default-app = {default_app or migrated})",
+                style="success"
+            );
+        }
+    }
+    console.success(f"App '{app_name}' added");
+    console.print_next_steps([f"jac run {app_name}".ljust(22) + _run_blurb(kind)]);
+    console.print();
+    return 0;
+}
+
+def _toml_apps_and_default(toml_path: Path) -> tuple[set[str], str] {
+    import from jaclang.project.tomlio { read_toml_with_encoding }
+    try {
+        doc = read_toml_with_encoding(str(toml_path));
+    } except Exception {
+        return (set(), "");
+    }
+    apps = doc.get("apps", {});
+    project = doc.get("project", {});
+    default_app = str(project.get("default-app", "")) if isinstance(project, dict) else "";
+    return (set(apps.keys()) if isinstance(apps, dict) else set(), default_app);
+}
+
+def _toml_apps(toml_path: Path) -> set[str] {
+    return _toml_apps_and_default(toml_path)[0];
+}
+
+def _stamp_kind(config: dict, kind: str) -> None {
+    if not kind or kind == "workspace" or "apps" in config {
         return;
     }
     proj = config.get("project");
@@ -1545,13 +1672,15 @@ def _run_precompiler(src_dir: str, flags: list[str]) -> int {
     return subprocess.call([sys.executable, "-c", code]);
 }
 
-def _resolve_entry_file(config: any) -> (Path | None) {
-    ep = config.project.entry_point;
+def _resolve_entry_file(config: any, app: str = "") -> (Path | None) {
+    import from jaclang.dist.precompile_bytecode { bundle_app }
+
     proj_root = config.project_root;
-    if not ep or proj_root is None {
+    chosen = bundle_app(config, app);
+    if chosen is None or proj_root is None {
         return None;
     }
-    p = Path(proj_root) / ep;
+    p = Path(chosen.entry_path(str(proj_root)));
     if p.is_file() {
         return p;
     }
@@ -1560,7 +1689,7 @@ def _resolve_entry_file(config: any) -> (Path | None) {
         return p2;
     }
     console.print(
-        f"  ⚠ [project] entry-point '{ep}' not found under {proj_root}; "
+        f"  ⚠ app '{chosen.name}' entry-point '{p}' not found; "
         "sealing without serve payloads",
         style="warning"
     );
@@ -1721,8 +1850,8 @@ def _ensure_client_dist(config: any, entry_file: Path) -> (Path | None) {
     import from jaclang.client { get_bun }
     import from jaclang.client.targets.web_target { WebTarget }
 
-    client_dir: Path = config.get_client_dir();
-    dist = client_dir / 'dist';
+    import from jaclang.client.targets.registry { client_app_dir_for }
+    dist = client_app_dir_for(config, str(entry_file)) / 'dist';
     bun = None;
     try {
         bun = get_bun();
@@ -1754,13 +1883,13 @@ def _ensure_client_dist(config: any, entry_file: Path) -> (Path | None) {
     return None;
 }
 
-def _bake_native_payloads(config: any, pkg_copy: Path) -> bool {
+def _bake_native_payloads(config: any, pkg_copy: Path, app: str = "") -> bool {
     import os;
     import from jaclang.jac0core.ext_registry { base_stem }
     import from jaclang.compiler.placement.placement_solver { native_default_path_ok }
     import from jaclang.server.sealed_serve { NATIVE_DIR_REL }
 
-    entry_file = _resolve_entry_file(config);
+    entry_file = _resolve_entry_file(config, app);
     if entry_file is None or not native_default_path_ok(str(entry_file)) {
         return True;
     }
@@ -1784,15 +1913,17 @@ def _bake_native_payloads(config: any, pkg_copy: Path) -> bool {
     return True;
 }
 
-def _bake_serve_payloads(config: any, pkg_copy: Path) -> bool {
+def _bake_serve_payloads(config: any, pkg_copy: Path, app: str = "") -> bool {
     import json;
     import shutil;
     import from jaclang.server.sealed_serve { SERVE_MANIFEST_REL, CLIENT_DIST_REL }
 
-    entry_file = _resolve_entry_file(config);
+    entry_file = _resolve_entry_file(config, app);
     if entry_file is None {
         return True;
     }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
+    Jac.set_full_target_path(str(entry_file));
     sm = _build_serve_manifest(entry_file, Path(config.project_root));
     if sm is None {
         return False;
@@ -1826,7 +1957,11 @@ def _bake_serve_payloads(config: any, pkg_copy: Path) -> bool {
 }
 
 def _make_sealed_image(
-    config: any, parent: Path, name: str, out_dir: (Path | None) = None
+    config: any,
+    parent: Path,
+    name: str,
+    out_dir: (Path | None) = None,
+    app: str = ""
 ) -> (Path | None) {
     import shutil;
     import tempfile;
@@ -1871,14 +2006,14 @@ def _make_sealed_image(
             (pkg_copy / "__init__.jac").write_text("");
         }
 
-        if not _bake_serve_payloads(config, pkg_copy) {
+        if not _bake_serve_payloads(config, pkg_copy, app) {
             return None;
         }
-        if not _bake_native_payloads(config, pkg_copy) {
+        if not _bake_native_payloads(config, pkg_copy, app) {
             return None;
         }
 
-        rc = _run_precompiler(str(stage), ["--seal"]);
+        rc = _run_precompiler(str(stage), ["--seal"] + (["--app", app] if app else []));
         if rc != 0 {
             console.error("Seal failed.");
             return None;
@@ -1896,12 +2031,12 @@ def _make_sealed_image(
     }
 }
 
-def _bundle_sealed(config: any, output: str) -> int {
+def _bundle_sealed(config: any, output: str, app: str = "") -> int {
     name = config.project.name;
     Path(output).mkdir(parents=True, exist_ok=True);
     console.print(f"\n  Sealing {name}", style="muted");
     dest = _make_sealed_image(
-        config, Path(output), f"{name}-sealed", out_dir=Path(output)
+        config, Path(output), f"{name}-sealed", out_dir=Path(output), app=app
     );
     if dest is None {
         return 1;
@@ -1982,7 +2117,7 @@ def _vendor_jab_deps(config: any, img: Path) -> bool {
 }
 
 
-def _bundle_jab(config: any, output: str, fat: bool = False) -> int {
+def _bundle_jab(config: any, output: str, fat: bool = False, app: str = "") -> int {
     import shutil;
     import tempfile;
 
@@ -1992,7 +2127,7 @@ def _bundle_jab(config: any, output: str, fat: bool = False) -> int {
     work = Path(tempfile.mkdtemp(prefix="jab-", dir=output));
     try {
         console.print(f"\n  Sealing {name}", style="muted");
-        img = _make_sealed_image(config, work, name, out_dir=Path(output));
+        img = _make_sealed_image(config, work, name, out_dir=Path(output), app=app);
         if img is None {
             return 1;
         }
@@ -2013,7 +2148,9 @@ def _bundle_jab(config: any, output: str, fat: bool = False) -> int {
     return 0;
 }
 
-def _bundle_binary(config: any, output: str, fat: bool = False) -> int {
+def _bundle_binary(
+    config: any, output: str, fat: bool = False, app: str = ""
+) -> int {
     import sys;
     import os;
     import shutil;
@@ -2040,7 +2177,7 @@ def _bundle_binary(config: any, output: str, fat: bool = False) -> int {
     out_bin = Path(output) / name;
     try {
         console.print(f"\n  Sealing {name} for binary", style="muted");
-        img = _make_sealed_image(config, work, name, out_dir=Path(output));
+        img = _make_sealed_image(config, work, name, out_dir=Path(output), app=app);
         if img is None {
             return 1;
         }
@@ -2161,7 +2298,9 @@ def _bundle_npm_runtime(output: str, framework: str = "") -> int {
     return 0;
 }
 
-impl bundle(output: str = "dist", target: str = "wheel", fat: bool = False) -> int {
+impl bundle(
+    output: str = "dist", target: str = "wheel", fat: bool = False, app: str = ""
+) -> int {
     import from jaclang.project.config { get_config }
 
     if target == "npm-runtime" {
@@ -2183,13 +2322,13 @@ impl bundle(output: str = "dist", target: str = "wheel", fat: bool = False) -> i
         return 1;
     }
     if target == "sealed" {
-        return _bundle_sealed(config, output);
+        return _bundle_sealed(config, output, app=app);
     }
     if target == "jab" {
-        return _bundle_jab(config, output, fat=fat);
+        return _bundle_jab(config, output, fat=fat, app=app);
     }
     if target == "binary" {
-        return _bundle_binary(config, output, fat=fat);
+        return _bundle_binary(config, output, fat=fat, app=app);
     }
     if target not in ("wheel", "npm", "all") {
         console.error(

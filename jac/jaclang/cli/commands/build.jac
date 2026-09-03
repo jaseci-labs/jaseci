@@ -4,13 +4,24 @@ import from jaclang.cli.command { Arg, ArgKind, CommandSpec }
 
 comptime SPEC_BUILD: CommandSpec = CommandSpec(
          name="build",
-         help="Build a sealed .jab artifact (type-checks first)",
+         help="Build an app's artifact (.jab by default; type-checks first)",
          args=[
              Arg.create(
-                 "filename",
+                 "target",
                  kind=ArgKind.POSITIONAL,
                  `default="",
-                 help="Entry .jac file (default: [project] entry-point from jac.toml)"
+                 help=(
+                     "App name from [apps], or an entry .jac file "
+                     "(omit: [project] default-app, or the sole app)"
+                 )
+             ),
+             Arg.create(
+                 "all",
+                 dest="all_apps",
+                 typ=bool,
+                 `default=False,
+                 help="Build every app in the workspace into <output>/<app>/",
+                 short=""
              ),
              Arg.create(
                  "as",
@@ -58,9 +69,8 @@ comptime SPEC_BUILD: CommandSpec = CommandSpec(
                  typ=str,
                  `default="",
                  help=(
-                     "Build a client shell instead of the artifact: web, "
-                     "pwa, mobile, desktop (desktop builds a native "
-                     "webview app)."
+                     "Override the app's client target and build its client shell "
+                     "instead of the artifact (desktop builds a native webview app)"
                  ),
                  choices=[
                      "web",
@@ -84,7 +94,9 @@ comptime SPEC_BUILD: CommandSpec = CommandSpec(
 
          ],
          examples=[
-             ("jac build", "Build a single .jab into dist/"),
+             ("jac build", "Build the default app's .jab into dist/"),
+             ("jac build web", "Build the app named 'web'"),
+             ("jac build --all", "Build every app into dist/<app>/"),
              ("jac build --as binary", "Build a self-contained executable"),
              ("jac build --fat", "Build a fat jab (Python deps vendored)"),
              ("jac build --as wheel", "Build a PyPI wheel"),
@@ -100,7 +112,8 @@ comptime SPEC_BUILD: CommandSpec = CommandSpec(
      );
 
 def build(
-    filename: str = "",
+    target: str = "",
+    all_apps: bool = False,
     projection: str = "jab",
     output: str = "dist",
     check_only: bool = False,

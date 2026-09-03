@@ -42,6 +42,7 @@ class ViteBundler {
     );
 
     def _get_client_dir(self: ViteBundler) -> Path;
+    def _client_app_dir(self: ViteBundler) -> Path;
     def build(self: ViteBundler, entry_file: Optional[Path] = None) -> None;
     def find_bundle(self: ViteBundler) -> Optional[Path];
     def find_css(self: ViteBundler) -> Optional[Path];

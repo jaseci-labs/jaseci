@@ -1,23 +1,28 @@
 import from jaclang.comptime { name as ct_name }
 import from jaclang.cli.command { Arg, ArgKind, CommandSpec }
 import from jaclang.project.config { JacConfig }
+import type from jaclang.project.apps { AppConfig }
 import from jaclang.client.mobile_setup_env {
     mobile_setup_platform_env_restore,
     mobile_setup_platform_env_swap
 }
 import os;
 
-import from jaclang.client.targets.registry { ClientTarget }
+import from jaclang.client.targets.registry { ClientTarget, app_client_target }
 import from pathlib { Path }
 
 comptime SPEC_SETUP: CommandSpec = CommandSpec(
          name="setup",
-         help="Setup a build target (one-time initialization)",
+         help="Set up an app's client target (one-time initialization)",
          args=[
              Arg.create(
                  "target",
                  kind=ArgKind.POSITIONAL,
-                 help="Target to setup (e.g., desktop)"
+                 `default="",
+                 help=(
+                     "App name from [apps], or a client target name (mobile, pwa, "
+                     "desktop, ...); omit to set up the default app's client target"
+                 )
              ),
              Arg.create(
                  "platform",
@@ -30,46 +35,85 @@ comptime SPEC_SETUP: CommandSpec = CommandSpec(
 
          ],
          examples=[
-             ("jac setup mobile", "Setup mobile target (default platform)"),
-             ("jac setup mobile --platform ios", "Setup iOS scaffold only"),
-             ("jac setup mobile --platform all", "Setup both Android and iOS (macOS)")
+             ("jac setup", "Set up the default app's client target"),
+             (
+                 "jac setup mobile",
+                 "Set up the app named 'mobile', or the mobile target of the default app"
+             ),
+             ("jac setup mobile --platform ios", "Set up the iOS scaffold only"),
+             ("jac setup mobile --platform all", "Set up both Android and iOS (macOS)")
          ],
          group="project",
          handler_name=ct_name(setup)
      );
 
-def setup(target: str, platform: str | None = None) -> int {
+def setup(target: str = "", platform: str | None = None) -> int {
     import from jaclang.cli.console { console }
     import from jaclang.client.targets.registry { get_target_factory }
     import from jaclang.project.config { get_config }
-
-    factory = get_target_factory();
-    available_targets = factory.get_available_target_names();
-    if not target {
-        console.error("No target specified. Use: jac setup <target>");
-        console.print(
-            f"Available targets: {', '.join(available_targets)}", style="muted"
-        );
-        return 1;
-    }
-    if target not in available_targets {
-        console.error(f"Unknown setup target: '{target}'");
-        console.print(
-            f"Available targets: {', '.join(available_targets)}", style="muted"
-        );
-        return 1;
-    }
+    import from jaclang.project.kinds { normalize_client_target }
 
     config = get_config();
     if not config {
         console.error("No jac.toml found. Run 'jac create' to create a project.");
         return 1;
     }
+    available_targets = get_target_factory().get_available_target_names();
 
+    app = config.app(target) if target else None;
+    if app is not None {
+        target_name = app_client_target(app);
+    } else {
+        try {
+            app = config.resolve_app("");
+        } except ValueError as e {
+            if not target {
+                console.error(str(e));
+                return 1;
+            }
+            app = None;
+        }
+        if target {
+            try {
+                target_name = normalize_client_target(target);
+            } except ValueError {
+                console.error(f"Unknown setup target: '{target}'");
+                console.print(
+                    f"Apps: {', '.join(config.apps.keys())}; "
+                    f"targets: {', '.join(available_targets)}",
+                    style="muted"
+                );
+                return 1;
+            }
+        } else {
+            target_name = app_client_target(app);
+        }
+    }
+    if target_name not in available_targets {
+        console.error(f"Unknown setup target: '{target_name}'");
+        console.print(
+            f"Available targets: {', '.join(available_targets)}", style="muted"
+        );
+        return 1;
+    }
+    return run_client_setup(app, target_name, platform);
+}
+
+def run_client_setup(
+    app: AppConfig | None, target_name: str, platform: str | None
+) -> int {
+    import from jaclang.cli.console { console }
+    import from jaclang.client.targets.registry { get_target_factory }
+
+    config = get_config();
+    if not config {
+        console.error("No jac.toml found. Run 'jac create' to create a project.");
+        return 1;
+    }
     project_dir = config.project_root or Path.cwd();
-
+    factory = get_target_factory();
     try {
-        target_obj = factory.create(target, project_dir);
+        target_obj = factory.create(target_name, project_dir);
     } except ValueError as e {
         console.error(str(e));
         console.print(
@@ -79,16 +123,22 @@ def setup(target: str, platform: str | None = None) -> int {
         return 1;
     }
 
-    setup_platform = platform;
+    label = f"'{target_name}'";
+    if app is not None and not app.implicit {
+        label = f"'{target_name}' for app '{app.name}'";
+        import from jaclang.runtime.runtime { JacRuntime as Jac }
+        Jac.set_full_target_path(app.entry_path(str(project_dir)));
+    }
+    setup_platform = platform or (app.platform if app is not None else "") or None;
     prev_setup_platform_env = None;
-    if target == "mobile" and setup_platform {
+    if target_name == "mobile" and setup_platform {
         prev_setup_platform_env = mobile_setup_platform_env_swap(str(setup_platform));
     }
     try {
-        console.print(f"Setting up target '{target}' in: {project_dir}", style="muted");
+        console.print(f"Setting up target {label} in: {project_dir}", style="muted");
         target_obj.setup(project_dir);
 
-        if target == "pwa" {
+        if target_name == "pwa" {
             pwa_icons_dir = project_dir / "pwa_icons";
             if not pwa_icons_dir.exists() {
                 console.error(
@@ -102,10 +152,10 @@ def setup(target: str, platform: str | None = None) -> int {
             }
         }
 
-        console.success(f"Target '{target}' setup complete!");
+        console.success(f"Target {label} setup complete!");
         return 0;
     } except NotImplementedError as e {
-        console.error(f"Target '{target}' setup is not yet implemented.");
+        console.error(f"Target '{target_name}' setup is not yet implemented.");
         return 1;
     } except Exception as e {
         import traceback;
@@ -113,16 +163,33 @@ def setup(target: str, platform: str | None = None) -> int {
         console.print(traceback.format_exc(), style="muted");
         return 1;
     } finally {
-        if target == "mobile" and setup_platform {
+        if target_name == "mobile" and setup_platform {
             mobile_setup_platform_env_restore(prev_setup_platform_env);
         }
     }
 }
 
-def run_client_build(filename: str, client: str, platform: str | None) -> int {
+def _place_bundle(bundle_path: Path, out_dir: Path) -> Path {
+    import shutil;
+    out_dir.mkdir(parents=True, exist_ok=True);
+    if bundle_path.is_dir() {
+        shutil.copytree(bundle_path, out_dir, dirs_exist_ok=True);
+        return out_dir;
+    }
+    dest = out_dir / bundle_path.name;
+    shutil.copy2(bundle_path, dest);
+    return dest;
+}
+
+def run_client_build(
+    app: AppConfig,
+    client: str,
+    platform: str | None,
+    entry_override: str = "",
+    output: str = ""
+) -> int {
     import from jaclang.cli.console { console }
     import from jaclang.client.targets.registry { get_target_factory }
-    import from jaclang.project.config { get_config }
 
     config = get_config();
     if not config {
@@ -131,7 +198,12 @@ def run_client_build(filename: str, client: str, platform: str | None) -> int {
     }
 
     project_dir = config.project_root or Path.cwd();
-    target_name = _auto_client_target(config, client, project_dir);
+    try {
+        target_name = app_client_target(app, client);
+    } except ValueError as e {
+        console.error(str(e));
+        return 1;
+    }
 
     factory = get_target_factory();
     try {
@@ -152,18 +224,30 @@ def run_client_build(filename: str, client: str, platform: str | None) -> int {
     }
 
     try {
-        entry_file = filename or config.project.entry_point;
-        if not entry_file {
-            console.error("No entry file specified. Use: jac build <file>");
-            return 1;
-        }
-
-        entry_path = Path(entry_file);
+        entry_path = (
+            Path(entry_override)
+                if entry_override
+                else Path(app.entry_path(str(project_dir)))
+        );
         if not entry_path.is_absolute() {
             entry_path = project_dir / entry_path;
         }
+        if not entry_path.is_file() {
+            console.error(
+                f"No entry file for app '{app.name}' (expected {entry_path}).",
+                hint="Set [apps.<name>] entry-point, or name a file: jac build <file>"
+            );
+            return 1;
+        }
 
-        bundle_path = target.build(entry_path, project_dir, platform);
+        import from jaclang.runtime.runtime { JacRuntime as Jac }
+        Jac.set_full_target_path(str(entry_path));
+        bundle_path = target.build(
+            entry_path, project_dir, platform or app.platform or None
+        );
+        if output {
+            bundle_path = _place_bundle(Path(bundle_path), Path(output));
+        }
 
         console.success(f"Build complete: {bundle_path}");
         return 0;
@@ -178,7 +262,7 @@ def run_client_build(filename: str, client: str, platform: str | None) -> int {
 }
 
 def run_client_start(
-    filename: str,
+    app: AppConfig,
     client: str,
     host: str,
     platform: str,
@@ -197,21 +281,28 @@ def run_client_start(
     }
 
     project_dir = config.project_root or Path.cwd();
-    target_name = _auto_client_target(config, client, project_dir);
+    try {
+        target_name = app_client_target(app, client);
+    } except ValueError as e {
+        console.error(str(e));
+        return 1;
+    }
 
     if target_name == "web" {
         return None;
     }
 
-    entry_file = filename or config.project.entry_point;
-    if not entry_file {
-        console.error("No entry file specified. Use: jac run --serve <file>");
+    entry_path = Path(app.entry_path(str(project_dir)));
+    if not entry_path.is_file() {
+        console.error(
+            f"No entry file for app '{app.name}' (expected {entry_path}).",
+            hint="Set [apps.<name>] entry-point in jac.toml."
+        );
         return 1;
     }
-    entry_path = Path(entry_file);
-    if not entry_path.is_absolute() {
-        entry_path = project_dir / entry_path;
-    }
+
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
+    Jac.set_full_target_path(str(entry_path));
 
     if not dev and is_debug_mode(config) {
         console.warning(
@@ -231,8 +322,9 @@ def run_client_start(
         return 1;
     }
 
-    start_port = port if port is not None else 8000;
-    start_api = api_port if api_port is not None else 0;
+    start_port = port if port else 8000;
+    start_api = api_port if api_port else 0;
+    app_platform = platform or app.platform or "auto";
 
     if _target_setup_missing(target_name, target, project_dir) {
         console.error(
@@ -242,7 +334,7 @@ def run_client_start(
     }
     try {
         if target_name == "mobile" {
-            os.environ["JAC_MOBILE_PLATFORM"] = str(platform);
+            os.environ["JAC_MOBILE_PLATFORM"] = str(app_platform);
         }
         if dev {
             if target_name == "mobile" {
@@ -416,22 +508,6 @@ def run_npm_remove(packages: list, dev: bool) -> int {
         console.error(f"Error removing packages: {e}");
         return 1;
     }
-}
-
-def _auto_client_target(config: JacConfig, requested: str, project_dir: Path) -> str {
-    if requested != "web" {
-        return requested;
-    }
-    import from jaclang.project.kinds { resolve_entry, resolve_project_kind }
-    try {
-        `entry = resolve_entry(config, str(project_dir));
-        if resolve_project_kind(config, `entry) == "web-static" {
-            return "static";
-        }
-    } except Exception {
-        return requested;
-    }
-    return requested;
 }
 
 def _target_setup_missing(

@@ -35,13 +35,11 @@ test "mobile target files exist" {
     assert "def start" in mobile_content;
 }
 
-test "target type parser supports mobile" {
-    registry_path = _client_dir / "targets" / "registry.jac";
-    content = registry_path.read_text();
+test "client target vocabulary includes mobile" {
+    import from jaclang.project.kinds { CLIENT_TARGETS, normalize_client_target }
 
-    assert 'MOBILE = "mobile"' in content;
-    assert 'if name_lower == "mobile"' in content;
-    assert "return TargetType.MOBILE" in content;
+    assert "mobile" in CLIENT_TARGETS;
+    assert normalize_client_target("mobile") == "mobile";
 }
 
 test "target factory resolves mobile via registry" {

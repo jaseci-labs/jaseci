@@ -49,16 +49,13 @@ test "react native target files exist" {
 }
 
 test "target factory resolves react-native by canonical name" {
-    import from jaclang.client.targets.registry {
-        get_target_factory,
-        get_target_type,
-        TargetType
-    }
+    import from jaclang.client.targets.registry { get_target_factory }
+    import from jaclang.project.kinds { CLIENT_TARGETS, normalize_client_target }
 
-    assert get_target_type("react-native") == TargetType.REACT_NATIVE;
-    assert get_target_type("react_native") == TargetType.REACT_NATIVE;
-    assert get_target_type("rn") == TargetType.REACT_NATIVE;
-    assert get_target_type("REACT-NATIVE") == TargetType.REACT_NATIVE;
+    assert "react-native" in CLIENT_TARGETS;
+    assert normalize_client_target("react-native") == "react-native";
+    assert normalize_client_target("react_native") == "react-native";
+    assert normalize_client_target("rn") == "react-native";
 
     _register_client_targets();
     factory = get_target_factory();
@@ -1239,7 +1236,6 @@ test "dual-target gate can run e2e builds when explicitly enabled" {
         project_dir = Path(tmp) / "react_native_multiscreen";
         shutil.copytree(fixture_src, project_dir);
         env = get_env_with_npm();
-        env["JAC_CLIENT_TARGET"] = "react_native";
         jac_cmd = get_jac_command();
         web_cmd = jac_cmd + ["build", "main.jac", "--client", "web"];
         web_result = subprocess.run(

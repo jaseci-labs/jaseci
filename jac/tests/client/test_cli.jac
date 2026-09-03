@@ -79,11 +79,8 @@ test "create jac app" {
             assert config_data["project"]["name"] == test_project_name , (
                 f"project table: {config_data.get('project')}"
             );
-
-            # Verify serve config includes base_route_app for CL apps
-            assert "serve" in config_data , f"toml tables: {list(config_data.keys())}";
-            assert config_data["serve"]["base_route_app"] == "app" , (
-                f"serve table: {config_data['serve']}"
+            assert "base_route_app" not in config_data.get("serve", {}) , (
+                f"serve table still carries the deleted key: {config_data.get('serve')}"
             );
 
             # Verify .gitignore was created with correct content
@@ -238,11 +235,8 @@ test "create jac app with button component" {
             assert config_data["project"]["name"] == test_project_name , (
                 f"project table: {config_data.get('project')}"
             );
-
-            # Verify serve config includes base_route_app for CL apps
-            assert "serve" in config_data , f"toml tables: {list(config_data.keys())}";
-            assert config_data["serve"]["base_route_app"] == "app" , (
-                f"serve table: {config_data['serve']}"
+            assert "base_route_app" not in config_data.get("serve", {}) , (
+                f"serve table still carries the deleted key: {config_data.get('serve')}"
             );
 
             # Verify components directory and Button.jac were created at project root

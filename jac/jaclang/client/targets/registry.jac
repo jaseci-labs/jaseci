@@ -1,43 +1,40 @@
+import os;
 import from typing { Optional }
 import from pathlib { Path }
+import type from jaclang.project.apps { AppConfig }
 
-enum TargetType {
-    WEB = "web",
-    DESKTOP = "desktop",
-    DESKTOP_CEF = "cef",
-    PWA = "pwa",
-    STATIC = "static",
-    MOBILE = "mobile",
-    REACT_NATIVE = "react-native"
+def app_client_target(app: AppConfig, requested: str = "") -> str {
+    import from jaclang.project.kinds { normalize_client_target }
+    return normalize_client_target(requested or app.effective_client());
 }
 
-def get_target_type(name: str) -> TargetType {
-    name_lower = name.lower().strip();
-    if name_lower == "" or name_lower == "web" {
-        return TargetType.WEB;
+def client_workspace_app(config: any, entry: str = "") -> AppConfig | None {
+    if config is None or not config.apps {
+        return None;
     }
-    if name_lower == "desktop" {
-        return TargetType.DESKTOP;
+    if not entry {
+        import from jaclang.runtime.runtime { JacRuntime as Jac }
+        entry = Jac.get_full_target_path() or "";
     }
-    if name_lower == "cef" {
-        return TargetType.DESKTOP_CEF;
+    if not entry {
+        return None;
     }
-    if name_lower == "pwa" {
-        return TargetType.PWA;
-    }
-    if name_lower == "static" {
-        return TargetType.STATIC;
-    }
-    if name_lower == "mobile" {
-        return TargetType.MOBILE;
-    }
+    return config.app_for_path(os.path.abspath(entry));
+}
 
-    if name_lower in ("react-native", "react_native", "rn") {
-        return TargetType.REACT_NATIVE;
+def client_app_dir_for(config: any, entry: str = "") -> Path {
+    base = config.get_client_dir();
+    app = client_workspace_app(config, entry);
+    return base / app.name if app is not None else base;
+}
+
+def client_app_root(config: any, project_dir: Path, entry: str = "") -> Path {
+    app = client_workspace_app(config, entry);
+    if app is None or config.project_root is None {
+        return project_dir;
     }
-    raise ValueError(
-        f"Unknown target: {name}. Available: {', '.join([t.value for t in TargetType])}"
-    );
+    root = app.root_dir(str(config.project_root));
+    return Path(root) if root else project_dir;
 }
 
 class ClientTarget {
@@ -81,7 +78,6 @@ obj TargetRegistry {
 
 obj TargetFactory {
     def create(name: str, project_dir: Path) -> ClientTarget;
-    def create_by_type(target_type: TargetType, project_dir: Path) -> ClientTarget;
     def get_available_target_names -> list[str];
 }
 

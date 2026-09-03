@@ -15,7 +15,7 @@ description: The jac.toml control plane - every section ([project], [dependencie
 | `[dependencies.git]` | `mylib = { git = "https://...", branch = "main" }` |
 | `[dev-dependencies]` | dev-only tools; installed with `jac install --dev` |
 | `[optional-dependencies.<group>]` | extras: `jac install --extras <group>`, wheel extras on publish |
-| `[serve]` | `jac run` defaults: `port`, `base_route_app` (client app served at `/`), `cl_route_prefix` |
+| `[serve]` | `jac run` defaults: `port`, `session`, `on_conflict` (the served app's client is at `/`; sibling apps with a built bundle at `/cl/<app>/`) |
 | `[run]` | `jac run` defaults: `cache`, `session`, `diagnostics` (`"error"`/`"all"`/`"none"`) |
 | `[check]` | type-check behavior: `enforce_access` (promote `:pub`/`:protect`/`:priv` visibility violations from warnings to hard errors), `warn_native_seams` (warn when a native-eligible method falls back to Python) |
 | `[check.lint]` | lint rule selection: `select = ["default"]` / `["all"]`, `ignore = ["combine-has"]`, `exclude = ["legacy/*"]` |
@@ -92,7 +92,7 @@ byLLM, scale, the client/desktop framework, and the MCP server all ship inside t
 
 ## Pitfalls
 
-- **Hyphen vs underscore is per-key and unforgiving**: `entry-point`, `requires-python`, `jac-version` (hyphens) but `fail_fast`, `max_failures`, `cl_route_prefix`, `base_route_app` (underscores). A wrong form is silently ignored - verify with `jac config get <key>`.
+- **Hyphen vs underscore is per-key and unforgiving**: `entry-point`, `requires-python`, `jac-version` (hyphens) but `fail_fast`, `max_failures`, `on_conflict` (underscores). A wrong form is silently ignored - verify with `jac config get <key>`.
 - **`jac install <pkg>` without a version pins `~=major.minor`** of whatever pip resolved - pass an explicit spec (`jac install "requests>=2.28"`) when you need a different constraint.
 - **CLI flags override jac.toml for that run** (`jac run --port 3000`, `jac test -v`, `jac run -e all`); jac.toml only sets defaults.
 - **After editing `[dependencies*]`, run `jac install`** - editing the file alone installs nothing.

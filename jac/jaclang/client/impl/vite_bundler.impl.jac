@@ -35,14 +35,30 @@ impl ViteBundler._get_client_dir(self: ViteBundler) -> Path {
         config = get_config();
         if config is not None {
             config_root = config.project_root;
-            if config_root is not None
-                and config_root.resolve() == self.project_dir.resolve() {
-                return config.get_client_dir();
+            if config_root is not None {
+                root = config_root.resolve();
+                here = self.project_dir.resolve();
+                if here == root or root in here.parents {
+                    return config.get_client_dir();
+                }
             }
         }
     } except ImportError {}
 
     return self.project_dir / '.jac' / 'client';
+}
+
+impl ViteBundler._client_app_dir(self: ViteBundler) -> Path {
+    client_dir = self._get_client_dir();
+    try {
+        import from jaclang.project.config { get_config }
+        import from jaclang.client.targets.registry { client_workspace_app }
+        app = client_workspace_app(get_config());
+        if app is not None {
+            return client_dir / app.name;
+        }
+    } except ImportError {}
+    return client_dir;
 }
 
 impl ViteBundler.create_package_json(
@@ -1116,7 +1132,7 @@ impl ViteBundler.init(
     self.config_path = config_path;
     self.config_loader = JacClientConfig(project_dir);
 
-    self.output_dir = output_dir or (self._get_client_dir() / 'dist');
+    self.output_dir = output_dir or (self._client_app_dir() / 'dist');
 
     self.dev_server_port = 0;
 }

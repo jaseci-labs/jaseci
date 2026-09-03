@@ -26,13 +26,38 @@ impl JacClientCompiler._get_client_dir(self: JacClientCompiler) -> Path {
         config = get_config();
         if config is not None {
             config_root = config.project_root;
-            if config_root is not None
-                and config_root.resolve() == self.project_dir.resolve() {
-                return config.get_client_dir();
+            if config_root is not None {
+                root = config_root.resolve();
+                here = self.project_dir.resolve();
+                if here == root or root in here.parents {
+                    return config.get_client_dir();
+                }
             }
         }
     } except ImportError {}
     return self.project_dir / '.jac' / 'client';
+}
+
+impl JacClientCompiler._client_app_dir(self: JacClientCompiler) -> Path {
+    client_dir = self._get_client_dir();
+    try {
+        import from jaclang.project.config { get_config }
+        import from jaclang.client.targets.registry { client_workspace_app }
+        app = client_workspace_app(get_config());
+        if app is not None {
+            return client_dir / app.name;
+        }
+    } except ImportError {}
+    return client_dir;
+}
+
+impl JacClientCompiler._app_root(self: JacClientCompiler) -> Path {
+    try {
+        import from jaclang.project.config { get_config }
+        import from jaclang.client.targets.registry { client_app_root }
+        return client_app_root(get_config(), self.project_dir);
+    } except ImportError {}
+    return self.project_dir;
 }
 
 impl JacClientCompiler._jac_path_to_js(self: JacClientCompiler, rel_str: str) -> str {
@@ -111,7 +136,7 @@ impl JacClientCompiler.compile(
 }
 
 impl JacClientCompiler.copy_root_assets(self: JacClientCompiler) -> None {
-    root_assets_dir = self.project_dir / 'assets';
+    root_assets_dir = self._app_root() / 'assets';
     compiled_assets_dir = self.compiled_dir / 'assets';
     if (root_assets_dir.exists() and root_assets_dir.is_dir()) {
         self.asset_processor.copy_assets(root_assets_dir, compiled_assets_dir);
@@ -563,7 +588,7 @@ impl JacClientCompiler._scan_and_compile_pages(
     collected_globals: (dict[(str, any)] | None) = None,
     target_name: str = "web"
 ) -> bool {
-    scanner = RouteScanner(self.project_dir, route_exports_of=resolve_route_exports);
+    scanner = RouteScanner(self._app_root(), route_exports_of=resolve_route_exports);
     if not scanner.has_pages_dir() {
         return False;
     }
@@ -598,7 +623,7 @@ impl JacClientCompiler._warn_pages_without_routes(
 }
 
 impl JacClientCompiler.rescan_pages(self: JacClientCompiler) -> bool {
-    scanner = RouteScanner(self.project_dir, route_exports_of=resolve_route_exports);
+    scanner = RouteScanner(self._app_root(), route_exports_of=resolve_route_exports);
     if not scanner.has_pages_dir() {
         return False;
     }
@@ -705,7 +730,7 @@ impl JacClientCompiler.init(
     self.runtime_path = runtime_path;
     self.compiled_dir = compiled_dir
         if compiled_dir is not None
-        else (self._get_client_dir() / 'compiled');
+        else (self._client_app_dir() / 'compiled');
     self.jac_compiler = JacToJSCompiler(
         compile_to_js_func, extract_exports_func, extract_globals_func
     );

@@ -104,7 +104,7 @@ client-only project to the portable/static path without any --client flag.
 """
 test "web-static kind is detected from jac toml" {
     import from jaclang.project.config { JacConfig }
-    import from jaclang.project.kinds { resolve_project_kind }
+    import from jaclang.project.kinds { resolve_app_kind }
 
     with tempfile.TemporaryDirectory() as temp_dir {
         toml_content = '''[project]
@@ -120,7 +120,8 @@ kind = "web-static"
             f.write(toml_content);
         }
         config = JacConfig.load(Path(toml_path));
-        kind = resolve_project_kind(config, os.path.join(temp_dir, "main.jac"));
+        app = config.resolve_app("");
+        kind = resolve_app_kind(config, app, os.path.join(temp_dir, "main.jac"));
         assert kind == "web-static" , f"expected web-static kind, got {kind}";
     }
 }

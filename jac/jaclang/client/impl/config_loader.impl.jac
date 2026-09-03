@@ -8,8 +8,7 @@ import from jaclang.client.npm_provider {
     CORE_RUNTIME_DEPS,
     LEGACY_META_PACKAGES,
     OPTIONAL_RUNTIME_DEPS,
-    resolve_client_target_name,
-    target_scoped_npm_deps
+    app_npm_deps
 }
 
 def _inject_missing(deps: dict, required: dict[str, str]) -> dict {
@@ -117,10 +116,17 @@ impl JacClientConfig.load(self: JacClientConfig) -> dict[str, any] {
     jac_config = self.get_jac_config();
 
     client_config = jac_config.get_plugin_config('client');
-    target_name = resolve_client_target_name(jac_config);
 
     npm_deps = jac_config.get_plugin_deps('npm');
-    target_scoped_deps = target_scoped_npm_deps(jac_config, target_name);
+    target_scoped_deps: dict[str, str] = {};
+    app_dev_deps: dict[str, str] = {};
+    for (dep_name, dep_version, _origin, dep_is_dev) in app_npm_deps(jac_config) {
+        if dep_is_dev {
+            app_dev_deps[dep_name] = dep_version;
+        } else {
+            target_scoped_deps[dep_name] = dep_version;
+        }
+    }
 
     npm_plugin_deps: dict = dict(jac_config.plugin_dependencies.get('npm', {}));
     dev_section = npm_plugin_deps.get('dev', {});
@@ -139,6 +145,7 @@ impl JacClientConfig.load(self: JacClientConfig) -> dict[str, any] {
         npm_deps, {** CORE_RUNTIME_DEPS, ** OPTIONAL_RUNTIME_DEPS}
     );
     npm_dev_deps = _inject_missing(npm_dev_deps, CORE_DEV_DEPS);
+    npm_dev_deps = {** npm_dev_deps, ** app_dev_deps};
     merged_npm_deps = {** npm_deps, ** target_scoped_deps};
 
     user_config: dict[str, any] = {

@@ -32,7 +32,7 @@ impl make_client_bundle_builder(
     }
     return ViteClientBundleBuilder(
         vite_package_json=package_json_path,
-        vite_output_dir=client_dir / 'dist',
+        vite_output_dir=bundler._client_app_dir() / 'dist',
         vite_minify=False
     );
 }

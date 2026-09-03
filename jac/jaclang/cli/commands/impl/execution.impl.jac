@@ -71,14 +71,112 @@ def _populate_native_argv(engine: ExecutionEngine, argv: list[str]) -> None {
     setattr(engine, "_jac_argv_refs", (c_strings, c_argv));
 }
 
-def _print_plan(plan: RunPlan) {
-    console.print(f"project kind : {plan.kind}");
+def _plan_client(plan: RunPlan, app: any) -> str {
+    import from jaclang.project.kinds { kind_spec }
+    if app is None {
+        return str(plan.flags.get("client", "") or "");
+    }
+    if app.client {
+        return app.client;
+    }
+    spec = kind_spec(plan.kind);
+    return spec.client_target if spec is not None else "";
+}
+
+def _plan_route(plan: RunPlan, app: any) -> str {
+    if app is None {
+        return "";
+    }
+    return app.effective_route() if plan.spec.has_server else "";
+}
+
+def _owning_app(cfg: any, abs_path: str) -> any {
+    app = cfg.app_for_path(abs_path);
+    if app is not None or cfg.apps or cfg.project_root is None {
+        return app;
+    }
+    implicit = cfg.resolve_app("");
+    return implicit if implicit.contains(str(cfg.project_root), abs_path) else None;
+}
+
+def _print_plan(plan: RunPlan, app: any) {
+    if app is not None and not app.implicit {
+        console.print(f"app          : {app.name}");
+    }
+    console.print(f"kind         : {plan.kind}");
     console.print(f"action       : {plan.action}");
     console.print(f"summary      : {plan.summary}");
     if plan.entry_path {
         console.print(f"entry-point  : {plan.entry_path}");
     }
+    client = _plan_client(plan, app);
+    if client {
+        console.print(f"client       : {client}");
+    }
+    route = _plan_route(plan, app);
+    if route {
+        console.print(f"route        : {route}");
+    }
     console.print(f"equivalent   : {plan.command_line()}");
+}
+
+def _workspace_plans(cfg: any, project_root: str) -> list {
+    import from jaclang.project.kinds { plan_app_run, plan_workspace }
+    try {
+        return plan_workspace(cfg, project_root);
+    } except ValueError {}
+    plans: list = [];
+    for app in cfg.apps.values() {
+        try {
+            plans.append(plan_app_run(cfg, project_root, app));
+        } except ValueError {}
+    }
+    return plans;
+}
+
+def _show_workspace(cfg: any, project_root: str) -> int {
+    header = ["app", "kind", "entry", "action", "client", "route"];
+    rows: list[list[str]] = [];
+    planned: set[str] = set();
+    for plan in _workspace_plans(cfg, project_root) {
+        app = cfg.app(plan.app);
+        planned.add(plan.app);
+        entry = (
+            os.path.relpath(plan.entry_path, project_root) if plan.entry_path else "-"
+        );
+        rows.append(
+            [
+                plan.app,
+                plan.kind,
+                entry,
+                plan.action,
+                _plan_client(plan, app) or "-",
+                _plan_route(plan, app) or "-"
+            ]
+        );
+    }
+    for (name, app) in cfg.apps.items() {
+        if name not in planned {
+            rows.append(
+                [name, app.kind or "-", "(no entry)", "-", app.effective_client() or "-", "-"]
+            );
+        }
+    }
+    widths = [
+        max([len(r[i]) for r in [header] + rows])
+        for i in range(len(header))
+    ];
+    console.print(
+        "  ".join([header[i].ljust(widths[i]) for i in range(len(header))])
+    );
+    console.print("  ".join(["-" * w for w in widths]));
+    for row in rows {
+        console.print("  ".join([row[i].ljust(widths[i]) for i in range(len(header))]));
+    }
+    if cfg.default_app {
+        console.print(f"\ndefault-app  : {cfg.default_app}");
+    }
+    return 0;
 }
 
 def _serve_flag_spelling -> dict {
@@ -91,7 +189,8 @@ def _serve_flag_spelling -> dict {
         "client": "--client",
         "host": "--host",
         "platform": "--platform",
-        "takeover": "--takeover"
+        "takeover": "--takeover",
+        "fleet": "--fleet"
     };
 }
 
@@ -120,6 +219,7 @@ def _serve_overrides(
     host: (str | None),
     platform: (str | None),
     takeover: (bool | None),
+    fleet: bool,
     cfg: any
 ) -> dict {
     over: dict = {};
@@ -149,6 +249,9 @@ def _serve_overrides(
     }
     if takeover is not None {
         over["takeover"] = takeover;
+    }
+    if fleet {
+        over["fleet"] = True;
     }
     return over;
 }
@@ -188,13 +291,15 @@ def _kind_serve_flags(
     };
 }
 
-def _serve_with(entry_path: str, plan_flags: dict, over: dict, main: bool) -> int {
+def _serve_with(
+    entry_path: str, plan_flags: dict, over: dict, main: bool, app_name: str
+) -> int {
     import from jaclang.project.providers { initialize_provider_registry }
 
     if not entry_path {
         console.error(
             "Nothing to serve: no entry-point resolved.\n"
-            "  Name a file, or set [project] entry-point in jac.toml."
+            "  Name a file or an app, or set the app's entry-point in jac.toml."
         );
         return 1;
     }
@@ -206,10 +311,11 @@ def _serve_with(entry_path: str, plan_flags: dict, over: dict, main: bool) -> in
         "api_port": 0,
         "no_client": False,
         "faux": False,
-        "client": "web",
+        "client": "",
         "host": "",
-        "platform": "auto",
-        "takeover": False
+        "platform": "",
+        "takeover": False,
+        "fleet": False
     };
     for (k, v) in plan_flags.items() {
         if k in kw {
@@ -219,7 +325,7 @@ def _serve_with(entry_path: str, plan_flags: dict, over: dict, main: bool) -> in
     for (k, v) in over.items() {
         kw[k] = v;
     }
-    return serve(filename=entry_path, main=main, **kw);
+    return serve(filename=entry_path, main=main, app=app_name, **kw);
 }
 
 def _build_plan(plan: RunPlan) -> int {
@@ -239,7 +345,9 @@ def _build_plan(plan: RunPlan) -> int {
     if plan.verb == "build" {
         import from jaclang.cli.commands.build { build }
         return build(
-            projection=plan.flags.get("as", "jab"), client=plan.flags.get("client", "")
+            target=plan.app,
+            projection=plan.flags.get("as", "jab"),
+            client=plan.flags.get("client", "")
         );
     }
 
@@ -247,20 +355,22 @@ def _build_plan(plan: RunPlan) -> int {
     return 1;
 }
 
-def _show_run(plan: (RunPlan | None), filename: str, want_serve: bool) -> int {
+def _show_run(
+    plan: (RunPlan | None), app: any, target: str, file: str, want_serve: bool
+) -> int {
     if plan is None {
         act = "serve" if want_serve else "execute";
-        console.print(f"jac run {filename}  ->  {act} (no jac.toml; explicit file)");
+        console.print(f"jac run {target}  ->  {act} (explicit file; no app claims it)");
         return 0;
     }
-    _print_plan(plan);
+    _print_plan(plan, app);
     if want_serve and plan.action != "serve" {
         console.print("override     : --serve forces serving");
     }
     if (not want_serve) and plan.action == "serve" {
         console.print("override     : --no-serve forces execution");
     }
-    if (not want_serve) and plan.action == "build" and filename {
+    if (not want_serve) and plan.action == "build" and file {
         console.print("override     : a named file executes; a bare run builds");
     }
     return 0;
@@ -328,7 +438,7 @@ impl run_jab_image(
                 os.execv(native_bin, [native_bin] + [str(a) for a in args]);
             }
         }
-        return run(filename=entry_abs, args=args);
+        return run(target=entry_abs, args=args);
     }
     console.error(
         f"{label}: kind '{kind}' is not directly runnable from a jab "
@@ -355,51 +465,126 @@ def _jab_native_bin(img_root: Path, entry_rel: str) -> (str | None) {
 }
 
 
-def _resolve_plan(filename: str) -> tuple {
+def _is_file_target(target: str) -> bool {
+    if not target {
+        return False;
+    }
+    if "/" in target or "\\" in target {
+        return True;
+    }
+    return target.lower().endswith((".jac", ".py", ".jab"));
+}
+
+def _load_cwd_config -> any {
     import from pathlib { Path }
     import from jaclang.project.config { get_config }
-    import from jaclang.project.kinds { plan_project_run, is_valid_kind, VALID_KINDS }
     import from jaclang.project.providers { initialize_provider_registry }
 
-    if filename {
-        _discover_config_from_file(filename);
+    initialize_provider_registry();
+    existing_config = get_config();
+    active_profile = existing_config.active_profile if existing_config else None;
+    cfg = get_config(start_path=Path.cwd(), force_discover=True);
+    if cfg is not None and active_profile {
+        cfg.apply_profile_overlay(active_profile);
+    }
+    return cfg;
+}
+
+def _project_root_of(cfg: any) -> str {
+    return str(cfg.project_root) if cfg.project_root else os.getcwd();
+}
+
+def _effective_config(cfg: any, app: any) -> any {
+    if cfg is None or app is None or app.name not in cfg.apps {
+        return cfg;
+    }
+    return cfg.effective_for_app(app.name);
+}
+
+def _resolve_target(target: str) -> tuple {
+    import from jaclang.project.config { get_config }
+
+    if _is_file_target(target) {
+        _discover_config_from_file(target);
         cfg = get_config();
-    } else {
-        initialize_provider_registry();
-        existing_config = get_config();
-        active_profile = existing_config.active_profile if existing_config else None;
-        cfg = get_config(start_path=Path.cwd(), force_discover=True);
-        if cfg is None {
+        app = _owning_app(cfg, os.path.abspath(target)) if cfg is not None else None;
+        return (cfg, app, target, 0);
+    }
+    cfg = _load_cwd_config();
+    if cfg is None {
+        if target {
             console.error(
-                "No file given and no jac.toml found.\n"
+                f"'{target}' is not a file, and no jac.toml defines an app by that "
+                "name.\n"
+                "  Usage: jac run <app> (inside a project), or jac run <file.jac>."
+            );
+        } else {
+            console.error(
+                "No target given and no jac.toml found.\n"
                 "  Usage: jac run <file.jac>, or run inside a Jac project directory."
             );
-            return (None, None, 1);
         }
-        if active_profile {
-            cfg.apply_profile_overlay(active_profile);
+        return (None, None, "", 1);
+    }
+    if target {
+        app = cfg.app(target);
+        if app is not None {
+            return (cfg, app, "", 0);
         }
-    }
-    if cfg is None {
-        return (None, None, 0);
-    }
-    if cfg.project.kind and not is_valid_kind(cfg.project.kind) {
+        if os.path.isfile(target) {
+            _discover_config_from_file(target);
+            cfg = get_config();
+            app = _owning_app(cfg, os.path.abspath(target)) if cfg is not None else None;
+            return (cfg, app, target, 0);
+        }
         console.error(
-            f"Unknown [project] kind '{cfg.project.kind}'.\n"
-            f"  Valid kinds: {', '.join(VALID_KINDS)}"
+            f"No app named '{target}' in {cfg.toml_path}, and no such file.",
+            hint=f"Apps: {', '.join(cfg.apps.keys())}"
         );
-        return (None, cfg, 1);
+        return (cfg, None, "", 2);
     }
-    project_root = str(cfg.project_root) if cfg.project_root else os.getcwd();
-    plan = plan_project_run(cfg, project_root, entry_override=filename);
-    if plan is None and not filename {
+    try {
+        app = cfg.resolve_app("");
+    } except ValueError as e {
+        console.error(str(e));
+        return (cfg, None, "", 2);
+    }
+    return (cfg, app, "", 0);
+}
+
+def _resolve_plan(target: str) -> tuple {
+    import from jaclang.project.kinds { plan_app_run }
+
+    (cfg, app, file, rc) = _resolve_target(target);
+    if rc {
+        return (None, cfg, None, file, rc);
+    }
+    if cfg is None or app is None {
+        return (None, cfg, None, file, 0);
+    }
+    project_root = _project_root_of(cfg);
+    try {
+        plan = plan_app_run(
+            cfg,
+            project_root,
+            app,
+            entry_override=(os.path.abspath(file) if file else "")
+        );
+    } except ValueError as e {
+        if file {
+            return (None, cfg, app, file, 0);
+        }
+        key = (
+            "[project] entry-point"
+                if app.implicit
+                else f"[apps.{app.name}] entry-point"
+        );
         console.error(
-            "Could not resolve an entry-point for this project.\n"
-            f"  Set [project] entry-point in jac.toml (project root: {project_root})."
+            f"{e}\n  Set {key} in jac.toml (project root: {project_root})."
         );
-        return (None, cfg, 1);
+        return (None, cfg, app, file, 2);
     }
-    return (plan, cfg, 0);
+    return (plan, cfg, app, file, 0);
 }
 
 def _invoke_entrypoint(
@@ -444,7 +629,7 @@ def _invoke_entrypoint(
 }
 
 impl run(
-    filename: str = "",
+    target: str = "",
     show: bool = False,
     main: bool = True,
     cache: bool = True,
@@ -463,11 +648,12 @@ impl run(
     host: (str | None) = None,
     platform: (str | None) = None,
     takeover: (bool | None) = None,
+    fleet: bool = False,
     args: list = []
 ) -> int {
     use_line_buffered_output();
 
-    if filename.endswith(".jab") {
+    if target.endswith(".jab") {
         if dev {
             console.error(
                 "A sealed .jab never serves in dev mode; run the project "
@@ -477,24 +663,44 @@ impl run(
         }
         if show {
             console.print(
-                f"jac run {filename}  ->  kind-aware dispatch (sealed app bundle)"
+                f"jac run {target}  ->  kind-aware dispatch (sealed app bundle)"
             );
             return 0;
         }
-        return _run_jab(filename, port, args, serve_only=(serve_mode is True));
+        return _run_jab(target, port, args, serve_only=(serve_mode is True));
     }
 
-    (plan, cfg, rc) = _resolve_plan(filename);
+    if show and not target {
+        cfg0 = _load_cwd_config();
+        if cfg0 is not None and cfg0.is_workspace {
+            return _show_workspace(cfg0, _project_root_of(cfg0));
+        }
+    }
+
+    (plan, cfg, app, file, rc) = _resolve_plan(target);
     if rc {
         return rc;
     }
+    eff = _effective_config(cfg, app);
 
     over = _serve_overrides(
-        port, dev, api_port, no_client, faux, client, host, platform, takeover, cfg
+        port,
+        dev,
+        api_port,
+        no_client,
+        faux,
+        client,
+        host,
+        platform,
+        takeover,
+        fleet,
+        eff
     );
     entry_flags = _entry_flags_used(entry_name, nd, root_id, debug_mode);
     kind_serves = plan is not None and plan.action == "serve";
-    kind_can_serve = plan is None or kind_serves or "client" in plan.flags;
+    kind_can_serve = (
+        plan is None or kind_serves or bool(_plan_client(plan, app))
+    );
 
     if serve_mode is False {
         want_serve = False;
@@ -511,7 +717,7 @@ impl run(
         shown = _flag_list([spelling[k] for k in over]);
         kind = plan.kind if plan is not None else "cli";
         console.error(
-            f"{shown} applies only when serving, but project kind '{kind}' "
+            f"{shown} applies only when serving, but app kind '{kind}' "
             "executes.\n"
             "  Add --serve to serve it anyway, or drop the flag."
         );
@@ -527,36 +733,37 @@ impl run(
     }
 
     if show {
-        return _show_run(plan, filename, want_serve);
+        return _show_run(plan, app, target, file, want_serve);
     }
 
     if want_serve {
         return _serve_with(
-            filename or (plan.entry_path if plan is not None else ""),
+            file or (plan.entry_path if plan is not None else ""),
             _kind_serve_flags(plan, kind_serves, serve_mode),
             over,
-            main
+            main,
+            app.name if app is not None else ""
         );
     }
-    if plan is not None and plan.action == "build" and not filename {
+    if plan is not None and plan.action == "build" and not file {
         return _build_plan(plan);
     }
 
-    target = filename or (plan.entry_path if plan is not None else "");
-    if not target {
+    exec_target = file or (plan.entry_path if plan is not None else "");
+    if not exec_target {
         console.error(
             "Nothing to run: no entry-point resolved.\n"
-            "  Usage: jac run <file.jac>, or run inside a Jac project directory."
+            "  Usage: jac run <app> or jac run <file.jac>."
         );
         return 1;
     }
     if debug_mode {
-        return debug(filename=target, main=main, cache=cache);
+        return debug(filename=exec_target, main=main, cache=cache);
     }
     if entry_name {
-        return _invoke_entrypoint(target, entry_name, args, main, root_id, nd);
+        return _invoke_entrypoint(exec_target, entry_name, args, main, root_id, nd);
     }
-    return _exec_file(target, main, cache, diagnostics, args);
+    return _exec_file(exec_target, main, cache, diagnostics, args);
 }
 
 def _exec_file(
@@ -586,10 +793,16 @@ def _exec_file(
             native_executed = False;
 
             _cfg_kind = get_config();
-            _kind_forced = (
-                _cfg_kind is not None
-                and (_cfg_kind.project.kind or '').strip() == 'cli-native'
-            );
+            _kind_forced = False;
+            if _cfg_kind is not None {
+                import from jaclang.project.kinds { resolve_app_kind }
+                _abs_file = os.path.abspath(filename);
+                _app = _owning_app(_cfg_kind, _abs_file);
+                _kind_forced = (
+                    _app is not None
+                    and resolve_app_kind(_cfg_kind, _app, _abs_file) == 'cli-native'
+                );
+            }
             import from jaclang.compiler.driver.boundary_classify {
                 module_demoted_native as _na_demoted
             }
@@ -695,6 +908,106 @@ def _exec_file(
     return 1 if (n_errors and diagnostics != "none") else 0;
 }
 
+def _serve_app(cfg: any, app: str, filename: str) -> any {
+    if cfg is None {
+        return None;
+    }
+    if app {
+        named = cfg.app(app);
+        if named is not None {
+            return named;
+        }
+    }
+    return _owning_app(cfg, os.path.abspath(filename));
+}
+
+def _service_apps(cfg: any, served: any) -> list {
+    return [
+        a
+        for a in cfg.serving_apps()
+        if a.kind in ("service", "service-mesh") and a.name != served.name
+    ];
+}
+
+def _gateway_colocates(cfg: any) -> bool {
+    scale_cfg = cfg.get_plugin_config("scale") or {};
+    gateway = scale_cfg.get("gateway", {}) if isinstance(scale_cfg, dict) else {};
+    return not (isinstance(gateway, dict) and gateway.get("colocate") is False);
+}
+
+def _serve_fleet(
+    cfg: any, served: any, filename: str, port: int, fleet: bool
+) -> (int | None) {
+    if cfg is None or served is None {
+        return None;
+    }
+    services = _service_apps(cfg, served);
+    if not services {
+        return None;
+    }
+    if not fleet and _gateway_colocates(cfg) {
+        return None;
+    }
+    import from jaclang.project.kinds { plan_app_run }
+    import from jaclang.scale.plugin { scale_local_serve }
+
+    project_root = (
+        str(cfg.project_root)
+            if cfg.project_root
+            else os.path.dirname(os.path.abspath(filename))
+    );
+    try {
+        served_plan = plan_app_run(
+            cfg, project_root, served, entry_override=os.path.abspath(filename)
+        );
+        members: list[RunPlan] = [plan_app_run(cfg, project_root, svc) for svc in services];
+    } except ValueError as e {
+        console.error(f"Cannot assemble the service fleet: {e}");
+        return 1;
+    }
+    return scale_local_serve(served_plan, members, port=port);
+}
+
+def _colocate_services(cfg: any, served: any, base: str) -> None {
+    if cfg is None or served is None {
+        return;
+    }
+    services = _service_apps(cfg, served);
+    if not services {
+        return;
+    }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
+    import from jaclang.jac0core.ext_registry { base_stem }
+    import from jaclang.server.sv_client { register_local }
+
+    project_root = str(cfg.project_root) if cfg.project_root else base;
+    for svc in services {
+        entry = svc.entry_path(project_root);
+        if not entry or not os.path.isfile(entry) {
+            console.warning(
+                f"Service app '{svc.name}' has no entry file; not colocated."
+            );
+            continue;
+        }
+        (svc_base, svc_file) = os.path.split(entry);
+        loaded = Jac.jac_import(
+            target=base_stem(svc_file),
+            base_path=svc_base or "./",
+            lng=entry.split(".")[-1]
+        );
+        module = loaded[0] if loaded else None;
+        if module is None {
+            raise RuntimeError(f"Service app '{svc.name}' failed to load from {entry}");
+        }
+        register_local(svc.name, module);
+        console.print(
+            f"  ✔ colocated service '{svc.name}' "
+            f"({os.path.relpath(entry, project_root)})",
+            style="muted"
+        );
+    }
+}
+
 impl serve(
     filename: str,
     port: int = 0,
@@ -703,31 +1016,20 @@ impl serve(
     dev: bool = False,
     api_port: int = 0,
     no_client: bool = False,
-    client: str = "web",
+    client: str = "",
     host: str = "",
-    platform: str = "auto",
-    takeover: bool = False
+    platform: str = "",
+    takeover: bool = False,
+    fleet: bool = False,
+    app: str = ""
 ) -> int {
     import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from pathlib { Path }
     import from jaclang.compiler.frontend.codeinfo { set_effective_default_codespace }
+    import from jaclang.project.config { get_config }
 
     use_line_buffered_output();
     set_effective_default_codespace('server');
-
-    import from jaclang.client.cli { run_client_start }
-    client_rc = run_client_start(
-        filename, client, host, platform, port, api_port, dev, no_client
-    );
-    if client_rc is not None {
-        return client_rc;
-    }
-
-    import from jaclang.scale.plugin { scale_local_serve }
-    scale_rc = scale_local_serve(filename, port=port);
-    if scale_rc is not None {
-        return scale_rc;
-    }
 
     if filename.endswith(".jab") {
         if dev {
@@ -745,6 +1047,29 @@ impl serve(
     }
 
     _discover_config_from_file(filename);
+    cfg = get_config();
+    served = _serve_app(cfg, app, filename);
+    if served is not None {
+        import from jaclang.client.cli { run_client_start }
+        client_rc = run_client_start(
+            served, client, host, platform, port, api_port, dev, no_client
+        );
+        if client_rc is not None {
+            return client_rc;
+        }
+    } elif client and client != "web" {
+        console.error(
+            f"--client {client} needs an app: no jac.toml app claims {filename}.",
+            hint=f"Run inside a project, or name the app: jac run <app> --client {client}"
+        );
+        return 1;
+    }
+
+    fleet_rc = _serve_fleet(cfg, served, filename, port, fleet);
+    if fleet_rc is not None {
+        return fleet_rc;
+    }
+
     if takeover {
         import os;
         import from jaclang.server.session { takeover_project }
@@ -770,6 +1095,7 @@ impl serve(
             mach.close();
             return 1;
         }
+        _colocate_services(cfg, served, base);
     } except Exception as e {
         if Jac.get_program().errors_had {
             for error in Jac.get_program().errors_had {
