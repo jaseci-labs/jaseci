@@ -1744,8 +1744,12 @@ An un-awaited cross-app walker spawn is a message, not a call. It is written to 
 ```jac
 import from jaclang.server { outbox }
 
-# explicit key: two requests for the same order must not double-ship
-outbox.enqueue("fulfillment", "Ship", {"order_id": oid}, idempotency_key=f"ship:{oid}");
+def ship_later(oid: str) -> str {
+    # explicit key: two requests for the same order must not double-ship
+    return outbox.enqueue(
+        "fulfillment", "Ship", {"order_id": oid}, idempotency_key=f"ship:{oid}"
+    );
+}
 ```
 
 **Read policy.** Bridged reads always go to the owner app (owner-read); a consumer never reads another app's store. `[apps.<consumer>.scale] read_cache = true` opts a consumer into an in-process cache of bridged calls whose provider endpoint declares no effects, invalidated whenever an effectful call to that provider app goes through.
