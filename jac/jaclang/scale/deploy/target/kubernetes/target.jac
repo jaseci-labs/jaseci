@@ -2090,8 +2090,15 @@ obj KubernetesTarget(KubernetesTargetBase) {
         return False;
     }
 
-    def _reclaim_namespace(namespace: str, core_v1: any) {
-        delete_namespace(namespace);
+    def _reclaim_namespace(namespace: str, core_v1: any) -> bool {
+        try {
+            delete_namespace(namespace);
+        } except ApiException as e {
+            if e.status != 403 {
+                raise;
+            }
+            return False;
+        }
         if self._wait_for_namespace_deletion(namespace, core_v1) {
             if self.logger {
                 self.logger.info(f"Namespace '{namespace}' deleted");
@@ -2101,6 +2108,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 f"Timed out waiting for namespace '{namespace}' to be deleted"
             );
         }
+        return True;
     }
 
     def _destroy_app_database(
@@ -2184,10 +2192,17 @@ obj KubernetesTarget(KubernetesTargetBase) {
 
         if sole_tenant {
             if monitoring_reclaimed {
-                self._reclaim_namespace(namespace, core_v1);
-                return;
-            }
-            if self.logger {
+                if self._reclaim_namespace(namespace, core_v1) {
+                    return;
+                }
+                if self.logger {
+                    self.logger.warning(
+                        f"Not permitted to delete namespace '{namespace}', so "
+                        f"this app's resources inside it are removed instead",
+                        {"app_name": app_name}
+                    );
+                }
+            } elif self.logger {
                 self.logger.warning(
                     f"Keeping namespace '{namespace}': its monitoring RBAC is "
                     f"cluster-scoped and is named after this namespace, so "

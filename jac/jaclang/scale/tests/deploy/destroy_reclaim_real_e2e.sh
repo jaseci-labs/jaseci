@@ -132,13 +132,18 @@ deploy_app() {
         || fail "${ns}" "'${app}' did not roll out in '${ns}'"
 }
 
+DESTROY_OUT=""
 destroy_app() {
     app="$1"; ns="$2"
     export SDK_DEPLOY_APP_NAME="${app}" SDK_DEPLOY_NAMESPACE="${ns}"
-    if ! (cd "${REPO_ROOT}/jac" && jac run "${DRIVER}" destroy </dev/null 2>&1 \
-            | tail -20 | grep -q "DESTROY_OK"); then
-        fail "${ns}" "destroy of '${app}' in '${ns}' errored (or prompted)"
-    fi
+    DESTROY_OUT="$(cd "${REPO_ROOT}/jac" && jac run "${DRIVER}" destroy </dev/null 2>&1 || true)"
+    printf '%s\n' "${DESTROY_OUT}" | tail -20 | grep -q "DESTROY_OK" \
+        || fail "${ns}" "destroy of '${app}' in '${ns}' errored (or prompted)"
+}
+
+# Console output wraps, so fold whitespace before matching a phrase.
+destroy_said() {
+    printf '%s\n' "${DESTROY_OUT}" | tr -s '[:space:]' ' ' | grep -q "$1"
 }
 
 ns_owner() {
@@ -260,6 +265,10 @@ echo "  postgres + ${PVC_BEFORE} PVC(s) present, namespace owned by '${OWNER}'"
 _t "A deployed"
 destroy_app "${APP}" "${OWNED_NS}"
 
+if destroy_said "Another app has resources"; then
+    fail "${OWNED_NS}" "'${APP}' was alone in '${OWNED_NS}' but destroy named a co-tenant"
+fi
+
 wait_ns_gone "${OWNED_NS}" \
     || fail "${OWNED_NS}" "namespace '${OWNED_NS}' still exists ${NS_DELETE_WAIT}s after destroy (#7968 regression)"
 echo "  namespace reclaimed, so postgres and every PVC went with it"
@@ -360,6 +369,9 @@ echo "  namespace owned by '${APP}', co-tenant '${COTENANT}' adopted it"
 _t "C deployed"
 # Destroying the co-tenant must take the adopted path and spare the namespace.
 destroy_app "${COTENANT}" "${COTENANT_NS}"
+
+destroy_said "Another app has resources" \
+    || fail "${COTENANT_NS}" "destroying '${COTENANT}' removed '${APP}' workloads from the namespace without naming '${APP}', so nobody knows to redeploy it"
 
 kubectl get namespace "${COTENANT_NS}" >/dev/null 2>&1 \
     || { echo "FAIL: destroying co-tenant '${COTENANT}' deleted namespace '${COTENANT_NS}', taking '${APP}' and its database with it" >&2; exit 1; }

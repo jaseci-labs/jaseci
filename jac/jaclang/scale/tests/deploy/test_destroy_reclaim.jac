@@ -292,21 +292,6 @@ test "removing the application names the co-tenant whose workloads went too" {
 }
 
 
-test "an adopted namespace still names the co-tenant whose workloads went too" {
-    (apps_v1, core_v1) = _co_tenant_apis();
-    logger = unittest.mock.MagicMock();
-
-    _run_destroy(
-        apps_v1, core_v1, unittest.mock.MagicMock(), owned=False, logger=logger
-    );
-
-    assert _warnings_naming_co_tenant(logger) , (
-        f"the namespace was not this app's to delete, but '{CO_TENANT}' still "
-        "lost its workloads to the sweep and was never named"
-    );
-}
-
-
 test "a namespace holding no other app warns about no co-tenant" {
     apps_v1 = unittest.mock.MagicMock();
     apps_v1.list_namespaced_stateful_set.return_value = SimpleNamespace(
@@ -356,5 +341,30 @@ test "a refused monitoring teardown fails its own component destroy" {
     assert raised , (
         "destroying the monitoring component reported success while its "
         "cluster-scoped roles were refused, so nobody knows to retry"
+    );
+}
+
+
+def _refuse_namespace_delete(name: str) {
+    raise ApiException(status=403);
+}
+
+
+test "a namespace this app may not delete still gives up its database" {
+    apps_v1 = unittest.mock.MagicMock();
+    apps_v1.list_namespaced_stateful_set.return_value = SimpleNamespace(
+        items=[SimpleNamespace(metadata=SimpleNamespace(name=f"{APP}-postgres"))]
+    );
+    core_v1 = unittest.mock.MagicMock();
+    core_v1.list_namespaced_service.return_value = SimpleNamespace(items=[]);
+    core_v1.list_namespaced_persistent_volume_claim.return_value = SimpleNamespace(
+        items=[_pvc(bundle_pvc_name(APP), "bundle-store")]
+    );
+
+    _run_destroy(apps_v1, core_v1, _refuse_namespace_delete);
+
+    assert apps_v1.delete_namespaced_stateful_set.called , (
+        "the namespace delete was refused and destroy gave up there, so the "
+        "database and its volume stay with no way to reclaim them by re-running"
     );
 }
