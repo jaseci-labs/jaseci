@@ -555,6 +555,18 @@ compaction_model       = ""       # Empty = copy of the active model; set to use
 |-----|------|---------|-------------|
 | `enabled` | bool | `true` | Automatically add Anthropic `cache_control` markers to the system prompt and tool schemas. Caches the static prefix across ReAct iterations for up to 90% input token savings. Only applies to Claude models; no effect on other providers |
 
+This `[byllm.prompt_caching]` block is the global default. A single model can override it without touching the toml by passing `prompt_caching` in its own config, which wins over the global setting:
+
+```jac
+# force caching off for this model, whatever the toml says
+glob model = Model(model_name="anthropic/claude-sonnet-4-6", config={"prompt_caching": False});
+
+# force it on for one model while the toml default is off
+glob cached = Model(model_name="anthropic/claude-sonnet-4-6", config={"prompt_caching": True});
+```
+
+The value is a bool, or a `{"enabled": <bool>}` dict mirroring the toml shape; omit it to inherit the global default. The Claude-only model gate still applies: setting `prompt_caching` `True` on a non-Claude model does nothing.
+
 **`[byllm.optimizations]` options:**
 
 | Key | Type | Default | Description |

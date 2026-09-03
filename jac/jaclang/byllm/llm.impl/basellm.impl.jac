@@ -187,9 +187,28 @@ async def _aretry_sleep(attempt: int) {
 }
 
 
-def _is_prompt_caching_eligible(model_name: str) -> bool {
-    pc_config = _byllm_config.get_prompt_caching_config();
-    if not pc_config.get("enabled", True) {
+def _config_prompt_caching(config: dict) -> bool | None {
+    val = config.get("prompt_caching");
+    if val is None {
+        return None;
+    }
+    if isinstance(val, dict) {
+        inner = val.get("enabled");
+        return bool(inner) if inner is not None else None;
+    }
+    return bool(val);
+}
+
+
+def _is_prompt_caching_eligible(
+    model_name: str, model_override: bool | None = None
+) -> bool {
+    if model_override is None {
+        pc_on = _byllm_config.get_prompt_caching_config().get("enabled", True);
+    } else {
+        pc_on = model_override;
+    }
+    if not pc_on {
         return False;
     }
     name = model_name.lower();
@@ -1148,7 +1167,9 @@ impl BaseLLM.make_model_params(mt_run: MTRuntime) -> dict {
         }
     }
 
-    if _is_prompt_caching_eligible(self.model_name) {
+    if _is_prompt_caching_eligible(
+        self.model_name, _config_prompt_caching(self.config)
+    ) {
         _apply_prompt_caching(messages, tools);
     }
 
