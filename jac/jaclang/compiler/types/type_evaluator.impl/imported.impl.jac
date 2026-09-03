@@ -313,7 +313,11 @@ impl TypeEvaluator.get_type_of_module(node_: ModulePath) -> TypeBase {
                     return npath.type;
                 }
                 npath.type = UnknownType(is_diagnosed=True);
-                self.emit_diag(W1100, npath);
+                if self._relative_import_must_resolve(node_) {
+                    self.emit_diag(E1134, npath, module=node_.dot_path_str);
+                } else {
+                    self.emit_diag(W1100, npath);
+                }
                 return npath.type;
             }
 
@@ -518,4 +522,41 @@ impl TypeEvaluator.resolve_to_definition_symbol(symbol: Symbol) -> Symbol {
         cur = node_.sym;
     }
     return cur;
+}
+
+
+impl TypeEvaluator._relative_import_must_resolve(node_: ModulePath) -> bool {
+    if node_.level <= 0 or node_.string_path_value is not None {
+        return False;
+    }
+    imp = node_.find_parent_of_type(Import);
+    if imp is None or imp.is_typed or imp.is_comptime {
+        return False;
+    }
+    return not self._import_error_is_handled(imp);
+}
+
+
+impl TypeEvaluator._import_error_is_handled(imp: Import) -> bool {
+    caught = {'ImportError', 'ModuleNotFoundError', 'Exception', 'BaseException'};
+    prev: UniNode = imp;
+    cur: (UniNode | None) = imp.parent;
+    while cur is not None {
+        if isinstance(cur, TryStmt) and (prev in cur.body) {
+            for handler in cur.excepts {
+                for nm in handler.ex_type.get_all_sub_nodes(typ=Name) {
+                    if nm.value in caught {
+                        return True;
+                    }
+                }
+                if isinstance(handler.ex_type, Name)
+                    and handler.ex_type.value in caught {
+                    return True;
+                }
+            }
+        }
+        prev = cur;
+        cur = cur.parent;
+    }
+    return False;
 }
