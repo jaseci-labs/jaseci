@@ -2,7 +2,9 @@ import from jaclang.compiler.backends.native.linker_common {
     collect_floor_archives,
     floor_lib_dir,
     resolve_floor_dir,
-    clib_to_archive_name
+    clib_to_archive_name,
+    clib_needed_libs,
+    clib_symbol_lib_map
 }
 import os;
 import sys;
@@ -523,31 +525,7 @@ impl nacompile(
     } else {
         needed_libs: list[str] = [];
     }
-    _lib_norm: dict[str, str] = {};
-    if clib_paths {
-        for lib_path in clib_paths {
-            if lib_path in _floor_handled {
-                continue;
-            }
-            _needed = lib_path;
-            if (not os.path.isabs(lib_path))
-                and (not lib_path.startswith("$"))
-                and (not lib_path.startswith("@"))
-                and ("/" in lib_path or "\\" in lib_path) {
-                _needed = os.path.basename(lib_path);
-            }
-            _needed_base = os.path.basename(_needed);
-            if _needed_base == "libc.so" {
-                _needed = "libc.so.6";
-            } elif _needed_base == "libm.so" {
-                _needed = "libm.so.6";
-            }
-            if _needed not in needed_libs {
-                needed_libs.append(_needed);
-            }
-            _lib_norm[lib_path] = _needed;
-        }
-    }
+    _lib_norm = clib_needed_libs(needed_libs, clib_paths or [], _floor_handled);
 
     _is_linux_exec = (not shared) and (not is_windows) and (not is_macos);
     _static_musl = _is_linux_exec and (len(needed_libs) == 0);
@@ -598,13 +576,9 @@ impl nacompile(
         }
     }
 
-    symbol_lib_map: dict[str, str] = {};
-    for (_sym, _raw) in ir_module.gen._clib_symbol_lib.items() {
-        if _raw in _floor_handled {
-            continue;
-        }
-        symbol_lib_map[_sym] = _lib_norm.get(_raw, _raw);
-    }
+    symbol_lib_map = clib_symbol_lib_map(
+        ir_module.gen._clib_symbol_lib, _floor_handled, _lib_norm, shared, is_macos
+    );
 
     try {
         mod = llvm.parse_assembly(llvm_ir_str);
