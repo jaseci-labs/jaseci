@@ -1843,6 +1843,14 @@ class Parser:
             is_classmethod = True
         # consume 'def' or 'can'
         self._advance()
+        # Optional access modifier :pub, :priv, :prot (same as _parse_has)
+        if (
+            self._at(TT.COLON)
+            and self._peek(1).type == TT.NAME
+            and self._peek(1).value in ("pub", "priv", "prot", "protect")
+        ):
+            self._advance()  # skip :
+            self._advance()  # consume access modifier
         name = self._expect(TT.NAME).value
         # Skip optional type parameters: def foo[T, E](...)
         if self._match(TT.LBRACKET):

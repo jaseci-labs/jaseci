@@ -230,6 +230,10 @@ impl NaIRGenObjects._register_archetypes(module: uni.Module) -> None {
 
     self._register_osp_kernel_module();
     self._emit_osp_setup();
+    import from jaclang.compiler.native_scope { scope_lowering_active }
+    if scope_lowering_active() {
+        self.ir_in.gen.jc_layout = self._build_jc_layout();
+    }
 
     self._predemote_capability_constructors();
     self._codegen_constructors_first(archetypes);
@@ -1908,6 +1912,30 @@ impl NaIRGenObjects._codegen_instantiation(
             self._emit_set_type_tag(self.builder, _obj_i8_r, type_name);
         }
         self._region_log_dtor_if_needed(raw_ptr, type_name);
+    } elif self._dynamic_region_module() and not self._arch_is_walker_name(type_name) {
+        null_ptr = ir.Constant(struct_ptr_type, None);
+        size_gep = self.builder.gep(
+            null_ptr, [ir.Constant(ir.IntType(32), 1)], name="sizeof.gep"
+        );
+        size = self.builder.ptrtoint(size_gep, ir.IntType(64), name="sizeof");
+        raw_ptr = self._dyn_region_alloc(size, type_name);
+        obj_ptr = self.builder.bitcast(raw_ptr, struct_ptr_type, name="obj.ptr");
+        self._emit_trace_fn(type_name);
+        _trace_fn_d = self.struct_trace_fns.get(type_name);
+        self._require_trace_fn(
+            type_name,
+            (
+                self._struct_has_ref_fields(type_name)
+                and not self._arch_is_acyclic(type_name)
+            ),
+            _trace_fn_d is not None
+        );
+        if self.rc_set_type_fn is not None {
+            _obj_i8_d = self.builder.bitcast(
+                obj_ptr, ir.IntType(8).as_pointer(), name="obj.i8.dtag"
+            );
+            self._emit_set_type_tag(self.builder, _obj_i8_d, type_name);
+        }
     } elif (
         self._arch_is_osp_name(type_name)
         and not self._arch_is_walker_name(type_name)
@@ -3297,7 +3325,7 @@ impl NaIRGenObjects._codegen_accessor_call(
     if self._arch_has_vtable(type_name) {
         result = self._codegen_virtual_call(obj_val, slot, _all_args, type_name);
         if result is not None {
-            return result;
+            return self._own_accessor_result(result);
         }
     }
     coerced: list[ir.Value] = [];
@@ -3306,7 +3334,17 @@ impl NaIRGenObjects._codegen_accessor_call(
             self._coerce_type(arg, func.args[i].type) if i < len(func.args) else arg
         );
     }
-    return self.builder.call(func, coerced, name=f"acc.{slot}");
+    return self._own_accessor_result(
+        self.builder.call(func, coerced, name=f"acc.{slot}")
+    );
+}
+
+impl NaIRGenObjects._own_accessor_result(result: ir.Value) -> ir.Value {
+    if isinstance(result.type, ir.PointerType)
+        or self._opt_ptr_payload_of(result.type) is not None {
+        return self._mark_owned(result);
+    }
+    return result;
 }
 
 impl NaIRGenObjects._receiver_union_parts(
@@ -4163,4 +4201,129 @@ impl NaIRGenObjects._emit_class_routed_call(
         return None;
     }
     return _sr;
+}
+
+
+impl NaIRGenObjects._jc_abi_offsets(field_types: list) -> tuple {
+    offsets: list[int] = [];
+    off = 0;
+    for ft in field_types {
+        sz = 8;
+        if isinstance(ft, ir.IntType) {
+            sz = 1 if ft.width <= 8 else (ft.width // 8);
+        } elif isinstance(ft, ir.DoubleType) {
+            sz = 8;
+        } elif isinstance(ft, ir.PointerType) {
+            sz = 8;
+        } elif ft?.elements and ft.elements is not None {
+            (_sub, _ssz) = self._jc_abi_offsets(list(ft.elements));
+            _align = 8;
+            if off % _align != 0 {
+                off += _align - (off % _align);
+            }
+            offsets.append(off);
+            off += _ssz;
+            continue;
+        }
+        if off % sz != 0 {
+            off += sz - (off % sz);
+        }
+        offsets.append(off);
+        off += sz;
+    }
+    if off % 8 != 0 {
+        off += 8 - (off % 8);
+    }
+    return (offsets, off);
+}
+
+impl NaIRGenObjects._build_jc_layout -> str {
+    import json;
+    out: dict = {"classes": {}};
+    _model = self.ir_in.gen.osp_model;
+    _tags = _model.tags if _model is not None else {};
+    for arch_name in self.struct_field_indices {
+        st = self.struct_types.get(arch_name);
+        if st is None or st?.elements is None {
+            continue;
+        }
+        (offsets, total) = self._jc_abi_offsets(list(st.elements));
+        idx_map = self.struct_field_indices.get(arch_name, {});
+        ftypes = self.struct_field_types.get(arch_name, {});
+        enum_map = self.struct_field_enum_type.get(arch_name, {});
+        fields: dict = {};
+        for (fname, fidx) in idx_map.items() {
+            if fidx >= len(offsets) {
+                continue;
+            }
+            ft = ftypes.get(fname);
+            code = "opaque";
+            aux = "";
+            if fname in enum_map {
+                code = "enum";
+                aux = enum_map[fname];
+            } elif fname in self.struct_field_erased_tv.get(arch_name, {}) {
+                code = "obj";
+            } elif (
+                isinstance(ft, ir.PointerType)
+                and isinstance(ft.pointee, ir.IntType)
+                and ft.pointee.width == 8
+            ) {
+                code = "str";
+            } elif getattr(ft, "name", "") == "JacVal" {
+                code = "union";
+            } elif (
+                ft?.elements
+                and ft.elements is not None
+                and len(ft.elements) == 2
+                and isinstance(ft.elements[0], ir.IntType)
+                and isinstance(ft.elements[1], ir.PointerType)
+            ) {
+                code = "optref";
+                _opn = getattr(ft.elements[1].pointee, "name", "") or "";
+                aux = _opn;
+            } elif isinstance(ft, ir.IntType) {
+                code = "bool" if ft.width == 1 else "int";
+            } elif isinstance(ft, ir.DoubleType) {
+                code = "float";
+            } elif isinstance(ft, ir.PointerType) {
+                _pn = getattr(ft.pointee, "name", "") or "";
+                _is_list = False;
+                for (_, _lt) in self.list_types.items() {
+                    if ft == _lt.as_pointer() {
+                        _is_list = True;
+                        break;
+                    }
+                }
+                if _is_list {
+                    code = "natlist";
+                    aux = _pn;
+                } elif _pn in self.struct_field_indices {
+                    code = "obj";
+                    aux = _pn;
+                } elif _pn == "jac.str" or _pn.endswith(".str") or _pn == "str" {
+                    code = "str";
+                } else {
+                    code = "ptr";
+                    aux = _pn;
+                }
+            }
+            fields[fname] = {
+                "index": fidx,
+                "offset": offsets[fidx],
+                "code": code,
+                "aux": aux
+            };
+        }
+        _lay_tag_idx = self.osp_type_tag_field.get(arch_name);
+        out["classes"][arch_name] = {
+            "size": total,
+            "tag": _tags.get(arch_name, 0),
+            "tag_offset": offsets[_lay_tag_idx]
+                if (_lay_tag_idx is not None and _lay_tag_idx < len(offsets))
+                else -1,
+            "fields": fields
+        };
+    }
+    return json.dumps(out);
 }

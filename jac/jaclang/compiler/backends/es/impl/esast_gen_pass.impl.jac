@@ -7448,7 +7448,12 @@ impl EsastGenPass._emit_boundary_type_stubs(nd: uni.Module) -> list[es.Statement
                     alternate=None
                 )
             );
-            nested_set = set(info.nested_types);
+            nested_set = {
+                t
+                for t in info.nested_types
+                if t in manifest.boundary_types
+                    and manifest.boundary_types[t].kind != "enum"
+            };
             for fname in field_names {
                 ftype = field_types[fname];
 

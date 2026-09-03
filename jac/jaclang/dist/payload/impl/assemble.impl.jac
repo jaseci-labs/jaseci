@@ -22,6 +22,7 @@ import from jaclang.dist.payload.fsutil {
     sha256_hex,
     skip_jaclang,
     skip_none,
+    skip_site_template,
     skip_stage_site,
     source_file_mode,
     strip_best_effort,
@@ -111,6 +112,16 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
             os.path.join(repo_root, "bootstrap", "pins.json"),
             os.path.join(site, "jaclang", "dist", "payload", "pins.json")
         );
+
+        awesome_src = os.path.join(repo_root, "examples", "jaclang_org");
+        if os.path.isdir(awesome_src) {
+            log("==> bundling the jaclang.org site as the --awesome template");
+            copy_tree(
+                awesome_src, os.path.join(site, "awesome_template"), skip_site_template
+            );
+        } else {
+            log(f"==> no {awesome_src}; --awesome template not bundled");
+        }
     } else {
         log(
             f"==> linked-source mode: NOT bundling jaclang (compiler served from {opts.link_source})"
@@ -145,6 +156,55 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
         );
     }
 
+    import sys;
+    jc_name = (
+        "libjac_compiler.dylib" if sys.platform == "darwin" else "libjac_compiler.so"
+    );
+    jc_src = os.path.join(repo_root, "jaclang", "compiler", "jc_unit.jac");
+    jc_dst = os.path.join(site, "jaclang", "compiler", jc_name);
+    if not file_exists(jc_src) {
+        log("==> no compiler kernel unit in this tree; skipping kernel build");
+        _bundle_bun(site, opts);
+        return;
+    }
+    log(f"==> building native compiler kernel (nacompile --shared {jc_src})");
+    jc_boot = (
+        "import os, sys\n"
+        + "root, src, dst = sys.argv[1], sys.argv[2], sys.argv[3]\n"
+        + "sys.path.insert(0, root)\n"
+        + "import _jac_finder\n"
+        + "_jac_finder.install()\n"
+        + "from jaclang.cli.commands.nacompile import nacompile\n"
+        + "rc = int(nacompile(src, output=dst, shared=True) or 0)\n"
+        + "sys.stdout.flush()\n"
+        + "sys.stderr.flush()\n"
+        + "os._exit(rc)\n"
+    );
+    jc_env = clone_env();
+    jc_env["JAC_LLVM_SHIM"] = os.path.abspath(so);
+    jc_env["JAC_COMPILER_LIB"] = "off";
+    jc_env["JAC_NO_DEV_SOURCE"] = "1";
+    jc_env["JAC_STUBCAT_BUILDING"] = "1";
+    jc_ok = run_child(
+        [sys.executable, "-I", "-c", jc_boot, repo_root, jc_src, jc_dst], jc_env, True
+    );
+    if (
+        not jc_ok or not file_exists(jc_dst) or not file_exists(jc_dst + ".layout.json")
+    ) {
+        raise PayloadDie(
+            f"mkpayload: native compiler kernel build failed; the shipped"
+            f" binary requires {jc_dst} and its .layout.json sidecar."
+        );
+    }
+
+    jc_tree = os.path.join(repo_root, "jaclang", "compiler", jc_name);
+    copy_file(jc_dst, jc_tree);
+    copy_file(jc_dst + ".layout.json", jc_tree + ".layout.json");
+
+    _bundle_bun(site, opts);
+}
+
+impl _bundle_bun(site: str, opts: MkPayloadOpts) {
     bb = opts.bun_bin;
     if bb is not None {
         bun_dir = os.path.join(site, "jaclang", "client", "_bun");
@@ -266,7 +326,7 @@ impl precompile(py: str, pbs_py_dir: str, site: str, seal: bool, debug_src: bool
 
     boot = os.path.join(site, "precompile_boot.py");
     write_text(boot, PRECOMPILE_BOOT_SRC);
-    argv = [py, "-S", boot, pc, site];
+    argv = [py, "-S", boot, site];
     if seal {
         argv.append("--seal-compile");
     }
@@ -290,7 +350,7 @@ impl precompile(py: str, pbs_py_dir: str, site: str, seal: bool, debug_src: bool
     if not seal {
         return;
     }
-    fin = [py, "-S", boot, pc, site, "--seal-finalize"];
+    fin = [py, "-S", boot, site, "--seal-finalize"];
     if debug_src {
         fin.append("--debug-src");
     }
@@ -340,6 +400,18 @@ impl stage_tree(
 
     copy_tree(site, os.path.join(stage, "site"), skip_stage_site);
     strip_best_effort(site_shim_path(os.path.join(stage, "site")));
+    import sys as _sys;
+    strip_best_effort(
+        os.path.join(
+            stage,
+            "site",
+            "jaclang",
+            "compiler",
+            "libjac_compiler.dylib"
+                if _sys.platform == "darwin"
+                else "libjac_compiler.so"
+        )
+    );
 
     stage_python_bin(pbs_py_dir, stage);
 

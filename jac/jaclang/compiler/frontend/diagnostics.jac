@@ -147,13 +147,14 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      E0013 = _err(
          "E0013",
          Category.SYNTAX,
-         "'{keyword}' is a keyword and cannot be used as a {context} name (prefix with backtick to escape: `{keyword})"
+         "'{keyword}' is a keyword and cannot be used as a {context} name",
+         help="The backtick escape is a prefix, not a pair. Put one backtick immediately before the keyword, with nothing after the name."
      ),
      E0014 = _err(
          "E0014",
          Category.SYNTAX,
          "'{name}' is not a keyword -- remove the backtick",
-         help="The backtick escape exists only to use a reserved keyword as an identifier. On a name that is not a keyword it is a stray mark, so write '{name}' directly."
+         help="The backtick escape exists only to use a reserved keyword as an identifier. On a name that is not a keyword it is a stray mark, so write the name directly."
      ),
      E0020 = _err(
          "E0020",

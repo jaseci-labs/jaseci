@@ -12,7 +12,8 @@ import from jaclang.cli.guide_store {
     grouped_guides,
     doc_corpora,
     corpus_blurb,
-    grep_guides
+    grep_guides,
+    nav_manifest
 }
 
 def _emit(text: str) {
@@ -103,6 +104,59 @@ def _search_guides(query: str, as_json: bool) -> int {
     return 0;
 }
 
+def _print_nav(as_json: bool) -> int {
+    manifest = nav_manifest();
+    if not manifest {
+        if as_json {
+            _emit(
+                json.dumps(
+                    {
+                        "error": "No docs navigation is bundled with this Jac installation"
+                    }
+                )
+            );
+        } else {
+            console.error("No docs navigation is bundled with this Jac installation.");
+        }
+        return 1;
+    }
+    if as_json {
+        _emit(json.dumps(manifest, indent=2));
+        return 0;
+    }
+
+    def walk(items: list, depth: int) {
+        pad = "  " * (depth + 1);
+        for item in items {
+            if not isinstance(item, dict) {
+                continue;
+            }
+            title = str(item.get("title", "")).strip();
+            if "page" in item {
+                name = str(item["page"]);
+                if name.endswith(".md") {
+                    name = name[:-3];
+                }
+                _emit(f"{pad}{title}  [{name}]");
+            } elif "items" in item {
+                console.print(f"{pad}{title}", style="bold");
+                walk(item["items"] as list, depth + 1);
+            } elif "url" in item {
+                _emit(f"{pad}{title}  {item['url']}");
+            }
+        }
+    }
+    console.print();
+    console.print("Bundled docs navigation", style="bold");
+    console.print();
+    walk(manifest.get("nav", []) as list, 0);
+    console.print();
+    console.print("Read a doc with:  jac guide <name>", style="muted");
+    console.print("Manifest as JSON: jac guide --nav --json", style="muted");
+    console.print();
+    return 0;
+}
+
 def _index_payload -> list[dict] {
     payload = [
         {
@@ -124,10 +178,17 @@ def _index_payload -> list[dict] {
 }
 
 impl guide(
-    topic: str = "", search: str = "", export: str = "", as_json: bool = False
+    topic: str = "",
+    search: str = "",
+    export: str = "",
+    nav: bool = False,
+    as_json: bool = False
 ) -> int {
     if export {
         return _export_guides(export);
+    }
+    if nav {
+        return _print_nav(as_json);
     }
 
     if topic {
