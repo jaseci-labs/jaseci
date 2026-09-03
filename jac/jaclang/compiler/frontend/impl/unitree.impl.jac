@@ -239,22 +239,22 @@ impl UniNode._sub_node_tab.getter -> dict[(type, list[UniNode])] {
 }
 
 impl UniNode._construct_sub_node_tab -> None {
-    pending: list[UniNode] = [self];
-    pos: int = 0;
-    while pos < len(pending) {
-        for i in pending[pos].kid {
+    frames: list = [[self, self.kid, 0]];
+    while frames {
+        fr = frames[-1];
+        kids = fr[1];
+        idx = fr[2];
+        if idx < len(kids) {
+            fr[2] = idx + 1;
+            i = kids[idx];
             if i and not i.ct_pruned and i.__sub_node_tab is None {
-                pending.append(i);
+                i.__sub_node_tab = {};
+                frames.append([i, i.kid, 0]);
             }
+            continue;
         }
-        pos += 1;
-    }
-    for nd in reversed(pending) {
-        if nd.__sub_node_tab is None {
-            nd.__sub_node_tab = {};
-        }
-        tab = nd.__sub_node_tab;
-        for i in nd.kid {
+        tab = fr[0].__sub_node_tab;
+        for i in kids {
             if not i or i.ct_pruned {
                 continue;
             }
@@ -271,6 +271,7 @@ impl UniNode._construct_sub_node_tab -> None {
                 tab[`type(i)] = [i];
             }
         }
+        frames.pop();
     }
 }
 
