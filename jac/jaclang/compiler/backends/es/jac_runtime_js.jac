@@ -293,10 +293,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
   // helpers, so each operation has a single implementation and no Python
   // method name can leak verbatim into the emitted JavaScript.
   poly: {
-    // A Python dict literal lowers to a plain JS object, so "carries no class
-    // of its own" is what separates a dict from an archetype instance or a
-    // host object.  One definition, used by both `call`'s dispatch and
-    // `_typename`, so the two can never disagree about what a dict is.
+    // Shared by `call` and `_typename` so both agree on what counts as a dict.
     _isPlainObject(o) {
       if (o === null || o === undefined || typeof o !== "object") return false;
       const proto = Object.getPrototypeOf(o);
@@ -1179,10 +1176,8 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
   // roles, so it lowers to a single object here too: a callable whose body is
   // generated from the same emitters the direct-call path uses (so
   // `f = int; f(x)` can never drift from `int(x)`), carrying the
-  // `__jac_type__` tag that isinstance/issubclass compare against.  Being one
-  // object per type is also what makes `type(x) is str` work: `type()` returns
-  // the entry from this table, so the identity comparison has the same object
-  // on both sides.
+  // `__jac_type__` tag that isinstance/issubclass -- and `type(x) is str` --
+  // compare against.
   types: __JAC_TYPES_RUNTIME__,
 
   builtin: {
@@ -1262,27 +1257,17 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       if (sup === "int" && sub === "bool") return true;
       return false;
     },
-    // Python's `type(x)` -- the value's *type object*, not a name for it.  A
-    // builtin resolves to the very same `_jac.types.<tag>` singleton that a
-    // bare type name lowers to, so `type(x) is str` is an ordinary identity
-    // comparison and needs no special lowering; a user archetype resolves to
-    // its constructor, which is what `type(a) is MyClass` compares against.
-    // `object` is the universal fallback the subclass relation already treats
-    // as everything's base, which keeps this total for exotic values.
+    // `x`'s actual type object -- the same singleton a bare type name lowers
+    // to, so `type(x) is str` is a plain identity check.
     type(o) {
-      // Own-property lookup: the tag can be an archetype's own name, and an
-      // inherited key ("constructor") would otherwise resolve to a JS builtin.
-      const tag = _jac.poly._typename(o);
+      const tag = _jac.poly._typename(o); // own-property: skip inherited "constructor"
       if (Object.prototype.hasOwnProperty.call(_jac.types, tag)) {
         return _jac.types[tag];
       }
       if (o !== null && o !== undefined && o.constructor) {
-        // A compiled archetype's class has no `__name__` of its own -- give
-        // it the same tag every `_jac.types` entry carries, so `.__name__`
-        // reads the same way off any type object regardless of origin.
         const ctor = o.constructor;
         if (!Object.prototype.hasOwnProperty.call(ctor, "__name__")) {
-          ctor.__name__ = ctor.name;
+          ctor.__name__ = ctor.name; // archetypes get a __name__ too
         }
         return ctor;
       }

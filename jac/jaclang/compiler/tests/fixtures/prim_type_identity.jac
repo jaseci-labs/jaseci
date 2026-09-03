@@ -1,15 +1,7 @@
-"""`type(x) is <T>` cross-backend lock (issue #6149).
-
-`type()` must yield the value's *type object*, not a name for it, so that
-`is` / `is not` against a builtin type is an ordinary identity comparison.
-The ES lane used to lower `type(x)` to JS `typeof x` -- a string tag -- while
-the bare type name lowered to the runtime type object, so every comparison
-was between two different kinds of value and silently answered `false`
-(`is not`: always `true`).
-
-`bool_not_int` and `bool_is_bool` are the rows that pin exact-type semantics:
-`isinstance(True, int)` is true in Python but `type(True) is int` is not, so a
-lowering that reached for isinstance would fail here.
+"""`type(x) is <T>` cross-backend lock (issue #6149): `type()` must return
+the value's actual type object so `is` is a plain identity check, not a
+string-tag-vs-object mismatch. `bool_not_int` pins exact-type semantics --
+`isinstance(True, int)` is true but `type(True) is int` is not.
 """
 
 obj Tagged {
