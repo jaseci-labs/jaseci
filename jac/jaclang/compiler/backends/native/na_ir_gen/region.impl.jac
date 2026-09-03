@@ -378,7 +378,8 @@ impl NaIRGenRegion._emit_struct_drop_fields_fn(type_name: str) -> (ir.Function |
     if _hook is None and not _ptr_fields {
         return None;
     }
-    if self.rc_release_simple_fn is None {
+    _headerless = self._nogc_headerless();
+    if not _headerless and self.rc_release_simple_fn is None {
         self._emit_rc_helpers();
     }
     i8p = ir.IntType(8).as_pointer();
@@ -400,6 +401,13 @@ impl NaIRGenRegion._emit_struct_drop_fields_fn(type_name: str) -> (ir.Function |
 
     b.position_at_end(body_bb);
     _dobj = b.bitcast(fn.args[0], struct_type.as_pointer(), name="dropf.obj");
+    if _headerless {
+        self._emit_nogc_field_drops(b, type_name, _dobj);
+        b.branch(done_bb);
+        b.position_at_end(done_bb);
+        b.ret_void();
+        return fn;
+    }
     if _hook is not None {
         self.struct_drop_hooks[type_name] = _hook;
         b.call(_hook, [_dobj]);

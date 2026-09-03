@@ -43,6 +43,7 @@ __all__ = [
     "EdgeDir",
     "LLMModel",
     "Region",
+    "region_of",
     # Fixed-width numeric types
     "i8",
     "u8",

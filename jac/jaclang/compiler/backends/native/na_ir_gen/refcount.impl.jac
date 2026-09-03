@@ -1418,6 +1418,20 @@ impl NaIRGenRefcount._emit_struct_drop_fn(type_name: str) -> (ir.Function | None
 
     b.position_at_end(body_bb);
     _dobj = b.bitcast(fn.args[0], struct_type.as_pointer(), name="drop.obj");
+    self._emit_nogc_field_drops(b, type_name, _dobj);
+    free_fn = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
+    b.call(free_fn, [fn.args[0]]);
+    b.branch(done_bb);
+
+    b.position_at_end(done_bb);
+    b.ret_void();
+    return fn;
+}
+
+impl NaIRGenRefcount._emit_nogc_field_drops(
+    b: ir.IRBuilder, type_name: str, _dobj: ir.Value
+) -> None {
+    i8p = ir.IntType(8).as_pointer();
     _hook = self.struct_drop_hooks.get(type_name)
         or self.func_symtab.get(f"{type_name}.drop");
     if _hook is not None {
@@ -1472,13 +1486,6 @@ impl NaIRGenRefcount._emit_struct_drop_fn(type_name: str) -> (ir.Function | None
         fv_i8 = b.bitcast(fv, i8p, name=f"drop.{fname}.i8");
         b.call(_fld_drop, [fv_i8]);
     }
-    free_fn = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
-    b.call(free_fn, [fn.args[0]]);
-    b.branch(done_bb);
-
-    b.position_at_end(done_bb);
-    b.ret_void();
-    return fn;
 }
 
 impl NaIRGenRefcount._emit_container_drop_fn(cont_name: str) -> (ir.Function | None) {

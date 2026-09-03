@@ -25,6 +25,7 @@ __all__ = [
     "next",
     "managed",
     "Region",
+    "region_of",
 ]
 
 _T = TypeVar("_T")

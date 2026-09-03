@@ -37,6 +37,11 @@ def compile_native(
     return (eng, ir);
 }
 
+"""Count call sites of `name` in either printer's spelling (quoted or bare)."""
+def calls_to(body: str, name: str) -> int {
+    return body.count('@"' + name + '"(') + body.count("@" + name + "(");
+}
+
 """Slice one function's textual IR out of the module dump."""
 def fn_ir(ir: uni.Module, name: str) -> str {
     out: list[str] = [];
@@ -64,11 +69,11 @@ test "arena: every droppable construction consults the current region" {
     # arm, selected by the thread's current region at run time.
     (eng, ir) = compile_native("region_dtor.jac", opt_level=0);
     body = fn_ir(ir, "dtor_order");
-    n_cur = body.count('__jac_region_current(');
+    n_cur = calls_to(body, "__jac_region_current");
     assert n_cur == 3 , f"expected 3 current-region reads in dtor_order, found {n_cur}";
-    n_arena = body.count('__jac_region_alloc(');
+    n_arena = calls_to(body, "__jac_region_alloc");
     assert n_arena == 3 , f"expected 3 region-alloc arms in dtor_order, found {n_arena}";
-    n_drop = body.count('__jac_region_drop(');
+    n_drop = calls_to(body, "__jac_region_drop");
     assert n_drop >= 1 , f"expected a region drop at the close, found {n_drop}";
 }
 
@@ -190,7 +195,7 @@ test "R4: own rebox copies a string out of a region" {
 test "a user archetype named Region shadows the builtin cleanly" {
     (eng, ir) = compile_native("region_shadow.jac", opt_level=0);
     body = fn_ir(ir, "shadowed");
-    n_new = body.count('__jac_region_new(');
+    n_new = calls_to(body, "__jac_region_new");
     assert n_new == 0 , f"user Region must not intercept arena setup: {n_new}";
     shadowed = get_func(eng, "shadowed", ctypes.c_int64);
     result = shadowed();

@@ -393,6 +393,10 @@ impl NaIRGenExpr._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
     saved_func_symtab = dict(self.func_symtab);
     saved_cell_vars = self.closure_cell_vars;
     saved_cell_handles = self.closure_cell_handles;
+    saved_nogc_no_free = self.nogc_no_free_vars;
+    saved_nogc_owned_str = self.nogc_owned_str_vars;
+    saved_region_handles = self.region_handle_vars;
+    saved_region_opens = self.region_open_stack;
     entry_bb = anon_fn.append_basic_block("entry");
     self._builder = ir.IRBuilder(entry_bb);
     self.local_vars = {};
@@ -466,6 +470,10 @@ impl NaIRGenExpr._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
     self.func_symtab = saved_func_symtab;
     self.closure_cell_vars = saved_cell_vars;
     self.closure_cell_handles = saved_cell_handles;
+    self.nogc_no_free_vars = saved_nogc_no_free;
+    self.nogc_owned_str_vars = saved_nogc_owned_str;
+    self.region_handle_vars = saved_region_handles;
+    self.region_open_stack = saved_region_opens;
 
     if captures {
         _all_cells = True;

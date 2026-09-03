@@ -172,13 +172,31 @@ impl RcFactsPass._borrow_arg_callee_ok(bx: UnaryExpr) -> bool {
 
 impl RcFactsPass._asn_makes_region_handle(nd: Assignment) -> bool {
     import from jaclang.compiler.expr_keys { expr_is_builtin_region }
-    if expr_is_builtin_region(nd.value) {
+    import from jaclang.compiler.frontend.constant { OwnershipKind }
+    if isinstance(nd.value, FuncCall) and expr_is_builtin_region(nd.value) {
         return True;
     }
-    for tgt in nd.target {
-        if isinstance(tgt, Name) and expr_is_builtin_region(tgt) {
-            return True;
+    if nd.type_tag is not None {
+        for tgt in nd.target {
+            if isinstance(tgt, Name)
+                and tgt.sym is not None
+                and tgt.sym.ownership == OwnershipKind.OWN
+                and expr_is_builtin_region(tgt) {
+                return True;
+            }
         }
+    }
+    if isinstance(nd.value, Name)
+        and nd.value.sym is not None
+        and nd.value.sym.na_region_handle {
+        return True;
+    }
+    if isinstance(nd.value, UnaryExpr)
+        and nd.value.ownership == OwnershipKind.IMM
+        and isinstance(nd.value.operand, Name)
+        and nd.value.operand.sym is not None
+        and nd.value.operand.sym.na_region_handle {
+        return True;
     }
     return False;
 }

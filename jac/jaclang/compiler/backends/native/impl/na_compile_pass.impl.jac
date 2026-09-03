@@ -122,6 +122,14 @@ impl native_verdict_blast_guard(
     );
 }
 
+impl native_linked_ir_text(module: uni.Module) -> str {
+    linked = module.gen.native_linked_ir;
+    if linked is not None {
+        return linked;
+    }
+    return str(module.gen.llvm_ir);
+}
+
 impl native_ir_live_externs(llvm_ir_text: str) -> set[str] {
     import re as _dc_re;
     _dc_decl = _dc_re.compile(
@@ -397,9 +405,11 @@ impl NativeCompilePass._run_impl(ir_in: uni.Module) -> uni.Module {
         if (not _needs_osp_kernel) and self._references_undefined_osp_kernel(mod) {
             _needs_osp_kernel = True;
         }
+        _kernel_linked = False;
         if _needs_osp_kernel and not _is_kernel_unit {
             self._link_osp_kernel(mod);
             module.gen.llvm_ir = mod;
+            _kernel_linked = True;
         }
 
         _needs_fmt_kernel = (manifest is not None)
@@ -410,6 +420,7 @@ impl NativeCompilePass._run_impl(ir_in: uni.Module) -> uni.Module {
         if _needs_fmt_kernel and not _is_kernel_unit {
             self._link_fmt_kernel(mod);
             module.gen.llvm_ir = mod;
+            _kernel_linked = True;
         }
 
         _needs_region_kernel = (manifest is not None)
@@ -420,8 +431,9 @@ impl NativeCompilePass._run_impl(ir_in: uni.Module) -> uni.Module {
         }
         if _needs_region_kernel and not _is_kernel_unit {
             self._link_region_kernel(mod);
-            module.gen.llvm_ir = mod;
+            _kernel_linked = True;
         }
+        module.gen.native_linked_ir = str(mod) if _kernel_linked else None;
 
         import os as _os;
         _opt_level = int(_compile_opts.opt_level or 0);

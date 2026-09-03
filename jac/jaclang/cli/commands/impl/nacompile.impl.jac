@@ -346,6 +346,9 @@ impl nacompile(
 
     import from jaclang.compiler.driver.program { JacProgram }
     import from jaclang.compiler.driver.compile_options { CompileOptions }
+    import from jaclang.compiler.backends.native.na_compile_pass {
+        native_linked_ir_text
+    }
 
     try {
         prog = JacProgram();
@@ -414,7 +417,8 @@ impl nacompile(
         }
         try {
             wasm_bytes = emit_wasm_from_ir(
-                str(ir_module.gen.llvm_ir), app_imports=app_declared_imports(ir_module),
+                native_linked_ir_text(ir_module),
+                app_imports=app_declared_imports(ir_module),
             );
         } except Exception as e {
             console.error(f"Wasm emit/link failed: {e}");
@@ -445,7 +449,7 @@ impl nacompile(
         return 1;
     }
 
-    llvm_ir_str = str(ir_module.gen.llvm_ir);
+    llvm_ir_str = native_linked_ir_text(ir_module);
     if strict {
         import from jaclang.compiler.backends.native.na_compile_pass {
             native_demoted_ir_symbols as _demoted_syms

@@ -14,6 +14,7 @@ import tempfile;
 import from tests.support { TESTS_DIR }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.backends.native.llvm.binding.module { parse_bitcode }
 
 glob FIXTURE = os.path.join(
          TESTS_DIR, "compiler", "backends", "native", "fixtures", "region_partition.jac"
@@ -48,8 +49,10 @@ test "children draw pages from the parent behind the reabsorb contract" {
     assert not prog.errors_had , [e.pretty_print() for e in prog.errors_had];
     text = str(ir.gen.llvm_ir);
     assert "__jac_region_partition" in text , "no partition call in the module";
-    assert "_draw_page" in text , "the region kernel's parent draw path is not linked";
-    assert "_reabsorb" in text , "the region kernel's reabsorb path is not linked";
+    linked: any = parse_bitcode(ir.gen.native_bitcode);
+    fn_names = {str(f.name) for f in linked.functions};
+    assert "_draw_page" in fn_names , "the region kernel's parent draw path is not linked";
+    assert "_reabsorb" in fn_names , "the region kernel's reabsorb path is not linked";
     with tempfile.TemporaryDirectory() as tmp {
         outs: dict[str, str] = {};
         for mode in ("none", "rc", "cycles") {
