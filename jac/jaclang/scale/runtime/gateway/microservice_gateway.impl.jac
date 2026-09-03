@@ -27,6 +27,9 @@ def _install_ws_catchall(gw: MicroserviceGateway) {
             await gw.refresh_app_routes();
             matched = gw.registry.entries.get(gw.route_table.owner(full_path));
         }
+        if not matched {
+            matched = gw.root_member();
+        }
         if not matched or not matched.url {
             await websocket.accept();
             await websocket.close(code=1008);
@@ -37,9 +40,10 @@ def _install_ws_catchall(gw: MicroserviceGateway) {
             await websocket.close(code=1013);
             return;
         }
-        remaining: str = full_path[len(matched.prefix):]
-            if full_path.startswith(matched.prefix)
-            else full_path;
+        remaining: str = full_path;
+        if not matched.is_root and full_path.startswith(matched.prefix) {
+            remaining = full_path[len(matched.prefix):];
+        }
         remaining = remaining or "/";
         query: str = str(websocket.url.query);
         target_http: str = f"{matched.url}{remaining}";
@@ -415,6 +419,18 @@ impl MicroserviceGateway.eligible_services -> list[tuple[str, ServiceEntry]] {
     ];
 }
 
+impl MicroserviceGateway.root_member -> ServiceEntry | None {
+    return self.registry.root_entry();
+}
+
+impl MicroserviceGateway.handle_root(request: Request, path: str) -> Response | None {
+    root = self.root_member();
+    if root is None {
+        return None;
+    }
+    return await self.forward_root_path(request, root, path);
+}
+
 impl MicroserviceGateway.resolve_learned_owner(path: str) -> ServiceEntry | None {
     svc_name: str = self.route_table.owner(path);
     if svc_name and svc_name not in self.registry.entries {
@@ -603,7 +619,7 @@ impl MicroserviceGateway.handle_openapi -> Response {
 impl MicroserviceGateway.handle_docs -> Response {
     import from jaclang.server.serving.openapi { swagger_ui_html }
     return HTMLResponse(
-        content=swagger_ui_html("/openapi.json", "Jac Microservice Gateway - API")
+        content=swagger_ui_html("/openapi.json", "Jac Gateway - API")
     );
 }
 
@@ -679,7 +695,7 @@ impl MicroserviceGateway.handle_spa_fallback(
 
 impl MicroserviceGateway.setup -> ServingApp {
     import time;
-    self.app = ServingApp(title="Jac Microservice Gateway");
+    self.app = ServingApp(title="Jac Gateway");
     gw = self;
 
     self.bootstrap_admin_ui();
@@ -719,7 +735,7 @@ impl MicroserviceGateway.setup -> ServingApp {
         start_server_span,
         end_span
     }
-    trc_cfg = get_scale_config().get_microservices_config().get("tracing", {});
+    trc_cfg = get_scale_config().get_gateway_config().get("tracing", {});
     install_tracing(
         enabled=trc_cfg.get("enabled", False),
         endpoint=trc_cfg.get("endpoint"),
@@ -818,6 +834,18 @@ impl MicroserviceGateway.setup -> ServingApp {
                 }
             }
 
+            if resp is None and gw.root_member() is not None {
+                if request.method == "GET" and path == "/graph/data" {
+                    resp = await gw.aggregate_graph_data(request);
+                }
+                if resp is None {
+                    root_resp = await gw.handle_root(request, path);
+                    if root_resp is not None {
+                        svc_label = gw.registry.root_app;
+                        resp = root_resp;
+                    }
+                }
+            }
             if resp is None {
                 builtin = await gw.handle_builtin_passthrough(request, path);
                 if builtin is not None {
@@ -898,19 +926,19 @@ impl MicroserviceGateway.setup -> ServingApp {
     );
 
     import from jaclang.scale.config.config_loader { get_scale_config }
-    ms_cfg = get_scale_config().get_microservices_config();
+    gw_cfg = get_scale_config().get_gateway_config();
 
     import from jaclang.scale.runtime.middleware.rate_limit {
         build_rate_limit_middleware
     }
-    rl_mw = build_rate_limit_middleware(ms_cfg.get("rate_limit", {}));
+    rl_mw = build_rate_limit_middleware(gw_cfg.get("rate_limit", {}));
     if rl_mw is not None {
         registry.register(Middleware(name="rate_limit", priority=10, fn=rl_mw));
     }
 
     registry.install(self.app);
 
-    cors_cfg = ms_cfg.get("cors", {});
+    cors_cfg = gw_cfg.get("cors", {});
     if cors_cfg.get("allow_origins") {
         import from jaclang.server.serving.middleware { cors_middleware }
         self.app.add_middleware(
@@ -941,8 +969,8 @@ impl MicroserviceGateway.start(on_ready: any = None) -> None {
     if self.app is None {
         self.setup();
     }
-    ms_cfg = get_scale_config().get_microservices_config();
-    drain_timeout: float = float(ms_cfg.get("drain_timeout_seconds", 10));
+    gw_cfg = get_scale_config().get_gateway_config();
+    drain_timeout: float = float(gw_cfg.get("drain_timeout_seconds", 10));
 
     import from jaclang.server.serving.server { ServingServer, PORT_RETRY_LIMIT }
     serving = ServingServer(

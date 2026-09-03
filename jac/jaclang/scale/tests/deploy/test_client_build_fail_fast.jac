@@ -37,7 +37,7 @@ glob PINNED: str = "0.0.0";
 def _builder(project_dir: str) -> ManifestBuilder {
     mb = ManifestBuilder(
         k8s_config=KubernetesConfig(app_name="landing", namespace="jb-landing"),
-        microservices_config={"client": {"entry": "main.jac"}}
+        client_entry="main.jac"
     );
     mb.project_dir = project_dir;
     return mb;
@@ -203,7 +203,7 @@ test "an app without a client entry skips the build untouched" {
     project_dir = _project("with entry {}\n");
     mb = ManifestBuilder(
         k8s_config=KubernetesConfig(app_name="api", namespace="jb-api"),
-        microservices_config={"client": {"entry": False}}
+        client_entry=""
     );
     mb.project_dir = project_dir;
     try {

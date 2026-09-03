@@ -33,12 +33,12 @@ glob _PARKED: str = "# parked for the deploy\ndocsite/\nevaluation/\n",
      _SECRET: str = "sk-live-8104";
 
 
-def _builder(project_dir: str, client: (dict | None) = None) -> ManifestBuilder {
+def _builder(
+    project_dir: str, client_entry: (str | None) = "main.jac"
+) -> ManifestBuilder {
     mb = ManifestBuilder(
         k8s_config=KubernetesConfig(app_name="shop", namespace="jb-shop"),
-        microservices_config={
-            "client": {"entry": "main.jac"} if client is None else client
-        }
+        client_entry=client_entry
     );
     mb.project_dir = project_dir;
     return mb;
@@ -433,7 +433,7 @@ test "a declared client entry that does not exist fails the deploy, not silently
     project_dir = _app(_PARKED);
     raised = None;
     try {
-        _builder(project_dir, client={"entry": "man.jac"})._build_client_bundle(
+        _builder(project_dir, client_entry="man.jac")._build_client_bundle(
             project_dir
         );
     } except ValueError as e {
@@ -443,13 +443,13 @@ test "a declared client entry that does not exist fails the deploy, not silently
     }
 
     assert raised is not None , (
-        "a typo in [scale.microservices.client] entry must fail the deploy, "
-        "not ship a gateway with nothing to serve"
+        "a client entry that does not exist must fail the deploy, "
+        "not ship a served app with nothing to serve"
     );
     message = str(raised);
     assert "man.jac" in message , message;
-    assert "[scale.microservices.client]" in message , message;
-    assert "entry = false" in message , (
+    assert "client_entry" in message , message;
+    assert "client_entry = \"\"" in message , (
         f"the error must say how to deploy without a client: {message}"
     );
 }
@@ -458,7 +458,7 @@ test "a declared client entry that does not exist fails the deploy, not silently
 test "an undeclared entry that does not exist skips the build and says so" {
     project_dir = _app(_PARKED);
     os.remove(os.path.join(project_dir, "main.jac"));
-    mb = _builder(project_dir, client={});
+    mb = _builder(project_dir, client_entry=None);
     assert mb._declared_client_entry() == "" , "nothing was declared";
     assert mb._client_entry() , "the default entry still resolves";
     out = io.StringIO();
@@ -479,17 +479,17 @@ test "an undeclared entry that does not exist skips the build and says so" {
     assert "skipping the client build" in out.getvalue() , (
         f"the skip must be said out loud: {out.getvalue()!r}"
     );
-    assert "[scale.microservices.client]" in out.getvalue() , out.getvalue();
+    assert "client target" in out.getvalue() , out.getvalue();
 }
 
 
 test "entry = false is not a declared entry" {
     project_dir = _app(_PARKED);
     try {
-        assert _builder(project_dir, client={"entry": False})._declared_client_entry()
+        assert _builder(project_dir, client_entry="")._declared_client_entry()
             == "";
         assert _builder(
-            project_dir, client={"entry": " app.jac "}
+            project_dir, client_entry=" app.jac "
         )._declared_client_entry()
             == "app.jac";
     } finally {
@@ -552,8 +552,7 @@ test "a jac.toml the loader rejects fails the deploy instead of skipping the cli
         f.write("[project\nname = \"shop\"\n");
     }
     mb = ManifestBuilder(
-        k8s_config=KubernetesConfig(app_name="shop", namespace="jb-shop"),
-        microservices_config=None
+        k8s_config=KubernetesConfig(app_name="shop", namespace="jb-shop")
     );
     mb.project_dir = project_dir;
     reset_scale_config();

@@ -189,10 +189,21 @@ def _project_config(project_dir: str) -> any {
 
 def _entry_module_spec(project_dir: str) -> (tuple[Path, Path] | None) {
     config = _project_config(project_dir);
-    if config is None or not config.project.entry_point {
+    if config is None {
         return None;
     }
     proj_root: Path = config.project_root or Path(project_dir);
+    if config.apps {
+        try {
+            app = config.resolve_app("");
+        } except ValueError {
+            return None;
+        }
+        return (proj_root.resolve(), Path(app.entry_path(str(proj_root))));
+    }
+    if not config.project.entry_point {
+        return None;
+    }
     return (proj_root.resolve(), Path(config.project.entry_point));
 }
 
@@ -297,203 +308,76 @@ def bundle_source_files(base: Path) -> list[Path] {
 }
 
 
-def _declared_ms_section(project_dir: str) -> dict[str, any] {
-    config = _project_config(project_dir);
-    if config is None {
-        return {};
-    }
-    section = config.get_section("scale");
-    if not isinstance(section, dict) {
-        return {};
-    }
-    ms = section.get("microservices");
-    return ms if isinstance(ms, dict) else {};
-}
-
-
-def _declared_file(services: dict[str, any], name: str) -> str {
-    svc = services.get(name);
-    return str(svc.get("file") or "") if isinstance(svc, dict) else "";
-}
-
-
-def resolved_bundle_services(
-    project_dir: str, ms_config: (dict[str, any] | None) = None
-) -> dict[str, str] {
+def resolve_fleet_entries(project_dir: str, fleet: any) -> dict[str, str] {
     base = Path(project_dir).resolve();
     excluded = source_filter_for(base);
     members = [path.relative_to(base).as_posix() for path in bundle_source_files(base)];
-    return resolve_service_members(base, members, excluded, ms_config);
+    return check_fleet_entries(base, members, excluded, fleet);
 }
 
 
-def resolve_service_members(
-    base: Path,
-    members: list[str],
-    excluded: BundleSourceFilter,
-    ms_config: (dict[str, any] | None) = None
-) -> dict[str, str] {
-    import from jaclang.scale.runtime.routing { needs_main_service, resolve_routes }
+def _fleet_entry_rel(base: Path, app: str, file: str) -> str {
+    raw = Path(file);
+    if raw.is_absolute() {
+        try {
+            return raw.resolve().relative_to(base.resolve()).as_posix();
+        } except ValueError {
+            raise ValueError(
+                f"App '{app}' boots '{file}', which resolves outside the deployed "
+                f"tree '{base}', so the bundle cannot ship it and every '{app}' "
+                "pod would crash-loop on boot. Deploy from the project root."
+            );
+        }
+    }
+    rel = Path(raw.as_posix()).as_posix();
+    if rel.startswith("./") {
+        rel = rel[2:];
+    }
+    if ".." in Path(rel).parts {
+        raise ValueError(
+            f"App '{app}' boots '{file}', which reaches outside the deployed "
+            f"tree, so the bundle cannot ship it."
+        );
+    }
+    return rel;
+}
 
-    ms = ms_config if ms_config is not None else _declared_ms_section(str(base));
-    routes = resolve_routes(ms);
-    if not routes {
+
+def check_fleet_entries(
+    base: Path, members: list[str], excluded: BundleSourceFilter, fleet: any
+) -> dict[str, str] {
+    if fleet is None or fleet.is_empty() {
         return {};
     }
-    services = ms.get("services");
-    services = services if isinstance(services, dict) else {};
-    implicit_main = needs_main_service(routes) or routes.get("main") == "/__main__";
     member_set: set[str] = set(members);
     resolved: dict[str, str] = {};
-    for name in routes {
-        if name == "main" and implicit_main {
+    for (app, member) in fleet.members.items() {
+        if not member.file {
+            raise ValueError(
+                f"App '{app}' has no entry file, so every '{app}' pod would "
+                "crash-loop on boot. Set [apps.{app}] entry-point."
+            );
+        }
+        rel = _fleet_entry_rel(base, app, member.file);
+        if rel in member_set {
+            resolved[app] = rel;
             continue;
         }
-        explicit = _declared_file(services, name);
-        if explicit {
-            resolved[name] = _explicit_service_member(
-                base, name, explicit, member_set, excluded
-            );
-        } else {
-            resolved[name] = _default_service_member(
-                base, name, f"{name}.jac", members, member_set, excluded
+        if not (base / rel).is_file() {
+            raise ValueError(
+                f"App '{app}' boots '{rel}', but no such file exists in the "
+                f"project, so every '{app}' pod would crash-loop on boot. Add "
+                f"the module or fix [apps.{app}] entry-point."
             );
         }
-    }
-    if implicit_main {
-        explicit = _declared_file(services, "main");
-        if explicit {
-            resolved["main"] = _explicit_service_member(
-                base, "main", explicit, member_set, excluded
-            );
-        } else {
-            resolved["main"] = _implicit_main_member(base, member_set, excluded);
-        }
+        raise ValueError(
+            f"App '{app}' boots '{rel}', but the bundle does not ship it "
+            f"({excluded.exclusion_reason(Path(rel))}), so every '{app}' pod "
+            "would crash-loop on boot. Ship the file, or point the app at a "
+            "module the bundle ships."
+        );
     }
     return resolved;
-}
-
-
-def _implicit_main_member(
-    base: Path, member_set: set[str], excluded: BundleSourceFilter
-) -> str {
-    spec = _entry_module_spec(str(base));
-    wanted = "main.jac";
-    if spec is not None {
-        (proj_root, entry_path) = spec;
-        rel = None;
-        try {
-            rel = (proj_root / entry_path).resolve().relative_to(base.resolve());
-        } except ValueError {}
-        if rel is None {
-            raise ValueError(
-                "The routed fleet also deploys an implicit 'main' service for "
-                f"the project entry module, but '{entry_path.as_posix()}' "
-                f"resolves outside the deployed tree '{base}', so the bundle "
-                "cannot ship it and every 'main' pod would crash-loop on boot. "
-                "Deploy from the project root, or set "
-                "[scale.microservices.services.main] file to a module the "
-                "bundle ships."
-            );
-        }
-        wanted = rel.as_posix();
-    }
-    if wanted in member_set {
-        return wanted;
-    }
-    if not (base / wanted).is_file() {
-        raise ValueError(
-            f"The routed fleet also deploys an implicit 'main' service for the "
-            f"project entry module, but '{wanted}' does not exist, so every "
-            "'main' pod would crash-loop on boot. Add the module, point "
-            "[project] entry-point at the module to boot, or set "
-            "[scale.microservices.services.main] file."
-        );
-    }
-    raise ValueError(
-        f"The routed fleet also deploys an implicit 'main' service for the "
-        f"project entry module '{wanted}', but the bundle does not ship it "
-        f"({excluded.exclusion_reason(Path(wanted))}), so every 'main' pod "
-        "would crash-loop on boot. Ship the module, or point [project] "
-        "entry-point at one the bundle ships."
-    );
-}
-
-
-def _explicit_service_member(
-    base: Path,
-    name: str,
-    explicit: str,
-    member_set: set[str],
-    excluded: BundleSourceFilter
-) -> str {
-    rel = Path(explicit).as_posix();
-    if rel in member_set {
-        return rel;
-    }
-    if not (base / explicit).is_file() {
-        raise ValueError(
-            f"Service '{name}' points [scale.microservices.services.{name}] "
-            f"file at '{explicit}', but no such file exists in the project, "
-            f"so every '{name}' pod would crash-loop on boot."
-        );
-    }
-    raise ValueError(
-        f"Service '{name}' points [scale.microservices.services.{name}] file "
-        f"at '{explicit}', but the bundle does not ship it "
-        f"({excluded.exclusion_reason(Path(rel))}), so every '{name}' pod "
-        "would crash-loop on boot. Ship the file, or point the service at a "
-        "module the bundle ships."
-    );
-}
-
-
-def _default_service_member(
-    base: Path,
-    name: str,
-    wanted: str,
-    members: list[str],
-    member_set: set[str],
-    excluded: BundleSourceFilter
-) -> str {
-    if wanted in member_set {
-        return wanted;
-    }
-    candidates = [
-        m
-        for m in members
-        if m.endswith("/" + wanted)
-    ];
-    if len(candidates) == 1 {
-        return candidates[0];
-    }
-    if candidates {
-        listing = ", ".join(sorted(candidates));
-        raise ValueError(
-            f"Service '{name}' matches more than one shipped module named "
-            f"'{wanted}' ({listing}), so a pod would boot an arbitrary one. "
-            f"Set [scale.microservices.services.{name}] file to the one to "
-            "boot."
-        );
-    }
-    for path in sorted(base.rglob(wanted)) {
-        if not path.is_file() {
-            continue;
-        }
-        rel = path.relative_to(base);
-        raise ValueError(
-            f"Service '{name}' needs '{wanted}', and '{rel.as_posix()}' is "
-            f"excluded from the bundle ({excluded.exclusion_reason(rel)}), so "
-            f"every '{name}' pod would crash-loop on boot. Ship the module, "
-            f"or point [scale.microservices.services.{name}] file at one the "
-            "bundle ships."
-        );
-    }
-    raise ValueError(
-        f"Service '{name}' resolves to '{wanted}', but the project has no "
-        f"such module, so every '{name}' pod would crash-loop on boot. Add "
-        f"the module, or set [scale.microservices.services.{name}] file."
-    );
 }
 
 
@@ -971,10 +855,7 @@ def _vendor_stage(stage: Path, seal_binary: bytes, platform_tag: str = "") {
 
 
 def pack_jab(
-    project_dir: str,
-    seal_binary: bytes,
-    pod_arch: str = "",
-    ms_config: (dict[str, any] | None) = None
+    project_dir: str, seal_binary: bytes, pod_arch: str = "", fleet: any = None
 ) -> bytes {
     if not seal_binary {
         raise ValueError(
@@ -992,11 +873,8 @@ def pack_jab(
     excluded = source_filter_for(base);
     assert_entry_module_ships(base, excluded);
     sources = bundle_source_files(base);
-    resolve_service_members(
-        base,
-        [path.relative_to(base).as_posix() for path in sources],
-        excluded,
-        ms_config
+    check_fleet_entries(
+        base, [path.relative_to(base).as_posix() for path in sources], excluded, fleet
     );
     if excluded.ignore_patterns {
         logger.info(

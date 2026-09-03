@@ -46,6 +46,7 @@ import from jaclang.scale.deploy.autoscale.http_activation_config {
 import from jaclang.scale.deploy.target.kubernetes.monitoring { MonitoringDeployer }
 import from jaclang.scale.config.config_loader { get_scale_config }
 import from jaclang.scale.injector.pvc_injector { bundle_keys_from_pod_spec }
+import from jaclang.scale.runtime.fleet { FleetSpec }
 
 glob logger = logging.getLogger(__name__),
      REVISION_ANNOTATION: str = "deployment.kubernetes.io/revision",
@@ -213,17 +214,19 @@ def reap_stale_scaling_resources_for_bundle(
 
 obj KubernetesTarget(KubernetesTargetBase) {
     has _deploy_context: DeployContext = DeployContext(),
-        microservices_config: (dict[str, any] | None) = None;
+        fleet: (FleetSpec | None) = None,
+        gateway_config: (dict[str, any] | None) = None,
+        app_overrides: dict[str, dict[str, any]] = {};
 
-    def _ms_cfg -> dict[str, any] {
-        if self.microservices_config is not None {
-            return self.microservices_config;
+    def _gateway_cfg -> dict[str, any] {
+        import from jaclang.scale.config.config_loader { normalize_gateway_config }
+        if self.gateway_config is not None {
+            return normalize_gateway_config(self.gateway_config);
         }
         try {
-            import from jaclang.scale.config.config_loader { get_scale_config }
-            return get_scale_config().get_microservices_config();
+            return get_scale_config().get_gateway_config();
         } except Exception {
-            return {};
+            return normalize_gateway_config({});
         }
     }
 
@@ -815,8 +818,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
     }
 
     def _observability_requested -> bool {
-        logs_cfg = self._read_microservices_logs_config();
-        tracing_cfg = self._read_microservices_tracing_config();
+        logs_cfg = self._read_gateway_logs_config();
+        tracing_cfg = self._read_gateway_tracing_config();
         return bool(self.k8s_config.monitoring_enabled)
             or bool(logs_cfg.get("enabled", False))
             or bool(tracing_cfg.get("enabled", False));
@@ -938,23 +941,22 @@ obj KubernetesTarget(KubernetesTargetBase) {
 
     def _build_observability_config -> KubernetesConfig {
         overrides: dict[str, any] = dict(self.k8s_config.to_dict());
-        overrides["loki_enabled"] = self._read_microservices_logs_config().get(
+        overrides["loki_enabled"] = self._read_gateway_logs_config().get(
             "enabled", False
         );
-        overrides["tracing_enabled"] = self._read_microservices_tracing_config().get(
+        overrides["tracing_enabled"] = self._read_gateway_tracing_config().get(
             "enabled", False
         );
         return KubernetesConfig.from_dict(KubernetesConfig, overrides);
     }
 
-    def _read_microservices_logs_config -> dict[str, any] {
+    def _read_gateway_logs_config -> dict[str, any] {
         try {
-            ms_cfg = self._ms_cfg();
-            return dict(ms_cfg.get("logs", {}));
+            return dict(self._gateway_cfg().get("logs", {}));
         } except Exception as e {
             if self.logger {
                 self.logger.warn(
-                    f"Could not read [scale.microservices.logs] - "
+                    f"Could not read [scale.gateway.logs] - "
                     f"observability stack will not be deployed: {e}"
                 );
             }
@@ -962,14 +964,13 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
     }
 
-    def _read_microservices_tracing_config -> dict[str, any] {
+    def _read_gateway_tracing_config -> dict[str, any] {
         try {
-            ms_cfg = self._ms_cfg();
-            return dict(ms_cfg.get("tracing", {}));
+            return dict(self._gateway_cfg().get("tracing", {}));
         } except Exception as e {
             if self.logger {
                 self.logger.warn(
-                    f"Could not read [scale.microservices.tracing] - "
+                    f"Could not read [scale.gateway.tracing] - "
                     f"tracing stack will not be deployed: {e}"
                 );
             }
@@ -988,7 +989,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
             deploy_context=self._context_with_env(),
             logger=self.logger,
             project_dir=app_config.code_folder,
-            microservices_config=self.microservices_config,
+            fleet=self.fleet,
+            gateway_config=self.gateway_config,
+            app_overrides=dict(self.app_overrides),
             dry_run=self.dry_run
         );
         return builder.generate_manifests(app_config, self.k8s_config.python_image);

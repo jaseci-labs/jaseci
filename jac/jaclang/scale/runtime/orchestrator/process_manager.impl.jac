@@ -135,7 +135,11 @@ impl ServiceProcessManager.start_service(name: str) -> bool {
     import from jaclang.server.sv_client { headless_start_args, peer_url_env_key }
     jac_bin: str = jac_executable();
 
-    cmd = [jac_bin] + headless_start_args(`entry.file, port);
+    if `entry.is_root {
+        cmd = [jac_bin, "run", "--serve", "--port", str(port), `entry.file];
+    } else {
+        cmd = [jac_bin] + headless_start_args(`entry.file, port);
+    }
     logger.info(f"Starting {name}: {' '.join(cmd)}");
 
     try {
@@ -144,6 +148,10 @@ impl ServiceProcessManager.start_service(name: str) -> bool {
         child_env = dict(os.environ);
 
         child_env["JAC_SV_SIBLING"] = "1";
+        child_env["JAC_SV_NAME"] = name;
+        for (env_key, env_value) in `entry.env.items() {
+            child_env[str(env_key)] = str(env_value);
+        }
 
         for (peer_name, peer_entry) in self.registry.entries.items() {
             if peer_name != name and peer_entry.port > 0 {

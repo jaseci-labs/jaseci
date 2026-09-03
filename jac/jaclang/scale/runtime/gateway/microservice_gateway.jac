@@ -66,6 +66,8 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
     ) -> Response | None;
 
     def eligible_services -> list[tuple[str, ServiceEntry]];
+    def root_member -> ServiceEntry | None;
+    async def handle_root(request: Request, path: str) -> Response | None;
     async def resolve_learned_owner(path: str) -> ServiceEntry | None;
     async def forward_root_path(
         request: Request, service_entry: ServiceEntry, path: str

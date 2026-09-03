@@ -39,10 +39,10 @@ def _collect_default_mismatches(
 }
 
 test "unknown section is flagged with a suggestion" {
-    msgs = validate_scale_config({"microservice": {"routes": {}}});
+    msgs = validate_scale_config({"gatway": {"colocate": True}});
     assert len(msgs) == 1 , f"expected 1 finding, got {msgs}";
-    assert "microservice" in msgs[0] , msgs[0];
-    assert "did you mean 'microservices'" in msgs[0] , msgs[0];
+    assert "gatway" in msgs[0] , msgs[0];
+    assert "did you mean 'gateway'" in msgs[0] , msgs[0];
 }
 
 test "unknown nested key is flagged with a suggestion" {
@@ -52,30 +52,21 @@ test "unknown nested key is flagged with a suggestion" {
     assert "did you mean 'cpu_limit'" in msgs[0] , msgs[0];
 }
 
-test "per-service unknown key is flagged" {
-    msgs = validate_scale_config(
-        {"microservices": {"services": {"myapp": {"cpu_limits": "2000m"}}}}
-    );
+test "gateway nested unknown key is flagged" {
+    msgs = validate_scale_config({"gateway": {"gateway_prot": 8001}});
     assert len(msgs) == 1 , f"expected 1 finding, got {msgs}";
-    assert "scale.microservices.services.myapp" in msgs[0] , msgs[0];
-    assert "did you mean 'cpu_limit'" in msgs[0] , msgs[0];
+    assert "scale.gateway" in msgs[0] , msgs[0];
+    assert "did you mean 'gateway_port'" in msgs[0] , msgs[0];
 }
 
 test "open dict sections accept arbitrary keys" {
     cfg = {
         "secrets": {"MY_API_KEY": "${MY_API_KEY}"},
         "kubernetes": {"labels": {"team": "core"}},
-        "microservices": {
-            "routes": {"billing": "/billing"},
-            "services": {
-                "billing": {
-                    "env": {"LOG_LEVEL": "DEBUG"},
-                    "deployment_overlay": {"spec": {"replicas": 2}},
-                    "hpa": {
-                        "behavior": {"scaleDown": {"stabilizationWindowSeconds": 600}}
-                    }
-                }
-            }
+        "gateway": {
+            "env": {"LOG_LEVEL": "DEBUG"},
+            "deployment_overlay": {"spec": {"replicas": 2}},
+            "hpa": {"behavior": {"scaleDown": {"stabilizationWindowSeconds": 600}}}
         }
     };
     msgs = validate_scale_config(cfg);
@@ -138,7 +129,7 @@ test "strict env raises on unknown keys" {
             );
         } except ValueError as e {
             raised = True;
-            assert "microservice" in str(e) , str(e);
+            assert "gatway" in str(e) , str(e);
         }
         assert raised , "expected ValueError in strict mode";
     } finally {
@@ -171,7 +162,7 @@ test "an empty strict-env name never escalates" {
 test "the shared loader validates the on-disk jac.toml" {
     d = tempfile.mkdtemp();
     (Path(d) / "jac.toml").write_text(
-        "[project]\nname = \"demo\"\n\n[scale.microservice]\nroutes = {}\n"
+        "[project]\nname = \"demo\"\n\n[scale.gatway]\ncolocate = true\n"
     );
     os.environ[STRICT_ENV] = "1";
     reset_scale_config();
@@ -181,7 +172,7 @@ test "the shared loader validates the on-disk jac.toml" {
             get_scale_config(Path(d)).load();
         } except ValueError as e {
             raised = True;
-            assert "microservice" in str(e) , str(e);
+            assert "gatway" in str(e) , str(e);
         }
         assert raised , "expected strict validation to fire from PluginConfigBase.load";
     } finally {
@@ -213,7 +204,7 @@ test "plugins without a declared schema opt out of validation" {
     assert cfg.get_config_strict_env() == STRICT_ENV;
     schema = cfg.get_config_schema();
     assert schema.get("section") == "scale" , schema.get("section");
-    assert "microservices" in schema.get("options", {}) , "schema options missing";
+    assert "gateway" in schema.get("options", {}) , "schema options missing";
 }
 
 test "shipped jac.toml files validate clean" {
@@ -253,16 +244,14 @@ test "platform-injected and capability-intent keys are recognized" {
     assert msgs == [] , f"expected no findings, got {msgs}";
 }
 
-test "documented microservices boot and client keys are recognized" {
+test "documented gateway boot keys are recognized" {
     cfg = {
-        "microservices": {
+        "gateway": {
+            "colocate": False,
             "boot_health_timeout": 60.0,
             "boot_max_wait": 120,
             "health_monitor_interval": 10.0,
-            "client": {
-                "entry": "client/main.jac",
-                "static_mounts": [{"url_prefix": "/assets", "local_path": "public"}]
-            }
+            "route_refresh_seconds": 5.0
         }
     };
     msgs = validate_scale_config(cfg);
@@ -311,22 +300,12 @@ test "known targets are exactly the ones the factory can build" {
     }
 }
 
-test "normalizer passes documented boot and static-mount keys through" {
-    import from jaclang.scale.config.config_loader { normalize_microservices_config }
-    normalized = normalize_microservices_config(
-        {
-            "boot_max_wait": 120,
-            "client": {
-                "entry": "client/main.jac",
-                "static_mounts": [{"url_prefix": "/assets", "local_path": "public"}]
-            }
-        },
-        env_routes_fallback=False
-    );
+test "normalizer passes documented boot keys through" {
+    import from jaclang.scale.config.config_loader { normalize_gateway_config }
+    normalized = normalize_gateway_config({"boot_max_wait": 120, "colocate": False});
     assert normalized.get("boot_max_wait") == 120 , normalized;
+    assert normalized["colocate"] is False , normalized;
     assert "boot_health_timeout" not in normalized , normalized;
-    mounts = normalized["client"]["static_mounts"];
-    assert mounts == [{"url_prefix": "/assets", "local_path": "public"}] , mounts;
 }
 
 

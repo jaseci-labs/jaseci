@@ -1,8 +1,14 @@
 import from jaclang.server { sv_client }
 import from jaclang.scale.config.app_config { AppConfig }
 import from jaclang.scale.config.config_loader {
+    GATEWAY_POD_KEYS,
     get_scale_config,
-    normalize_microservices_config
+    normalize_gateway_config
+}
+import from jaclang.scale.runtime.fleet {
+    FleetSpec,
+    fleet_from_config,
+    solo_fleet
 }
 import from jaclang.scale.models.deploy_context { DeployContext }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
@@ -281,21 +287,73 @@ obj ManifestBuilder {
         project_dir: str = "",
         _bundle_object_key: str = "",
         _toolchain_object_key: str = "",
-        microservices_config: (dict[str, any] | None) = None,
+        fleet: (FleetSpec | None) = None,
+        gateway_config: (dict[str, any] | None) = None,
+        app_overrides: dict[str, dict[str, any]] = {},
+        client_entry: (str | None) = None,
         dry_run: bool = False,
-        _bundle_services_cache: (dict[str, str] | None) = None;
+        _bundle_files_cache: (dict[str, str] | None) = None;
 
-    def _ms_cfg -> dict[str, any] {
-        if self.microservices_config is not None {
-            return normalize_microservices_config(
-                self.microservices_config, env_routes_fallback=False
-            );
+    def _gateway_cfg -> dict[str, any] {
+        if self.gateway_config is not None {
+            return normalize_gateway_config(self.gateway_config);
         }
         try {
-            return get_scale_config().get_microservices_config();
+            return get_scale_config().get_gateway_config();
         } except Exception {
-            return {};
+            return normalize_gateway_config({});
         }
+    }
+
+    def _project_config -> any {
+        import os;
+        if not self.project_dir or not os.path.isdir(self.project_dir) {
+            return None;
+        }
+        try {
+            import from pathlib { Path }
+            import from jaclang.project.config { get_config_for_path }
+            return get_config_for_path(Path(self.project_dir));
+        } except Exception {
+            return None;
+        }
+    }
+
+    def _derive_fleet(app_config: AppConfig) -> FleetSpec {
+        cfg = self._project_config();
+        if cfg is not None and cfg.apps {
+            root_dir = str(cfg.project_root) if cfg.project_root else self.project_dir;
+            fleet = fleet_from_config(
+                cfg,
+                app_config.served_app,
+                project_root=root_dir,
+                relative_to=self.project_dir
+            );
+        } else {
+            name = app_config.app_name or self.k8s_config.app_name;
+            if not name {
+                raise ValueError(
+                    "Cannot name the app's pod: no app_name is set. Set "
+                    "[project].name in jac.toml."
+                );
+            }
+            fleet = solo_fleet(
+                name, app_config.file_name, client=self._has_client_source()
+            );
+        }
+        for (app, cfg_over) in self.app_overrides.items() {
+            merged = dict(fleet.overrides.get(app, {}));
+            merged.update(dict(cfg_over) if isinstance(cfg_over, dict) else {});
+            fleet.overrides[app] = merged;
+        }
+        return fleet;
+    }
+
+    def _fleet(app_config: AppConfig) -> FleetSpec {
+        if self.fleet is None {
+            self.fleet = self._derive_fleet(app_config);
+        }
+        return self.fleet;
     }
 
     def _injector_object_key -> str {
@@ -306,6 +364,8 @@ obj ManifestBuilder {
         import from jaclang.scale.injector.binary_injector { select_injector }
         import from jaclang.scale.injector.pvc_injector { PvcInjector }
         proj = self.project_dir or app_config.code_folder;
+        self.project_dir = proj;
+        fleet = self._fleet(app_config);
         self._build_client_bundle(proj);
         selection = select_injector(
             self.k8s_config.bundle_storage_class,
@@ -314,7 +374,7 @@ obj ManifestBuilder {
             proj,
             dry_run=self.dry_run,
             access_mode=self.k8s_config.bundle_access_mode,
-            ms_config=self._ms_cfg()
+            fleet=fleet
         );
         injector: PvcInjector = selection[0];
         self._toolchain_object_key = str(selection[1]);
@@ -364,18 +424,15 @@ obj ManifestBuilder {
         import from jaclang.scale.runtime.context.util { jac_executable }
         client_entry = self._client_entry();
         if not client_entry {
-            disabled = self._client_entry_setting()[2];
-            if disabled {
+            if self.client_entry is not None {
                 console.print(
-                    "[scale.microservices.client] entry = false is set; "
-                    "skipping the client build."
+                    "The deploy declares no client entry; skipping the client build."
                 );
             } else {
                 console.print(
-                    "[scale.microservices.client] entry is unset and the "
-                    "project has no client source (no pages/ or components/ "
-                    "directory, no [client] table in jac.toml); skipping the "
-                    "client build."
+                    "The served app has no client target and the project has no "
+                    "client source (no pages/ or components/ directory, no "
+                    "[client] table in jac.toml); skipping the client build."
                 );
             }
             return;
@@ -388,34 +445,31 @@ obj ManifestBuilder {
             } except ValueError {
                 raise ValueError(
                     f"The client entry '{client_entry}' is outside the project "
-                    f"tree, so the bundle cannot ship it. Point "
-                    f"[scale.microservices.client] entry at a path relative to "
-                    f"the project root."
+                    f"tree, so the bundle cannot ship it. Point the served app's "
+                    f"entry-point at a path inside the project root."
                 );
             }
         }
         if ".." in entry_rel.parts {
             raise ValueError(
                 f"The client entry '{client_entry}' reaches outside the project "
-                f"tree, so the bundle cannot ship it. Point "
-                f"[scale.microservices.client] entry at a path relative to "
-                f"the project root."
+                f"tree, so the bundle cannot ship it. Point the served app's "
+                f"entry-point at a path inside the project root."
             );
         }
         if not (base / entry_rel).is_file() {
             if self._declared_client_entry() {
                 raise ValueError(
-                    f"The client entry '{client_entry}' set in "
-                    f"[scale.microservices.client] does not exist under "
-                    f"{base}, so the deploy would ship a gateway with no client "
-                    f"to serve. Fix the entry path, or set entry = false to "
-                    f"deploy without a client."
+                    f"The client entry '{client_entry}' does not exist under "
+                    f"{base}, so the deploy would ship a served app with no "
+                    f"client to serve. Fix the app's entry-point, or set "
+                    f"client_entry = \"\" to deploy without a client."
                 );
             }
             console.print(
                 f"No client entry is declared and '{client_entry}' does not "
-                f"exist; skipping the client build. Set "
-                f"[scale.microservices.client] entry to build one."
+                f"exist; skipping the client build. Give the served app a "
+                f"client target ([apps.<name>] client) to build one."
             );
             return;
         }
@@ -425,9 +479,8 @@ obj ManifestBuilder {
                 f"The client entry '{entry_rel.as_posix()}' never ships: "
                 f"{excluded.exclusion_reason(entry_rel)}. The client build runs "
                 f"on exactly what the bundle ships, so it cannot build from "
-                f"this file. Drop the exclusion, or point "
-                f"[scale.microservices.client] entry at a module the bundle "
-                f"ships."
+                f"this file. Drop the exclusion, or point the served app's "
+                f"entry-point at a module the bundle ships."
             );
         }
         for (env_name, keys) in _vite_env_keys(base).items() {
@@ -559,7 +612,8 @@ obj ManifestBuilder {
 
     def generate_manifests(app_config: AppConfig, image: str) -> dict[str, any] {
         self.project_dir = self.project_dir or app_config.code_folder;
-        self._bundle_services();
+        fleet = self._fleet(app_config);
+        self._bundle_files();
         injector = self._prepare_injector(app_config);
         self._bundle_object_key = injector._object_key;
 
@@ -587,7 +641,9 @@ obj ManifestBuilder {
             "services": services,
             "scaling": scaling,
             "pdbs": pdbs,
-            "pod_specs": pod_specs
+            "pod_specs": pod_specs,
+            "fleet": fleet,
+            "gateway_config": self._gateway_cfg()
         };
 
         bundle["injector"] = injector;
@@ -612,8 +668,7 @@ obj ManifestBuilder {
             bundle["user_secret"] = user_secret;
         }
         try {
-            ms_cfg = self._ms_cfg();
-            ingress_cfg: dict[str, any] = ms_cfg.get("ingress", {});
+            ingress_cfg: dict[str, any] = self._gateway_cfg().get("ingress", {});
         } except Exception {
             ingress_cfg = {};
         }
@@ -647,28 +702,16 @@ obj ManifestBuilder {
     def generate_service_pod_specs(
         app_config: AppConfig, image: str
     ) -> dict[str, dict[str, any]] {
-        app_name = app_config.app_name or self.k8s_config.app_name;
-
-        import from jaclang.scale.runtime.routing { resolve_routes }
-        ms_cfg = dict(self._ms_cfg());
-        routes: dict[str, str] = resolve_routes(ms_cfg);
-        ms_cfg["routes"] = routes;
-        self.microservices_config = ms_cfg;
-
-        if not routes {
-            routes = self._solo_route(app_config);
-            services = dict(ms_cfg.get("services", {}));
-            solo_name = list(routes.keys())[0];
-            solo_cfg = dict(services.get(solo_name, {}));
-            solo_cfg["file"] = app_config.file_name;
-            services[solo_name] = solo_cfg;
-            ms_cfg["services"] = services;
-            ms_cfg["routes"] = routes;
-            self.microservices_config = ms_cfg;
+        fleet = self._fleet(app_config);
+        if fleet.is_empty() {
+            raise ValueError(
+                "Nothing to deploy: the fleet has no apps. Declare [apps] in "
+                "jac.toml or set [project].name."
+            );
         }
 
         specs: dict[str, dict[str, any]] = {};
-        for svc_name in routes.keys() {
+        for svc_name in fleet.names() {
             specs[svc_name] = self._build_service_pod_spec(svc_name, image);
         }
         specs[GATEWAY_NAME] = self._build_gateway_pod_spec(image);
@@ -676,95 +719,86 @@ obj ManifestBuilder {
         if self.logger {
             self.logger.info(
                 f"Generated {len(specs)} pod-spec stubs "
-                f"(1 gateway + {len(routes)} services)",
+                f"(1 gateway + {len(fleet.members)} apps)",
                 {"image": image, "namespace": self.k8s_config.namespace}
             );
         }
         return specs;
     }
 
-    def _solo_route(app_config: AppConfig) -> dict[str, str] {
-        import from jaclang.scale.runtime.routing {
-            derive_route_prefix,
-            guard_route_name
-        }
-        name = app_config.app_name or self.k8s_config.app_name;
-        if not name {
-            raise ValueError(
-                "Cannot name the app's service: no app_name is set. Set "
-                "[project].name in jac.toml, or declare "
-                "[scale.microservices.routes] to cut the app into services."
-            );
-        }
-        guard_route_name(name);
-        return {name: derive_route_prefix(name)};
-    }
-
     def _drain_timeout -> int {
         try {
-            ms_cfg = self._ms_cfg();
-            return int(ms_cfg.get("drain_timeout_seconds", 10));
+            return int(self._gateway_cfg().get("drain_timeout_seconds", 10));
         } except Exception {
             return 10;
         }
     }
 
     def _service_config(svc_name: str) -> dict[str, any] {
-        try {
-            ms_cfg = self._ms_cfg();
-            return dict(ms_cfg.get("services", {}).get(svc_name, {}));
-        } except Exception {
-            return {};
+        if svc_name == GATEWAY_NAME {
+            gw = self._gateway_cfg();
+            return {
+                key: gw[key]
+                for key in GATEWAY_POD_KEYS
+                if key in gw
+            };
         }
+        merged: dict[str, any] = {};
+        if self.fleet is not None {
+            merged.update(self.fleet.app_config(svc_name));
+        }
+        extra = self.app_overrides.get(svc_name);
+        if isinstance(extra, dict) {
+            merged.update(extra);
+        }
+        return merged;
     }
 
-    def _bundle_services -> dict[str, str] {
-        if self._bundle_services_cache is None {
-            import from jaclang.scale.injector.bundle { resolved_bundle_services }
-            self._bundle_services_cache = (
-                resolved_bundle_services(self.project_dir, self._ms_cfg())
-                    if self.project_dir
+    def _bundle_files -> dict[str, str] {
+        if self._bundle_files_cache is None {
+            import from jaclang.scale.injector.bundle { resolve_fleet_entries }
+            self._bundle_files_cache = (
+                resolve_fleet_entries(self.project_dir, self.fleet)
+                    if self.project_dir and self.fleet is not None
                     else {}
             );
         }
-        return self._bundle_services_cache;
-    }
-
-    def _client_entry_setting -> tuple[str, str, bool] {
-        import from jaclang.scale.config.config_loader {
-            get_scale_config,
-            normalize_microservices_config
-        }
-        if self.microservices_config is not None {
-            raw = self.microservices_config;
-        } else {
-            raw = get_scale_config().load().get("microservices", {}) or {};
-        }
-        declared = dict(raw.get("client", {}) or {}).get("entry", None);
-        resolved = normalize_microservices_config(raw, env_routes_fallback=False)[
-            "client"
-        ]["entry"];
-        return (
-            str(resolved or "").strip(),
-            declared.strip() if isinstance(declared, str) else "",
-            declared is False
-        );
+        return self._bundle_files_cache;
     }
 
     def _declared_client_entry -> str {
-        return self._client_entry_setting()[1];
+        if self.client_entry is not None {
+            return self.client_entry.strip();
+        }
+        fleet = self.fleet;
+        if fleet is None {
+            return "";
+        }
+        root_member = fleet.root_member();
+        if root_member is not None and root_member.client {
+            return root_member.file;
+        }
+        return "";
     }
 
     def _client_entry -> str {
-        (resolved, _, disabled) = self._client_entry_setting();
-        if disabled {
-            return "";
+        if self.client_entry is not None {
+            return self.client_entry.strip();
         }
-        if resolved {
-            return resolved;
+        declared = self._declared_client_entry();
+        if declared {
+            return declared;
+        }
+        fleet = self.fleet;
+        if fleet is not None and fleet.root_app and self.project_dir {
+            cfg = self._project_config();
+            if cfg is not None and cfg.apps {
+                return "";
+            }
         }
         if self._has_client_source() {
-            return "main.jac";
+            root_member = fleet.root_member() if fleet is not None else None;
+            return root_member.file if root_member is not None else "main.jac";
         }
         return "";
     }
@@ -797,8 +831,7 @@ obj ManifestBuilder {
 
     def _shared_volumes_config -> list[dict[str, any]] {
         try {
-            ms_cfg = self._ms_cfg();
-            raw = ms_cfg.get("shared_volumes", []);
+            raw = self._gateway_cfg().get("shared_volumes", []);
             if not isinstance(raw, list) {
                 return [];
             }
@@ -820,11 +853,11 @@ obj ManifestBuilder {
         volumes: list[dict[str, any]] = [];
         mounts: list[dict[str, any]] = [];
         for vol in self._shared_volumes_config() {
-            services = vol.get("services", []);
-            if not isinstance(services, list) {
+            apps = vol.get("apps", []);
+            if not isinstance(apps, list) {
                 continue;
             }
-            if svc_name not in services {
+            if svc_name not in apps {
                 continue;
             }
             name = str(vol.get("name", "")).strip();
@@ -868,8 +901,8 @@ obj ManifestBuilder {
             if not mount_path {
                 continue;
             }
-            services = vol.get("services", []);
-            if not isinstance(services, list) or not services {
+            apps = vol.get("apps", []);
+            if not isinstance(apps, list) or not apps {
                 continue;
             }
 
@@ -942,15 +975,6 @@ obj ManifestBuilder {
         return str(getattr(self.k8s_config, "service_account_name", "") or "").strip();
     }
 
-    def _microservice_routes -> dict[str, str] {
-        try {
-            ms_cfg = self._ms_cfg();
-            return dict(ms_cfg.get("routes", {}));
-        } except Exception {
-            return {};
-        }
-    }
-
     def _peer_dns_url(peer_name: str) -> str {
         import from jaclang.scale.runtime.context.util { k8s_service_dns_url }
         return k8s_service_dns_url(
@@ -966,16 +990,17 @@ obj ManifestBuilder {
             {"name": "K8S_APP_NAME", "value": self.k8s_config.app_name},
             {"name": "K8S_NAMESPACE", "value": self.k8s_config.namespace}
         ];
-        svc_file: str = self._bundle_services().get(svc_name, "");
-        if not svc_file {
-            svc_file = str(svc_cfg.get("file") or "");
+        svc_file: str = self._bundle_files().get(svc_name, "");
+        if not svc_file and self.fleet is not None {
+            member = self.fleet.member(svc_name);
+            svc_file = member.file if member is not None else "";
         }
         if svc_file {
             env.append({"name": "JAC_SV_FILE", "value": svc_file});
         }
 
-        ms_trace_cfg: dict = dict(self._ms_cfg().get("tracing", {}));
-        if ms_trace_cfg.get("enabled", False) {
+        trace_cfg: dict = dict(self._gateway_cfg().get("tracing", {}));
+        if trace_cfg.get("enabled", False) {
             env.append(
                 {
                     "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
@@ -984,18 +1009,15 @@ obj ManifestBuilder {
             );
         }
 
-        routes: dict[str, str] = self._microservice_routes();
-
-        if routes {
-            import json;
-            env.append({"name": "JAC_SV_ROUTES", "value": json.dumps(dict(routes))});
+        import from jaclang.scale.runtime.fleet { FLEET_ENV }
+        peers: list[str] = [];
+        if self.fleet is not None and not self.fleet.is_empty() {
+            env.append({"name": FLEET_ENV, "value": self.fleet.to_env()});
+            peers = self.fleet.names();
         }
         seen_peer_keys: set = set();
-        for peer_name in routes {
-            if peer_name == svc_name {
-                continue;
-            }
-            if peer_name == GATEWAY_NAME {
+        for peer_name in peers {
+            if peer_name == svc_name or peer_name == GATEWAY_NAME {
                 continue;
             }
             key = sv_client.peer_url_env_key(peer_name);
@@ -1012,10 +1034,10 @@ obj ManifestBuilder {
 
         extra: dict[str, any] = svc_cfg.get("env", {});
         for (k, v) in extra.items() {
-            if k in ("JAC_SV_NAME", "JAC_SV_FILE") {
+            if k in ("JAC_SV_NAME", "JAC_SV_FILE", FLEET_ENV) {
                 continue;
             }
-            if k.startswith("JAC_SV_") and k.endswith("_URL") {
+            if k.startswith("JAC_APP_") and (k.endswith("_URL") or k.endswith("_ROUTE")) {
                 continue;
             }
             env.append({"name": k, "value": str(v)});
@@ -1539,7 +1561,7 @@ obj ManifestBuilder {
                 "    exit 1; "
                 "  fi; "
                 '  if [ ! -f "$SV_FILE" ]; then '
-                '    echo "jac-scale boot: service $JAC_SV_NAME resolves to $SV_FILE, which the shipped bundle does not contain; fix [scale.microservices] and re-deploy." >&2; '
+                '    echo "jac-scale boot: app $JAC_SV_NAME resolves to $SV_FILE, which the shipped bundle does not contain; check [apps] in jac.toml and re-deploy." >&2; '
                 "    exit 1; "
                 "  fi; "
                 '  exec jac run --serve "$SV_FILE"; '

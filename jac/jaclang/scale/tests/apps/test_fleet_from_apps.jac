@@ -1,0 +1,279 @@
+"""The fleet is read from [apps]: service apps are members at their routes, the
+served app hosts the gateway at /, providers boot before consumers, and the
+gateway exposes the same URLs the colocated in-process server mounts."""
+
+import json;
+import os;
+import shutil;
+import tempfile;
+import from pathlib { Path }
+import from jaclang.project.config { JacConfig }
+import from jaclang.server { sv_client }
+import from jaclang.scale.runtime.fleet {
+    FLEET_ENV,
+    FleetSpec,
+    ROOT_PREFIX,
+    fleet_from_config,
+    fleet_from_env,
+    fleet_of,
+    guard_fleet_routes,
+    order_by_edges,
+    solo_fleet
+}
+import from jaclang.scale.runtime.orchestrator.orchestrator { build_registry }
+import from jaclang.scale.runtime.gateway.dispatch { classify_route, ROUTE_PROXY }
+import from jaclang.scale.runtime.gateway.service_registry {
+    ServiceRegistry,
+    ServiceEntry,
+    ServiceStatus
+}
+import from jaclang.scale.runtime.gateway.microservice_gateway { MicroserviceGateway }
+
+glob _WORKSPACE_TOML: str = '[project]\n'
+     'name = "shop"\n'
+     'default-app = "web"\n'
+     '\n'
+     '[apps.web]\n'
+     'kind = "web-app"\n'
+     'path = "web"\n'
+     '\n'
+     '[apps.orders]\n'
+     'kind = "service"\n'
+     'entry-point = "core/orders.jac"\n'
+     '\n'
+     '[apps.cart]\n'
+     'kind = "service"\n'
+     'entry-point = "core/cart.jac"\n'
+     'route = "/api/basket"\n'
+     '\n'
+     '[apps.tool]\n'
+     'kind = "cli"\n'
+     'path = "tool"\n';
+
+
+def _workspace -> str {
+    d = tempfile.mkdtemp(prefix="jac-fleet-apps-");
+    (Path(d) / "jac.toml").write_text(_WORKSPACE_TOML, encoding="utf-8");
+    (Path(d) / "web").mkdir();
+    (Path(d) / "web" / "main.jac").write_text("with entry {}\n", encoding="utf-8");
+    (Path(d) / "core").mkdir();
+    (Path(d) / "core" / "orders.jac").write_text("with entry {}\n", encoding="utf-8");
+    (Path(d) / "core" / "cart.jac").write_text("with entry {}\n", encoding="utf-8");
+    (Path(d) / "tool").mkdir();
+    (Path(d) / "tool" / "main.jac").write_text("with entry {}\n", encoding="utf-8");
+    return d;
+}
+
+
+def _config(d: str) -> JacConfig {
+    return JacConfig.load(Path(d) / "jac.toml");
+}
+
+
+test "fleet membership comes from [apps]: service kinds only, served app hosts" {
+    d = _workspace();
+    try {
+        fleet = fleet_from_config(_config(d), project_root=d);
+        assert fleet.root_app == "web" , fleet.root_app;
+        assert set(fleet.service_names()) == {"orders", "cart"} , fleet.names();
+        assert "tool" not in fleet.members , "a cli app is never a fleet member";
+        assert fleet.member("web").is_root;
+        assert not fleet.member("orders").is_root;
+    } finally {
+        shutil.rmtree(d, ignore_errors=True);
+    }
+}
+
+
+test "routes default to /api/<name> and honor [apps.<name>] route" {
+    d = _workspace();
+    try {
+        fleet = fleet_from_config(_config(d), project_root=d);
+        assert fleet.routes() == {"orders": "/api/orders", "cart": "/api/basket"} , (
+            fleet.routes()
+        );
+    } finally {
+        shutil.rmtree(d, ignore_errors=True);
+    }
+}
+
+
+test "member files are absolute locally and bundle-relative for a deploy" {
+    d = _workspace();
+    try {
+        local = fleet_from_config(_config(d), project_root=d);
+        assert os.path.isabs(local.member("orders").file);
+        assert local.member("orders").file.endswith(os.path.join("core", "orders.jac"));
+        shipped = fleet_from_config(_config(d), project_root=d, relative_to=d);
+        assert shipped.files()["orders"] == "core/orders.jac" , shipped.files();
+        assert shipped.files()["web"] == "web/main.jac" , shipped.files();
+    } finally {
+        shutil.rmtree(d, ignore_errors=True);
+    }
+}
+
+
+test "the served app is named explicitly or falls back to the default app" {
+    d = _workspace();
+    try {
+        cfg = _config(d);
+        assert fleet_from_config(cfg, "web", project_root=d).root_app == "web";
+        by_default = fleet_from_config(cfg, project_root=d);
+        assert by_default.root_app == "web";
+        as_service = fleet_from_config(cfg, "orders", project_root=d);
+        assert as_service.root_app == "orders";
+        assert set(as_service.service_names()) == {"cart"};
+    } finally {
+        shutil.rmtree(d, ignore_errors=True);
+    }
+}
+
+
+test "providers boot before consumers along the recorded app edges" {
+    names = ["web", "orders", "cart", "stock"];
+    edges = [("web", "orders"), ("orders", "cart"), ("orders", "stock")];
+    order = order_by_edges(names, edges);
+    assert order.index("cart") < order.index("orders") , order;
+    assert order.index("stock") < order.index("orders") , order;
+    assert order.index("orders") < order.index("web") , order;
+}
+
+
+test "with no edges the declaration order is the boot order" {
+    assert order_by_edges(["a", "b", "c"], []) == ["a", "b", "c"];
+}
+
+
+test "a cycle falls back to declaration order instead of hanging" {
+    order = order_by_edges(["a", "b"], [("a", "b"), ("b", "a")]);
+    assert order == ["a", "b"] , order;
+}
+
+
+test "consumer edges declared by loaded modules order the fleet" {
+    d = _workspace();
+    sv_client.clear_consumer_providers();
+    try {
+        sv_client._declare_consumer_provider("web", "orders");
+        sv_client._declare_consumer_provider("orders", "cart");
+        fleet = fleet_from_config(_config(d), project_root=d);
+        names = fleet.names();
+        assert names.index("cart") < names.index("orders") , names;
+        assert names.index("orders") < names.index("web") , names;
+    } finally {
+        sv_client.clear_consumer_providers();
+        shutil.rmtree(d, ignore_errors=True);
+    }
+}
+
+
+test "a route that shadows a gateway-owned segment is refused" {
+    fleet = fleet_of({"svc": "/user"});
+    caught = "";
+    try {
+        guard_fleet_routes(fleet);
+    } except ValueError as e {
+        caught = str(e);
+    }
+    assert "owned by the gateway" in caught , caught;
+}
+
+
+test "two apps on one route are refused" {
+    fleet = fleet_of({"a": "/api/shared", "b": "/api/shared/"});
+    caught = "";
+    try {
+        guard_fleet_routes(fleet);
+    } except ValueError as e {
+        caught = str(e);
+    }
+    assert "distinct route" in caught , caught;
+}
+
+
+test "the fleet round-trips through JAC_SV_FLEET" {
+    fleet = fleet_of(
+        {"orders": "/api/orders"}, root_app="web", root_file="web/main.jac"
+    );
+    saved = os.environ.get(FLEET_ENV);
+    os.environ[FLEET_ENV] = fleet.to_env();
+    try {
+        back = fleet_from_env();
+        assert back is not None;
+        assert back.root_app == "web";
+        assert back.routes() == {"orders": "/api/orders"};
+        assert back.member("web").file == "web/main.jac";
+        assert json.loads(fleet.to_env())["root"] == "web";
+    } finally {
+        if saved is None {
+            os.environ.pop(FLEET_ENV, None);
+        } else {
+            os.environ[FLEET_ENV] = saved;
+        }
+    }
+}
+
+
+test "a solo app is a fleet of one root member" {
+    fleet = solo_fleet("shop", "main.jac");
+    assert fleet.root_app == "shop";
+    assert fleet.service_names() == [];
+    assert fleet.member("shop").file == "main.jac";
+}
+
+
+test "the gateway registry mounts services at their routes and the host at /" {
+    fleet = fleet_of(
+        {"orders": "/api/orders", "cart": "/api/basket"}, root_app="web"
+    );
+    registry = build_registry(fleet);
+    assert registry.root_app == "web";
+    assert registry.entries["web"].prefix == ROOT_PREFIX;
+    assert registry.entries["orders"].prefix == "/api/orders";
+    assert registry.entries["orders"].env["JAC_SV_NAME"] == "orders";
+    assert registry.match_route("/api/orders/walker/Create").name == "orders";
+    assert registry.match_route("/api/basket/function/view").name == "cart";
+    assert registry.match_route("/walker/Home") is None , (
+        "root paths belong to the host, not a prefix match"
+    );
+}
+
+
+test "the gateway proxies every URL shape the colocated server mounts" {
+    prefixes = ["/api/orders", "/api/basket"];
+    for path in [
+        "/api/orders/walker/Create",
+        "/api/orders/walker/Create/n:abc",
+        "/api/orders/function/total",
+        "/api/orders/walkers",
+        "/api/orders/functions"
+    ] {
+        decision = classify_route(path, prefixes);
+        assert decision.kind == ROUTE_PROXY , f"{path}: {decision.kind}";
+        assert decision.service == "/api/orders" , f"{path}: {decision.service}";
+    }
+}
+
+
+test "root paths forward to the served app and 503 while it boots" {
+    import from jaclang.testing.testkit { ServingTestClient as TestClient }
+    reg = ServiceRegistry();
+    reg.register(
+        ServiceEntry(
+            name="web",
+            file="web/main.jac",
+            prefix=ROOT_PREFIX,
+            port=1,
+            url="http://127.0.0.1:1",
+            status=ServiceStatus.STOPPED,
+            is_root=True
+        )
+    );
+    gw = MicroserviceGateway(registry=reg);
+    gw.setup();
+    client = TestClient(gw.app);
+    resp = client.post("/walker/Home", json={});
+    assert resp.status_code == 503 , resp.status_code;
+    body = resp.json();
+    assert body["error"]["code"] == "SERVICE_UNAVAILABLE" , body;
+}

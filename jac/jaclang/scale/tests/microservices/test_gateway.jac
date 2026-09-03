@@ -1248,16 +1248,14 @@ test "gateway drain does not burn metrics labels on 503d requests" {
 obj _FakeScaleConfig {
     has _cors: dict = {};
 
-    def get_microservices_config -> dict {
+    def get_gateway_config -> dict {
         return {
-            "enabled": True,
             "gateway_port": 8000,
             "gateway_host": "0.0.0.0",
             "drain_timeout_seconds": 10.0,
-            "routes": {},
-            "services": {},
+            "rate_limit": {},
             "cors": self._cors,
-            "client": {"entry": "", "dist_dir": "", "base_route": "/"}
+            "tracing": {}
         };
     }
 
@@ -1420,12 +1418,16 @@ test "http_forward_timeout falls back to 30s default when config read fails" {
 obj _TimeoutStubCfg {
     has data: dict[str, any];
 
-    def get_microservices_config -> dict[str, any] {
-        return self.data;
+    def get_gateway_config -> dict[str, any] {
+        return {k: v for (k, v) in self.data.items() if k != "apps"};
+    }
+
+    def get_app_scale_config(app_name: str) -> dict[str, any] {
+        return dict(self.data.get("apps", {}).get(app_name, {}));
     }
 }
 
-test "http_forward_timeout precedence: per-service > global > default" {
+test "http_forward_timeout precedence: per-app > gateway > default" {
     import from jaclang.scale.runtime.context.util { http_forward_timeout }
     import jaclang.scale.config.config_loader as cfg_mod;
 
@@ -1435,7 +1437,7 @@ test "http_forward_timeout precedence: per-service > global > default" {
             cfg_mod,
             "get_scale_config",
             lambda { _TimeoutStubCfg(
-                data={"http_forward_timeout": 45.0, "services": {}}
+                data={"http_forward_timeout": 45.0, "apps": {}}
             ); }
         );
         assert http_forward_timeout(None) == 45.0;
@@ -1447,7 +1449,7 @@ test "http_forward_timeout precedence: per-service > global > default" {
             lambda { _TimeoutStubCfg(
                 data={
                     "http_forward_timeout": 45.0,
-                    "services": {"llm_app": {"http_forward_timeout": 300.0}}
+                    "apps": {"llm_app": {"http_forward_timeout": 300.0}}
                 }
             ); }
         );
@@ -1458,7 +1460,7 @@ test "http_forward_timeout precedence: per-service > global > default" {
             cfg_mod,
             "get_scale_config",
             lambda { _TimeoutStubCfg(
-                data={"services": {"llm_app": {"http_forward_timeout": 120.0}}}
+                data={"apps": {"llm_app": {"http_forward_timeout": 120.0}}}
             ); }
         );
         assert http_forward_timeout("llm_app") == 120.0;
@@ -1470,7 +1472,7 @@ test "http_forward_timeout precedence: per-service > global > default" {
             lambda { _TimeoutStubCfg(
                 data={
                     "http_forward_timeout": 45.0,
-                    "services": {"llm_app": {"rpc_timeout": 120.0}}
+                    "apps": {"llm_app": {"rpc_timeout": 120.0}}
                 }
             ); }
         );
