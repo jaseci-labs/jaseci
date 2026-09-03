@@ -1148,6 +1148,9 @@ impl JacCompiler.compile(
     _prev_cs = get_effective_default_codespace_override();
     _depth_prev = self._reentrant_depth;
     self._reentrant_depth = _depth_prev + 1;
+    if _depth_prev == 0 {
+        self._closure_opts = options;
+    }
     _gc_prev: (tuple | None) = None;
     if _depth_prev == 0 and not os.environ.get('JAC_GC_NO_COMPILE_BOOST') {
         import gc;
@@ -1284,6 +1287,9 @@ impl JacCompiler.compile(
         native_ir_cache_set_suspended(_na_cache_prev);
         set_effective_default_codespace(_prev_cs);
         self._reentrant_depth = _depth_prev;
+        if _depth_prev == 0 {
+            self._closure_opts = None;
+        }
         if _outer_prog is not None and _outer_opts is not None {
             _outer_prog.options = _outer_opts;
         }
@@ -1419,7 +1425,8 @@ impl JacCompiler._compile_once(
     if _prev_opts is not None and not options.default_codespace {
         options.default_codespace = _prev_opts.default_codespace;
     }
-    if _prev_opts is not None and _prev_opts.need_full_ast {
+    _closure = self._closure_opts;
+    if _closure is not None and _closure is not options and _closure.need_full_ast {
         options.need_full_ast = True;
     }
     actual_program.options = options;

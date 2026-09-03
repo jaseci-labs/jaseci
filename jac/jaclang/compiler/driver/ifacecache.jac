@@ -969,6 +969,21 @@ obj IfaceRegistry {
                     f"extra={extra})"
                 );
             }
+            import from jaclang.compiler.types.stubcat.modiface {
+                build_module_iface,
+                read_iface_hash
+            }
+            fresh_digest = read_iface_hash(
+                build_module_iface(fresh, prog2.get_type_evaluator(), self._pkg_dir())
+            )
+                or "";
+            if fresh_digest != ent.digest {
+                raise RuntimeError(
+                    f"analysis-cache verify failed for {resolved}: the served "
+                    f"interface digest {ent.digest[:12]} differs from a fresh "
+                    f"source compile's {fresh_digest[:12]}"
+                );
+            }
         } finally {
             self.verifying = False;
         }
@@ -994,7 +1009,7 @@ obj IfaceRegistry {
 
             def digestible(alert: any) -> tuple {
                 return (
-                    alert.loc.mod_path,
+                    os.path.realpath(alert.loc.mod_path),
                     alert.loc.first_line,
                     alert.loc.col_start,
                     alert.code.code if alert.code is not None else None,
