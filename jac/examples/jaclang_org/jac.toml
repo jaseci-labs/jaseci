@@ -17,9 +17,6 @@ jaclang_source = "../.."
 [precommit]
 typecheck = true
 
-[test]
-directories = ["socialize", "leaderboard", "shared", "docs"]
-
 [check.lint]
 select = ["all", "strip-comments", "strip-docstrings"]
 exclude = [
