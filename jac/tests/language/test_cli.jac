@@ -1263,20 +1263,26 @@ test "jac create and run no root files" {
 
         files_before_run = get_root_files(project_path);
 
-        # Run jac run main.jac (change to project directory first)
+        # The cli scaffold dispatches argparse subcommands, so a bare run is
+        # a usage error; `jac run main.jac -- greet <name>` is the happy path.
+        # The template ends in sys.exit(main()), which surfaces as SystemExit.
         os.chdir(project_path);
         captured = io.StringIO();
         old_stdout = sys.stdout;
         sys.stdout = captured;
+        saved_argv = list(sys.argv);
         try {
-            result = execution.run("main.jac");
+            result = execution.run("main.jac", args=["greet", project_name]);
+        } except SystemExit as e {
+            result = int(e.code or 0);
         } finally {
             sys.stdout = old_stdout;
+            sys.argv = saved_argv;
         }
         stdout = captured.getvalue();
 
-        assert result == 0 , "jac run failed";
-        assert f"Hello from {project_name}!" in stdout;
+        assert result == 0 , f"jac run failed: {stdout}";
+        assert f"Hello, {project_name}! This is {project_name}." in stdout , stdout;
 
         # Record files after run
         files_after_run = get_root_files(project_path);

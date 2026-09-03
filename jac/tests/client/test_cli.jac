@@ -239,6 +239,15 @@ test "create jac app with button component" {
                 f"serve table still carries the deleted key: {config_data.get('serve')}"
             );
 
+            # The mobile scaffold is an explicit [apps.main] mobUI app.
+            assert "client_kind" not in config_data["project"] , (
+                f"[project] client_kind is gone: {config_data['project']}"
+            );
+            main_app = config_data.get("apps", {}).get("main", {});
+            assert main_app.get("kind") == "mobile" , f"apps table: {config_data.get('apps')}";
+            assert main_app.get("client") == "react-native" , f"apps.main: {main_app}";
+            assert main_app.get("client_kind") == "mobui" , f"apps.main: {main_app}";
+
             # Verify components directory and Button.jac were created at project root
             components_dir = os.path.join(project_path, "components");
             assert os.path.exists(components_dir) , (
@@ -262,20 +271,38 @@ test "create jac app with button component" {
                 f"Button.jac head: {button_content[:400]}"
             );
 
-            # Verify main.jac includes Jac component import
+            # main.jac is the shell: it renders the Home screen, which is where
+            # the Button component is used.
             app_jac_path = os.path.join(project_path, "main.jac");
             assert os.path.exists(app_jac_path) , (
-                f"no app.jac; project has: {os.listdir(project_path)}"
+                f"no main.jac; project has: {os.listdir(project_path)}"
             );
 
             with open(app_jac_path) as f {
                 app_jac_content = f.read();
             }
 
-            assert "import from .components.Button { Button }" in app_jac_content , (
+            assert "import from .screens.Home { HomeScreen }" in app_jac_content , (
                 f"main.jac head: {app_jac_content[:400]}"
             );
-            assert "<Button" in app_jac_content;
+            assert "<HomeScreen" in app_jac_content;
+            assert 'import from "@jac/mobui"' in app_jac_content , (
+                f"a mobUI app renders @jac/mobui primitives only: {app_jac_content[:400]}"
+            );
+
+            home_jac_path = os.path.join(project_path, "screens", "Home.jac");
+            assert os.path.exists(home_jac_path) , (
+                f"no screens/Home.jac; project has: {os.listdir(project_path)}"
+            );
+
+            with open(home_jac_path) as f {
+                home_jac_content = f.read();
+            }
+
+            assert "import from ..components.Button { Button }" in home_jac_content , (
+                f"Home.jac head: {home_jac_content[:400]}"
+            );
+            assert "<Button" in home_jac_content;
 
             # Verify README.md includes component information
             readme_path = os.path.join(project_path, "README.md");

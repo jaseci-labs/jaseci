@@ -931,14 +931,14 @@ test "separated files" {
 }
 
 test "separated defpub generates rpc stubs" {
-    # Compile the client module directly. It uses `sv import` to reference
-    # def:pub functions defined in separated_defpub.jac (the main module).
+    # Compile the client module directly. Its import of def:pub functions
+    # defined in separated_defpub.jac (a service app) is a client bridge.
     fixture = "separated_defpub_client.jac";
     js_code = compile_fixture_to_js(fixture, FIXTURES);
 
-    # The sv-imported def:pub functions must produce __jacCallFunction stubs
+    # The bridged def:pub functions must produce __jacCallFunction stubs
     assert "__jacCallFunction" in js_code , (
-        "sv import of def:pub functions must generate __jacCallFunction RPC stubs"
+        "a client bridge to def:pub functions must generate __jacCallFunction RPC stubs"
     );
 
     # Each def:pub function should have a stub with the correct name
@@ -964,8 +964,8 @@ test "separated defpub generates rpc stubs" {
     assert_balanced_syntax(js_code, fixture);
 }
 
-test "sv import kwargs preserve names in jac call function" {
-    # Regression for issue #5852.  Calling an sv-imported def:pub function
+test "bridged call kwargs preserve names in jac call function" {
+    # Regression for issue #5852.  Calling a bridged def:pub function
     # with kwargs syntax (e.g. ``greet(name=x)``) must compile to the same
     # ``__jacCallFunction("greet", {"name": x})`` shape that the positional
     # form produces.  Previously the kwargs were silently dropped, emitting
@@ -1019,12 +1019,12 @@ test "sv import kwargs preserve names in jac call function" {
     assert_balanced_syntax(js_code, fixture);
 }
 
-test "sv import kwargs preserve names in production jac2js path" {
+test "bridged call kwargs preserve names in production jac2js path" {
     fixture = "svc_kwargs/sv_import_kwargs_client.jac";
     js_code = compile_fixture_to_js_production(fixture, FIXTURES);
 
     assert '__jacCallFunction("greet", {"name": __jacS_input_text.val})' in js_code , (
-        "Production jac2js path must lower sv-import kwargs directly into the RPC args object;\n"
+        "Production jac2js path must lower bridged-call kwargs directly into the RPC args object;\n"
         + "got:\n"
         + js_code
     );
@@ -1038,7 +1038,7 @@ test "sv import kwargs preserve names in production jac2js path" {
     );
 }
 
-test "sv import wrapper covers posonly and kwonly params" {
+test "bridge wrapper covers posonly and kwonly params" {
     # Regression for the latent stub-generation bug: ``_generate_sv_import_stubs``
     # used to walk only ``sig.params`` (regular non-posonly non-kwonly), so
     # posonly/kwonly params silently disappeared from the generated wrapper —
@@ -1052,7 +1052,7 @@ test "sv import wrapper covers posonly and kwonly params" {
     # Wrapper signature must list params in declared order — filter (posonly),
     # query (regular), scope (kwonly).
     assert "asyncfunctionquery(filter,query,scope)" in compact_js , (
-        "sv-import wrapper must include posonly + kwonly params in its JS "
+        "bridge wrapper must include posonly + kwonly params in its JS "
         + "signature, not silently drop them;\ngot:\n"
         + js_code
     );
@@ -1152,7 +1152,7 @@ test "plain client kwargs lower to ordered js arguments" {
     );
 }
 
-test "sv import duplicate kwarg is a compile error" {
+test "bridged call duplicate kwarg is a compile error" {
     # Calling ``greet(input_text, name=other)`` gives the ``name`` parameter
     # twice — once positionally and once by keyword.  This mirrors Python's
     # ``TypeError: got multiple values for argument 'name'`` and must be
@@ -1178,18 +1178,18 @@ test "sv import duplicate kwarg is a compile error" {
     assert "name" in str(dup_errs[0]) and "greet" in str(dup_errs[0]);
 }
 
-test "sv import nested in cl block emits no dead import" {
-    # Regression: a cl {} block clobbered a nested sv import's SERVER
+test "bridged import nested in a client block emits no dead import" {
+    # Regression: a client block clobbered a nested bridged import's SERVER
     # context, making it emit a dead client import of the server.
     js_code = compile_fixture_to_js(
         "svc_kwargs/sv_import_cl_block_client.jac", FIXTURES
     );
     assert "sv_import_cl_block_server" not in js_code , (
-        "nested sv import must not emit a client import of the server " "module; got:\n"
+        "nested bridged import must not emit a client import of the server " "module; got:\n"
         + js_code
     );
     assert '__jacSpawn("say_hi"' in js_code , (
-        "nested sv import must still lower the call to __jacSpawn; got:\n" + js_code
+        "nested bridged import must still lower the call to __jacSpawn; got:\n" + js_code
     );
 }
 
