@@ -12,6 +12,7 @@ import from jaclang.compiler.driver.jir {
     get_module_cache_path,
     is_compiler_source_path,
     is_module_cache_valid,
+    is_stub_like_path,
     jir_cacheable_source_path,
     module_cache_key,
     read_dep_hashes,
@@ -136,8 +137,13 @@ obj IfaceRegistry {
 
     def on_closure_release {
         self.closure_token += 1;
-        self._iface_bytes.clear();
         cap = 192;
+        if len(self._iface_bytes) > cap {
+            stale = list(self._iface_bytes.keys())[:len(self._iface_bytes) - cap];
+            for key in stale {
+                del self._iface_bytes[key];
+            }
+        }
         if len(self.entries) > cap {
             doomed: list[str] = [];
             excess = len(self.entries) - cap;
@@ -210,7 +216,7 @@ obj IfaceRegistry {
             return;
         }
         digest = "";
-        if real.endswith('.pyi') {
+        if is_stub_like_path(real) {
             try {
                 import from jaclang.compiler.driver.jir { compute_stub_module_key }
                 digest = compute_stub_module_key(real);
@@ -343,7 +349,7 @@ obj IfaceRegistry {
             if not recorded {
                 return False;
             }
-            if dep.endswith('.pyi') {
+            if is_stub_like_path(dep) {
                 try {
                     import from jaclang.compiler.driver.jir { compute_stub_module_key }
                     if compute_stub_module_key(dep) != recorded {
@@ -386,7 +392,11 @@ obj IfaceRegistry {
                 return found;
             }
         }
-        if not compile_on_miss or not jir_cacheable_source_path(resolved) {
+        if (
+            not compile_on_miss
+            or not jir_cacheable_source_path(resolved)
+            or is_stub_like_path(resolved)
+        ) {
             return None;
         }
         if not os.path.isfile(resolved) {
@@ -504,7 +514,7 @@ obj IfaceRegistry {
             or bool(options.default_codespace) {
             return False;
         }
-        if not jir_cacheable_source_path(resolved) {
+        if not jir_cacheable_source_path(resolved) or is_stub_like_path(resolved) {
             return False;
         }
         if compiler.stub_catalog_disabled {
@@ -672,11 +682,16 @@ obj IfaceRegistry {
         } except Exception {
             modkey = "";
         }
+        inferred = bool(getattr(mod, "codespace_inferred", False));
         memo = self._iface_bytes.get(resolved);
-        if modkey and memo is not None and memo[0] == modkey {
+        payload: (bytes | None) = None;
+        if inferred {
+            digest = self._disk_iface_digest(resolved);
+        } elif modkey and memo is not None and memo[0] == modkey {
             payload = memo[1];
             digest = memo[2];
         } else {
+            self._event("iface_encode");
             ev = self.prog.get_type_evaluator();
             payload = build_module_iface(mod, ev, self._pkg_dir());
             digest = read_iface_hash(payload) or "";
@@ -684,7 +699,9 @@ obj IfaceRegistry {
                 self._iface_bytes[resolved] = (modkey, payload, digest, );
             }
         }
-        sections[SEC_IFACE] = payload;
+        if payload is not None {
+            sections[SEC_IFACE] = payload;
+        }
         sections[SEC_DEPS] = deps_section(self.dep_rows(resolved, mod));
         try {
             import from jaclang.compiler.placement.placement {
@@ -728,7 +745,7 @@ obj IfaceRegistry {
         if write_module_cache(resolved, None, extra_sections=sections) {
             self._event("iface_persist");
         }
-        if digest {
+        if digest and not inferred {
             self._register(
                 resolved,
                 digest,
@@ -736,6 +753,8 @@ obj IfaceRegistry {
                 sections.get(SEC_PLACEMENT),
                 diags=sections.get(SEC_DIAG)
             );
+        }
+        if digest {
             for frame in self.frames {
                 bucket = self.direct_deps.get(frame);
                 if bucket is not None and resolved in bucket {
@@ -743,6 +762,16 @@ obj IfaceRegistry {
                 }
             }
         }
+    }
+
+    def _disk_iface_digest(resolved: str) -> str {
+        import from jaclang.compiler.types.stubcat.modiface { read_iface_hash }
+        try {
+            data: bytes = get_module_cache_path(resolved).read_bytes();
+        } except Exception {
+            return "";
+        }
+        return read_iface_hash(read_section_bytes(data, SEC_IFACE)) or "";
     }
 
     def _existing_profiles(resolved: str) -> dict {

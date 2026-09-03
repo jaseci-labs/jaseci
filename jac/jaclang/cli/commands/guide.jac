@@ -30,6 +30,14 @@ comptime SPEC_GUIDE: CommandSpec = CommandSpec(
                  short="e"
              ),
              Arg(
+                 name="nav",
+                 kind=ArgKind.OPTION,
+                 typ=bool,
+                 `default=False,
+                 help="Print the docs navigation: sections, titles, and reading order",
+                 short="n"
+             ),
+             Arg(
                  name="json",
                  kind=ArgKind.OPTION,
                  typ=bool,
@@ -49,7 +57,9 @@ comptime SPEC_GUIDE: CommandSpec = CommandSpec(
              ),
              ("jac guide reference", "List every doc in the reference set"),
              ("jac guide --search 'breaking changes'", "Grep all bundled content"),
+             ("jac guide --nav", "Docs navigation: sections and reading order"),
              ("jac guide --json", "Full guide/doc index as JSON for tooling"),
+             ("jac guide --nav --json", "Navigation manifest as JSON for tooling"),
              ("jac guide --export ~/.claude/skills", "Export guides as Agent Skills"),
 
          ],
@@ -58,5 +68,9 @@ comptime SPEC_GUIDE: CommandSpec = CommandSpec(
      );
 
 def guide(
-    topic: str = "", search: str = "", export: str = "", as_json: bool = False
+    topic: str = "",
+    search: str = "",
+    export: str = "",
+    nav: bool = False,
+    as_json: bool = False
 ) -> int;

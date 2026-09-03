@@ -1,40 +1,9 @@
-test "parse nav reads titles and order" {
-    nav = parse_nav(
-        "site_name: x\nnav:\n  - Home: index.md\n  - Guide: guide/intro.md\n"
-    );
-    assert len(nav) == 2;
-    assert nav["index.md"].title == "Home";
-    assert nav["index.md"].order == 0;
-    assert nav["guide/intro.md"].title == "Guide";
-    assert nav["guide/intro.md"].order == 1;
-}
-
-test "parse nav manifest flattens sections in document order" {
-    nav = parse_nav_manifest(
-        '{"version": 1, "nav": ['
-        '{"title": "Start", "items": ['
-        '{"title": "Home", "page": "index.md"},'
-        '{"title": "Deep", "items": [{"title": "Inner", "page": "a/b.md"}]}'
-        ']},'
-        '{"title": "Ext", "url": "https://example.com"},'
-        '{"title": "Solo", "page": "solo.md"}'
-        ']}'
-    );
-    assert len(nav) == 3;
-    assert nav["index.md"].title == "Home";
-    assert nav["index.md"].order == 0;
-    assert nav["a/b.md"].title == "Inner";
-    assert nav["a/b.md"].order == 1;
-    assert nav["solo.md"].order == 2;
-    assert parse_nav_manifest("not json") == {};
-}
-
-test "clean md drops frontmatter and snippets" {
-    got = clean_md("---\ntitle: x\n---\n# Real\n--8<-- \"x.md\"\nbody\n");
-    assert "title: x" not in got;
-    assert "--8<--" not in got;
-    assert "# Real" in got;
-    assert "body" in got;
+test "label of maps the running jac version to a docs series" {
+    assert label_of("0.37.1") == "v0.37";
+    assert label_of("v1.2.0") == "v1.2";
+    assert label_of("2.0.0rc1") == "v2.0";
+    assert label_of("") == "dev";
+    assert label_of("nightly") == "dev";
 }
 
 test "first h1 skips headings inside fences" {
@@ -42,50 +11,50 @@ test "first h1 skips headings inside fences" {
     assert first_h1("plain text only\n") == "";
 }
 
-test "pick releases keeps newest patch per series inside the window" {
-    specs = pick_releases(
-        [
-            "v0.30.9",
-            "v0.31.0",
-            "v0.31.3",
-            "v0.34.13",
-            "v0.34.4",
-            "v0.35.0",
-            "v0.35.1",
-            "v2.3.28",
-            "not-a-tag",
-            ""
-        ]
+test "rewrite links routes relative docs images and legacy hosts" {
+    got = rewrite_links(
+        "[a](walkers.md#spawn) ![i](assets/x.png) <img src=\"assets/y.png\">"
+        " https://docs.jaseci.org/learn/ [ext](https://example.com)",
+        "v0.37",
+        "guide/intro.md"
     );
-    assert [s.label for s in specs] == ["v0.35", "v0.34", "v0.31"];
-    assert [s.git_ref for s in specs] == ["v0.35.1", "v0.34.13", "v0.31.3"];
+    assert "[a](/docs/v0.37/guide/walkers#spawn)" in got;
+    assert "![i](/static/assets/docsmedia/x.png)" in got;
+    assert "src=\"/static/assets/docsmedia/y.png\"" in got;
+    assert "/docs/v0.37/learn" in got;
+    assert "(https://example.com)" in got;
 }
 
-test "untar members keeps full paths and skips directories" {
-    buf = io.BytesIO();
-    blob = "# hi\n".encode("utf-8");
-    with tarfile.open(fileobj=buf, mode="w") as tf {
-        info = tarfile.TarInfo(name="jac/jaclang/cli/docs/index.md");
-        info.size = len(blob);
-        tf.addfile(info, io.BytesIO(blob));
-        sub = tarfile.TarInfo(name="jac/jaclang/cli/docs/sub");
-        sub.type = tarfile.DIRTYPE as bytes;
-        tf.addfile(sub);
+test "corpus bundle reads the bundled docs their nav and a stable fingerprint" {
+    b = corpus_bundle();
+    assert len(b.pages) > 50;
+    assert "quick-guide/index.md" in b.pages;
+    assert b.jac_version != "";
+    assert len(b.fingerprint) == 40;
+    assert len(b.nav) == len(b.pages);
+    for rel in b.nav.keys() {
+        assert rel in b.pages;
+        assert b.nav[rel].title != "";
     }
-    got = untar_members(buf.getvalue());
-    assert list(got.keys()) == ["jac/jaclang/cli/docs/index.md"];
-    assert got["jac/jaclang/cli/docs/index.md"] == blob;
+    assert corpus_bundle().fingerprint == b.fingerprint;
 }
 
-test "specs drift detects missing versions" {
-    hd = (root +>:HasHub():+> DocsHub(built_at="2026-01-01T00:00:00Z")) as DocsHub;
-    for spec in effective_specs() {
-        hd +>:HasVersion():+> DocVersion(
-            label=spec.label, git_ref=spec.git_ref, fetched_at="9999"
-        );
-    }
-    assert not specs_drifted();
-    bare = (root +>:HasHub():+> DocsHub(built_at="2026-01-02T00:00:00Z")) as DocsHub;
-    _sweep_stale(bare);
-    assert specs_drifted();
+test "ingest grows one version labelled after the running jac then settles" {
+    b = corpus_bundle();
+    assert corpus_stale(DocBundle(fingerprint="never-ingested"));
+    ingest(b);
+    vers = _version("latest");
+    assert len(vers) == 1;
+    assert vers[0].label == label_of(b.jac_version);
+    assert vers[0].jac_version == b.jac_version;
+    assert vers[0].fingerprint == b.fingerprint;
+    assert vers[0].pages == len(b.pages);
+    assert "quick-guide" in [n.name for n in vers[0].tree()];
+    assert not corpus_stale(b);
+    assert corpus_stale(
+        DocBundle(pages=b.pages, nav=b.nav, jac_version=b.jac_version, fingerprint="x")
+    );
+    order = vers[0].reading_order();
+    assert len(order) == len(b.pages);
+    assert [order[0]->:NextPage:->];
 }
