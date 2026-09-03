@@ -936,16 +936,43 @@ jobs:
             "requests>=2.32.0,<3.0.0" \
             --global
 
-      # Fullstack smoke on the in-tree jaclang.org site
-      # (jac/examples/jaclang_org). JAC_NO_DEV_SOURCE=1 (job env) so the
-      # site's [dev] stanza is ignored and the sealed kit binary is what gets
-      # validated, not a live-source reroute.
-      - name: Install site deps (first run pulls npm deps)
-        working-directory: jac/examples/jaclang_org
-        run: jac install
+      # Fullstack smoke on the jaclang.org site, scaffolded the way the README
+      # quickstart tells a user to. `jac create <name> --awesome` dumps the copy
+      # of jac/examples/jaclang_org that the payload bundles beside the jaclang
+      # package (awesome_template) and pulls its npm deps. Running the
+      # scaffolded copy instead of the checkout is what exercises the bundling
+      # step and the template resolver (the [dev] stanza is dropped, the
+      # project is renamed); nothing else in CI runs that path. Because the
+      # template ships inside the binary, the binary and the site it serves are
+      # version-matched by construction, which is why the old happy-path lane
+      # (released binary against main's clone) no longer had a quickstart to
+      # validate. JAC_NO_DEV_SOURCE=1 (job env) so the sealed kit binary is
+      # what gets validated, not a live-source reroute.
+      - name: Scaffold the site (jac create --awesome; pulls npm deps)
+        run: jac create site --awesome
+
+      # `jac create` reports a failed dependency install as a next step, not a
+      # non-zero exit, so check the scaffold before serving it: the failure
+      # should name the quickstart step, not a missing module at bundle time.
+      - name: Verify the scaffold came from the bundled template
+        run: |
+          test -f site/main.jac && test -f site/game/arena.jac \
+            || { echo "::error::scaffold is missing the site's entry or the wasm game"; exit 1; }
+          # Client npm deps live under the project's build dir (.jac/client),
+          # not a top-level node_modules; that is where the vite bundler looks.
+          test -d site/.jac/client/node_modules/vite \
+            || { echo "::error::jac create did not pull the site's npm deps (no vite under site/.jac/client/node_modules)"; exit 1; }
+          if grep -q '^\[dev\]' site/jac.toml; then
+            echo "::error::the [dev] live-source stanza leaked into the scaffold"; exit 1
+          fi
+          grep -q '^name = "site"' site/jac.toml \
+            || { echo "::error::the scaffold was not renamed to the project name"; exit 1; }
+          cmp jac/examples/jaclang_org/assets/og-card.png site/assets/og-card.png \
+            || { echo "::error::a binary asset did not survive the template round trip"; exit 1; }
+          echo "scaffold matches the README quickstart"
 
       - name: Type check the site
-        working-directory: jac/examples/jaclang_org
+        working-directory: site
         run: jac check main.jac
 
       # The docs section reads the corpus bundled with the jac binary under
@@ -956,7 +983,7 @@ jobs:
       # topology. This lane smokes the single-process serving stack; the
       # gateway topology gets its own pass over the same journey below.
       - name: Start site server in background
-        working-directory: jac/examples/jaclang_org
+        working-directory: site
         run: |
           timeout 1200 jac run --serve --no-ms main.jac > /tmp/site-server.log 2>&1 &
           SERVER_PID=$!
