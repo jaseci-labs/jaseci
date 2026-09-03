@@ -1,6 +1,7 @@
 import os;
 import shutil;
 import tempfile;
+import from jaclang.cli.console { console }
 
 
 def venv_cache_key(specs: list[str], base_image: str) -> str {
@@ -17,7 +18,15 @@ def is_cache_eligible(base_image: str) -> bool {
 
 
 def restore(cache_dir: str, venv_dir: str) -> None {
+    if not cache_dir or not venv_dir {
+        console.warning(
+            "venv-cache: JAC_VENV_CACHE_DIR/JAC_VENV_DIR unset; skipping restore",
+            emoji=False
+        );
+        return;
+    }
     if not os.path.isdir(cache_dir) {
+        console.info(f"venv-cache: no entry at {cache_dir}; full install", emoji=False);
         return;
     }
     try {

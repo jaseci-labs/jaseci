@@ -328,6 +328,25 @@ test "_build_readiness_probe leaves a service with hpa disabled and replicas=0 t
     assert probe["periodSeconds"] == KubernetesConfig().readiness_period_scale_to_zero;
 }
 
+test "_build_readiness_probe zeroes initialDelaySeconds for replica floor 0 but not a normally-scaled service" {
+    # The startup probe (delay=0, its own tight period) already gates the
+    # pod until the app answers once; readiness only starts polling after
+    # that succeeds. A separate readiness_initial_delay floor on top of
+    # that (default 10s) is pure dead time on the wake path this fix
+    # exists to shrink for a scale-to-zero service -- it isn't waiting for
+    # anything the startup probe hasn't already confirmed. A normally-
+    # scaled service (readiness live for the pod's whole lifetime, no
+    # startup-probe handoff to piggyback on) keeps the configured delay.
+    zero_b = _builder({"worksvc": {"hpa": {"min": 0}}});
+    zero_probe = zero_b._build_readiness_probe("worksvc");
+    assert zero_probe["initialDelaySeconds"] == 0;
+
+    one_b = _builder({"worksvc": {"hpa": {"min": 1}}});
+    one_probe = one_b._build_readiness_probe("worksvc");
+    assert one_probe["initialDelaySeconds"]
+        == KubernetesConfig().readiness_initial_delay;
+}
+
 test "_build_readiness_probe honors a custom readiness_period_scale_to_zero" {
     b = _builder(
         {"worksvc": {"hpa": {"min": 0}}},

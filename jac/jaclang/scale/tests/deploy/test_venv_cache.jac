@@ -68,25 +68,21 @@ test "restore rolls back a partial copy instead of leaving a torn venv behind" {
     # finding 1's failure mode: pip sees some distributions already present
     # in a "venv" that never finished installing and skips them, so jac
     # install itself can't tell the difference from a real cache hit.
-    import unittest.mock;
-    import jaclang.scale.deploy.target.kubernetes.venv_cache as venv_cache_mod;
-
+    #
+    # Drives the real shutil.copytree call rather than mocking it out: a
+    # dangling symlink in cache_dir makes copytree (default symlinks=False,
+    # so it dereferences) copy every other entry successfully and then
+    # raise on the broken one - a real partial-copy failure, not a stand-in
+    # for one.
     with tempfile.TemporaryDirectory() as td {
         cache_dir = os.path.join(td, "cache", "key1");
         _make_venv(cache_dir, "cached");
+        os.symlink(
+            os.path.join(td, "does-not-exist"),
+            os.path.join(cache_dir, "lib", "dangling")
+        );
         venv_dir = os.path.join(td, "app", "venv");
-        def _torn_copy(src: str, dst: str, **kwargs: any) {
-            os.makedirs(os.path.join(dst, "lib"), exist_ok=True);
-            with open(os.path.join(dst, "lib", "partial.txt"), "w") as f {
-                f.write("torn");
-            }
-            raise OSError("simulated concurrent deletion mid-copy");
-        }
-        with unittest.mock.patch.object(
-            venv_cache_mod.shutil, "copytree", _torn_copy
-        ) {
-            restore(cache_dir, venv_dir);
-        }
+        restore(cache_dir, venv_dir);
         assert not os.path.exists(venv_dir) , (
             "a failed restore must not leave a partial venv behind"
         );

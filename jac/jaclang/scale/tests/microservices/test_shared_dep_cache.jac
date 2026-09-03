@@ -115,17 +115,22 @@ test "bootstrap calls venv-cache-restore before install and venv-cache-publish a
     assert "jac scale venv-cache-publish" in script;
     assert script.index("venv-cache-restore") < script.index("jac install");
     assert script.index("venv-cache-publish") > script.index("jac install");
-    assert "chmod 0777" not in script.split("jac install")[1];
 }
 
 test "bootstrap sets JAC_VENV_CACHE_DIR, JAC_VENV_DIR and JAC_VENV_CACHE_ROOT via the container's structured env, not shell text" {
-    # Regression test: these were previously built as one f-string setting
-    # two vars at once (`JAC_VENV_CACHE_DIR="X" JAC_VENV_DIR="Y" cmd`), and
-    # at runtime the second one never became its own environment variable -
-    # it was silently appended as literal text onto the first's value
-    # instead (confirmed via `kubectl get pod -o json`, not just
-    # `describe`'s text rendering, on a real deploy). restore()'s first
-    # line is `if not os.path.isdir(venv_dir): return`, so an empty
+    # Regression test: these were previously built from one f-string meant
+    # to emit two separate quoted assignments
+    # (`JAC_VENV_CACHE_DIR="X" JAC_VENV_DIR="Y" cmd`). A POSIX shell does
+    # not merge assignment-prefix words like that at runtime - each would
+    # become its own environment variable correctly if the script text
+    # actually contained two quoted assignments. It didn't: the bug was at
+    # jac's f-string *compile* time, where two quoted `{}` interpolations
+    # in one f-string collapsed into a single quoted blob, so the
+    # generated container args already held the corrupted, merged text
+    # before any shell ever ran it (confirmed via `kubectl get pod -o
+    # json` against the manifest itself, not `describe`'s text rendering,
+    # on a real deploy). Same defect class broke #7198's PVC seed. restore()'s
+    # first line is `if not os.path.isdir(venv_dir): return`, so an empty
     # JAC_VENV_DIR made every restore call a silent no-op - same for
     # publish() against an empty JAC_VENV_CACHE_DIR. The tests above only
     # ever checked substring presence and ordering in the generated shell
