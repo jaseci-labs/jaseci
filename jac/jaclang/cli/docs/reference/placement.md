@@ -204,7 +204,7 @@ declarations -- which were never placement markers to begin with.
 - `E5087` -- an app whose kind has no server contains code that needs one.
 - `E2039` / `E2040` -- app isolation and shared layering (see
   [Workspaces & Apps](apps.md#dir-rooted-file-rooted-and-shared)).
-- `E5103` / `E5104` / `E5105` / `E5106` -- ownership, the app DAG, variant
+- `E5107` / `E5104` / `E5105` / `E5106` -- ownership, the app DAG, variant
   agreement, and the `pub` bridge surface.
 - `W6005` -- a function-typed parameter at an RPC call site.
 - `W6006` -- a mutable glob would be dual-emitted (state fork).

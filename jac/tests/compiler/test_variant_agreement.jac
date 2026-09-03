@@ -32,8 +32,8 @@ glob BASE: str = (
      );
 
 
-def _write(root: str, rel: str, text: str) -> str {
-    path = os.path.join(root, rel);
+def _write(root_dir: str, rel: str, text: str) -> str {
+    path = os.path.join(root_dir, rel);
     with open(path, "w") as f {
         f.write(text);
     }
@@ -100,7 +100,9 @@ test "every disagreement is one E5105 on the variant" {
         joined = "\n".join(e.msg for e in errs);
         assert "on 'greet'" in joined and "name: int" in joined , joined;
         assert "on 'Card'" in joined and "count: int" in joined , joined;
-        assert "on 'Mode'" in joined and "ability" in joined and "enum" in joined , joined;
+        assert "on 'Mode'" in joined
+            and "ability" in joined
+            and "enum" in joined , joined;
         assert "on 'extra'" in joined and "not a public symbol" in joined , joined;
         assert "on 'LIMIT'" in joined and "missing from the variant" in joined , joined;
     }
@@ -115,7 +117,9 @@ test "checking the base reports on the variant, and only once per program" {
         prog = JacProgram();
         prog.compile(base, options=CompileOptions(no_cgen=True));
         errs = _e5105(prog);
-        assert len(errs) == 5 , f"expected 5 disagreements from the base side, got:\n{_msgs(prog)}";
+        assert len(errs) == 5 , f"expected 5 disagreements from the base side, got:\n{_msgs(
+            prog
+        )}";
         assert all(e.loc.mod_path == variant for e in errs) , "always on the variant";
         prog.compile(variant, options=CompileOptions(no_cgen=True));
         assert len(_e5105(prog)) == 5 , (

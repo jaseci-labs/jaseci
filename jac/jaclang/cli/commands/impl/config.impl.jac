@@ -11,9 +11,8 @@ glob APP_FIELDS: list[str] = [
          "client_kind",
          "platform",
          "route"
-     ];
-
-glob CONFIG_GROUPS = [
+     ],
+     CONFIG_GROUPS = [
          "project",
          "apps",
          "run",

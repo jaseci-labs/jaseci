@@ -11,6 +11,7 @@ import from jaclang.scale.runtime.cli.diagnostics {
     has_errors
 }
 import from jaclang.scale.runtime.cli._narrow { dget, fget, iget, lget, pod_spec, sget }
+import from jaclang.scale.runtime.fleet { FleetSpec }
 
 
 def _diags_for(diagnostics: list[Diagnostic], service: str | None) -> list[Diagnostic] {
@@ -231,7 +232,9 @@ obj ServiceView {
             console.print(f"    port:      {self.container_port}");
         }
         if self.route_path == "/" {
-            console.print("    route:     /  (served app; the gateway forwards root paths)");
+            console.print(
+                "    route:     /  (served app; the gateway forwards root paths)"
+            );
         } elif self.route_path is not None {
             console.print(f"    route:     {self.route_path}  (via gateway)");
         } elif self.name != GATEWAY_NAME {
@@ -418,9 +421,11 @@ obj Plan {
         if render_autoscalers is not None {
             bundle["autoscaler_manifests"] = render_autoscalers(bundle);
         }
-        fleet: any = bundle.get("fleet");
+        fleet: (FleetSpec | None) = bundle.get("fleet");
         gateway_cfg_raw: any = bundle.get("gateway_config");
-        gateway_cfg: dict = gateway_cfg_raw if isinstance(gateway_cfg_raw, dict) else {};
+        gateway_cfg: dict = gateway_cfg_raw
+            if isinstance(gateway_cfg_raw, dict)
+            else {};
 
         routes: dict = {};
         svc_configs: dict = {};

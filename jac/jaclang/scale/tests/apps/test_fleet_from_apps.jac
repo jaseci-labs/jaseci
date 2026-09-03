@@ -223,9 +223,7 @@ test "a solo app is a fleet of one root member" {
 
 
 test "the gateway registry mounts services at their routes and the host at /" {
-    fleet = fleet_of(
-        {"orders": "/api/orders", "cart": "/api/basket"}, root_app="web"
-    );
+    fleet = fleet_of({"orders": "/api/orders", "cart": "/api/basket"}, root_app="web");
     registry = build_registry(fleet);
     assert registry.root_app == "web";
     assert registry.entries["web"].prefix == ROOT_PREFIX;

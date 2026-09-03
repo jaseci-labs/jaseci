@@ -1,11 +1,5 @@
 import from "lucide-react" { AlertCircle }
-import from web.ui.card {
-    Card,
-    CardHeader,
-    CardTitle,
-    CardDescription,
-    CardContent
-}
+import from web.ui.card { Card, CardHeader, CardTitle, CardDescription, CardContent }
 import from web.ui.field { Field, FieldLabel }
 import from web.ui.input { Input }
 import from web.ui.button { Button }

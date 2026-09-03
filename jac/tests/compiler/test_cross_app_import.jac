@@ -132,7 +132,11 @@ test "client-context import of server-placed elements is CLIENT_BRIDGE" {
 test "NATIVE_BIND wins for a client import recorded as a client-native edge" {
     (prog, mod) = compile_fixture(fixture("web", "panel.jac"));
     imp = import_of(mod, "social_app");
-    resolved = imp.from_loc.resolve_relative_path();
+    from_loc = imp.from_loc;
+    if from_loc is None {
+        raise AssertionError("import has no from_loc");
+    }
+    resolved = from_loc.resolve_relative_path();
     manifest = InteropManifest();
     manifest.bindings["greet"] = InteropBinding(
         name="greet",

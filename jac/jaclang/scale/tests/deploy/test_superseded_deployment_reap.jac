@@ -77,16 +77,12 @@ obj FakeAppsV1 {
 
 
 def _target(app: str = "standup", namespace: str = "standup") -> KubernetesTarget {
-    return KubernetesTarget(
-        config=KubernetesConfig(app_name=app, namespace=namespace)
-    );
+    return KubernetesTarget(config=KubernetesConfig(app_name=app, namespace=namespace));
 }
 
 
 def _bundle_for(app: str) -> dict[str, any] {
-    builder = ManifestBuilder(
-        k8s_config=KubernetesConfig(app_name=app, namespace=app)
-    );
+    builder = ManifestBuilder(k8s_config=KubernetesConfig(app_name=app, namespace=app));
     specs = builder.generate_service_pod_specs(
         AppConfig(code_folder=f"/apps/{app}", file_name="main.jac"), "img"
     );

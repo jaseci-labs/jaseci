@@ -652,7 +652,10 @@ obj IfaceRegistry {
     def analysis_profile(options: any) -> str {
         import hashlib;
         import json;
-        import from jaclang.compiler.driver.pass_driver { diagnostic_policy_for }
+        import from jaclang.compiler.driver.pass_driver {
+            config_for_app,
+            diagnostic_policy_for
+        }
         config: any = None;
         try {
             import from jaclang.project.config { get_config }
@@ -660,6 +663,7 @@ obj IfaceRegistry {
         } except Exception {
             config = None;
         }
+        config = config_for_app(config, getattr(options, 'target_app', '') or '');
         pol = diagnostic_policy_for(config, list(options.suppress_codes or []));
         ident = json.dumps(
             {

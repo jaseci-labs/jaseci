@@ -9,7 +9,9 @@ import from "@hugeicons/core-free-icons" {
 }
 
 def:pub FloatingSource(
-    always_float: bool = False, closable: bool = False, initial_path: str = "web/main.jac"
+    always_float: bool = False,
+    closable: bool = False,
+    initial_path: str = "web/main.jac"
 ) -> JsxElement {
     has floating: bool = False,
         pulled: bool = False,

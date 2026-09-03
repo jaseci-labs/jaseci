@@ -10,11 +10,11 @@ impl AppSpec.contains(abs_path: str) -> bool {
     if self.file_rooted {
         return bool(self.`entry) and real == _real(self.`entry);
     }
-    if not self.root {
+    if not self.root_dir {
         return False;
     }
-    root = _real(self.root);
-    return real == root or real.startswith(root + os.sep);
+    root_dir = _real(self.root_dir);
+    return real == root_dir or real.startswith(root_dir + os.sep);
 }
 
 impl AppSpec.claims_module(mod_dot: str) -> bool {
@@ -49,7 +49,7 @@ impl WorkspaceSpec.app_for_path(abs_path: str) -> (AppSpec | None) {
         if app.file_rooted {
             return app;
         }
-        depth = len(_real(app.root));
+        depth = len(_real(app.root_dir));
         if depth > best_len {
             best = app;
             best_len = depth;
@@ -78,6 +78,10 @@ impl WorkspaceSpec.owner_app_for_path(abs_path: str) -> tuple[(AppSpec | None), 
     serving = self.serving_apps();
     if len(serving) == 1 {
         return (serving[0], False);
+    }
+    default_app = self.apps.get(self.default_app) if self.default_app else None;
+    if default_app is not None and default_app.has_server {
+        return (default_app, False);
     }
     return (None, len(serving) > 1);
 }
@@ -175,9 +179,9 @@ impl _npm_names_of(raw: any) -> set[str] {
     return names;
 }
 
-impl _chain_stamp(root: str) -> tuple {
+impl _chain_stamp(root_dir: str) -> tuple {
     stamps: list[float] = [];
-    cur: (str | None) = root;
+    cur: (str | None) = root_dir;
     seen: set[str] = set();
     while cur {
         key = _real(cur);
@@ -199,13 +203,13 @@ impl _chain_stamp(root: str) -> tuple {
     return tuple(stamps);
 }
 
-impl _implicit_kind(root: str, project: dict) -> str {
+impl _implicit_kind(root_dir: str, project: dict) -> str {
     kind = str(project.get('kind', '') or '');
     if kind {
         return kind;
     }
-    parent = os.path.dirname(os.path.realpath(root));
-    if not parent or parent == os.path.realpath(root) {
+    parent = os.path.dirname(os.path.realpath(root_dir));
+    if not parent or parent == os.path.realpath(root_dir) {
         return '';
     }
     outer = workspace_for_path(parent);
@@ -216,7 +220,7 @@ impl _implicit_kind(root: str, project: dict) -> str {
     return outer_app.kind if outer_app is not None else '';
 }
 
-impl _build_workspace(root: str, toml_path: str, doc: dict) -> WorkspaceSpec {
+impl _build_workspace(root_dir: str, toml_path: str, doc: dict) -> WorkspaceSpec {
     project = _table(doc, 'project');
     apps_raw = doc.get('apps', {});
     explicit = isinstance(apps_raw, dict) and len(apps_raw) > 0;
@@ -231,11 +235,15 @@ impl _build_workspace(root: str, toml_path: str, doc: dict) -> WorkspaceSpec {
             name = str(raw_name);
             kind = str(raw.get('kind', '') or '');
             rel = str(raw.get('path', '') or '');
-            entry_rel = str(raw.get('entry-point', '') or raw.get('entry_point', '') or '');
+            entry_rel = str(
+                raw.get('entry-point', '') or raw.get('entry_point', '') or ''
+            );
             file_rooted = rel == '' and entry_rel != '';
-            app_root = '' if file_rooted else os.path.normpath(os.path.join(root, rel));
+            app_root = ''
+                if file_rooted
+                else os.path.normpath(os.path.join(root_dir, rel));
             entry_abs = os.path.normpath(
-                os.path.join(root, rel, entry_rel or kind_entry(kind))
+                os.path.join(root_dir, rel, entry_rel or kind_entry(kind))
             );
             own_pins = _pins_of(_table(raw, 'placement', 'pins'));
             pins = dict(base_pins);
@@ -244,7 +252,7 @@ impl _build_workspace(root: str, toml_path: str, doc: dict) -> WorkspaceSpec {
             apps[name] = AppSpec(
                 name=name,
                 kind=kind,
-                root=app_root,
+                root_dir=app_root,
                 `entry=entry_abs,
                 file_rooted=file_rooted,
                 client=str(raw.get('client', '') or KIND_CLIENT_TARGET.get(kind, '')),
@@ -260,13 +268,15 @@ impl _build_workspace(root: str, toml_path: str, doc: dict) -> WorkspaceSpec {
         }
     } else {
         name = str(project.get('name', '') or 'main');
-        kind = _implicit_kind(root, project);
+        kind = _implicit_kind(root_dir, project);
         entry_rel = str(project.get('entry-point', '') or '');
         apps[name] = AppSpec(
             name=name,
             kind=kind,
-            root=root,
-            `entry=os.path.normpath(os.path.join(root, entry_rel or kind_entry(kind))),
+            root_dir=root_dir,
+            `entry=os.path.normpath(
+                os.path.join(root_dir, entry_rel or kind_entry(kind))
+            ),
             file_rooted=False,
             client=KIND_CLIENT_TARGET.get(kind, ''),
             client_kind=DEFAULT_CLIENT_KIND,
@@ -278,7 +288,9 @@ impl _build_workspace(root: str, toml_path: str, doc: dict) -> WorkspaceSpec {
             implicit=True
         );
     }
-    default_app = str(project.get('default-app', '') or project.get('default_app', '') or '');
+    default_app = str(
+        project.get('default-app', '') or project.get('default_app', '') or ''
+    );
     if not default_app and len(apps) == 1 {
         default_app = next(iter(apps));
     }
@@ -290,7 +302,7 @@ impl _build_workspace(root: str, toml_path: str, doc: dict) -> WorkspaceSpec {
         ).encode()
     );
     return WorkspaceSpec(
-        project_root=root,
+        project_root=root_dir,
         toml_path=toml_path,
         apps=apps,
         default_app=default_app,
@@ -305,18 +317,18 @@ impl workspace_for_path(path: str) -> (WorkspaceSpec | None) {
     if not path {
         return None;
     }
-    root = find_jac_project_root(path);
-    if not root {
+    root_dir = find_jac_project_root(path);
+    if not root_dir {
         return None;
     }
-    toml_path = os.path.join(root, 'jac.toml');
-    stamp = _chain_stamp(root);
-    key = _real(root);
+    toml_path = os.path.join(root_dir, 'jac.toml');
+    stamp = _chain_stamp(root_dir);
+    key = _real(root_dir);
     cached = _ws_cache.get(key);
     if cached is not None and cached[0] == stamp {
         return cached[1];
     }
-    ws = _build_workspace(root, toml_path, _read_toml(toml_path));
+    ws = _build_workspace(root_dir, toml_path, _read_toml(toml_path));
     _ws_cache[key] = (stamp, ws);
     return ws;
 }

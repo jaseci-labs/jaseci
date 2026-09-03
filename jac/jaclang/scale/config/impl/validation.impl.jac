@@ -36,9 +36,7 @@ impl validate_scale_config(raw: dict[str, any] | None) -> list[str] {
     return findings;
 }
 
-impl validate_app_scale_config(
-    raw: dict[str, any] | None, app_name: str
-) -> list[str] {
+impl validate_app_scale_config(raw: dict[str, any] | None, app_name: str) -> list[str] {
     return validate_against_schema(raw, app_scale_schema(), f"apps.{app_name}.scale");
 }
 

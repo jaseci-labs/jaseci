@@ -205,11 +205,7 @@ obj JacConfig {
         _base_data: dict[str, any] = {},
         _layers: list[tuple[str, str]] = [];
 
-    has default_app: str {
-        getter {
-            return self.project.default_app;
-        }
-    }
+    has default_app: str { getter; }
 
     static def discover(
         start_path: Path | None = None, profile: str | None = None

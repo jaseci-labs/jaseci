@@ -371,7 +371,7 @@ changing them invalidates the compilation cache, and
 Pins can also be overlaid per app -- `[apps.<name>.placement.pins]` merges
 over this table for that app's modules -- and a pin is one way to name the
 **owner** of a server-placed shared module when several apps serve
-(`E5103`). Declaring that a module runs as its own **service** is a different
+(`E5107`). Declaring that a module runs as its own **service** is a different
 fact with a different home: an `[apps.<name>]` table with `kind = "service"`
 (see [Workspaces & Apps](../apps.md)); imports of what that app owns lower to
 typed-async bridge stubs automatically.

@@ -123,7 +123,9 @@ def _apply_profile(meta: CommandSpec, args_dict: dict) {
         }
 
         config.apply_profile_overlay(profile or None);
-        _apply_config_defaults(_command_config(config, meta, args_dict), meta, args_dict);
+        _apply_config_defaults(
+            _command_config(config, meta, args_dict), meta, args_dict
+        );
     } except (KeyError, ValueError, OSError) as exc {
         console.warning(f"Failed to apply profile: {exc}");
     }

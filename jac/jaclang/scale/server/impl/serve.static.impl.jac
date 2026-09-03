@@ -359,9 +359,7 @@ impl JacAPIServerStatic.serve_root_asset(file_path: str) -> Response {
     api_prefixes = ('cl/', 'walker/', 'function/', 'user/', 'static/');
     if (not file_ext or (file_ext not in allowed_extensions)) {
         root_app = self.introspector.resolve_root_app();
-        if (
-            not file_ext and root_app and not file_path.startswith(api_prefixes)
-        ) {
+        if (not file_ext and root_app and not file_path.startswith(api_prefixes)) {
             try {
                 render_payload = self.introspector.render_page(
                     root_app, {}, Con.GUEST.value

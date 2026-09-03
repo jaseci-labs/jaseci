@@ -2,12 +2,6 @@
 
 This document provides a summary of new features, improvements, and bug fixes in each version of **Jaclang**. For details on changes that might require updates to your existing code, please refer to the [Breaking Changes](../breaking-changes.md) page.
 
-## Unreleased
-
-### New Features
-
-- **Workspaces: `[apps.<name>]` tables, service apps, and the structural app boundary (#8823)**: a `jac.toml` can now declare several apps over one body of shared code -- a `web-app`, a `mobile` app, a `cli` and file-rooted `service` apps -- each with its own `kind`, `path`/`entry-point`, `client` target, `client_kind`, `platform`, `route`, and per-app overlays of any config section (`[apps.<name>.serve]`, `[apps.<name>.scale]`, `[apps.<name>.placement.pins]`, ...). The driver stamps app facts on every module and the compiler enforces app isolation and shared layering (`E2039`/`E2040`), single ownership of server-placed shared modules (`E5103`), an acyclic app graph (`E5104`), `.native.jac` variant agreement (`E5105`) and the `pub` bridge surface (`E5106`). Cross-app imports lower to typed-async bridge stubs keyed by app name (`await` them; `BridgeError`/`BridgeUnavailable`/`BridgeTimeout`/`BridgeRejected` on failure), an un-awaited statement-level walker spawn is a deferred, idempotent outbox delivery, and `jac run <app>` colocates service apps in one process while `--fleet` and `jac scale deploy` run them apart. `run`/`build`/`test`/`setup` take an app name, `jac build --all` builds every app into `dist/<app>/`, `jac check` with no paths gates the whole workspace, and `jac create --app <name> --kind <kind>` adds an app (`--awesome` scaffolds the jaclang.org workspace with its new mobUI mobile app and CLI). `[scale.microservices]`, `[project] client_kind`, `[client] target`, `base_route_app`, `cl_route_prefix`, `JAC_ENV` and `JAC_SV_*` are removed; see [Breaking Changes](../breaking-changes.md).
-
 ## jaclang 0.37.2 (Latest Release)
 
 ### New Features

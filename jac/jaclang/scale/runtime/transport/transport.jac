@@ -1,6 +1,9 @@
 obj ServiceTransport {
     def call_function(
-        service: str, name: str, payload: dict[str, any], headers: dict[str, str] | None = None
+        service: str,
+        name: str,
+        payload: dict[str, any],
+        headers: dict[str, str] | None = None
     ) -> any {
         raise NotImplementedError(
             "call_function() must be implemented by a ServiceTransport"
@@ -39,7 +42,10 @@ obj InProcessTransport(ServiceTransport) {
     }
 
     def call_function(
-        service: str, name: str, payload: dict[str, any], headers: dict[str, str] | None = None
+        service: str,
+        name: str,
+        payload: dict[str, any],
+        headers: dict[str, str] | None = None
     ) -> any {
         key = _member_key(service, name);
         handler = self._functions.get(key);
@@ -69,7 +75,10 @@ obj InProcessTransport(ServiceTransport) {
 
 obj HttpTransport(ServiceTransport) {
     def call_function(
-        service: str, name: str, payload: dict[str, any], headers: dict[str, str] | None = None
+        service: str,
+        name: str,
+        payload: dict[str, any],
+        headers: dict[str, str] | None = None
     ) -> any {
         import from jaclang.scale.runtime.rpc.rpc { service_call }
         return service_call(service, name, payload, headers=headers);

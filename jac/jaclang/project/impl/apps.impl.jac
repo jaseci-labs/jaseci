@@ -44,8 +44,8 @@ impl AppConfig.contains(project_root: str, abs_path: str) -> bool {
     if self.is_file_rooted() {
         return target == _norm_path(self.entry_path(project_root));
     }
-    root = _norm_path(self.root_dir(project_root));
-    return target == root or target.startswith(root + os.sep);
+    root_path = _norm_path(self.root_dir(project_root));
+    return target == root_path or target.startswith(root_path + os.sep);
 }
 
 impl validate_app_name(name: str) -> None {

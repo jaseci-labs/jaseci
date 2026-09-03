@@ -72,9 +72,7 @@ test "a configured fleet is never told to go declare one (issue 7434)" {
 test "banner reports the applied routes from the fleet" {
     with tempfile.TemporaryDirectory() as tmpdir {
         app = _write_app(tmpdir);
-        fleet = fleet_of(
-            {"cart_app": "/api/cart", "orders_app": ""}, root_app="main"
-        );
+        fleet = fleet_of({"cart_app": "/api/cart", "orders_app": ""}, root_app="main");
         (rc, out, err) = _realize_capturing(fleet, app);
         assert rc == 0;
         assert "cart_app -> /api/cart" in out , (

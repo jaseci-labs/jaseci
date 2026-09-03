@@ -22,13 +22,23 @@ import from tests.support { JAC_ROOT }
 import from jaclang.cli.commands { analysis }
 import from jaclang.project.config { JacConfig, set_config }
 
-glob FIXTURE: str = os.path.join(JAC_ROOT, "tests", "language", "fixtures", "workspace"),
+glob FIXTURE: str = os.path.join(
+         JAC_ROOT, "tests", "language", "fixtures", "workspace"
+     ),
      WEB_ENTRY: str = os.path.join("web", "main.jac"),
      SVC_ENTRY: str = os.path.join("core", "svc.jac"),
      CLI_ENTRY: str = os.path.join("cli", "main.jac"),
      HELPER: str = os.path.join("core", "helper.jac"),
      _tmp_dirs: list[str] = [],
      _orig_cwd: str = os.getcwd();
+
+def _app_name(app: any) -> str {
+    if app is None {
+        raise AssertionError("expected an app, got None");
+    }
+    return str(app.name);
+}
+
 
 def _workspace -> str {
     parent = tempfile.mkdtemp(prefix="jacws_");
@@ -101,17 +111,17 @@ test "the fixture is a three-app workspace" {
     assert cfg.app_for_path(os.path.join(FIXTURE, HELPER)) is None , (
         "core/helper.jac belongs to no app: it is shared"
     );
-    assert cfg.app_for_path(os.path.join(FIXTURE, SVC_ENTRY)).name == "svc";
-    assert cfg.app_for_path(os.path.join(FIXTURE, CLI_ENTRY)).name == "cli";
-    assert cfg.app_for_path(os.path.join(FIXTURE, WEB_ENTRY)).name == "web";
+    assert _app_name(cfg.app_for_path(os.path.join(FIXTURE, SVC_ENTRY))) == "svc";
+    assert _app_name(cfg.app_for_path(os.path.join(FIXTURE, CLI_ENTRY))) == "cli";
+    assert _app_name(cfg.app_for_path(os.path.join(FIXTURE, WEB_ENTRY))) == "web";
 }
 
 test "bare jac check roots one program per app and prefixes diagnostics" {
     d = _workspace();
     (rc, out) = _check_in(d);
     assert rc == 0 , f"rc={rc}\n{out}";
-    for entry in [WEB_ENTRY, SVC_ENTRY, CLI_ENTRY] {
-        assert _checked(out, entry) , f"{entry} was not checked as an app root:\n{out}";
+    for entry_file in [WEB_ENTRY, SVC_ENTRY, CLI_ENTRY] {
+        assert _checked(out, entry_file) , f"{entry_file} was not checked as an app root:\n{out}";
     }
     # The shared helper carries one W2058; it is reported once per app that
     # reaches it, each under that app's prefix.

@@ -8,33 +8,33 @@ def app_client_target(app: AppConfig, requested: str = "") -> str {
     return normalize_client_target(requested or app.effective_client());
 }
 
-def client_workspace_app(config: any, entry: str = "") -> AppConfig | None {
+def client_workspace_app(config: any, entry_path: str = "") -> AppConfig | None {
     if config is None or not config.apps {
         return None;
     }
-    if not entry {
+    if not entry_path {
         import from jaclang.runtime.runtime { JacRuntime as Jac }
-        entry = Jac.get_full_target_path() or "";
+        entry_path = Jac.get_full_target_path() or "";
     }
-    if not entry {
+    if not entry_path {
         return None;
     }
-    return config.app_for_path(os.path.abspath(entry));
+    return config.app_for_path(os.path.abspath(entry_path));
 }
 
-def client_app_dir_for(config: any, entry: str = "") -> Path {
+def client_app_dir_for(config: any, entry_path: str = "") -> Path {
     base = config.get_client_dir();
-    app = client_workspace_app(config, entry);
+    app = client_workspace_app(config, entry_path);
     return base / app.name if app is not None else base;
 }
 
-def client_app_root(config: any, project_dir: Path, entry: str = "") -> Path {
-    app = client_workspace_app(config, entry);
+def client_app_root(config: any, project_dir: Path, entry_path: str = "") -> Path {
+    app = client_workspace_app(config, entry_path);
     if app is None or config.project_root is None {
         return project_dir;
     }
-    root = app.root_dir(str(config.project_root));
-    return Path(root) if root else project_dir;
+    app_root = app.root_dir(str(config.project_root));
+    return Path(app_root) if app_root else project_dir;
 }
 
 class ClientTarget {

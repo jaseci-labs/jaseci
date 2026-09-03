@@ -85,8 +85,11 @@ def setup(target: str = "", platform: str | None = None) -> int {
                 );
                 return 1;
             }
-        } else {
+        } elif app is not None {
             target_name = app_client_target(app);
+        } else {
+            console.error("No app to set up: name an app or a client target.");
+            return 1;
         }
     }
     if target_name not in available_targets {
@@ -322,8 +325,8 @@ def run_client_start(
         return 1;
     }
 
-    start_port = port if port else 8000;
-    start_api = api_port if api_port else 0;
+    start_port = port or 8000;
+    start_api = api_port or 0;
     app_platform = platform or app.platform or "auto";
 
     if _target_setup_missing(target_name, target, project_dir) {

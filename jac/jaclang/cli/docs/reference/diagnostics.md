@@ -615,12 +615,12 @@ Emitted by the driver and the boundary passes from the app facts of a workspace 
 
 | Code | Message |
 |------|---------|
-| `E5103` | Server-placed shared module '{module}' has no single owner: reached by serving apps {apps}; declare it as a service app or pin an owner |
+| `E5107` | Server-placed shared module '{module}' has no single owner: reached by serving apps {apps}; declare it as a service app or pin an owner |
 | `E5104` | App dependency cycle: {cycle} |
 | `E5105` | Variant '{variant}' disagrees with '{base}' on '{name}': {detail} |
 | `E5106` | App '{consumer}' bridges to '{name}', which is not a pub element of app '{provider}' |
 
-`E5103`: a shared module with server-placed elements runs on exactly one app's server so that every other app bridges to the same owner. With more than one serving app in the workspace the compiler cannot pick one. Give the module its own `[apps.<name>]` table (`kind = "service"`, `entry-point = "<path>"`), or pin it to an owner with `[apps.<owner>.placement.pins] "<module>" = "server"`. It is reported once per module.
+`E5107`: a shared module with server-placed elements runs on exactly one app's server so that every other app bridges to the same owner. With more than one serving app in the workspace the compiler cannot pick one. Give the module its own `[apps.<name>]` table (`kind = "service"`, `entry-point = "<path>"`), or pin it to an owner with `[apps.<owner>.placement.pins] "<module>" = "server"`. It is reported once per module.
 
 `E5104`: apps bridge to their providers over the wire and providers boot first, so the app graph has to be a DAG. It is reported on the import that closes the cycle. Break it by moving the code both apps need into a shared module, or by folding one of the apps into the other.
 

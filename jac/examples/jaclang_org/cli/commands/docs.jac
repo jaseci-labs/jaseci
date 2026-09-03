@@ -29,7 +29,9 @@ async def run_docs(action: str) -> int {
     try {
         if action == "sync" {
             await docs_sync_tick();
-            print("docs sync: the web app checked its graph against the bundled corpus");
+            print(
+                "docs sync: the web app checked its graph against the bundled corpus"
+            );
         }
         print(render_status(await docs_status()));
         return EXIT_OK;

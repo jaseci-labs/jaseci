@@ -51,9 +51,7 @@ async def run_feed(limit: int, query: str) -> int {
             print(render_line(feed_line(raw)));
         }
         if len(rows) > limit {
-            print(
-                "... " + str(len(rows) - limit) + " more; raise --limit to see them"
-            );
+            print("... " + str(len(rows) - limit) + " more; raise --limit to see them");
         }
         return EXIT_OK;
     } except BridgeError as e {

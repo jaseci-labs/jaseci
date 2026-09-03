@@ -25,9 +25,9 @@ impl _merge_app_alerts(
         first: dict[tuple, any] = {};
         order: list[tuple] = [];
         tagged: list[tuple[str, any]] = [];
-        for entry in collected {
-            app_name = entry[0];
-            for alert in entry[index] {
+        for entry_item in collected {
+            app_name = entry_item[0];
+            for alert in entry_item[index] {
                 key = key_of(alert);
                 if key not in seen_apps {
                     seen_apps[key] = set();
@@ -245,8 +245,7 @@ impl JacLangServer.type_check_file(
             targets = [(app.name if app else '', app.kind if app else '')];
         } else {
             targets = [
-                (a.name, a.kind)
-                for a in list(ws.apps.values())[:LSP_SHARED_APP_LIMIT]
+                (a.name, a.kind) for a in list(ws.apps.values())[:LSP_SHARED_APP_LIMIT]
             ];
         }
         multi = len(targets) > 1;

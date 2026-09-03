@@ -203,8 +203,7 @@ test "the gateway pod command carries no client rebuild fallback" {
 test "an app without a client entry skips the build untouched" {
     project_dir = _project("with entry {}\n");
     mb = ManifestBuilder(
-        k8s_config=KubernetesConfig(app_name="api", namespace="jb-api"),
-        client_entry=""
+        k8s_config=KubernetesConfig(app_name="api", namespace="jb-api"), client_entry=""
     );
     mb.project_dir = project_dir;
     try {

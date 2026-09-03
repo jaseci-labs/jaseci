@@ -2767,7 +2767,9 @@ impl JcirGenPass.exit_expr_stmt with ExprStmt exit {
     if not here.in_fstring {
         stub_call = self._sv_bridge_walker_call(here.expr);
         if stub_call is not None {
-            stub_name = stub_call.target.sym_name;
+            stub_name = (
+                stub_call.target.sym_name if isinstance(stub_call.target, Name) else ''
+            );
             (args, keywords) = self.gen_call_args(stub_call);
             deferred = self.nod(
                 'Call',
@@ -6277,9 +6279,7 @@ impl JcirGenPass._gen_py_boundary_stub_class(
     return '\n'.join(lines);
 }
 
-impl JcirGenPass._sv_endpoint_effects(
-    binding: InteropBinding, key: str
-) -> list[str] {
+impl JcirGenPass._sv_endpoint_effects(binding: InteropBinding, key: str) -> list[str] {
     src_mod = (
         binding.ast_node.find_parent_of_type(Module)
             if binding.ast_node is not None
@@ -6309,7 +6309,7 @@ impl JcirGenPass._sv_bridge_walker_call(expr: Expr) -> (FuncCall | None) {
         CrossAppKind,
         classify_cross_app_import
     }
-    if isinstance(expr, BinaryExpr) and expr.op.name == Tok.KW_SPAWN {
+    if isinstance(expr, BinaryExpr) and expr.op?.name == Tok.KW_SPAWN {
         for side in (expr.right, expr.left) {
             found = self._sv_bridge_walker_call(side);
             if found is not None {

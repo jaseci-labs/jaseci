@@ -1,6 +1,6 @@
 ---
 name: jac-sv-microservices
-description: Splitting a Jac backend into service apps - `[apps.<name>] kind = "service"` tables in jac.toml (written by `jac create --app`), plain imports across an app boundary that lower to typed-async bridge stubs (`await` them), the BridgeError family, the outbox for un-awaited spawns, ownership of shared server code (E5103), the app DAG (E5104), colocated vs `--fleet` topology, `JAC_APP_<APP>_URL` discovery, remote walker spawns, boundary types, the gateway. Load when one server module must call another app of the workspace, or when a server-placed shared module has more than one serving app. Pair with `jac-sv-endpoints`, `jac-config` (the [apps] tables), `jac-sv-deploy` (k8s), `jac-sv-streaming` (SSE across apps).
+description: Splitting a Jac backend into service apps - `[apps.<name>] kind = "service"` tables in jac.toml (written by `jac create --app`), plain imports across an app boundary that lower to typed-async bridge stubs (`await` them), the BridgeError family, the outbox for un-awaited spawns, ownership of shared server code (E5107), the app DAG (E5104), colocated vs `--fleet` topology, `JAC_APP_<APP>_URL` discovery, remote walker spawns, boundary types, the gateway. Load when one server module must call another app of the workspace, or when a server-placed shared module has more than one serving app. Pair with `jac-sv-endpoints`, `jac-config` (the [apps] tables), `jac-sv-deploy` (k8s), `jac-sv-streaming` (SSE across apps).
 ---
 
 Services are declared in ONE place: an `[apps.<name>]` table in `jac.toml` with `kind = "service"`. A **file-rooted** service app (`entry-point = "<file>"`, no `path`) owns exactly that file; a dir-rooted one (`path = "<dir>"`) owns everything under it. `jac create --app <name> --kind service` writes the table. There is NO discovery from source and no import form - what makes an import a bridge is that the imported element is **owned by a different app** than the importer.
@@ -55,7 +55,7 @@ curl -X POST http://localhost:8002/function/sum_list \
 
 **The bridge surface is walkers + `def:pub`.** A plain `def` is private to its app; importing it from another app is `E5106` at compile time (and a 404 `BridgeRejected` if you get past the checker some other way). `:priv` endpoints are JWT-gated; the hop forwards the inbound `Authorization` header but an anonymous chain has none.
 
-**Ownership of shared code.** A module under no app root is shared. If the placement solver puts it on the server (walkers, `root`, `def:pub`), it needs exactly ONE owner: a file-rooted service app that names it, or the sole serving app implicitly. Two serving apps reaching it with no explicit owner = `E5103` - give it an `[apps.<name>]` table or pin `[apps.<owner>.placement.pins] "<module>" = "server"`. Client apps (`mobile`, `web-static`, `cli`) are always consumers; a CLI never touches another app's store.
+**Ownership of shared code.** A module under no app root is shared. If it carries walkers or node/edge archetypes, it needs exactly ONE owner: a file-rooted service app that names it, the sole serving app, or `[project] default-app` when several apps serve. Two serving apps, no default app, and no explicit owner = `E5107` - give it an `[apps.<name>]` table or pin `[apps.<owner>.placement.pins] "<module>" = "server"`. Client apps (`mobile`, `web-static`, `cli`) are always consumers; a CLI never touches another app's store.
 
 **The app graph is a DAG.** Consumer → provider edges are recorded per import; a cycle is `E5104` on the import that closes it. Providers boot first.
 
@@ -135,7 +135,7 @@ Gateway knobs: `[scale.gateway]` (`gateway_port`, `drain_timeout_seconds`, `boot
 - **`E1042` on a call you thought was local** = the target is owned by another app. `await` it; make the caller `async`.
 - **`E5106` / 404 `BridgeRejected`** = the element isn't on the bridge surface. `def:pub` it, or move it to shared code if both apps need it in-process.
 - **Calls run in-process when you expected RPC** = they are colocated (the default) - that IS the bridge, just without sockets. `--fleet` to split; the code does not change.
-- **`E5103`** = a shared server module with two possible owners. Name the owner (`[apps.<name>]` service table or a pin).
+- **`E5107`** = a shared server module with two possible owners. Name the owner (`[apps.<name>]` service table or a pin).
 - **`E2039`** = an app reaching into another app's non-bridge declarations. Shared code goes under no app root; app code stays behind the bridge.
 - **`BridgeUnavailable: app 'x' is not registered`** = not colocated (no `[apps.x]` in this workspace) and no `JAC_APP_X_URL`.
 - **`Error: No jac.toml found`** - `jac run <app>` needs the workspace's `jac.toml` in the cwd or an ancestor.

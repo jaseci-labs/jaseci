@@ -4945,8 +4945,7 @@ test "mobui_project_forbids_html_intrinsic_tags" {
     path = os.path.join(CHECKER_FIXTURES, "checker_jsx_mobui_html_forbidden.jac");
     program = JacProgram();
     program.compile(
-        path,
-        options=CompileOptions(client_kind="mobui", project_root=CHECKER_FIXTURES)
+        path, options=CompileOptions(client_kind="mobui", project_root=CHECKER_FIXTURES)
     );
 
     e1105 = [
@@ -4993,8 +4992,7 @@ test "mobui_project_allows_lowercase_component_in_scope" {
     path = os.path.join(CHECKER_FIXTURES, "checker_jsx_mobui_html_forbidden.jac");
     program = JacProgram();
     program.compile(
-        path,
-        options=CompileOptions(client_kind="mobui", project_root=CHECKER_FIXTURES)
+        path, options=CompileOptions(client_kind="mobui", project_root=CHECKER_FIXTURES)
     );
     e1105 = [
         e
@@ -5017,8 +5015,7 @@ test "mobui_project_lowercase_component_no_w1050" {
     );
     program = JacProgram();
     program.compile(
-        path,
-        options=CompileOptions(client_kind="mobui", project_root=CHECKER_FIXTURES)
+        path, options=CompileOptions(client_kind="mobui", project_root=CHECKER_FIXTURES)
     );
     w1050 = [
         w
@@ -5076,7 +5073,9 @@ test "jac_toml_kind_mobui_round_trip" {
         toml_path.write_text(toml_content);
         # Part 1: round-trip — JacConfig.load() must parse the app's client_kind.
         cfg = JacConfig.load(toml_path);
-        assert cfg.apps["main"].client_kind == "mobui" , f"Expected client_kind='mobui' for app main, got '{cfg.apps['main'].client_kind}'";
+        assert cfg.apps["main"].client_kind == "mobui" , f"Expected client_kind='mobui' for app main, got '{cfg.apps[
+            'main'
+        ].client_kind}'";
         # Part 2: per-path discovery -- a module inside the project picks up
         # "mobui" with a plain CompileOptions() (no explicit client_kind),
         # causing JsxIntrinsicGuardPass to emit E1105.

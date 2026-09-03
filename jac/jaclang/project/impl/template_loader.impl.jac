@@ -249,11 +249,7 @@ impl scaffold_app(
     import os;
     import tomllib;
     import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
-    import from jaclang.project.apps {
-        APP_TABLE_KEYS,
-        parse_apps,
-        validate_app_name
-    }
+    import from jaclang.project.apps { APP_TABLE_KEYS, parse_apps, validate_app_name }
     import from jaclang.project.config {
         JacConfig,
         _toml_append_section,
@@ -268,10 +264,10 @@ impl scaffold_app(
             f"Unknown app kind '{kind}'; expected one of {', '.join(KIND_SPECS.keys())}"
         );
     }
-    root = Path(project_root).resolve();
-    toml_path = root / "jac.toml";
+    root_path = Path(project_root).resolve();
+    toml_path = root_path / "jac.toml";
     if not toml_path.exists() {
-        raise ValueError(f"No jac.toml in {root}; create a project first");
+        raise ValueError(f"No jac.toml in {root_path}; create a project first");
     }
     app_path = (path or name).strip().replace("\\", "/").strip("/");
     if not app_path or os.path.isabs(app_path) or app_path.startswith("..") {
@@ -294,7 +290,7 @@ impl scaffold_app(
         );
         if other_path and os.path.normpath(other_path) == os.path.normpath(app_path) {
             raise ValueError(
-                f"Path '{app_path}' is already the root of app '{other}'"
+                f"Path '{app_path}' is already the root_path of app '{other}'"
             );
         }
     }
@@ -354,7 +350,7 @@ impl scaffold_app(
     toml_path.write_text(new_text, encoding="utf-8");
 
     created: list[str] = [];
-    app_dir = root / app_path;
+    app_dir = root_path / app_path;
     app_dir.mkdir(parents=True, exist_ok=True);
     for (rel, content) in template.files.items() {
         full = app_dir / rel;
@@ -377,7 +373,11 @@ impl template_app_table(template: ProjectTemplate) -> dict[str, any] {
     if isinstance(apps, dict) and len(apps) == 1 {
         sole = next(iter(apps.values()));
         if isinstance(sole, dict) {
-            return {k: v for (k, v) in sole.items() if not isinstance(v, dict)};
+            return {
+                k: v
+                for (k, v) in sole.items()
+                if not isinstance(v, dict)
+            };
         }
         return {};
     }
@@ -385,8 +385,8 @@ impl template_app_table(template: ProjectTemplate) -> dict[str, any] {
     if not isinstance(project, dict) {
         return {};
     }
-    entry = str(project.get("entry-point", "") or "");
-    return {"entry-point": entry} if entry else {};
+    entry_file = str(project.get("entry_file-point", "") or "");
+    return {"entry_file-point": entry_file} if entry_file else {};
 }
 
 impl _append_overlay_tables(

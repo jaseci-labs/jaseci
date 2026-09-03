@@ -31,7 +31,9 @@ impl public_surface(mod: Module) -> dict[str, tuple[str, str, UniNode]] {
     out: dict[str, tuple[str, str, UniNode]] = {};
 
     def visible(name: str, access: SymbolAccess) -> bool {
-        return bool(name) and not name.startswith('_') and access != SymbolAccess.PRIVATE;
+        return bool(name)
+            and not name.startswith('_')
+            and access != SymbolAccess.PRIVATE;
     }
 
     for stmt in mod.body {
@@ -148,11 +150,11 @@ impl VariantAgreementPass._compare(base: Module, variant: Module) -> None {
     var_name = os.path.basename(variant.loc.mod_path or '') if variant.loc else '';
     base_surface = public_surface(base);
     var_surface = public_surface(variant);
-    for (name, entry) in var_surface.items() {
-        (kind, detail, node) = entry;
+    for (name, entry_sym) in var_surface.items() {
+        (kind, detail, node_ref) = entry_sym;
         if name not in base_surface {
             self._emit_once(
-                node,
+                node_ref,
                 variant=var_name,
                 base=base_name,
                 name=name,
@@ -163,7 +165,7 @@ impl VariantAgreementPass._compare(base: Module, variant: Module) -> None {
         (base_kind, base_detail, _base_node) = base_surface[name];
         if base_kind != kind {
             self._emit_once(
-                node,
+                node_ref,
                 variant=var_name,
                 base=base_name,
                 name=name,
@@ -171,7 +173,7 @@ impl VariantAgreementPass._compare(base: Module, variant: Module) -> None {
             );
         } elif base_detail != detail {
             self._emit_once(
-                node,
+                node_ref,
                 variant=var_name,
                 base=base_name,
                 name=name,
@@ -179,11 +181,11 @@ impl VariantAgreementPass._compare(base: Module, variant: Module) -> None {
             );
         }
     }
-    for (name, entry) in base_surface.items() {
+    for (name, entry_sym) in base_surface.items() {
         if name in var_surface {
             continue;
         }
-        (kind, _detail, _node) = entry;
+        (kind, _detail, _node) = entry_sym;
         self._emit_once(
             variant,
             variant=var_name,

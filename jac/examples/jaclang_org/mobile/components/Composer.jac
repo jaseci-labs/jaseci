@@ -28,12 +28,17 @@ def:pub Composer(
             />
             <View style={styles.composerFooter}>
                 {if len(value) > 0 {
-                    <Text style={styles.counterWarn if remaining < 20 else styles.counter}>
+                    <Text
+                        style={styles.counterWarn if remaining < 20 else styles.counter}
+                    >
                         {str(remaining)}
                     </Text>
                 }}
                 <Pressable
-                    style={[styles.pillBtn, (styles.btnDisabled if not can_post else None)]}
+                    style={[
+                        styles.pillBtn,
+                        (styles.btnDisabled if not can_post else None)
+                    ]}
                     disabled={not can_post}
                     onPress={lambda { onPost(); }}
                 >
@@ -41,7 +46,7 @@ def:pub Composer(
                         <ActivityIndicator size="small" color={C.accentText}/>
                     } else {
                         <Text style={styles.primaryLabel}>{buttonLabel}</Text>
-                    }}
+                    } }
                 </Pressable>
             </View>
         </View>

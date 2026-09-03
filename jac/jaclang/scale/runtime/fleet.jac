@@ -45,7 +45,7 @@ obj FleetSpec {
         members: dict[str, FleetMember] = {},
         overrides: dict[str, dict[str, any]] = {};
 
-    def add(member: FleetMember) -> None {
+    def add(member: FleetMember) {
         self.members[member.app] = member;
         if member.is_root {
             self.root_app = member.app;
@@ -191,13 +191,15 @@ def fleet_of(
 def solo_fleet(app_name: str, entry_file: str, client: bool = False) -> FleetSpec {
     fleet = FleetSpec();
     fleet.add(
-        FleetMember(app=app_name, route="", file=entry_file, is_root=True, client=client)
+        FleetMember(
+            app=app_name, route="", file=entry_file, is_root=True, client=client
+        )
     );
     return fleet;
 }
 
 
-def guard_fleet_routes(fleet: FleetSpec) -> None {
+def guard_fleet_routes(fleet: FleetSpec) {
     owners: dict[str, str] = {};
     for (name, member) in fleet.members.items() {
         if member.is_root {
@@ -237,7 +239,9 @@ def format_fleet_lines(fleet: FleetSpec) -> list[str] {
 def order_by_edges(names: list[str], edges: list[tuple[str, str]]) -> list[str] {
     providers_of: dict[str, set[str]] = {name: set() for name in names};
     for (consumer, provider) in edges {
-        if consumer in providers_of and provider in providers_of and consumer != provider {
+        if consumer in providers_of
+            and provider in providers_of
+            and consumer != provider {
             providers_of[consumer].add(provider);
         }
     }
@@ -271,10 +275,10 @@ def order_by_edges(names: list[str], edges: list[tuple[str, str]]) -> list[str] 
 def _dedup_edges(edges: list[tuple[str, str]]) -> list[tuple[str, str]] {
     seen: set[tuple[str, str]] = set();
     out: list[tuple[str, str]] = [];
-    for edge in edges {
-        if edge not in seen {
-            seen.add(edge);
-            out.append(edge);
+    for app_edge in edges {
+        if app_edge not in seen {
+            seen.add(app_edge);
+            out.append(app_edge);
         }
     }
     return out;
@@ -445,9 +449,8 @@ def service_apps_of(config: any, served: any) -> list {
 def fleet_from_config(
     config: any, served_app: str = "", project_root: str = "", relative_to: str = ""
 ) -> FleetSpec {
-    root_dir = project_root or (
-        str(config.project_root) if config.project_root else os.getcwd()
-    );
+    root_dir = project_root
+        or (str(config.project_root) if config.project_root else os.getcwd());
     served = config.resolve_app(served_app);
     return _build_fleet(
         config, root_dir, served, service_apps_of(config, served), {}, relative_to

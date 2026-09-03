@@ -137,8 +137,7 @@ impl SqlOutboxStore.put(item: OutboxEntry) -> None {
 
 impl SqlOutboxStore.get_by_key(key: str) -> (OutboxEntry | None) {
     rows = self._exec(
-        f"SELECT {_COLUMNS} FROM jac_outbox WHERE idempotency_key = :key",
-        {"key": key}
+        f"SELECT {_COLUMNS} FROM jac_outbox WHERE idempotency_key = :key", {"key": key}
     );
     return _row_to_entry(rows[0]) if rows else None;
 }
@@ -421,9 +420,7 @@ impl _store_for_worker -> OutboxStore {
 }
 
 
-impl enqueue(
-    app: str, `walker: str, kwargs: dict, idempotency_key: str = ""
-) -> str {
+impl enqueue(app: str, `walker: str, kwargs: dict, idempotency_key: str = "") -> str {
     key = idempotency_key or default_idempotency_key(app, `walker, kwargs);
     store = _store_for_request(writable=True);
     found = store.get_by_key(key);
@@ -470,7 +467,10 @@ impl _run_coro(coro: any) -> any {
     helper.join();
     (ok, value) = box[0];
     if not ok {
-        raise value;
+        if isinstance(value, BaseException) {
+            raise value;
+        }
+        raise RuntimeError(str(value));
     }
     return value;
 }

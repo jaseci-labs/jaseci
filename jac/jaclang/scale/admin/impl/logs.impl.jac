@@ -57,7 +57,9 @@ def _is_microservice_mode -> bool {
 }
 
 
-def _services_for_mode(microservice: bool, names: list[str], app_name: str) -> list[str] {
+def _services_for_mode(
+    microservice: bool, names: list[str], app_name: str
+) -> list[str] {
     if microservice {
         return ["gateway"] + sorted(names);
     }

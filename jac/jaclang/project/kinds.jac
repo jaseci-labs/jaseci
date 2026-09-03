@@ -250,8 +250,8 @@ def _has_client(config: JacConfig) -> bool {
 def resolve_entry(config: JacConfig, project_root: str, app: AppConfig) -> str {
     ep = (
         app.entry_point
-            or (config.project.entry_point if app.implicit else "")
-            or kind_entry(app.kind)
+        or (config.project.entry_point if app.implicit else "")
+        or kind_entry(app.kind)
     );
     base_dir = app.root_dir(project_root) or os.path.abspath(project_root);
     direct = ep if os.path.isabs(ep) else os.path.join(base_dir, ep);

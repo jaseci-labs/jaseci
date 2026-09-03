@@ -1935,8 +1935,8 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "OSP type-tag collision: archetypes '{name}' and '{other}' share one dispatch tag",
          help="Object-spatial dispatch keys every archetype by a stable hash of its bare name, shared across backends. Two archetypes with the same bare name (or, astronomically rarely, colliding hashes) would dispatch each other's abilities; the server runtime also refuses the second registration at first use. Rename one of the archetypes."
      ),
-     E5103 = _err(
-         "E5103",
+     E5107 = _err(
+         "E5107",
          Category.CODEGEN,
          "Server-placed shared module '{module}' has no single owner: reached by serving apps {apps}; declare it as a service app or pin an owner",
          help="A shared module with server-placed elements runs on exactly one app's server so that every other app bridges to the same owner. With more than one serving app in the workspace the compiler cannot pick one. Give the module its own `[apps.<name>]` table (`kind = \"service\"`, `entry-point = \"<path>\"`), or pin it to an owner with `[apps.<owner>.placement.pins] \"<module>\" = \"server\"`.",

@@ -97,9 +97,7 @@ impl Scorer.score_repo(hub: BoardHub, owner: str, name: str) -> SubmitResult {
         d["features"] = as_features(d.get("features") or {});
         return RepoAnalysis(**d);
     }
-    self.job.note(
-        "handing " + owner + "/" + name + " to the scoring app"
-    );
+    self.job.note("handing " + owner + "/" + name + " to the scoring app");
     p = await fetch_and_score(owner, name);
     if not p.ok {
         return SubmitResult(error=p.error);

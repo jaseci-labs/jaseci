@@ -59,14 +59,14 @@ def _check_retire(served: int, rss_mb: int) -> bool {
 }
 
 def _check_unit(
-    path: str, app_name: str, kind: str, target: str, root: str
+    path: str, app_name: str, kind: str, target: str, root_dir: str
 ) -> dict[(str, any)] {
     return {
         'path': path,
         'app': app_name,
         'kind': kind,
         'target': target,
-        'root': root,
+        'root_dir': root_dir,
         'label': app_name or 'shared'
     };
 }
@@ -288,7 +288,9 @@ impl check(
                 had_path_errors = True;
                 continue;
             }
-            units.append(_check_unit(a.`entry, a.name, a.kind, a.name, ws.project_root));
+            units.append(
+                _check_unit(a.`entry, a.name, a.kind, a.name, ws.project_root)
+            );
         }
     } else {
         (explicit_files, had_path_errors) = _iter_jac_files(
@@ -350,7 +352,7 @@ impl check(
             job_opts = dict(opts);
             job_opts['target_app'] = unit['target'];
             job_opts['app_kind'] = unit['kind'];
-            job_opts['project_root'] = unit['root'];
+            job_opts['project_root'] = unit['root_dir'];
             return {'opts': job_opts, 'collect': (not use_pool) and (idx < total - 1)};
         }
 
@@ -367,7 +369,9 @@ impl check(
                 res = {
                     'path': path,
                     'success': False,
-                    'errors': [_message_diag(f"Error checking '{path}': {detail}", path)],
+                    'errors': [
+                        _message_diag(f"Error checking '{path}': {detail}", path)
+                    ],
                     'warnings': [],
                     'placements': {},
                     'coverage': {},
@@ -416,8 +420,8 @@ impl check(
     if ws is not None {
         sweep_roots = [ws.project_root];
         sel = ws.app(app) if app else None;
-        if sel is not None and sel.root {
-            sweep_roots = [sel.root];
+        if sel is not None and sel.root_dir {
+            sweep_roots = [sel.root_dir];
         }
         (candidates, _sweep_errs) = _iter_jac_files(
             sweep_roots, ignore_list, include_annex=False
@@ -473,7 +477,8 @@ impl check(
         if not res.get('success') or (len(warns) > 0 and not nowarn) {
             failed_results.append(
                 {
-                    'path': (f"[{res['label']}] " if multi else '') + str(res.get('path')),
+                    'path': (f"[{res['label']}] " if multi else '')
+                        + str(res.get('path')),
                     'errors': errs,
                     'warnings': warns
                 }
@@ -1556,9 +1561,8 @@ impl `test(
             app_cfg = None;
         }
     }
-    re_root = explicit_app or (
-        app_cfg is not None and cfg is not None and cfg.is_workspace
-    );
+    re_root = explicit_app
+        or (app_cfg is not None and cfg is not None and cfg.is_workspace);
     if app_cfg is not None and cfg is not None and app_cfg.name in cfg.apps {
         cfg = cfg.effective_for_app(app_cfg.name);
         app_root = app_cfg.root_dir(cfg_root) or cfg_root;

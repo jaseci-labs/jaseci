@@ -69,7 +69,10 @@ def:pub AuthScreen(
                 />
             </View>
             <Pressable
-                style={[styles.primaryBtn, (styles.btnDisabled if not can_submit else None)]}
+                style={[
+                    styles.primaryBtn,
+                    (styles.btnDisabled if not can_submit else None)
+                ]}
                 disabled={not can_submit}
                 onPress={lambda { onSubmit(); }}
             >
@@ -79,7 +82,7 @@ def:pub AuthScreen(
                     <Text style={styles.primaryLabel}>
                         {"Sign up" if isSignup else "Log in"}
                     </Text>
-                }}
+                } }
             </Pressable>
             <View style={styles.switchRow}>
                 <Text style={styles.switchText}>

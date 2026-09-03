@@ -322,7 +322,8 @@ def _element_reqs(stmt: uni.UniNode) -> list {
         and isinstance(stmt.signature, uni.EventSignature) {
         reqs.append(['SERVER', 'event ability outside an archetype']);
     }
-    if _is_pub_element(stmt) and project_has_server(stmt.find_parent_of_type(uni.Module)) {
+    if _is_pub_element(stmt)
+        and project_has_server(stmt.find_parent_of_type(uni.Module)) {
         reqs.append(['ENDPOINT', 'pub access']);
     }
     return reqs;

@@ -13,6 +13,7 @@ import from tempfile { TemporaryDirectory }
 import from jaclang.server { sv_client }
 import from jaclang.server.bridge { BridgeRejected, BridgeUnavailable }
 import from jaclang.server.outbox {
+    OutboxEntry,
     STATUS_DEAD,
     STATUS_DELIVERED,
     STATUS_PENDING,
@@ -31,6 +32,14 @@ import from jaclang.server.outbox {
     worker_running
 }
 
+def _entry(store: any, key: str) -> OutboxEntry {
+    item = _entry(store, key);
+    if item is None {
+        raise AssertionError(f"no outbox entry for {key}");
+    }
+    return item;
+}
+
 
 obj _Recorder {
     has calls: list[dict] = [],
@@ -39,12 +48,8 @@ obj _Recorder {
 
 
 def _fake_spawn(recorder: _Recorder) -> any {
-    async def spawn(
-        app: str,
-        `walker: str,
-        kwargs: dict,
-        stub_cls: any,
-        idempotency_key: str = ""
+    async def fake_spawn(
+        app: str, `walker: str, kwargs: dict, stub_cls: any, idempotency_key: str = ""
     ) -> any {
         recorder.calls.append(
             {
@@ -59,12 +64,12 @@ def _fake_spawn(recorder: _Recorder) -> any {
         }
         return {"ok": True};
     }
-    return spawn;
+    return fake_spawn;
 }
 
 
-def _make_due(store: SqliteOutboxStore, key: str) -> None {
-    item = store.get_by_key(key);
+def _make_due(store: SqliteOutboxStore, key: str) {
+    item = _entry(store, key);
     assert item is not None;
     item.next_attempt_at = 0.0;
     store.update(item);
@@ -105,7 +110,7 @@ test "enqueue defaults the idempotency key and dedupes by it" {
 
             key = default_idempotency_key("scoring", "Greet", {"name": "ada", "n": 1});
             assert len(key) == 32;
-            stored = store.get_by_key(key);
+            stored = _entry(store, key);
             assert stored is not None;
             assert stored.id == first;
             assert stored.app == "scoring";
@@ -150,36 +155,30 @@ test "deliver_pending retries with backoff then dead-letters after max attempts"
             with patcher {
                 key = default_idempotency_key("scoring", "Greet", {"name": "ada"});
                 enqueue("scoring", "Greet", {"name": "ada"});
-
                 before = time.time();
                 assert deliver_pending(max_attempts=3) == 0;
-                item = store.get_by_key(key);
+                item = _entry(store, key);
                 assert item is not None;
                 assert item.status == STATUS_PENDING;
                 assert item.attempts == 1;
                 assert item.last_error.startswith("BridgeUnavailable");
                 assert item.next_attempt_at >= before + backoff_seconds(1);
-
                 assert deliver_pending(max_attempts=3) == 0;
-                assert store.get_by_key(key).attempts == 1;
-
+                assert _entry(store, key).attempts == 1;
                 _make_due(store, key);
                 assert deliver_pending(max_attempts=3) == 0;
-                item = store.get_by_key(key);
+                item = _entry(store, key);
                 assert item.attempts == 2;
                 assert item.status == STATUS_PENDING;
                 assert item.next_attempt_at >= before + backoff_seconds(2);
-
                 _make_due(store, key);
                 assert deliver_pending(max_attempts=3) == 0;
-                item = store.get_by_key(key);
+                item = _entry(store, key);
                 assert item.attempts == 3;
                 assert item.status == STATUS_DEAD;
-
                 dead = dead_letters();
                 assert [d.id for d in dead] == [item.id];
                 assert len(recorder.calls) == 3;
-
                 _make_due(store, key);
                 assert deliver_pending(max_attempts=3) == 0;
                 assert len(recorder.calls) == 3;
@@ -196,7 +195,9 @@ test "a rejected bridge call dead-letters on the first attempt" {
         store = SqliteOutboxStore(path=os.path.join(tmp, "outbox.sqlite"));
         use_store(store);
         recorder = _Recorder(
-            fail_with=BridgeRejected(app="scoring", name="Greet", detail="404", status=404)
+            fail_with=BridgeRejected(
+                app="scoring", name="Greet", detail="404", status=404
+            )
         );
         patcher: any = unittest.mock.patch.object(
             sv_client, "spawn_walker", _fake_spawn(recorder)
@@ -206,7 +207,7 @@ test "a rejected bridge call dead-letters on the first attempt" {
                 key = default_idempotency_key("scoring", "Greet", {});
                 enqueue("scoring", "Greet", {});
                 assert deliver_pending() == 0;
-                item = store.get_by_key(key);
+                item = _entry(store, key);
                 assert item.status == STATUS_DEAD;
                 assert item.attempts == 1;
                 assert item.last_error.startswith("BridgeRejected");
@@ -232,16 +233,21 @@ test "deliver_pending marks delivered and passes the idempotency key" {
                 enqueue("scoring", "Greet", {"name": "bob"}, "explicit-key");
                 assert deliver_pending() == 2;
                 assert deliver_pending() == 0;
-
                 keys = sorted(c["idempotency_key"] for c in recorder.calls);
-                assert keys == sorted(
-                    [default_idempotency_key("scoring", "Greet", {"name": "ada"}), "explicit-key"]
-                );
+                assert keys
+                    == sorted(
+                        [
+                            default_idempotency_key(
+                                "scoring", "Greet", {"name": "ada"}
+                            ),
+                            "explicit-key"
+                        ]
+                    );
                 for c in recorder.calls {
                     assert c["app"] == "scoring";
                     assert c["walker"] == "Greet";
                 }
-                done = store.get_by_key("explicit-key");
+                done = _entry(store, "explicit-key");
                 assert done.status == STATUS_DELIVERED;
                 assert done.attempts == 1;
                 assert done.last_error == "";
@@ -266,7 +272,7 @@ test "delivery reaches a provider registered via sv_client.register_test_client"
             assert deliver_pending() == 1;
             assert client.paths == ["/walker/Greet"];
             assert len(client.headers_seen) == 1;
-            assert store.get_by_key(key).status == STATUS_DELIVERED;
+            assert _entry(store, key).status == STATUS_DELIVERED;
         } finally {
             sv_client._test_clients.pop("scoring", None);
             use_store(None);
@@ -321,12 +327,12 @@ test "start_worker is idempotent and the daemon thread delivers on its own" {
                 assert worker_running();
                 deadline = time.time() + 5.0;
                 while time.time() < deadline {
-                    if store.get_by_key(key).status == STATUS_DELIVERED {
+                    if _entry(store, key).status == STATUS_DELIVERED {
                         break;
                     }
                     time.sleep(0.02);
                 }
-                assert store.get_by_key(key).status == STATUS_DELIVERED;
+                assert _entry(store, key).status == STATUS_DELIVERED;
                 assert len(recorder.calls) == 1;
                 stop_worker();
                 assert not worker_running();

@@ -11,7 +11,13 @@ import from "@jac/runtime" {
     BridgeTimeout,
     BridgeRejected
 }
-import from "@jac/mobui" { View, Text, StatusBar, ActivityIndicator, useWindowDimensions }
+import from "@jac/mobui" {
+    View,
+    Text,
+    StatusBar,
+    ActivityIndicator,
+    useWindowDimensions
+}
 import from core.social_graph {
     setup_profile,
     get_profile,
@@ -31,7 +37,13 @@ import from core.social_graph {
     get_channel_detail,
     create_channel_tweet
 }
-import from core.social_graph { Profile, Tweet, TrendingTag, ProfileBundle, ChannelBundle }
+import from core.social_graph {
+    Profile,
+    Tweet,
+    TrendingTag,
+    ProfileBundle,
+    ChannelBundle
+}
 import from .theme { C, styles }
 import from .icon { Icon }
 import from .components.TabBar { TabBar }
@@ -42,14 +54,13 @@ import from .screens.ExploreScreen { ExploreScreen }
 import from .screens.ChannelsScreen { ChannelsScreen }
 import from .screens.ProfileScreen { ProfileScreen }
 
-glob USERNAME_KEY: str = "socialize_username";
-
-glob TAB_TITLES: dict[str, str] = {
-    "feed": "Home",
-    "explore": "Explore",
-    "channels": "Channels",
-    "profile": "Profile"
-};
+glob USERNAME_KEY: str = "socialize_username",
+     TAB_TITLES: dict[str, str] = {
+         "feed": "Home",
+         "explore": "Explore",
+         "channels": "Channels",
+         "profile": "Profile"
+     };
 
 def:pub app -> JsxElement {
     has checkingAuth: bool = True,
@@ -142,13 +153,11 @@ def:pub app -> JsxElement {
                 loading={authLoading}
                 onUsernameChange={lambda (t: str) { authUsername = t; }}
                 onPasswordChange={lambda (t: str) { authPassword = t; }}
-                onSubmit={lambda {
-                    if isSignup {
-                        handleSignup();
-                    } else {
-                        handleLogin();
-                    }
-                }}
+                onSubmit={lambda { if isSignup {
+                    handleSignup();
+                } else {
+                    handleLogin();
+                } }}
                 onToggleMode={lambda {
                     isSignup = not isSignup;
                     authError = "";
@@ -244,7 +253,7 @@ def:pub app -> JsxElement {
                         onComment={handleComment}
                         onDelete={handleDelete}
                     />
-                }}
+                }   }
             </View>
             <TabBar activeTab={activeTab} onNavigate={navigate}/>
         </View>

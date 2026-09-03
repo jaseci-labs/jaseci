@@ -946,7 +946,7 @@ jobs:
 
       - name: Type check the site
         working-directory: jac/examples/jaclang_org
-        run: jac check main.jac
+        run: jac check
 
       # The docs section reads the corpus bundled with the jac binary under
       # test in-process (jaclang.cli.guide_store), so the docs journey stop is
@@ -954,7 +954,7 @@ jobs:
       - name: Start site server in background
         working-directory: jac/examples/jaclang_org
         run: |
-          timeout 1200 jac run --serve main.jac > /tmp/site-server.log 2>&1 &
+          timeout 1200 jac run --serve web > /tmp/site-server.log 2>&1 &
           SERVER_PID=$!
           echo "SITE_PID=$SERVER_PID" >> $GITHUB_ENV
           echo "site server starting with PID $SERVER_PID..."

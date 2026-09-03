@@ -148,8 +148,9 @@ obj JacCompiler {
     def stamp_app_facts(mod: uni.Module, target_program: JacProgram) -> None;
     static def _module_defines_owned_elements(mod: uni.Module) -> bool;
     def _report_owner_ambiguity(
-        mod: uni.Module, target_program: JacProgram, ws: object
+        mod: uni.Module, target_program: JacProgram, ws: any
     ) -> None;
+
     def stamp_access_check_facts(mod: uni.Module) -> None;
     def stamp_native_import_facts(mod: uni.Module, target_program: JacProgram) -> None;
     def _persist_module_cache(

@@ -9,11 +9,11 @@ obj Tab {
 }
 
 glob TABS: list[Tab] = [
-    Tab(key="feed", icon="home", label="Home"),
-    Tab(key="explore", icon="explore", label="Explore"),
-    Tab(key="channels", icon="hash", label="Channels"),
-    Tab(key="profile", icon="user", label="Profile")
-];
+         Tab(key="feed", icon="home", label="Home"),
+         Tab(key="explore", icon="explore", label="Explore"),
+         Tab(key="channels", icon="hash", label="Channels"),
+         Tab(key="profile", icon="user", label="Profile")
+     ];
 
 def:pub TabBar(activeTab: str, onNavigate: Callable[[str], None]) -> JsxElement {
     <View style={styles.tabBar}>
@@ -28,7 +28,11 @@ def:pub TabBar(activeTab: str, onNavigate: Callable[[str], None]) -> JsxElement 
                     size={22}
                     color={C.accent if activeTab == t.key else C.muted}
                 />
-                <Text style={styles.tabLabelActive if activeTab == t.key else styles.tabLabel}>
+                <Text
+                    style={styles.tabLabelActive
+                        if activeTab == t.key
+                        else styles.tabLabel}
+                >
                     {t.label}
                 </Text>
             </Pressable>

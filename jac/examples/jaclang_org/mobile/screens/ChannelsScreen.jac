@@ -56,10 +56,13 @@ def ChannelDetail(
                         <Text style={styles.outlineLabel}>Leave</Text>
                     </Pressable>
                 } else {
-                    <Pressable style={styles.pillBtn} onPress={lambda { onJoin(channel_id); }}>
+                    <Pressable
+                        style={styles.pillBtn}
+                        onPress={lambda { onJoin(channel_id); }}
+                    >
                         <Text style={styles.primaryLabel}>Join</Text>
                     </Pressable>
-                }}
+                } }
             </View>
             {if channel.channel.description {
                 <Text style={styles.channelDesc}>{channel.channel.description}</Text>
@@ -96,7 +99,7 @@ def ChannelDetail(
                     onDelete={onDelete}
                 />
             }
-        }}
+        } }
     </ScrollView>
 }
 
@@ -177,7 +180,10 @@ def:pub ChannelsScreen(
                         onChangeText={lambda (t: str) { newDescription = t; }}
                     />
                     <View style={styles.modalFooter}>
-                        <Pressable style={styles.ghostBtn} onPress={lambda { showCreate = False; }}>
+                        <Pressable
+                            style={styles.ghostBtn}
+                            onPress={lambda { showCreate = False; }}
+                        >
                             <Text style={styles.ghostLabel}>Cancel</Text>
                         </Pressable>
                         <Pressable
@@ -240,7 +246,7 @@ def:pub ChannelsScreen(
                         }}
                     </Pressable>
                 }
-            }}
+            }  }
         </ScrollView>
     </View>
 }

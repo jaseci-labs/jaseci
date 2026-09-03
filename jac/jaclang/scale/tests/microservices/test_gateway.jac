@@ -1419,7 +1419,11 @@ obj _TimeoutStubCfg {
     has data: dict[str, any];
 
     def get_gateway_config -> dict[str, any] {
-        return {k: v for (k, v) in self.data.items() if k != "apps"};
+        return {
+            k: v
+            for (k, v) in self.data.items()
+            if k != "apps"
+        };
     }
 
     def get_app_scale_config(app_name: str) -> dict[str, any] {
@@ -1436,9 +1440,7 @@ test "http_forward_timeout precedence: per-app > gateway > default" {
         setattr(
             cfg_mod,
             "get_scale_config",
-            lambda { _TimeoutStubCfg(
-                data={"http_forward_timeout": 45.0, "apps": {}}
-            ); }
+            lambda { _TimeoutStubCfg(data={"http_forward_timeout": 45.0, "apps": {}}); }
         );
         assert http_forward_timeout(None) == 45.0;
         assert http_forward_timeout("any_service") == 45.0;

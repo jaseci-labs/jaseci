@@ -10,7 +10,8 @@ obj:pub BridgeError(Exception) {
     has app: str = "",
         name: str = "",
         detail: str = "",
-        status: int = 0;
+        status: int = 0,
+        message: str = "";
 
     def postinit {
         self.message = self.detail;
@@ -26,6 +27,7 @@ obj:pub BridgeRejected(BridgeError) {}
 def:pub __bridgeErrorFor(
     status: int, message: str, app: str = "", name: str = ""
 ) -> BridgeError;
+
 def:pub __bridgeErrorFromFetch(err: any, app: str = "", name: str = "") -> BridgeError;
 def:pub __bridgeApiBase(opts: (dict | None) = None) -> str;
 
@@ -33,12 +35,15 @@ def:pub __createJacSchema(zodLib: any) -> any;
 async def:pub __jacSpawn(
     left: str, right: str = "", fields: dict = {}, opts: (dict | None) = None
 ) -> any;
+
 def:pub jacSpawn(
     left: str, right: str = "", fields: dict = {}, opts: (dict | None) = None
 ) -> any;
+
 async def:pub __jacCallFunction(
     function_name: str, args: dict = {}, opts: (dict | None) = None
 ) -> any;
+
 def:pub __normalizeIdentity(x: any) -> dict;
 def:pub __normalizeCredential(x: any) -> dict;
 async def:pub jacSignup(
@@ -65,9 +70,11 @@ def:pub __evictOldest -> None;
 async def:pub __doWalkerFetch(
     `walker: str, nodeId: str, fields: dict, opts: (dict | None) = None
 ) -> any;
+
 async def:pub __doFuncFetch(
     function_name: str, args: dict, opts: (dict | None) = None
 ) -> any;
+
 async def:pub __cachedEndpointCall(
     endpoint_key: str, args_key: str, fetch_fn: any
 ) -> any;

@@ -143,9 +143,7 @@ obj KubernetesRealizer {
         import from jaclang.scale.deploy.target.kubernetes.kubernetes_target {
             KubernetesTargetBase
         }
-        import from jaclang.scale.deploy.target.kubernetes.target {
-            KubernetesTarget
-        }
+        import from jaclang.scale.deploy.target.kubernetes.target { KubernetesTarget }
         if isinstance(deployment_target, KubernetesTarget) {
             deployment_target.fleet = self.fleet;
             deployment_target.gateway_config = self.gateway_config;
@@ -185,7 +183,9 @@ obj KubernetesRealizer {
         }
 
         app_config = AppConfig(
-            code_folder=code_folder, file_name=base_file_path, served_app=self.served_app
+            code_folder=code_folder,
+            file_name=base_file_path,
+            served_app=self.served_app
         );
         console.warning(
             "Copying local source into the cluster via PVC and installing "

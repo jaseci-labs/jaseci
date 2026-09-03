@@ -5,11 +5,7 @@ import from jaclang.scale.config.config_loader {
     get_scale_config,
     normalize_gateway_config
 }
-import from jaclang.scale.runtime.fleet {
-    FleetSpec,
-    fleet_from_config,
-    solo_fleet
-}
+import from jaclang.scale.runtime.fleet { FleetSpec, fleet_from_config, solo_fleet }
 import from jaclang.scale.models.deploy_context { DeployContext }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
@@ -1037,7 +1033,8 @@ obj ManifestBuilder {
             if k in ("JAC_SV_NAME", "JAC_SV_FILE", FLEET_ENV) {
                 continue;
             }
-            if k.startswith("JAC_APP_") and (k.endswith("_URL") or k.endswith("_ROUTE")) {
+            if k.startswith("JAC_APP_")
+                and (k.endswith("_URL") or k.endswith("_ROUTE")) {
                 continue;
             }
             env.append({"name": k, "value": str(v)});

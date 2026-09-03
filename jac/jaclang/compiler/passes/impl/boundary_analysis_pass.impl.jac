@@ -489,9 +489,9 @@ impl BoundaryAnalysisPass._record_app_edge(nd: Import) -> None {
         return;
     }
     manifest = self.ir_in.gen.interop_manifest;
-    edge = (consumer_app, provider_app);
-    if edge not in manifest.app_edges {
-        manifest.app_edges.append(edge);
+    app_edge = (consumer_app, provider_app);
+    if app_edge not in manifest.app_edges {
+        manifest.app_edges.append(app_edge);
     }
     if consumer_app {
         self._check_app_cycle(nd, consumer_app, provider_app);
@@ -546,9 +546,7 @@ impl BoundaryAnalysisPass._check_app_cycle(
         }
         for (app, target_path) in self._bridge_targets(mod) {
             if app == consumer_app {
-                self.emit(
-                    E5104, node_override=nd, cycle=' -> '.join(chain + [app])
-                );
+                self.emit(E5104, node_override=nd, cycle=' -> '.join(chain + [app]));
                 return;
             }
             if app in chain {

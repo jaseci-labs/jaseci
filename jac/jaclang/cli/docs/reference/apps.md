@@ -170,9 +170,8 @@ workspace with several and no default errors, listing the apps.
 
 ## Ownership: one owner per server-placed shared module
 
-Shared code that the placement solver puts on the **server** -- a walker, a
-`root`-touching function, a `def:pub` endpoint in `core/` -- has to run on
-exactly one app's server, so that every other app bridges to the same place.
+Shared code that carries walkers or persisted node/edge archetypes has to run
+on exactly one app's server, so that every other app bridges to the same place.
 That app is the module's **owner**:
 
 - A **file-rooted service app** owns its entry file explicitly. This is what
@@ -182,8 +181,12 @@ That app is the module's **owner**:
 - Otherwise, when the workspace has exactly one serving app, it owns every
   server-placed shared module implicitly. A `web` app plus a `mobile` app plus
   a `cli` app needs no service tables at all: `web` owns the server side.
-- Two or more serving apps reaching the same server-placed shared module with
-  no explicit owner is **`E5103`**. Give the module its own `[apps.<name>]`
+- When several apps serve, `[project] default-app` breaks the tie: the default
+  app is the implicit owner of every server-placed shared module that no
+  service app claims. In the flagship, `web` owns the docs graph and the
+  leaderboard while `social_graph` and `scoring` own their own entry files.
+- Two or more serving apps, no `default-app`, and a shared module that defines
+  walkers or node/edge archetypes with no explicit owner is **`E5107`**. Give the module its own `[apps.<name>]`
   table (`kind = "service"`, `entry-point = "<path>"`), or pin it to an owner
   with `[apps.<owner>.placement.pins] "<module>" = "server"`.
 
@@ -403,7 +406,7 @@ and [Kubernetes & Operations](plugins/jac-scale-kubernetes.md#service-apps-in-ku
 - `E2039` / `W2039` -- app isolation: a symbol of one app used from another
   outside the bridge surface.
 - `E2040` / `W2040` -- shared layering: a shared module importing from an app.
-- `E5103` -- a server-placed shared module with no single owner.
+- `E5107` -- a server-placed shared module with no single owner.
 - `E5104` -- an app dependency cycle.
 - `E5105` -- a `.native.jac` variant disagrees with its base module's public
   surface.

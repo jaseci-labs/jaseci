@@ -48,7 +48,7 @@ def parse_repo_ref(text: str) -> tuple[str, str] | None {
 }
 
 def score_repo(owner: str, name: str, quiet: bool = False) -> ScoreResult {
-    def say(note: str) -> None {
+    def say(note: str) {
         if not quiet {
             warn(note);
         }
@@ -128,8 +128,7 @@ def as_dict(res: ScoreResult) -> dict[str, object] {
                 "pts": p.pts,
                 "max": p.max,
                 "note": p.note
-            }
-            for p in sc.details
+            } for p in sc.details
         ]
     };
 }

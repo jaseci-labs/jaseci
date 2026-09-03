@@ -632,9 +632,7 @@ impl app_scale_overrides(config: any, app_name: str) -> dict[str, any] {
 }
 
 
-impl normalize_gateway_config(
-    gateway_config: dict[str, any] | None
-) -> dict[str, any] {
+impl normalize_gateway_config(gateway_config: dict[str, any] | None) -> dict[str, any] {
     raw = dict(gateway_config or {});
     cors_config = dict(raw.get('cors', {}) or {});
     rl_config = dict(raw.get('rate_limit', {}) or {});

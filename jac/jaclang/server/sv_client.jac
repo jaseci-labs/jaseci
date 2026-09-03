@@ -88,7 +88,11 @@ def clear_read_cache(app: str = "") {
         _read_cache_flags.clear();
         return;
     }
-    for key in [k for k in _read_cache.keys() if k[0] == app] {
+    for key in [
+        k
+        for k in _read_cache.keys()
+        if k[0] == app
+    ] {
         _read_cache.pop(key, None);
     }
 }
@@ -119,7 +123,7 @@ def _read_cache_enabled -> bool {
 
 def _read_cache_key(app: str, fn: str, kwargs: dict) -> tuple {
     import json;
-    return (app, fn, json.dumps(kwargs, sort_keys=True, default=str));
+    return (app, fn, json.dumps(kwargs, sort_keys=True, `default=str));
 }
 
 def auth_headers -> dict[str, str] {
@@ -286,11 +290,7 @@ def _rehydrate_walker(envelope: any, stub_cls: any) -> any {
 }
 
 def _http_spawn(
-    app: str,
-    walker_name: str,
-    kwargs: dict,
-    stub_cls: any,
-    idempotency_key: str = ""
+    app: str, walker_name: str, kwargs: dict, stub_cls: any, idempotency_key: str = ""
 ) -> any {
     import from jaclang.server.serving.client { request_sync }
     headers = request_headers(idempotency_key);
@@ -353,9 +353,14 @@ async def _local_spawn(app: str, walker_name: str, kwargs: dict) -> any {
         req_ctx.set_user_root(str(parent.system_root.id));
         token = JacRuntime.push_request_context(req_ctx);
     }
+    if req_ctx is None {
+        raise BridgeUnavailable(
+            app=app, name=walker_name, detail="no execution context"
+        );
+    }
     try {
         mem = req_ctx.mem;
-        session = mem if hasattr(mem, "run_request") else None;
+        session = mem if mem?.run_request else None;
 
         def _spawn_body -> any {
             instance = walker_cls(**kwargs);
@@ -415,11 +420,7 @@ async def call(
 }
 
 async def spawn_walker(
-    app: str,
-    walker_name: str,
-    kwargs: dict,
-    stub_cls: any,
-    idempotency_key: str = ""
+    app: str, walker_name: str, kwargs: dict, stub_cls: any, idempotency_key: str = ""
 ) -> any {
     clear_read_cache(app);
     try {
@@ -444,7 +445,7 @@ def spawn_deferred(
     return enqueue(app, walker_name, kwargs, idempotency_key);
 }
 
-def ensure_all(apps: list[str]) -> None {
+def ensure_all(apps: list[str]) {
     for app in apps {
         _ensure_available(app);
     }

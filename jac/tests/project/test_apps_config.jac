@@ -35,19 +35,29 @@ glob WORKSPACE_TOML = (
      ),
      MAIN_JAC = 'with entry {\n    print("hi");\n}\n';
 
-"""Write a three-app workspace (web, mobile, file-rooted social_graph) under root."""
-def write_workspace(root: Path, toml: str = WORKSPACE_TOML) -> Path {
-    root.mkdir(parents=True, exist_ok=True);
-    (root / "jac.toml").write_text(toml);
-    (root / "web" / "pages").mkdir(parents=True, exist_ok=True);
-    (root / "web" / "main.jac").write_text(MAIN_JAC);
-    (root / "web" / "pages" / "home.jac").write_text(MAIN_JAC);
-    (root / "mobile").mkdir(exist_ok=True);
-    (root / "mobile" / "main.jac").write_text(MAIN_JAC);
-    (root / "core").mkdir(exist_ok=True);
-    (root / "core" / "social_graph.jac").write_text("walker:pub Hello {}\n");
-    (root / "core" / "shared.jac").write_text("def helper -> int {\n    return 1;\n}\n");
-    return root;
+def _app_name(app: any) -> str {
+    if app is None {
+        raise AssertionError("expected an app, got None");
+    }
+    return str(app.name);
+}
+
+
+"""Write a three-app workspace (web, mobile, file-rooted social_graph) under root_path."""
+def write_workspace(root_path: Path, toml: str = WORKSPACE_TOML) -> Path {
+    root_path.mkdir(parents=True, exist_ok=True);
+    (root_path / "jac.toml").write_text(toml);
+    (root_path / "web" / "pages").mkdir(parents=True, exist_ok=True);
+    (root_path / "web" / "main.jac").write_text(MAIN_JAC);
+    (root_path / "web" / "pages" / "home.jac").write_text(MAIN_JAC);
+    (root_path / "mobile").mkdir(exist_ok=True);
+    (root_path / "mobile" / "main.jac").write_text(MAIN_JAC);
+    (root_path / "core").mkdir(exist_ok=True);
+    (root_path / "core" / "social_graph.jac").write_text("walker:pub Hello {}\n");
+    (root_path / "core" / "shared.jac").write_text(
+        "def helper -> int {\n    return 1;\n}\n"
+    );
+    return root_path;
 }
 
 # ===========================================================================
@@ -210,59 +220,75 @@ test "route defaults to /api/<name> and collisions are hard errors" {
 # ===========================================================================
 test "membership: dir-rooted, file-rooted and shared" {
     with TemporaryDirectory() as td {
-        root = write_workspace(Path(td) / "acme");
-        cfg = JacConfig.load(root / "jac.toml");
-        assert cfg.app_for_path(str(root / "web" / "pages" / "home.jac")).name == "web";
-        assert cfg.app_for_path(str(root / "mobile" / "main.jac")).name == "mobile";
-        sg_owner = cfg.app_for_path(str(root / "core" / "social_graph.jac"));
+        root_path = write_workspace(Path(td) / "acme");
+        cfg = JacConfig.load(root_path / "jac.toml");
+        assert _app_name(
+            cfg.app_for_path(str(root_path / "web" / "pages" / "home.jac"))
+        )
+            == "web";
+        assert _app_name(cfg.app_for_path(str(root_path / "mobile" / "main.jac")))
+            == "mobile";
+        sg_owner = cfg.app_for_path(str(root_path / "core" / "social_graph.jac"));
         assert sg_owner is not None and sg_owner.name == "social_graph";
-        assert cfg.app_for_path(str(root / "core" / "shared.jac")) is None;
-        assert cfg.app_for_path(str(root / "jac.toml")) is None;
+        assert cfg.app_for_path(str(root_path / "core" / "shared.jac")) is None;
+        assert cfg.app_for_path(str(root_path / "jac.toml")) is None;
         assert cfg.app_for_path(str(Path(td) / "elsewhere.jac")) is None;
         sg = cfg.apps["social_graph"];
-        assert sg.root_dir(str(root)) == "";
-        assert sg.entry_path(str(root)) == str(root / "core" / "social_graph.jac");
-        assert sg.contains(str(root), str(root / "core" / "social_graph.jac"));
-        assert not sg.contains(str(root), str(root / "core" / "shared.jac"));
+        assert sg.root_dir(str(root_path)) == "";
+        assert sg.entry_path(str(root_path))
+            == str(root_path / "core" / "social_graph.jac");
+        assert sg.contains(
+            str(root_path), str(root_path / "core" / "social_graph.jac")
+        );
+        assert not sg.contains(str(root_path), str(root_path / "core" / "shared.jac"));
         web = cfg.apps["web"];
-        assert web.root_dir(str(root)) == str(root / "web");
-        assert web.entry_path(str(root)) == str(root / "web" / "main.jac");
+        assert web.root_dir(str(root_path)) == str(root_path / "web");
+        assert web.entry_path(str(root_path)) == str(root_path / "web" / "main.jac");
     }
 }
 
-test "membership: nearest root wins" {
+test "membership: nearest root_path wins" {
     with TemporaryDirectory() as td {
-        root = write_workspace(
+        root_path = write_workspace(
             Path(td) / "acme",
             '[project]\nname = "acme"\n\n'
             '[apps.site]\nkind = "web-app"\npath = "web"\n\n'
             '[apps.admin]\nkind = "web-app"\npath = "web/admin"\n'
         );
-        (root / "web" / "admin").mkdir();
-        (root / "web" / "admin" / "main.jac").write_text(MAIN_JAC);
-        cfg = JacConfig.load(root / "jac.toml");
-        assert cfg.app_for_path(str(root / "web" / "admin" / "main.jac")).name == "admin";
-        assert cfg.app_for_path(str(root / "web" / "main.jac")).name == "site";
-        assert cfg.app_for_path(str(root / "web" / "pages" / "home.jac")).name == "site";
+        (root_path / "web" / "admin").mkdir();
+        (root_path / "web" / "admin" / "main.jac").write_text(MAIN_JAC);
+        cfg = JacConfig.load(root_path / "jac.toml");
+        assert _app_name(
+            cfg.app_for_path(str(root_path / "web" / "admin" / "main.jac"))
+        )
+            == "admin";
+        assert _app_name(cfg.app_for_path(str(root_path / "web" / "main.jac")))
+            == "site";
+        assert _app_name(
+            cfg.app_for_path(str(root_path / "web" / "pages" / "home.jac"))
+        )
+            == "site";
     }
 }
 
-test "membership: the implicit app owns the whole project root" {
+test "membership: the implicit app owns the whole project root_path" {
     with TemporaryDirectory() as td {
-        root = Path(td) / "hello";
-        (root / "lib").mkdir(parents=True);
-        (root / "jac.toml").write_text('[project]\nname = "hello"\nkind = "cli"\n');
-        (root / "lib" / "x.jac").write_text(MAIN_JAC);
-        cfg = JacConfig.load(root / "jac.toml");
-        owner = cfg.app_for_path(str(root / "lib" / "x.jac"));
+        root_path = Path(td) / "hello";
+        (root_path / "lib").mkdir(parents=True);
+        (root_path / "jac.toml").write_text(
+            '[project]\nname = "hello"\nkind = "cli"\n'
+        );
+        (root_path / "lib" / "x.jac").write_text(MAIN_JAC);
+        cfg = JacConfig.load(root_path / "jac.toml");
+        owner = cfg.app_for_path(str(root_path / "lib" / "x.jac"));
         assert owner is not None and owner.implicit;
-        assert owner.root_dir(str(root)) == str(root);
+        assert owner.root_dir(str(root_path)) == str(root_path);
         assert cfg.app_for_path(str(Path(td) / "other.jac")) is None;
-        bare = JacConfig(project_root=root);
+        bare = JacConfig(project_root=root_path);
         assert not bare.apps;
-        bare_owner = bare.app_for_path(str(root / "lib" / "x.jac"));
+        bare_owner = bare.app_for_path(str(root_path / "lib" / "x.jac"));
         assert bare_owner is not None and bare_owner.implicit , (
-            "a config built without an [apps] table still owns its root"
+            "a config built without an [apps] table still owns its root_path"
         );
         assert bare.app_for_path(str(Path(td) / "other.jac")) is None;
     }
@@ -271,20 +297,33 @@ test "membership: the implicit app owns the whole project root" {
 # ===========================================================================
 # Ownership (decision 2)
 # ===========================================================================
-test "owner: explicit file-rooted service app, member app, ambiguity" {
+test "owner: explicit file-rooted service app, default app, ambiguity without one" {
     with TemporaryDirectory() as td {
-        root = write_workspace(Path(td) / "acme");
-        cfg = JacConfig.load(root / "jac.toml");
+        root_path = write_workspace(Path(td) / "acme");
+        cfg = JacConfig.load(root_path / "jac.toml");
         assert [a.name for a in cfg.serving_apps()] == ["web", "social_graph"];
         (owner, ambiguous) = cfg.owner_app_for_path(
-            str(root / "core" / "social_graph.jac")
+            str(root_path / "core" / "social_graph.jac")
         );
         assert owner is not None and owner.name == "social_graph";
         assert not ambiguous;
-        (owner, ambiguous) = cfg.owner_app_for_path(str(root / "core" / "shared.jac"));
-        assert owner is None , "two serving apps and no explicit owner";
+        (owner, ambiguous) = cfg.owner_app_for_path(
+            str(root_path / "core" / "shared.jac")
+        );
+        assert owner is not None and owner.name == "web";
+        assert not ambiguous;
+        no_default = write_workspace(
+            Path(td) / "acme2", WORKSPACE_TOML.replace('default-app = "web"\n', "")
+        );
+        cfg2 = JacConfig.load(no_default / "jac.toml");
+        (owner, ambiguous) = cfg2.owner_app_for_path(
+            str(no_default / "core" / "shared.jac")
+        );
+        assert owner is None;
         assert ambiguous;
-        (owner, ambiguous) = cfg.owner_app_for_path(str(root / "mobile" / "main.jac"));
+        (owner, ambiguous) = cfg.owner_app_for_path(
+            str(root_path / "mobile" / "main.jac")
+        );
         assert owner is not None and owner.name == "mobile";
         assert not ambiguous;
     }
@@ -292,14 +331,16 @@ test "owner: explicit file-rooted service app, member app, ambiguity" {
 
 test "owner: the sole serving app owns shared modules implicitly" {
     with TemporaryDirectory() as td {
-        root = write_workspace(
+        root_path = write_workspace(
             Path(td) / "acme",
             '[project]\nname = "acme"\n\n'
             '[apps.web]\nkind = "web-app"\npath = "web"\n\n'
             '[apps.mobile]\nkind = "mobile"\npath = "mobile"\n'
         );
-        cfg = JacConfig.load(root / "jac.toml");
-        (owner, ambiguous) = cfg.owner_app_for_path(str(root / "core" / "shared.jac"));
+        cfg = JacConfig.load(root_path / "jac.toml");
+        (owner, ambiguous) = cfg.owner_app_for_path(
+            str(root_path / "core" / "shared.jac")
+        );
         assert owner is not None and owner.name == "web";
         assert not ambiguous;
     }
@@ -307,15 +348,17 @@ test "owner: the sole serving app owns shared modules implicitly" {
 
 test "owner: no serving apps means no owner and no ambiguity" {
     with TemporaryDirectory() as td {
-        root = write_workspace(
+        root_path = write_workspace(
             Path(td) / "acme",
             '[project]\nname = "acme"\n\n'
             '[apps.tool]\nkind = "cli"\npath = "web"\n\n'
             '[apps.mobile]\nkind = "mobile"\npath = "mobile"\n'
         );
-        cfg = JacConfig.load(root / "jac.toml");
+        cfg = JacConfig.load(root_path / "jac.toml");
         assert cfg.serving_apps() == [];
-        (owner, ambiguous) = cfg.owner_app_for_path(str(root / "core" / "shared.jac"));
+        (owner, ambiguous) = cfg.owner_app_for_path(
+            str(root_path / "core" / "shared.jac")
+        );
         assert owner is None;
         assert not ambiguous;
     }
@@ -361,7 +404,7 @@ test "resolve_app: explicit, default, sole, ambiguous" {
 test "effective_for_app layers base, app overlays, profile and local" {
     config_mod._config = None;
     with TemporaryDirectory() as td {
-        root = write_workspace(
+        root_path = write_workspace(
             Path(td) / "acme",
             '[project]\nname = "acme"\n\n'
             '[apps.web]\nkind = "web-app"\npath = "web"\n\n'
@@ -375,11 +418,11 @@ test "effective_for_app layers base, app overlays, profile and local" {
             '[byllm]\nmodel = "base-model"\ntemperature = 0.1\n\n'
             '[environments.prod]\n[environments.prod.serve]\nsession = "prod-sess"\n'
         );
-        (root / "jac.prod.toml").write_text(
+        (root_path / "jac.prod.toml").write_text(
             '[serve]\nconflict_max_attempts = 9\n'
         );
-        (root / "jac.local.toml").write_text('[serve]\nconflict_backoff_ms = 7\n');
-        cfg = JacConfig.discover(root, profile="prod");
+        (root_path / "jac.local.toml").write_text('[serve]\nconflict_backoff_ms = 7\n');
+        cfg = JacConfig.discover(root_path, profile="prod");
         assert cfg is not None;
         assert cfg.active_profile == "prod";
         assert cfg.serve.port == 8090;
@@ -396,11 +439,8 @@ test "effective_for_app layers base, app overlays, profile and local" {
         assert web.is_workspace;
         assert list(web.apps.keys()) == ["web", "mobile"];
         assert web.project_root == cfg.project_root;
-        assert [p.name for p in web.config_files] == [
-            "jac.toml",
-            "jac.prod.toml",
-            "jac.local.toml"
-        ];
+        assert [p.name for p in web.config_files]
+            == ["jac.toml", "jac.prod.toml", "jac.local.toml"];
         assert cfg.serve.port == 8090 , "the source config is untouched";
         mobile = cfg.effective_for_app("mobile");
         assert mobile.serve.port == 8090;
@@ -434,7 +474,9 @@ test "effective_for_app replays a directly applied profile" {
 }
 
 test "effective_for_app of the implicit app is a plain clone" {
-    cfg = JacConfig.from_toml_str('[project]\nname = "hello"\n\n[serve]\nport = 8090\n');
+    cfg = JacConfig.from_toml_str(
+        '[project]\nname = "hello"\n\n[serve]\nport = 8090\n'
+    );
     clone = cfg.effective_for_app("hello");
     assert clone is not cfg;
     assert clone.serve.port == 8090;
@@ -490,15 +532,15 @@ test "resolve_app_kind infers only for the implicit app" {
 
 test "plan_workspace produces one plan per app" {
     with TemporaryDirectory() as td {
-        root = write_workspace(Path(td) / "acme");
-        cfg = JacConfig.load(root / "jac.toml");
-        plans = plan_workspace(cfg, str(root));
+        root_path = write_workspace(Path(td) / "acme");
+        cfg = JacConfig.load(root_path / "jac.toml");
+        plans = plan_workspace(cfg, str(root_path));
         assert [p.app for p in plans] == ["web", "mobile", "social_graph"];
         by_app = {p.app: p for p in plans};
         web = by_app["web"];
         assert web.kind == "web-app";
         assert web.action == "serve";
-        assert web.entry_path == str(root / "web" / "main.jac");
+        assert web.entry_path == str(root_path / "web" / "main.jac");
         assert web.flags["port"] == 8100 , "the app's serve overlay feeds the plan";
         assert web.flags["dev"] is True;
         assert web.command_line().startswith("jac run web");
@@ -506,10 +548,10 @@ test "plan_workspace produces one plan per app" {
         assert mobile.action == "build";
         assert mobile.flags["client"] == "react-native";
         assert mobile.flags["platform"] == "ios";
-        assert mobile.entry_path == str(root / "mobile" / "main.jac");
+        assert mobile.entry_path == str(root_path / "mobile" / "main.jac");
         sg = by_app["social_graph"];
         assert sg.kind == "service";
-        assert sg.entry_path == str(root / "core" / "social_graph.jac");
+        assert sg.entry_path == str(root_path / "core" / "social_graph.jac");
         assert sg.flags["port"] == 8090 , "no overlay: the base [serve] port applies";
         assert sg.flags["no_client"] is True;
         assert sg.command_line().startswith("jac run social_graph");
@@ -518,34 +560,39 @@ test "plan_workspace produces one plan per app" {
 
 test "plan_app_run for the implicit app keeps the single-app command line" {
     with TemporaryDirectory() as td {
-        root = Path(td) / "hello";
-        root.mkdir();
-        (root / "jac.toml").write_text('[project]\nname = "hello"\nkind = "cli"\n');
-        (root / "main.jac").write_text(MAIN_JAC);
-        cfg = JacConfig.load(root / "jac.toml");
-        plan = plan_app_run(cfg, str(root), cfg.resolve_app(""));
+        root_path = Path(td) / "hello";
+        root_path.mkdir();
+        (root_path / "jac.toml").write_text(
+            '[project]\nname = "hello"\nkind = "cli"\n'
+        );
+        (root_path / "main.jac").write_text(MAIN_JAC);
+        cfg = JacConfig.load(root_path / "jac.toml");
+        plan = plan_app_run(cfg, str(root_path), cfg.resolve_app(""));
         assert plan.app == "";
         assert plan.kind == "cli";
         assert plan.command_line() == "jac run main.jac";
-        assert plan.entry_path == str(root / "main.jac");
-        assert plan_workspace(cfg, str(root))[0].entry_path == plan.entry_path;
+        assert plan.entry_path == str(root_path / "main.jac");
+        assert plan_workspace(cfg, str(root_path))[0].entry_path == plan.entry_path;
     }
 }
 
-test "plan_app_run honors an entry override and names named-app outputs" {
+test "plan_app_run honors an entry overridden and names named-app outputs" {
     with TemporaryDirectory() as td {
-        root = write_workspace(
+        root_path = write_workspace(
             Path(td) / "acme",
             '[project]\nname = "acme"\n\n[apps.bin]\nkind = "native-binary"\npath = "web"\n'
         );
-        cfg = JacConfig.load(root / "jac.toml");
-        plan = plan_app_run(cfg, str(root), cfg.apps["bin"]);
-        assert plan.flags["output"] == str(root / "dist" / "bin" / "main");
-        override = plan_app_run(
-            cfg, str(root), cfg.apps["bin"], entry_override=str(root / "web" / "pages" / "home.jac")
+        cfg = JacConfig.load(root_path / "jac.toml");
+        plan = plan_app_run(cfg, str(root_path), cfg.apps["bin"]);
+        assert plan.flags["output"] == str(root_path / "dist" / "bin" / "main");
+        overridden = plan_app_run(
+            cfg,
+            str(root_path),
+            cfg.apps["bin"],
+            entry_override=str(root_path / "web" / "pages" / "home.jac")
         );
-        assert override.entry_path == str(root / "web" / "pages" / "home.jac");
-        assert override.flags["output"] == str(root / "dist" / "bin" / "home");
+        assert overridden.entry_path == str(root_path / "web" / "pages" / "home.jac");
+        assert overridden.flags["output"] == str(root_path / "dist" / "bin" / "home");
     }
 }
 
@@ -571,19 +618,20 @@ test "plan_app_run raises when a needs-entry app has no entry file" {
 test "client kind answers from the owning app" {
     config_mod.set_config(None);
     with TemporaryDirectory() as td {
-        root = write_workspace(Path(td) / "acme");
+        root_path = write_workspace(Path(td) / "acme");
         try {
-            assert resolve_client_kind(str(root / "mobile" / "main.jac")) == "mobui";
-            assert resolve_client_kind(str(root / "web" / "main.jac")) == "web";
-            assert resolve_client_kind(str(root / "core" / "shared.jac")) == "web";
+            assert resolve_client_kind(str(root_path / "mobile" / "main.jac"))
+                == "mobui";
+            assert resolve_client_kind(str(root_path / "web" / "main.jac")) == "web";
+            assert resolve_client_kind(str(root_path / "core" / "shared.jac")) == "web";
             (kind, enforce_root) = resolve_client_kind_context(
-                str(root / "mobile" / "main.jac")
+                str(root_path / "mobile" / "main.jac")
             );
             assert kind == "mobui";
             assert enforce_root is not None;
-            assert Path(enforce_root).resolve() == (root / "mobile").resolve();
+            assert Path(enforce_root).resolve() == (root_path / "mobile").resolve();
             (kind, _) = resolve_client_kind_context(
-                str(root / "web" / "main.jac"), explicit_kind="mobui"
+                str(root_path / "web" / "main.jac"), explicit_kind="mobui"
             );
             assert kind == "mobui" , "an explicit kind still wins";
         } finally {

@@ -20,7 +20,7 @@ glob KIND_CODESPACE: dict[str, str] = {"js-package": "client"},
 obj AppSpec {
     has name: str,
         kind: str = "",
-        root: str = "",
+        root_dir: str = "",
         `entry: str = "",
         file_rooted: bool = False,
         client: str = "",
@@ -71,6 +71,6 @@ def _read_toml(toml_path: str) -> dict;
 def _table(raw: any, *keys: str) -> dict;
 def _pins_of(raw: any) -> dict[str, str];
 def _npm_names_of(raw: any) -> set[str];
-def _chain_stamp(root: str) -> tuple;
-def _implicit_kind(root: str, project: dict) -> str;
-def _build_workspace(root: str, toml_path: str, doc: dict) -> WorkspaceSpec;
+def _chain_stamp(root_dir: str) -> tuple;
+def _implicit_kind(root_dir: str, project: dict) -> str;
+def _build_workspace(root_dir: str, toml_path: str, doc: dict) -> WorkspaceSpec;

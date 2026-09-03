@@ -43,7 +43,10 @@ walker AccessCheckPass(Transform) {
     can run_walk with Module entry;
     def _collect_bridged_imports(ir_in: Module) -> None;
     def _check_use(use_node: AstSymbolNode, sym: Symbol) -> None;
-    def _check_app_laws(use_node: AstSymbolNode, sym: Symbol, def_module: Module) -> bool;
+    def _check_app_laws(
+        use_node: AstSymbolNode, sym: Symbol, def_module: Module
+    ) -> bool;
+
     def _check_member(use_node: AstSymbolNode, sym: Symbol, owner: Archetype) -> None;
     def _declaring_archetype(sym: Symbol) -> (Archetype | None);
     def _declaring_module(sym: Symbol) -> (Module | None);

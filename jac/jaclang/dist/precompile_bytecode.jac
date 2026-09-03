@@ -477,7 +477,9 @@ def app_metadata(pkg_path: Path, pkg_name: str, app: str = "") -> dict[str, any]
         return {};
     }
     chosen = bundle_app(config, app);
-    entry_path = resolve_entry(config, str(pkg_path), chosen) if chosen is not None else "";
+    entry_path = resolve_entry(config, str(pkg_path), chosen)
+        if chosen is not None
+        else "";
     kind = (
         resolve_app_kind(config, chosen, entry_path) if chosen is not None else "cli"
     );

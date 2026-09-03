@@ -61,7 +61,11 @@ test "generate_service_pod_specs builds one pod per app in the fleet" {
     };
     shipped = json.loads(orders_env[FLEET_ENV]);
     assert shipped["root"] == "web";
-    assert {m["app"]: m["route"] for m in shipped["members"] if not m["root"]}
+    assert {
+        m["app"]: m["route"]
+        for m in shipped["members"]
+        if not m["root"]
+    }
         == _DISCOVERED_ROUTES;
 }
 

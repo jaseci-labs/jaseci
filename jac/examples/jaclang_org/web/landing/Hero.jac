@@ -95,7 +95,10 @@ def:pub Hero -> JsxElement {
                         </p>
                     </div>
                     <div className="anim-fade-up anim-d3 hidden min-w-0 lg:block">
-                        <FloatingSource closable={True} initial_path="web/pages/index.jac"/>
+                        <FloatingSource
+                            closable={True}
+                            initial_path="web/pages/index.jac"
+                        />
                         <p
                             className="mt-3 text-center font-mono text-xs text-muted-foreground"
                         >

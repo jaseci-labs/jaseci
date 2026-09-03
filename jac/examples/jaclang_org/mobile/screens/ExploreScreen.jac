@@ -42,7 +42,7 @@ def:pub ExploreScreen(
                     </Pressable>
                 }}
             </View>
-        }}
+        } }
         <Text style={styles.sectionLabel}>People</Text>
         {if loading and len(others) == 0 {
             <LoadingRows count={4}/>
@@ -76,12 +76,15 @@ def:pub ExploreScreen(
                             <Text style={styles.outlineLabel}>Following</Text>
                         </Pressable>
                     } else {
-                        <Pressable style={styles.pillBtn} onPress={lambda { onFollow(jid(u)); }}>
+                        <Pressable
+                            style={styles.pillBtn}
+                            onPress={lambda { onFollow(jid(u)); }}
+                        >
                             <Text style={styles.primaryLabel}>Follow</Text>
                         </Pressable>
-                    }}
+                    } }
                 </View>
             }
-        }}
+        }  }
     </ScrollView>
 }

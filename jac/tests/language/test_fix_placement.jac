@@ -6,7 +6,11 @@ comments, and it must keep working after the sv/cl/na keywords are gone
 
 import os;
 import tempfile;
-import from jaclang.cli.commands.fix { _append_app_table, _append_toml_entries, _strip_markers }
+import from jaclang.cli.commands.fix {
+    _append_app_table,
+    _append_toml_entries,
+    _strip_markers
+}
 
 
 test "prefix markers strip and record claims" {
@@ -96,11 +100,12 @@ test "app table append declares the service once and keeps the file intact" {
             "route": "/analytics"
         };
         added = _append_app_table(toml_path, "analytics", table, False);
-        assert added == [
-            'kind = "service"',
-            'entry-point = "svc/analytics.jac"',
-            'route = "/analytics"'
-        ] , added;
+        assert added
+            == [
+                'kind = "service"',
+                'entry-point = "svc/analytics.jac"',
+                'route = "/analytics"'
+            ] , added;
         with open(toml_path) as f {
             text = f.read();
         }

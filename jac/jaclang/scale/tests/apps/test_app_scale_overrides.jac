@@ -161,9 +161,9 @@ test "normalize_gateway_config fills every section with defaults" {
     }
     assert gw["colocate"] is True;
     assert "boot_health_timeout" not in gw;
-    assert normalize_gateway_config({"identity": {"gateway_owned": False}})[
-        "identity"
-    ]["gateway_owned"]
+    assert normalize_gateway_config({"identity": {"gateway_owned": False}})["identity"][
+        "gateway_owned"
+    ]
         is False;
     assert normalize_gateway_config({"replicas": 3})["replicas"] == 3;
 }

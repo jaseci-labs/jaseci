@@ -1185,11 +1185,13 @@ test "bridged import nested in a client block emits no dead import" {
         "svc_kwargs/sv_import_cl_block_client.jac", FIXTURES
     );
     assert "sv_import_cl_block_server" not in js_code , (
-        "nested bridged import must not emit a client import of the server " "module; got:\n"
+        "nested bridged import must not emit a client import of the server "
+        "module; got:\n"
         + js_code
     );
     assert '__jacSpawn("say_hi"' in js_code , (
-        "nested bridged import must still lower the call to __jacSpawn; got:\n" + js_code
+        "nested bridged import must still lower the call to __jacSpawn; got:\n"
+        + js_code
     );
 }
 

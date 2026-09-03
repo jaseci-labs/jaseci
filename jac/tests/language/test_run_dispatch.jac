@@ -264,7 +264,8 @@ test "resolve_app_kind: only the implicit app infers; an [apps] entry is cli" {
     cfg = JacConfig.discover(start_path=Path(d));
     assert cfg is not None;
     implicit = cfg.resolve_app("");
-    assert resolve_app_kind(cfg, implicit, resolve_entry(cfg, d, implicit)) == "web-app";
+    assert resolve_app_kind(cfg, implicit, resolve_entry(cfg, d, implicit))
+        == "web-app";
     explicit = AppConfig(name="web", kind="", path="web");
     assert resolve_app_kind(cfg, explicit, "") == "cli";
 }

@@ -96,10 +96,7 @@ def _provider_url(app_name: str) -> str {
 
 
 def service_call(
-    module_name: str,
-    func_name: str,
-    args: dict,
-    headers: dict[str, str] | None = None
+    module_name: str, func_name: str, args: dict, headers: dict[str, str] | None = None
 ) -> any {
     import from jaclang.server { sv_client }
 

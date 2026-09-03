@@ -89,9 +89,7 @@ def scale_local_serve(
     try {
         LocalRealizer(fleet=spec, gateway_config=gateway_cfg).serve();
     } except Exception as e {
-        console.error(
-            f"Fleet mode failed ({type(e).__name__}: {e}).", emoji=False
-        );
+        console.error(f"Fleet mode failed ({type(e).__name__}: {e}).", emoji=False);
         return 1;
     }
     return 0;
@@ -386,7 +384,10 @@ comptime SPEC_SCALE_CMD: CommandSpec = CommandSpec(
                  "jac scale deploy",
                  "Deploy the workspace's default app and its service apps"
              ),
-             ("jac scale deploy web", "Deploy a named workspace app as the gateway host"),
+             (
+                 "jac scale deploy web",
+                 "Deploy a named workspace app as the gateway host"
+             ),
              ("jac scale deploy app.jac", "Deploy a specific app file"),
              (
                  "jac scale deploy app.jac --target aws",
@@ -481,7 +482,7 @@ def scale_cmd(
         console.error(f"Cannot assemble the fleet: {e}", emoji=False);
         return 1;
     }
-    if not fleet.service_names() {
+    if fleet is None or not fleet.service_names() {
         console.print(
             "No service apps declared: add [apps.<name>] kind = \"service\" "
             "entries to jac.toml.",
@@ -518,9 +519,7 @@ def scale_cmd(
         console.print();
     } elif action == "stop" {
         if not service_name {
-            console.print(
-                "App name required: jac scale stop <name>", style="error"
-            );
+            console.print("App name required: jac scale stop <name>", style="error");
             return 1;
         }
         if deployer.stop_service(service_name) {
@@ -531,9 +530,7 @@ def scale_cmd(
         }
     } elif action == "restart" {
         if not service_name {
-            console.print(
-                "App name required: jac scale restart <name>", style="error"
-            );
+            console.print("App name required: jac scale restart <name>", style="error");
             return 1;
         }
         if deployer.restart_service(service_name) {
@@ -544,9 +541,7 @@ def scale_cmd(
         }
     } elif action == "logs" {
         if not service_name {
-            console.print(
-                "App name required: jac scale logs <name>", style="error"
-            );
+            console.print("App name required: jac scale logs <name>", style="error");
             return 1;
         }
         log_output = deployer.get_logs(service_name, lines);

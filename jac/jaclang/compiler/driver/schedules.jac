@@ -357,4 +357,3 @@ def get_lint_sched -> list[type[Transform]] {
     import from jaclang.compiler.tools.jac_auto_lint_pass { JacLintCheckPass }
     return validate_schedule([JacLintCheckPass], origin='lint schedule');
 }
-

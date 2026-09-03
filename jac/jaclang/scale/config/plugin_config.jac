@@ -751,72 +751,88 @@ class JacScalePluginConfig {
                     "description": "The gateway that fronts a workspace's service apps: its port, host, drain and forward timeouts, boot budgets, rate limiting, CORS, identity ownership, ingress, observability lanes, shared volumes and the pod settings of the gateway itself. Which apps are services is declared by [apps.<name>] kind = \"service\" (route = /api/<name> by default); per-app overrides live in [apps.<name>.scale].",
                     "nested": {
                         "colocate": {
-                        "type": "bool",
-                        "default": True,
-                        "description": "Serve the workspace's service apps inside the served app's process (bridged calls stay in-process). Set false to run them as separate local processes behind the gateway on every `jac run`; `jac run --fleet` does the same for one run. Deploys always run as a fleet and ignore this key."
+                            "type": "bool",
+                            "default": True,
+                            "description": "Serve the workspace's service apps inside the served app's process (bridged calls stay in-process). Set false to run them as separate local processes behind the gateway on every `jac run`; `jac run --fleet` does the same for one run. Deploys always run as a fleet and ignore this key."
                         },
                         "gateway_port": {
-                        "type": "int",
-                        "default": 8000,
-                        "description": "Gateway port (external-facing)"
+                            "type": "int",
+                            "default": 8000,
+                            "description": "Gateway port (external-facing)"
                         },
                         "gateway_host": {
-                        "type": "string",
-                        "default": "0.0.0.0",
-                        "description": "Gateway host"
+                            "type": "string",
+                            "default": "0.0.0.0",
+                            "description": "Gateway host"
                         },
                         "drain_timeout_seconds": {
-                        "type": "float",
-                        "default": 10.0,
-                        "description": "Graceful shutdown window (seconds). On SIGTERM, gateway + services flip a drain flag (503s on new requests) and wait up to this many seconds for in-flight requests to finish before the server force-closes; the serving core mirrors K8s `terminationGracePeriodSeconds`."
+                            "type": "float",
+                            "default": 10.0,
+                            "description": "Graceful shutdown window (seconds). On SIGTERM, gateway + services flip a drain flag (503s on new requests) and wait up to this many seconds for in-flight requests to finish before the server force-closes; the serving core mirrors K8s `terminationGracePeriodSeconds`."
                         },
                         "http_forward_timeout": {
-                        "type": "float",
-                        "default": 30.0,
-                        "description": "Gateway-to-app forward timeout (seconds). Applies to `raw_forward` (built-in passthrough fan-out) and `stream_forward` (path-routed proxy). Distinct from an app's `rpc_timeout`, which controls app-to-app RPC calls. Override per app with [apps.NAME.scale] http_forward_timeout."
+                            "type": "float",
+                            "default": 30.0,
+                            "description": "Gateway-to-app forward timeout (seconds). Applies to `raw_forward` (built-in passthrough fan-out) and `stream_forward` (path-routed proxy). Distinct from an app's `rpc_timeout`, which controls app-to-app RPC calls. Override per app with [apps.NAME.scale] http_forward_timeout."
                         },
                         "boot_health_timeout": {
-                        "type": "float",
-                        "default": None,
-                        "description": "How long a service app process may take to answer /healthz before it is given up on (seconds); absent uses the process manager default (60). Raise it for apps with an expensive import graph."
+                            "type": "float",
+                            "default": None,
+                            "description": "How long a service app process may take to answer /healthz before it is given up on (seconds); absent uses the process manager default (60). Raise it for apps with an expensive import graph."
                         },
                         "boot_max_wait": {
-                        "type": "int",
-                        "default": 90,
-                        "description": "Overall window (seconds) the orchestrator waits for the whole fleet to report healthy at boot before it proceeds anyway. Distinct from `boot_health_timeout`, which is per app."
+                            "type": "int",
+                            "default": 90,
+                            "description": "Overall window (seconds) the orchestrator waits for the whole fleet to report healthy at boot before it proceeds anyway. Distinct from `boot_health_timeout`, which is per app."
                         },
                         "health_monitor_interval": {
-                        "type": "float",
-                        "default": None,
-                        "description": "Cadence (seconds) of the background health check that restarts fleet members which died after boot; absent uses the process manager default (10)."
+                            "type": "float",
+                            "default": None,
+                            "description": "Cadence (seconds) of the background health check that restarts fleet members which died after boot; absent uses the process manager default (10)."
                         },
                         "route_refresh_seconds": {
-                        "type": "float",
-                        "default": None,
-                        "description": "How often (seconds) the gateway re-reads each member's /openapi.json to learn the root paths it declares; absent uses the default (30)."
+                            "type": "float",
+                            "default": None,
+                            "description": "How often (seconds) the gateway re-reads each member's /openapi.json to learn the root paths it declares; absent uses the default (30)."
                         },
                         "identity": {
-                        "type": "dict",
-                        "default": {},
-                        "description": "Who owns user records in a fleet. The gateway serves /user/register and /user/login, so a session token it mints names a user that only the gateway's store knows; an app receiving that token has no local record for the subject.",
-                        "nested": {
-                            "gateway_owned": {
-                                "type": "bool",
-                                "default": True,
-                                "description": "A fleet app that receives a signature-valid, unexpired token for a user it does not know provisions that user's root once, instead of rejecting the request. Set false when a deployment manages identity itself and an app should reject unknown subjects."
+                            "type": "dict",
+                            "default": {},
+                            "description": "Who owns user records in a fleet. The gateway serves /user/register and /user/login, so a session token it mints names a user that only the gateway's store knows; an app receiving that token has no local record for the subject.",
+                            "nested": {
+                                "gateway_owned": {
+                                    "type": "bool",
+                                    "default": True,
+                                    "description": "A fleet app that receives a signature-valid, unexpired token for a user it does not know provisions that user's root once, instead of rejecting the request. Set false when a deployment manages identity itself and an app should reject unknown subjects."
+                                }
                             }
-                        }
                         },
                         "ingress": {
-                        "type": "dict",
-                        "default": {},
-                        "description": "Optional K8s Ingress for the gateway. Default off (no Ingress emitted) so existing deployments don't grow one unexpectedly. HTTP only - TLS via cert-manager / ACM is deployment-specific. Routes all external traffic to gateway-service:container_port; the gateway dispatches each app's route (/api/<name> by default) internally and everything else to the served app.",
-                        "nested": {
-                            "enabled": {"type": "bool", "default": False, "description": "Emit an Ingress manifest for the gateway (opt-in)"},
-                            "host": {"type": "string", "default": None, "description": "Ingress host rule; omitted means match-any-host"},
-                            "ingress_class_name": {"type": "string", "default": None, "description": "IngressClass, e.g. 'nginx', 'alb', 'gce'"},
-                            "annotations": {"type": "dict", "default": {}, "description": "Controller-specific annotations, e.g. nginx.ingress.kubernetes.io/proxy-body-size"}
-                        }
+                            "type": "dict",
+                            "default": {},
+                            "description": "Optional K8s Ingress for the gateway. Default off (no Ingress emitted) so existing deployments don't grow one unexpectedly. HTTP only - TLS via cert-manager / ACM is deployment-specific. Routes all external traffic to gateway-service:container_port; the gateway dispatches each app's route (/api/<name> by default) internally and everything else to the served app.",
+                            "nested": {
+                                "enabled": {
+                                    "type": "bool",
+                                    "default": False,
+                                    "description": "Emit an Ingress manifest for the gateway (opt-in)"
+                                },
+                                "host": {
+                                    "type": "string",
+                                    "default": None,
+                                    "description": "Ingress host rule; omitted means match-any-host"
+                                },
+                                "ingress_class_name": {
+                                    "type": "string",
+                                    "default": None,
+                                    "description": "IngressClass, e.g. 'nginx', 'alb', 'gce'"
+                                },
+                                "annotations": {
+                                    "type": "dict",
+                                    "default": {},
+                                    "description": "Controller-specific annotations, e.g. nginx.ingress.kubernetes.io/proxy-body-size"
+                                }
+                            }
                         },
                         "rate_limit": {
                             "type": "dict",
@@ -927,54 +943,54 @@ class JacScalePluginConfig {
                             }
                         },
                         "shared_volumes": {
-                        "type": "list",
-                        "default": [],
-                        "description": "Volume declarations mounted into fleet pods; each entry names the apps that mount it under `apps`."
+                            "type": "list",
+                            "default": [],
+                            "description": "Volume declarations mounted into fleet pods; each entry names the apps that mount it under `apps`."
                         },
                         "replicas": {
-                        "type": "int",
-                        "default": 1,
-                        "description": "K8s Deployment.spec.replicas for the gateway pod"
+                            "type": "int",
+                            "default": 1,
+                            "description": "K8s Deployment.spec.replicas for the gateway pod"
                         },
                         "cpu_request": {
-                        "type": "string",
-                        "default": None,
-                        "description": "Gateway container CPU request, e.g. '100m'"
+                            "type": "string",
+                            "default": None,
+                            "description": "Gateway container CPU request, e.g. '100m'"
                         },
                         "cpu_limit": {
-                        "type": "string",
-                        "default": None,
-                        "description": "Gateway container CPU limit, e.g. '2000m'"
+                            "type": "string",
+                            "default": None,
+                            "description": "Gateway container CPU limit, e.g. '2000m'"
                         },
                         "memory_request": {
-                        "type": "string",
-                        "default": None,
-                        "description": "Gateway container memory request, e.g. '128Mi'"
+                            "type": "string",
+                            "default": None,
+                            "description": "Gateway container memory request, e.g. '128Mi'"
                         },
                         "memory_limit": {
-                        "type": "string",
-                        "default": None,
-                        "description": "Gateway container memory limit, e.g. '4Gi'"
+                            "type": "string",
+                            "default": None,
+                            "description": "Gateway container memory limit, e.g. '4Gi'"
                         },
                         "env": {
-                        "type": "dict",
-                        "default": {},
-                        "description": "Extra container env vars for the gateway pod"
+                            "type": "dict",
+                            "default": {},
+                            "description": "Extra container env vars for the gateway pod"
                         },
                         "hpa": {
-                        "type": "dict",
-                        "default": {},
-                        "description": "Gateway autoscaler settings; same keys as [apps.NAME.scale.hpa]"
+                            "type": "dict",
+                            "default": {},
+                            "description": "Gateway autoscaler settings; same keys as [apps.NAME.scale.hpa]"
                         },
                         "pdb": {
-                        "type": "dict",
-                        "default": {},
-                        "description": "Gateway PodDisruptionBudget settings; same keys as [apps.NAME.scale.pdb]"
+                            "type": "dict",
+                            "default": {},
+                            "description": "Gateway PodDisruptionBudget settings; same keys as [apps.NAME.scale.pdb]"
                         },
                         "deployment_overlay": {
-                        "type": "dict",
-                        "default": {},
-                        "description": "Raw Deployment-manifest fragment merged into the generated gateway manifest"
+                            "type": "dict",
+                            "default": {},
+                            "description": "Raw Deployment-manifest fragment merged into the generated gateway manifest"
                         }
                     }
                 },

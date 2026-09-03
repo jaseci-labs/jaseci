@@ -20,11 +20,7 @@ def:pub Button(
 
     variant_styles = {
         "primary": {backgroundColor: C.accent},
-        "secondary": {
-            backgroundColor: C.surface,
-            borderWidth: 1,
-            borderColor: C.border
-        }
+        "secondary": {backgroundColor: C.surface, borderWidth: 1, borderColor: C.border}
     };
 
     label_styles = {

@@ -20,7 +20,7 @@ def build_parser -> argparse.ArgumentParser {
     );
     commands = parser.add_subparsers(dest="command", required=True);
     greet_cmd = commands.add_parser("greet", help="Print a greeting");
-    greet_cmd.add_argument("name", nargs="?", default="world", help="Who to greet");
+    greet_cmd.add_argument("name", nargs="?", `default="world", help="Who to greet");
     greet_cmd.add_argument("--shout", action="store_true", help="Greet loudly");
     return parser;
 }
@@ -35,5 +35,5 @@ def main(argv: list[str] | None = None) -> int {
 }
 
 with entry:__main__ {
-    sys.exit(main());
+    sys.`exit(main());
 }

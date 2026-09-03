@@ -156,7 +156,7 @@ impl __bridgeApiBase(opts: (dict | None) = None) -> str {
     if route {
         return f"{base_url}{route}";
     }
-    return base_url;
+    return str(base_url);
 }
 
 impl __doWalkerFetch(
@@ -174,7 +174,6 @@ impl __doWalkerFetch(
     if token {
         headers["Authorization"] = f"Bearer {token}";
     }
-    response = None;
     try {
         response = await fetch(
             url,
@@ -199,16 +198,17 @@ impl __doWalkerFetch(
         error_text = await response.text();
         walker_name = f"{`walker}/{nodeId}" if nodeId else `walker;
         raise __bridgeErrorFor(
-            response.status, f"Walker {walker_name} failed: {error_text}", app, `walker
+            int(response.status),
+            f"Walker {walker_name} failed: {error_text}",
+            app,
+            `walker
         );
     }
     payload = await response.json();
     return payload["data"] if payload["data"] else {};
 }
 
-impl __doFuncFetch(
-    function_name: str, args: dict, opts: (dict | None) = None
-) -> any {
+impl __doFuncFetch(function_name: str, args: dict, opts: (dict | None) = None) -> any {
     await _awaitPlatformReady();
     app = opts["app"] if opts and opts["app"] else "";
     token = globalThis.__jacGetLocalStorage__("jac_token");
@@ -217,7 +217,6 @@ impl __doFuncFetch(
     if token {
         headers["Authorization"] = f"Bearer {token}";
     }
-    response = None;
     try {
         response = await fetch(
             f"{base_url}/function/{function_name}",
@@ -241,7 +240,7 @@ impl __doFuncFetch(
         }
         error_text = await response.text();
         raise __bridgeErrorFor(
-            response.status,
+            int(response.status),
             f"Function {function_name} failed: {error_text}",
             app,
             function_name

@@ -462,7 +462,9 @@ def _toml_apps_and_default(toml_path: Path) -> tuple[set[str], str] {
     }
     apps = doc.get("apps", {});
     project = doc.get("project", {});
-    default_app = str(project.get("default-app", "")) if isinstance(project, dict) else "";
+    default_app = str(project.get("default-app", ""))
+        if isinstance(project, dict)
+        else "";
     return (set(apps.keys()) if isinstance(apps, dict) else set(), default_app);
 }
 
@@ -1957,11 +1959,7 @@ def _bake_serve_payloads(config: any, pkg_copy: Path, app: str = "") -> bool {
 }
 
 def _make_sealed_image(
-    config: any,
-    parent: Path,
-    name: str,
-    out_dir: (Path | None) = None,
-    app: str = ""
+    config: any, parent: Path, name: str, out_dir: (Path | None) = None, app: str = ""
 ) -> (Path | None) {
     import shutil;
     import tempfile;
@@ -2148,9 +2146,7 @@ def _bundle_jab(config: any, output: str, fat: bool = False, app: str = "") -> i
     return 0;
 }
 
-def _bundle_binary(
-    config: any, output: str, fat: bool = False, app: str = ""
-) -> int {
+def _bundle_binary(config: any, output: str, fat: bool = False, app: str = "") -> int {
     import sys;
     import os;
     import shutil;

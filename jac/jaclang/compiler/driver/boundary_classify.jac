@@ -2,6 +2,11 @@ import os;
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.frontend.constant { CodeContext, Tokens as Tok }
 import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.placement.workspace {
+    AppSpec,
+    app_for_path,
+    workspace_for_path
+}
 
 def _coerce_module(module: uni.Module, context: CodeContext) {
     module.decided_codespace = context.value;
@@ -306,14 +311,44 @@ def import_consumer_app(nd: uni.Import) -> (str | None) {
     return consumer_owner_app(nd.find_parent_of_type(uni.Module));
 }
 
-def import_provider_spec(nd: uni.Import) -> (object | None) {
+def same_workspace(consumer_path: str, provider_path: str) -> bool {
+    cws = workspace_for_path(consumer_path);
+    pws = workspace_for_path(provider_path);
+    if cws is None or pws is None {
+        return False;
+    }
+    return os.path.realpath(cws.toml_path) == os.path.realpath(pws.toml_path);
+}
+
+def _module_carries_owned_elements(nd: uni.Import) -> bool {
+    linked = symbol_linked_source_module(nd);
+    if linked is None {
+        return False;
+    }
+    for stmt in linked.body {
+        if isinstance(stmt, uni.Archetype)
+            and stmt.arch_kind in ('walker', 'node', 'edge') {
+            return True;
+        }
+    }
+    return False;
+}
+
+def import_provider_spec(nd: uni.Import) -> (AppSpec | None) {
     import from jaclang.compiler.placement.workspace { owner_app_for_path }
     resolved = bridgeable_import_target(nd);
     if resolved is None {
         return None;
     }
+    consumer_path = nd.loc.mod_path if nd.loc else '';
+    if not consumer_path or not same_workspace(consumer_path, resolved) {
+        return None;
+    }
     (owner, _ambiguous) = owner_app_for_path(resolved);
     if owner is None or not owner.has_server {
+        return None;
+    }
+    if app_for_path(resolved) is None and not _module_carries_owned_elements(nd) {
         return None;
     }
     return owner;
@@ -359,7 +394,9 @@ def classify_cross_app_import(
     }
     facts = nd.boundary_facts;
     if facts is not None
-        and (manifest is not None or facts.cross_app_kind == CrossAppKind.LOCAL.value) {
+        and (
+            manifest is not None or facts.cross_app_kind == CrossAppKind.LOCAL.value
+        ) {
         facts.cross_app_kind = kind.value;
     }
     return kind;

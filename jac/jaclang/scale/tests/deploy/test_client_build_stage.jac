@@ -433,9 +433,7 @@ test "a declared client entry that does not exist fails the deploy, not silently
     project_dir = _app(_PARKED);
     raised = None;
     try {
-        _builder(project_dir, client_entry="man.jac")._build_client_bundle(
-            project_dir
-        );
+        _builder(project_dir, client_entry="man.jac")._build_client_bundle(project_dir);
     } except ValueError as e {
         raised = e;
     } finally {
@@ -486,11 +484,8 @@ test "an undeclared entry that does not exist skips the build and says so" {
 test "entry = false is not a declared entry" {
     project_dir = _app(_PARKED);
     try {
-        assert _builder(project_dir, client_entry="")._declared_client_entry()
-            == "";
-        assert _builder(
-            project_dir, client_entry=" app.jac "
-        )._declared_client_entry()
+        assert _builder(project_dir, client_entry="")._declared_client_entry() == "";
+        assert _builder(project_dir, client_entry=" app.jac ")._declared_client_entry()
             == "app.jac";
     } finally {
         shutil.rmtree(project_dir, ignore_errors=True);

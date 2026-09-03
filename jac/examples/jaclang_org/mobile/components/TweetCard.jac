@@ -39,7 +39,7 @@ def:pub TweetCard(
         commentText: str = "",
         confirmDelete: bool = False;
 
-    def submitComment -> None {
+    def submitComment {
         text = commentText.strip();
         if text {
             onComment(jid(tweet), text);
@@ -77,7 +77,10 @@ def:pub TweetCard(
                         <Text style={styles.actionCount}>{str(comment_count)}</Text>
                     }}
                 </Pressable>
-                <Pressable style={styles.action} onPress={lambda { onLike(jid(tweet)); }}>
+                <Pressable
+                    style={styles.action}
+                    onPress={lambda { onLike(jid(tweet)); }}
+                >
                     <Icon
                         name="heart"
                         size={17}
@@ -85,7 +88,11 @@ def:pub TweetCard(
                         fill={is_liked}
                     />
                     {if like_count > 0 {
-                        <Text style={styles.actionCountLiked if is_liked else styles.actionCount}>
+                        <Text
+                            style={styles.actionCountLiked
+                                if is_liked
+                                else styles.actionCount}
+                        >
                             {str(like_count)}
                         </Text>
                     }}
@@ -102,7 +109,10 @@ def:pub TweetCard(
             {if confirmDelete {
                 <View style={styles.confirmRow}>
                     <Text style={styles.confirmText}>Delete this post?</Text>
-                    <Pressable style={styles.ghostBtn} onPress={lambda { confirmDelete = False; }}>
+                    <Pressable
+                        style={styles.ghostBtn}
+                        onPress={lambda { confirmDelete = False; }}
+                    >
                         <Text style={styles.ghostLabel}>Keep</Text>
                     </Pressable>
                     <Pressable
@@ -142,7 +152,11 @@ def:pub TweetCard(
                         <Pressable
                             style={[
                                 styles.sendBtn,
-                                (styles.btnDisabled if not commentText.strip() else None)
+                                (
+                                    styles.btnDisabled
+                                        if not commentText.strip()
+                                        else None
+                                )
                             ]}
                             disabled={not commentText.strip()}
                             onPress={lambda { submitComment(); }}

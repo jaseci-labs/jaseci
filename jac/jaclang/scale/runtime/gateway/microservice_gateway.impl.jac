@@ -424,11 +424,11 @@ impl MicroserviceGateway.root_member -> ServiceEntry | None {
 }
 
 impl MicroserviceGateway.handle_root(request: Request, path: str) -> Response | None {
-    root = self.root_member();
-    if root is None {
+    root_app = self.root_member();
+    if root_app is None {
         return None;
     }
-    return await self.forward_root_path(request, root, path);
+    return await self.forward_root_path(request, root_app, path);
 }
 
 impl MicroserviceGateway.resolve_learned_owner(path: str) -> ServiceEntry | None {
@@ -618,9 +618,7 @@ impl MicroserviceGateway.handle_openapi -> Response {
 
 impl MicroserviceGateway.handle_docs -> Response {
     import from jaclang.server.serving.openapi { swagger_ui_html }
-    return HTMLResponse(
-        content=swagger_ui_html("/openapi.json", "Jac Gateway - API")
-    );
+    return HTMLResponse(content=swagger_ui_html("/openapi.json", "Jac Gateway - API"));
 }
 
 impl MicroserviceGateway.handle_metrics -> Response {

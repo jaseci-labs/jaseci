@@ -36,7 +36,9 @@ impl app.retryBridge -> None {
 impl app.loadData -> None {
     feedLoading = True;
     try {
-        result = root spawn setup_profile(username=__getLocalStorage(USERNAME_KEY) or "");
+        result = root spawn setup_profile(
+            username=__getLocalStorage(USERNAME_KEY) or ""
+        );
         myProfile = result.reports[0] if result.reports else None;
         feedResult = root spawn load_feed(search_query="");
         tweets = feedResult.reports[0] if feedResult.reports else [];

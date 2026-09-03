@@ -15,7 +15,7 @@ glob EXIT_OK: int = 0,
 
 glob START_HINT: str = "hint: start the site with `jac run web`";
 
-def warn(text: str) -> None {
+def warn(text: str) {
     print(text, file=sys.stderr);
 }
 

@@ -2532,11 +2532,7 @@ import from jaclang.server.bridge {
     BridgeUnavailable,
     bridge_error_from
 }
-import from jaclang.server.outbox {
-    SqliteOutboxStore,
-    cached_result,
-    use_store
-}
+import from jaclang.server.outbox { SqliteOutboxStore, cached_result, use_store }
 import from jaclang.server.serving.client {
     ClientConnectionError,
     ClientReadTimeout,
@@ -2666,7 +2662,9 @@ test "sv_client: register_local short-circuits function calls in-process" {
         got = asyncio.run(sv_client.call("social", "greet", {"name": "ada"}));
         assert got == "hi ada";
         assert module.seen == ["ada"];
-        got_async = asyncio.run(sv_client.call("social", "greet_async", {"name": "bob"}));
+        got_async = asyncio.run(
+            sv_client.call("social", "greet_async", {"name": "bob"})
+        );
         assert got_async == "async hi bob";
         try {
             asyncio.run(sv_client.call("social", "missing", {}));
@@ -2696,8 +2694,12 @@ test "sv_client: read_cache serves effect-free bridged calls from memory" {
     sv_client.register_local("social", module);
     sv_client.set_consumer_app("web");
     try {
-        first = asyncio.run(sv_client.call("social", "greet", {"name": "ada"}, effects=[]));
-        second = asyncio.run(sv_client.call("social", "greet", {"name": "ada"}, effects=[]));
+        first = asyncio.run(
+            sv_client.call("social", "greet", {"name": "ada"}, effects=[])
+        );
+        second = asyncio.run(
+            sv_client.call("social", "greet", {"name": "ada"}, effects=[])
+        );
         assert first == "hi ada" and second == "hi ada";
         assert module.seen == ["ada"] , f"a cached read must not re-invoke: {module.seen}";
         asyncio.run(sv_client.call("social", "greet", {"name": "bob"}, effects=[]));
@@ -2725,7 +2727,9 @@ test "sv_client: an effectful call to the provider app invalidates its cached re
         asyncio.run(sv_client.call("social", "greet", {"name": "ada"}, effects=[]));
         asyncio.run(sv_client.call("social", "greet", {"name": "ada"}, effects=[]));
         assert module.seen == ["ada"];
-        asyncio.run(sv_client.call("social", "greet", {"name": "eve"}, effects=["Profile"]));
+        asyncio.run(
+            sv_client.call("social", "greet", {"name": "eve"}, effects=["Profile"])
+        );
         asyncio.run(sv_client.call("social", "greet", {"name": "ada"}, effects=[]));
         assert module.seen == ["ada", "eve", "ada"] , (
             f"an effectful call must clear the provider's cached reads: {module.seen}"
@@ -2775,12 +2779,16 @@ test "serve: X-Jac-Idempotency-Key replays the first response for a repeated cal
         try {
             client = make_client(tmpdir);
             headers = {"X-Jac-Idempotency-Key": "outbox-entry-1"};
-            first = client.post("/function/greet", json={"name": "ada"}, headers=headers);
+            first = client.post(
+                "/function/greet", json={"name": "ada"}, headers=headers
+            );
             assert first.ok , f"greet should be callable: {first.data}";
             assert cached_result("outbox-entry-1") is not None , (
                 "a successful keyed call is remembered in the outbox seen-table"
             );
-            second = client.post("/function/greet", json={"name": "bob"}, headers=headers);
+            second = client.post(
+                "/function/greet", json={"name": "bob"}, headers=headers
+            );
             assert second.ok;
             assert second.data == first.data , (
                 "a repeated idempotency key must replay the first response, "
@@ -2830,7 +2838,8 @@ test "sv_client: bearer token is sent on bridged calls and falls back to JAC_BRI
 }
 
 obj _StubWalker {
-    has name: str = "";
+    has name: str = "",
+        reports: list = [];
 
     static def _from_wire(d: any) -> any {
         inst = _StubWalker();

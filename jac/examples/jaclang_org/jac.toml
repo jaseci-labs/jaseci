@@ -101,6 +101,9 @@ motion = "latest"
 mermaid = "^11"
 lucide-react = "^0.469.0"
 
+[apps.cli.check.lint]
+ignore = ["no-print"]
+
 [apps.mobile.dependencies.npm]
 react-native-web = "^0.19.13"
 

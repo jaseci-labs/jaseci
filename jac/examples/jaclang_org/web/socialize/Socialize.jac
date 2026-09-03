@@ -18,7 +18,13 @@ import from core.social_graph {
     get_channel_detail,
     create_channel_tweet
 }
-import from core.social_graph { Profile, Tweet, TrendingTag, ProfileBundle, ChannelBundle }
+import from core.social_graph {
+    Profile,
+    Tweet,
+    TrendingTag,
+    ProfileBundle,
+    ChannelBundle
+}
 import from "lucide-react" { Feather, Pencil }
 import from web.ui.button { Button }
 import from .components.AuthForm { AuthForm }

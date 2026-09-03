@@ -18,10 +18,7 @@ def _target(
         config=KubernetesConfig(
             app_name="t", namespace="t-ns", monitoring_enabled=monitoring
         ),
-        gateway_config={
-            "logs": {"enabled": logs},
-            "tracing": {"enabled": tracing}
-        }
+        gateway_config={"logs": {"enabled": logs}, "tracing": {"enabled": tracing}}
     );
 }
 

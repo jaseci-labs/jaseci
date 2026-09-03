@@ -250,9 +250,7 @@ impl __doWalkerFetch(
     return payload["data"] if payload["data"] else {};
 }
 
-impl __doFuncFetch(
-    function_name: str, args: dict, opts: (dict | None) = None
-) -> any {
+impl __doFuncFetch(function_name: str, args: dict, opts: (dict | None) = None) -> any {
     app = opts["app"] if opts and opts["app"] else "";
     if globalThis.__JAC_NATIVE__ and globalThis.__jac_invoke {
         response = await __nativeInvoke("function", function_name, "", args);

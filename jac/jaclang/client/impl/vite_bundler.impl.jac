@@ -36,9 +36,9 @@ impl ViteBundler._get_client_dir(self: ViteBundler) -> Path {
         if config is not None {
             config_root = config.project_root;
             if config_root is not None {
-                root = config_root.resolve();
-                here = self.project_dir.resolve();
-                if here == root or root in here.parents {
+                cfg_root = config_root.resolve();
+                cur_dir = self.project_dir.resolve();
+                if cur_dir == cfg_root or cfg_root in cur_dir.parents {
                     return config.get_client_dir();
                 }
             }

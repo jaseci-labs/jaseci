@@ -404,10 +404,14 @@ def _append_app_table(
 
 
 def _service_file_for(
-    target: str, importer: str, root: str, scanned: list[str]
+    target: str, importer: str, root_dir: str, scanned: list[str]
 ) -> str {
     dots = len(target) - len(target.lstrip('.'));
-    parts = [p for p in target.strip('.').split('.') if p];
+    parts = [
+        p
+        for p in target.strip('.').split('.')
+        if p
+    ];
     if not parts {
         return '';
     }
@@ -420,7 +424,7 @@ def _service_file_for(
         }
         bases.append(base);
     } else {
-        bases.append(root);
+        bases.append(root_dir);
         bases.append(importer_dir);
     }
     for base in bases {
@@ -710,8 +714,7 @@ impl fix(
     }
     if orphaned {
         console.warning(
-            "No jac.toml found for the service apps imported by: "
-            + ", ".join(orphaned)
+            "No jac.toml found for the service apps imported by: " + ", ".join(orphaned)
         );
     }
 

@@ -82,6 +82,6 @@ def:pub FeedScreen(
                     onDelete={onDelete}
                 />
             }
-        }}
+        }  }
     </ScrollView>
 }

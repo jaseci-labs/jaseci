@@ -1836,8 +1836,8 @@ def _sibling_app_dist(config: any, name: str, base: str) -> (Path | None) {
     if not (app.client or (spec is not None and spec.client_target)) {
         return None;
     }
-    root = str(config.project_root) if config.project_root else base;
-    dist = Path(root) / 'dist' / app.name;
+    root_dir = str(config.project_root) if config.project_root else base;
+    dist = Path(root_dir) / 'dist' / app.name;
     return dist if (dist / 'index.html').is_file() else None;
 }
 
@@ -2131,9 +2131,7 @@ impl JacAPIServer.build_app -> ServingApp {
         candidate = (dist / rel) if rel else (dist / 'index.html');
         try {
             resolved = candidate.resolve();
-            inside = (
-                resolved == dist.resolve() or dist.resolve() in resolved.parents
-            );
+            inside = resolved == dist.resolve() or dist.resolve() in resolved.parents;
         } except Exception {
             inside = False;
         }
@@ -2166,10 +2164,7 @@ impl JacAPIServer.build_app -> ServingApp {
         root_app = server.introspector.resolve_root_app();
         if root_app {
             return _render_page_response(
-                request,
-                root_app,
-                {},
-                server.introspector.spa_fallback_status(path)
+                request, root_app, {}, server.introspector.spa_fallback_status(path)
             );
         }
         return JSONResponse(content={'error': 'Not found'}, status_code=404);
@@ -2631,12 +2626,18 @@ impl JacAPIServer.build_app -> ServingApp {
 
         _ep(HTTPMethod.GET, f'{route}/walkers', _list_provider_walkers, in_schema=True);
         _ep(
-            HTTPMethod.GET, f'{route}/functions', _list_provider_functions, in_schema=True
+            HTTPMethod.GET,
+            f'{route}/functions',
+            _list_provider_functions,
+            in_schema=True
         );
         for w_name in list(intro.get_walkers()) {
             provider_walker = _mk_provider_walker(w_name);
             _ep(
-                HTTPMethod.POST, f'{route}/walker/{w_name}', provider_walker, in_schema=True
+                HTTPMethod.POST,
+                f'{route}/walker/{w_name}',
+                provider_walker,
+                in_schema=True
             );
             _ep(
                 HTTPMethod.POST,
@@ -2663,7 +2664,7 @@ impl JacAPIServer.build_app -> ServingApp {
                 if provider_cfg is not None
                 else f"/api/{provider_app}"
         );
-        mod_file = getattr(provider_module, '__file__', None);
+        mod_file = provider_module?.__file__;
         intro = ModuleIntrospector(
             module_name=getattr(provider_module, '__name__', provider_app),
             base_path=(os.path.dirname(mod_file) if mod_file else server.base_path),
@@ -2855,7 +2856,9 @@ impl JacAPIServer.start(
         console.print('  POST /walker/<name> - Spawn a walker');
         console.print('  GET /cl/<name> - Render HTML page for client function');
         for sibling in sibling_apps {
-            console.print(f'  GET /cl/{sibling}/ - Sibling app bundle (dist/{sibling})');
+            console.print(
+                f'  GET /cl/{sibling}/ - Sibling app bundle (dist/{sibling})'
+            );
         }
         for (provider_app, _module) in _colocated_providers().items() {
             provider_cfg = config.app(provider_app) if config is not None else None;

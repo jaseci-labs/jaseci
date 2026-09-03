@@ -72,9 +72,10 @@ def _build_app(
     }
     entry_path = entry_override or (plan.entry_path if plan is not None else "");
     kind_builds = plan is not None and plan.action == "build";
-    client_target = client or (
-        str(plan.flags.get("client", "") or "") if kind_builds else ""
-    );
+    plan_flags: dict = plan.flags if plan is not None else {};
+    plan_verb = plan.verb if plan is not None else "";
+    client_target = client
+        or (str(plan_flags.get("client", "") or "") if kind_builds else "");
 
     if client_target {
         if app is None {
@@ -90,7 +91,7 @@ def _build_app(
         );
     }
 
-    if kind_builds and plan.verb == "nacompile" {
+    if kind_builds and plan_verb == "nacompile" {
         import from jaclang.cli.commands.nacompile { nacompile }
         if not entry_path or not os.path.isfile(entry_path) {
             console.error(
@@ -99,7 +100,7 @@ def _build_app(
             );
             return 1;
         }
-        plan_out = str(plan.flags.get("output", "") or "");
+        plan_out = str(plan_flags.get("output", "") or "");
         out = (
             os.path.join(output, os.path.basename(plan_out or _entry_stem(entry_path)))
                 if place or not plan_out
@@ -110,7 +111,9 @@ def _build_app(
             os.makedirs(out_dir, exist_ok=True);
         }
         return nacompile(
-            filename=entry_path, output=out, shared=bool(plan.flags.get("shared", False))
+            filename=entry_path,
+            output=out,
+            shared=bool(plan_flags.get("shared", False))
         );
     }
 
@@ -124,10 +127,10 @@ def _build_app(
     if (
         projection == "jab"
         and kind_builds
-        and plan.verb == "build"
-        and plan.flags.get("as") in ("wheel", "npm")
+        and plan_verb == "build"
+        and plan_flags.get("as") in ("wheel", "npm")
     ) {
-        projection = str(plan.flags["as"]);
+        projection = str(plan_flags["as"]);
     }
 
     if projection in ["jab", "sealed", "binary", "wheel", "npm"] {

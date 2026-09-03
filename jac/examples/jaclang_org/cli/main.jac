@@ -23,7 +23,7 @@ def build_parser -> argparse.ArgumentParser {
     parser = argparse.ArgumentParser(
         prog=PROG,
         description="The command-line face of jaclang.org. "
-            "`score` runs offline; the rest talk to a running site."
+        "`score` runs offline; the rest talk to a running site."
     );
     commands = parser.add_subparsers(
         dest="command", metavar="<command>", required=True
@@ -56,9 +56,7 @@ def build_parser -> argparse.ArgumentParser {
     feed.add_argument(
         "--search", dest="query", `default="", help="only tweets containing this text"
     );
-    post = commands.add_parser(
-        "post", help="post to Socialize through a running site"
-    );
+    post = commands.add_parser("post", help="post to Socialize through a running site");
     post.add_argument("text", help="what to say");
     return parser;
 }
@@ -103,5 +101,5 @@ async def main(argv: list[str]) -> int {
 }
 
 with entry:__main__ {
-    sys.exit(asyncio.run(main(sys.argv[1:])));
+    sys.`exit(asyncio.run(main(sys.argv[1:])));
 }

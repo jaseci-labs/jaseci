@@ -135,9 +135,7 @@ test "service list collapses to [app_name] in monolith mode" {
     mono_no_name = _services_for_mode(False, [], "");
     assert mono_no_name == [] , f"monolith w/o name = {mono_no_name}";
 
-    micro = _services_for_mode(
-        True, ["jac-coder-sv", "builder-sv"], "jac-builder-dev"
-    );
+    micro = _services_for_mode(True, ["jac-coder-sv", "builder-sv"], "jac-builder-dev");
     # Gateway first, then apps sorted - matches kubectl get pods order.
     assert micro == ["gateway", "builder-sv", "jac-coder-sv"] , f"microservice services = {micro}";
 }

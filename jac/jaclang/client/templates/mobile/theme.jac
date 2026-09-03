@@ -48,45 +48,45 @@ glob:pub C: Palette = Palette(),
      F: FontSize = FontSize();
 
 glob:pub styles = StyleSheet.create(
-    {
-        screen: {flex: 1, backgroundColor: C.bg},
-        content: {
-            width: "100%",
-            maxWidth: 560,
-            alignSelf: "center",
-            padding: S.lg,
-            gap: S.lg
-        },
-        header: {gap: S.xs, paddingTop: S.xl},
-        titleRow: {flexDirection: "row", alignItems: "center", gap: S.sm},
-        title: {color: C.text, fontSize: F.xl, fontWeight: "bold"},
-        subtitle: {color: C.muted, fontSize: F.sm},
-        composer: {flexDirection: "row", alignItems: "center", gap: S.sm},
-        input: {
-            flex: 1,
-            color: C.text,
-            fontSize: F.md,
-            backgroundColor: C.field,
-            borderWidth: 1,
-            borderColor: C.border,
-            borderRadius: R.md,
-            paddingVertical: S.md,
-            paddingHorizontal: S.lg
-        },
-        list: {gap: S.sm},
-        row: {
-            flexDirection: "row",
-            alignItems: "center",
-            gap: S.md,
-            backgroundColor: C.surface,
-            borderWidth: 1,
-            borderColor: C.border,
-            borderRadius: R.lg,
-            paddingVertical: S.md,
-            paddingHorizontal: S.lg
-        },
-        rowText: {flex: 1, color: C.text, fontSize: F.md},
-        empty: {alignItems: "center", gap: S.sm, paddingVertical: S.xl},
-        emptyText: {color: C.muted, fontSize: F.sm, textAlign: "center"}
-    }
-);
+         {
+             screen: {flex: 1, backgroundColor: C.bg},
+             content: {
+                 width: "100%",
+                 maxWidth: 560,
+                 alignSelf: "center",
+                 padding: S.lg,
+                 gap: S.lg
+             },
+             header: {gap: S.xs, paddingTop: S.xl},
+             titleRow: {flexDirection: "row", alignItems: "center", gap: S.sm},
+             title: {color: C.text, fontSize: F.xl, fontWeight: "bold"},
+             subtitle: {color: C.muted, fontSize: F.sm},
+             composer: {flexDirection: "row", alignItems: "center", gap: S.sm},
+             input: {
+                 flex: 1,
+                 color: C.text,
+                 fontSize: F.md,
+                 backgroundColor: C.field,
+                 borderWidth: 1,
+                 borderColor: C.border,
+                 borderRadius: R.md,
+                 paddingVertical: S.md,
+                 paddingHorizontal: S.lg
+             },
+             list: {gap: S.sm},
+             row: {
+                 flexDirection: "row",
+                 alignItems: "center",
+                 gap: S.md,
+                 backgroundColor: C.surface,
+                 borderWidth: 1,
+                 borderColor: C.border,
+                 borderRadius: R.lg,
+                 paddingVertical: S.md,
+                 paddingHorizontal: S.lg
+             },
+             rowText: {flex: 1, color: C.text, fontSize: F.md},
+             empty: {alignItems: "center", gap: S.sm, paddingVertical: S.xl},
+             emptyText: {color: C.muted, fontSize: F.sm, textAlign: "center"}
+         }
+     );

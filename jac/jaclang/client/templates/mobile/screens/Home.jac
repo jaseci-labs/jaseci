@@ -45,16 +45,17 @@ def:pub HomeScreen(
                     Nothing yet. Add your first todo above.
                 </Text>
             </View>
-        ) if not todos else (
-            <View style={styles.list}>
-                {[
-                    <View key={idx} style={styles.row}>
-                        <Icon name="check" size={F.md} color={C.accent}/>
-                        <Text style={styles.rowText}>{todo.text}</Text>
-                    </View>
-                    for (idx, todo) in enumerate(todos)
-                ]}
-            </View>
-        )}
+        )
+            if not todos
+            else (
+                <View style={styles.list}>
+                    {[
+                        <View key={idx} style={styles.row}>
+                            <Icon name="check" size={F.md} color={C.accent}/>
+                            <Text style={styles.rowText}>{todo.text}</Text>
+                        </View> for (idx, todo) in enumerate(todos)
+                    ]}
+                </View>
+            )}
     </ScrollView>
 }

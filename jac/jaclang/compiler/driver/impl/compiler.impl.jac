@@ -867,9 +867,7 @@ impl JacCompiler.stamp_native_import_facts(
     }
 }
 
-impl JacCompiler.stamp_app_facts(
-    mod: uni.Module, target_program: JacProgram
-) -> None {
+impl JacCompiler.stamp_app_facts(mod: uni.Module, target_program: JacProgram) -> None {
     import from jaclang.compiler.driver.modresolver { find_jac_project_root }
     import from jaclang.compiler.placement.workspace { workspace_for_path }
     opts = target_program.options;
@@ -885,7 +883,7 @@ impl JacCompiler.stamp_app_facts(
         (owner, ambiguous) = ws.owner_app_for_path(mod_path);
     }
     mod.app = app.name if app is not None else None;
-    mod.app_root = app.root if (app is not None and app.root) else None;
+    mod.app_root = app.root_dir if (app is not None and app.root_dir) else None;
     mod.owner_app = owner.name if owner is not None else None;
     target_kind = opts.app_kind if (opts is not None and opts.app_kind) else '';
     if app is not None {
@@ -904,8 +902,8 @@ impl JacCompiler.stamp_app_facts(
         if override_kind and opts.project_root {
             enforced_root = opts.project_root;
         }
-        if enforced_root is None and app is not None and app.root {
-            enforced_root = app.root;
+        if enforced_root is None and app is not None and app.root_dir {
+            enforced_root = app.root_dir;
         }
         if enforced_root is None and ws is not None {
             enforced_root = ws.project_root;
@@ -928,21 +926,18 @@ impl JacCompiler._module_defines_owned_elements(mod: uni.Module) -> bool {
             and stmt.arch_kind in ('walker', 'node', 'edge') {
             return True;
         }
-        if isinstance(stmt, uni.Ability) and bool(stmt.public_access) {
-            return True;
-        }
     }
     return False;
 }
 
 impl JacCompiler._report_owner_ambiguity(
-    mod: uni.Module, target_program: JacProgram, ws: object
+    mod: uni.Module, target_program: JacProgram, ws: any
 ) -> None {
-    import from jaclang.compiler.frontend.diagnostics { E5103 }
+    import from jaclang.compiler.frontend.diagnostics { E5107 }
     import from jaclang.compiler.passes.transform { Alert }
     mod_path = mod.loc.mod_path if mod.loc else '';
     for e in target_program.errors_had {
-        if e.code is E5103 and e.loc.mod_path == mod_path {
+        if e.code is E5107 and e.loc.mod_path == mod_path {
             return;
         }
     }
@@ -951,11 +946,11 @@ impl JacCompiler._report_owner_ambiguity(
     deliver_alerts(
         [
             Alert(
-                msg=E5103.format_message(module=module, apps=apps),
+                msg=E5107.format_message(module=module, apps=apps),
                 loc=mod.loc.span(),
                 from_pass=BoundaryAnalysisPass,
-                code=E5103,
-                help_text=E5103.format_help(module=module, apps=apps)
+                code=E5107,
+                help_text=E5107.format_help(module=module, apps=apps)
             )
         ],
         [],

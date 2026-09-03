@@ -10,6 +10,7 @@ import tempfile;
 import time;
 import tomllib;
 import from pathlib { Path }
+import from jaclang.scale.runtime.fleet { FleetSpec }
 
 glob logger = logging.getLogger(__name__);
 
@@ -344,7 +345,10 @@ def _fleet_entry_rel(base: Path, app: str, file: str) -> str {
 
 
 def check_fleet_entries(
-    base: Path, members: list[str], excluded: BundleSourceFilter, fleet: any
+    base: Path,
+    members: list[str],
+    excluded: BundleSourceFilter,
+    fleet: (FleetSpec | None)
 ) -> dict[str, str] {
     if fleet is None or fleet.is_empty() {
         return {};

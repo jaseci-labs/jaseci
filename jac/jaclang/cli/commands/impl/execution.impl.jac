@@ -126,40 +126,43 @@ def _workspace_plans(cfg: any, project_root: str) -> list {
 }
 
 def _show_workspace(cfg: any, project_root: str) -> int {
-    header = ["app", "kind", "entry", "action", "client", "route"];
+    header = ["app", "kind", "entry_rel", "action", "client", "route"];
     rows: list[list[str]] = [];
     planned: set[str] = set();
     for plan in _workspace_plans(cfg, project_root) {
         app = cfg.app(plan.app);
         planned.add(plan.app);
-        entry = (
+        entry_rel = (
             os.path.relpath(plan.entry_path, project_root) if plan.entry_path else "-"
         );
         rows.append(
             [
                 plan.app,
                 plan.kind,
-                entry,
+                entry_rel,
                 plan.action,
                 _plan_client(plan, app) or "-",
                 _plan_route(plan, app) or "-"
             ]
         );
     }
-    for (name, app) in cfg.apps.items() {
+    for (name, unplanned) in cfg.apps.items() {
         if name not in planned {
+            app_cfg: any = unplanned;
             rows.append(
-                [name, app.kind or "-", "(no entry)", "-", app.effective_client() or "-", "-"]
+                [
+                    name,
+                    str(app_cfg.kind or "-"),
+                    "(no entry)",
+                    "-",
+                    str(app_cfg.effective_client() or "-"),
+                    "-"
+                ]
             );
         }
     }
-    widths = [
-        max([len(r[i]) for r in [header] + rows])
-        for i in range(len(header))
-    ];
-    console.print(
-        "  ".join([header[i].ljust(widths[i]) for i in range(len(header))])
-    );
+    widths = [max([len(r[i]) for r in ([header] + rows)]) for i in range(len(header))];
+    console.print("  ".join([header[i].ljust(widths[i]) for i in range(len(header))]));
     console.print("  ".join(["-" * w for w in widths]));
     for row in rows {
         console.print("  ".join([row[i].ljust(widths[i]) for i in range(len(header))]));
@@ -524,9 +527,13 @@ def _resolve_target(target: str) -> tuple {
         }
         if os.path.isfile(target) {
             _discover_config_from_file(target);
-            cfg = get_config();
-            app = cfg.app_for_path(os.path.abspath(target)) if cfg is not None else None;
-            return (cfg, app, target, 0);
+            file_cfg = get_config();
+            file_app = (
+                file_cfg.app_for_path(os.path.abspath(target))
+                    if file_cfg is not None
+                    else None
+            );
+            return (file_cfg, file_app, target, 0);
         }
         console.error(
             f"No app named '{target}' in {cfg.toml_path}, and no such file.",
@@ -570,9 +577,7 @@ def _resolve_plan(target: str) -> tuple {
                 if app.implicit
                 else f"[apps.{app.name}] entry-point"
         );
-        console.error(
-            f"{e}\n  Set {key} in jac.toml (project root: {project_root})."
-        );
+        console.error(f"{e}\n  Set {key} in jac.toml (project root: {project_root}).");
         return (None, cfg, app, file, 2);
     }
     return (plan, cfg, app, file, 0);
@@ -689,9 +694,7 @@ impl run(
     );
     entry_flags = _entry_flags_used(entry_name, nd, root_id, debug_mode);
     kind_serves = plan is not None and plan.action == "serve";
-    kind_can_serve = (
-        plan is None or kind_serves or bool(_plan_client(plan, app))
-    );
+    kind_can_serve = plan is None or kind_serves or bool(_plan_client(plan, app));
 
     if serve_mode is False {
         want_serve = False;
@@ -948,7 +951,9 @@ def _serve_fleet(
         served_plan = plan_app_run(
             cfg, project_root, served, entry_override=os.path.abspath(filename)
         );
-        members: list[RunPlan] = [plan_app_run(cfg, project_root, svc) for svc in services];
+        members: list[RunPlan] = [
+            plan_app_run(cfg, project_root, svc) for svc in services
+        ];
     } except ValueError as e {
         console.error(f"Cannot assemble the service fleet: {e}");
         return 1;
@@ -970,27 +975,29 @@ def _colocate_services(cfg: any, served: any, base: str) -> None {
 
     project_root = str(cfg.project_root) if cfg.project_root else base;
     for svc in services {
-        entry = svc.entry_path(project_root);
-        if not entry or not os.path.isfile(entry) {
+        entry_file = svc.entry_path(project_root);
+        if not entry_file or not os.path.isfile(entry_file) {
             console.warning(
-                f"Service app '{svc.name}' has no entry file; not colocated."
+                f"Service app '{svc.name}' has no entry_file file; not colocated."
             );
             continue;
         }
-        (svc_base, svc_file) = os.path.split(entry);
+        (svc_base, svc_file) = os.path.split(entry_file);
         loaded = Jac.jac_import(
             target=base_stem(svc_file),
             base_path=svc_base or "./",
-            lng=entry.split(".")[-1]
+            lng=entry_file.split(".")[-1]
         );
         module = loaded[0] if loaded else None;
         if module is None {
-            raise RuntimeError(f"Service app '{svc.name}' failed to load from {entry}");
+            raise RuntimeError(
+                f"Service app '{svc.name}' failed to load from {entry_file}"
+            );
         }
         register_local(svc.name, module);
         console.print(
             f"  ✔ colocated service '{svc.name}' "
-            f"({os.path.relpath(entry, project_root)})",
+            f"({os.path.relpath(entry_file, project_root)})",
             style="muted"
         );
     }
