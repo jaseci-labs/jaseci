@@ -5,7 +5,7 @@ import from core.timefmt { now_iso }
 
 glob SAMPLE: dict[str, str] = {
          "app.jac": "node Task { has title: str; }\nwalker:pub add { can go with Root entry { root ++> Task(); } }\n",
-         "ui.cl.jac": "def:pub app -> JsxElement { return <div>hi</div>; }\n",
+         "ui.jac": "def:pub app -> JsxElement { return <div>hi</div>; }\n",
          "app.test.jac": "test \"adds\" { assert True; }\n",
          "jac.toml": "[project]\nname = \"dojo\"\n",
          "readme.md": "# dojo\n\nA sample.\n",

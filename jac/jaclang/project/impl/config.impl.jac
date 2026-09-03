@@ -1452,6 +1452,10 @@ impl JacConfig.app_for_path(abs_path: str) -> AppConfig | None {
         return None;
     }
     root = str(self.project_root);
+    if not self.apps {
+        implicit = implicit_app(self);
+        return implicit if implicit.contains(root, abs_path) else None;
+    }
     best: AppConfig | None = None;
     best_depth = -1;
     for app in self.apps.values() {

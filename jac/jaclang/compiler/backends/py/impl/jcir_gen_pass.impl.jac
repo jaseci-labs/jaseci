@@ -6114,6 +6114,7 @@ impl JcirGenPass._gen_py_sv_func_stub(
     }
     args_dict = '{' + ', '.join(args_kvs) + '}';
     ret_type = binding.ret_type;
+    effects = self._sv_endpoint_effects(binding, 'func:' + func_name);
     raw_call = (
         "await __jac_sv_client.call('"
         + provider_app
@@ -6121,6 +6122,8 @@ impl JcirGenPass._gen_py_sv_func_stub(
         + func_name
         + "', "
         + args_dict
+        + ", effects="
+        + repr(effects)
         + ")"
     );
     if (ret_type in boundary_types and boundary_types[ret_type].kind != "enum") {
@@ -6272,6 +6275,24 @@ impl JcirGenPass._gen_py_boundary_stub_class(
     lines.append('            setattr(inst, k, v)');
     lines.append('        return inst');
     return '\n'.join(lines);
+}
+
+impl JcirGenPass._sv_endpoint_effects(
+    binding: InteropBinding, key: str
+) -> list[str] {
+    src_mod = (
+        binding.ast_node.find_parent_of_type(Module)
+            if binding.ast_node is not None
+            else None
+    );
+    if src_mod is None or not src_mod.gen.interop_manifest {
+        return [];
+    }
+    effect = src_mod.gen.interop_manifest.endpoint_effects.get(key);
+    if not isinstance(effect, dict) or not effect.get('is_writer') {
+        return [];
+    }
+    return [str(t) for t in (effect.get('touches') or ['*'])];
 }
 
 impl JcirGenPass._sv_consumer_app_expr -> str {

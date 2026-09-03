@@ -3,7 +3,7 @@ import from core.timefmt { now_iso }
 
 glob SAMPLE: dict[str, str] = {
          "app.jac": "node Task { has title: str; }\nwalker:pub add { can go with Root entry { root ++> Task(); } }\n",
-         "ui.cl.jac": "def:pub app -> JsxElement { return <div>hi</div>; }\n",
+         "ui.jac": "def:pub app -> JsxElement { return <div>hi</div>; }\n",
          "brain.jac": "def rank(t: str) -> int by llm();\n",
          "fast.na.jac": "def hot(n: i32) -> i32 { return n * 2; }\n",
          "app.test.jac": "test \"adds two numbers\" { assert True; }\n",

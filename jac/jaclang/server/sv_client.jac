@@ -12,7 +12,10 @@ glob BRIDGE_TOKEN_ENV: str = "JAC_BRIDGE_TOKEN",
      _test_clients: dict[str, any] = {},
      _local_providers: dict[str, any] = {},
      _consumer_providers: dict[str, list[str]] = {},
-     _bearer_token: list[str] = [];
+     _bearer_token: list[str] = [],
+     _consumer_app: list[str] = [],
+     _read_cache: dict[tuple, any] = {},
+     _read_cache_flags: list = [];
 
 def headless_start_args(entry_file: str, port: int) -> list[str] {
     return ["run", "--serve", "--port", str(port), "--no-client", entry_file];
@@ -68,6 +71,57 @@ def bearer_token -> str {
     return os.environ.get(BRIDGE_TOKEN_ENV, "").strip();
 }
 
+def set_consumer_app(name: str) {
+    _consumer_app.clear();
+    if name {
+        _consumer_app.append(name);
+    }
+}
+
+def consumer_app -> str {
+    return _consumer_app[0] if _consumer_app else "";
+}
+
+def clear_read_cache(app: str = "") {
+    if not app {
+        _read_cache.clear();
+        _read_cache_flags.clear();
+        return;
+    }
+    for key in [k for k in _read_cache.keys() if k[0] == app] {
+        _read_cache.pop(key, None);
+    }
+}
+
+def _read_cache_enabled -> bool {
+    consumer = consumer_app();
+    if not consumer {
+        return False;
+    }
+    import from jaclang.project.config { get_config }
+    cfg = get_config();
+    if cfg is None or consumer not in cfg.apps {
+        return False;
+    }
+    if not _read_cache_flags or _read_cache_flags[0] is not cfg {
+        _read_cache_flags.clear();
+        _read_cache_flags.extend([cfg, {}]);
+    }
+    flags: dict[str, bool] = _read_cache_flags[1];
+    if consumer not in flags {
+        scale_cfg = cfg.effective_for_app(consumer).get_plugin_config("scale");
+        flags[consumer] = (
+            isinstance(scale_cfg, dict) and scale_cfg.get("read_cache") is True
+        );
+    }
+    return flags[consumer];
+}
+
+def _read_cache_key(app: str, fn: str, kwargs: dict) -> tuple {
+    import json;
+    return (app, fn, json.dumps(kwargs, sort_keys=True, default=str));
+}
+
 def auth_headers -> dict[str, str] {
     token = bearer_token();
     if not token {
@@ -89,6 +143,7 @@ def has_consumers -> bool {
 }
 
 def _declare_consumer_provider(consumer_app: str, provider_app: str, route: str = "") {
+    set_consumer_app(consumer_app);
     if consumer_app not in _consumer_providers {
         _consumer_providers[consumer_app] = [];
     }
@@ -327,20 +382,36 @@ async def _local_spawn(app: str, walker_name: str, kwargs: dict) -> any {
     }
 }
 
-async def call(app: str, fn: str, kwargs: dict) -> any {
+async def call(
+    app: str, fn: str, kwargs: dict, effects: (list[str] | None) = None
+) -> any {
+    if effects {
+        clear_read_cache(app);
+    }
+    cacheable = not effects and _read_cache_enabled();
+    key = _read_cache_key(app, fn, kwargs) if cacheable else None;
+    if cacheable and key in _read_cache {
+        return _read_cache[key];
+    }
     try {
         if app in _local_providers {
-            return await _local_call(app, fn, kwargs);
+            result = await _local_call(app, fn, kwargs);
+        } else {
+            _ensure_available(app, fn);
+            transport = _scale_transport();
+            if transport is not None and app not in _test_clients {
+                result = transport.sv_service_call(app, fn, kwargs);
+            } else {
+                result = _http_call(app, fn, kwargs);
+            }
         }
-        _ensure_available(app, fn);
-        transport = _scale_transport();
-        if transport is not None and app not in _test_clients {
-            return transport.sv_service_call(app, fn, kwargs);
-        }
-        return _http_call(app, fn, kwargs);
     } except Exception as e {
         raise bridge_error_from(e, app, fn);
     }
+    if cacheable {
+        _read_cache[key] = result;
+    }
+    return result;
 }
 
 async def spawn_walker(
@@ -350,6 +421,7 @@ async def spawn_walker(
     stub_cls: any,
     idempotency_key: str = ""
 ) -> any {
+    clear_read_cache(app);
     try {
         if app in _local_providers {
             return await _local_spawn(app, walker_name, kwargs);

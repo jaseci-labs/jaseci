@@ -46,6 +46,14 @@ typecheck = true
 [test]
 directories = ["core", "web", "mobile", "cli"]
 
+# `jac test cli` / `jac test mobile` run one app; a bare `jac test` targets the
+# default app (web) and so runs the workspace list above.
+[apps.cli.test]
+directories = ["."]
+
+[apps.mobile.test]
+directories = ["."]
+
 [check.lint]
 select = ["all", "strip-comments", "strip-docstrings"]
 exclude = [

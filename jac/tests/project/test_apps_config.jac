@@ -258,6 +258,13 @@ test "membership: the implicit app owns the whole project root" {
         assert owner is not None and owner.implicit;
         assert owner.root_dir(str(root)) == str(root);
         assert cfg.app_for_path(str(Path(td) / "other.jac")) is None;
+        bare = JacConfig(project_root=root);
+        assert not bare.apps;
+        bare_owner = bare.app_for_path(str(root / "lib" / "x.jac"));
+        assert bare_owner is not None and bare_owner.implicit , (
+            "a config built without an [apps] table still owns its root"
+        );
+        assert bare.app_for_path(str(Path(td) / "other.jac")) is None;
     }
 }
 

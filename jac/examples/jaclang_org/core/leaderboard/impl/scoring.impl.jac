@@ -14,8 +14,7 @@ impl analyze(files: dict[str, str]) -> RepoAnalysis {
             if "by llm" in text {
                 an.features.ai = True;
             }
-            if low.endswith(".cl.jac")
-                or re.search(r"(?m)^\s*cl\s*\{|^\s*cl\s+import\b", text) {
+            if re.search(r"\bJsx(Element|Page)\b|(?m)^\s*return\s+<[A-Za-z]", text) {
                 an.features.cl = True;
             }
             if low.endswith(".sv.jac")
@@ -125,7 +124,7 @@ impl score(meta: RepoMeta, an: RepoAnalysis) -> ScoreBreakdown {
         "Client codespace",
         5.0 if an.features.cl else 0.0,
         5.0,
-        ".cl.jac files or cl blocks"
+        "JSX components (JsxElement / JsxPage)"
     );
     breadth += part(
         "breadth",

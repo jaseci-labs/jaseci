@@ -1877,7 +1877,7 @@ def _ensure_client_dist(config: any, entry_file: Path) -> (Path | None) {
     }
     console.error(
         "This app has client code but no client bundle could be built or "
-        "found (.jac/client/dist).",
+        f"found ({dist}).",
         hint="Install bun (jac will fetch it on demand) or prebuild the client."
     );
     return None;

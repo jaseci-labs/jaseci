@@ -1556,6 +1556,9 @@ impl `test(
             app_cfg = None;
         }
     }
+    re_root = explicit_app or (
+        app_cfg is not None and cfg is not None and cfg.is_workspace
+    );
     if app_cfg is not None and cfg is not None and app_cfg.name in cfg.apps {
         cfg = cfg.effective_for_app(app_cfg.name);
         app_root = app_cfg.root_dir(cfg_root) or cfg_root;
@@ -1571,7 +1574,7 @@ impl `test(
         return raw;
     }
     roots: (str | list[str]) = directory;
-    if (not paths and not directory and explicit_app and app_root) {
+    if (not paths and not directory and re_root and app_root) {
         roots = [app_root];
     }
     if (not paths and not directory and cfg) {
@@ -1580,6 +1583,15 @@ impl `test(
         resolved: list[str] = [];
         for raw in cfg_dirs {
             rt = _rooted(raw);
+            if (
+                app_root
+                and cfg_root
+                and not os.path.isabs(raw)
+                and not Path(rt).is_dir()
+                and Path(os.path.join(cfg_root, raw)).is_dir()
+            ) {
+                rt = os.path.join(cfg_root, raw);
+            }
             if not Path(rt).is_dir() {
                 console.error(
                     f"Error: [test] directory '{raw}' "

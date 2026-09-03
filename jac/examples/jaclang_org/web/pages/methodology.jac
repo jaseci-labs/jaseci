@@ -24,7 +24,7 @@ glob SUBSTANCE_ROWS: list[list[str]] = [
              "walker / node / edge declarations, spawn, ++> connect ops"
          ],
          ["AI integration", "6", "delegating work with `by llm`"],
-         ["Client codespace", "5", ".cl.jac files, cl blocks or cl imports"],
+         ["Client codespace", "5", "JSX components: JsxElement / JsxPage returns"],
          [
              "Server codespace",
              "4",

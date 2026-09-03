@@ -90,15 +90,6 @@ def _plan_route(plan: RunPlan, app: any) -> str {
     return app.effective_route() if plan.spec.has_server else "";
 }
 
-def _owning_app(cfg: any, abs_path: str) -> any {
-    app = cfg.app_for_path(abs_path);
-    if app is not None or cfg.apps or cfg.project_root is None {
-        return app;
-    }
-    implicit = cfg.resolve_app("");
-    return implicit if implicit.contains(str(cfg.project_root), abs_path) else None;
-}
-
 def _print_plan(plan: RunPlan, app: any) {
     if app is not None and not app.implicit {
         console.print(f"app          : {app.name}");
@@ -507,7 +498,7 @@ def _resolve_target(target: str) -> tuple {
     if _is_file_target(target) {
         _discover_config_from_file(target);
         cfg = get_config();
-        app = _owning_app(cfg, os.path.abspath(target)) if cfg is not None else None;
+        app = cfg.app_for_path(os.path.abspath(target)) if cfg is not None else None;
         return (cfg, app, target, 0);
     }
     cfg = _load_cwd_config();
@@ -534,7 +525,7 @@ def _resolve_target(target: str) -> tuple {
         if os.path.isfile(target) {
             _discover_config_from_file(target);
             cfg = get_config();
-            app = _owning_app(cfg, os.path.abspath(target)) if cfg is not None else None;
+            app = cfg.app_for_path(os.path.abspath(target)) if cfg is not None else None;
             return (cfg, app, target, 0);
         }
         console.error(
@@ -797,7 +788,7 @@ def _exec_file(
             if _cfg_kind is not None {
                 import from jaclang.project.kinds { resolve_app_kind }
                 _abs_file = os.path.abspath(filename);
-                _app = _owning_app(_cfg_kind, _abs_file);
+                _app = _cfg_kind.app_for_path(_abs_file);
                 _kind_forced = (
                     _app is not None
                     and resolve_app_kind(_cfg_kind, _app, _abs_file) == 'cli-native'
@@ -830,7 +821,6 @@ def _exec_file(
                     for _err in program.errors_had {
                         console.error(_err.pretty_print());
                     }
-                    mach.close();
                     return 1;
                 }
                 if (
@@ -854,7 +844,6 @@ def _exec_file(
                         "cli-native project did not produce a runnable native "
                         "entry (no engine or no jac_entry)."
                     );
-                    mach.close();
                     return 1;
                 }
             }
@@ -874,6 +863,21 @@ def _exec_file(
                 lng=lng
             );
         }
+        n_errors = len(Jac.get_program().errors_had);
+        n_warnings = len(Jac.get_program().warnings_had);
+        if diagnostics != "none" {
+            if n_errors {
+                for error in Jac.get_program().errors_had {
+                    console.error(error.pretty_print());
+                }
+            }
+            if diagnostics == "all" and n_warnings {
+                for warning in Jac.get_program().warnings_had {
+                    console.warning(f"{warning}");
+                }
+            }
+        }
+        return 1 if (n_errors and diagnostics != "none") else 0;
     } except Exception as e {
         if diagnostics != "none" {
             if Jac.get_program().errors_had {
@@ -885,27 +889,11 @@ def _exec_file(
                 console.error(dump_traceback(e));
             }
         }
+        return 1 if diagnostics != "none" else 0;
+    } finally {
         sys.argv = original_argv;
         mach.close();
-        return 1 if diagnostics != "none" else 0;
     }
-    n_errors = len(Jac.get_program().errors_had);
-    n_warnings = len(Jac.get_program().warnings_had);
-    if diagnostics != "none" {
-        if n_errors {
-            for error in Jac.get_program().errors_had {
-                console.error(error.pretty_print());
-            }
-        }
-        if diagnostics == "all" and n_warnings {
-            for warning in Jac.get_program().warnings_had {
-                console.warning(f"{warning}");
-            }
-        }
-    }
-    sys.argv = original_argv;
-    mach.close();
-    return 1 if (n_errors and diagnostics != "none") else 0;
 }
 
 def _serve_app(cfg: any, app: str, filename: str) -> any {
@@ -918,7 +906,7 @@ def _serve_app(cfg: any, app: str, filename: str) -> any {
             return named;
         }
     }
-    return _owning_app(cfg, os.path.abspath(filename));
+    return cfg.app_for_path(os.path.abspath(filename));
 }
 
 def _service_apps(cfg: any, served: any) -> list {
@@ -969,7 +957,7 @@ def _serve_fleet(
 }
 
 def _colocate_services(cfg: any, served: any, base: str) -> None {
-    if cfg is None or served is None {
+    if cfg is None or served is None or os.environ.get("JAC_SV_SIBLING") == "1" {
         return;
     }
     services = _service_apps(cfg, served);
@@ -1096,6 +1084,10 @@ impl serve(
             return 1;
         }
         _colocate_services(cfg, served, base);
+        if served is not None {
+            import from jaclang.server.sv_client { set_consumer_app }
+            set_consumer_app(served.name);
+        }
     } except Exception as e {
         if Jac.get_program().errors_had {
             for error in Jac.get_program().errors_had {

@@ -5,7 +5,8 @@ With no paths, `jac check` compiles one rooted program per app of jac.toml
 shared module is checked once under every app that reaches it, and when
 more than one app was checked every diagnostic carries a `[<app>] ` prefix.
 `--app <name>` restricts the run to one app. `jac test <app>` re-roots test
-collection at that app's root.
+collection at that app's root, and a bare `jac test` re-roots at the
+default app, the same way a bare `jac run` does.
 
 The fixture is copied to a temp dir before use: the runner never collects
 test files that live under a `fixtures/` directory, and the workspace reader
@@ -174,6 +175,17 @@ test "jac test <app> re-roots collection at the app" {
     assert rc == 0 , f"rc={rc}\n{out}";
     assert os.path.join("web", "test_page.jac") in out , out;
     assert os.path.join("cli", "test_greet.jac") not in out , out;
+    _cleanup();
+}
+
+test "bare jac test in a workspace re-roots at the default app" {
+    d = _workspace();
+    (rc, out) = _collect_in(d, "");
+    assert rc == 0 , f"rc={rc}\n{out}";
+    assert os.path.join("web", "test_page.jac") in out , out;
+    assert os.path.join("cli", "test_greet.jac") not in out , (
+        f"default-app web must not collect the cli app's tests:\n{out}"
+    );
     _cleanup();
 }
 

@@ -63,9 +63,14 @@ clean for piping.
 `feed` and `post` are per-user walkers (`load_feed` walks from the caller's
 root, `create_tweet` needs a `Profile` under it). Which identity a bridged
 call carries is the bridge runtime's business, not this app's: the CLI
-passes nothing, and a fresh identity simply sees an empty feed and cannot
-post until `/socialize` has created its profile. A `BridgeRejected` here
-means the site wanted a signed-in user.
+passes nothing. Set `JAC_BRIDGE_TOKEN` to a token the site issued (`POST
+/user/login` on the `web` app) and every bridged call goes out with
+`Authorization: Bearer <token>`; a program can also install one itself with
+`sv_client.set_bearer_token(token)` (`import from jaclang.server {
+sv_client }`) before its first bridged call. Without a token the CLI runs as
+a fresh identity: it sees an empty feed and cannot post until `/socialize`
+has created its profile. A `BridgeRejected` here means the site wanted a
+signed-in user.
 
 ## Layout
 
@@ -79,8 +84,9 @@ means the site wanted a signed-in user.
 
 ## Tests
 
-`jac test cli` (or the workspace `jac test`, once `[test] directories`
-lists `cli`) runs the annexes beside each module: the argument parser
+`jac test cli` (the app's `[apps.cli.test] directories = ["."]`), or the
+workspace-wide `jac test` (whose `[test] directories` lists `cli`), runs
+the annexes beside each module: the argument parser
 (`main.test.jac`), the repo-reference parser, JSON shape and renderer of the
 scorer (`commands/score.test.jac`), and the field readers and exit-code
 mapping (`commands/common.test.jac`). None of them touch the network or a

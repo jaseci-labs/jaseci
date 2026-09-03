@@ -14,10 +14,9 @@ def _is_file_target(target: str) -> bool {
 }
 
 def _build_target(cfg: any, target: str) -> tuple {
-    import from jaclang.cli.commands.execution { _owning_app }
     if _is_file_target(target) {
         abs_file = os.path.abspath(target);
-        return (_owning_app(cfg, abs_file), abs_file, 0);
+        return (cfg.app_for_path(abs_file), abs_file, 0);
     }
     if target {
         app = cfg.app(target);
@@ -26,7 +25,7 @@ def _build_target(cfg: any, target: str) -> tuple {
         }
         if os.path.isfile(target) {
             abs_file = os.path.abspath(target);
-            return (_owning_app(cfg, abs_file), abs_file, 0);
+            return (cfg.app_for_path(abs_file), abs_file, 0);
         }
         console.error(
             f"No app named '{target}' in {cfg.toml_path}, and no such file.",

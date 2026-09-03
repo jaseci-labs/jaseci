@@ -6,7 +6,7 @@ comments, and it must keep working after the sv/cl/na keywords are gone
 
 import os;
 import tempfile;
-import from jaclang.cli.commands.fix { _append_toml_entries, _strip_markers }
+import from jaclang.cli.commands.fix { _append_app_table, _append_toml_entries, _strip_markers }
 
 
 test "prefix markers strip and record claims" {
@@ -80,5 +80,38 @@ test "toml append is idempotent and respects existing entries" {
             toml_path, "[placement.pins]", {"m.g": "client"}, False
         );
         assert more == ['"m.g" = "client"'];
+    }
+}
+
+
+test "app table append declares the service once and keeps the file intact" {
+    with tempfile.TemporaryDirectory() as tmpdir {
+        toml_path = os.path.join(tmpdir, "jac.toml");
+        with open(toml_path, "w") as f {
+            f.write("[project]\nname = \"x\"\n");
+        }
+        table = {
+            "kind": "service",
+            "entry-point": "svc/analytics.jac",
+            "route": "/analytics"
+        };
+        added = _append_app_table(toml_path, "analytics", table, False);
+        assert added == [
+            'kind = "service"',
+            'entry-point = "svc/analytics.jac"',
+            'route = "/analytics"'
+        ] , added;
+        with open(toml_path) as f {
+            text = f.read();
+        }
+        assert text.startswith("[project]\nname = \"x\"\n") , text;
+        assert "\n[apps.analytics]\nkind = \"service\"\n" in text , text;
+        again = _append_app_table(toml_path, "analytics", table, False);
+        assert again == [] , "an app already declared must not be appended twice";
+        preview = _append_app_table(toml_path, "billing", {"kind": "service"}, True);
+        assert preview == ['kind = "service"'] , preview;
+        with open(toml_path) as f {
+            assert "[apps.billing]" not in f.read() , "dry-run must not write";
+        }
     }
 }

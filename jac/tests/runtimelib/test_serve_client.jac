@@ -224,9 +224,9 @@ def make_bundled_crossboundary_client -> tuple {
     return (client, str(dest));
 }
 
-"""Create test client with base_route_app configured for SPA catch-all."""
+"""Create a test client whose served module declares an `app` page: the served
+app sits at `/`, so the root and every clean URL render the SPA shell."""
 def make_spa_client(tmp_path: str) -> JacTestClient {
-    import from jaclang.project.config { JacConfig, ServeConfig }
     fixtures_src = Path(fixture_abs_path("")).resolve();
     unique_id = uuid.uuid4().hex[:8];
     module_name = f"spa_app_{unique_id}";
@@ -244,8 +244,7 @@ def make_spa_client(tmp_path: str) -> JacTestClient {
     return JacTestClient.from_file(
         str(fixtures_dest / f"{module_name}.jac"),
         base_path=str(fixtures_dest),
-        module_name=module_name,
-        config=JacConfig(serve=ServeConfig(base_route_app="client_page"))
+        module_name=module_name
     );
 }
 
@@ -2585,6 +2584,8 @@ def _reset_bridge_state {
     sv_client.clear_test_clients();
     sv_client.clear_local_providers();
     sv_client.clear_consumer_providers();
+    sv_client.clear_read_cache();
+    sv_client.set_consumer_app("");
     for app in list(sv_client._registry.keys()) {
         sv_client.unregister(app);
     }
@@ -2674,6 +2675,65 @@ test "sv_client: register_local short-circuits function calls in-process" {
             assert e.status == 404;
         }
     } finally {
+        _reset_bridge_state();
+    }
+}
+
+glob _READ_CACHE_TOML: str = (
+         '[project]\nname = "rc"\n\n'
+         '[apps.web]\nkind = "web-app"\npath = "web"\n\n'
+         '[apps.cli]\nkind = "cli"\npath = "cli"\n\n'
+         '[apps.social]\nkind = "service"\nentry-point = "social.jac"\n\n'
+         '[apps.web.scale]\nread_cache = true\n'
+     );
+
+test "sv_client: read_cache serves effect-free bridged calls from memory" {
+    import from jaclang.project.config { JacConfig, get_config, set_config }
+    previous = get_config();
+    set_config(JacConfig.from_toml_str(_READ_CACHE_TOML));
+    _reset_bridge_state();
+    module = _LocalProviderModule();
+    sv_client.register_local("social", module);
+    sv_client.set_consumer_app("web");
+    try {
+        first = asyncio.run(sv_client.call("social", "greet", {"name": "ada"}, effects=[]));
+        second = asyncio.run(sv_client.call("social", "greet", {"name": "ada"}, effects=[]));
+        assert first == "hi ada" and second == "hi ada";
+        assert module.seen == ["ada"] , f"a cached read must not re-invoke: {module.seen}";
+        asyncio.run(sv_client.call("social", "greet", {"name": "bob"}, effects=[]));
+        assert module.seen == ["ada", "bob"] , "different kwargs are a different key";
+        sv_client.set_consumer_app("cli");
+        asyncio.run(sv_client.call("social", "greet", {"name": "ada"}, effects=[]));
+        assert module.seen == ["ada", "bob", "ada"] , (
+            "an app without read_cache goes to the owner every time"
+        );
+    } finally {
+        set_config(previous);
+        _reset_bridge_state();
+    }
+}
+
+test "sv_client: an effectful call to the provider app invalidates its cached reads" {
+    import from jaclang.project.config { JacConfig, get_config, set_config }
+    previous = get_config();
+    set_config(JacConfig.from_toml_str(_READ_CACHE_TOML));
+    _reset_bridge_state();
+    module = _LocalProviderModule();
+    sv_client.register_local("social", module);
+    sv_client.set_consumer_app("web");
+    try {
+        asyncio.run(sv_client.call("social", "greet", {"name": "ada"}, effects=[]));
+        asyncio.run(sv_client.call("social", "greet", {"name": "ada"}, effects=[]));
+        assert module.seen == ["ada"];
+        asyncio.run(sv_client.call("social", "greet", {"name": "eve"}, effects=["Profile"]));
+        asyncio.run(sv_client.call("social", "greet", {"name": "ada"}, effects=[]));
+        assert module.seen == ["ada", "eve", "ada"] , (
+            f"an effectful call must clear the provider's cached reads: {module.seen}"
+        );
+        asyncio.run(sv_client.call("social", "greet", {"name": "ada"}, effects=[]));
+        assert module.seen == ["ada", "eve", "ada"] , "and the re-read is cached again";
+    } finally {
+        set_config(previous);
         _reset_bridge_state();
     }
 }

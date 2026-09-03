@@ -61,7 +61,7 @@ The gates to run before committing, from the workspace root:
 ```bash
 git ls-files -z '*.jac' | xargs -0 jac fmt --check --lintfix   # format + deslop autolint
 jac check --nowarn                                             # the workspace gate
-JAC_TEST_JOBS=0 jac test                                       # [test] directories = core, web
+JAC_TEST_JOBS=0 jac test                                       # [test] directories = core, web, mobile, cli
 ```
 
 `jac check` with no paths is the workspace gate: it type-checks every app as
@@ -166,10 +166,10 @@ anchors and takes the right edge:
   whichever side imports it; `def:pub` there means "exported", not
   "endpoint".
 
-The explicit markers (`cl`/`sv`/`na` prefixes, `.cl.jac`/`.sv.jac`/`.na.jac`
-suffixes) still exist as intent overrides -- this tree needs exactly one:
-`web/examples/fullstack_todo.jac` keeps `cl` on its component because the
-marker is the point of the teaching sample.
+There are no placement markers anywhere in this tree: the `cl`/`sv`/`na`
+prefixes and the `.cl.jac`/`.sv.jac`/`.na.jac` suffixes were retired, and
+the only override an app can still express is a `[placement.pins]` entry
+(or a per-app `[apps.<name>.placement.pins]` overlay) in `jac.toml`.
 
 ### Typed contracts, not dict payloads
 
@@ -198,16 +198,21 @@ re-derives a slug.
 
 ## Tests
 
-`jac test` covers the pure logic on both sides of the wire: the URL parser,
-repo analyzer and scoring rubric (`core/leaderboard/*.test.jac`), the docs
+A bare `jac test` targets the default app (`web`), whose `[test]
+directories` lists `core`, `web`, `mobile` and `cli`, so it runs the whole
+workspace: the pure logic on both sides of the wire -- the URL parser, repo
+analyzer and scoring rubric (`core/leaderboard/*.test.jac`), the docs
 slugifier, route rewriter, TOC builder and swap-commit protocol
 (`core/docs/graph.test.jac`), the version label, link rewriter, corpus
 fingerprint and once-only ingest (`core/docs/sync.test.jac`), the progress
 protocol (`core/progress.test.jac`), the Jac syntax highlighter
 (`core/jac_tokenizer.test.jac`), the social graph
 (`core/social_graph.test.jac`) and its fullstack smoke
-(`web/socialize/fullstack.test.jac`) -- 58 tests. `[test] directories` lists
-`core` and `web`; the mobile and cli apps add theirs as they grow tests.
+(`web/socialize/fullstack.test.jac`) -- 58 tests -- plus the cli app's 16
+(`cli/main.test.jac`, `cli/commands/*.test.jac`) and the mobile app's 5
+(`mobile/format.test.jac`). `jac test cli` and `jac test mobile` run only
+that app's annexes: each declares `[apps.<name>.test] directories = ["."]`,
+resolved against the app root.
 
 ## The centerpiece diagrams
 

@@ -161,18 +161,23 @@ def _setup_site_project(temp_dir: any) -> tuple {
 
 """Client dist dir of a built workspace copy.
 
-The web app's client bundle lands under ``.jac/client/dist``; whether that
-``.jac`` sits at the workspace root or under the app root (``web/``) is the
-build's call, so accept either and default to the workspace root.
+In a workspace every app builds into its own ``.jac/client/<app>/dist``
+under the workspace root, so the web app's bundle is
+``.jac/client/web/dist``; the single-app layout (``.jac/client/dist``) is
+accepted as a fallback.
 """
 def _client_dist(project_dir: str) -> str {
-    for base in [project_dir, os.path.join(project_dir, "web")] {
-        cand = os.path.join(base, ".jac", "client", "dist");
+    candidates = [
+        os.path.join(project_dir, ".jac", "client", "web", "dist"),
+        os.path.join(project_dir, ".jac", "client", "dist"),
+        os.path.join(project_dir, "web", ".jac", "client", "dist")
+    ];
+    for cand in candidates {
         if os.path.isdir(cand) {
             return cand;
         }
     }
-    return os.path.join(project_dir, ".jac", "client", "dist");
+    return candidates[0];
 }
 
 """Skip the test unless Playwright + a Chromium build are installed."""

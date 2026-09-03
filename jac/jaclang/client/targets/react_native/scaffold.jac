@@ -72,17 +72,26 @@ def _write_if_managed(
 }
 
 def _project_native_deps(project_root: Path) -> dict[str, str] {
-    toml_path = project_root / "jac.toml";
-    if not toml_path.exists() {
-        return {};
+    import from jaclang.project.config { get_config }
+    import from jaclang.client.targets.registry { client_workspace_app }
+    config = get_config();
+    if config is None {
+        toml_path = project_root / "jac.toml";
+        if not toml_path.exists() {
+            return {};
+        }
+        try {
+            config = JacConfig.load(toml_path);
+        } except Exception as e {
+            console.warning(
+                f"  Could not read {toml_path} for [dependencies.npm.native]: {e}"
+            );
+            return {};
+        }
     }
-    try {
-        config = JacConfig.load(toml_path);
-    } except Exception as e {
-        console.warning(
-            f"  Could not read {toml_path} for [dependencies.npm.native]: {e}"
-        );
-        return {};
+    app = client_workspace_app(config);
+    if app is not None {
+        config = config.effective_for_app(app.name);
     }
     return manifest_plugin_subdeps(config, "npm", "native");
 }
