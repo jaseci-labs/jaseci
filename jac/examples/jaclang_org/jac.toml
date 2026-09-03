@@ -44,7 +44,7 @@ jaclang_source = "../.."
 typecheck = true
 
 [test]
-directories = ["core", "web"]
+directories = ["core", "web", "cli"]
 
 [check.lint]
 select = ["all", "strip-comments", "strip-docstrings"]
