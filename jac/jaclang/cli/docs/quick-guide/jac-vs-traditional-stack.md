@@ -205,12 +205,12 @@ if __name__ == "__main__":
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "@types/react": "^18.2.48",
-    "@types/react-dom": "^18.2.18",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^4.2.1",
     "typescript": "^5.3.3",
     "vite": "^5.0.12"

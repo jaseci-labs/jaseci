@@ -33,6 +33,7 @@ impl JacAPIServerCore._make_user_manager -> CoreUserManager {
 }
 
 impl JacAPIServerCore.postinit -> None {
+    get_scale_config().get_jwt_config();
     super.postinit();
 
     if self.server is None {
@@ -185,6 +186,7 @@ impl JacAPIServerCore.start(
     on_ready: Callable[..., None] | None = None
 ) -> None {
     self.introspector.load();
+    self.introspector.dev_mode = dev;
     if self.introspector.has_client_route('/docs') {
         self.server.app.docs_url = None;
     }

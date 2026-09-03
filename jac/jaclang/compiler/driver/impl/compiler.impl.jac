@@ -9,7 +9,7 @@ impl JacCompiler.selfhost.getter -> SelfHostCache {
 }
 
 impl JacCompiler.stub_catalog -> any {
-    if self.stub_catalog_disabled {
+    if self.stub_catalog_disabled or self._stub_trees_served {
         return None;
     }
     found = self._stub_catalog;
@@ -22,8 +22,21 @@ impl JacCompiler.stub_catalog -> any {
     return found;
 }
 
+impl JacCompiler.note_stub_tree_served(path: str, program: JacProgram) -> None {
+    if self._stub_trees_served or self.selfhost.is_selfhost(program) {
+        return;
+    }
+    if self.stub_catalog() is not None {
+        return;
+    }
+    import from jaclang.compiler.driver.modresolver { _in_typeshed_tree }
+    if _in_typeshed_tree(path) {
+        self._stub_trees_served = True;
+    }
+}
+
 impl JacCompiler.ensure_stub_catalog -> any {
-    if self.stub_catalog_disabled {
+    if self.stub_catalog_disabled or self._stub_trees_served {
         return None;
     }
     found = self.stub_catalog();
@@ -197,10 +210,21 @@ impl JacCompiler.get_bytecode(
     }
 
     allow_unsealed = (not rebuild) and (not no_precompile);
-    precompiled_bc = self._get_precompiled_jir_bytecode(full_target, allow_unsealed);
-    if precompiled_bc is not None {
+    precompiled = self._get_precompiled_jir_bytecode(full_target, allow_unsealed);
+    if precompiled is not None {
+        (precompiled_bc, precompiled_ctdeps) = precompiled;
         try {
-            write_module_cache(full_target, precompiled_bc, flags=FLAG_PRECOMPILED);
+            import from jaclang.compiler.driver.jir { SEC_CTDEPS as _PC_CTDEPS }
+            _pc_sections: dict[int, bytes] = {};
+            if precompiled_ctdeps {
+                _pc_sections[_PC_CTDEPS] = precompiled_ctdeps;
+            }
+            write_module_cache(
+                full_target,
+                precompiled_bc,
+                flags=FLAG_PRECOMPILED,
+                extra_sections=_pc_sections
+            );
         } except Exception {}
         return marshal.loads(precompiled_bc);
     }
@@ -462,9 +486,15 @@ impl JacCompiler._sealed_jir_data(full_target: str) -> (tuple[bytes, str] | None
 
 impl JacCompiler._get_precompiled_jir_bytecode(
     full_target: str, allow_unsealed: bool = True
-) -> (bytes | None) {
+) -> (tuple[bytes, bytes] | None) {
     import from pathlib { Path as _Path }
-    import from jaclang.compiler.driver.jir { PRECOMPILE_SENTINEL, cache_mode }
+    import from jaclang.compiler.driver.jir {
+        PRECOMPILE_SENTINEL,
+        SEC_CTDEPS,
+        absolutize_ct_deps_section,
+        cache_mode,
+        ct_deps_fresh
+    }
     import from jaclang.jac0core { sealed as _sealed }
     (rebuild_flag, no_precompile) = cache_mode();
     if rebuild_flag or no_precompile {
@@ -493,12 +523,22 @@ impl JacCompiler._get_precompiled_jir_bytecode(
                     jir_data = _Path(jir_path).read_bytes();
                     trusted = (
                         sealed_img is not None
-                        or precompiled_jir_matches_source(jir_data, norm_file)
+                        or (
+                            precompiled_jir_matches_source(jir_data, norm_file)
+                            and ct_deps_fresh(jir_data, norm_root)
+                        )
                     );
                     if trusted {
                         bc = read_bytecode_only(jir_data);
                         if bc is not None {
-                            return patch_co_filenames_bytes(bc, PRECOMPILE_SENTINEL, d);
+                            _ct_raw = read_section_bytes(jir_data, SEC_CTDEPS);
+                            return (
+                                patch_co_filenames_bytes(bc, PRECOMPILE_SENTINEL, d),
+                                absolutize_ct_deps_section(_ct_raw, norm_root)
+                                    if _ct_raw
+                                    else b"",
+
+                            );
                         }
                     }
                 } except Exception {}
@@ -634,6 +674,15 @@ impl JacCompiler.parse_str(
             }
         }
         if not codespace {
+            import from jaclang.compiler.native_scope {
+                in_native_scope_path as _in_scope,
+                scope_lowering_active as _scope_on
+            }
+            if _scope_on() and _in_scope(file_path) {
+                codespace = 'native';
+            }
+        }
+        if not codespace {
             _p_opts = target_program.options;
             _forced_pre = _p_opts.force_codespace if _p_opts is not None else '';
             if (
@@ -689,10 +738,22 @@ impl JacCompiler.parse_str(
     if run_codespace_infer {
         _opts = target_program.options;
         _analysis_only = _opts is not None and _opts.no_cgen;
+        import from jaclang.compiler.native_scope {
+            in_native_scope_path,
+            scope_lowering_active
+        }
+        _scope_native = (
+            scope_lowering_active() and in_native_scope_path(mod.loc.mod_path or '')
+        );
         _native_eligible = (
             not _analysis_only
-            and not self.selfhost.is_selfhost(target_program)
-            and _default_codespace_for(target_program) == 'native'
+            and (
+                _scope_native
+                or (
+                    not self.selfhost.is_selfhost(target_program)
+                    and _default_codespace_for(target_program) == 'native'
+                )
+            )
         );
         if _native_eligible {
             import from jaclang.compiler.placement.placement_solver {
@@ -1093,13 +1154,29 @@ impl JacCompiler.compile(
     use_str: (str | None) = None,
     options: CompileOptions = CompileOptions()
 ) -> uni.Module {
+    import from jaclang.compiler.native_scope {
+        activate_scope_lowering,
+        deactivate_scope_lowering,
+        in_native_scope_path,
+        scope_lowering_active
+    }
+    _scope_armed = False;
+    if (
+        options.aot_mode
+        and options.default_codespace == 'native'
+        and self._reentrant_depth == 0
+        and in_native_scope_path(str(file_path))
+        and not scope_lowering_active()
+    ) {
+        activate_scope_lowering();
+        _scope_armed = True;
+    }
     if self._reentrant_depth == 0 and not self.stub_catalog_disabled {
-        import from jaclang.compiler.driver.jir { is_compiler_tree_path }
-        if (
-            not self.selfhost.is_selfhost(target_program)
-            and not is_compiler_tree_path(str(file_path))
-        ) {
-            self.ensure_stub_catalog();
+        if not self.selfhost.is_selfhost(target_program) {
+            import from jaclang.compiler.types.stubcat.locate { StubCatalogUnavailable }
+            try {
+                self.ensure_stub_catalog();
+            } except StubCatalogUnavailable {}
         }
     }
     import from pathlib { Path as _WrapPath }
@@ -1110,6 +1187,9 @@ impl JacCompiler.compile(
     _prev_cs = get_effective_default_codespace_override();
     _depth_prev = self._reentrant_depth;
     self._reentrant_depth = _depth_prev + 1;
+    if _depth_prev == 0 {
+        self._closure_opts = options;
+    }
     _gc_prev: (tuple | None) = None;
     if _depth_prev == 0 and not os.environ.get('JAC_GC_NO_COMPILE_BOOST') {
         import gc;
@@ -1240,9 +1320,15 @@ impl JacCompiler.compile(
             options=options
         );
     } finally {
+        if _scope_armed {
+            deactivate_scope_lowering();
+        }
         native_ir_cache_set_suspended(_na_cache_prev);
         set_effective_default_codespace(_prev_cs);
         self._reentrant_depth = _depth_prev;
+        if _depth_prev == 0 {
+            self._closure_opts = None;
+        }
         if _outer_prog is not None and _outer_opts is not None {
             _outer_prog.options = _outer_opts;
         }
@@ -1328,7 +1414,9 @@ impl JacCompiler._persist_module_cache(
             write_module_cache
         }
         if result.ct_file_deps {
-            sections[SEC_CTDEPS] = ct_deps_section(result.ct_file_deps);
+            sections[SEC_CTDEPS] = ct_deps_section(
+                result.ct_file_deps, result.ct_body_deps
+            );
         }
         write_module_cache(full_target, cache_bc, extra_sections=sections);
     } except Exception {}
@@ -1378,7 +1466,8 @@ impl JacCompiler._compile_once(
     if _prev_opts is not None and not options.default_codespace {
         options.default_codespace = _prev_opts.default_codespace;
     }
-    if _prev_opts is not None and _prev_opts.need_full_ast {
+    _closure = self._closure_opts;
+    if _closure is not None and _closure is not options and _closure.need_full_ast {
         options.need_full_ast = True;
     }
     actual_program.options = options;
@@ -1423,6 +1512,47 @@ impl JacCompiler._compile_once(
     return _mod_out;
 }
 
+impl JacCompiler._ingest_comptime_producers(
+    mod_targ: uni.Module, actual_program: JacProgram, file_path: str
+) -> None {
+    if mod_targ is None or self.selfhost.is_selfhost(actual_program) {
+        return;
+    }
+    saved_opts = actual_program.options;
+    here_real = os.path.realpath(str(file_path));
+    try {
+        for imp in mod_targ.get_all_sub_nodes(uni.Import) {
+            if not imp.is_comptime or imp.from_loc is None or imp.is_virtual_jac {
+                continue;
+            }
+            try {
+                target = imp.from_loc.resolve_relative_path();
+            } except Exception {
+                continue;
+            }
+            if not isinstance(target, str) or not target.endswith('.jac') {
+                continue;
+            }
+            if not os.path.isfile(target) or os.path.realpath(target) == here_real {
+                continue;
+            }
+            try {
+                actual_program.load_dependency_module(
+                    target, importer_path=file_path, need_tree=True
+                );
+            } except Exception as ct_ingest_err {
+                import logging as _ct_logging;
+                _ct_logging.getLogger(__name__).debug(
+                    f"comptime producer {target} of {file_path} "
+                    f"could not be ingested: {ct_ingest_err}"
+                );
+            }
+        }
+    } finally {
+        actual_program.options = saved_opts;
+    }
+}
+
 impl JacCompiler._compile_pipeline(
     file_path: str,
     actual_program: JacProgram,
@@ -1435,6 +1565,7 @@ impl JacCompiler._compile_pipeline(
         keep_str, file_path, actual_program, cancel_token=options.cancel_token
     );
     had_parse_errors = len(actual_program.errors_had) > had_parse_errors;
+    self._ingest_comptime_producers(mod_targ, actual_program, file_path);
 
     cur_mod_path = os.path.normpath(file_path);
     blocking_errs_pre_ir = self._count_module_blocking_errors(
@@ -1484,10 +1615,16 @@ impl JacCompiler._compile_pipeline(
         or (mod_targ is not None and mod_targ.stub_only)
         or (mod_targ is not None and mod_targ.is_raised_from_py);
     import from jaclang.jac0core.ext_registry { is_annex as _cc_is_annex }
-    _standalone_annex = _cc_is_annex(file_path);
+    _annex_of_base = False;
+    if _cc_is_annex(file_path) {
+        import from jaclang.compiler.driver.bccache {
+            discover_base_file as _cc_base_file
+        }
+        _annex_of_base = _cc_base_file(str(file_path)) is not None;
+    }
     _analyze = _full_head
         and not _is_decl_stub
-        and not _standalone_annex
+        and not _annex_of_base
         and (
             is_native_mod
             or not self.selfhost.is_selfhost(actual_program)
@@ -1495,8 +1632,7 @@ impl JacCompiler._compile_pipeline(
         );
 
     if _analyze {
-        if 'TypeOf'
-            not in actual_program.analysis.analyses_run.get(id(mod_targ), set()) {
+        if not actual_program.analysis.analyses_run.provides(mod_targ, 'TypeOf') {
             self.run_schedule(
                 mod=mod_targ,
                 target_program=actual_program,
@@ -1528,7 +1664,7 @@ impl JacCompiler._compile_pipeline(
         and not options.symtab_ir_only
         and not had_parse_errors
         and not had_blocking_errors
-        and 'TypeOf' in actual_program.analysis.analyses_run.get(id(mod_targ), set())
+        and actual_program.analysis.analyses_run.provides(mod_targ, 'TypeOf')
     ) {
         import from jaclang.compiler.backends.py.module_codegen_pass {
             ModuleCodegenPass as _PtyMcp
@@ -1658,8 +1794,7 @@ impl JacCompiler._compile_pipeline(
             or ModuleCodegenPass.has_native_context_stmts(mod_targ);
 
         if needs_native
-            and 'TypeOf'
-                not in actual_program.analysis.analyses_run.get(id(mod_targ), set()) {
+            and not actual_program.analysis.analyses_run.provides(mod_targ, 'TypeOf') {
             self.run_schedule(
                 mod=mod_targ,
                 target_program=actual_program,
@@ -1672,7 +1807,7 @@ impl JacCompiler._compile_pipeline(
             target_program=actual_program,
             passes=get_py_code_gen(
                 native=needs_native,
-                provided=actual_program.analysis.analyses_run.get(id(mod_targ), set())
+                provided=actual_program.analysis.analyses_run.provided(mod_targ)
             ),
             cancel_token=options.cancel_token
         );
@@ -1705,11 +1840,7 @@ impl JacCompiler.run_schedule(
     passes: list[type[Transform]],
     cancel_token: (Event | None) = None
 ) -> None {
-    provided = target_program.analysis.analyses_run.get(id(mod));
-    if provided is None {
-        provided = set();
-        target_program.analysis.analyses_run[id(mod)] = provided;
-    }
+    provided = target_program.analysis.analyses_run.provided(mod);
     validate_schedule(
         passes,
         preprovided=provided,

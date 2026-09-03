@@ -2127,6 +2127,8 @@ impl ElfLinker.build_shared_object -> bytes {
             )
         );
     }
+    sh_specs.append((".symtab", SHT_SYMTAB, 0, 0, 0, 0, ".strtab", 0, 8, 24));
+    sh_specs.append((".strtab", SHT_STRTAB, 0, 0, 0, 0, "", 0, 1, 0));
     sh_specs.append((".shstrtab", SHT_STRTAB, 0, 0, 0, 0, "", 0, 1, 0));
     sh_name_to_idx: dict[str, int] = {};
     for (_si, _spec) in enumerate(sh_specs) {
@@ -2138,6 +2140,54 @@ impl ElfLinker.build_shared_object -> bytes {
         "rodata": sh_name_to_idx.get(".rodata", sh_name_to_idx.get(".text", 1)),
         "data": sh_name_to_idx.get(".data", sh_name_to_idx.get(".dynamic", 1))
     };
+
+    sym_locals: list = [];
+    sym_globals: list = [];
+    for dsym in self.symbols {
+        if (not dsym.name)
+            or dsym.shndx == SHN_UNDEF
+            or dsym.shndx >= len(self.sections) {
+            continue;
+        }
+        dplace = section_placement.get(dsym.shndx);
+        if dplace is None {
+            continue;
+        }
+        sva = _resolve_seg_vaddr(
+            dplace[0], dplace[1] + dsym.value, text_vaddr, rodata_vaddr, data_vaddr
+        );
+        styp = STT_FUNC if dplace[0] == "code" else STT_OBJECT;
+        `entry = (
+            dsym.name,
+            sva,
+            dsym.size,
+            dsym.bind,
+            styp,
+            seg_shndx.get(dplace[0], 1)
+        );
+        if dsym.bind >= STB_GLOBAL {
+            sym_globals.append(`entry);
+        } else {
+            sym_locals.append(`entry);
+        }
+    }
+    ordered_syms = sym_locals + sym_globals;
+    first_global = 1 + len(sym_locals);
+    sym_names: list[str] = [];
+    for e in ordered_syms {
+        sym_names.append(e[0]);
+    }
+    (symtab_strtab_data, symtab_str_off) = _build_strtab(sym_names);
+    symtab_data = bytearray();
+    symtab_data.extend(struct.pack("<IBBHQQ", 0, 0, 0, 0, 0, 0));
+    for e in ordered_syms {
+        st_info = (e[3] << 4) | e[4];
+        symtab_data.extend(
+            struct.pack(
+                "<IBBHQQ", symtab_str_off.get(e[0], 0), st_info, 0, e[5], e[1], e[2]
+            )
+        );
+    }
 
     dynamic_data = bytearray();
     for (tag, val) in dyn_entries {
@@ -2451,6 +2501,15 @@ impl ElfLinker.build_shared_object -> bytes {
         output[data_foff:data_foff + len(data_bytes)] = bytes(data_bytes);
     }
 
+    _sym_pad = _align(len(output), 8) - len(output);
+    if _sym_pad > 0 {
+        output.extend(b"\x00" * _sym_pad);
+    }
+    symtab_foff = len(output);
+    output.extend(symtab_data);
+    symtab_strtab_foff = len(output);
+    output.extend(symtab_strtab_data);
+
     sh_names: list[str] = [];
     for _spec in sh_specs {
         sh_names.append(_spec[0]);
@@ -2465,6 +2524,13 @@ impl ElfLinker.build_shared_object -> bytes {
         if snm == ".shstrtab" {
             soff = shstrtab_foff;
             ssize = len(shstrtab_data);
+        } elif snm == ".symtab" {
+            soff = symtab_foff;
+            ssize = len(symtab_data);
+            sinfo = first_global;
+        } elif snm == ".strtab" {
+            soff = symtab_strtab_foff;
+            ssize = len(symtab_strtab_data);
         }
         slink = sh_name_to_idx.get(slink_name, 0) if slink_name else 0;
         output.extend(

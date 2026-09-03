@@ -458,6 +458,15 @@ test "serve flags are recognised only when they were actually typed" {
         None, None, None, False, None, None, None, None, None, None
     );
     assert over == {"no_client": False};
+    # Same for --ms/--no-ms: both spellings are a topology the user asked for.
+    over = execution._serve_overrides(
+        None, None, None, None, None, True, None, None, None, None
+    );
+    assert over == {"ms": True};
+    over = execution._serve_overrides(
+        None, None, None, None, None, False, None, None, None, None
+    );
+    assert over == {"ms": False};
 }
 
 test "a [serve] port from jac.toml is not mistaken for a typed --port" {

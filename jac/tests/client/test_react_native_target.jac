@@ -987,7 +987,7 @@ test "client config supports target-scoped npm table for react native" {
             "version = \"1.0.0\"\n"
             "entry-point = \"main.jac\"\n\n"
             "[dependencies.npm]\n"
-            "react = \"^18.2.0\"\n\n"
+            "react = \"^19.2.0\"\n\n"
             "[dependencies.npm.react_native]\n"
             "react-native = \"0.76.6\"\n"
             "\"expo-secure-store\" = \"~14.0.1\"\n\n"
