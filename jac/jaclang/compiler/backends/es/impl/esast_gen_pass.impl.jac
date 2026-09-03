@@ -7463,7 +7463,12 @@ impl EsastGenPass._emit_boundary_type_stubs(nd: uni.Module) -> list[es.Statement
                     alternate=None
                 )
             );
-            nested_set = set(info.nested_types);
+            nested_set = {
+                t
+                for t in info.nested_types
+                if t in manifest.boundary_types
+                    and manifest.boundary_types[t].kind != "enum"
+            };
             for fname in field_names {
                 ftype = field_types[fname];
 
@@ -8108,9 +8113,7 @@ impl EsastGenPass.exit_module with uni.Module exit {
 }
 
 impl EsastGenPass._audit_free_identifiers(nd: uni.Module, program: es.Program) -> None {
-    if not self.client_manifest.has_client {
-        return;
-    }
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
     allowed = client_ambient_globals() | RUNTIME_PRELUDE_GLOBALS;
     frees = free_identifiers(program, allowed);
     if not frees {
@@ -8118,6 +8121,20 @@ impl EsastGenPass._audit_free_identifiers(nd: uni.Module, program: es.Program) -
     }
     names = nd.get_all_sub_nodes(typ=uni.Name);
     reported: set[str] = set();
+    for free in frees {
+        if free.name in reported or not JAC_TYPE_REGISTRY.is_builtin(free.name) {
+            continue;
+        }
+        reported.add(free.name);
+        self.emit(
+            E5103,
+            node_override=self._free_ident_site(names, free) or nd,
+            name=free.name
+        );
+    }
+    if not self.client_manifest.has_client {
+        return;
+    }
     for free in frees {
         if (free.name in reported) or (free.name in self._unbound_reported) {
             continue;
@@ -8144,6 +8161,25 @@ impl EsastGenPass._audit_free_identifiers(nd: uni.Module, program: es.Program) -
         self.emit(E5101, node_override=origin, name=free.name);
     }
 }
+
+impl EsastGenPass._free_ident_site(
+    names: list[uni.Name], free: FreeIdentifier
+) -> (uni.Name | None) {
+    fallback: (uni.Name | None) = None;
+    for cand in names {
+        if cand.value != free.name {
+            continue;
+        }
+        if cand.loc.first_line == free.line {
+            return cand;
+        }
+        if fallback is None {
+            fallback = cand;
+        }
+    }
+    return fallback;
+}
+
 
 impl EsastGenPass._build_block_statement(
     scope_node: uni.UniScopeNode, body_nodes: (Sequence[uni.UniNode] | None)

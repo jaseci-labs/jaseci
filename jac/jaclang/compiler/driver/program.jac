@@ -35,10 +35,12 @@ class JacProgram {
         warnings_had: list[Alert],
         mtir_map: dict[(str, Info)],
         type_evaluator: TypeEvaluator | None,
-        _compiler: JacCompiler | None;
+        _compiler: JacCompiler | None,
+        _iface: any;
 
     def init(self: JacProgram, main_mod: (uni.ProgramModule | None) = None) -> None;
     def _get_compiler(self: JacProgram) -> JacCompiler;
+    def iface_registry(self: JacProgram) -> any;
     def get_type_evaluator(self: JacProgram) -> TypeEvaluator;
     def stub_catalog(self: JacProgram) -> any;
     def clear_type_system(self: JacProgram, clear_hub: bool = False) -> None;
@@ -58,7 +60,8 @@ class JacProgram {
         self: JacProgram,
         source_path: str,
         importer_path: (str | None) = None,
-        use_str: (str | None) = None
+        use_str: (str | None) = None,
+        need_tree: bool = False
     ) -> uni.Module;
 
     def drop_module_alerts(self: JacProgram, resolved_path: str) -> None;

@@ -435,6 +435,69 @@ impl BoundaryAnalysisPass._extract_walker_has_fields(
     return (names, types);
 }
 
+impl _parse_module_for_types(file_path: str) -> (Module | None) {
+    import os;
+    try {
+        stamp = os.path.getmtime(file_path);
+    } except OSError {
+        return None;
+    }
+    cached = _type_parse_memo.get(file_path);
+    if cached is not None and cached[0] == stamp {
+        return cached[1];
+    }
+    parsed: (Module | None) = None;
+    try {
+        import from jaclang.compiler.driver.compiler { JacCompiler }
+        import from jaclang.compiler.driver.program { JacProgram }
+        import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
+        src_text = read_file_with_encoding(file_path);
+        parsed = JacCompiler().parse_str(
+            source_str=src_text, file_path=file_path, target_program=JacProgram()
+        );
+    } except Exception {
+        parsed = None;
+    }
+    _type_parse_memo[file_path] = (stamp, parsed);
+    return parsed;
+}
+
+impl BoundaryAnalysisPass._parse_imported_archetype(
+    type_name: str, search_mods: list[Module]
+) -> (Archetype | Enum | None) {
+    import os;
+    for mod in search_mods {
+        for imp in mod.get_all_sub_nodes(Import) {
+            for item in (imp.items or []) {
+                if not isinstance(item, ModuleItem) {
+                    continue;
+                }
+                local = item.alias.sym_name if item.alias else item.name.value;
+                if local != type_name {
+                    continue;
+                }
+                try {
+                    target = item.from_mod_path.resolve_relative_path();
+                } except Exception {
+                    continue;
+                }
+                if not target or not os.path.isfile(str(target)) {
+                    continue;
+                }
+                parsed = _parse_module_for_types(str(target));
+                if parsed is None {
+                    continue;
+                }
+                found = self._find_archetype(parsed, item.name.value);
+                if found is not None {
+                    return found;
+                }
+            }
+        }
+    }
+    return None;
+}
+
 impl BoundaryAnalysisPass._find_archetype(
     nd: UniNode, target: str
 ) -> (Archetype | Enum | None) {
@@ -755,6 +818,15 @@ impl BoundaryAnalysisPass._collect_boundary_type(
                 arch_node = candidate;
                 break;
             }
+
+            resolved = resolved_decl_of(sym);
+            if resolved is not None {
+                target = resolved.name_of;
+                if isinstance(target, (Archetype, Enum)) {
+                    arch_node = target;
+                    break;
+                }
+            }
         }
     }
 
@@ -769,6 +841,9 @@ impl BoundaryAnalysisPass._collect_boundary_type(
                 break;
             }
         }
+    }
+    if arch_node is None {
+        arch_node = self._parse_imported_archetype(type_name, search_mods);
     }
     if arch_node is None {
         return;
@@ -831,8 +906,9 @@ impl BoundaryAnalysisPass._collect_boundary_type(
         );
         manifest.boundary_types[type_name] = info;
 
+        arch_mod = arch_node.find_parent_of_type(Module);
         for nt in nested {
-            self._collect_boundary_type(nt, source_mod);
+            self._collect_boundary_type(nt, arch_mod or source_mod);
         }
         return;
     }

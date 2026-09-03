@@ -151,11 +151,59 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
     };
 }
 
+impl _warn_placeholder_jwt_secret -> None {
+    if _placeholder_jwt_secret_warned {
+        return;
+    }
+    _placeholder_jwt_secret_warned = True;
+    import logging;
+    logging.getLogger(__name__).warning(
+        'No [scale.jwt] secret is configured, and a per-project dev secret '
+        'would be per-replica in a cluster. Signing tokens with the shipped '
+        'placeholder, which is public: anyone can mint a token for any user. '
+        'Set [scale.jwt] secret to a real value for this deployment.'
+    );
+}
+
+impl _announce_minted_jwt_secret(path: str) -> None {
+    if _minted_jwt_secret_announced {
+        return;
+    }
+    _minted_jwt_secret_announced = True;
+    import logging;
+    logging.getLogger(__name__).info(
+        f"No [scale.jwt] secret is configured; signing with the one kept at "
+        f"{path}. Processes that serve this project from the same directory "
+        'share it, so sessions survive a restart. Replicas that do not share '
+        'that directory each mint their own and reject one another tokens: a '
+        'deployment must set [scale.jwt] secret.'
+    );
+}
+
 impl JacScaleConfig.get_jwt_config(self: JacScaleConfig) -> dict[str, any] {
+    import from jaclang.server.serving.authcrypt {
+        DEV_SECRET_FILENAME,
+        PLACEHOLDER_JWT_SECRET,
+        project_data_dir,
+        project_signing_secret
+    }
     config = self.load();
     jwt_config = config.get('jwt', {});
+    secret = str(jwt_config.get('secret', '') or '');
+    if not secret or secret == PLACEHOLDER_JWT_SECRET {
+        if os.environ.get('KUBERNETES_SERVICE_HOST', '').strip() {
+            _warn_placeholder_jwt_secret();
+            secret = PLACEHOLDER_JWT_SECRET;
+        } else {
+            base = str(self.project_dir) if self.project_dir is not None else '.';
+            secret = project_signing_secret(base);
+            _announce_minted_jwt_secret(
+                os.path.join(project_data_dir(base), DEV_SECRET_FILENAME)
+            );
+        }
+    }
     return {
-        'secret': jwt_config.get('secret', 'supersecretkey_for_testing_only!'),
+        'secret': secret,
         'algorithm': jwt_config.get('algorithm', 'HS256'),
         'exp_delta_days': int(jwt_config.get('exp_delta_days', 7))
     };

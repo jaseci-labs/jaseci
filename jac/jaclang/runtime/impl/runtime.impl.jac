@@ -460,17 +460,20 @@ impl JacBuiltin.printgraph(
 
 
 impl JacContext.get_context -> ExecutionContext {
-    ctx = _request_context.get();
-    if ctx is not None {
-        return ctx;
-    }
-
-    ctx = JacRuntime.exec_ctx;
+    ctx = JacRuntimeInterface.peek_context();
     if ctx is None {
         ctx = JacRuntimeInterface.create_j_context(user_root=None);
         JacRuntime.exec_ctx = ctx;
     }
     return ctx;
+}
+
+impl JacContext.peek_context -> (ExecutionContext | None) {
+    ctx = _request_context.get();
+    if ctx is not None {
+        return ctx;
+    }
+    return JacRuntime.exec_ctx;
 }
 
 impl JacPersistence.commit(anchor: Anchor | Archetype | None = None) -> None {
@@ -1016,6 +1019,7 @@ impl JacGraph.refs(
 ) -> list[NodeArchetype] | list[EdgeArchetype] | list[(NodeArchetype | EdgeArchetype)] {
     import from jaclang.runtime.graph_walk {
         access_gated,
+        has_persistent_origin,
         needs_store,
         origin_anchors,
         walk_edges,
@@ -1027,8 +1031,11 @@ impl JacGraph.refs(
     if slc is not None and path.slc is None {
         path.slc = slc;
     }
-    ctx = JacRuntimeInterface.get_context();
     origins = origin_anchors(path);
+    ctx = JacRuntimeInterface.peek_context();
+    if ctx is None and has_persistent_origin(origins) {
+        ctx = JacRuntimeInterface.get_context();
+    }
 
     def _archetypes(planned: list) -> list {
         out: list[(NodeArchetype | EdgeArchetype)] = [];
@@ -1041,7 +1048,7 @@ impl JacGraph.refs(
         return out;
     }
 
-    if not needs_store(ctx.mem, origins) {
+    if ctx is None or not needs_store(ctx.mem, origins) {
         gated = access_gated();
         return _archetypes(
             walk_edges(origins, path, gated)
@@ -1049,18 +1056,21 @@ impl JacGraph.refs(
                 else walk_nodes(origins, path, gated)
         );
     }
+    import from typing { cast }
     import from jaclang.data.query_planner {
         LazyRefs,
         resolve_query,
         resolve_query_edges
     }
+    import from jaclang.server.session { Session }
     ctx.note_traversal_reads([nd.__jac__ for nd in path.origin]);
+    store_mem = cast(Session, ctx.mem);
 
     def _run(q: GraphQuery) -> list {
         return _archetypes(
-            resolve_query_edges(ctx.mem, q)
+            resolve_query_edges(store_mem, q)
                 if q.edges_only
-                else resolve_query(ctx.mem, q)
+                else resolve_query(store_mem, q)
         );
     }
     if lazy and path.slc is None {
@@ -1542,22 +1552,45 @@ impl JacBuiltin.get_console -> ConsoleImpl {
 }
 
 impl JacServe.get_api_server_class -> type {
-    _sp = _scale_provider();
-    if _sp is not None {
-        _scaled = _sp.get_api_server_class();
-        if _scaled is not None {
-            return _scaled;
-        }
+    import from jaclang.server.identity_owner {
+        SCALE_IDENTITY,
+        identity_owner,
+        scale_stack_unavailable
     }
-    import from jaclang.server.server { JacAPIServer }
-    return JacAPIServer;
+    _served = JacRuntime.get_full_target_path() or JacRuntime.get_base_path_dir();
+    if identity_owner(_served) != SCALE_IDENTITY {
+        import from jaclang.server.server { JacAPIServer }
+        return JacAPIServer;
+    }
+    _sp = _scale_provider();
+    if _sp is None {
+        raise scale_stack_unavailable('jaclang.scale.plugin', scale_provider_error());
+    }
+    _scaled = _sp.get_api_server_class();
+    if _scaled is None {
+        raise RuntimeError(
+            'the scale plugin returned no API server class while the scale '
+            'identity owns /user/* for this project. Nothing falls back to the '
+            'core store from here: the two stacks keep credentials in '
+            'different databases, so serving the other one would answer for '
+            'accounts this project does not have.'
+        );
+    }
+    return _scaled;
 }
 
 impl JacServe.ensure_sv_service(module_name: str, base_path: str) -> None {
+    import from jaclang.server.identity_owner {
+        scale_stack_installed,
+        scale_stack_unavailable
+    }
     _sp = _scale_provider();
     if _sp is not None {
         _sp.ensure_sv_service(module_name, base_path);
         return;
+    }
+    if scale_stack_installed() {
+        raise scale_stack_unavailable('jaclang.scale.plugin', scale_provider_error());
     }
     import os;
     import time;

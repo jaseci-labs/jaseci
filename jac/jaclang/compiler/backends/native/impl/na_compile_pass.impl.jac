@@ -71,6 +71,7 @@ impl DepClibMeta.to_meta -> dict {
         "owned_symbols": self.owned_symbols,
         "demoted_symbols": self.demoted_symbols,
         "transitive_deps": self.transitive_deps,
+        "ct_deps": self.ct_deps,
         "options_fingerprint": self.options_fingerprint,
         "unverified_live_calls": self.unverified_live_calls,
         "coverage": self.coverage
@@ -86,6 +87,7 @@ impl DepClibMeta.from_meta(meta: dict) -> DepClibMeta {
         owned_symbols=meta.get("owned_symbols", []),
         demoted_symbols=meta.get("demoted_symbols", []),
         transitive_deps=meta.get("transitive_deps", []),
+        ct_deps=meta.get("ct_deps", ""),
         options_fingerprint=meta.get("options_fingerprint", ""),
         unverified_live_calls=meta.get("unverified_live_calls", {}),
         coverage=meta.get("coverage", {})
@@ -740,6 +742,20 @@ impl NativeCompilePass._compile_and_link_native_imports(
             }
         } except Exception {}
 
+        if _cache_hit and meta.ct_deps {
+            import from jaclang.compiler.driver.jir { ct_dep_text_fresh }
+            if not ct_dep_text_fresh(meta.ct_deps) {
+                _cache_hit = False;
+                imported_llvm_str_raw = "";
+                meta = DepClibMeta();
+                for _ct_stale in (_cache_ir_path, _cache_meta_path) {
+                    try {
+                        os.remove(_ct_stale);
+                    } except OSError {}
+                }
+            }
+        }
+
         if _cache_hit
             and link_fingerprint_mismatches(
                 [(real_path, meta.options_fingerprint)], _link_fp
@@ -930,6 +946,8 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 }
             }
             meta.options_fingerprint = _link_fp;
+            import from jaclang.compiler.driver.jir { module_ct_deps_text }
+            meta.ct_deps = module_ct_deps_text(imported_ir);
             meta.unverified_live_calls = {
                 _uv_c: sorted(_uv_n) for (_uv_c, _uv_n) in _uv_pending.items()
             };

@@ -85,7 +85,8 @@ glob logger = getLogger(__name__),
      _default_full_target_path: list = [None],
      _shared_root_resolver: list = [None, None];
 
-glob _scale_provider_cache: list = [];
+glob _scale_provider_cache: list = [],
+     _scale_provider_error: list = [None];
 
 glob _persistent_memory_provider: list = [None];
 
@@ -97,9 +98,15 @@ def _scale_provider -> any {
     try {
         import from jaclang.scale.plugin { JacScalePlugin }
         result = JacScalePlugin;
-    } except ImportError {}
+    } except ImportError as e {
+        _scale_provider_error[0] = e;
+    }
     _scale_provider_cache.append(result);
     return result;
+}
+
+def scale_provider_error -> any {
+    return _scale_provider_error[0];
 }
 
 def _all_grant(anchor: Anchor) -> AccessLevel {
@@ -197,6 +204,7 @@ obj LLMModel(Protocol) {
 
 class JacContext {
     static def get_context -> ExecutionContext;
+    static def peek_context -> (ExecutionContext | None);
     static def reset_graph(root_node: (Root | None) = None) -> int;
     static def create_j_context(
         user_root: (str | None),

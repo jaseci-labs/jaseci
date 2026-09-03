@@ -151,7 +151,7 @@ class JacScalePluginConfig {
                         "secret": {
                             "type": "string",
                             "default": "supersecretkey_for_testing_only!",
-                            "description": "Secret key for JWT signing"
+                            "description": "Secret key for JWT signing. Left unset, a dev server mints one per project into .jac/data/jwt_secret; a deployment must set it so every replica signs alike"
                         },
                         "algorithm": {
                             "type": "string",

@@ -102,13 +102,7 @@ import from jaclang.scale.scheduler.scheduler_models {
 }
 import from jaclang.scale.emailer.emailer { Emailer }
 
-glob _jwt_config = get_scale_config().get_jwt_config(),
-     _sso_config = get_scale_config().get_sso_config(),
-     JWT_SECRET = _jwt_config['secret'],
-     JWT_ALGORITHM = _jwt_config['algorithm'],
-     JWT_EXP_DELTA_DAYS = _jwt_config['exp_delta_days'],
-     SSO_HOST = _sso_config['host'],
-     logger = logging.getLogger(__name__);
+glob logger = logging.getLogger(__name__);
 
 import from jaclang.server.net { PORT_RETRY_LIMIT, find_available_port }
 
