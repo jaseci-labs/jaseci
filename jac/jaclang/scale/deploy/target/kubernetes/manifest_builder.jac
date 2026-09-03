@@ -1049,14 +1049,17 @@ obj ManifestBuilder {
         cfg = self.k8s_config;
         period = cfg.readiness_period;
         failure_threshold = 3;
+        initial_delay = cfg.readiness_initial_delay;
         if self._replica_floor(svc_name) == 0 {
             period = max(1, cfg.readiness_period_scale_to_zero);
             budget = max(1, cfg.readiness_period) * failure_threshold;
             failure_threshold = max(1, budget // period);
+
+            initial_delay = 0;
         }
         return {
             "httpGet": {"path": "/healthz/ready", "port": cfg.container_port},
-            "initialDelaySeconds": cfg.readiness_initial_delay,
+            "initialDelaySeconds": initial_delay,
             "periodSeconds": period,
             "timeoutSeconds": 3,
             "failureThreshold": failure_threshold
