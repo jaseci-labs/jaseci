@@ -141,7 +141,7 @@ to the app instead. Returns ``(server_process, port)``. Caller must
 ``stop_server`` it.
 """
 def start_app_server(
-    project_path: any, extra_args: list | None = None, app: str = "web"
+    project_path: any, extra_args: list | None = None, app: str = ""
 ) -> tuple {
     import tempfile;
     port = get_free_port();
@@ -151,7 +151,10 @@ def start_app_server(
     if extra_args {
         args = [*args, *extra_args];
     }
-    args = [*args, "-p", str(port), app];
+    args = [*args, "-p", str(port)];
+    if app {
+        args = [*args, app];
+    }
     # Capture the server's output so a boot failure surfaces as a diagnosis
     # instead of an opaque 120s port-wait timeout (a crashed server and a
     # hung one look identical from wait_for_port).

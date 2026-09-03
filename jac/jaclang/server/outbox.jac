@@ -7,7 +7,12 @@ import threading;
 import time;
 import uuid;
 import from collections { OrderedDict }
-import from jaclang.data.store { PgStore, Store, TxnIsolation }
+import from jaclang.data.store {
+    PgStore,
+    Store,
+    TxnIsolation,
+    register_schema_extension
+}
 import from jaclang.server.bridge { BridgeRejected }
 
 glob logger = logging.getLogger(__name__),
@@ -49,6 +54,37 @@ glob logger = logging.getLogger(__name__),
          'DEFAULT_MAX_ATTEMPTS'
      ];
 
+glob _SCHEMA_SQL = [
+         """
+    CREATE TABLE IF NOT EXISTS jac_outbox (
+        id              TEXT PRIMARY KEY,
+        app             TEXT NOT NULL,
+        walker          TEXT NOT NULL,
+        kwargs          TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL UNIQUE,
+        attempts        INTEGER NOT NULL DEFAULT 0,
+        created_at      DOUBLE PRECISION NOT NULL,
+        status          TEXT NOT NULL,
+        last_error      TEXT NOT NULL DEFAULT '',
+        next_attempt_at DOUBLE PRECISION NOT NULL DEFAULT 0
+    )
+    """,
+         """
+    CREATE INDEX IF NOT EXISTS idx_jac_outbox_due
+        ON jac_outbox (status, next_attempt_at)
+    """,
+         """
+    CREATE TABLE IF NOT EXISTS jac_outbox_seen (
+        idempotency_key TEXT PRIMARY KEY,
+        result          TEXT NOT NULL DEFAULT '',
+        expires_at      DOUBLE PRECISION NOT NULL
+    )
+    """
+     ];
+
+with entry {
+    register_schema_extension("outbox", _SCHEMA_SQL);
+}
 
 obj OutboxEntry {
     has id: str,
@@ -79,7 +115,7 @@ obj OutboxStore {
 
 obj SqlOutboxStore(OutboxStore) {
     def _exec(sql: str, params: dict) -> list[tuple] abst;
-    def ensure_schema -> None;
+    def ensure_tables -> None abst;
     def put(item: OutboxEntry) -> None;
     def get_by_key(key: str) -> (OutboxEntry | None);
     def list_pending(now: float, limit: int = DELIVER_BATCH) -> list[OutboxEntry];
@@ -91,11 +127,10 @@ obj SqlOutboxStore(OutboxStore) {
 
 
 obj PgOutboxStore(SqlOutboxStore) {
-    has store: Store,
-        _schema_done: bool = False;
+    has store: PgStore;
 
     def _exec(sql: str, params: dict) -> list[tuple];
-    def ensure_schema -> None;
+    def ensure_tables -> None;
     def claim(id: str) -> bool;
     def close -> None;
 }
@@ -108,6 +143,7 @@ obj SqliteOutboxStore(SqlOutboxStore) {
 
     def postinit -> None;
     def _exec(sql: str, params: dict) -> list[tuple];
+    def ensure_tables -> None;
     def claim(id: str) -> bool;
     def close -> None;
 }

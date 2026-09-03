@@ -9,7 +9,7 @@ glob KIND_CODESPACE: dict[str, str] = {"js-package": "client"},
      KIND_CLIENT_TARGET: dict[str, str] = {
          "web-app": "web",
          "web-static": "static",
-         "mobile": "mobile",
+         "mobile": "react-native",
          "desktop": "desktop",
          "js-package": "web"
      },
@@ -61,6 +61,10 @@ glob _ws_cache: dict[str, tuple[tuple, WorkspaceSpec]] = {};
 def kind_codespace(kind: str) -> str;
 def kind_has_server(kind: str) -> bool;
 def kind_entry(kind: str) -> str;
+def default_client_kind(client: str) -> str {
+    return "mobui" if client == "react-native" else DEFAULT_CLIENT_KIND;
+}
+
 def workspace_for_path(path: str) -> (WorkspaceSpec | None);
 def app_for_path(path: str) -> (AppSpec | None);
 def owner_app_for_path(path: str) -> tuple[(AppSpec | None), bool];

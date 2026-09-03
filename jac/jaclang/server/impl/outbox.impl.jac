@@ -1,34 +1,7 @@
 glob _COLUMNS = (
          "id, app, walker, kwargs, idempotency_key, attempts, created_at, "
          "status, last_error, next_attempt_at"
-     ),
-     _SCHEMA_SQL = [
-         """
-    CREATE TABLE IF NOT EXISTS jac_outbox (
-        id              TEXT PRIMARY KEY,
-        app             TEXT NOT NULL,
-        walker          TEXT NOT NULL,
-        kwargs          TEXT NOT NULL,
-        idempotency_key TEXT NOT NULL UNIQUE,
-        attempts        INTEGER NOT NULL DEFAULT 0,
-        created_at      DOUBLE PRECISION NOT NULL,
-        status          TEXT NOT NULL,
-        last_error      TEXT NOT NULL DEFAULT '',
-        next_attempt_at DOUBLE PRECISION NOT NULL DEFAULT 0
-    )
-    """,
-         """
-    CREATE INDEX IF NOT EXISTS idx_jac_outbox_due
-        ON jac_outbox (status, next_attempt_at)
-    """,
-         """
-    CREATE TABLE IF NOT EXISTS jac_outbox_seen (
-        idempotency_key TEXT PRIMARY KEY,
-        result          TEXT NOT NULL DEFAULT '',
-        expires_at      DOUBLE PRECISION NOT NULL
-    )
-    """
-     ];
+     );
 
 
 impl canonical_kwargs(kwargs: dict) -> str {
@@ -102,7 +75,7 @@ impl _row_to_entry(row: tuple) -> OutboxEntry {
 }
 
 
-impl SqlOutboxStore.ensure_schema -> None {
+impl SqliteOutboxStore.ensure_tables -> None {
     for stmt in _SCHEMA_SQL {
         self._exec(stmt, {});
     }
@@ -222,21 +195,8 @@ impl PgOutboxStore._exec(sql: str, params: dict) -> list[tuple] {
 }
 
 
-impl PgOutboxStore.ensure_schema -> None {
-    if self._schema_done {
-        return;
-    }
-    try {
-        for stmt in _SCHEMA_SQL {
-            self._exec(stmt, {});
-        }
-    } except Exception as first {
-        logger.info(f"outbox schema retry after {type(first).__name__}: {first}");
-        for stmt in _SCHEMA_SQL {
-            self._exec(stmt, {});
-        }
-    }
-    self._schema_done = True;
+impl PgOutboxStore.ensure_tables -> None {
+    self.store.ensure_schema_once(self.store.promotions);
 }
 
 
@@ -270,7 +230,7 @@ impl SqliteOutboxStore.postinit -> None {
     conn.execute("PRAGMA synchronous=NORMAL");
     conn.execute("PRAGMA busy_timeout=5000");
     self._conn = conn;
-    self.ensure_schema();
+    self.ensure_tables();
 }
 
 
@@ -348,7 +308,7 @@ impl _writable_txn(mem: any, store: Store) -> None {
 impl _derive_worker_store(primary: PgStore) -> PgOutboxStore {
     side = PgStore(conninfo=primary.conninfo, ensure_cb=primary.ensure_cb);
     derived = PgOutboxStore(store=side);
-    derived.ensure_schema();
+    derived.ensure_tables();
     return derived;
 }
 
@@ -364,7 +324,7 @@ impl _ensure_pg_schema(primary: PgStore) -> None {
         }
         current = _state.worker_store;
         if isinstance(current, PgOutboxStore) {
-            current.ensure_schema();
+            current.ensure_tables();
         } else {
             _state.worker_store = _derive_worker_store(primary);
         }
@@ -396,7 +356,7 @@ impl _store_for_request(writable: bool = True) -> OutboxStore {
     if writable {
         _writable_txn(_current_memory(), primary);
     }
-    return PgOutboxStore(store=primary, _schema_done=True);
+    return PgOutboxStore(store=primary);
 }
 
 

@@ -61,7 +61,12 @@ impl validate_app_name(name: str) -> None {
 }
 
 impl parse_apps(project_data: dict, apps_data: dict) -> dict[str, AppConfig] {
-    import from jaclang.project.kinds { KIND_SPECS, normalize_client_target }
+    import from jaclang.project.kinds {
+        KIND_SPECS,
+        default_client_kind,
+        kind_spec,
+        normalize_client_target
+    }
     if not isinstance(apps_data, dict) {
         raise ValueError("[apps] must be a table of [apps.<name>] tables");
     }
@@ -122,7 +127,9 @@ impl parse_apps(project_data: dict, apps_data: dict) -> dict[str, AppConfig] {
                 raise ValueError(f"[apps.{name}] {exc}");
             }
         }
-        client_kind = str(fields.get("client_kind", "web")).strip().lower() or "web";
+        spec = kind_spec(kind);
+        client_kind = str(fields.get("client_kind", "")).strip().lower()
+            or (default_client_kind(client or (spec.client_target if spec else "")));
         if client_kind not in VALID_CLIENT_KINDS {
             raise ValueError(
                 f"[apps.{name}] client_kind='{fields.get('client_kind')}' is not "
@@ -173,12 +180,16 @@ impl parse_apps(project_data: dict, apps_data: dict) -> dict[str, AppConfig] {
 }
 
 impl implicit_app(config: any) -> AppConfig {
+    import from jaclang.project.kinds { default_client_kind, kind_spec }
     project = config.project;
+    kind = str(project.kind or "").strip();
+    spec = kind_spec(kind);
     return AppConfig(
         name=str(project.name or "").strip() or "main",
-        kind=str(project.kind or "").strip(),
+        kind=kind,
         path="",
         entry_point=str(project.entry_point or "").strip(),
+        client_kind=default_client_kind(spec.client_target if spec else ""),
         implicit=True
     );
 }

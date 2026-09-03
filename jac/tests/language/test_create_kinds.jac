@@ -115,29 +115,28 @@ test "create --kind desktop" {
     _cleanup();
 }
 
-test "create --kind mobile scaffolds an explicit [apps.main] mobUI app" {
+test "create --kind mobile scaffolds a single-app mobUI project" {
     proj = _scaffold("mobile");
     toml = (proj / "jac.toml").read_text();
-    assert "[apps.main]" in toml , "the mobile scaffold declares its app";
+    assert "[apps." not in toml , "a single-app scaffold uses the [project] sugar";
     assert 'kind = "mobile"' in toml;
-    assert 'client = "react-native"' in toml;
-    assert 'client_kind = "mobui"' in toml;
     assert (proj / "main.jac").exists();
     assert (proj / "theme.jac").exists();
     assert (proj / "screens" / "Home.jac").exists();
     cfg = JacConfig.discover(start_path=proj);
     assert cfg is not None;
-    assert cfg.is_workspace;
-    assert cfg.project.kind == "" , "[project] kind never coexists with [apps]";
-    app = cfg.apps["main"];
-    assert not app.implicit;
+    assert not cfg.is_workspace;
+    assert cfg.project.kind == "mobile";
+    app = cfg.resolve_app("");
+    assert app.implicit;
     assert app.kind == "mobile";
-    assert app.client == "react-native";
-    assert app.client_kind == "mobui";
-    assert cfg.resolve_app("") is app , "default-app = main resolves the bare run";
+    assert app.effective_client() == "react-native" , (
+        "a mobile app is a React Native app unless it names another client"
+    );
+    assert app.client_kind == "mobui" , "React Native implies the mobUI client kind";
     plan = plan_app_run(cfg, str(proj), app);
     assert plan.action == "build" , f"mobile: expected build, got {plan.action}";
-    assert plan.app == "main";
+    assert plan.app == "" , "an implicit app runs without an app positional";
     assert plan.flags.get("client") == "react-native";
     assert plan.entry_path.endswith("main.jac") , plan.entry_path;
     _cleanup();

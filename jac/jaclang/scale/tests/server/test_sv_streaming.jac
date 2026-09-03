@@ -40,7 +40,7 @@ obj _StubClient {
     has body_text: str,
         content_type: str = "application/json";
 
-    def post(path: str, json: any = None) -> _StubResp {
+    def post(path: str, json: any = None, headers: (dict | None) = None) -> _StubResp {
         return _StubResp(body_text=self.body_text, content_type=self.content_type);
     }
 }

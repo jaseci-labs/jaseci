@@ -7,6 +7,7 @@ import from pathlib { Path }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.compiler.frontend.constant { Constants as Con }
 import from jaclang.server { sv_client as __jac_sv }
+import from jaclang.server.bridge { BridgeUnavailable }
 import from jaclang.testing.testkit { ServingTestClient as TestClient }
 import from jaclang.scale.server.serve { JacAPIServer }
 
@@ -332,7 +333,8 @@ test "peer url: the env is used when nothing is registered" {
 
 
 # Previously any value counted as present, so a blank one resolved to "" and the
-# caller failed later with no indication of where the empty URL came from.
+# caller failed later with no indication of where the empty URL came from. The
+# unresolved peer surfaces as the bridge family's BridgeUnavailable.
 test "peer url: a blank env value raises instead of resolving to an empty URL" {
     key = __jac_sv.peer_url_env_key(_PROBE);
     saved = os.environ.get(key);
@@ -343,7 +345,7 @@ test "peer url: a blank env value raises instead of resolving to an empty URL" {
         raised = "";
         try {
             __jac_sv.resolve_url(_PROBE);
-        } except RuntimeError as err {
+        } except BridgeUnavailable as err {
             raised = str(err);
         }
 

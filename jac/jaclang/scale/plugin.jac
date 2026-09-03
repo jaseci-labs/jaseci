@@ -53,6 +53,10 @@ def scale_runtime_configured -> bool {
     );
 }
 
+def mark_scale_runtime {
+    os.environ["JAC_SCALE_RUNTIME"] = "1";
+}
+
 def scale_local_serve(
     served: RunPlan,
     fleet: list[RunPlan],
@@ -60,6 +64,7 @@ def scale_local_serve(
     dev: bool = False,
     no_client: bool = False
 ) -> int | None {
+    mark_scale_runtime();
     if not fleet or os.environ.get("JAC_SV_SIBLING") == "1" {
         return None;
     }
@@ -67,7 +72,6 @@ def scale_local_serve(
     import from .runtime.fleet { fleet_from_plans }
     import from .runtime.realizer.local_realizer { LocalRealizer }
 
-    os.environ["JAC_SCALE_RUNTIME"] = "1";
     cfg = get_config();
     if cfg is None {
         console.error("A fleet needs a jac.toml with [apps]; none was found.");
@@ -109,7 +113,7 @@ def scale_deploy(
     show_yaml: bool,
     served_app: str = ""
 ) -> int {
-    os.environ["JAC_SCALE_RUNTIME"] = "1";
+    mark_scale_runtime();
     try {
         import from jaclang.scale.runtime.realizer.kubernetes_realizer {
             KubernetesRealizer

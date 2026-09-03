@@ -66,7 +66,8 @@ obj KubernetesRealizer {
         if self.fleet is not None {
             return self.fleet;
         }
-        cfg = get_scale_config().get_jac_config();
+        import from jaclang.project.config { get_config_for_dir }
+        cfg = get_config_for_dir(code_folder);
         if cfg is None or not cfg.apps {
             return None;
         }

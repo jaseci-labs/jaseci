@@ -179,9 +179,9 @@ test "kind mobile -> build the mobile client shell (core)" {
     assert p.action == "build";
     assert p.verb == "build";
     # Must build the mobile shell, not fall through to a default .jab build.
-    assert p.flags.get("client") == "mobile";
+    assert p.flags.get("client") == "react-native";
     assert "as" not in p.flags;
-    assert "--client mobile" in p.command_line();
+    assert "--client react-native" in p.command_line();
 }
 
 # ---------------------------------------------------------------------------

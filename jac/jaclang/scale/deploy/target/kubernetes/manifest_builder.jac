@@ -306,13 +306,8 @@ obj ManifestBuilder {
         if not self.project_dir or not os.path.isdir(self.project_dir) {
             return None;
         }
-        try {
-            import from pathlib { Path }
-            import from jaclang.project.config { get_config_for_path }
-            return get_config_for_path(Path(self.project_dir));
-        } except Exception {
-            return None;
-        }
+        import from jaclang.scale.injector.bundle { _project_config }
+        return _project_config(self.project_dir);
     }
 
     def _derive_fleet(app_config: AppConfig) -> FleetSpec {
@@ -422,7 +417,8 @@ obj ManifestBuilder {
         if not client_entry {
             if self.client_entry is not None {
                 console.print(
-                    "The deploy declares no client entry; skipping the client build."
+                    "The deploy declares no client entry (client_entry = \"\"); "
+                    "skipping the client build."
                 );
             } else {
                 console.print(
@@ -507,9 +503,11 @@ obj ManifestBuilder {
         }
         stage_root = _stage_app(base, sanitized_jac_toml(base));
         stage = str(stage_root / "app");
-        dist = os.path.join(stage, ".jac", "client", "dist");
+        dist_candidates = self._client_dist_candidates(stage, entry_rel);
         try {
-            shutil.rmtree(dist, ignore_errors=True);
+            for stale in dist_candidates {
+                shutil.rmtree(stale, ignore_errors=True);
+            }
             dep_error = self._install_app_deps(stage, jac_bin, jac_env);
             if dep_error {
                 console.warning(
@@ -581,11 +579,20 @@ obj ManifestBuilder {
                     f"redeploy.\n{tail}{cause}{parked}"
                 );
             }
-            if not os.path.isfile(os.path.join(dist, "index.html")) {
+            dist = "";
+            for candidate in dist_candidates {
+                if os.path.isfile(os.path.join(candidate, "index.html")) {
+                    dist = candidate;
+                    break;
+                }
+            }
+            if not dist {
+                looked = ", ".join(
+                    [os.path.relpath(d, stage) for d in dist_candidates]
+                );
                 raise RuntimeError(
-                    f"client build produced no index.html under "
-                    f".jac/client/dist ({client_entry}); the gateway would "
-                    f"have nothing to serve."
+                    f"client build produced no index.html under {looked} "
+                    f"({client_entry}); the gateway would have nothing to serve."
                 );
             }
             target = os.path.join(project_dir, ".jac", "client", "dist");
@@ -604,6 +611,24 @@ obj ManifestBuilder {
             remove_stage_root(stage_root);
         }
         console.print("Client bundle built; shipping it to the gateway pod.");
+    }
+
+    def _client_dist_candidates(stage: str, entry_rel: any) -> list[str] {
+        import os;
+        client_dir = os.path.join(stage, ".jac", "client");
+        candidates: list[str] = [];
+        cfg = self._project_config();
+        if cfg is not None {
+            import from jaclang.client.targets.registry { client_workspace_app }
+            app = client_workspace_app(
+                cfg, os.path.join(self.project_dir, entry_rel.as_posix())
+            );
+            if app is not None {
+                candidates.append(os.path.join(client_dir, app.name, "dist"));
+            }
+        }
+        candidates.append(os.path.join(client_dir, "dist"));
+        return candidates;
     }
 
     def generate_manifests(app_config: AppConfig, image: str) -> dict[str, any] {
@@ -731,15 +756,17 @@ obj ManifestBuilder {
     }
 
     def _service_config(svc_name: str) -> dict[str, any] {
+        merged: dict[str, any] = {};
         if svc_name == GATEWAY_NAME {
             gw = self._gateway_cfg();
-            return {
-                key: gw[key]
-                for key in GATEWAY_POD_KEYS
-                if key in gw
-            };
+            merged.update(
+                {
+                    key: gw[key]
+                    for key in GATEWAY_POD_KEYS
+                    if key in gw
+                }
+            );
         }
-        merged: dict[str, any] = {};
         if self.fleet is not None {
             merged.update(self.fleet.app_config(svc_name));
         }
@@ -785,18 +812,21 @@ obj ManifestBuilder {
         if declared {
             return declared;
         }
-        fleet = self.fleet;
-        if fleet is not None and fleet.root_app and self.project_dir {
-            cfg = self._project_config();
-            if cfg is not None and cfg.apps {
+        cfg = self._project_config();
+        if cfg is not None and cfg.is_workspace {
+            return "";
+        }
+        root_member = self.fleet.root_member() if self.fleet is not None else None;
+        if root_member is not None {
+            if not self._has_client_source() {
                 return "";
             }
+            return root_member.file or "main.jac";
         }
-        if self._has_client_source() {
-            root_member = fleet.root_member() if fleet is not None else None;
-            return root_member.file if root_member is not None else "main.jac";
-        }
-        return "";
+        entry_point = str(cfg.project.entry_point or "").strip()
+            if cfg is not None
+            else "";
+        return entry_point or "main.jac";
     }
 
     def _has_client_source -> bool {

@@ -64,7 +64,7 @@ def _build_app(
         try {
             plan = plan_app_run(cfg, project_root, app, entry_override=entry_override);
         } except ValueError as e {
-            if not entry_override {
+            if not entry_override and projection not in ("wheel", "sdist", "npm") {
                 console.error(str(e));
                 return 2;
             }

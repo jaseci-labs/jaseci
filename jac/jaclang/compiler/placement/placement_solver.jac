@@ -295,7 +295,9 @@ def _ref_top_ids(module: uni.Module, elem: uni.UniNode) -> set[int] {
 }
 
 def _is_sv_import(elem: uni.UniNode) -> bool {
-    return isinstance(elem, uni.Import) and elem.is_service_import;
+    import from jaclang.compiler.driver.boundary_classify { import_crosses_apps }
+    return isinstance(elem, uni.Import)
+        and (elem.is_service_import or import_crosses_apps(elem));
 }
 
 def _named_top_element(target: uni.Module, name: str) -> (uni.UniNode | None) {
@@ -353,7 +355,7 @@ def _closure_pullable(
         return True;
     }
     if isinstance(top, uni.Import) {
-        if top.is_service_import {
+        if _is_sv_import(top) {
             return True;
         }
         source_mod = _import_source_module(top, prog);
@@ -783,7 +785,7 @@ def _pull_into_target(
 
 def _pull_boundary_import(imp: uni.Import, module: uni.Module, prog: any) -> int {
     if (
-        imp.is_service_import
+        _is_sv_import(imp)
         or imp.is_virtual_jac
         or imp.has_string_path
         or imp.from_loc is None

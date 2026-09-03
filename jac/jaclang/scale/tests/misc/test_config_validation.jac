@@ -114,9 +114,7 @@ test "schema defaults agree with runtime defaults" {
 
 test "reporting does not raise outside strict mode" {
     os.environ.pop(STRICT_ENV, None);
-    report_schema_findings(
-        validate_scale_config({"microservice": {}}), "scale", STRICT_ENV
-    );
+    report_schema_findings(validate_scale_config({"gatway": {}}), "scale", STRICT_ENV);
 }
 
 test "strict env raises on unknown keys" {
@@ -125,7 +123,7 @@ test "strict env raises on unknown keys" {
         raised = False;
         try {
             report_schema_findings(
-                validate_scale_config({"microservice": {}}), "scale", STRICT_ENV
+                validate_scale_config({"gatway": {}}), "scale", STRICT_ENV
             );
         } except ValueError as e {
             raised = True;

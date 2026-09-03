@@ -256,7 +256,15 @@ impl _build_workspace(root_dir: str, toml_path: str, doc: dict) -> WorkspaceSpec
                 `entry=entry_abs,
                 file_rooted=file_rooted,
                 client=str(raw.get('client', '') or KIND_CLIENT_TARGET.get(kind, '')),
-                client_kind=str(raw.get('client_kind', '') or DEFAULT_CLIENT_KIND),
+                client_kind=str(
+                    raw.get('client_kind', '')
+                        or default_client_kind(
+                            str(
+                                raw.get('client', '')
+                                    or KIND_CLIENT_TARGET.get(kind, '')
+                            )
+                        )
+                ),
                 platform=str(raw.get('platform', '') or ''),
                 route=str(raw.get('route', '') or ''),
                 pins=pins,
@@ -279,7 +287,7 @@ impl _build_workspace(root_dir: str, toml_path: str, doc: dict) -> WorkspaceSpec
             ),
             file_rooted=False,
             client=KIND_CLIENT_TARGET.get(kind, ''),
-            client_kind=DEFAULT_CLIENT_KIND,
+            client_kind=default_client_kind(KIND_CLIENT_TARGET.get(kind, '')),
             pins=dict(base_pins),
             own_pins={},
             npm_names=set(base_npm),

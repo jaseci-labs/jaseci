@@ -9,7 +9,7 @@ def app_client_target(app: AppConfig, requested: str = "") -> str {
 }
 
 def client_workspace_app(config: any, entry_path: str = "") -> AppConfig | None {
-    if config is None or not config.apps {
+    if config is None or not config.is_workspace or not config.apps {
         return None;
     }
     if not entry_path {
@@ -19,7 +19,8 @@ def client_workspace_app(config: any, entry_path: str = "") -> AppConfig | None 
     if not entry_path {
         return None;
     }
-    return config.app_for_path(os.path.abspath(entry_path));
+    app = config.app_for_path(os.path.abspath(entry_path));
+    return None if app is None or app.implicit else app;
 }
 
 def client_app_dir_for(config: any, entry_path: str = "") -> Path {

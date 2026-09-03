@@ -1142,7 +1142,7 @@ test "start dev with client does initial compilation" {
             os.chdir(temp_dir);
             # Create a client project
             process = Popen(
-                ["jac", "create", "--kind", "mobile", test_project_name],
+                ["jac", "create", "--kind", "web-app", test_project_name],
                 stdin=PIPE,
                 stdout=PIPE,
                 stderr=PIPE,

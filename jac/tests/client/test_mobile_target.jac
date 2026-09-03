@@ -48,7 +48,7 @@ test "target factory resolves mobile via registry" {
     impl_content = impl_path.read_text();
     register_content = register_path.read_text();
 
-    assert "return self.create(target_type.value, project_dir)" in impl_content;
+    assert "target_name = normalize_client_target(name)" in impl_content;
     assert "registry.get(target_name)" in impl_content;
     assert "registry.register(MobileTarget())" in register_content;
     assert "MobileTarget" in register_content;
@@ -73,10 +73,10 @@ test "start exposes mobile dev flags and cli wires cap live-reload" {
     # the client module consumes them natively in run_client_start.
     exec_jac = (_client_dir.parent / "cli" / "commands" / "execution.jac").read_text();
     assert '"host"' in exec_jac;
-    assert "Mobile serving: android or ios" in exec_jac;
+    assert "mobile serving: android or ios" in exec_jac;
     c = (_client_dir / "cli.jac").read_text();
     assert "JAC_MOBILE_DEV_HOST" in c;
-    assert 'os.environ["JAC_MOBILE_PLATFORM"] = str(platform)' in c;
+    assert 'os.environ["JAC_MOBILE_PLATFORM"] = str(app_platform)' in c;
     mobile_impl = (
         _client_dir / "targets" / "impl" / "mobile_target.impl.jac"
     ).read_text();

@@ -2,12 +2,8 @@
 name = "{{name}}"
 version = "0.1.0"
 description = "A cross-platform mobUI app: {{name}}"
-default-app = "main"
-
-[apps.main]
+entry-point = "main.jac"
 kind = "mobile"
-client = "react-native"
-client_kind = "mobui"
 
 [dependencies]
 

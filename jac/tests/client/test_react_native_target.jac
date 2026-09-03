@@ -982,14 +982,13 @@ test "client config supports target-scoped npm table for react native" {
             "[project]\n"
             "name = \"rn-target-deps\"\n"
             "version = \"1.0.0\"\n"
-            "entry-point = \"main.jac\"\n\n"
+            "entry-point = \"main.jac\"\n"
+            "kind = \"mobile\"\n\n"
             "[dependencies.npm]\n"
             "react = \"^19.2.0\"\n\n"
             "[dependencies.npm.react_native]\n"
             "react-native = \"0.76.6\"\n"
-            "\"expo-secure-store\" = \"~14.0.1\"\n\n"
-            "[client]\n"
-            "target = \"react_native\"\n"
+            "\"expo-secure-store\" = \"~14.0.1\"\n"
         );
         (project_dir / "jac.toml").write_text(jac_toml, encoding="utf-8");
         cfg = JacClientConfig(project_dir=project_dir).load();

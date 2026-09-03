@@ -505,7 +505,7 @@ test "client targets normalize and kind specs carry client_target and has_server
     assert KIND_SPECS["service-mesh"].has_server;
     assert KIND_SPECS["web-static"].client_target == "static";
     assert not KIND_SPECS["web-static"].has_server;
-    assert KIND_SPECS["mobile"].client_target == "mobile";
+    assert KIND_SPECS["mobile"].client_target == "react-native";
     assert KIND_SPECS["desktop"].client_target == "desktop";
     assert KIND_SPECS["js-package"].client_target == "web";
     assert KIND_SPECS["js-package"].codespace == "client";

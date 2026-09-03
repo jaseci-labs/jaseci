@@ -1222,6 +1222,8 @@ impl serve(
         return 1;
     }
 
+    import from jaclang.scale.plugin { mark_scale_runtime }
+    mark_scale_runtime();
     fleet_rc = _serve_fleet(cfg, served, filename, port, fleet, dev, no_client);
     if fleet_rc is not None {
         return fleet_rc;

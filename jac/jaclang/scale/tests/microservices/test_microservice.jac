@@ -271,7 +271,7 @@ test "sv-to-sv: sv-imported walker does not load provider in-process" {
 }
 
 glob _SECURE_PROVIDER_SRC: str = '"""Secure downstream provider fixture.\n\n`report_status` (function) and `PrivateAudit` (walker) carry NO :pub marker,\nso the scale serve layer treats them as auth-required. A cross-service caller\nthat reaches these endpoints without a valid token is rejected by the real\ndownstream enforcement in serve.endpoints (requires_auth).\n"""\n\nobj AuditEntry {\n    has actor: str = "",\n        action: str = "",\n        allowed: bool = False;\n}\n\ndef report_status(actor: str) -> AuditEntry {\n    return AuditEntry(actor=actor, action="status", allowed=True);\n}\n\nwalker PrivateAudit {\n    has action: str;\n\n    can run with Root entry {\n        report AuditEntry(actor="downstream", action=self.action, allowed=True);\n    }\n}\n',
-     _SECURE_CONSUMER_SRC: str = '"""Consumer that imports the private downstream function report_status."""\n\nimport from secure_service { report_status, AuditEntry }\n\ndef:pub proxy_status(actor: str) -> AuditEntry {\n    return report_status(actor);\n}\n';
+     _SECURE_CONSUMER_SRC: str = '"""Consumer that imports the private downstream function report_status."""\n\nimport from secure_service { report_status, AuditEntry }\n\nasync def:pub proxy_status(actor: str) -> AuditEntry {\n    return await report_status(actor);\n}\n';
 
 def _mint_user_token(srv: JacAPIServer, username: str) -> tuple[str, str] {
     user_manager = srv.user_manager;
@@ -406,10 +406,17 @@ test "sv boundary: unauthenticated cross-service call is rejected downstream" {
     try {
         write_service(tmp, "secure_service", _SECURE_PROVIDER_SRC);
         write_service(tmp, "secure_consumer", _SECURE_CONSUMER_SRC);
-        # Declare the provider so the import lowers to an RPC stub (#7772), making
-        # the call cross-service and subject to the real downstream auth enforcement.
+        # Declare both sides as file-rooted service apps so the import lowers to a
+        # typed-async RPC stub (#7772, #8823), making the call cross-service and
+        # subject to the real downstream auth enforcement.
         toml_path = Path(tmp) / "jac.toml";
-        toml_path.write_text(toml_path.read_text() + '\nsecure_service = "/secure"\n');
+        toml_path.write_text(
+            toml_path.read_text()
+                + '\n[apps.secure_service]\nkind = "service"\n'
+                + 'entry-point = "secure_service.jac"\nroute = "/secure"\n'
+                + '\n[apps.secure_consumer]\nkind = "service"\n'
+                + 'entry-point = "secure_consumer.jac"\nroute = "/secure-consumer"\n'
+        );
         prov = make_server("secure_service", tmp);
         cons = make_server("secure_consumer", tmp);
 

@@ -31,11 +31,15 @@ project and registers it as `[apps.mobile]`.
 `jac.toml` declares the app:
 
 ```toml
-[apps.main]
-kind = "mobile"
-client = "react-native"      # the client shell target (Expo + Metro)
-client_kind = "mobui"        # bans raw HTML: only @jac/mobui primitives compile
+[project]
+entry-point = "main.jac"
+kind = "mobile"              # client = "react-native" (Expo + Metro), client_kind = "mobui"
 ```
+
+A `mobile` app is a React Native app with the mobUI client kind, so the two
+keys need spelling out only when an app overrides them (`client = "mobile"`
+picks the Capacitor shell instead). Inside a workspace the same keys live on
+the app's table, `[apps.mobile]`.
 
 `client_kind = "mobui"` turns on the compiler guard: any lowercase HTML tag
 (`<div>`, `<span>`, `<button>`, ...) that does not resolve to an in-scope
@@ -58,7 +62,7 @@ files, no `className`.
 
 ```
 {{name}}/
-├── jac.toml                 # [apps.main] + npm dependencies
+├── jac.toml                 # [project] kind = "mobile" + npm dependencies
 ├── main.jac                 # backend (Todo node, AddTodo / ListTodos walkers) + the app shell
 ├── theme.jac                # design tokens (obj types) + the StyleSheet
 ├── screens/

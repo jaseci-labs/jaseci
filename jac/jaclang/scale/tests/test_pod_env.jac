@@ -80,7 +80,8 @@ test "an app with no [apps] deploys as one pod plus the gateway" {
     # named after the app, not its entry file: main.jac must not turn every
     # monolith into a "main" service.
     assert set(specs.keys()) == {"littlex", GATEWAY_NAME};
-    assert builder.fleet.root_app == "littlex";
+    fleet = builder.fleet;
+    assert fleet is not None and fleet.root_app == "littlex";
     env = {e["name"]: e["value"] for e in specs["littlex"]["containers"][0]["env"]};
     assert env["JAC_SV_NAME"] == "littlex";
     assert env["JAC_SV_FILE"] == "main.jac";

@@ -136,8 +136,8 @@ glob KIND_SPECS: dict[str, KindSpec] = {
                  action="build",
                  verb="build",
                  summary="Build mobile app bundle",
-                 flags={"client": "mobile"},
-                 client_target="mobile"
+                 flags={"client": "react-native"},
+                 client_target="react-native"
              )
          ]
      },
@@ -167,6 +167,10 @@ def kind_entry(kind: str) -> str {
 
 def is_valid_kind(kind: str) -> bool {
     return kind in KIND_SPECS;
+}
+
+def default_client_kind(client_target: str) -> str {
+    return "mobui" if client_target == "react-native" else "web";
 }
 
 def normalize_client_target(name: str) -> str {

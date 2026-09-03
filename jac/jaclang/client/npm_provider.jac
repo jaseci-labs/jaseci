@@ -33,8 +33,8 @@ def target_scoped_npm_deps(config: JacConfig, target_name: str) -> dict[str, str
     npm_plugin_deps: dict = dict(config.plugin_dependencies.get("npm", {}));
     deps: dict[str, str] = {};
     key1 = str(target_name or "").strip();
-    key2 = key1.replace("_", "-");
-    for key in [key1, key2] {
+    keys = [key1, key1.replace("_", "-"), key1.replace("-", "_")];
+    for key in dict.fromkeys(keys) {
         if key == "" {
             continue;
         }

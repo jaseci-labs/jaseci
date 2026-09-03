@@ -190,10 +190,22 @@ def _control_build(cwd: str) -> any {
 }
 
 
+"""Every built dist under .jac/client: the deploy ships to .jac/client/dist,
+while a raw `jac build` writes the app's own .jac/client/<app>/dist."""
 def _dist_mentions(project_dir: str, needle: str) -> list[str] {
-    dist = Path(project_dir) / ".jac" / "client" / "dist";
+    client = Path(project_dir) / ".jac" / "client";
+    dists = [client / "dist"]
+        + [
+            child / "dist"
+            for child in sorted(client.iterdir())
+            if child.is_dir() and child.name != "node_modules"
+        ]
+        if client.is_dir()
+        else [];
     return [
-        p.relative_to(dist).as_posix()
+        p.relative_to(client).as_posix()
+        for dist in dists
+        if dist.is_dir()
         for p in sorted(dist.rglob("*"))
         if p.is_file() and needle in p.read_bytes().decode("utf-8", errors="ignore")
     ];
@@ -481,7 +493,7 @@ test "an undeclared entry that does not exist skips the build and says so" {
 }
 
 
-test "entry = false is not a declared entry" {
+test "client_entry = \"\" is not a declared entry" {
     project_dir = _app(_PARKED);
     try {
         assert _builder(project_dir, client_entry="")._declared_client_entry() == "";
@@ -493,14 +505,12 @@ test "entry = false is not a declared entry" {
 }
 
 
-test "entry = false with no client source skips the build and says so" {
+test "client_entry = \"\" with no client source skips the build and says so" {
     project_dir = _app(_PARKED);
     out = io.StringIO();
     try {
         with redirect_stdout(out) {
-            _builder(project_dir, client={"entry": False})._build_client_bundle(
-                project_dir
-            );
+            _builder(project_dir, client_entry="")._build_client_bundle(project_dir);
         }
     } finally {
         shutil.rmtree(project_dir, ignore_errors=True);
@@ -509,20 +519,20 @@ test "entry = false with no client source skips the build and says so" {
         f"a deploy with no client must say it is skipping the build: "
         f"{out.getvalue()!r}"
     );
-    assert "entry = false" in out.getvalue() , (
+    assert 'client_entry = ""' in out.getvalue() , (
         f"the skip must name the explicit opt-out: {out.getvalue()!r}"
     );
 }
 
 
-test "entry = false with client source still skips the build" {
+test "client_entry = \"\" with client source still skips the build" {
     project_dir = _app(_PARKED);
     os.mkdir(os.path.join(project_dir, "pages"));
-    mb = _builder(project_dir, client={"entry": False});
+    mb = _builder(project_dir, client_entry="");
     out = io.StringIO();
     try {
         assert mb._client_entry() == "" , (
-            "an explicit entry = false must win over the client-source guess"
+            "an explicit client_entry = \"\" must win over the client-source guess"
         );
         with redirect_stdout(out) {
             mb._build_client_bundle(project_dir);
@@ -532,7 +542,7 @@ test "entry = false with client source still skips the build" {
         shutil.rmtree(project_dir, ignore_errors=True);
     }
     assert not built , "the skip must happen before anything is built";
-    assert "entry = false" in out.getvalue() , (
+    assert 'client_entry = ""' in out.getvalue() , (
         f"the skip must name the explicit opt-out: {out.getvalue()!r}"
     );
     assert "skipping the client build" in out.getvalue() , (

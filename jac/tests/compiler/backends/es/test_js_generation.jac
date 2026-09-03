@@ -1057,8 +1057,10 @@ test "bridge wrapper covers posonly and kwonly params" {
         + js_code
     );
     # All three params must appear in the RPC args object the wrapper posts.
+    # The server is a service app of the fixture workspace, so the call also
+    # carries the provider's app and route after the args object.
     assert (
-        '__jacCallFunction("query",{"filter":filter,"query":query,"scope":scope})'
+        '__jacCallFunction("query",{"filter":filter,"query":query,"scope":scope},'
         in compact_js
     ) , (
         "sv-import wrapper must forward posonly + kwonly params in the RPC "

@@ -451,8 +451,11 @@ impl ViteBundler._generate_vite_config_content(
         entry_relative = entry_file.as_posix();
     }
 
+    entry_dir = entry_relative.rpartition('/')[0];
     if entry_relative.endswith('/build/main.js') {
         compiled_base = entry_relative[:-13] + '/compiled';
+    } elif entry_dir.rpartition('/')[2] == 'compiled' {
+        compiled_base = entry_dir;
     } else {
         compiled_base = 'compiled';
     }

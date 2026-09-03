@@ -679,6 +679,63 @@ test "sv_service_call falls back to sv_client.resolve_url when hookspec empty" {
 }
 
 
+import socket;
+import threading;
+
+
+"""Count round trips and delivered POSTs apart; an abandoned connect is not a delivery."""
+def _start_counting_server(counts: dict, reply: (bytes | None)) -> tuple {
+    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
+    srv.bind(("127.0.0.1", 0));
+    srv.listen(8);
+    port = srv.getsockname()[1];
+    held: list = [];
+
+    def serve {
+        while True {
+            try {
+                (conn, _addr) = srv.accept();
+            } except OSError {
+                return;
+            }
+            counts["conns"] = counts["conns"] + 1;
+            held.append(conn);
+            try {
+                data = conn.recv(65536);
+            } except OSError {
+                continue;
+            }
+            if not data.startswith(b"POST ") {
+                continue;
+            }
+            counts["posts"] = counts["posts"] + 1;
+            if reply is not None {
+                try {
+                    conn.sendall(reply);
+                    conn.close();
+                } except OSError {}
+            }
+        }
+    }
+    t = threading.Thread(target=serve, daemon=True);
+    t.start();
+    return (srv, held, port);
+}
+
+
+def _stop_counting_server(srv: any, held: list) {
+    try {
+        srv.close();
+    } except OSError {}
+    for conn in held {
+        try {
+            conn.close();
+        } except OSError {}
+    }
+}
+
+
 test "walker_call sends exactly one POST to a peer that never replies" {
     counts: dict = {"conns": 0, "posts": 0};
     (srv, held, port) = _start_counting_server(counts, None);
