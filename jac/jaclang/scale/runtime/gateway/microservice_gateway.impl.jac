@@ -454,6 +454,19 @@ impl MicroserviceGateway.forward_to_app(
     return await self.forward_root_path(request, app, path);
 }
 
+impl MicroserviceGateway.forward_static_to_app(
+    request: Request, path: str
+) -> Response | None {
+    if request.method != "GET" or not path.startswith("/static/") {
+        return None;
+    }
+    app = self.registry.fleet_app_entry();
+    if app is None or not app.is_routable() {
+        return None;
+    }
+    return await self.forward_root_path(request, app, path);
+}
+
 impl MicroserviceGateway.resolve_learned_owner(path: str) -> ServiceEntry | None {
     svc_name: str = self.route_table.owner(path);
     if svc_name and svc_name not in self.registry.entries {
@@ -903,6 +916,14 @@ impl MicroserviceGateway.setup -> ServingApp {
                     app_svc = gw.app_service();
                     svc_label = app_svc.name if app_svc is not None else "__app__";
                     resp = served_by_app;
+                }
+            }
+            if resp is None {
+                static_from_app = await gw.forward_static_to_app(request, path);
+                if static_from_app is not None {
+                    fleet_app = gw.registry.fleet_app_entry();
+                    svc_label = fleet_app.name if fleet_app is not None else "__app__";
+                    resp = static_from_app;
                 }
             }
             if resp is None {

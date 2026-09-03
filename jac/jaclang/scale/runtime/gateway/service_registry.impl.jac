@@ -41,6 +41,15 @@ impl ServiceRegistry.app_entry -> ServiceEntry | None {
     return None;
 }
 
+impl ServiceRegistry.fleet_app_entry -> ServiceEntry | None {
+    for `entry in self.entries.values() {
+        if `entry.is_app {
+            return `entry;
+        }
+    }
+    return None;
+}
+
 impl ServiceRegistry.health_summary -> dict[str, dict] {
     result: dict[str, dict] = {};
     for (name, `entry) in self.entries.items() {

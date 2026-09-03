@@ -36,6 +36,7 @@ obj ServiceRegistry {
     def deregister(name: str) -> bool;
     def match_route(path: str) -> ServiceEntry | None;
     def app_entry -> ServiceEntry | None;
+    def fleet_app_entry -> ServiceEntry | None;
     def health_summary -> dict[str, dict];
     def _rebuild_prefix_index -> None;
 }

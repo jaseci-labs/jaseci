@@ -1037,7 +1037,7 @@ jobs:
         if: failure()
         run: |
           pip install py-spy >/dev/null 2>&1 || true
-          for p in $(pgrep -f "jac run --serve main.jac"); do
+          for p in $(pgrep -f "jac run --serve"); do
             echo "=== py-spy dump pid $p ==="
             sudo env "PATH=$PATH" py-spy dump --pid "$p" --nonblocking || true
           done
@@ -1077,12 +1077,6 @@ jobs:
         env:
           JAC_DOCS_LOCAL: ${{ github.workspace }}
         run: |
-          # The single-process pass above warmed .jac/cache, and a module
-          # served warm reaches ES codegen with call_kind unset (#8881), so
-          # the app service's bundle would render an error boundary. Clearing
-          # the analysis cache is enough to get a clean bundle; drop this line
-          # when #8881 lands.
-          rm -rf .jac/cache
           timeout 1800 jac run --serve --ms --port 8000 main.jac \
             > /tmp/site-ms.log 2>&1 &
           MS_PID=$!
@@ -1119,6 +1113,15 @@ jobs:
         env:
           SITE_JOURNEY_ARTIFACTS: /tmp
         run: bash scripts/site-browse-journey.sh http://localhost:8000
+
+      - name: Dump gateway and service thread stacks on failure
+        if: failure()
+        run: |
+          pip install py-spy >/dev/null 2>&1 || true
+          for p in $(pgrep -f "jac run --serve"); do
+            echo "=== py-spy dump pid $p ==="
+            sudo env "PATH=$PATH" py-spy dump --pid "$p" --nonblocking || true
+          done
 
       - name: Gateway and service logs
         if: always()

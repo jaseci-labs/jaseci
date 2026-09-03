@@ -336,6 +336,7 @@ impl ServiceProcessManager._await_lead(name: str) -> None {
 }
 
 impl ServiceProcessManager.start_all -> None {
+    self._booting = True;
     for (_name, `entry) in self.registry.entries.items() {
         self._prepare_ports(`entry);
     }
@@ -475,10 +476,10 @@ impl ServiceProcessManager.check_all_health -> dict[str, bool] {
             `entry.status = ServiceStatus.HEALTHY;
             self._failure_counts[name] = 0;
         } else {
-            self._failure_counts[name] = self._failure_counts.get(name, 0) + 1;
             if self._booting {
                 continue;
             }
+            self._failure_counts[name] = self._failure_counts.get(name, 0) + 1;
             if self._failure_counts[name] >= self._max_failures {
                 if `entry.status != ServiceStatus.UNHEALTHY {
                     logger.warning(
@@ -525,7 +526,7 @@ impl ServiceProcessManager.start_health_monitor(interval: float | None = None) -
     poll_interval: float = (
         interval if interval is not None else self._health_monitor_interval
     );
-    self._booting = False;
+    self.end_boot();
     self._health_monitor_stop = threading.Event();
     self._health_monitor_thread = threading.Thread(
         target=_health_monitor_loop,
@@ -547,4 +548,12 @@ impl ServiceProcessManager.stop_health_monitor -> None {
     }
     self._health_monitor_thread = None;
     self._health_monitor_stop = None;
+}
+
+
+impl ServiceProcessManager.end_boot -> None {
+    self._booting = False;
+    for name in list(self._failure_counts.keys()) {
+        self._failure_counts[name] = 0;
+    }
 }

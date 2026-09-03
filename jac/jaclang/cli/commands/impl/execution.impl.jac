@@ -223,9 +223,10 @@ def _serve_with(entry_path: str, plan_flags: dict, over: dict, main: bool) -> in
         }
     }
     for (k, v) in over.items() {
-        if k in kw {
-            kw[k] = v;
+        if k not in kw {
+            raise ValueError(f"serve override {k!r} is not a serve argument");
         }
+        kw[k] = v;
     }
     return serve(filename=entry_path, main=main, **kw);
 }

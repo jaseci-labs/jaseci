@@ -24,7 +24,7 @@ obj ServiceProcessManager {
         _next_port: int = 8001,
         dev_mode: bool = False,
         app_boot_timeout: float = 900.0,
-        _booting: bool = True,
+        _booting: bool = False,
         _boot_health_timeout: float = 60.0,
         _health_monitor_interval: float = 10.0,
         _health_monitor_thread: (any | None) = None,
@@ -45,5 +45,6 @@ obj ServiceProcessManager {
     def check_health(name: str) -> bool;
     def check_all_health -> dict[str, bool];
     def start_health_monitor(interval: float | None = None) -> None;
+    def end_boot -> None;
     def stop_health_monitor -> None;
 }
