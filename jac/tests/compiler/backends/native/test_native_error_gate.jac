@@ -44,25 +44,12 @@ glob BAD_NA_SOURCE: str = (
          "    print(answer());\n"
          "}\n"
      ),
-     # A lambda parameter/return with no `: T` / `-> T` at all (issue
-     # #7139). Every *named* function/method parameter without one is
-     # already rejected by `ast_validation_pass` (E0052) -- but
-     # `enter_param_var` explicitly exempts a `FuncSignature` whose parent
-     # is a `LambdaExpr`. The type evaluator then infers the parameter's
-     # type from context instead (here: from the `Callable[[str], str]`
-     # slot `f` is passed into) and stamps it onto `param.type` -- or
-     # refuses with E1119 if nothing can be inferred. Likewise the return
-     # type is inferred onto the lambda expression's own semantic type
-     # (`FunctionType.return_type`) from its body.
-     #
-     # Native codegen's own `_codegen_lambda` looked only at `type_tag`
-     # (the syntactic annotation) for both, defaulting straight to `i64`
-     # whenever it was absent -- even though the evaluator had already
-     # resolved a real type (`str` here) that `_resolve_jac_type`/
-     # `_lower_type` know how to lower correctly. A `str` argument's
-     # pointer would silently be laid out as `i64` in the lambda's own
-     # signature, with no diagnostic at all (E1119 does not fire, since
-     # inference *did* succeed).
+     # A lambda param/return with no annotation (#7139). Lambdas are the
+     # one case exempt from Jac's "every parameter needs a type" rule
+     # (E0052) -- the type evaluator infers the type from context instead
+     # (here: `str`, from the `Callable[[str], str]` slot `f` fills).
+     # `_codegen_lambda` used to ignore that inferred type and default to
+     # `i64` whenever nothing was written down, with no diagnostic.
      UNTYPED_LAMBDA_INFERRED_SOURCE: str = (
          "def call_str(f: Callable[[str], str]) -> str {\n"
          "    return f(\"hello\");\n"
