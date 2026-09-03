@@ -110,17 +110,18 @@ test "version list orders releases desc then dev and dedupes per label" {
     h1 = (root +>:HasHub():+> DocsHub(built_at="2026-01-01T00:00:00Z")) as DocsHub;
     h2 = (root +>:HasHub():+> DocsHub(built_at="2026-01-02T00:00:00Z")) as DocsHub;
     h1 +>:HasVersion():+> DocVersion(
-        label="dev", git_ref="main", fetched_at="2026-01-01T00:00:00Z", pages=10
+        label="dev", jac_version="0.34.0", fetched_at="2026-01-01T00:00:00Z", pages=10
     );
     h1 +>:HasVersion():+> DocVersion(
-        label="v0.33", git_ref="v0.33.0", fetched_at="2026-01-01T00:00:00Z", pages=20
+        label="v0.33", jac_version="0.33.0", fetched_at="2026-01-01T00:00:00Z", pages=20
     );
     h2 +>:HasVersion():+> DocVersion(
-        label="dev", git_ref="main", fetched_at="2026-01-02T00:00:00Z", pages=11
+        label="dev", jac_version="0.34.0", fetched_at="2026-01-02T00:00:00Z", pages=11
     );
     got = _version_list();
     assert [v.label for v in got] == ["v0.33", "dev"];
     assert got[1].pages == 11;
+    assert got[0].jac_version == "0.33.0";
     assert (_get_hub() as DocsHub).built_at == "2026-01-02T00:00:00Z";
     assert _version("dev")[0].pages == 11;
     assert _version("latest")[0].pages == 20;
@@ -144,7 +145,7 @@ test "latest alias resolves to newest release label" {
 test "detached hubs stay invisible until attached" {
     side_hub = DocsHub(built_at="2026-01-03T00:00:00Z");
     side_hub +>:HasVersion():+> DocVersion(
-        label="ghost", git_ref="main", fetched_at="2026-01-03T00:00:00Z"
+        label="ghost", jac_version="0.0.0", fetched_at="2026-01-03T00:00:00Z"
     );
     seen = _get_hub();
     assert seen is None or jid(seen) != jid(side_hub);
