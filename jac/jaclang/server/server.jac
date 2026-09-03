@@ -1,6 +1,5 @@
 import asyncio;
 import dataclasses;
-import hashlib;
 import inspect;
 import json;
 import os;
@@ -60,6 +59,7 @@ obj UserManager {
     def _ensure_connection -> None;
     def create_user(username: str, password: str) -> dict[str, str];
     def authenticate(username: str, password: str) -> (dict[(str, str)] | None);
+    def _rehash_password(username: str, password: str) -> None;
     def validate_token(token: str) -> (str | None);
     def get_root_id(username: str) -> (str | None);
     def reset_root(username: str) -> (str | None);
@@ -131,7 +131,8 @@ obj ModuleIntrospector {
         _function_access: dict[(str, bool)] = {},
         _walker_access: dict[(str, bool)] = {},
         _spa_routes_loaded: bool = False,
-        _spa_route_patterns: (list[str] | None) = None;
+        _spa_route_patterns: (list[str] | None) = None,
+        dev_mode: bool = False;
 
     def postinit -> None;
     def load(force_reload: bool = False) -> None;
@@ -161,6 +162,9 @@ obj ModuleIntrospector {
     def _spa_route_matches(pattern: str, segments: list[str]) -> bool;
     def is_auth_required_for_function(func_name: str) -> bool;
     def is_auth_required_for_walker(walker_name: str) -> bool;
+    def restspec_routes -> list[tuple[str, str, any]];
+    def declared_api_paths -> list[str];
+    def client_claimed_paths(candidates: list[str]) -> list[str];
 }
 
 obj AuthHandler {
@@ -221,7 +225,8 @@ obj JacAPIServer {
         execution_handler: ExecutionHandler postinit,
         server: any postinit,
         app: any postinit,
-        scheduler: Scheduler postinit;
+        scheduler: Scheduler postinit,
+        dev_mode: bool = False;
 
     def _make_user_manager -> UserManager;
 

@@ -59,8 +59,7 @@ walker BoundaryAnalysisPass(UniPass) {
         ),
         _imported_native_modules: dict[(str, tuple[(str, InteropContext)])] = field(
             default_factory=`dict
-        ),
-        _stamp_call_kinds: bool = False;
+        );
 
     def before_pass -> None;
     def _resolved_native_decl(name_node: (UniNode | None)) -> (Ability | None);
@@ -74,7 +73,6 @@ walker BoundaryAnalysisPass(UniPass) {
     def _native_source_module_of(mod: (Module | None)) -> (str | None);
     def _register_native_absorb(nd: Import) -> None;
     can enter_import with Import entry;
-    can exit_func_call with FuncCall exit;
     def _register_sv_import(
         nd: Import, module_name: str, caller_ctx: InteropContext
     ) -> None;

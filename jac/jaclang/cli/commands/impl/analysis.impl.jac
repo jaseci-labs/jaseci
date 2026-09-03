@@ -46,13 +46,15 @@ def _diag_wire(alert: any) -> dict[(str, any)] {
     };
 }
 
+def _check_rss_cap_mb -> int {
+    import from jaclang.cli.workpool { env_int }
+    return env_int("JAC_CHECK_RECYCLE_MB", 3072);
+}
+
 def _check_retire(served: int, rss_mb: int) -> bool {
     import from jaclang.cli.workpool { env_int, should_retire }
     return should_retire(
-        served,
-        env_int("JAC_CHECK_RECYCLE", 0),
-        rss_mb,
-        env_int("JAC_CHECK_RECYCLE_MB", 4096)
+        served, env_int("JAC_CHECK_RECYCLE", 0), rss_mb, _check_rss_cap_mb()
     );
 }
 
@@ -235,7 +237,12 @@ impl check(
     total_to_check = len(all_files);
     cfg = get_config();
     raw_jobs = jobs_setting("check", jobs, cfg.dev if cfg else None);
-    workers = resolve_jobs(raw_jobs, env_var="JAC_CHECK_JOBS");
+
+    workers = resolve_jobs(
+        raw_jobs,
+        env_var="JAC_CHECK_JOBS",
+        worker_bytes=_check_rss_cap_mb() * 1024 * 1024
+    );
     use_pool = (
         pool_available()
         and not forced_serial(raw_jobs)
@@ -308,6 +315,10 @@ impl check(
         crash_prefix="jac-check-crash-"
     );
     if use_pool {
+        import from jaclang.runtime.runtime { JacRuntime }
+        try {
+            JacRuntime.get_compiler().ensure_stub_catalog();
+        } except Exception {}
         pool.run();
     } else {
         pool.run_inline();
@@ -1394,10 +1405,22 @@ impl `test(
         }
         return raw;
     }
+    if (test_name and not paths) {
+        console.error(
+            "Error: --test_name requires a filepath. "
+            "Running by name across all files is ambiguous.\n"
+            "Usage: jac test <file.jac> --test_name <name>"
+        );
+        return 1;
+    }
+
     roots: (str | list[str]) = directory;
-    if (not paths and not directory and cfg) {
-        cfg_dirs = cfg.`test.directories
-            or ([cfg.`test.directory] if cfg.`test.directory else []);
+    if (not paths and not directory) {
+        cfg_dirs: list[str] = [];
+        if cfg {
+            cfg_dirs = cfg.`test.directories
+                or ([cfg.`test.directory] if cfg.`test.directory else []);
+        }
         resolved: list[str] = [];
         for raw in cfg_dirs {
             rt = _rooted(raw);
@@ -1412,18 +1435,12 @@ impl `test(
         }
         if resolved {
             roots = resolved;
+        } else {
+            paths = [cfg_root or os.getcwd()];
         }
     }
     iso_pats = [_rooted(p) for p in (cfg.`test.isolate if cfg else [])];
     ser_pats = [_rooted(p) for p in (cfg.`test.serial if cfg else [])];
-    if (test_name and not paths) {
-        console.error(
-            "Error: --test_name requires a filepath. "
-            "Running by name across all files is ambiguous.\n"
-            "Usage: jac test <file.jac> --test_name <name>"
-        );
-        return 1;
-    }
     for fp in paths {
         if not Path(fp).exists() {
             console.error(

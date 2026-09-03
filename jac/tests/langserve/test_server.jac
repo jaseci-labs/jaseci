@@ -1485,3 +1485,20 @@ test "test_format_document_lintfix" {
         teardown_test();
     }
 }
+
+test "an embedded server leaves the process's root logger level alone" {
+    import logging;
+    root_logger = logging.getLogger();
+    before = root_logger.level;
+    setup_test();
+    try {
+        create_server(FIXTURE_DIR);
+        assert root_logger.level == before , (
+            f"JacLangServer() moved the root logger level from {before} to "
+            f"{root_logger.level}; quieting the process belongs to the stdio "
+            "entry point, not the engine"
+        );
+    } finally {
+        teardown_test();
+    }
+}
