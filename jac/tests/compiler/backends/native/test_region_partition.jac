@@ -47,9 +47,9 @@ test "children draw pages from the parent behind the reabsorb contract" {
     );
     assert not prog.errors_had , [e.pretty_print() for e in prog.errors_had];
     text = str(ir.gen.llvm_ir);
-    assert "raw.draw.lock" in text , "no parent draw path in __jac_region_raw";
-    assert "raw.run" in text , "no run carving in __jac_region_raw";
-    assert "merge.run" in text , "no run splice in __jac_region_drop";
+    assert '@"__jac_region_partition"' in text , "no partition call in the module";
+    assert "_draw_page" in text , "the region kernel's parent draw path is not linked";
+    assert "_reabsorb" in text , "the region kernel's reabsorb path is not linked";
     with tempfile.TemporaryDirectory() as tmp {
         outs: dict[str, str] = {};
         for mode in ("none", "rc", "cycles") {

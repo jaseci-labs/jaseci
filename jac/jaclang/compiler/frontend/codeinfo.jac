@@ -127,7 +127,7 @@ def native_test_symbol(name: str, line: int) -> str {
 }
 
 def native_safe_sym(src: str) -> str {
-    if src in ("osp_kernel", "fmt_kernel") {
+    if src in ("osp_kernel", "fmt_kernel", "region_kernel") {
         return src;
     }
     safe = '';

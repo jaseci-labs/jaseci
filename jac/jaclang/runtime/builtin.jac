@@ -152,6 +152,7 @@ glob __all__ = [
          'JacListView',
          '_jac_chunks',
          'Region',
+         'region_of',
          '_jac_region_open',
          '_jac_region_close',
          '_jac_region_register',

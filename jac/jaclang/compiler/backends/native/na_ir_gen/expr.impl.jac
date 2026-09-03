@@ -399,6 +399,7 @@ impl NaIRGenExpr._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
     self.nogc_no_free_vars = set();
     self.nogc_owned_str_vars = set();
     self.region_handle_vars = set();
+    self.region_open_stack = [];
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};
 

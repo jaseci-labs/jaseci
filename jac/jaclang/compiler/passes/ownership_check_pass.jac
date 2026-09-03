@@ -170,6 +170,11 @@ walker OwnershipCheckPass(Transform) {
     def _emit_region_escape(nm: Name, region: OpenStmt) -> None;
     def _region_expr_is_scalar(expr: Expr | None) -> bool;
     def _region_callee_is_safe(call: FuncCall, region: OpenStmt) -> bool;
+    def _region_call_result_rooted(
+        expr: Expr | None, region: OpenStmt, hsid: SymId | None
+    ) -> bool;
+
+    def _emit_region_call_escape(call: FuncCall, region: OpenStmt) -> None;
     def _stamp_region_borrows -> None;
     def _open_handle_name(region: OpenStmt) -> (Name | None);
     def _seal_connect_handle(bx: BinaryExpr) -> (Name | None);

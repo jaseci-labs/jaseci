@@ -4,7 +4,22 @@ glob OSP_CORE_PARTS: list[str] = [
          "runtime/osp_kernel.jac",
          "runtime/osp_graph.jac"
      ],
-     FMT_KERNEL_PARTS: list[str] = ["compiler/backends/fmt_kernel.jac"];
+     FMT_KERNEL_PARTS: list[str] = ["compiler/backends/fmt_kernel.jac"],
+     REGION_KERNEL_PARTS: list[str] = ["runtime/region_native.jac"],
+     REGION_KERNEL_ABI: dict[str, tuple[bool, int]] = {
+         "__jac_region_new": (True, 0),
+         "__jac_region_alloc": (True, 2),
+         "__jac_region_log_dtor": (False, 3),
+         "__jac_region_drop": (False, 1),
+         "__jac_region_partition": (True, 1),
+         "__jac_region_enter": (False, 1),
+         "__jac_region_leave": (False, 0),
+         "__jac_region_unwind": (False, 1),
+         "__jac_region_current": (True, 0),
+         "__jac_region_depth": (True, 0),
+         "__jac_region_of": (True, 1),
+         "__jac_region_owns": (True, 1)
+     };
 
 def _jaclang_dir -> str {
     import jaclang;
@@ -18,8 +33,11 @@ def _units_dir -> str {
     return d;
 }
 
-def unit_source(parts: list[str]) -> str {
+def unit_source(parts: list[str], preamble: str = "") -> str {
     texts: list[str] = [];
+    if preamble {
+        texts.append(preamble);
+    }
     base = _jaclang_dir();
     for part in parts {
         with open(os.path.join(base, part.replace("/", os.sep)), "r") as f {
@@ -27,6 +45,30 @@ def unit_source(parts: list[str]) -> str {
         }
     }
     return "\n\n".join(texts);
+}
+
+def region_layout_preamble -> str {
+    import from jaclang.compiler.frontend.codeinfo {
+        HDR_ALLOC_ID_OFF,
+        HDR_DTOR_OFF,
+        HDR_MAGIC,
+        HDR_MAGIC_SHIFT_BASE,
+        HDR_RC_OFF,
+        HDR_TAG_OFF,
+        HDR_TOTAL,
+        RC_SENTINEL
+    }
+    return (
+        f"glob HDR_ALLOC_ID_OFF: int = {HDR_ALLOC_ID_OFF},\n"
+        f"     HDR_TAG_OFF: int = {HDR_TAG_OFF},\n"
+        f"     HDR_RC_OFF: int = {HDR_RC_OFF},\n"
+        f"     HDR_DTOR_OFF: int = {HDR_DTOR_OFF},\n"
+        f"     HDR_TOTAL: int = {HDR_TOTAL},\n"
+        f"     HDR_MAGIC: int = {HDR_MAGIC},\n"
+        f"     HDR_MAGIC_SHIFT_BASE: int = {HDR_MAGIC_SHIFT_BASE},\n"
+        f"     ARENA_MAGIC_SHIFT_BASE: int = {(HDR_MAGIC + 1) * 4294967296},\n"
+        f"     RC_SENTINEL: int = {RC_SENTINEL};\n"
+    );
 }
 
 def _atomic_write(path: str, text: str) {
@@ -66,9 +108,9 @@ def _retire_superseded_artifacts(name: str, keep: str) {
     }
 }
 
-def kernel_unit_path(name: str, parts: list[str]) -> str {
+def kernel_unit_path(name: str, parts: list[str], preamble: str = "") -> str {
     import hashlib;
-    source = unit_source(parts);
+    source = unit_source(parts, preamble);
     digest = hashlib.sha256(source.encode()).hexdigest()[:16];
     path = os.path.join(_units_dir(), f"{name}.{digest}.jac");
     if not os.path.exists(path) {
@@ -84,6 +126,12 @@ def osp_core_unit_path(variant: str) -> str {
 
 def fmt_kernel_unit_path(variant: str) -> str {
     return kernel_unit_path(f"fmt_kernel_{variant}", FMT_KERNEL_PARTS);
+}
+
+def region_kernel_unit_path(variant: str) -> str {
+    return kernel_unit_path(
+        f"region_kernel_{variant}", REGION_KERNEL_PARTS, region_layout_preamble()
+    );
 }
 
 def _artifact_key(unit_path: str, fingerprint: str) -> str {

@@ -1395,13 +1395,26 @@ impl NaIRGenRefcount._emit_struct_drop_fn(type_name: str) -> (ir.Function | None
     self.struct_drop_fns[type_name] = fn;
 
     entry_bb = fn.append_basic_block("entry");
+    owns_bb = fn.append_basic_block("region.check");
     body_bb = fn.append_basic_block("body");
     done_bb = fn.append_basic_block("done");
     b = ir.IRBuilder(entry_bb);
     is_null = b.icmp_unsigned(
         "==", fn.args[0], ir.Constant(i8p, None), name="drop.null"
     );
-    b.cbranch(is_null, done_bb, body_bb);
+    b.cbranch(is_null, done_bb, owns_bb);
+
+    b.position_at_end(owns_bb);
+    _owned = b.call(
+        self._region_kernel_fn("__jac_region_owns"),
+        [b.ptrtoint(fn.args[0], i64, name="drop.i64")],
+        name="drop.owns"
+    );
+    b.cbranch(
+        b.icmp_signed("!=", _owned, ir.Constant(i64, 0), name="drop.in.region"),
+        done_bb,
+        body_bb
+    );
 
     b.position_at_end(body_bb);
     _dobj = b.bitcast(fn.args[0], struct_type.as_pointer(), name="drop.obj");
@@ -2006,6 +2019,7 @@ impl NaIRGenRefcount._emit_scope_cleanup(
     if self._builder is None {
         return;
     }
+    self._emit_region_leaves(len(self.region_open_stack));
     _region_handles: list = [];
     for (var_name, alloca) in self.local_vars.items() {
         if var_name == "self" {

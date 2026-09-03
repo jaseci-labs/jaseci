@@ -89,7 +89,12 @@ def register_drop(item: any) {
     s = _stack();
     if s {
         s[-1]._jac_register(item);
+        item._jac_region = s[-1];
     }
+}
+
+def region_of(item: any) -> any {
+    return getattr(item, "_jac_region", None);
 }
 
 def instrument_drops(cls: any) {

@@ -1148,7 +1148,11 @@ impl NaIRGenCalls._codegen_intrinsic(
     _emitters: dict[IntrinsicDispatch, Callable[..., (ir.Value | None)]] = {
         IntrinsicDispatch.RC_RUNTIME: self._emit_intrinsic_rc_runtime,
         IntrinsicDispatch.FLOAT_BITS: self._emit_intrinsic_float_bits,
-        IntrinsicDispatch.BITS_FLOAT: self._emit_intrinsic_bits_float
+        IntrinsicDispatch.BITS_FLOAT: self._emit_intrinsic_bits_float,
+        IntrinsicDispatch.MEM_LOAD: self._emit_intrinsic_mem_load,
+        IntrinsicDispatch.MEM_STORE: self._emit_intrinsic_mem_store,
+        IntrinsicDispatch.ATOMIC_XCHG: self._emit_intrinsic_atomic_xchg,
+        IntrinsicDispatch.CALL_DTOR: self._emit_intrinsic_call_dtor
     };
     handler = _emitters.get(intr.dispatch);
     if handler is None {
@@ -1238,6 +1242,63 @@ impl NaIRGenCalls._emit_intrinsic_bits_float(
         return None;
     }
     return self.builder.bitcast(arg_val, ir.DoubleType(), name="bits_float");
+}
+
+impl NaIRGenCalls._emit_intrinsic_mem_load(
+    nd: uni.FuncCall, intr: IntrinsicEntry, args: list
+) -> (ir.Value | None) {
+    addr = self._intrinsic_operand(nd, intr, args[0], intr.param_specs[0]);
+    if addr is None {
+        return None;
+    }
+    i64 = ir.IntType(64);
+    slot = self.builder.inttoptr(addr, i64.as_pointer(), name="mem.p");
+    return self.builder.load(slot, name="mem.ld");
+}
+
+impl NaIRGenCalls._emit_intrinsic_mem_store(
+    nd: uni.FuncCall, intr: IntrinsicEntry, args: list
+) -> (ir.Value | None) {
+    addr = self._intrinsic_operand(nd, intr, args[0], intr.param_specs[0]);
+    val = self._intrinsic_operand(nd, intr, args[1], intr.param_specs[1]);
+    if addr is None or val is None {
+        return None;
+    }
+    i64 = ir.IntType(64);
+    slot = self.builder.inttoptr(addr, i64.as_pointer(), name="mem.p");
+    self.builder.store(val, slot);
+    return None;
+}
+
+impl NaIRGenCalls._emit_intrinsic_atomic_xchg(
+    nd: uni.FuncCall, intr: IntrinsicEntry, args: list
+) -> (ir.Value | None) {
+    addr = self._intrinsic_operand(nd, intr, args[0], intr.param_specs[0]);
+    val = self._intrinsic_operand(nd, intr, args[1], intr.param_specs[1]);
+    if addr is None or val is None {
+        return None;
+    }
+    i64 = ir.IntType(64);
+    slot = self.builder.inttoptr(addr, i64.as_pointer(), name="mem.p");
+    return self.builder.atomic_rmw(
+        "xchg", slot, val, ordering="acq_rel", name="mem.xchg"
+    );
+}
+
+impl NaIRGenCalls._emit_intrinsic_call_dtor(
+    nd: uni.FuncCall, intr: IntrinsicEntry, args: list
+) -> (ir.Value | None) {
+    fn_val = self._intrinsic_operand(nd, intr, args[0], intr.param_specs[0]);
+    obj_val = self._intrinsic_operand(nd, intr, args[1], intr.param_specs[1]);
+    if fn_val is None or obj_val is None {
+        return None;
+    }
+    i8p = ir.IntType(8).as_pointer();
+    dtor_ty = ir.FunctionType(ir.VoidType(), [i8p]).as_pointer();
+    fn_ptr = self.builder.inttoptr(fn_val, dtor_ty, name="dtor.fn");
+    obj_ptr = self.builder.inttoptr(obj_val, i8p, name="dtor.obj");
+    self.builder.call(fn_ptr, [obj_ptr]);
+    return None;
 }
 
 impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
@@ -1341,10 +1402,20 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
 
         if func_name == "managed" {
             params_l = nd.params or [];
-            if params_l {
-                return self._codegen_expr(params_l[0]);
+            if not params_l {
+                return None;
             }
-            return None;
+            _managed_arg = params_l[0];
+            if not isinstance(_managed_arg, uni.FuncCall) {
+                return self._codegen_expr(_managed_arg);
+            }
+            _saved_managed_ctor = self._managed_ctor_node;
+            self._managed_ctor_node = id(_managed_arg);
+            try {
+                return self._codegen_expr(_managed_arg);
+            } finally {
+                self._managed_ctor_node = _saved_managed_ctor;
+            }
         }
 
         if func_name == "new" {
@@ -1352,14 +1423,23 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         }
 
         if func_name == "Region" {
-            import from jaclang.compiler.expr_keys { is_builtin_region_name }
-            if is_builtin_region_name(nd.target) {
-                self._emit_arena_helpers();
-                return self.builder.call(self.region_new_fn, [], name="region.new");
+            import from jaclang.compiler.expr_keys { is_builtin_region_type }
+            if is_builtin_region_type(nd.type) or "Region" not in self.struct_types {
+                return self._region_new_handle();
             }
-            if "Region" in self.struct_types {
-                return self._codegen_instantiation(nd);
+            return self._codegen_instantiation(nd);
+        }
+
+        if func_name == "region_of" {
+            params_l = nd.params or [];
+            if not params_l {
+                return None;
             }
+            _rof_val = self._codegen_expr(params_l[0]);
+            if _rof_val is None {
+                return None;
+            }
+            return self._region_of_value(_rof_val);
         }
 
         if func_name == "isinstance" {

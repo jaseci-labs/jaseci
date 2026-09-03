@@ -52,17 +52,37 @@ def fn_ir(ir: uni.Module, name: str) -> str {
     return "\n".join(out);
 }
 
-test "arena: region interior bump-allocates and bulk-frees, not __rc_alloc" {
+test "arena: every droppable construction consults the current region" {
     # Stack-eligible objects (like region_arena's Box) may still take the
-    # stack path inside an open; droppable types must route to the arena.
+    # stack path; droppable types carry a region-alloc arm beside the heap
+    # arm, selected by the thread's current region at run time.
     (eng, ir) = compile_native("region_dtor.jac");
     body = fn_ir(ir, "dtor_order");
-    n_arena = body.count('call i8* @"__jac_region_alloc"');
-    assert n_arena == 3 , f"expected 3 arena allocs in dtor_order, found {n_arena}";
-    n_rc = body.count('call i8* @"__rc_alloc"');
-    assert n_rc == 0 , f"region interior must not hit __rc_alloc, found {n_rc}";
-    n_drop = body.count('call void @"__jac_region_drop"');
+    n_cur = body.count('@"__jac_region_current"(');
+    assert n_cur == 3 , f"expected 3 current-region reads in dtor_order, found {n_cur}";
+    n_arena = body.count('@"__jac_region_alloc"(');
+    assert n_arena == 3 , f"expected 3 region-alloc arms in dtor_order, found {n_arena}";
+    n_drop = body.count('@"__jac_region_drop"(');
     assert n_drop >= 1 , f"expected a region drop at the close, found {n_drop}";
+}
+
+test "dynamic extent: a helper called under an open allocates in the region" {
+    (eng, ir) = compile_native("region_callee_extent.jac");
+    scenario = get_func(eng, "scenario", ctypes.c_int64);
+    result = scenario();
+    assert result == 3 , f"scenario() == {result}, expected 3";
+    read_log = get_func(eng, "read_log", ctypes.c_int64);
+    log = read_log();
+    # both helper results live in r: hooks fire LIFO at r's drop, not at
+    # build()'s frame exit
+    assert log == 21 , f"helper allocations must drop with the handle: {log} != 21";
+}
+
+test "dynamic extent: flow bodies under an open join and tear down once" {
+    (eng, ir) = compile_native("region_flow_extent.jac");
+    scenario = get_func(eng, "scenario", ctypes.c_int64);
+    result = scenario();
+    assert result == 60 , f"scenario() == {result}, expected 60";
 }
 
 test "arena: anonymous open sums correctly through the JIT" {
@@ -164,7 +184,7 @@ test "R4: own rebox copies a string out of a region" {
 test "a user archetype named Region shadows the builtin cleanly" {
     (eng, ir) = compile_native("region_shadow.jac");
     body = fn_ir(ir, "shadowed");
-    n_new = body.count('call i8* @"__jac_region_new"');
+    n_new = body.count('@"__jac_region_new"(');
     assert n_new == 0 , f"user Region must not intercept arena setup: {n_new}";
     shadowed = get_func(eng, "shadowed", ctypes.c_int64);
     result = shadowed();
