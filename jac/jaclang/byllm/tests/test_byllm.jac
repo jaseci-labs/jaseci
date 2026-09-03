@@ -1645,6 +1645,7 @@ test "model pool streaming fallback" {
 import from jaclang.byllm.llm {
     _is_prompt_caching_eligible,
     _apply_prompt_caching,
+    _detect_cache_break,
     _CACHE_CONTROL_EPHEMERAL
 }
 
@@ -1693,6 +1694,218 @@ test "prompt caching disabled via config" {
     ) {
         assert _is_prompt_caching_eligible("anthropic/claude-sonnet-4-20250514")
             == False;
+    }
+}
+
+# jac#8821: byLLM knows, before it ever sends a call, whether that call's
+# tools/system prefix is byte-identical to the previous call in the same
+# mt_run turn -- so it can report a cache break as a deterministic fact
+# instead of consumers reconstructing it after the fact from raw token counts.
+def _cache_break_run -> MTRuntime {
+    return MTRuntime(
+        messages=[
+            Message(role=MessageRole.SYSTEM, content="You are an agent."),
+            Message(role=MessageRole.USER, content="Do the thing.")
+        ],
+        resp_type=str,
+        stream=False,
+        tools=[],
+        call_params={},
+        mtir=None  # type: ignore[arg-type]
+    );
+}
+
+test "_detect_cache_break reports no break for the first call in a turn" {
+    mt_run = _cache_break_run();
+    messages = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "hi"}
+    ];
+    tools = [{"type": "function", "function": {"name": "a"}}];
+
+    info = _detect_cache_break(mt_run, messages, tools);
+    assert info == {"cache_break_expected": False, "cache_break_reason": None} , (
+        "a turn's first call has nothing prior to break against"
+    );
+}
+
+test "_detect_cache_break reports no break across calls with identical tools and system" {
+    mt_run = _cache_break_run();
+    messages = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "hi"}
+    ];
+    tools = [{"type": "function", "function": {"name": "a"}}];
+
+    _detect_cache_break(mt_run, messages, list(tools));
+    info = _detect_cache_break(mt_run, messages, list(tools));
+    assert info == {"cache_break_expected": False, "cache_break_reason": None};
+}
+
+test "_detect_cache_break flags tools_changed when the tools array shrinks between calls" {
+    mt_run = _cache_break_run();
+    messages = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "hi"}
+    ];
+    tools_call1 = [
+        {"type": "function", "function": {"name": "a"}},
+        {"type": "function", "function": {"name": "b"}}
+    ];
+    tools_call2 = [{"type": "function", "function": {"name": "a"}}];
+
+    _detect_cache_break(mt_run, messages, tools_call1);
+    info = _detect_cache_break(mt_run, messages, tools_call2);
+    assert info
+        == {"cache_break_expected": True, "cache_break_reason": "tools_changed"} , (
+        "this is exactly the jac#8381/#8386 class of bug: a shrunk tools "
+        "array must be reported as a break, not silently accepted"
+    );
+}
+
+test "_detect_cache_break flags system_changed when the system message changes between calls" {
+    mt_run = _cache_break_run();
+    tools = [{"type": "function", "function": {"name": "a"}}];
+    messages_call1 = [
+        {"role": "system", "content": "sys v1"},
+        {"role": "user", "content": "hi"}
+    ];
+    messages_call2 = [
+        {"role": "system", "content": "sys v2"},
+        {"role": "user", "content": "hi"}
+    ];
+
+    _detect_cache_break(mt_run, messages_call1, list(tools));
+    info = _detect_cache_break(mt_run, messages_call2, list(tools));
+    assert info
+        == {"cache_break_expected": True, "cache_break_reason": "system_changed"};
+}
+
+# jac#8821 Evidence #4: a legitimate large append to the conversation (e.g. a
+# batch of tool results) must NOT be flagged. Only the tools/system prefix --
+# the actual Anthropic cache breakpoints -- determine a break, so growing the
+# message history alone is never mistaken for one.
+test "_detect_cache_break does not false-positive on a legitimate large conversation append" {
+    mt_run = _cache_break_run();
+    tools = [{"type": "function", "function": {"name": "a"}}];
+    messages_call1 = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "hi"}
+    ];
+    _detect_cache_break(mt_run, messages_call1, list(tools));
+
+    messages_call2 = messages_call1
+        + [
+            {"role": "assistant", "content": "calling a tool"},
+            {"role": "tool", "content": "x" * 50000}
+        ];
+    info = _detect_cache_break(mt_run, messages_call2, list(tools));
+    assert info == {"cache_break_expected": False, "cache_break_reason": None} , (
+        "a large legitimate write must not be mistaken for a cache break "
+        "when the tools/system prefix itself did not change"
+    );
+}
+
+test "dispatch_no_streaming attaches cache_break_expected/reason to CompletionResult.usage" {
+    def tool_a(x: str) -> str {
+        return x;
+    }
+    def tool_b(y: str) -> str {
+        return y;
+    }
+
+    model = Model(model_name="anthropic/claude-test");
+    mt_run = MTRuntime(
+        messages=[
+            Message(role=MessageRole.SYSTEM, content="You are an agent."),
+            Message(role=MessageRole.USER, content="Do the thing.")
+        ],
+        resp_type=str,
+        stream=False,
+        tools=[Tool(func=tool_a), Tool(func=tool_b), Tool.make_finish_tool(str)],
+        call_params={},
+        mtir=None  # type: ignore[arg-type]
+    );
+    fake_response = {
+        "model": "anthropic/claude-test",
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": "Hello.",
+                    "tool_calls": None
+                },
+                "finish_reason": "stop"
+            }
+        ],
+        "usage": {"prompt_tokens": 100, "completion_tokens": 5, "total_tokens": 105}
+    };
+
+    def _serve(params: dict) -> dict {
+        return fake_response;
+    }
+    with unittest.mock.patch.object(
+        model, "model_call_no_stream", side_effect=_serve
+    ) {
+        first = model.dispatch_no_streaming(mt_run);
+        assert first.usage.get("cache_break_expected") == False , (
+            "a turn's first call cannot have broken a cache that did not " "exist yet"
+        );
+        assert first.usage.get("cache_break_reason") is None;
+        # Simulate the jac#8381/#8386 bug class: something shrinks
+        # mt_run.tools mid-turn, breaking Anthropic's cached prefix.
+        # finish_tool must stay last (get_output_schema requires it).
+        mt_run.tools = [mt_run.tools[0], mt_run.tools[-1]];
+        second = model.dispatch_no_streaming(mt_run);
+        assert second.usage.get("cache_break_expected") == True;
+        assert second.usage.get("cache_break_reason") == "tools_changed";
+    }
+}
+
+test "dispatch_streaming attaches cache_break_expected/reason to chunk usage" {
+    def tool_a(x: str) -> str {
+        return x;
+    }
+    def tool_b(y: str) -> str {
+        return y;
+    }
+
+    model = Model(model_name="anthropic/claude-test");
+    mt_run = MTRuntime(
+        messages=[
+            Message(role=MessageRole.SYSTEM, content="You are an agent."),
+            Message(role=MessageRole.USER, content="Do the thing.")
+        ],
+        resp_type=str,
+        stream=True,
+        tools=[Tool(func=tool_a), Tool(func=tool_b), Tool.make_finish_tool(str)],
+        call_params={},
+        mtir=None  # type: ignore[arg-type]
+    );
+
+    def _serve(params: dict) -> list {
+        return [
+            types.SimpleNamespace(
+                usage=types.SimpleNamespace(prompt_tokens=50),
+                choices=[
+                    types.SimpleNamespace(delta=types.SimpleNamespace(content="Hi "))
+                ]
+            )
+        ];
+    }
+    with unittest.mock.patch.object(
+        model, "model_call_with_stream", side_effect=_serve
+    ) {
+        list(model.dispatch_streaming(mt_run));
+        first_usage = model._usage_history[-1];
+        assert getattr(first_usage, "cache_break_expected") == False;
+        assert getattr(first_usage, "cache_break_reason") is None;
+        # finish_tool must stay last (get_output_schema requires it).
+        mt_run.tools = [mt_run.tools[0], mt_run.tools[-1]];
+        list(model.dispatch_streaming(mt_run));
+        second_usage = model._usage_history[-1];
+        assert getattr(second_usage, "cache_break_expected") == True;
+        assert getattr(second_usage, "cache_break_reason") == "tools_changed";
     }
 }
 

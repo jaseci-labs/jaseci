@@ -39,7 +39,9 @@ obj MTRuntime {
         _final_output: object = None,
         _has_final_output: bool = False,
         _stream_reset_count: int = 0,
-        _tool_arg_deltas: list[dict] = [];
+        _tool_arg_deltas: list[dict] = [],
+        _cache_fingerprint: dict[(str, str)] = {},
+        _cache_break_info: dict[(str, object)] = {};
 
     static def factory(mtir: MTIR) -> MTRuntime;
     def add_message(message: MessageType) -> None;
