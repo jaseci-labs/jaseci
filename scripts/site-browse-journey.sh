@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Drive the served jaclang.org site (jac/examples/jaclang_org) through a full
 # user journey with `jac browse`, asserting rendered content and fullstack
-# behavior at every stop. Used by CI (ci.yml pack-smoke, happy-path.yml) and
+# behavior at every stop. Used by CI (ci.yml pack-smoke) and
 # runnable locally against any server:
 #
 #   scripts/site-browse-journey.sh [BASE_URL]
@@ -102,16 +102,19 @@ check '(() => {
   return "install curl one-liner rendered";
 })()'
 
-step "landing: quickstart points at this repo, not jac_site"
+step "landing: quickstart scaffolds the site with jac create --awesome"
 check '(() => {
   const text = document.body.innerText;
   if (/jac_site/.test(text)) {
     throw new Error("landing page still references the retired jac_site repo");
   }
-  if (!/git clone .*jaseci-labs\/jac\b/.test(text)) {
-    throw new Error("landing page does not show the in-tree clone quickstart");
+  if (/git clone/.test(text)) {
+    throw new Error("landing page still shows the clone-and-cd quickstart");
   }
-  return "quickstart clones the in-tree site";
+  if (!/jac create \S+ --awesome/.test(text)) {
+    throw new Error("landing page does not show the jac create --awesome quickstart");
+  }
+  return "quickstart scaffolds the site via --awesome";
 })()'
 
 step "landing: ninja book cover is visible and links to the book"
