@@ -5,15 +5,20 @@ fixtures/identity_api/test_emailer_fake.jac).
 """
 
 import contextlib;
-import gc;
+import os;
 import glob;
 import shutil;
-import socket;
 import subprocess;
 import time;
 import requests;
 import from pathlib { Path }
-import from jaclang.scale.tests.support { extract, get_free_port, register_user }
+import from jaclang.scale.tests.support {
+    extract,
+    get_free_port,
+    register_user,
+    start_server,
+    stop_server
+}
 
 glob FIXTURES_DIR: Path = Path(__file__).parent.parent
          / "fixtures"
@@ -45,54 +50,12 @@ def _unique_user(prefix: str) -> str {
     return f"{prefix}_ident_{int(time.time() * 1000)}";
 }
 
-def _start_server(port: int) -> subprocess.Popen {
-    import os;
-    base_url = f"http://localhost:{port}";
-    import from jaclang.scale.runtime.context.util { jac_executable }
-    # Make the fake-emailer Python module discoverable by the dotted-path
-    # provider in jac.toml ('test_emailer_fake:FakeEmailer').
-    env = dict(os.environ);
-    env['PYTHONPATH'] = str(FIXTURES_DIR) + os.pathsep + env.get('PYTHONPATH', '');
-    proc = subprocess.Popen(
-        [jac_executable(), "run", "--serve", "--port", str(port), "test_api.jac"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        cwd=str(FIXTURES_DIR),
-        env=env
-    );
-    for _ in range(60) {
-        if proc.poll() is not None {
-            (out, err) = proc.communicate();
-            raise RuntimeError(f"Server died.\nSTDOUT: {out}\nSTDERR: {err}");
-        }
-        try {
-            r = requests.get(f"{base_url}/healthz", timeout=2);
-            if r.status_code == 200 {
-                return proc;
-            }
-        } except requests.RequestException {
-            time.sleep(0.5);
-        }
-    }
-    proc.terminate();
-    proc.`wait();
-    raise RuntimeError("Server failed to start within 30s");
-}
-
-def _stop_server(proc: subprocess.Popen | None) {
-    if proc {
-        proc.terminate();
-        with contextlib.suppress(subprocess.TimeoutExpired) {
-            proc.`wait(timeout=5);
-        }
-        with contextlib.suppress(Exception) {
-            proc.kill();
-            proc.`wait();
-        }
-    }
-    time.sleep(0.2);
-    gc.collect();
+def _emailer_pythonpath -> dict[str, str] {
+    # jac.toml names the provider by dotted path ('test_emailer_fake:FakeEmailer'),
+    # so the fixture dir must be importable inside the server process.
+    return {
+        "PYTHONPATH": str(FIXTURES_DIR) + os.pathsep + os.environ.get("PYTHONPATH", "")
+    };
 }
 
 # =============================================================================
@@ -104,7 +67,9 @@ test "add_identity_contract" {
     base = f"http://localhost:{port}";
     proc: subprocess.Popen | None = None;
     try {
-        proc = _start_server(port);
+        proc = start_server(
+            FIXTURES_DIR, FIXTURES_DIR / "test_api.jac", port, env=_emailer_pythonpath()
+        );
         primary = _unique_user("alice");
         secondary = f"{primary}_alt";
         email_addr = f"{primary}@example.com";
@@ -175,7 +140,7 @@ test "add_identity_contract" {
         );
         assert r.status_code == 404;
     } finally {
-        _stop_server(proc);
+        stop_server(proc);
         _cleanup();
     }
 }
@@ -189,7 +154,9 @@ test "forgot_and_reset_password_contract" {
     base = f"http://localhost:{port}";
     proc: subprocess.Popen | None = None;
     try {
-        proc = _start_server(port);
+        proc = start_server(
+            FIXTURES_DIR, FIXTURES_DIR / "test_api.jac", port, env=_emailer_pythonpath()
+        );
         bob_user = _unique_user("bob");
         register_user(base, bob_user, "pw12345");
 
@@ -227,7 +194,7 @@ test "forgot_and_reset_password_contract" {
         assert r.status_code == 400;
         assert r.json()["error"]["code"] == "INVALID_TOKEN";
     } finally {
-        _stop_server(proc);
+        stop_server(proc);
         _cleanup();
     }
 }
