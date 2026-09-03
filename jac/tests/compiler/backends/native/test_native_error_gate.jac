@@ -43,6 +43,34 @@ glob BAD_NA_SOURCE: str = (
          "with entry {\n"
          "    print(answer());\n"
          "}\n"
+     ),
+     # A lambda parameter/return with no `: T` / `-> T` at all (issue
+     # #7139). Every *named* function/method parameter without one is
+     # already rejected by `ast_validation_pass` (E0052) -- but
+     # `enter_param_var` explicitly exempts a `FuncSignature` whose parent
+     # is a `LambdaExpr`. The type evaluator then infers the parameter's
+     # type from context instead (here: from the `Callable[[str], str]`
+     # slot `f` is passed into) and stamps it onto `param.type` -- or
+     # refuses with E1119 if nothing can be inferred. Likewise the return
+     # type is inferred onto the lambda expression's own semantic type
+     # (`FunctionType.return_type`) from its body.
+     #
+     # Native codegen's own `_codegen_lambda` looked only at `type_tag`
+     # (the syntactic annotation) for both, defaulting straight to `i64`
+     # whenever it was absent -- even though the evaluator had already
+     # resolved a real type (`str` here) that `_resolve_jac_type`/
+     # `_lower_type` know how to lower correctly. A `str` argument's
+     # pointer would silently be laid out as `i64` in the lambda's own
+     # signature, with no diagnostic at all (E1119 does not fire, since
+     # inference *did* succeed).
+     UNTYPED_LAMBDA_INFERRED_SOURCE: str = (
+         "def call_str(f: Callable[[str], str]) -> str {\n"
+         "    return f(\"hello\");\n"
+         "}\n"
+         "\n"
+         "with entry {\n"
+         "    print(call_str(lambda (x) { x; }));\n"
+         "}\n"
      );
 
 """Write a module source into a fresh temp dir; return its path."""
@@ -149,5 +177,36 @@ test "clean na module still publishes artifacts and caches" {
     assert bc is not None , "clean na module must still produce bytecode";
     assert os.path.exists(get_module_cache_path(src)) , (
         "clean na module must still be written to the jir cache"
+    );
+}
+
+test "untyped lambda param/return use the inferred type, not silent i64 (#7139)" {
+    import re;
+    src = write_module(
+        "gate_untyped_lambda_inferred.jac", UNTYPED_LAMBDA_INFERRED_SOURCE
+    );
+    prog = JacProgram();
+    mod = prog.compile(file_path=src, options=native_force_opts());
+    assert not prog.errors_had , (
+        "a lambda parameter whose type is inferred from context must "
+        f"compile clean, got: {fmt_errors(prog)}"
+    );
+    assert mod.gen.llvm_ir is not None , (
+        "a clean na module must still publish llvm ir"
+    );
+    txt = str(mod.gen.llvm_ir);
+    lambda_lines = [
+        ln
+        for ln in txt.splitlines()
+        if re.search(r"define.*__jac_lambda", ln)
+    ];
+    assert len(lambda_lines) == 1 , (
+        f"expected exactly one lambda definition, got: {lambda_lines}"
+    );
+    assert "i64" not in lambda_lines[0] , (
+        "a lambda parameter/return type inferred as `str` from its "
+        "Callable[[str], str] call site must lower to its real native "
+        "type, not the untyped-signature i64 default, got: "
+        f"{lambda_lines[0]}"
     );
 }
