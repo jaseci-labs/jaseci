@@ -113,7 +113,10 @@ test "sv-to-sv: relative sv import generates HTTP stubs (#6507)" {
     # It must instead emit the sv-to-sv client machinery, keyed on the BARE
     # module name (no leading dot) so the runtime can resolve the provider.
     assert "import sv_client as __jac_sv_client" in py;
-    assert "_declare_consumer_provider(__name__, 'sv_relative_provider')" in py;
+    assert (
+        "_declare_consumer_provider('sv_relative_consumer', 'sv_relative_provider', '/sv-relative')"
+        in py
+    );
     assert "'.sv_relative_provider'" not in py , (
         "stubs must key the provider on the bare module name, not the dotted form"
     );

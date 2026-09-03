@@ -6322,12 +6322,23 @@ impl JcirGenPass._sv_bridge_walker_call(expr: Expr) -> (FuncCall | None) {
         return None;
     }
     target = expr.target;
-    sym = target.sym;
-    if sym is None or not sym.defn {
-        return None;
+    item: (ModuleItem | None) = None;
+    for imp_nd in self.ir_in.get_all_sub_nodes(Import) {
+        for cand in imp_nd.items {
+            if (
+                isinstance(cand, ModuleItem)
+                and isinstance(cand.name, Name)
+                and cand.name.sym_name == target.sym_name
+            ) {
+                item = cand;
+                break;
+            }
+        }
+        if item is not None {
+            break;
+        }
     }
-    item = sym.defn[0].parent;
-    if not isinstance(item, ModuleItem) {
+    if item is None {
         return None;
     }
     imp = item.from_parent;
@@ -6338,11 +6349,9 @@ impl JcirGenPass._sv_bridge_walker_call(expr: Expr) -> (FuncCall | None) {
         return None;
     }
     facts = imp.boundary_facts;
-    if facts is None {
-        return None;
-    }
     item_name = getattr(item.name, 'value', str(item.name));
-    if item_name not in facts.sv_walkers {
+    in_walkers = facts is not None and item_name in facts.sv_walkers;
+    if not in_walkers {
         binding = self.ir_in.gen.interop_manifest.bindings.get(target.sym_name);
         if binding is None or binding.kind != 'walker' {
             return None;

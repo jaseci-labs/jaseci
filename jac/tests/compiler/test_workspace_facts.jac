@@ -180,17 +180,15 @@ test "a shared helper takes the target app's kind and needs no owner" {
 }
 
 
-test "an ambiguous owner of a graph module is E5107" {
+test "an ambiguous owner leaves owner_app unset (the workspace gate reports E5107)" {
     with tempfile.TemporaryDirectory() as tmp {
         files = _workspace(tmp, WORKSPACE_TOML.replace('default-app = "web"\n', ""));
         prog = JacProgram();
         store = prog.compile(files["store"], options=CompileOptions(no_cgen=True));
         assert store.app is None and store.owner_app is None;
-        errs = _codes(prog, "E5107");
-        assert len(errs) == 1 , f"expected one E5107, got:\n{_all_msgs(prog)}";
-        assert "social" in errs[0].msg and "web" in errs[0].msg , errs[0].msg;
-        assert "mobile" not in errs[0].msg , "a client-only app never serves";
-        assert errs[0].code.blocks_codegen;
+        assert not _codes(prog, "E5107") , (
+            "ownership ambiguity is a workspace-gate diagnostic, not a compile error"
+        );
     }
 }
 

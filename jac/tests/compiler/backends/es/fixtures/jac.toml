@@ -9,6 +9,11 @@ kind = "service"
 entry-point = "sv_relative_provider.jac"
 route = "/sv-relative"
 
+[apps.sv_relative_consumer]
+kind = "service"
+entry-point = "sv_relative_consumer.jac"
+route = "/sv-relative-consumer"
+
 [apps.typed_return_obj]
 kind = "service"
 entry-point = "typed_return_obj.jac"

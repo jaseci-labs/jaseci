@@ -351,6 +351,10 @@ def import_provider_spec(nd: uni.Import) -> (AppSpec | None) {
     if app_for_path(resolved) is None and not _module_carries_owned_elements(nd) {
         return None;
     }
+    consumer_mod = nd.find_parent_of_type(uni.Module);
+    if consumer_owner_app(consumer_mod) == owner.name {
+        return None;
+    }
     return owner;
 }
 
@@ -429,7 +433,17 @@ def _import_item_owner_decl(
     if not isinstance(item.name, uni.Name) {
         return None;
     }
-    sym = source_mod.lookup(item.name.sym_name);
+    wanted = item.name.sym_name;
+    for stmt in source_mod.body {
+        if not isinstance(stmt, uni.ContextAwareNode) {
+            continue;
+        }
+        owner_name = stmt?.name_ref?.sym_name or stmt?.name?.value;
+        if owner_name == wanted {
+            return stmt;
+        }
+    }
+    sym = source_mod.lookup(wanted);
     if sym is None or sym.decl is None {
         return None;
     }

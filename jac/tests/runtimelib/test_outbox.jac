@@ -33,7 +33,7 @@ import from jaclang.server.outbox {
 }
 
 def _entry(store: any, key: str) -> OutboxEntry {
-    item = _entry(store, key);
+    item = store.get_by_key(key);
     if item is None {
         raise AssertionError(f"no outbox entry for {key}");
     }

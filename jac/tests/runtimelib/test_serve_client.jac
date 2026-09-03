@@ -140,13 +140,12 @@ def make_dualrole_client(tmp_path: str) -> JacTestClient {
     with open(str(dest / "jac.toml"), "w") as tf {
         tf.write(
             "[project]\nname = \"dualrole\"\n\n"
-            f"[apps.web]\nkind = \"web-app\"\nentry-point = \"{module_name}.jac\"\n\n"
+            f"[apps.web]\nkind = \"web-app\"\npath = \".\"\nentry-point = \"{module_name}.jac\"\n\n"
             "[apps.analytics]\nkind = \"service\"\n"
             "entry-point = \"dualrole_analytics.jac\"\n"
             "route = \"/analytics\"\n\n"
-            "[apps.web.placement.pins]\n"
-            "\"dualrole_guestbook\" = \"server\"\n\n"
             "[placement.pins]\n"
+            "\"dualrole_guestbook\" = \"server\"\n"
             "\"dualrole_analytics\" = \"server\"\n"
         );
     }

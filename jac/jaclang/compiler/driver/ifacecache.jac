@@ -668,6 +668,8 @@ obj IfaceRegistry {
         ident = json.dumps(
             {
                 "no_cgen": bool(options.no_cgen),
+                "app": str(getattr(options, "target_app", "") or ""),
+                "app_kind": str(getattr(options, "app_kind", "") or ""),
                 "symtab": bool(options.symtab_ir_only),
                 "native_parity": bool(options.native_parity),
                 "suppress": sorted(pol.suppress_codes),

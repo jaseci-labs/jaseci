@@ -58,6 +58,46 @@ def _check_retire(served: int, rss_mb: int) -> bool {
     );
 }
 
+def _reached_by_imports(prog: any, root_mod: any) -> list[str] {
+    import os;
+    import from jaclang.compiler.frontend.unitree { Import as _Imp }
+    seen: set[str] = set();
+    for m in prog.mod.hub.values() {
+        if m.loc and m.loc.mod_path {
+            seen.add(os.path.realpath(str(m.loc.mod_path)));
+        }
+    }
+    stack: list = [root_mod] if root_mod is not None else [];
+    visited: set[int] = set();
+    while stack {
+        mod = stack.pop();
+        if id(mod) in visited {
+            continue;
+        }
+        visited.add(id(mod));
+        for imp in mod.get_all_sub_nodes(_Imp) {
+            if imp.from_loc is None {
+                continue;
+            }
+            try {
+                target = imp.from_loc.resolve_relative_path();
+            } except Exception {
+                continue;
+            }
+            if not isinstance(target, str) or not target.endswith('.jac') {
+                continue;
+            }
+            rp = os.path.realpath(target);
+            seen.add(rp);
+            nxt = prog.find_module(target) or prog.mod.hub.get(target);
+            if nxt is not None and id(nxt) not in visited {
+                stack.append(nxt);
+            }
+        }
+    }
+    return sorted(seen);
+}
+
 def _check_unit(
     path: str, app_name: str, kind: str, target: str, root_dir: str
 ) -> dict[(str, any)] {
@@ -156,11 +196,12 @@ def _check_file_job(request: dict[(str, any)]) -> dict[(str, any)] {
                 )
             );
         }
-        result['reached'] = [
-            m.loc.mod_path
-            for m in prog.mod.hub.values()
-            if m.loc and m.loc.mod_path
-        ];
+        import from jaclang.compiler.driver.compiler { JacCompiler as _JC }
+        root_mod = prog.find_module(file_path) or prog.mod.hub.get(file_path);
+        result['reached'] = _reached_by_imports(prog, root_mod);
+        result['owned_elements'] = bool(
+            root_mod is not None and _JC._module_defines_owned_elements(root_mod)
+        );
         if opts.get("placements") {
             import from jaclang.compiler.placement.placement { collect_placement_rows }
             result['placements'] = collect_placement_rows(prog);
@@ -379,6 +420,7 @@ impl check(
                 };
             }
             res['label'] = unit['label'];
+            res['_unit'] = unit;
             for m in _wire_list(res.get('reached')) {
                 reached.add(os.path.realpath(str(m)));
             }
@@ -418,6 +460,98 @@ impl check(
 
     run_units(units);
     if ws is not None {
+        ws_root = os.path.realpath(ws.project_root);
+        shared_units: list[dict[(str, any)]] = [];
+        shared_seen: set[tuple[(str, str)]] = set();
+        for res in list(results) {
+            unit = res.get('_unit');
+            if not unit or not unit.get('target') {
+                continue;
+            }
+            for m in _wire_list(res.get('reached')) {
+                rp = os.path.realpath(str(m));
+                if (
+                    not rp.endswith('.jac')
+                    or not rp.startswith(ws_root + os.sep)
+                    or _should_ignore(rp, ignore_list)
+                    or ws.app_for_path(rp) is not None
+                ) {
+                    continue;
+                }
+                key = (rp, str(unit['target']));
+                if key in shared_seen {
+                    continue;
+                }
+                shared_seen.add(key);
+                shared_units.append(
+                    _check_unit(
+                        rp,
+                        unit['target'],
+                        unit['kind'],
+                        unit['target'],
+                        unit['root_dir']
+                    )
+                );
+            }
+        }
+        if shared_units {
+            plan['total'] += len(shared_units);
+            run_units(shared_units);
+        }
+        serving_names = {a.name for a in ws.serving_apps()};
+        reach_map: dict[(str, set[str])] = {};
+        owned_paths: set[str] = set();
+        for res in list(results) {
+            unit = res.get('_unit');
+            if not unit {
+                continue;
+            }
+            tgt = str(unit.get('target') or '');
+            if not tgt {
+                continue;
+            }
+            unit_path = os.path.realpath(str(unit['path']));
+            reach_map.setdefault(unit_path, set()).add(tgt);
+            for m in _wire_list(res.get('reached')) {
+                reach_map.setdefault(os.path.realpath(str(m)), set()).add(tgt);
+            }
+            if res.get('owned_elements') and ws.app_for_path(unit_path) is None {
+                owned_paths.add(unit_path);
+            }
+        }
+        for rp in sorted(owned_paths) {
+            reaching = sorted(
+                [
+                    a
+                    for a in reach_map.get(rp, set())
+                    if a in serving_names
+                ]
+            );
+            if len(reaching) < 2 {
+                continue;
+            }
+            (owner, ambiguous) = ws.owner_app_for_path(rp);
+            if owner is not None or not ambiguous {
+                continue;
+            }
+            import from jaclang.compiler.frontend.diagnostics { E5107 }
+            msg = E5107.format_message(
+                module=os.path.basename(rp), apps=', '.join(reaching)
+            );
+            results.append(
+                {
+                    'path': rp,
+                    'success': False,
+                    'errors': [_message_diag(f"error[E5107]: {msg}", rp)],
+                    'warnings': [],
+                    'placements': {},
+                    'coverage': {},
+                    'reached': [],
+                    'label': 'shared'
+                }
+            );
+            plan['total'] += 1;
+        }
         sweep_roots = [ws.project_root];
         sel = ws.app(app) if app else None;
         if sel is not None and sel.root_dir {

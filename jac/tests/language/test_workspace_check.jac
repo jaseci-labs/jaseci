@@ -180,7 +180,8 @@ test "jac test <app> re-roots collection at the app" {
     assert rc == 0 , f"rc={rc}\n{out}";
     assert os.path.join("cli", "test_greet.jac") in out , out;
     assert os.path.join("web", "test_page.jac") not in out , out;
-    assert "1 test file collected" in out , out;
+    assert "test_greet.jac" in out and "2 test files collected" in out , out;
+    assert "web/" not in out and "core/" not in out , out;
     (rc, out) = _collect_in(d, "web");
     assert rc == 0 , f"rc={rc}\n{out}";
     assert os.path.join("web", "test_page.jac") in out , out;
@@ -205,4 +206,51 @@ test "jac test <name> that is neither an app nor a path errors" {
     assert rc == 1 , f"rc={rc}\n{out}";
     assert "neither an app of jac.toml nor a path" in out , out;
     _cleanup();
+}
+
+def _insert_import(path: str, line: str) {
+    with open(path, "r") as f {
+        text = f.read();
+    }
+    lines: list[str] = [str(part) for part in text.split("\n")];
+    at = 0;
+    if lines and lines[0].startswith('"""') {
+        closing = [
+            i
+            for (i, l) in enumerate(lines)
+            if i > 0 and '"""' in l
+        ];
+        at = (closing[0] + 1) if closing else 1;
+        if lines[0].count('"""') >= 2 {
+            at = 1;
+        }
+    }
+    lines.insert(at, line);
+    with open(path, "w") as f {
+        f.write("\n".join(lines));
+    }
+}
+
+test "the workspace gate reports E5107 for a walker module two serving apps reach with no default app" {
+    d = _workspace();
+    toml_path = os.path.join(d, "jac.toml");
+    with open(toml_path, "r") as f {
+        toml = f.read();
+    }
+    with open(toml_path, "w") as f {
+        f.write(toml.replace('default-app = "web"\n', ""));
+    }
+    with open(os.path.join(d, "core", "graph.jac"), "w") as f {
+        f.write("node Note {\n    has text: str = \"\";\n}\n");
+    }
+    _insert_import(
+        os.path.join(d, "web", "main.jac"), "import from core.graph { Note }"
+    );
+    _insert_import(
+        os.path.join(d, "core", "svc.jac"), "import from core.graph { Note }"
+    );
+    (rc, out) = _check_in(d);
+    assert rc != 0 , out;
+    assert "E5107" in out and "graph.jac" in out , out;
+    assert "web" in out and "svc" in out , out;
 }

@@ -915,9 +915,6 @@ impl JacCompiler.stamp_app_facts(mod: uni.Module, target_program: JacProgram) ->
     } else {
         mod.mobui_enforced_root = None;
     }
-    if ambiguous {
-        self._report_owner_ambiguity(mod, target_program, ws);
-    }
 }
 
 impl JacCompiler._module_defines_owned_elements(mod: uni.Module) -> bool {
@@ -930,33 +927,6 @@ impl JacCompiler._module_defines_owned_elements(mod: uni.Module) -> bool {
     return False;
 }
 
-impl JacCompiler._report_owner_ambiguity(
-    mod: uni.Module, target_program: JacProgram, ws: any
-) -> None {
-    import from jaclang.compiler.frontend.diagnostics { E5107 }
-    import from jaclang.compiler.passes.transform { Alert }
-    mod_path = mod.loc.mod_path if mod.loc else '';
-    for e in target_program.errors_had {
-        if e.code is E5107 and e.loc.mod_path == mod_path {
-            return;
-        }
-    }
-    apps = ', '.join(sorted(a.name for a in ws.serving_apps()));
-    module = os.path.basename(mod_path);
-    deliver_alerts(
-        [
-            Alert(
-                msg=E5107.format_message(module=module, apps=apps),
-                loc=mod.loc.span(),
-                from_pass=BoundaryAnalysisPass,
-                code=E5107,
-                help_text=E5107.format_help(module=module, apps=apps)
-            )
-        ],
-        [],
-        target_program
-    );
-}
 
 impl JacCompiler.stamp_boundary_facts(
     mod: uni.Module, target_program: JacProgram
