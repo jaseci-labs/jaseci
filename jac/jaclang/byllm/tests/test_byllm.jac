@@ -569,49 +569,37 @@ test "plain text recovery - LLM bypasses finish_tool" {
     assert "MESSAGE: Greetings traveller, I have wares to trade!" in stdout_value;
 }
 
-test "api key from constructor" {
-    model = Model(model_name="gpt-4o-mini", api_key="sk-constructor-key");
-    assert model.api_key == "sk-constructor-key";
-}
-
-test "api key from instance config" {
-    model = Model(model_name="gpt-4o-mini", config={"api_key": "sk-config-key"},);
-    assert model.api_key == "sk-config-key";
-}
-
-test "api key from global config" {
-    with unittest.mock.patch.dict(
-        _byllm_llm_mod._model_config, {"api_key": "sk-global-key"}, clear=True
-    ) {
-        model = Model(model_name="gpt-4o-mini");
-        assert model.api_key == "sk-global-key";
-    }
-}
-
-test "api key constructor over instance config" {
-    model = Model(
-        model_name="gpt-4o-mini",
-        api_key="sk-constructor-key",
-        config={"api_key": "sk-config-key"},
-    );
-    assert model.api_key == "sk-constructor-key";
-}
-
-test "api key instance config over global" {
-    with unittest.mock.patch.dict(
-        _byllm_llm_mod._model_config, {"api_key": "sk-global-key"}, clear=True
-    ) {
-        model = Model(model_name="gpt-4o-mini", config={"api_key": "sk-config-key"},);
-        assert model.api_key == "sk-config-key";
-    }
-}
-
-test "api key empty when none provided" {
-    with unittest.mock.patch.dict(
-        _byllm_llm_mod._model_config, {"api_key": ""}, clear=True
-    ) {
-        model = Model(model_name="gpt-4o-mini");
-        assert model.api_key == "";
+test "api key resolves from constructor, then instance config, then global config" {
+    for (why, global_key, kwargs, expected) in [
+        ("constructor", None, {"api_key": "sk-constructor-key"}, "sk-constructor-key"),
+        (
+            "instance config",
+            None,
+            {"config": {"api_key": "sk-config-key"}},
+            "sk-config-key"
+        ),
+        ("global config", "sk-global-key", {}, "sk-global-key"),
+        (
+            "constructor over instance config",
+            None,
+            {"api_key": "sk-constructor-key", "config": {"api_key": "sk-config-key"}},
+            "sk-constructor-key"
+        ),
+        (
+            "instance config over global",
+            "sk-global-key",
+            {"config": {"api_key": "sk-config-key"}},
+            "sk-config-key"
+        ),
+        ("empty when none provided", "", {}, "")
+    ] {
+        overrides = {"api_key": global_key} if global_key is not None else {};
+        with unittest.mock.patch.dict(
+            _byllm_llm_mod._model_config, overrides, clear=True
+        ) {
+            model = Model(model_name="gpt-4o-mini", **kwargs);
+        }
+        assert model.api_key == expected , f"{why}: got {model.api_key!r}";
     }
 }
 
@@ -624,7 +612,7 @@ test "api key not overwritten on dispatch" {
     assert model.api_key == "sk-test-key";
 }
 
-test "api key masked in log" {
+test "format_prompt never prints the api key and leaves params intact" {
     model = Model(model_name="gpt-4o-mini");
     params = {
         "model": "gpt-4o-mini",
@@ -632,44 +620,14 @@ test "api key masked in log" {
         "api_base": None,
         "messages": [
             {"role": "system", "content": "test"},
-            {"role": "user", "content": "test"},
-
+            {"role": "user", "content": "test"}
         ],
         "tools": None,
-        "response_format": None,
-
+        "response_format": None
     };
     log_output = model.format_prompt(params);
     assert "sk-test-secret-key1234" not in log_output;
-    assert params["api_key"] == "sk-test-secret-key1234";
-}
-
-test "api key masking formats" {
-    model = Model(model_name="gpt-4o-mini");
-    params = {
-        "api_key": "sk-abcdef1234",
-        "messages": [
-            {"role": "system", "content": "t"},
-            {"role": "user", "content": "t"},
-
-        ],
-        "tools": None,
-        "response_format": None,
-
-    };
-    model.format_prompt(params);
-    assert params["api_key"] == "sk-abcdef1234";
-
-    key = str(params["api_key"]);
-    masked = "*" * (len(key) - 4) + key[-4:];
-    assert masked == "*********1234";
-    assert "sk-abcdef" not in masked;
-
-    key_short = "abc";
-    masked_short = "*" * (len(key_short) - 1) + key_short[-1:];
-    assert masked_short == "**c";
-
-    assert len("x") <= 1;
+    assert params["api_key"] == "sk-test-secret-key1234" , "format_prompt must not mutate params";
 }
 
 test "resolved api_base reaches the litellm call" {
@@ -823,148 +781,52 @@ glob _TestPerson = dataclasses.make_dataclass(
      _TestUnionField = dataclasses.make_dataclass("UnionField", [("value", str | int)]),
      _TestFieldless = dataclasses.make_dataclass("Fieldless", []);
 
-test "output conversion error on plain text" {
-    # LLM returns a narrative string instead of JSON
-    mt_run = MTRuntime(
-        messages=[],
-        resp_type=_TestPerson,
-        stream=False,
-        tools=[],
-        call_params={},
-        mtir=None  # type: ignore[arg-type]
-    );
-
-    raw = "Alice is a 30 year old engineer.";
-    raised = False;
-    try {
-        mt_run.parse_response(raw);
-    } except OutputConversionError as e {
-        raised = True;
-        assert e.raw_output == raw , f"Expected raw_output='{raw}', got '{e.raw_output}'";
-        assert "Person" in str(e) , "Error message should name the target type";
+test "parse_response raises OutputConversionError with the raw output attached" {
+    for (why, raw) in [
+        ("plain text", "Alice is a 30 year old engineer."),
+        ("markdown fenced json", "```json\n{\"name\": \"Alice\", \"age\": 30}\n```"),
+        ("wrong json structure", "{\"foo\": \"bar\", \"baz\": 99}")
+    ] {
+        raised = False;
+        try {
+            mk_run(resp_type=_TestPerson).parse_response(raw);
+        } except OutputConversionError as e {
+            raised = True;
+            err: any = e;
+            assert err.raw_output == raw , (
+                f"{why}: raw_output should carry the model output, got '{err.raw_output}'"
+            );
+            assert "Person" in str(e) , f"{why}: error message should name the target type";
+        }
+        assert raised , f"{why}: expected OutputConversionError";
     }
-    assert raised , "Expected OutputConversionError for plain text input";
 }
 
-test "output conversion error on markdown fenced json" {
-    # LLM wraps JSON in markdown code fences — json.loads fails
-    mt_run = MTRuntime(
-        messages=[],
-        resp_type=_TestPerson,
-        stream=False,
-        tools=[],
-        call_params={},
-        mtir=None  # type: ignore[arg-type]
-    );
-
-    raw = "```json\n{\"name\": \"Alice\", \"age\": 30}\n```";
-    raised = False;
-    try {
-        mt_run.parse_response(raw);
-    } except OutputConversionError as e {
-        raised = True;
-        assert e.raw_output == raw , f"Expected raw_output to be the fenced string, got '{e.raw_output}'";
-    }
-    assert raised , "Expected OutputConversionError for markdown-fenced JSON";
-}
-
-test "output conversion error on wrong json structure" {
-    # LLM returns valid JSON but it doesn't match the declared type
-    mt_run = MTRuntime(
-        messages=[],
-        resp_type=_TestPerson,
-        stream=False,
-        tools=[],
-        call_params={},
-        mtir=None  # type: ignore[arg-type]
-    );
-
-    raw = "{\"foo\": \"bar\", \"baz\": 99}";
-    raised = False;
-    try {
-        mt_run.parse_response(raw);
-    } except OutputConversionError as e {
-        raised = True;
-        assert e.raw_output == raw , f"Expected raw_output='{raw}', got '{e.raw_output}'";
-    }
-    assert raised , "Expected OutputConversionError for structurally wrong JSON";
-}
-
-test "output conversion error not raised for str return type" {
-    # parse_response should pass through raw strings without attempting conversion
-    mt_run = MTRuntime(
-        messages=[],
-        resp_type=str,
-        stream=False,
-        tools=[],
-        call_params={},
-        mtir=None  # type: ignore[arg-type]
-    );
-
+test "parse_response passes through str returns and valid typed json" {
     raw = "This is not JSON at all";
-    result = mt_run.parse_response(raw);
-    assert result == raw , "str return type should return the raw response as-is";
+    assert mk_run(resp_type=str).parse_response(raw) == raw , (
+        "str return type should return the raw response as-is"
+    );
+    person = mk_run(resp_type=_TestPerson).parse_response(
+        "{\"schema_object_wrapper\": {\"name\": \"Alice\", \"age\": 30}}"
+    );
+    assert (person.name, person.age) == ("Alice", 30) , f"got {person}";
 }
 
-test "output conversion error not raised for valid json" {
-    # Valid JSON that matches the type should succeed with no exception
-    mt_run = MTRuntime(
-        messages=[],
-        resp_type=_TestPerson,
-        stream=False,
-        tools=[],
-        call_params={},
-        mtir=None  # type: ignore[arg-type]
-    );
-
-    raw = "{\"schema_object_wrapper\": {\"name\": \"Alice\", \"age\": 30}}";
-    result = mt_run.parse_response(raw);
-    assert result.name == "Alice" , f"Expected name='Alice', got '{result.name}'";
-    assert result.age == 30 , f"Expected age=30, got '{result.age}'";
-}
-
-# ConfigurationError tests call get_output_schema directly because schema generation
-# is what rejects bare unparameterized types (list, dict, set, tuple).
-test "configuration error on bare list return type" {
-    # Bare list (no type parameter) is rejected by schema generation
-    mt_run = MTRuntime(
-        messages=[],
-        resp_type=list,
-        stream=False,
-        tools=[],
-        call_params={},
-        mtir=None  # type: ignore[arg-type]
-    );
-
-    raised = False;
-    try {
-        mt_run.get_output_schema();
-    } except ConfigurationError as e {
-        raised = True;
-        assert "list" in str(e).lower() , f"Error message should mention 'list', got: {e}";
+# Schema generation is what rejects bare unparameterized containers.
+test "bare container return types are a configuration error" {
+    for bare in [list, dict] {
+        raised = False;
+        try {
+            mk_run(resp_type=bare).get_output_schema();
+        } except ConfigurationError as e {
+            raised = True;
+            assert bare.__name__ in str(e).lower() , (
+                f"error message should mention '{bare.__name__}', got: {e}"
+            );
+        }
+        assert raised , f"expected ConfigurationError for bare {bare.__name__}";
     }
-    assert raised , "Expected ConfigurationError for bare list return type";
-}
-
-test "configuration error on bare dict return type" {
-    # Bare dict (no type parameters) is rejected by schema generation
-    mt_run = MTRuntime(
-        messages=[],
-        resp_type=dict,
-        stream=False,
-        tools=[],
-        call_params={},
-        mtir=None  # type: ignore[arg-type]
-    );
-
-    raised = False;
-    try {
-        mt_run.get_output_schema();
-    } except ConfigurationError as e {
-        raised = True;
-        assert "dict" in str(e).lower() , f"Error message should mention 'dict', got: {e}";
-    }
-    assert raised , "Expected ConfigurationError for bare dict return type";
 }
 
 # An unregistered tool name is recovered, not fatal: dispatch_no_streaming
