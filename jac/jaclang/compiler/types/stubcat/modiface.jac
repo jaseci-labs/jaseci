@@ -9,7 +9,13 @@ def build_module_iface(mod: Module, evaluator: any, pkg_dir: str) -> bytes {
     writer = CatalogWriter(evaluator=evaluator, pkg_dir=pkg_dir, boundary=mod);
     dotted = mod.name or "";
     writer.add_module(mod, dotted);
-    writer.force_all();
+    prev_pass = evaluator?._pass;
+    evaluator._pass = None;
+    try {
+        writer.force_all();
+    } finally {
+        evaluator._pass = prev_pass;
+    }
     key = mod.loc.mod_path if mod.loc else dotted;
     body = writer.emit(key, {});
     digest = hashlib.sha256(body).hexdigest();

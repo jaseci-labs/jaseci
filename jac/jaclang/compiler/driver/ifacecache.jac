@@ -679,6 +679,24 @@ obj IfaceRegistry {
         return hashlib.sha256(ident.encode()).hexdigest()[:16];
     }
 
+    def _ensure_flow_graph(mod: any) -> None {
+        if getattr(mod, "stub_only", False)
+            or getattr(mod, "is_raised_from_py", False) {
+            return;
+        }
+        ledger = self.prog.analysis.analyses_run;
+        if ledger.provides(mod, "CfgSucc") {
+            return;
+        }
+        import from jaclang.compiler.driver.pass_driver { run_pass }
+        import from jaclang.compiler.passes.cfg_build_pass { CFGBuildPass }
+        run_pass(CFGBuildPass, mod, self.prog);
+        for tag in CFGBuildPass.PROVIDES {
+            ledger.provided(mod).add(tag);
+        }
+        self._event("iface_cfg");
+    }
+
     def persist_after_compile(
         resolved: str, mod: any, options: any, err_start: int, warn_start: int
     ) -> None {
@@ -708,6 +726,7 @@ obj IfaceRegistry {
         } else {
             self._event("iface_encode");
             ev = self.prog.get_type_evaluator();
+            self._ensure_flow_graph(mod);
             payload = build_module_iface(mod, ev, self._pkg_dir());
             digest = read_iface_hash(payload) or "";
             if modkey {

@@ -426,3 +426,40 @@ test "the interface-bytes memo outlives the compile closure" {
     assert events.get("iface_persist", 0) == 2 , f"expected a second persist of the unchanged module (events: {events})";
     assert events.get("iface_encode", 0) == 1 , f"the unchanged module was re-encoded after closure release (events: {events})";
 }
+
+glob NARROW_DEP: str = """
+obj Info {
+    has help_text: str = "";
+}
+
+obj Alert {
+    has code: (Info | None) = None,
+        help_text: (str | None) = None;
+
+    def postinit {
+        if (self.help_text is None) and self.code {
+            self.help_text = self.code.help_text;
+        }
+    }
+}
+""",
+     NARROW_MAIN: str = "import type from depmod { Alert }\n\ndef show(a: Alert) -> str { return str(a.help_text); }\n\nwith entry { print(show); }\n";
+
+test "persisting a dependency interface neither reports nor mistypes its narrowing sites" {
+    (main, dep) = _project(NARROW_DEP);
+    with open(main, "w") as fh {
+        fh.write(NARROW_MAIN);
+    }
+    (prog, rendered) = _check(main);
+    assert rendered == [] , (
+        "a type-only import compiled its dependency lazily inside the type "
+        f"checker and persisting that interface leaked diagnostics: {rendered}"
+    );
+    events = prog.analysis.cache_events;
+    assert events.get("iface_encode", 0) >= 2 , (
+        f"expected both modules to be encoded on a cold cache (events: {events})"
+    );
+    assert events.get("iface_cfg", 0) >= 1 , (
+        f"the dependency's flow graph must be built before its interface is forced (events: {events})"
+    );
+}
