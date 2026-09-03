@@ -207,7 +207,14 @@ impl HeaderBuilder._build_link_tags -> list[str] {
     };
     for (key, rel) in special_links.items() {
         if val := self._get_value(key) {
-            lines.append(f'<link rel="{rel}" href="{html.escape(str(val))}" />');
+            href = html.escape(str(val));
+            if rel == "icon" and str(val).lower().endswith(".svg") {
+                lines.append(
+                    f'<link rel="{rel}" type="image/svg+xml" href="{href}" />'
+                );
+            } else {
+                lines.append(f'<link rel="{rel}" href="{href}" />');
+            }
         }
     }
     for (key, val) in self.meta_data.items() {
@@ -283,13 +290,4 @@ impl HeaderBuilder._build_special_tags -> list[str] {
 
 impl HeaderBuilder._get_value(key: str) -> (str | None) {
     return self.meta_data.get(key) or self.DEFAULTS.get(key);
-}
-
-impl JacClient.format_build_error(
-    error_output: str, project_dir: Path, config: object = None
-) -> str {
-    import from jaclang.client.diagnostics { format_build_error }
-    return format_build_error(
-        error_output=error_output, project_dir=project_dir, config=config
-    );
 }

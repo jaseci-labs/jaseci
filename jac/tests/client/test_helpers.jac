@@ -156,7 +156,10 @@ def start_app_server(project_path: any, extra_args: list | None = None) -> tuple
     );
     server = Popen(args, cwd=project_path, env=env, stdout=log_f, stderr=log_f);
     try {
-        wait_for_port("127.0.0.1", port, timeout=120.0);
+        # The jaclang_org app is a full site: cold-compiling it plus its
+        # client bundle takes minutes on a small CI runner, not the seconds
+        # the littleX-era 120s budget assumed.
+        wait_for_port("127.0.0.1", port, timeout=600.0);
     } except TimeoutError as exc {
         stop_server(server);
         log_f.flush();

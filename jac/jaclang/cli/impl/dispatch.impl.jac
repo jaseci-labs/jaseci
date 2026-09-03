@@ -15,7 +15,7 @@ def _discover_project_config {
         }
     } except MalformedJacTomlError as exc {
         _exit_on_malformed_jac_toml(exc);
-    } except Exception { }
+    } except Exception {}
 }
 
 def _exit_on_malformed_jac_toml(exc: any) {
@@ -202,11 +202,11 @@ def _exit_now(code: int) -> None {
     import atexit;
     try {
         atexit._run_exitfuncs();
-    } except Exception { }
+    } except Exception {}
     try {
         sys.stdout.flush();
         sys.stderr.flush();
-    } except Exception { }
+    } except Exception {}
     os._exit(code);
 }
 

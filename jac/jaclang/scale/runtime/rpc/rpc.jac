@@ -201,9 +201,7 @@ def _sv_rpc_timeout(module_name: str) -> float {
         if "rpc_timeout" in svc_cfg {
             return float(svc_cfg["rpc_timeout"]);
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return _SV_DEFAULT_RPC_TIMEOUT;
 }
 
@@ -236,9 +234,7 @@ def _hydrate_walker_envelope(
         if instance is not None and reports is not None {
             try {
                 instance.reports = reports;
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
         return instance;
     }

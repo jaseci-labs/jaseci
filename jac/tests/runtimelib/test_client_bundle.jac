@@ -62,9 +62,14 @@ test "dev vite config registers the port reporter; build config does not" {
         # the jac CLI reads it instead of parsing Vite's stdout.
         assert "jac-port-reporter" in dev_content;
         assert ".dev-port" in dev_content;
-        # Build errors surface through Vite's native overlay in dev mode
+        # Build errors surface through Vite's native overlay in dev mode,
+        # driven by the single status document the Jac process owns
         assert "jac-build-error-overlay" in dev_content;
-        assert ".jac-build-error.json" in dev_content;
+        assert ".jac-status.json" in dev_content;
+        assert ".jac-build-error.json" not in dev_content;
+        # The overlay shows the first diagnostic and says how many follow
+        assert '" (+" + (all.length - 1) + " more)"' in dev_content;
+        assert "diag.rendered" in dev_content;
         # Force-reload plugin: rescues export-set edits that Fast Refresh would
         # otherwise swallow, reloading (jacTriggered) when the jac dev server
         # bumps .jac-force-reload
@@ -87,8 +92,13 @@ test "dev vite config registers error reporter; overlay is gated to module-load 
         dev_cfg = bundler.create_vite_config(`entry, is_dev=True);
         dev_content = dev_cfg.read_text();
         assert "jac-error-reporter" in dev_content;
+        # The transport is dumb: raw fields forwarded, no path rewriting here.
+        assert '.replace("compiled/", "")' not in dev_content;
+        assert '.slice(0, -3) + ".jac"' not in dev_content;
+        assert "recordClientEvent(data)" in dev_content;
         # Overlay must only fire for module-load failures, not every runtime error
-        assert 'phase === "load"' in dev_content;
+        plugin_js = (dev_cfg.parent / "jac-client-events.js").read_text();
+        assert 'd.phase === "load"' in plugin_js;
         build_cfg = bundler.create_vite_config(`entry, is_dev=False);
         build_content = build_cfg.read_text();
         assert "jac-error-reporter" not in build_content;
@@ -146,7 +156,7 @@ test "dev config wires fast refresh and index.html installs the hook before the 
     }
 }
 
-test "dev config wires the layered dev-status bridge; build config does not" {
+test "dev config wires the raw client-event transport; build config does not" {
     import tempfile;
     import from jaclang.client.vite_bundler { ViteBundler }
     with tempfile.TemporaryDirectory() as tmp {
@@ -154,16 +164,27 @@ test "dev config wires the layered dev-status bridge; build config does not" {
         `entry = Path(tmp) / "main.js";
         dev_cfg = bundler.create_vite_config(`entry, is_dev=True);
         dev_content = dev_cfg.read_text();
-        assert 'import jacDevStatus, { reportClientLoad } from "./jac-dev-status.js"'
+        assert 'import jacClientEvents, { recordClientEvent } from "./jac-client-events.js"'
             in dev_content;
-        assert "jacDevStatus()," in dev_content;
-        # Browser load-phase failures feed the client slot via the reporter
-        assert "reportClientLoad(data)" in dev_content;
-        plugin_js = (dev_cfg.parent / "jac-dev-status.js").read_text();
-        # Vite slot: set from Vite's own error payloads, cleared on recovery
-        # payloads; jac-layer payloads are excluded (tracked in-process)
-        assert '".jac-dev-status.json"' in plugin_js;
+        assert "jacClientEvents()," in dev_content;
+        plugin_js = (dev_cfg.parent / "jac-client-events.js").read_text();
+        # The plugin is a dumb transport: one tagged JSON line per event on
+        # stdout, which the jac process already reads. It writes no file,
+        # keeps no status, and derives no file path of its own.
+        assert "process.stdout.write(PREFIX" in plugin_js;
+        assert 'const PREFIX = "@@jac-client-event ";' in plugin_js;
+        assert "jac-client-events.json" not in plugin_js;
+        assert "dev-status" not in plugin_js;
+        assert 'import fs from "fs"' not in plugin_js;
+        assert '"id": String(err.id || "")' in plugin_js;
+        assert '"plugin": String(err.plugin || "")' in plugin_js;
+        assert '"frame": String(err.frame || "")' in plugin_js;
+        assert '.replace(".js", ".jac")' not in plugin_js;
         assert '.startsWith("jac")' in plugin_js;
+        # Four slots, and only those four
+        for slot in ['emit("vite"', 'emit("ready"', '"client" : "runtime"'] {
+            assert slot in plugin_js , slot;
+        }
         assert '"full-reload"' in plugin_js;
         # Jac-recovery reloads must not clear a still-broken Vite layer, and
         # clearing needs a connected client to re-arm a persisting error
@@ -176,7 +197,7 @@ test "dev config wires the layered dev-status bridge; build config does not" {
         html = (Path(tmp) / "index.html").read_text();
         assert 'import.meta.hot.send("jac:client-ready")' in html;
         build_content = bundler.create_vite_config(`entry, is_dev=False).read_text();
-        assert "jacDevStatus" not in build_content;
+        assert "jacClientEvents" not in build_content;
     }
 }
 

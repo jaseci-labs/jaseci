@@ -5,15 +5,14 @@ import json;
 import os;
 import sys;
 import types;
-import from collections { OrderedDict }
-import from collections.abc { Callable, Coroutine, Mapping, Sequence }
+import from collections { OrderedDict, deque }
+import from collections.abc { Callable, Coroutine, Iterable, Mapping, Sequence }
 import from concurrent.futures { Future, ThreadPoolExecutor }
 import from contextvars { ContextVar }
 import dataclasses;
 import from dataclasses { dataclass, field }
 import from inspect { getfile }
 import from logging { getLogger }
-import from pathlib { Path }
 import from typing { TYPE_CHECKING, Literal, ParamSpec, Protocol, TypeAlias, TypeVar }
 import from uuid { UUID }
 import from jaclang.runtime.archetype {
@@ -22,7 +21,18 @@ import from jaclang.runtime.archetype {
     ObjectSpatialFunction,
     Root,
     anchor_key,
-    same_anchor
+    same_anchor,
+    _deref,
+    _edge_subtypes,
+    _light_edge_types,
+    edge_subtypes,
+    is_light_edge_type,
+    light_clear_hop,
+    light_connect,
+    light_disconnect,
+    light_edge_view,
+    light_hop,
+    light_hop_answers
 }
 import from jaclang.compiler.frontend.constant { EdgeDir, colors }
 import from jaclang.runtime.graph_query { GraphQuery, QHop }
@@ -87,7 +97,7 @@ def _scale_provider -> any {
     try {
         import from jaclang.scale.plugin { JacScalePlugin }
         result = JacScalePlugin;
-    } except ImportError { }
+    } except ImportError {}
     _scale_provider_cache.append(result);
     return result;
 }
@@ -95,6 +105,33 @@ def _scale_provider -> any {
 def _all_grant(anchor: Anchor) -> AccessLevel {
     perm = anchor.access;
     return AccessLevel.NO_ACCESS if perm is None else perm.all;
+}
+
+def _light_disconnect_between(
+    a: NodeAnchor, b: NodeAnchor, dirv: int, filter: (Callable | None)
+) -> bool {
+    occurred = False;
+    if dirv != 1 and a.out_light {
+        for cls in `list(a.out_light.keys()) {
+            if filter and not filter(light_edge_view(cls, a, b)) {
+                continue;
+            }
+            while light_disconnect(a, cls, b) {
+                occurred = True;
+            }
+        }
+    }
+    if dirv != 2 and a.in_light {
+        for cls in `list(a.in_light.keys()) {
+            if filter and not filter(light_edge_view(cls, b, a)) {
+                continue;
+            }
+            while light_disconnect(b, cls, a) {
+                occurred = True;
+            }
+        }
+    }
+    return occurred;
 }
 
 def resolve_ref(
@@ -160,6 +197,7 @@ obj LLMModel(Protocol) {
 
 class JacContext {
     static def get_context -> ExecutionContext;
+    static def peek_context -> (ExecutionContext | None);
     static def reset_graph(root_node: (Root | None) = None) -> int;
     static def create_j_context(
         user_root: (str | None),
@@ -180,7 +218,10 @@ class JacPersistence {
     static async def aget_object(id: str) -> (Archetype | None);
     static def object_ref(`obj: Archetype) -> str;
     static def save(`obj: (Archetype | Anchor)) -> None;
-    static def destroy(objs: Archetype | Anchor | list[(Archetype | Anchor)]) -> None;
+    static def destroy(objs: any, strict: bool = False) -> None;
+    static def _destroy_anchors(objs: any, strict: bool) -> list[Anchor];
+    static def peek_attr(`obj: any, name: str) -> any;
+    static def peek_item(container: any, key: any) -> any;
     static def get_user_manager(base_path: str) -> UserManager;
     static def store(base_path: str = './storage', create_dirs: bool = True) -> any;
     static def get_persistent_memory(config: dict) -> any;
@@ -271,6 +312,22 @@ class JacGraph {
         conn_type: type[EdgeArchetype] | EdgeArchetype | None,
         conn_assign: (tuple[(tuple, tuple)] | None)
     ) -> Callable[([NodeAnchor, NodeAnchor], EdgeArchetype)];
+
+    static def heavy_edge(
+        source: NodeAnchor,
+        target: NodeAnchor,
+        conn_type: type[EdgeArchetype] | EdgeArchetype | None,
+        is_undirected: bool,
+        conn_assign: (tuple[(tuple, tuple)] | None)
+    ) -> EdgeArchetype;
+
+    static def hop(
+        origin: any, dir: int, edge_type: (type | None) = None, edges_only: bool = False
+    ) -> list;
+
+    static def clear_edges(
+        origin: any, dir: int, edge_type: (type | None) = None
+    ) -> bool;
 }
 
 class JacWalker {
@@ -395,10 +452,6 @@ class JacServe {
     static def build_client_bundle(
         module: types.ModuleType, force: bool = False
     ) -> ClientBundle;
-
-    static def format_build_error(
-        error_output: str, project_dir: Path, config: object = None
-    ) -> str;
 
     static def get_api_server_class -> type;
     static def ensure_sv_service(module_name: str, base_path: str) -> None;

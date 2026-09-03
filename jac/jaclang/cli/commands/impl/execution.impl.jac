@@ -590,9 +590,16 @@ def _exec_file(
                 _cfg_kind is not None
                 and (_cfg_kind.project.kind or '').strip() == 'cli-native'
             );
+            import from jaclang.compiler.driver.boundary_classify {
+                module_demoted_native as _na_demoted
+            }
             if (
                 _kind_forced
-                or (_default_codespace_is_native() and sys.stdout is sys.__stdout__)
+                or (
+                    _default_codespace_is_native()
+                    and sys.stdout is sys.__stdout__
+                    and not _na_demoted(filename)
+                )
             ) {
                 import ctypes;
                 import from jaclang.compiler.driver.compile_options {
@@ -779,7 +786,7 @@ impl serve(
 
     try {
         mach.mem.unit_exit();
-    } except Exception { }
+    } except Exception {}
 
     port_pinned = port > 0;
     port = port if port_pinned else 8000;
@@ -869,6 +876,8 @@ impl serve(
                 compiler = server.introspector._bundle_builder._get_compiler();
                 compiler.compile(server.introspector._module, Path(filename));
                 console.print("  ✔ Initial client compilation completed");
+
+                compiler._emit_na_wasm(Path(filename));
             } except Exception as e {
                 console.warning(f"Initial client compilation failed: {e}");
 
@@ -1000,7 +1009,7 @@ def _get_network_ips -> list[str] {
                 }
             }
         }
-    } except Exception { }
+    } except Exception {}
     return ips;
 }
 
@@ -1101,6 +1110,16 @@ def _start_vite_dev_server(base_path: str, vite_port: int, api_port: int) -> any
 
         if not (client_dir / 'configs' / 'package.json').exists() {
             bundler.create_package_json();
+        }
+
+        try {
+            import from jaclang.server.hmr { HotReloader }
+            reloader = HotReloader._active;
+            if reloader is not None {
+                reloader.attach_client_bundler(bundler);
+            }
+        } except Exception as e {
+            console.warning(f"Client error events will not reach the terminal: {e}");
         }
 
         process = bundler.start_dev_server(vite_port, suppress_initial_output=True);

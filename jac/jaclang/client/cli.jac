@@ -189,7 +189,7 @@ def run_client_start(
 ) -> int | None {
     import from jaclang.cli.console { console }
     import from jaclang.client.targets.registry { get_target_factory }
-    import from jaclang.client.diagnostics { is_debug_mode }
+    import from jaclang.client.client_diagnostics { is_debug_mode }
 
     config = get_config();
     if not config {

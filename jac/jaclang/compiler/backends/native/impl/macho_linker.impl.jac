@@ -335,6 +335,20 @@ def _macho_reloc_refusal(rel: MachOReloc, sym_name: str, why: str) -> str {
 }
 
 
+def _macho_pinned_image_refusal(rel: MachOReloc, sym_name: str) -> str {
+    who = f" for symbol {sym_name}" if sym_name else "";
+    return (
+        f"Mach-O link refused: an absolute address{who} was patched into "
+        f"{rel.target_sec}+0x{rel.address:x}, a read-only section of the "
+        "image. Only __DATA can be rebased, so an image holding one can run "
+        "at its link address and nowhere else -- and an arm64 main executable "
+        "must be position-independent, so dyld would slide this one and every "
+        "such address would go stale (#8800). Emit position-independent code "
+        "for this target rather than linking an image that cannot move."
+    );
+}
+
+
 def _unsigned_inline_addend(
     rel: MachOReloc, patch_buf: bytearray, patch_off: int, sections: list[MachOSection]
 ) -> int {
@@ -1318,11 +1332,18 @@ impl MachOLinker.build_executable -> bytes {
     rodata_bytes = bytearray(rodata_data);
     data_bytes = bytearray(data_data);
 
+    pinned_rel: (MachOReloc | None) = None;
+    pinned_sym = "";
+    after_subtractor = False;
+
     for rel in self.relocations {
         if (is_arm64 and rel.rtype == ARM64_RELOC_SUBTRACTOR)
             or (not is_arm64 and rel.rtype == X86_64_RELOC_SUBTRACTOR) {
+            after_subtractor = True;
             continue;
         }
+        was_after_subtractor = after_subtractor;
+        after_subtractor = False;
 
         sym_addr = 0;
         sym_name = "";
@@ -1413,6 +1434,14 @@ impl MachOLinker.build_executable -> bytes {
             eff_addend += _unsigned_inline_addend(
                 rel, patch_buf, patch_off, self.sections
             );
+            if (not was_after_subtractor)
+                and pinned_rel is None
+                and (
+                    rel.target_sec in code_sections or rel.target_sec in rodata_sections
+                ) {
+                pinned_rel = rel;
+                pinned_sym = sym_name;
+            }
         }
         if is_arm64 {
             applied = _arm64_apply_reloc(
@@ -1430,6 +1459,10 @@ impl MachOLinker.build_executable -> bytes {
                 )
             );
         }
+    }
+
+    if pinned_rel is not None and is_arm64 {
+        raise ValueError(_macho_pinned_image_refusal(pinned_rel, pinned_sym));
     }
 
     stubs_bytes = bytearray();
@@ -1465,7 +1498,10 @@ impl MachOLinker.build_executable -> bytes {
 
     output = bytearray(total_file_size);
 
-    mh_flags = MH_NOUNDEFS | MH_DYLDLINK | MH_TWOLEVEL | MH_PIE;
+    mh_flags = MH_NOUNDEFS | MH_DYLDLINK | MH_TWOLEVEL;
+    if pinned_rel is None {
+        mh_flags |= MH_PIE;
+    }
     struct.pack_into(
         "<IiIIIII",
         output,

@@ -71,7 +71,7 @@ def _cap_read(stream: IO[bytes], holder: list, cap: int) {
         data: bytes = b"".join(chunks);
         if total >= cap {
             if stream.read(1) {
-                while stream.read(65536) { }
+                while stream.read(65536) {}
                 holder[0] = data + OUTPUT_TRUNCATION_MARKER.encode();
             } else {
                 holder[0] = data;
@@ -82,7 +82,7 @@ def _cap_read(stream: IO[bytes], holder: list, cap: int) {
     } finally {
         try {
             stream.close();
-        } except Exception { }
+        } except Exception {}
     }
 }
 
@@ -511,7 +511,7 @@ impl CompilerBridge.run_snippet(
                     } else {
                         os.killpg(os.getpgid(proc.pid), signal.Signals.SIGKILL);
                     }
-                } except Exception { }
+                } except Exception {}
                 proc.`wait();
                 _join_reader(t_out, "stdout");
                 _join_reader(t_err, "stderr");
@@ -543,18 +543,18 @@ impl CompilerBridge.run_snippet(
             if not t_out.is_alive() and proc.stdout is not None {
                 try {
                     proc.stdout.close();
-                } except Exception { }
+                } except Exception {}
             }
             if not t_err.is_alive() and proc.stderr is not None {
                 try {
                     proc.stderr.close();
-                } except Exception { }
+                } except Exception {}
             }
         }
     } finally {
         try {
             shutil.rmtree(tmp_dir);
-        } except Exception { }
+        } except Exception {}
     }
 }
 
@@ -610,7 +610,7 @@ impl CompilerBridge.graph_viz_snippet(
         } finally {
             try {
                 shutil.rmtree(tmp_dir);
-            } except Exception { }
+            } except Exception {}
         }
     }
     (success, result) = run_with_timeout(_do_graph, timeout=DEFAULT_TIMEOUT);

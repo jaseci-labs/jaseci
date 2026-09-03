@@ -330,7 +330,7 @@ def _park_conn(info: any, conn: any, in_txn: bool, listened: bool) -> None {
     if not pool_enabled() or getattr(conn, '_closed', False) {
         try {
             conn.close();
-        } except Exception { }
+        } except Exception {}
         return;
     }
     try {
@@ -344,7 +344,7 @@ def _park_conn(info: any, conn: any, in_txn: bool, listened: bool) -> None {
     } except Exception {
         try {
             conn.close();
-        } except Exception { }
+        } except Exception {}
         return;
     }
     release(info, conn);
@@ -395,7 +395,7 @@ impl PgStore._run(sql: str, params: dict) -> list {
             self._conn = None;
             try {
                 self.conninfo = self.ensure_cb();
-            } except Exception { }
+            } except Exception {}
             conn = self._main();
         }
         try {
@@ -404,14 +404,14 @@ impl PgStore._run(sql: str, params: dict) -> list {
             if _conn_dead(e) {
                 try {
                     conn.close();
-                } except Exception { }
+                } except Exception {}
                 self._conn = None;
                 was_txn = self._in_txn;
                 self._in_txn = False;
                 if self.ensure_cb is not None {
                     try {
                         self.conninfo = self.ensure_cb();
-                    } except Exception { }
+                    } except Exception {}
                 }
                 if was_txn {
                     import from jaclang.data.pgwire { PgWireError }
@@ -425,7 +425,7 @@ impl PgStore._run(sql: str, params: dict) -> list {
             if self._in_txn {
                 try {
                     conn.run('ROLLBACK');
-                } except Exception { }
+                } except Exception {}
                 self._in_txn = False;
             }
             raise;
@@ -764,7 +764,7 @@ impl PgStore.begin(isolation: TxnIsolation = TxnIsolation.SERIALIZABLE) -> None 
         self._isolation = isolation;
         try {
             self._run("SET LOCAL lock_timeout = '10s'", {});
-        } except Exception { }
+        } except Exception {}
     }
 }
 

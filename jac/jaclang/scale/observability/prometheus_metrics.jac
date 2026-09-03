@@ -61,7 +61,7 @@ obj PrometheusMetricsCollector(MetricsCollector) {
             ProcessCollector(registry=self._registry);
             PlatformCollector(registry=self._registry);
             GCCollector(registry=self._registry);
-        } except Exception { }
+        } except Exception {}
 
         buckets = self.config.get("histogram_buckets");
         if buckets {

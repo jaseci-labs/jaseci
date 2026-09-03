@@ -1599,14 +1599,15 @@ jac build --client mobile -p android
 Show the curated Jac reference guides bundled with the compiler -- the authoritative spec for writing correct, idiomatic Jac. AI coding agents and humans can read them straight from the CLI; nothing to install.
 
 ```bash
-jac guide [-h] [-s SEARCH] [-e EXPORT] [-j] [topic]
+jac guide [-h] [-s SEARCH] [-e EXPORT] [-n] [-j] [topic]
 ```
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `topic` | Guide name to display (omit to list every guide) | None |
-| `-s, --search` | List only guides matching a keyword | None |
+| `topic` | Guide or doc to print, or a doc set (`reference`, `quick-guide`, `build`, `tutorials`, `internals`, `community`) to list; omit to show the full index | None |
+| `-s, --search` | Grep every bundled guide and doc (`name:line:` hits) | None |
 | `-e, --export` | Export all guides as a Claude Code skills directory at this path | None |
+| `-n, --nav` | Print the docs navigation: sections, titles, and reading order | `False` |
 | `-j, --json` | Emit machine-readable JSON (for tools and agents) | `False` |
 
 **Examples:**
@@ -1623,6 +1624,10 @@ jac guide --search walker
 
 # Machine-readable list for tooling and agents
 jac guide --json
+
+# The docs navigation tree (sections and reading order); --json for the raw manifest
+jac guide --nav
+jac guide --nav --json
 
 # Export the guides as auto-loading Agent Skills
 jac guide --export ~/.claude/skills

@@ -33,6 +33,12 @@ comptime SPEC_CREATE: CommandSpec = CommandSpec(
                  short="u"
              ),
              Arg.create(
+                 "awesome",
+                 typ=bool,
+                 `default=False,
+                 help="Scaffold the full jaclang.org site (landing, docs, leaderboard, socialize, wasm game) as your project"
+             ),
+             Arg.create(
                  "list",
                  typ=bool,
                  `default=False,
@@ -124,6 +130,10 @@ comptime SPEC_CREATE: CommandSpec = CommandSpec(
                  "Scaffold a natively-compiled binary"
              ),
              ("jac create myapp --kind web-app", "Scaffold a full-stack web app"),
+             (
+                 "jac create mysite --awesome",
+                 "Dump the entire jaclang.org site as your project"
+             ),
              ("jac create --force", "Reinitialize existing project"),
              ("jac create --use ./my.jacpack", "Create from local .jacpack file"),
              ("jac create --use https://example.com/t.jacpack", "Create from URL"),
@@ -139,6 +149,7 @@ def create(
     force: bool = False,
     kind: str = "",
     use: str = "default",
+    awesome: bool = False,
     `list: bool = False,
     pack: str = "",
     pack_output: str = "",

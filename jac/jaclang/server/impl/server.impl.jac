@@ -377,9 +377,7 @@ def _occ_policy -> tuple[str, int, int] {
             max_attempts = cfg.serve.conflict_max_attempts;
             backoff_ms = cfg.serve.conflict_backoff_ms;
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return (mode, max_attempts, backoff_ms);
 }
 
@@ -872,9 +870,7 @@ impl ModuleIntrospector._extract_access_levels -> None {
                     self._walker_access[name] = auth;
                 }
             }
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
 }
 
@@ -2220,31 +2216,14 @@ impl JacAPIServer.build_app -> ServingApp {
                 content={'error': 'Missing required field: message'}, status_code=400
             );
         }
-        import from jaclang.client.source_mapping {
-            _error_rate_limiter,
-            resolve_client_error_stacks,
-            format_client_error_log
-        }
+        import from jaclang.client.source_mapping { _error_rate_limiter }
+        import from jaclang.client.client_diagnostics { log_client_error }
         if not _error_rate_limiter.should_log(message) {
             return JSONResponse(content={'ok': True, 'throttled': True});
         }
         cfg = get_config();
         verbose = cfg.client_errors.verbose if cfg else False;
-        (stack, component_stack) = resolve_client_error_stacks(
-            server.base_path,
-            data.get('stack', ''),
-            data.get('componentStack', ''),
-            verbose=verbose
-        );
-        log_parts = format_client_error_log(
-            message,
-            stack=stack,
-            component_stack=component_stack,
-            url=data.get('url', ''),
-            source=data.get('source', '')
-        );
-        import logging;
-        logging.getLogger('jaclang.client_errors').error('\n'.join(log_parts));
+        log_client_error(server.base_path or '', data, verbose);
         return JSONResponse(content={'ok': True});
     }
 
@@ -2399,9 +2378,7 @@ impl JacAPIServer.build_app -> ServingApp {
                 "serving stack (`jac run`)."
             );
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     for _w_name in _named_walkers {
         def _mk_walker_ep(bound: str) -> Callable {
             def _spawn_named(request: Request, node_id: str = '') -> any {
@@ -2599,10 +2576,9 @@ impl JacAPIServer.start(
         console.print('\nPress Ctrl+C to stop the server');
         if bundle_error {
             import sys;
-            formatted_error = Jac.format_build_error(
-                error_output=bundle_error,
-                project_dir=Path(self.base_path),
-                config=config
+            import from jaclang.client.client_diagnostics { format_build_diagnostics }
+            formatted_error = format_build_diagnostics(
+                self.base_path, bundle_error, config
             );
             console.print(file=sys.stderr);
             console.print(formatted_error, file=sys.stderr);
