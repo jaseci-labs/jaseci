@@ -34,9 +34,7 @@ import from jaclang.scale.deploy.autoscale.factory { AutoscalerFactory }
 import from jaclang.scale.deploy.autoscale.autoscaler {
     AutoscalerSpec,
     Trigger,
-    TriggerAuth,
-    DEFAULT_CPU_UTILIZATION_TARGET,
-    DEFAULT_MEMORY_UTILIZATION_TARGET
+    TriggerAuth
 }
 import from jaclang.scale.deploy.autoscale.keda_autoscaler { KEDAAutoscaler }
 import from jaclang.scale.deploy.autoscale.http_activation_config {
@@ -219,12 +217,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
         if self.microservices_config is not None {
             return self.microservices_config;
         }
-        try {
-            import from jaclang.scale.config.config_loader { get_scale_config }
-            return get_scale_config().get_microservices_config();
-        } except Exception {
-            return {};
-        }
+        import from jaclang.scale.config.config_loader { load_microservices_config }
+        return load_microservices_config();
     }
 
     def deploy(app_config: AppConfig) -> DeploymentResult {
@@ -948,33 +942,11 @@ obj KubernetesTarget(KubernetesTargetBase) {
     }
 
     def _read_microservices_logs_config -> dict[str, any] {
-        try {
-            ms_cfg = self._ms_cfg();
-            return dict(ms_cfg.get("logs", {}));
-        } except Exception as e {
-            if self.logger {
-                self.logger.warn(
-                    f"Could not read [scale.microservices.logs] - "
-                    f"observability stack will not be deployed: {e}"
-                );
-            }
-            return {};
-        }
+        return dict(self._ms_cfg().get("logs", {}));
     }
 
     def _read_microservices_tracing_config -> dict[str, any] {
-        try {
-            ms_cfg = self._ms_cfg();
-            return dict(ms_cfg.get("tracing", {}));
-        } except Exception as e {
-            if self.logger {
-                self.logger.warn(
-                    f"Could not read [scale.microservices.tracing] - "
-                    f"tracing stack will not be deployed: {e}"
-                );
-            }
-            return {};
-        }
+        return dict(self._ms_cfg().get("tracing", {}));
     }
 
     def generate_manifests(app_config: AppConfig) -> dict[str, any] {
@@ -1024,7 +996,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
                     type="cpu",
                     metadata={
                         "averageUtilization": str(
-                            cfg.get("cpu_target", DEFAULT_CPU_UTILIZATION_TARGET)
+                            cfg.get(
+                                "cpu_target", self.k8s_config.cpu_utilization_target
+                            )
                         )
                     }
                 )
@@ -1036,7 +1010,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
                         metadata={
                             "averageUtilization": str(
                                 cfg.get(
-                                    "memory_target", DEFAULT_MEMORY_UTILIZATION_TARGET
+                                    "memory_target",
+                                    self.k8s_config.memory_utilization_target
                                 )
                             )
                         }
@@ -1087,8 +1062,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
             autoscaler_name=autoscaler.resource_name_for(k8s_name),
             app_name=k8s_name,
             namespace=namespace,
-            min_replicas=int(cfg.get("min", 1)),
-            max_replicas=int(cfg.get("max", 3)),
+            min_replicas=int(cfg.get("min", self.k8s_config.min_replicas)),
+            max_replicas=int(cfg.get("max", self.k8s_config.max_replicas)),
             idle_replicas=self.k8s_config.idle_replicas,
             polling_interval=self.k8s_config.autoscaler_polling_interval,
             cooldown_period=self.k8s_config.autoscaler_cooldown,
