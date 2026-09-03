@@ -578,16 +578,6 @@ impl JacScaleConfig.get_microservices_config(self: JacScaleConfig) -> dict[str, 
 impl normalize_microservices_config(
     ms_config: dict[str, any], env_routes_fallback: bool = True
 ) -> dict[str, any] {
-    if 'enabled' in ms_config and not _ms_enabled_deprecation_warned {
-        _ms_enabled_deprecation_warned = True;
-        import logging;
-        logging.getLogger(__name__).warning(
-            "jac.toml [scale.microservices] `enabled` is deprecated: declaring "
-            "[scale.microservices.routes] is what turns microservice mode on, "
-            "and a deployed fleet pod ignores this key. Delete it (remove the "
-            "routes table to run single-process); a future release drops it."
-        );
-    }
     client_config = ms_config.get('client', {});
     cors_config = ms_config.get('cors', {});
     rl_config = ms_config.get('rate_limit', {});
