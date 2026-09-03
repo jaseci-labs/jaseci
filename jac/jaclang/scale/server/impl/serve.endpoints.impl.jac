@@ -150,7 +150,6 @@ impl JacAPIServerEndpoints.create_walker_callback(
             return TransportResponse.fail(
                 code=str(result.get('error_code') or 'EXECUTION_ERROR').upper(),
                 message=result.get('error', 'Walker execution failed'),
-                details=result.get('traceback') if 'traceback' in result else None,
                 meta=Meta(extra={'http_status': int(result.get('http_status') or 500)})
             );
         }
@@ -303,7 +302,6 @@ impl JacAPIServerEndpoints.create_function_callback(
             return TransportResponse.fail(
                 code=str(result.get('error_code') or 'EXECUTION_ERROR').upper(),
                 message=result.get('error', 'Function execution failed'),
-                details=result.get('traceback') if 'traceback' in result else None,
                 meta=Meta(extra={'http_status': int(result.get('http_status') or 500)})
             );
         }
@@ -511,8 +509,7 @@ impl JacAPIServerEndpoints.create_webhook_callback(
 
         if 'error' in result {
             logger.error(
-                f"Webhook walker '{walker_name}' failed: "
-                f"{result.get('error')} {result.get('traceback', '')}"
+                f"Webhook walker '{walker_name}' failed: {result.get('error')}"
             );
             return TransportResponse.fail(
                 code='EXECUTION_ERROR',
