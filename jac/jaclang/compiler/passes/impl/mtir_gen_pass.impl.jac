@@ -14,6 +14,16 @@ import from jaclang.compiler.driver.mtp {
     type_to_str
 }
 
+def _is_str_literal(expr: Expr | None) -> bool {
+    if isinstance(expr, String) {
+        return True;
+    }
+    if isinstance(expr, MultiString) {
+        return all(isinstance(part, String) for part in (expr.strings or []));
+    }
+    return False;
+}
+
 impl MTIRGenPass.postinit -> None {
     super.postinit();
 }
@@ -311,10 +321,15 @@ impl MTIRGenPass._extract_function_info(nd: Ability) -> FunctionInfo {
         return_type = parsed_return;
     }
     tools: list[FunctionInfo] = [];
+    static_tools = False;
+    static_system_prompt = True;
     if nd.is_genai_ability {
         by_expr = nd.body;
         if isinstance(by_expr, Expr) {
             tools = self._extract_tools_from_expr(by_expr, nd);
+            (static_tools, static_system_prompt) = self._static_by_flags(
+                by_expr, len(tools)
+            );
         }
     }
     return FunctionInfo(
@@ -322,7 +337,12 @@ impl MTIRGenPass._extract_function_info(nd: Ability) -> FunctionInfo {
         semstr=nd.sym.semstr if nd?.sym and nd.sym else None,
         params=parameters,
         return_type=return_type,
-        tools=tools
+        tools=tools,
+        invariant_plan=self._build_invariant_plan(
+            nd, parameters, return_type, static_tools, static_system_prompt
+        ),
+        static_tools=static_tools,
+        static_system_prompt=static_system_prompt
     );
 }
 
@@ -350,7 +370,10 @@ impl MTIRGenPass._extract_method_info(
         params=func_info.params,
         return_type=func_info.return_type,
         parent_class=parent_class_info,
-        tools=func_info.tools
+        tools=func_info.tools,
+        invariant_plan=func_info.invariant_plan,
+        static_tools=func_info.static_tools,
+        static_system_prompt=func_info.static_system_prompt
     );
 }
 
@@ -383,22 +406,16 @@ impl MTIRGenPass._get_scope_str(nd: UniScopeNode) -> str {
     return self_name;
 }
 
-impl MTIRGenPass._extract_tools_from_expr(
-    expr: Expr, scope: UniScopeNode
-) -> list[FunctionInfo] {
-    tools: list[FunctionInfo] = [];
-
-    params_to_check: list[Expr | KWPair] = [];
-
+impl MTIRGenPass._by_call_params(expr: Expr) -> list {
     if isinstance(expr, FuncCall) and expr?.params {
-        params_to_check = list(expr.params or []);
-    } elif isinstance(expr, AtomTrailer) {
+        return list(expr.params or []);
+    }
+    if isinstance(expr, AtomTrailer) {
         current = expr;
         while current {
             right = current.right;
             if isinstance(right, FuncCall) and right?.params {
-                params_to_check = list(right.params or []);
-                break;
+                return list(right.params or []);
             }
 
             if isinstance(current.target, AtomTrailer) {
@@ -408,6 +425,15 @@ impl MTIRGenPass._extract_tools_from_expr(
             }
         }
     }
+    return [];
+}
+
+impl MTIRGenPass._extract_tools_from_expr(
+    expr: Expr, scope: UniScopeNode
+) -> list[FunctionInfo] {
+    tools: list[FunctionInfo] = [];
+
+    params_to_check: list[Expr | KWPair] = self._by_call_params(expr);
 
     for param in params_to_check {
         if isinstance(param, KWPair)
@@ -446,6 +472,46 @@ impl MTIRGenPass._extract_tools_from_expr(
         }
     }
     return tools;
+}
+
+impl MTIRGenPass._static_by_flags(expr: Expr, resolved_tools: int) -> tuple {
+    static_tools = False;
+    static_system_prompt = True;
+    for param in self._by_call_params(expr) {
+        if not (isinstance(param, KWPair) and isinstance(param.key, Name)) {
+            continue;
+        }
+        key = param.key.value;
+        val = param.value;
+        if key == "tools" {
+            if isinstance(val, (ListVal, TupleVal)) {
+                declared = len(list(val.values or []));
+                static_tools = declared > 0 and declared == resolved_tools;
+            }
+        } elif key == "system_prompt" {
+            static_system_prompt = _is_str_literal(val);
+        }
+    }
+    return (static_tools, static_system_prompt);
+}
+
+impl MTIRGenPass._build_invariant_plan(
+    nd: Ability,
+    parameters: list[ParamInfo],
+    return_type: (str | ClassInfo | EnumInfo | tuple | None),
+    static_tools: bool,
+    static_system_prompt: bool
+) -> dict[str, bool] {
+    ret_str = type_to_str(return_type) if return_type is not None else "None";
+    return {
+        "description": True,
+        "params": len(parameters) > 0,
+        "self": bool(nd.is_method),
+        "return_type": return_type is not None,
+        "schema": return_type is not None and ret_str not in ("str", "None"),
+        "tools": static_tools,
+        "system_prompt": static_system_prompt
+    };
 }
 
 impl MTIRGenPass._process_ability(nd: Ability) -> None {

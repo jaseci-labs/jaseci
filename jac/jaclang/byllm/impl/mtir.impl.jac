@@ -49,28 +49,28 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
         local_idx += 1;
     }
 
-    inputs_detail: list[str] = [];
+    input_entries: list[tuple] = [];
     media_inputs: list = [];
+    media_params: list[str] = [];
     if fn_info is not None and fn_info.params is not None {
         params = [param for param in fn_info.params];
         for (key, value) in args.items() {
             idx = list(args.keys()).index(key);
+            `sem = params[idx].semstr or "";
             if isinstance(value, Media) {
-                media_inputs.append((value, params[idx].semstr or ""));
+                media_inputs.append((value, `sem));
+                media_params.append(params[idx].name);
                 continue;
             }
 
             if isinstance(key, str) {
-                inputs_detail.append(f"{key} = {(value, params[idx].semstr or "")}");
+                label = key;
+            } elif key < len(params) {
+                label = params[key].name;
             } else {
-                if key < len(params) {
-                    inputs_detail.append(
-                        f"{params[key].name} = {(value, params[idx].semstr or "")}"
-                    );
-                } else {
-                    inputs_detail.append(f"arg = {(value, params[idx].semstr or "")}");
-                }
+                label = "arg";
             }
+            input_entries.append((label, f"{label} = {(value, `sem)}", value));
         }
     } else {
         param_names = list(inspect.signature(caller).parameters.keys());
@@ -81,14 +81,13 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
             }
 
             if isinstance(key, str) {
-                inputs_detail.append(f"{key} = {value}");
+                label = key;
+            } elif key < len(param_names) {
+                label = param_names[key];
             } else {
-                if key < len(param_names) {
-                    inputs_detail.append(f"{param_names[key]} = {value}");
-                } else {
-                    inputs_detail.append(f"arg = {value}");
-                }
+                label = "arg";
             }
+            input_entries.append((label, f"{label} = {value}", value));
         }
     }
     incl_info = call_params.get("incl_info");
@@ -97,11 +96,13 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
             if isinstance(value, Media) {
                 media_inputs.append((value, ""));
             } else {
-                if has_mtir {
-                    inputs_detail.append(f"{key} = {(value, "")}");
-                } else {
-                    inputs_detail.append(f"{key} = {value}");
-                }
+                input_entries.append(
+                    (
+                        key,
+                        f"{key} = {(value, "")}" if has_mtir else f"{key} = {value}",
+                        value
+                    )
+                );
             }
         }
     }
@@ -109,13 +110,16 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
     if isinstance(caller_obj, MethodType) {
         bound_self = caller_obj.__self__;
         parent_info = fn_info.parent_class if isinstance(fn_info, MethodInfo) else None;
-        if has_mtir {
-            inputs_detail.insert(
-                0, f"self = {(bound_self, parent_info.semstr if parent_info else '')}"
-            );
-        } else {
-            inputs_detail.insert(0, f"self = {bound_self}");
-        }
+        input_entries.insert(
+            0,
+            (
+                "self",
+                f"self = {(bound_self, parent_info.semstr if parent_info else '')}"
+                    if has_mtir
+                    else f"self = {bound_self}",
+                bound_self
+            )
+        );
     }
 
     system_content = SYSTEM_PERSONA;
@@ -141,9 +145,39 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
             call_system_prompt = None;
         }
     }
-    if call_system_prompt {
-        system_content += "\n\n" + str(call_system_prompt);
+    call_sp_text = str(call_system_prompt) if call_system_prompt else "";
+    if call_sp_text {
+        system_content += "\n\n" + call_sp_text;
     }
+
+    return_type = get_type_hints(caller).get("return");
+    description = Tool.get_func_description(caller);
+    include_schema_hint = len(tools) == 0;
+
+    plan = invariant_plan_of(fn_info);
+    sp_volatile = bool(call_sp_text) and not (plan or {}).get("system_prompt", True);
+    hoist = (
+        plan is not None
+        and bool(input_entries or media_inputs)
+        and not sp_volatile
+        and hoisting_enabled()
+    );
+    contract_text = "";
+    if hoist {
+        contract_text = render_contract_block(
+            fn_info,
+            description,
+            return_type,
+            include_schema_hint,
+            tuple(media_params),
+            tuple(tool.get_name() for tool in tools)
+        );
+        hoist = bool(contract_text);
+    }
+
+    inputs_detail: list[str] = [
+        f"{item[0]} = {repr(item[2])}" if hoist else item[1] for item in input_entries
+    ];
 
     conv_arg = call_params.get("conversation");
     conv_msgs: list[MessageType] = [];
@@ -167,17 +201,25 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
         role=MessageRole.SYSTEM,
         content=system_content + (INSTRUCTION_TOOL if tools else ""),
     );
-    user_msg = Message(
-        role=MessageRole.USER,
-        content=[
-            Text(Tool.get_func_description(caller) + "\n\n" + "\n".join(inputs_detail)),
-            *media_inputs,
+    body = "\n".join(inputs_detail);
+    user_content: list = [];
+    if not hoist {
+        user_content.append(Text(description + "\n\n" + body));
+    } elif body {
+        user_content.append(Text(body));
+    }
+    user_content.extend(media_inputs);
+    user_msg = Message(role=MessageRole.USER, content=user_content);
 
-        ],
+    contract_msg: Message | None = (
+        Message(role=MessageRole.SYSTEM, content=contract_text) if hoist else None
     );
-    messages: list[MessageType] = [sys_msg, *conv_msgs, user_msg];
+    messages: list[MessageType] = (
+        [sys_msg, contract_msg, *conv_msgs, user_msg]
+            if contract_msg is not None
+            else [sys_msg, *conv_msgs, user_msg]
+    );
 
-    return_type = get_type_hints(caller).get("return");
     is_streaming = bool(call_params.get("stream", False));
     if is_streaming
         and return_type is not str
@@ -208,6 +250,13 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
     if conv_list_ref is not None {
         mt_run._scaffolding_ids.append(id(sys_msg));
         mt_run._conversation_list = conv_list_ref;
+    }
+    if contract_msg is not None {
+        mt_run._scaffolding_ids.append(id(contract_msg));
+        mt_run._hoisted = True;
+        mt_run._invariant_text = str(sys_msg.content) + "\n\n" + contract_text;
+        mt_run._schema_hint_hoisted = include_schema_hint
+            and bool((plan or {}).get("schema", False));
     }
 
     return mt_run;

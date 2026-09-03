@@ -9,6 +9,7 @@ class JacByllmConfig(PluginConfigBase) {
     def get_litellm_config(self: JacByllmConfig) -> dict[str, any];
     def get_fallback_config(self: JacByllmConfig) -> dict[str, any];
     def get_prompt_caching_config(self: JacByllmConfig) -> dict[str, any];
+    def get_optimizations_config(self: JacByllmConfig) -> dict[str, any];
     def get_parallel_config(self: JacByllmConfig) -> dict[str, any];
     def get_tool_stream_config(self: JacByllmConfig) -> dict[str, any];
     def get_streaming_config(self: JacByllmConfig) -> dict[str, any];

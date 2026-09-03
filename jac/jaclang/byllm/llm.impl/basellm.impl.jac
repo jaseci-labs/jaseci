@@ -1179,7 +1179,9 @@ impl BaseLLM.make_model_params(mt_run: MTRuntime) -> dict {
         params["tool_choice"] = mt_run.call_params["tool_choice"];
     }
 
-    params = inject_schema_hint(params);
+    if not mt_run?._schema_hint_hoisted {
+        params = inject_schema_hint(params);
+    }
 
     if not self.supports_native_tools {
         params = inject_tool_hint(params);
@@ -1375,6 +1377,7 @@ impl BaseLLM.dispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
     self.api_base = params.pop("api_base", DEFAULT_BASE_URL);
     params.pop("api_key", None);
     attempt = 0;
+    call_started = time.time();
     while True {
         try {
             response = self.model_call_no_stream(params);
@@ -1423,6 +1426,9 @@ impl BaseLLM.dispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
         else output_content;
     usage_data = response.get("usage", {});
     _attach_call_cost(usage_data, self.model_name, response);
+    log_completion(
+        mt_run, self.model_name, usage_data, (time.time() - call_started) * 1000
+    );
     return CompletionResult(
         output=output_value, tool_calls=tool_calls, usage=usage_data
     );
@@ -1456,6 +1462,7 @@ impl BaseLLM.dispatch_streaming(mt_run: MTRuntime) -> Generator[str, None, None]
     params.pop("api_key", None);
     attempt = 0;
     usage_base = len(self._usage_history);
+    call_started = time.time();
     while True {
         try {
             response = self.model_call_with_stream(params);
@@ -1480,6 +1487,12 @@ impl BaseLLM.dispatch_streaming(mt_run: MTRuntime) -> Generator[str, None, None]
             raise;
         }
     }
+    log_completion(
+        mt_run,
+        self.model_name,
+        self._usage_history[-1] if len(self._usage_history) > usage_base else {},
+        (time.time() - call_started) * 1000
+    );
 }
 
 impl BaseLLM.dispatch_streaming_with_tools(
@@ -1497,6 +1510,7 @@ impl BaseLLM.dispatch_streaming_with_tools(
     no_stream = False;
     finish_reason = "";
     attempt = 0;
+    call_started = time.time();
     while True {
         chunks = [];
         content_buf = "";
@@ -1600,6 +1614,9 @@ impl BaseLLM.dispatch_streaming_with_tools(
     output_value = mt_run.parse_response(output_content)
         if not tool_calls_list
         else output_content;
+    log_completion(
+        mt_run, self.model_name, usage_data, (time.time() - call_started) * 1000
+    );
     out.append(
         CompletionResult(output=output_value, tool_calls=tool_calls, usage=usage_data)
     );
@@ -1611,6 +1628,7 @@ impl BaseLLM.adispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
     self.api_base = params.pop("api_base", DEFAULT_BASE_URL);
     params.pop("api_key", None);
     attempt = 0;
+    call_started = time.time();
     while True {
         try {
             response = await self.model_call_no_stream_async(params);
@@ -1655,6 +1673,9 @@ impl BaseLLM.adispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
         else output_content;
     usage_data = response.get("usage", {});
     _attach_call_cost(usage_data, self.model_name, response);
+    log_completion(
+        mt_run, self.model_name, usage_data, (time.time() - call_started) * 1000
+    );
     return CompletionResult(
         output=output_value, tool_calls=tool_calls, usage=usage_data
     );
@@ -1668,6 +1689,7 @@ impl BaseLLM.adispatch_streaming(mt_run: MTRuntime) {
     params.pop("api_key", None);
     attempt = 0;
     usage_base = len(self._usage_history);
+    call_started = time.time();
     while True {
         try {
             response = await self.model_call_with_stream_async(params);
@@ -1692,6 +1714,12 @@ impl BaseLLM.adispatch_streaming(mt_run: MTRuntime) {
             raise;
         }
     }
+    log_completion(
+        mt_run,
+        self.model_name,
+        self._usage_history[-1] if len(self._usage_history) > usage_base else {},
+        (time.time() - call_started) * 1000
+    );
 }
 
 impl BaseLLM.model_call_no_stream(params: dict) -> dict {

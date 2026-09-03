@@ -44,6 +44,7 @@ import from jaclang.byllm.parallel {
     _PARALLEL_TOOL_HINT
 }
 import from jaclang.byllm.schema { inject_schema_hint }
+import from jaclang.byllm.usage_log { log_completion }
 import from jaclang.byllm.tool_protocol { inject_tool_hint, recover_tool_calls }
 
 glob _byllm_config = get_byllm_config(),
