@@ -28,6 +28,12 @@ import from jaclang.byllm.exceptions {
 import from jaclang.byllm.mcp { McpClient, McpTool }
 import from jaclang.byllm.telemetry { register_agent_callback }
 import from jaclang.byllm.parallel { dispatch_batch, mark_serialize }
+import from jaclang.byllm.use_site {
+    render_use_site_block,
+    resolve_use_site_mode,
+    use_site_suffix,
+    use_site_word_count
+}
 
 glob `by = JacRuntime.`by,
      __all__ = [
@@ -61,5 +67,9 @@ glob `by = JacRuntime.`by,
          'Video',
          'register_agent_callback',
          'dispatch_batch',
-         'mark_serialize'
+         'mark_serialize',
+         'render_use_site_block',
+         'resolve_use_site_mode',
+         'use_site_suffix',
+         'use_site_word_count'
      ];

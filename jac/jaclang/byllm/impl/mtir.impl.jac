@@ -167,10 +167,22 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
         role=MessageRole.SYSTEM,
         content=system_content + (INSTRUCTION_TOOL if tools else ""),
     );
+    use_site_txt = "";
+    try {
+        use_site_txt = use_site_suffix(fn_info);
+    } except Exception {
+        use_site_txt = "";
+    }
+
     user_msg = Message(
         role=MessageRole.USER,
         content=[
-            Text(Tool.get_func_description(caller) + "\n\n" + "\n".join(inputs_detail)),
+            Text(
+                Tool.get_func_description(caller)
+                    + use_site_txt
+                    + "\n\n"
+                    + "\n".join(inputs_detail)
+            ),
             *media_inputs,
 
         ],
@@ -204,6 +216,8 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
         call_params=call_params,
         mtir=mtir
     );
+
+    setattr(mt_run, "_use_site_block", use_site_txt);
 
     if conv_list_ref is not None {
         mt_run._scaffolding_ids.append(id(sys_msg));

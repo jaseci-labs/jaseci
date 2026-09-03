@@ -18,6 +18,7 @@ impl JacByllmConfig.get_default_config(self: JacByllmConfig) -> dict[str, any] {
         'fallback': {'strategy': 'fallback', 'num_retries': 1, 'timeout': 60.0},
         'prompt_caching': {'enabled': True},
         'parallel': {'enabled': False},
+        'optimizations': {'use_site_specialization': 'off'},
         'streaming': {
             'read_timeout': 90.0,
             'connect_timeout': 30.0,
@@ -123,6 +124,14 @@ impl JacByllmConfig.get_parallel_config(self: JacByllmConfig) -> dict[str, any] 
         in ('true', '1', 'yes');
     toml_enabled = bool(parallel_config.get('enabled', False));
     return {'enabled': env_enabled or toml_enabled};
+}
+
+impl JacByllmConfig.get_optimizations_config(self: JacByllmConfig) -> dict[str, any] {
+    config = self.load();
+    opt_config = config.get('optimizations', {});
+    return {
+        'use_site_specialization': str(opt_config.get('use_site_specialization', 'off'))
+    };
 }
 
 impl JacByllmConfig.get_tool_stream_config(self: JacByllmConfig) -> dict[str, any] {

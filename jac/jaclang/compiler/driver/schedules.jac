@@ -209,6 +209,7 @@ def get_analysis_sched -> list[type[Transform]] {
         }
         import from jaclang.compiler.passes.ownership_check_pass { OwnershipCheckPass }
         import from jaclang.compiler.tools.jac_auto_lint_pass { JacLintCheckPass }
+        import from jaclang.compiler.passes.use_site_pass { UseSitePass }
         return validate_schedule(
             [
                 TypeCheckPass,
@@ -218,7 +219,8 @@ def get_analysis_sched -> list[type[Transform]] {
                 NativeCapabilityCheckPass,
                 ClientCapabilityCheckPass,
                 PortabilityWarnPass,
-                JacLintCheckPass
+                JacLintCheckPass,
+                UseSitePass
             ],
             preprovided={'CfgSucc'},
             origin='analysis schedule'

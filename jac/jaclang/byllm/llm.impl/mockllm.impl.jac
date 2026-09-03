@@ -42,6 +42,7 @@ impl MockLLM.dispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
     }
 
     if isinstance(output, MockRawResponse) {
+        emit_usage_record(mt_run, usage, self.model_name);
         return CompletionResult(
             output=mt_run.parse_response(output.content), tool_calls=[], usage=usage
         );
@@ -54,12 +55,14 @@ impl MockLLM.dispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
         self.log_info(
             f"Mock LLM call completed with {len(tool_calls)} batch tool calls"
         );
+        emit_usage_record(mt_run, usage, self.model_name);
         return CompletionResult(output=None, tool_calls=tool_calls, usage=usage);
     }
     if isinstance(output, MockToolCall) {
         self.log_info(
             f"Mock LLM call completed with tool call:\n{output.to_tool_call()}"
         );
+        emit_usage_record(mt_run, usage, self.model_name);
         return CompletionResult(
             output=None, tool_calls=[output.to_tool_call()], usage=usage
         );
@@ -73,6 +76,7 @@ impl MockLLM.dispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
             f"Mock LLM call completed with response: {output} with params: {log_params}"
         );
     }
+    emit_usage_record(mt_run, usage, self.model_name);
     return CompletionResult(output=output, tool_calls=[], usage=usage);
 }
 

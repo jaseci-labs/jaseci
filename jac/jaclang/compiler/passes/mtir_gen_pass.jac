@@ -61,6 +61,9 @@ glob PRIMITIVE_TYPES: list[str] = [
      ]
          + JAC_TYPE_REGISTRY.sized_scalar_names();
 
+def mtir_scope_str(nd: UniScopeNode) -> str;
+
+
 walker MTIRGenPass(Transform) {
     has ir_in: Module,
         cancel_token: any = None,

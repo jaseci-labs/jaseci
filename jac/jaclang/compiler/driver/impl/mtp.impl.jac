@@ -22,3 +22,9 @@ impl FunctionInfo.postinit -> object {
         self.tools = [];
     }
 }
+
+impl UseSiteInfo.postinit -> object {
+    if (self.fields_read is None) {
+        self.fields_read = [];
+    }
+}

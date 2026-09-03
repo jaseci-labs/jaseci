@@ -89,6 +89,18 @@ class JacByllmPluginConfig {
                         }
                     }
                 },
+                "optimizations": {
+                    "type": "dict",
+                    "default": {},
+                    "description": "Experimental prompt optimizations",
+                    "nested": {
+                        "use_site_specialization": {
+                            "type": "string",
+                            "default": "off",
+                            "description": "Tell the model how its output is consumed downstream: 'off', 'signature', 'semantic' or 'generic'"
+                        }
+                    }
+                },
                 "system_prompt": {
                     "type": "string",
                     "default": "",

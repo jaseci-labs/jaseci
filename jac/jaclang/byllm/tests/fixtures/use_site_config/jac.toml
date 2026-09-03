@@ -1,0 +1,6 @@
+[project]
+name = "byllm-use-site-test"
+version = "0.1.0"
+
+[byllm.optimizations]
+use_site_specialization = "semantic"

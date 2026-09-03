@@ -38,6 +38,7 @@ import from jaclang.byllm.types {
 }
 import from jaclang.byllm.config_loader { get_byllm_config }
 import from jaclang.byllm.telemetry { _emit_agent_telemetry, _current_invocation_id }
+import from jaclang.byllm.usage_log { emit_usage_record }
 import from jaclang.byllm.parallel {
     dispatch_batch,
     _index_by_identity,
