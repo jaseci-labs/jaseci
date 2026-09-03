@@ -29,11 +29,23 @@ def run_jac(cmd: str, path: str) -> str {
     return result.stdout + result.stderr;
 }
 
-test "a ten thousand operand chain runs" {
+test "a five thousand operand chain compiles with nothing degraded" {
+    with tempfile.TemporaryDirectory() as dir {
+        out = run_jac("run", write_chain(dir, 5000));
+        assert "5000" in out , out;
+        assert "✖ Error" not in out , out;
+        assert "maximum recursion depth" not in out , out;
+        assert "internal compiler error" not in out , out;
+    }
+}
+
+test "a ten thousand operand chain still gives the right answer" {
+    # Native lowering recurses per operator and gives out near six thousand,
+    # so above that the compiler falls back and warns; the answer stays right.
     with tempfile.TemporaryDirectory() as dir {
         out = run_jac("run", write_chain(dir, 10000));
         assert "10000" in out , out;
-        assert "\u2716 Error" not in out , out;
+        assert "✖ Error" not in out , out;
     }
 }
 

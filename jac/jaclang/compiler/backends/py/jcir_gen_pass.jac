@@ -283,18 +283,23 @@ obj CgSplice(CgItem) {
 
 obj CgEllipsis(CgItem) {}
 
+glob TASK_VALUE: int = 0,
+     TASK_NODE: int = 1,
+     TASK_LIST: int = 2;
+
+
 def write_ir_value(w: CodegenIrWriter, v: object) {
-    tasks: list = [[0, v]];
+    tasks: list[tuple[(int, object)]] = [(TASK_VALUE, v)];
     while tasks {
         t = tasks.pop();
         kind = t[0];
         val = t[1];
-        if kind == 1 {
+        if kind == TASK_NODE {
             w.emit_loc_needed(val.l1, val.c1, val.l2, val.c2);
             w.emit_node(val.cls, val.keys);
             continue;
         }
-        if kind == 2 {
+        if kind == TASK_LIST {
             w.emit_list(val);
             continue;
         }
@@ -303,11 +308,11 @@ def write_ir_value(w: CodegenIrWriter, v: object) {
         } elif isinstance(val, CgEllipsis) {
             w.emit_ellipsis();
         } elif isinstance(val, CgNode) {
-            tasks.append([1, val]);
+            tasks.append((TASK_NODE, val));
             items = val.vals;
             i = len(items) - 1;
             while i >= 0 {
-                tasks.append([0, items[i]]);
+                tasks.append((TASK_VALUE, items[i]));
                 i -= 1;
             }
         } elif isinstance(val, CgSplice) {
@@ -327,10 +332,10 @@ def write_ir_value(w: CodegenIrWriter, v: object) {
         } elif isinstance(val, bytes) {
             w.emit_bytes(val);
         } elif isinstance(val, list) {
-            tasks.append([2, len(val)]);
+            tasks.append((TASK_LIST, len(val)));
             i = len(val) - 1;
             while i >= 0 {
-                tasks.append([0, val[i]]);
+                tasks.append((TASK_VALUE, val[i]));
                 i -= 1;
             }
         } else {
