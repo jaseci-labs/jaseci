@@ -1012,14 +1012,14 @@ impl JacCompiler.stamp_boundary_facts(
         }
     }
 
-    def collect_pub_walkers(nd: uni.UniNode, out: dict[(str, uni.Archetype)]) {
+    def collect_walkers(nd: uni.UniNode, out: dict[(str, uni.Archetype)]) {
         if isinstance(nd, uni.Archetype) and nd.sym_name {
-            if nd.arch_kind == 'walker' and bool(nd.public_access) {
+            if nd.arch_kind == 'walker' {
                 out[nd.sym_name] = nd;
             }
         }
         for k in nd.kid {
-            collect_pub_walkers(k, out);
+            collect_walkers(k, out);
         }
     }
 
@@ -1048,7 +1048,7 @@ impl JacCompiler.stamp_boundary_facts(
             collect_abilities(src, abilities);
         } except Exception {}
         try {
-            collect_pub_walkers(src, walkers);
+            collect_walkers(src, walkers);
         } except Exception {}
         for name in wanted {
             wk_decl = walkers.get(name);

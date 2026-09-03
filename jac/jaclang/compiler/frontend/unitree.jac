@@ -835,7 +835,8 @@ obj ImportBoundaryFacts {
         na_unmappable_targets: list[str] = [],
         native_absorb_path: (str | None) = None,
         native_item_paths: dict[(str, str)] = {},
-        bridged_decls: dict[(str, Ability)] = {};
+        bridged_decls: dict[(str, Ability)] = {},
+        cross_app_kind: str = "local";
 }
 
 node Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {

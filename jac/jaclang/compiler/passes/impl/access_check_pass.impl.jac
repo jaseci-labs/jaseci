@@ -45,9 +45,17 @@ impl AccessCheckPass._collect_bridged_imports(ir_in: Module) -> None {
         return found if isinstance(found, str) else None;
     }
 
+    import from jaclang.compiler.driver.boundary_classify {
+        classify_cross_app_import
+    }
     for imp in ir_in.get_all_sub_nodes(typ=Import) {
-        kind = getattr(imp, 'cross_app_kind', None);
-        if kind is None or getattr(kind, 'name', str(kind)) == 'LOCAL' {
+        facts = imp.boundary_facts;
+        if facts is not None {
+            kind = facts.cross_app_kind;
+        } else {
+            kind = classify_cross_app_import(imp, None).value;
+        }
+        if kind == 'local' {
             continue;
         }
         if imp.from_loc is not None {
