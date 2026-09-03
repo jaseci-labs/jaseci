@@ -52,6 +52,7 @@ def type_identity_py -> dict {
         "name_str": type("hi").__name__,
         "name_list": type([]).__name__,
         "name_dict": type({"a": 1}).__name__,
+        "name_arch": type(inst).__name__,
         "isinstance_dict": 1 if isinstance({"a": 1}, dict) else 0,
         "isinstance_list": 1 if isinstance([1], list) else 0
     };
@@ -93,6 +94,7 @@ def type_identity_cl -> dict {
         "name_str": type("hi").__name__,
         "name_list": type([]).__name__,
         "name_dict": type({"a": 1}).__name__,
+        "name_arch": type(inst).__name__,
         "isinstance_dict": 1 if isinstance({"a": 1}, dict) else 0,
         "isinstance_list": 1 if isinstance([1], list) else 0
     };

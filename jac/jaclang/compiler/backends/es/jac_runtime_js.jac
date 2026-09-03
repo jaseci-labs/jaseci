@@ -1276,7 +1276,16 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       if (Object.prototype.hasOwnProperty.call(_jac.types, tag)) {
         return _jac.types[tag];
       }
-      if (o !== null && o !== undefined && o.constructor) return o.constructor;
+      if (o !== null && o !== undefined && o.constructor) {
+        // A compiled archetype's class has no `__name__` of its own -- give
+        // it the same tag every `_jac.types` entry carries, so `.__name__`
+        // reads the same way off any type object regardless of origin.
+        const ctor = o.constructor;
+        if (!Object.prototype.hasOwnProperty.call(ctor, "__name__")) {
+          ctor.__name__ = ctor.name;
+        }
+        return ctor;
+      }
       return _jac.types.object;
     },
     isinstance(o, classinfo) {
