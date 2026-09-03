@@ -79,9 +79,17 @@ comptime SPEC_CHECK: CommandSpec = CommandSpec(
                  short="j",
                  help="Worker processes: a count, 'auto' (one per core, memory-budgeted) or 0 for serial; defaults to [dev] check_jobs / jobs in jac.toml or JAC_CHECK_JOBS / JAC_JOBS"
              ),
+             Arg.create(
+                 "app",
+                 `default="",
+                 short="",
+                 help="Restrict a workspace check to one [apps.<name>] entry of jac.toml"
+             ),
 
          ],
          examples=[
+             ("jac check", "Check every app of the workspace, then the files no app reaches"),
+             ("jac check --app web", "Check one app of the workspace"),
              ("jac check myprogram.jac", "Check a single file"),
              (
                  "jac check . --native-coverage",
@@ -119,7 +127,8 @@ def check(
     fix: bool = False,
     native_coverage: bool = False,
     placements: bool = False,
-    jobs: str = ""
+    jobs: str = "",
+    app: str = ""
 ) -> int;
 
 def lint(paths: list, fix: bool = False, ignore: (list | None) = None) -> int;
@@ -261,9 +270,15 @@ comptime SPEC_TEST: CommandSpec = CommandSpec(
          tier="core",
          args=[
              Arg.create(
+                 "target",
+                 kind=ArgKind.POSITIONAL,
+                 `default="",
+                 help="App name from [apps], or a path to a test file or directory"
+             ),
+             Arg.create(
                  "paths",
                  kind=ArgKind.MULTI_POSITIONAL,
-                 help="Paths to test files or directories",
+                 help="More test files or directories",
                  `default=[]
              ),
              Arg.create(
@@ -343,6 +358,7 @@ comptime SPEC_TEST: CommandSpec = CommandSpec(
          ],
          examples=[
              ("jac test", "Run all tests in current directory"),
+             ("jac test web", "Run the tests of one app of the workspace"),
              ("jac test mytest.jac", "Run tests in specific file"),
              ("jac test a.jac b.jac", "Run tests in several files"),
              ("jac test --test_name my_test", "Run only test_my_test"),
@@ -357,6 +373,7 @@ comptime SPEC_TEST: CommandSpec = CommandSpec(
      );
 
 def `test(
+    target: str = "",
     paths: list = [],
     test_name: str = "",
     filter: str = "",

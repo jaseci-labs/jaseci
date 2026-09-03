@@ -35,8 +35,13 @@ import from . { utils }
 import from .module_manager { ModuleManager }
 import from .rwlock { ReadWriteLock }
 
+glob LSP_SHARED_APP_LIMIT: int = 4;
+
 def _uri_of(path: str) -> str;
 def _path_of(uri: str) -> str;
+def _merge_app_alerts(
+    collected: list[tuple[str, list, list]], app_count: int
+) -> tuple[list, list];
 
 obj Task {
     has file_uri: str,

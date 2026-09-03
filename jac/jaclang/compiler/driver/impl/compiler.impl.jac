@@ -675,7 +675,10 @@ impl JacCompiler.parse_str(
             import from jaclang.compiler.placement.placement_pins {
                 config_kind_space as _kind_space_of
             }
-            _kind_space = _kind_space_of(file_path);
+            _k_opts = target_program.options;
+            _kind_space = _kind_space_of(
+                file_path, _k_opts.app_kind if _k_opts is not None else ''
+            );
             if _kind_space in ('client', 'native') {
                 codespace = _kind_space;
             }
@@ -804,8 +807,6 @@ impl JacCompiler.resolve_absorb_imports(
 }
 
 impl JacCompiler.stamp_access_check_facts(mod: uni.Module) -> None {
-    import from jaclang.compiler.driver.modresolver { find_jac_project_root }
-    mod.jac_project_root = find_jac_project_root(mod.loc.mod_path) if mod.loc else None;
     enforce = False;
     try {
         import from jaclang.project.config { get_config }
@@ -839,16 +840,100 @@ impl JacCompiler.stamp_native_import_facts(
     }
 }
 
-impl JacCompiler.stamp_client_kind_facts(
+impl JacCompiler.stamp_app_facts(
     mod: uni.Module, target_program: JacProgram
 ) -> None {
-    import from jaclang.project.client_kind { resolve_client_kind_context }
+    import from jaclang.compiler.driver.modresolver { find_jac_project_root }
+    import from jaclang.compiler.placement.workspace { workspace_for_path }
     opts = target_program.options;
     mod_path = mod.loc.mod_path if mod.loc else '';
-    (kind, proj_root) = resolve_client_kind_context(
-        mod_path, opts.project_kind, opts.project_root
+    mod.jac_project_root = find_jac_project_root(mod_path) if mod_path else None;
+    ws = workspace_for_path(mod_path) if mod_path else None;
+    app = ws.app_for_path(mod_path) if ws is not None else None;
+    owner: any = None;
+    ambiguous = False;
+    if app is not None {
+        owner = app;
+    } elif ws is not None and JacCompiler._module_defines_owned_elements(mod) {
+        (owner, ambiguous) = ws.owner_app_for_path(mod_path);
+    }
+    mod.app = app.name if app is not None else None;
+    mod.app_root = app.root if (app is not None and app.root) else None;
+    mod.owner_app = owner.name if owner is not None else None;
+    target_kind = opts.app_kind if (opts is not None and opts.app_kind) else '';
+    if app is not None {
+        mod.app_kind = app.kind;
+    } elif target_kind {
+        mod.app_kind = target_kind;
+    } elif owner is not None {
+        mod.app_kind = owner.kind;
+    } else {
+        mod.app_kind = '';
+    }
+    override_kind = opts.client_kind if (opts is not None and opts.client_kind) else '';
+    client_kind = override_kind or (app.client_kind if app is not None else 'web');
+    if client_kind == 'mobui' {
+        enforced_root: (str | None) = None;
+        if override_kind and opts.project_root {
+            enforced_root = opts.project_root;
+        }
+        if enforced_root is None and app is not None and app.root {
+            enforced_root = app.root;
+        }
+        if enforced_root is None and ws is not None {
+            enforced_root = ws.project_root;
+        }
+        if enforced_root is None {
+            enforced_root = mod.jac_project_root;
+        }
+        mod.mobui_enforced_root = enforced_root;
+    } else {
+        mod.mobui_enforced_root = None;
+    }
+    if ambiguous {
+        self._report_owner_ambiguity(mod, target_program, ws);
+    }
+}
+
+impl JacCompiler._module_defines_owned_elements(mod: uni.Module) -> bool {
+    for stmt in mod.body {
+        if isinstance(stmt, uni.Archetype)
+            and stmt.arch_kind in ('walker', 'node', 'edge') {
+            return True;
+        }
+        if isinstance(stmt, uni.Ability) and bool(stmt.public_access) {
+            return True;
+        }
+    }
+    return False;
+}
+
+impl JacCompiler._report_owner_ambiguity(
+    mod: uni.Module, target_program: JacProgram, ws: object
+) -> None {
+    import from jaclang.compiler.frontend.diagnostics { E5103 }
+    import from jaclang.compiler.passes.transform { Alert }
+    mod_path = mod.loc.mod_path if mod.loc else '';
+    for e in target_program.errors_had {
+        if e.code is E5103 and e.loc.mod_path == mod_path {
+            return;
+        }
+    }
+    apps = ', '.join(sorted(a.name for a in ws.serving_apps()));
+    module = os.path.basename(mod_path);
+    deliver_alerts(
+        [
+            Alert(
+                msg=E5103.format_message(module=module, apps=apps),
+                loc=mod.loc.span(),
+                from_pass=BoundaryAnalysisPass,
+                code=E5103,
+                help_text=E5103.format_help(module=module, apps=apps)
+            )
+        ],
+        [],
+        target_program
     );
-    mod.mobui_enforced_root = proj_root if kind == 'mobui' else None;
 }
 
 impl JacCompiler.stamp_boundary_facts(
@@ -1770,8 +1855,8 @@ impl JacCompiler.run_schedule(
         origin=(f"schedule for module {mod.loc.mod_path if mod.loc else mod.name}")
     );
     _policy = build_diagnostic_policy(target_program);
+    self.stamp_app_facts(mod, target_program);
     self.stamp_access_check_facts(mod);
-    jsx_guard_pass = _jsx_intrinsic_guard_pass_type();
     for current_pass in passes {
         if (cancel_token and cancel_token.is_set()) {
             break;
@@ -1784,9 +1869,6 @@ impl JacCompiler.run_schedule(
         }
         if current_pass is JcirGenPass {
             self.stamp_native_import_facts(mod, target_program);
-        }
-        if jsx_guard_pass is not None and current_pass is jsx_guard_pass {
-            self.stamp_client_kind_facts(mod, target_program);
         }
         run_pass(
             current_pass, mod, target_program, cancel_token=cancel_token, policy=_policy

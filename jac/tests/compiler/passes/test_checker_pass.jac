@@ -4946,7 +4946,7 @@ test "mobui_project_forbids_html_intrinsic_tags" {
     program = JacProgram();
     program.compile(
         path,
-        options=CompileOptions(project_kind="mobui", project_root=CHECKER_FIXTURES)
+        options=CompileOptions(client_kind="mobui", project_root=CHECKER_FIXTURES)
     );
 
     e1105 = [
@@ -4994,7 +4994,7 @@ test "mobui_project_allows_lowercase_component_in_scope" {
     program = JacProgram();
     program.compile(
         path,
-        options=CompileOptions(project_kind="mobui", project_root=CHECKER_FIXTURES)
+        options=CompileOptions(client_kind="mobui", project_root=CHECKER_FIXTURES)
     );
     e1105 = [
         e
@@ -5018,7 +5018,7 @@ test "mobui_project_lowercase_component_no_w1050" {
     program = JacProgram();
     program.compile(
         path,
-        options=CompileOptions(project_kind="mobui", project_root=CHECKER_FIXTURES)
+        options=CompileOptions(client_kind="mobui", project_root=CHECKER_FIXTURES)
     );
     w1050 = [
         w
@@ -5030,7 +5030,7 @@ test "mobui_project_lowercase_component_no_w1050" {
 }
 
 test "mobui_kind_does_not_leak_outside_project_root" {
-    # Regression: a consumer's project_kind="mobui" must not reach files
+    # Regression: a consumer's client_kind="mobui" must not reach files
     # outside the project root. The real failure was client_runtime.jac
     # (from jac-client) being compiled into the user's JacProgram during
     # `jac build` and receiving E1105 for its HTML tags ("kind-leak").
@@ -5041,7 +5041,7 @@ test "mobui_kind_does_not_leak_outside_project_root" {
     with tempfile.TemporaryDirectory() as tmp_root {
         program = JacProgram();
         program.compile(
-            path, options=CompileOptions(project_kind="mobui", project_root=tmp_root)
+            path, options=CompileOptions(client_kind="mobui", project_root=tmp_root)
         );
         e1105 = [
             e
@@ -5057,25 +5057,28 @@ test "mobui_kind_does_not_leak_outside_project_root" {
 }
 
 test "jac_toml_kind_mobui_round_trip" {
-    # Verify the jac.toml → per-path discovery → compile() code path for
-    # `[project] client_kind = "mobui"`. All other mobui-project tests set
-    # project_kind via CompileOptions directly; this one writes a real
+    # Verify the jac.toml → workspace reader → compile() code path for
+    # `[apps.<name>] client_kind = "mobui"`. All other mobui-project tests set
+    # client_kind via CompileOptions directly; this one writes a real
     # project (jac.toml + module) and relies on the guard pass discovering
     # the kind from the module's own path -- no cwd, no config singleton.
     import shutil;
     import tempfile;
     import from jaclang.project.config { JacConfig }
 
-    toml_content = '[project]\nname = "test-proj"\nclient_kind = "mobui"\n';
+    toml_content = (
+        '[project]\nname = "test-proj"\n\n'
+        '[apps.main]\nkind = "web-app"\nclient_kind = "mobui"\n'
+    );
 
     with tempfile.TemporaryDirectory() as tmp_dir {
         toml_path = Path(tmp_dir) / "jac.toml";
         toml_path.write_text(toml_content);
-        # Part 1: round-trip — JacConfig.load() must parse client_kind correctly.
+        # Part 1: round-trip — JacConfig.load() must parse the app's client_kind.
         cfg = JacConfig.load(toml_path);
-        assert cfg.project.client_kind == "mobui" , f"Expected client_kind='mobui' from jac.toml, got '{cfg.project.client_kind}'";
+        assert cfg.apps["main"].client_kind == "mobui" , f"Expected client_kind='mobui' for app main, got '{cfg.apps['main'].client_kind}'";
         # Part 2: per-path discovery -- a module inside the project picks up
-        # "mobui" with a plain CompileOptions() (no explicit project_kind),
+        # "mobui" with a plain CompileOptions() (no explicit client_kind),
         # causing JsxIntrinsicGuardPass to emit E1105.
         fixture = os.path.join(tmp_dir, "main.jac");
         shutil.copyfile(
@@ -5089,42 +5092,11 @@ test "jac_toml_kind_mobui_round_trip" {
             for e in program.errors_had
             if e.code and e.code.code == "E1105"
         ];
-        assert len(e1105) == 4 , f"Expected 4 E1105 from jac.toml client_kind=mobui, got {len(
+        assert len(e1105) == 4 , f"Expected 4 E1105 from [apps.main] client_kind=mobui, got {len(
             e1105
         )}:\n"
             + "\n---\n".join(e.pretty_print() for e in e1105);
     }
-}
-
-test "mobui_hello_example_discovers_kind_and_stays_e1105_clean" {
-    # Integration over the shipped starter example: its jac.toml declares
-    # client_kind = "mobui", per-path discovery must switch the guard on for
-    # its modules, and the example itself must stay free of raw HTML tags.
-    import from jaclang.project.client_kind { resolve_client_kind_context }
-
-    example_dir = os.path.join(JAC_ROOT, "examples", "mobui", "hello");
-    `entry = os.path.join(example_dir, "main.jac");
-    assert os.path.isfile(`entry) , f"mobui hello example missing at {`entry}";
-
-    (kind, proj_root) = resolve_client_kind_context(`entry);
-    assert kind == "mobui" , (
-        f"per-path discovery must resolve mobui for the example, got '{kind}'"
-    );
-    assert proj_root and os.path.samefile(proj_root, example_dir) , (
-        f"project root must be the example dir, got '{proj_root}'"
-    );
-
-    program = JacProgram();
-    program.compile(`entry, options=CompileOptions());
-    e1105 = [
-        e
-        for e in program.errors_had
-        if e.code and e.code.code == "E1105"
-    ];
-    assert len(e1105) == 0 , (
-        "shipped mobUI example must be E1105-clean:\n"
-        + "\n---\n".join(e.pretty_print() for e in e1105)
-    );
 }
 
 test "builtin_inference_regressions" {

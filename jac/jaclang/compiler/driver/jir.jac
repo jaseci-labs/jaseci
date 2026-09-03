@@ -133,7 +133,6 @@ def _related_files(source_path: str) -> list[tuple[str, str]] {
     return result;
 }
 
-glob _client_kind_probe: dict = {"active": False};
 
 def is_compiler_tree_path(source_path: str) -> bool {
     try {
@@ -172,22 +171,6 @@ def _module_codespace_mode(source_path: str) -> str {
         return effective_default_codespace();
     } except Exception {
         return "server";
-    }
-}
-
-def _module_client_kind(source_path: str) -> str {
-    if _client_kind_probe["active"] {
-        return "web";
-    }
-    _client_kind_probe["active"] = True;
-    try {
-        import from jaclang.project.client_kind { resolve_client_kind_context }
-        (kind, _) = resolve_client_kind_context(source_path);
-        return kind;
-    } except Exception {
-        return "web";
-    } finally {
-        _client_kind_probe["active"] = False;
     }
 }
 
@@ -368,16 +351,21 @@ def _toolchain_env_fingerprint -> str {
 
 def _project_env_fingerprint(source_path: str) -> str {
     h = hashlib.sha256();
-    h.update(_module_client_kind(source_path).encode());
     h.update(_module_codespace_mode(source_path).encode());
     import from jaclang.compiler.placement.placement_pins {
         pins_digest,
         config_kind_space
     }
+    import from jaclang.compiler.placement.workspace {
+        app_fact_digest,
+        app_for_path,
+        workspace_for_path
+    }
     h.update(pins_digest(source_path).encode());
     h.update(config_kind_space(source_path).encode());
-    import from jaclang.compiler.placement.service_cut { cut_digest }
-    h.update(cut_digest(source_path).encode());
+    h.update(app_fact_digest(app_for_path(source_path)).encode());
+    _ws = workspace_for_path(source_path);
+    h.update((_ws.digest if _ws is not None else '').encode());
     import from jaclang.compiler.driver.compile_options {
         effective_analysis_fingerprint
     }

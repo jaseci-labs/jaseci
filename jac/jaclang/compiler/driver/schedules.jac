@@ -202,6 +202,9 @@ def get_analysis_sched -> list[type[Transform]] {
         import jaclang.project.config;
         import from jaclang.compiler.passes.static_analysis_pass { StaticAnalysisPass }
         import from jaclang.compiler.passes.access_check_pass { AccessCheckPass }
+        import from jaclang.compiler.passes.variant_agreement_pass {
+            VariantAgreementPass
+        }
         import from jaclang.compiler.passes.capability_check_pass {
             ClientCapabilityCheckPass,
             NativeCapabilityCheckPass,
@@ -211,6 +214,7 @@ def get_analysis_sched -> list[type[Transform]] {
         import from jaclang.compiler.tools.jac_auto_lint_pass { JacLintCheckPass }
         return validate_schedule(
             [
+                VariantAgreementPass,
                 TypeCheckPass,
                 StaticAnalysisPass,
                 AccessCheckPass,
@@ -354,13 +358,3 @@ def get_lint_sched -> list[type[Transform]] {
     return validate_schedule([JacLintCheckPass], origin='lint schedule');
 }
 
-def _jsx_intrinsic_guard_pass_type -> (type | None) {
-    try {
-        import from jaclang.compiler.passes.jsx_intrinsic_guard_pass {
-            JsxIntrinsicGuardPass
-        }
-        return JsxIntrinsicGuardPass;
-    } except ImportError {
-        return None;
-    }
-}

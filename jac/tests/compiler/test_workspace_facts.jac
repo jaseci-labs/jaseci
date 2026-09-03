@@ -1,0 +1,290 @@
+"""Workspace facts: the driver stamps app membership on every module.
+
+A jac.toml with [apps] is a workspace. A module belongs to the app whose
+root contains it (nearest root wins), a file-rooted app claims exactly its
+entry file, and anything under no app root is shared. A shared module that
+defines walkers, pub defs or node/edge archetypes needs one owner; when two
+serving apps could own it the driver emits E5103 unless an app pins it.
+Cross-app uses that do not go through a bridge are the isolation laws
+(E2039/W2039 for app-to-app, E2040/W2040 for shared-to-app).
+"""
+
+import os;
+import tempfile;
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.placement.workspace {
+    app_fact_digest,
+    app_for_path,
+    owner_app_for_path,
+    workspace_for_path
+}
+
+glob WORKSPACE_TOML: str = (
+         '[project]\nname = "ws"\ndefault-app = "web"\n\n'
+         + '[apps.web]\nkind = "web-app"\npath = "web"\n\n'
+         + '[apps.mobile]\nkind = "mobile"\npath = "mobile"\nclient_kind = "mobui"\n\n'
+         + '[apps.social]\nkind = "service"\nentry-point = "core/social.jac"\n'
+     );
+
+
+def _write(root: str, rel: str, text: str) -> str {
+    path = os.path.join(root, rel);
+    os.makedirs(os.path.dirname(path), exist_ok=True);
+    with open(path, "w") as f {
+        f.write(text);
+    }
+    return path;
+}
+
+
+def _workspace(tmp: str, toml: str = WORKSPACE_TOML) -> dict[str, str] {
+    _write(tmp, "jac.toml", toml);
+    return {
+        "web": _write(tmp, "web/main.jac", "def:pub page -> int { return 1; }\n"),
+        "web_util": _write(tmp, "web/util.jac", "def web_only -> int { return 2; }\n"),
+        "mobile": _write(tmp, "mobile/main.jac", "def screen -> int { return 3; }\n"),
+        "social": _write(
+            tmp, "core/social.jac", "walker Greet { has name: str = \"\"; }\n"
+        ),
+        "util": _write(tmp, "core/util.jac", "def helper -> int { return 41; }\n"),
+        "store": _write(tmp, "core/store.jac", "node Item { has label: str = \"\"; }\n")
+    };
+}
+
+
+def _codes(prog: JacProgram, code: str) -> list {
+    return [
+        e
+        for e in prog.errors_had + prog.warnings_had
+        if e.code is not None and e.code.code == code
+    ];
+}
+
+
+def _all_msgs(prog: JacProgram) -> str {
+    return "\n".join(str(e) for e in prog.errors_had + prog.warnings_had);
+}
+
+
+test "dir-rooted apps own the files under their root" {
+    with tempfile.TemporaryDirectory() as tmp {
+        files = _workspace(tmp);
+        ws = workspace_for_path(files["web"]);
+        assert ws is not None and ws.explicit;
+        assert sorted(ws.apps) == ["mobile", "social", "web"];
+        assert ws.default_app == "web";
+        assert app_for_path(files["web"]).name == "web";
+        assert app_for_path(files["web_util"]).name == "web";
+        assert app_for_path(files["mobile"]).name == "mobile";
+        assert [a.name for a in ws.serving_apps()] == ["web", "social"];
+    }
+}
+
+
+test "a file-rooted app claims exactly its entry file" {
+    with tempfile.TemporaryDirectory() as tmp {
+        files = _workspace(tmp);
+        social = app_for_path(files["social"]);
+        assert social is not None and social.name == "social";
+        assert social.file_rooted and social.root == "";
+        assert social.effective_route() == "/api/social";
+        assert app_for_path(files["util"]) is None , "a sibling of the entry is shared";
+        assert app_for_path(files["store"]) is None;
+    }
+}
+
+
+test "a shared module between two serving apps has no single owner" {
+    with tempfile.TemporaryDirectory() as tmp {
+        files = _workspace(tmp);
+        (owner, ambiguous) = owner_app_for_path(files["util"]);
+        assert owner is None and ambiguous , "web and social both serve";
+        (own2, amb2) = owner_app_for_path(files["web"]);
+        assert own2 is not None and own2.name == "web" and not amb2;
+    }
+}
+
+
+test "the driver stamps app facts on every module" {
+    with tempfile.TemporaryDirectory() as tmp {
+        files = _workspace(tmp);
+        prog = JacProgram();
+        web = prog.compile(files["web"], options=CompileOptions(no_cgen=True));
+        assert not prog.errors_had , _all_msgs(prog);
+        assert web.app == "web";
+        assert web.app_root is not None
+            and os.path.samefile(web.app_root, os.path.join(tmp, "web"));
+        assert web.app_kind == "web-app";
+        assert web.owner_app == "web";
+        assert web.mobui_enforced_root is None;
+        assert web.jac_project_root is not None
+            and os.path.samefile(web.jac_project_root, tmp);
+
+        mobile = JacProgram().compile(
+            files["mobile"], options=CompileOptions(no_cgen=True)
+        );
+        assert mobile.app == "mobile" and mobile.app_kind == "mobile";
+        assert mobile.mobui_enforced_root is not None
+            and os.path.samefile(
+                mobile.mobui_enforced_root, os.path.join(tmp, "mobile")
+            ) , "client_kind = mobui at the app switches the guard on for its root";
+
+        social = JacProgram().compile(
+            files["social"], options=CompileOptions(no_cgen=True)
+        );
+        assert social.app == "social" and social.app_kind == "service";
+        assert social.app_root is None , "a file-rooted app has no root dir";
+        assert social.owner_app == "social";
+    }
+}
+
+
+test "a shared helper takes the target app's kind and needs no owner" {
+    with tempfile.TemporaryDirectory() as tmp {
+        files = _workspace(tmp);
+        prog = JacProgram();
+        util = prog.compile(
+            files["util"],
+            options=CompileOptions(
+                no_cgen=True, target_app="web", app_kind="web-app", project_root=tmp
+            )
+        );
+        assert util.app is None;
+        assert util.app_kind == "web-app";
+        assert util.owner_app is None , "a helper with no endpoints needs no owner";
+        assert not _codes(prog, "E5103") , (
+            "helpers are included in every reaching app's server closure"
+        );
+        bare = JacProgram().compile(files["util"], options=CompileOptions(no_cgen=True));
+        assert bare.app is None and bare.app_kind == "" and bare.owner_app is None;
+    }
+}
+
+
+test "an ambiguous owner of a graph module is E5103" {
+    with tempfile.TemporaryDirectory() as tmp {
+        files = _workspace(tmp);
+        prog = JacProgram();
+        store = prog.compile(files["store"], options=CompileOptions(no_cgen=True));
+        assert store.app is None and store.owner_app is None;
+        errs = _codes(prog, "E5103");
+        assert len(errs) == 1 , f"expected one E5103, got:\n{_all_msgs(prog)}";
+        assert "social" in errs[0].msg and "web" in errs[0].msg , errs[0].msg;
+        assert "mobile" not in errs[0].msg , "a client-only app never serves";
+        assert errs[0].code.blocks_codegen;
+    }
+}
+
+
+test "an app-level server pin names the owner" {
+    with tempfile.TemporaryDirectory() as tmp {
+        toml = WORKSPACE_TOML + '\n[apps.web.placement.pins]\n"core.store" = "server"\n';
+        files = _workspace(tmp, toml);
+        (owner, ambiguous) = owner_app_for_path(files["store"]);
+        assert owner is not None and owner.name == "web" and not ambiguous;
+        prog = JacProgram();
+        store = prog.compile(files["store"], options=CompileOptions(no_cgen=True));
+        assert store.owner_app == "web" , f"got {store.owner_app}";
+        assert not _codes(prog, "E5103") , _all_msgs(prog);
+        web = app_for_path(files["web"]);
+        assert web.pins == {"core.store": "server"} , "the overlay merges over the base pins";
+    }
+}
+
+
+test "a workspace without [apps] is one implicit app" {
+    with tempfile.TemporaryDirectory() as tmp {
+        _write(tmp, "jac.toml", '[project]\nname = "hello"\n');
+        main = _write(tmp, "main.jac", "with entry { print(1); }\n");
+        ws = workspace_for_path(main);
+        assert ws is not None and not ws.explicit;
+        assert list(ws.apps) == ["hello"] and ws.default_app == "hello";
+        app = ws.apps["hello"];
+        assert app.implicit and app.kind == "" and app.client_kind == "web";
+        assert os.path.samefile(app.root, tmp);
+        assert os.path.samefile(app.`entry, main);
+        (owner, ambiguous) = owner_app_for_path(main);
+        assert owner is app and not ambiguous;
+        mod = JacProgram().compile(main, options=CompileOptions(no_cgen=True));
+        assert mod.app == "hello" and mod.owner_app == "hello" and mod.app_kind == "";
+    }
+}
+
+
+test "the app fact digest tracks the facts that change codegen" {
+    with tempfile.TemporaryDirectory() as tmp {
+        files = _workspace(tmp);
+        before = app_fact_digest(app_for_path(files["mobile"]));
+        assert len(before) == 12;
+        assert app_fact_digest(None) == "";
+        assert app_fact_digest(app_for_path(files["web"])) != before;
+        toml_path = os.path.join(tmp, "jac.toml");
+        _write(
+            tmp,
+            "jac.toml",
+            WORKSPACE_TOML.replace('client_kind = "mobui"', 'client_kind = "web"')
+        );
+        st = os.stat(toml_path);
+        os.utime(toml_path, (st.st_atime + 10, st.st_mtime + 10));
+        after = app_fact_digest(app_for_path(files["mobile"]));
+        assert after != before , "client_kind is part of the digest";
+    }
+}
+
+
+test "using another app's private code is an isolation diagnostic" {
+    with tempfile.TemporaryDirectory() as tmp {
+        _workspace(tmp);
+        consumer = _write(
+            tmp,
+            "web/leak.jac",
+            "import from mobile.main { screen }\n\n"
+            + "def use_it -> int { return screen(); }\n"
+        );
+        prog = JacProgram();
+        prog.compile(consumer, options=CompileOptions(no_cgen=True));
+        hits = _codes(prog, "W2039") + _codes(prog, "E2039");
+        assert hits , f"expected W2039 for a cross-app use, got:\n{_all_msgs(prog)}";
+        assert "'screen' belongs to app 'mobile'" in hits[0].msg , hits[0].msg;
+        assert "app 'web'" in hits[0].msg , hits[0].msg;
+    }
+}
+
+
+test "shared code may not depend on app modules" {
+    with tempfile.TemporaryDirectory() as tmp {
+        _workspace(tmp);
+        shared = _write(
+            tmp,
+            "core/leak.jac",
+            "import from web.util { web_only }\n\n"
+            + "def use_it -> int { return web_only(); }\n"
+        );
+        prog = JacProgram();
+        prog.compile(shared, options=CompileOptions(no_cgen=True));
+        hits = _codes(prog, "W2040") + _codes(prog, "E2040");
+        assert hits , f"expected W2040, got:\n{_all_msgs(prog)}";
+        assert "Shared module 'leak.jac'" in hits[0].msg , hits[0].msg;
+        assert "from app 'web'" in hits[0].msg , hits[0].msg;
+    }
+}
+
+
+test "same-app and shared uses are not isolation diagnostics" {
+    with tempfile.TemporaryDirectory() as tmp {
+        _workspace(tmp);
+        fine = _write(
+            tmp,
+            "web/fine.jac",
+            "import from web.util { web_only }\n"
+            + "import from core.util { helper }\n\n"
+            + "def use_it -> int { return web_only() + helper(); }\n"
+        );
+        prog = JacProgram();
+        prog.compile(fine, options=CompileOptions(no_cgen=True));
+        for code in ("W2039", "E2039", "W2040", "E2040") {
+            assert not _codes(prog, code) , f"{code} must not fire:\n{_all_msgs(prog)}";
+        }
+    }
+}
