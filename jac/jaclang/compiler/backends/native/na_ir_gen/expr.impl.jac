@@ -101,7 +101,7 @@ impl NaIRGenExpr._codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None) {
         or isinstance(nd, uni.KWPair)
         or isinstance(nd, uni.InnerCompr)
         or isinstance(nd, uni.FormattedValue)
-    ) { } else {
+    ) {} else {
         self.emit(E5092, node_override=nd, kind="expression", name=type(nd).__name__);
     }
 
@@ -1600,16 +1600,20 @@ impl NaIRGenExpr._codegen_bool_expr(nd: uni.BoolExpr) -> (ir.Value | None) {
     for i in range(1, len(nd.values)) {
         cond = self._to_bool(result);
         func = self.builder.function;
-        entry_bb = self.builder.block;
         rhs_bb = func.append_basic_block(name=f"bool.rhs.{i}");
+        take_bb = func.append_basic_block(name=f"bool.take.{i}");
         merge_bb = func.append_basic_block(name=f"bool.merge.{i}");
         if is_and {
-            self.builder.cbranch(cond, rhs_bb, merge_bb);
+            self.builder.cbranch(cond, rhs_bb, take_bb);
         } else {
-            self.builder.cbranch(cond, merge_bb, rhs_bb);
+            self.builder.cbranch(cond, take_bb, rhs_bb);
         }
 
         self.builder.position_at_end(rhs_bb);
+        _l_owned = isinstance(result.type, ir.PointerType) and self._is_owned(result);
+        if _l_owned {
+            self._emit_rc_release_simple(result, op="bool_drop", loc="");
+        }
         _bool_peer_saved = self._peer_container_ty;
         self._peer_container_ty = self._opt_ptr_payload_of(result.type);
         rhs_val = self._str_norm(self._codegen_expr(nd.values[i]));
@@ -1630,25 +1634,39 @@ impl NaIRGenExpr._codegen_bool_expr(nd: uni.BoolExpr) -> (ir.Value | None) {
                 rhs_val = self._coerce_type(rhs_val, target_t);
             }
         }
+        _managed = isinstance(target_t, ir.PointerType);
+        _r_owned = _managed and self._is_owned(rhs_val);
+        _own = _managed and (_l_owned or _r_owned);
+        if _own and not _r_owned and not self.builder.block.is_terminated {
+            self._emit_rc_retain(rhs_val, op="bool_keep", loc="");
+        }
         rhs_end_bb = self.builder.block;
         if not self.builder.block.is_terminated {
             self.builder.branch(merge_bb);
         }
 
+        self.builder.position_at_end(take_bb);
         if result.type != target_t {
-            _entry_term = entry_bb.instructions[-1];
-            self.builder.position_before(_entry_term);
             if self._opt_ptr_payload_of(result.type) == target_t {
                 result = self.builder.extract_value(result, 1, name="bool.opt.lpv");
             } else {
                 result = self._coerce_type(result, target_t);
             }
         }
+        if _own and not _l_owned {
+            self._emit_rc_retain(result, op="bool_keep", loc="");
+        }
+        take_end_bb = self.builder.block;
+        self.builder.branch(merge_bb);
+
         self.builder.position_at_end(merge_bb);
         phi = self.builder.phi(target_t, name="bool.result");
-        phi.add_incoming(result, entry_bb);
+        phi.add_incoming(result, take_end_bb);
         phi.add_incoming(rhs_val, rhs_end_bb);
         result = phi;
+        if _own {
+            self._mark_owned(result);
+        }
     }
     return result;
 }

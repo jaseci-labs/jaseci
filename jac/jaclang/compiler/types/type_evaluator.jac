@@ -402,7 +402,7 @@ walker TypeEvaluator {
     def resolve_to_definition_symbol(symbol: Symbol) -> Symbol;
     def _widen_literal_for_declaration(ty: TypeBase) -> TypeBase;
     def _import_module_from_path(
-        path: str, importer_path: (str | None) = None
+        path: str, importer_path: (str | None) = None, need_tree: bool = False
     ) -> Module;
 
     def _resolve_importer_path(ast_node: UniNode) -> (str | None);
@@ -669,6 +669,10 @@ walker TypeEvaluator {
         checking_overload: bool = False,
         solved_type_vars: (dict[str, TypeBase] | None) = None
     ) -> bool;
+
+    def _merge_catalog_field_params(
+        tab: any, param_map: dict[str, Parameter], skip_deferred: bool
+    ) -> None;
 
     def _build_field_params(
         class_type: ClassType, skip_deferred: bool = True

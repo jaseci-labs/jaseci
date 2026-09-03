@@ -147,13 +147,14 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      E0013 = _err(
          "E0013",
          Category.SYNTAX,
-         "'{keyword}' is a keyword and cannot be used as a {context} name (prefix with backtick to escape: `{keyword})"
+         "'{keyword}' is a keyword and cannot be used as a {context} name",
+         help="The backtick escape is a prefix, not a pair. Put one backtick immediately before the keyword, with nothing after the name."
      ),
      E0014 = _err(
          "E0014",
          Category.SYNTAX,
          "'{name}' is not a keyword -- remove the backtick",
-         help="The backtick escape exists only to use a reserved keyword as an identifier. On a name that is not a keyword it is a stray mark, so write '{name}' directly."
+         help="The backtick escape exists only to use a reserved keyword as an identifier. On a name that is not a keyword it is a stray mark, so write the name directly."
      ),
      E0020 = _err(
          "E0020",
@@ -1404,10 +1405,8 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.LINT,
          "Implementation signature does not match declaration [fix-impl-signature]"
      ),
-     W3011 = _warn(
-         "W3011",
-         Category.LINT,
-         "Unnecessary semicolon after import [remove-import-semi]"
+     W3013 = _warn(
+         "W3013", Category.LINT, "Unnecessary semicolon [remove-redundant-semi]"
      ),
      E3012 = _err(
          "E3012", Category.LINT, "Calling print() is disallowed by rule [no-print]"
@@ -1531,7 +1530,8 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "simplify-ternary": "W3008",
          "remove-future-annotations": "W3009",
          "fix-impl-signature": "W3010",
-         "remove-import-semi": "W3011",
+         "remove-import-semi": "W3013",
+         "remove-redundant-semi": "W3013",
          "no-print": "E3012",
          "unnecessary-pass": "W3020",
          "unnecessary-else-after-return": "W3021",

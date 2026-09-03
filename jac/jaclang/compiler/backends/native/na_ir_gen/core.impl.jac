@@ -230,7 +230,7 @@ impl NaIRGenCore._rename_demoted_symbol(name: str, func: ir.Function) -> None {
         self.llvm_module.globals.pop(func.name, None);
         func.name = f"{name}.__jac_demoted";
         self.llvm_module.globals[func.name] = func;
-    } except Exception { }
+    } except Exception {}
 }
 
 impl NaIRGenCore._llvm_type_str(ty: ir.Type) -> str {
@@ -1211,11 +1211,7 @@ impl NaIRGenCore._record_linked_decl(
 }
 
 impl NaIRGenCore._ensure_dep_inference(dep_mod: uni.Module) -> None {
-    _provided = self.prog.analysis.analyses_run.get(id(dep_mod));
-    if _provided is None {
-        _provided = set();
-        self.prog.analysis.analyses_run[id(dep_mod)] = _provided;
-    }
+    _provided = self.prog.analysis.analyses_run.provided(dep_mod);
     if 'TypeOf' in _provided {
         return;
     }
@@ -1229,9 +1225,7 @@ impl NaIRGenCore._ensure_dep_inference(dep_mod: uni.Module) -> None {
             _provided.add('CfgSucc');
         }
         run_pass(TypeCheckPass, dep_mod, self.prog);
-    } except Exception {
-        ;
-    }
+    } except Exception {}
 }
 
 impl NaIRGenCore._imported_function_demotions(
@@ -1273,7 +1267,7 @@ impl NaIRGenCore._imported_function_demotions(
                         return set(_fd_meta.get("demoted_symbols") or []);
                     }
                 }
-            } except Exception { }
+            } except Exception {}
         }
         if not bool(_opts_src.aot_mode)
             or real_path in self.prog.scratch.na_dep_inflight
@@ -1314,7 +1308,7 @@ impl NaIRGenCore._imported_function_demotions(
             for _fd_fn in _fd_mod.functions {
                 _fd_names.append(_fd_fn.name);
             }
-        } except Exception { }
+        } except Exception {}
     }
     for _fd_gname in _fd_names {
         if _fd_gname.endswith(".__jac_demoted") {

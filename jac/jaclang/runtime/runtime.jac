@@ -97,7 +97,7 @@ def _scale_provider -> any {
     try {
         import from jaclang.scale.plugin { JacScalePlugin }
         result = JacScalePlugin;
-    } except ImportError { }
+    } except ImportError {}
     _scale_provider_cache.append(result);
     return result;
 }
@@ -197,6 +197,7 @@ obj LLMModel(Protocol) {
 
 class JacContext {
     static def get_context -> ExecutionContext;
+    static def peek_context -> (ExecutionContext | None);
     static def reset_graph(root_node: (Root | None) = None) -> int;
     static def create_j_context(
         user_root: (str | None),

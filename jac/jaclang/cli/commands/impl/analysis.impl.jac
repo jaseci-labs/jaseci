@@ -46,13 +46,15 @@ def _diag_wire(alert: any) -> dict[(str, any)] {
     };
 }
 
+def _check_rss_cap_mb -> int {
+    import from jaclang.cli.workpool { env_int }
+    return env_int("JAC_CHECK_RECYCLE_MB", 3072);
+}
+
 def _check_retire(served: int, rss_mb: int) -> bool {
     import from jaclang.cli.workpool { env_int, should_retire }
     return should_retire(
-        served,
-        env_int("JAC_CHECK_RECYCLE", 0),
-        rss_mb,
-        env_int("JAC_CHECK_RECYCLE_MB", 4096)
+        served, env_int("JAC_CHECK_RECYCLE", 0), rss_mb, _check_rss_cap_mb()
     );
 }
 
@@ -123,6 +125,7 @@ def _check_file_job(request: dict[(str, any)]) -> dict[(str, any)] {
                     no_cgen=not bool(opts.get("native_coverage")),
                     native_parity=True,
                     force_target_program=True,
+                    iface_ok=True,
                     suppress_codes=list(opts.get("suppress_codes") or [])
                 )
             );
@@ -234,7 +237,12 @@ impl check(
     total_to_check = len(all_files);
     cfg = get_config();
     raw_jobs = jobs_setting("check", jobs, cfg.dev if cfg else None);
-    workers = resolve_jobs(raw_jobs, env_var="JAC_CHECK_JOBS");
+
+    workers = resolve_jobs(
+        raw_jobs,
+        env_var="JAC_CHECK_JOBS",
+        worker_bytes=_check_rss_cap_mb() * 1024 * 1024
+    );
     use_pool = (
         pool_available()
         and not forced_serial(raw_jobs)
@@ -307,6 +315,10 @@ impl check(
         crash_prefix="jac-check-crash-"
     );
     if use_pool {
+        import from jaclang.runtime.runtime { JacRuntime }
+        try {
+            JacRuntime.get_compiler().ensure_stub_catalog();
+        } except Exception {}
         pool.run();
     } else {
         pool.run_inline();
@@ -780,9 +792,7 @@ def _format_single_file_worker(
                         );
                     }
                 }
-            } except (OSError, ValueError, TypeError, AttributeError) {
-                ;
-            }
+            } except (OSError, ValueError, TypeError, AttributeError) {}
         }
 
         return result;
@@ -1177,7 +1187,7 @@ impl precommit(
                             }
                         }
                     }
-                } except Exception { }
+                } except Exception {}
                 subprocess.run(
                     [
                         "git",

@@ -292,18 +292,25 @@ impl NaIRGenDicts._box_to_jacval(value: ir.Value) -> ir.Value {
             }
         }
         payload = b.ptrtoint(value, i64, name="jv.p2i");
-        if ptr_tag == 2 {
-            is_null = b.icmp_unsigned(
-                "==", payload, ir.Constant(i64, 0), name="jv.isnone"
-            );
-            none_or_str = b.select(
-                is_null, ir.Constant(i8, 8), ir.Constant(i8, 2), name="jv.nonetag"
-            );
-            b.store(none_or_str, tag_ptr);
-        } else {
-            b.store(ir.Constant(i8, ptr_tag), tag_ptr);
-        }
+        is_null = b.icmp_unsigned("==", payload, ir.Constant(i64, 0), name="jv.isnone");
+        tag_val = b.select(
+            is_null, ir.Constant(i8, 8), ir.Constant(i8, ptr_tag), name="jv.nonetag",
+        );
+        b.store(tag_val, tag_ptr);
         b.store(payload, payload_ptr);
+    } elif self._opt_payload_of(value.type) is not None {
+        opt_flag = b.extract_value(value, 0, name="jv.optflag");
+        opt_pay = b.extract_value(value, 1, name="jv.optpay");
+        inner = self._box_to_jacval(opt_pay);
+        inner_tag = b.extract_value(inner, 0, name="jv.opt.itag");
+        inner_pay = b.extract_value(inner, 1, name="jv.opt.ipay");
+        opt_none = b.icmp_unsigned(
+            "==", opt_flag, ir.Constant(i8, 0), name="jv.opt.isnone"
+        );
+        opt_tag = b.select(opt_none, ir.Constant(i8, 8), inner_tag, name="jv.opt.tag");
+        opt_out = b.select(opt_none, ir.Constant(i64, 0), inner_pay, name="jv.opt.pay");
+        b.store(opt_tag, tag_ptr);
+        b.store(opt_out, payload_ptr);
     } elif isinstance(value.type, ir.VoidType) {
         b.store(ir.Constant(i8, 8), tag_ptr);
         b.store(ir.Constant(i64, 0), payload_ptr);

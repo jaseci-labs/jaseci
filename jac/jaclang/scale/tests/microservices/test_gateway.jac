@@ -8,6 +8,7 @@ import from jaclang.scale.runtime.gateway.service_registry {
 }
 import from jaclang.scale.runtime.gateway.microservice_gateway { MicroserviceGateway }
 import from jaclang.server.serving.datatypes { Headers, Request, URL }
+import from jaclang.scale.tests.support { get_free_port }
 
 test "resolve strips prefix and preserves walker path" {
     reg = ServiceRegistry();
@@ -320,7 +321,7 @@ def _serve_fragment(payload: dict) -> tuple {
         handler_self.wfile.write(body);
     }
 
-    def _log_quiet(handler_self: any, fmt: str, *args: any) { }
+    def _log_quiet(handler_self: any, fmt: str, *args: any) {}
 
     handler_cls = type(
         "_FragmentHandler",
@@ -1585,9 +1586,7 @@ def _start_backend(hits: dict, routes: dict, port: int = 0) -> tuple {
                 (status, body) = routes.get(key, (404, '{"detail": "nope"}'));
                 conn.sendall(_http_response(status, body));
                 conn.close();
-            } except OSError {
-                ;
-            }
+            } except OSError {}
         }
     }
     t = threading.Thread(target=serve, daemon=True);
@@ -1599,19 +1598,7 @@ def _start_backend(hits: dict, routes: dict, port: int = 0) -> tuple {
 def _stop_backend(srv: any) {
     try {
         srv.close();
-    } except OSError {
-        ;
-    }
-}
-
-
-def _free_port -> int {
-    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
-    probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
-    probe.bind(("127.0.0.1", 0));
-    port = probe.getsockname()[1];
-    probe.close();
-    return port;
+    } except OSError {}
 }
 
 
@@ -1967,7 +1954,7 @@ test "a service that was unreachable at the first crawl is learned once it answe
     hits_a: dict = {};
     hits_b: dict = {};
     (srv_a, port_a) = _start_backend(hits_a, {"GET /openapi.json": _spec([])});
-    port_b = _free_port();
+    port_b = get_free_port();
     srv_b = None;
     try {
         (gw, client) = _gateway(

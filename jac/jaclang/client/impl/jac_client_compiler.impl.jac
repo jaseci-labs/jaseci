@@ -31,7 +31,7 @@ impl JacClientCompiler._get_client_dir(self: JacClientCompiler) -> Path {
                 return config.get_client_dir();
             }
         }
-    } except ImportError { }
+    } except ImportError {}
     return self.project_dir / '.jac' / 'client';
 }
 
@@ -688,7 +688,7 @@ impl JacClientCompiler._generate_routes_manifest(self: JacClientCompiler) -> Non
             and manifest_path.read_text(encoding='utf-8') == new_content {
             return;
         }
-    } except OSError { }
+    } except OSError {}
     manifest_path.write_text(new_content, encoding='utf-8');
 }
 

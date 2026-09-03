@@ -80,7 +80,7 @@ impl delete_tree(path: str) {
 impl delete_file(path: str) {
     try {
         os.unlink(path);
-    } except OSError { }
+    } except OSError {}
 }
 
 impl copy_file(src: str, dst: str) {
@@ -162,6 +162,20 @@ impl skip_jaclang(p: str) -> bool {
         or "libjacllvm." in p
         or "client/_bun" in p
         or p.endswith(".pyc")
+    );
+}
+
+impl skip_site_template(p: str) -> bool {
+    if p == ".gitignore" {
+        return False;
+    }
+    base = p.rsplit("/", 1)[-1];
+    return (
+        p == ".jac"
+        or p.startswith(".jac/")
+        or "__pycache__" in p
+        or "node_modules" in p
+        or base.startswith(".")
     );
 }
 

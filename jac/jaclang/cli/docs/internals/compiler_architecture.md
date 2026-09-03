@@ -661,11 +661,27 @@ Each cache entry is a **JIR file** (Jac IR) with named sections defined in
 | `SEC_BYTECODE` | Marshalled Python `CodeType` (server backend) |
 | `SEC_MTIR` | Meaning-Typed IR for `by llm` calls |
 | `SEC_LLVM_IR` | LLVM IR text (native backend) |
-| `SEC_NATIVE_OBJ` | Compiled ELF/Mach-O object (native backend) |
+| `SEC_NATIVE_OBJ` | Compiled bitcode with target triple (native backend) |
 | `SEC_INTEROP` | Serialised `InteropManifest` |
+| `SEC_MODKEY` / `SEC_ENVKEY` | Content key and environment fingerprint that gate every read |
+| `SEC_DEBUG_SRC` | Compressed source for traceback rendering |
+| `SEC_PLACEMENT` | Per-module placement summary (whole-program solve reruns over these) |
+| `SEC_CTDEPS` | Comptime file dependencies with mtimes |
+| `SEC_IFACE` | The module's exported interface: typed symbols, signatures, archetype layouts, access/ownership facts, hash-prefixed |
+| `SEC_DEPS` | Direct dependencies with the interface hash each had at compile time |
+| `SEC_DIAG` | Delivered diagnostics, grouped by analysis profile, for warm replay |
 
 A precompiled section is replayed via `JacCompiler._load_native_from_cache`
 / `_load_native_from_bitcode` instead of re-running the codegen pass.
+
+The last three sections form the **analysis cache**: dependency ingestion
+hydrates a cache-valid dep from `SEC_IFACE` instead of re-running its
+frontend, `SEC_DEPS` hashes give early cutoff (a body-only edit rewrites a
+dep's JIR but not its interface hash, so importers do not cascade), and a
+warm no-edit `jac check` replays `SEC_DIAG` without running a single pass.
+Hydration is always on; `JAC_REBUILD` recomputes and rewrites the cache, and
+`JAC_IFACE_VERIFY=1` recomputes everything served from cache and fails on
+any divergence. See [The analysis cache](analysis-cache.md) for the design.
 
 When debugging compiler changes, clear the relevant cache:
 
@@ -692,6 +708,14 @@ analysis-free) and cannot help the changed module on a miss (its
 analysis must run regardless). The actionable cost is typeshed stub
 processing inside cold-compile inference - an incremental-checking
 workstream, not a cache-format one.
+
+That gate holds for per-expression semantics and it still does: `Expr.type`
+and friends remain recompute-on-load. What it was silent about is the changed
+module's **import closure** and the analysis-facing paths (`jac check`, the
+LSP) that never read the module cache at all. The analysis cache closes that
+gap at the interface granularity instead of the expression granularity; the
+measurements and the exact cacheable-versus-must-recompute split live in
+[The analysis cache](analysis-cache.md).
 
 ## Key Files
 

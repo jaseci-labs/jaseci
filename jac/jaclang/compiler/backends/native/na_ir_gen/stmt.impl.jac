@@ -50,7 +50,7 @@ impl NaIRGenStmt._codegen_body(stmts: (list | tuple)) -> None {
                         }
                     }
                 }
-            } except Exception { }
+            } except Exception {}
         }
     }
 }
@@ -166,9 +166,9 @@ impl NaIRGenStmt._codegen_stmt(nd: uni.UniNode) -> None {
         }
     } elif isinstance(nd, uni.DeleteStmt) {
         self._codegen_delete(nd);
-    } elif isinstance(nd, uni.Semi) { } elif isinstance(nd, uni.Import) { } elif isinstance(
+    } elif isinstance(nd, uni.Semi) {} elif isinstance(nd, uni.Import) {} elif isinstance(
         nd, uni.PyInlineCode
-    ) { } elif isinstance(nd, uni.VisitStmt) {
+    ) {} elif isinstance(nd, uni.VisitStmt) {
         self._codegen_visit(nd);
     } elif isinstance(nd, uni.DisengageStmt) {
         self._codegen_disengage(nd);
@@ -699,6 +699,14 @@ impl NaIRGenStmt._codegen_open_stmt(nd: uni.OpenStmt) -> None {
     if _pushed {
         self.region_stack.append(_arena);
     }
+    _dyn_prev_slot: (ir.Value | None) = None;
+    if _pushed and self._dynamic_region_module() {
+        _dyn_prev = self.builder.call(
+            self.region_enter_fn, [_arena], name="region.enter"
+        );
+        _dyn_prev_slot = self._entry_alloca(_i8p, f".region.prev.{id(nd)}");
+        self.builder.store(_dyn_prev, _dyn_prev_slot);
+    }
 
     _region_prebody = set(self.local_vars.keys());
     if isinstance(nd.body, (list, tuple)) {
@@ -706,6 +714,12 @@ impl NaIRGenStmt._codegen_open_stmt(nd: uni.OpenStmt) -> None {
     }
     if _pushed {
         self.region_stack.pop();
+    }
+    if _dyn_prev_slot is not None and not self.builder.block.is_terminated {
+        self.builder.call(
+            self.region_leave_fn,
+            [self.builder.load(_dyn_prev_slot, name="region.prev")]
+        );
     }
     if not self.builder.block.is_terminated {
         _region_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.last_line
@@ -2862,9 +2876,9 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
             }
             self._register_region_handle_var(nd, var_name);
             if isinstance(var_type, ir.PointerType)
-                and var_name in self.region_handle_vars {
-                ;
-            } elif isinstance(var_type, ir.PointerType)
+                and var_name in self.region_handle_vars {} elif isinstance(
+                var_type, ir.PointerType
+            )
                 or (self._str_desc_ty is not None and var_type == self._str_desc_ty) {
                 if getattr(value, 'opname', '') == 'inttoptr' {
                     self.param_vars.add(var_name);

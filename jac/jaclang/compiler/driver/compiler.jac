@@ -13,14 +13,17 @@ import from jaclang.compiler.driver.jir {
     SEC_INTEROP,
     SEC_NATIVE_OBJ,
     SEC_PLACEMENT,
+    SEC_IFACE,
     FLAG_PRECOMPILED,
     get_module_cache_path,
     is_module_cache_valid,
     precompiled_jir_matches_source,
     cache_mode,
     read_bytecode_only,
+    read_section_bytes,
     read_sections,
     patch_co_filenames_bytes,
+    write_module_cache,
     SECTIONS_MAGIC,
     HEADER_SIZE
 }
@@ -84,15 +87,18 @@ glob COMPILE_GC_THRESHOLDS: tuple[int, int, int] = (100000, 50, 100);
 obj JacCompiler {
     has _selfhost: (SelfHostCache | None) = None,
         _reentrant_depth: int = 0,
+        _closure_opts: (CompileOptions | None) = None,
         _stub_catalog: any = None,
         _stub_catalog_tried: bool = False,
         stub_catalog_disabled: bool = False,
+        _stub_trees_served: bool = False,
         unit_collect: bool = True;
 
     has selfhost: SelfHostCache { getter; }
 
     def stub_catalog -> any;
     def ensure_stub_catalog -> any;
+    def note_stub_tree_served(path: str, program: JacProgram) -> None;
     def get_native_interop_setup(
         full_target: str, target_program: JacProgram
     ) -> tuple[((object | None), (dict[(str, object)] | None))];
@@ -158,6 +164,13 @@ obj JacCompiler {
     def _compile_once(
         file_path: str,
         target_program: JacProgram,
+        use_str: (str | None) = None,
+        options: CompileOptions = CompileOptions()
+    ) -> uni.Module;
+
+    def _compile_pipeline(
+        file_path: str,
+        actual_program: JacProgram,
         use_str: (str | None) = None,
         options: CompileOptions = CompileOptions()
     ) -> uni.Module;
