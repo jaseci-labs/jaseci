@@ -41,7 +41,7 @@ def _print_local_ms_banner(routes: dict[str, str]) {
     }
 }
 
-def _scale_runtime_active -> bool {
+def scale_runtime_configured -> bool {
     if (
         os.environ.get("JAC_SCALE_RUNTIME") == "1"
         or os.environ.get("JAC_SV_SIBLING") == "1"
@@ -652,7 +652,7 @@ class JacScalePlugin {
         base_path_dir: (str | None) = None,
         full_target_path: (str | None) = None
     ) -> ExecutionContext | None {
-        if not _scale_runtime_active() {
+        if not scale_runtime_configured() {
             return None;
         }
         import from .memory.context { JScaleExecutionContext }
@@ -668,27 +668,37 @@ class JacScalePlugin {
     }
 
     static def get_api_server_class -> type | None {
+        import from jaclang.server.identity_owner {
+            SCALE_IDENTITY,
+            identity_owner,
+            scale_stack_unavailable
+        }
+        import from jaclang.runtime.runtime { JacRuntime }
+        served = JacRuntime.get_full_target_path() or JacRuntime.get_base_path_dir();
+        if identity_owner(served) != SCALE_IDENTITY {
+            return None;
+        }
         try {
             import from .server.serve { JacAPIServer }
         } except ImportError as e {
-            import logging;
-            logging.getLogger(__name__).debug(
-                "scale API server unavailable, falling back to core server: "
-                f"missing module '{e?.name or ''}' ({e})"
-            );
-            return None;
+            raise scale_stack_unavailable('jaclang.scale.server.serve', e);
         }
         return JacAPIServer;
     }
 
     static def get_user_manager(base_path: str) -> UserManager | None {
-        if not _scale_runtime_active() {
+        import from jaclang.server.identity_owner {
+            SCALE_IDENTITY,
+            identity_owner,
+            scale_stack_unavailable
+        }
+        if identity_owner(base_path) != SCALE_IDENTITY {
             return None;
         }
         try {
             import from .identity.user_manager { JacScaleUserManager }
-        } except ImportError {
-            return None;
+        } except ImportError as e {
+            raise scale_stack_unavailable('jaclang.scale.identity.user_manager', e);
         }
         return JacScaleUserManager(base_path=base_path);
     }
