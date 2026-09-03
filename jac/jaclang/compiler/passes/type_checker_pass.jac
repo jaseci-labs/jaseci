@@ -87,9 +87,11 @@ import from jaclang.compiler.types.operations {
     AUG_TO_BINARY_MAP,
     BINARY_OPERATOR_MAP,
     BITWISE_OPERATORS,
+    NONE_UNSAFE_BINARY_OPERATORS,
     SHIFT_OPERATORS,
     get_numeric_promotion_type,
-    get_pow_result_type
+    get_pow_result_type,
+    operand_carries_none
 }
 import type from jaclang.compiler.types.type_evaluator { TypeEvaluator }
 import type from jaclang.compiler.driver.program { JacProgram }
@@ -126,6 +128,7 @@ import from jaclang.compiler.frontend.diagnostics {
     E1132,
     E5095,
     E1133,
+    E1135,
     W1036,
     W1037,
     W1052,
