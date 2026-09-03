@@ -341,3 +341,22 @@ test "a third-party Python dependency is fingerprinted, never compiled as a targ
         }
     }
 }
+
+test "an analysis that ended in errors is not memoized for replay" {
+    (main, dep) = _project();
+    _rewrite(
+        main,
+        "import from depmod { f }\n\nwith entry { print(f() + undefined_name); }\n"
+    );
+    (cold_prog, cold_diags) = _check(main);
+    assert cold_prog.errors_had , "the fixture must fail analysis to be meaningful";
+    (warm_prog, warm_diags) = _check(main);
+    events = warm_prog.analysis.cache_events;
+    assert events.get("analysis_replay", 0) == 0 , (
+        f"a failed analysis was replayed from cache (events: {events})"
+    );
+    assert warm_prog.analysis.pass_runs , "the warm check of a failed module must re-run analysis";
+    assert len(warm_prog.errors_had) == len(cold_prog.errors_had) , (
+        "re-analysis must report the same errors as the cold run"
+    );
+}

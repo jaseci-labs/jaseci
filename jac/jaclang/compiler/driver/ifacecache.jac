@@ -560,6 +560,10 @@ obj IfaceRegistry {
                 self._event("dep_profile_miss");
                 return None;
             }
+            if prof.get("errors") {
+                self._event("dep_error_profile");
+                return None;
+            }
         }
         mod = self._materialize(ent);
         if mod is None {
@@ -596,6 +600,17 @@ obj IfaceRegistry {
         prof = profiles.get(self.analysis_profile(options));
         if prof is None {
             self._event("replay_profile_miss");
+            return None;
+        }
+        if prof.get("errors") {
+            self._event("replay_error_profile");
+            if self.verifying is False and iface_verify_enabled() {
+                raise RuntimeError(
+                    f"analysis cache for {resolved} carries error records; a "
+                    "failed analysis is never persisted, so this cache entry is "
+                    "corrupted or predates that policy"
+                );
+            }
             return None;
         }
         if not self._deps_match(data) {
@@ -720,10 +735,12 @@ obj IfaceRegistry {
             for alert in self.prog.warnings_had[warn_start:] {
                 warnings.append(_alert_record(alert));
             }
-            profiles[self.analysis_profile(options)] = {
-                "errors": errors,
-                "warnings": warnings
-            };
+            _prof_key = self.analysis_profile(options);
+            if errors {
+                profiles.pop(_prof_key, None);
+            } else {
+                profiles[_prof_key] = {"errors": [], "warnings": warnings};
+            }
             sections[SEC_DIAG] = json.dumps(
                 {"schema": DIAG_SCHEMA, "profiles": profiles}
             ).encode(
