@@ -3,6 +3,7 @@ import tempfile;
 import from pathlib { Path }
 import from jaclang.scale.injector.bundle { pack_jab, content_address }
 import from jaclang.scale.injector.binary { pack_binary_bytes }
+import from jaclang.scale.tests.support { pod_binary }
 import from jaclang.compiler.driver.jir {
     FLAG_PRECOMPILED,
     compiler_source_digest,
@@ -16,7 +17,7 @@ import from jaclang.compiler.driver.jir {
 }
 
 
-glob _JAC_BIN: Path = Path(__file__).parents[4] / "zig-out" / "bin" / "jac";
+glob _JAC_BIN: Path = pod_binary();
 
 
 test "identical content packs to identical bytes (content-address stable)" {
