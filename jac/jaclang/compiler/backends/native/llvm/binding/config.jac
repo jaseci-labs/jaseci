@@ -33,10 +33,6 @@ def _has_svml -> object {
     }
 }
 
-with entry {
-    has_svml = _has_svml();
-}
-
 """
     Returns "static" if the FFI support is statically linked against LLVM,
     returns "dynamic" otherwise.
@@ -52,10 +48,6 @@ def _build_llvm_linkage_type -> object {
     } else {
         return "dynamic";
     }
-}
-
-with entry {
-    build_llvm_linkage_type = _build_llvm_linkage_type();
 }
 
 """
@@ -75,10 +67,6 @@ def _build_libstdcxx_linkage_type -> object {
     }
 }
 
-with entry {
-    build_libstdcxx_linkage_type = _build_libstdcxx_linkage_type();
-}
-
 """
     Returns "wheel", "conda" or "unspecified"
     """
@@ -88,10 +76,6 @@ def _package_format -> object {
     } except OSError {
         return "unspecified";
     }
-}
-
-with entry {
-    package_format = _package_format();
 }
 
 """
@@ -108,18 +92,14 @@ def _llvm_assertions_state -> object {
     }
 }
 
-with entry {
-    llvm_assertions_state = _llvm_assertions_state();
-}
-
 @cache
 def get_sysinfo -> object {
     d = `dict();
     d["ffi_lib_location"] = ffi.lib._name;
-    d["package_format"] = package_format;
-    d["llvm_linkage_type"] = build_llvm_linkage_type;
-    d["libstdcxx_linkage_type"] = build_libstdcxx_linkage_type;
-    d["llvm_assertions_state"] = llvm_assertions_state;
+    d["package_format"] = _package_format();
+    d["llvm_linkage_type"] = _build_llvm_linkage_type();
+    d["libstdcxx_linkage_type"] = _build_libstdcxx_linkage_type();
+    d["llvm_assertions_state"] = _llvm_assertions_state();
     HAVE_LIEF = False;
     try {
         import lief;

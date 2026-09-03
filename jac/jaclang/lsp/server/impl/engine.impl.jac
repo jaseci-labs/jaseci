@@ -81,6 +81,16 @@ impl JacLangServer._fanout_dependents(file_uri: str) -> None {
         return;
     }
 
+    if not self._dep_edges_seeded {
+        self._dep_edges_seeded = True;
+        try {
+            ws_root = self.workspace?.root_path;
+            if isinstance(ws_root, str) and ws_root {
+                import from jaclang.compiler.driver.ifacecache { seed_dep_edges }
+                seed_dep_edges(self.program, ws_root);
+            }
+        } except Exception {}
+    }
     self.program.invalidate_module(resolved);
     dependents = self.program.transitive_dependents(resolved);
     if not dependents {

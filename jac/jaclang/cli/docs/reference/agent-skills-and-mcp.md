@@ -15,6 +15,7 @@ The guides ship inside the `jac` CLI -- one per topic (`jac-core-cheatsheet`, `j
 jac guide                      # list every available guide
 jac guide jac-types            # print a specific guide
 jac guide --search walker      # find guides by keyword
+jac guide --nav                # docs navigation: sections and reading order
 jac guide --json               # machine-readable list (for tools and agents)
 ```
 

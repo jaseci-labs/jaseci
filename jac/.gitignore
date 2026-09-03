@@ -97,6 +97,17 @@ jaclang/vendor/typeshed/stdlib
 libjacllvm.so
 libjacllvm.dylib
 jacllvm.dll
+# Kit-built native compiler kernel (#8824), staged in-tree by mkpayload.
+libjac_compiler.so
+libjac_compiler.dylib
+libjac_compiler.so.layout.json
+libjac_compiler.dylib.layout.json
+# Any other `nacompile --shared` unit that lands in-tree with its layout
+# sidecar (a stray libjac_npy.so was committed once).
+libjac_*.so
+libjac_*.dylib
+libjac_*.so.layout.json
+libjac_*.dylib.layout.json
 # Zig-built libjacpyembed desktop shim, placed in-tree per host platform.
 libjacpyembed.so
 libjacpyembed.dylib

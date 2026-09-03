@@ -789,7 +789,9 @@ def _child_tree_script(
 }
 
 
-def _sealer_script_for(jac_path: Path, stage_root: Path, timeout_s: int) -> Path {
+def _legacy_sealer_script_for(
+    jac_path: Path, stage_root: Path, timeout_s: int
+) -> Path {
     return _child_tree_script(
         jac_path,
         stage_root,
@@ -810,16 +812,32 @@ def _precompile_app(
         jac_path.write_bytes(seal_binary);
         jac_path.chmod(0o755);
 
-        script = _sealer_script_for(jac_path, stage_root, timeout_s);
-
         result = subprocess.run(
-            [str(jac_path), "run", str(script), str(stage_root), "--seal"],
+            [str(jac_path), "precompile", str(stage_root), "--seal"],
             capture_output=True,
             text=True,
             timeout=timeout_s,
             env=seal_step_env(),
             cwd=str(stage_root)
         );
+        if (
+            result.returncode != 0
+            and "invalid choice: 'precompile'" in (result.stderr or "")
+        ) {
+            logger.warning(
+                "Seal binary predates 'jac precompile'; falling back to its "
+                "legacy sealer script."
+            );
+            script = _legacy_sealer_script_for(jac_path, stage_root, timeout_s);
+            result = subprocess.run(
+                [str(jac_path), "run", str(script), str(stage_root), "--seal"],
+                capture_output=True,
+                text=True,
+                timeout=timeout_s,
+                env=seal_step_env(),
+                cwd=str(stage_root)
+            );
+        }
         jac_path.unlink();
         if (
             result.returncode != 0

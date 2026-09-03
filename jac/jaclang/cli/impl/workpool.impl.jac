@@ -463,20 +463,22 @@ impl env_int(name: str, fallback: int) -> int {
     }
 }
 
-impl default_jobs -> int {
+impl default_jobs(worker_bytes: int = 0, avail_bytes: int = 0) -> int {
     cpus = os.cpu_count() or 1;
-    avail = 0;
-    try {
-        with open("/proc/meminfo", encoding="utf-8") as f {
-            for line in f {
-                if line.startswith("MemAvailable:") {
-                    avail = int(line.split()[1]) * 1024;
-                    break;
+    avail = int(avail_bytes or 0);
+    if not avail {
+        try {
+            with open("/proc/meminfo", encoding="utf-8") as f {
+                for line in f {
+                    if line.startswith("MemAvailable:") {
+                        avail = int(line.split()[1]) * 1024;
+                        break;
+                    }
                 }
             }
+        } except Exception {
+            avail = 0;
         }
-    } except Exception {
-        avail = 0;
     }
     if not avail {
         try {
@@ -485,9 +487,11 @@ impl default_jobs -> int {
             avail = 0;
         }
     }
+
+    per_worker = max(WORKER_MEM_BYTES, int(worker_bytes or 0));
     cap = cpus;
     if avail {
-        cap = max(1, int((avail * MEM_HEADROOM) // WORKER_MEM_BYTES));
+        cap = max(1, int((avail * MEM_HEADROOM) // per_worker));
     }
     return max(1, min(cpus, cap, MAX_AUTO_JOBS));
 }
@@ -518,26 +522,28 @@ impl jobs_setting(
 }
 
 impl resolve_jobs(
-    requested: (str | int | None) = None, env_var: str = "JAC_JOBS"
+    requested: (str | int | None) = None,
+    env_var: str = "JAC_JOBS",
+    worker_bytes: int = 0
 ) -> int {
     raw: (str | int | None) = requested;
     if (raw is None) or (str(raw).strip() == "") {
         raw = os.environ.get(env_var, "");
     }
     if (raw is None) or (str(raw).strip() == "") {
-        return default_jobs();
+        return default_jobs(worker_bytes);
     }
     if isinstance(raw, int) {
         return max(1, raw);
     }
     text = str(raw).strip().lower();
     if text == "auto" {
-        return default_jobs();
+        return default_jobs(worker_bytes);
     }
     try {
         return max(1, int(text));
     } except ValueError {
-        return default_jobs();
+        return default_jobs(worker_bytes);
     }
 }
 
