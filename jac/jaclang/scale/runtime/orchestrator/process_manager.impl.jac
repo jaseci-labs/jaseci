@@ -97,15 +97,28 @@ def _report_exit(name: str, exit_code: int, context: str) {
     logger.error(f"{name} exited with code {exit_code} {context}{suffix}");
 }
 
+def _owns_group(pid: int) -> bool {
+    import os;
+    try {
+        pgid = os.getpgid(pid);
+    } except (ProcessLookupError, OSError) {
+        return False;
+    }
+    return pgid == pid and pgid != os.getpgrp();
+}
+
+
 def _signal_group(pid: int, sig: int) -> None {
     import os;
     if pid <= 0 {
         return;
     }
-    try {
-        os.killpg(os.getpgid(pid), sig);
-        return;
-    } except (ProcessLookupError, PermissionError, OSError) {}
+    if _owns_group(pid) {
+        try {
+            os.killpg(pid, sig);
+            return;
+        } except (ProcessLookupError, PermissionError, OSError) {}
+    }
     try {
         os.kill(pid, sig);
     } except (ProcessLookupError, OSError) {}
@@ -235,6 +248,7 @@ impl ServiceProcessManager.start_service(name: str) -> bool {
         );
         os.close(log_fd);
         self.processes[name] = proc;
+        self._own_sessions[proc.pid] = True;
         `entry.pid = proc.pid;
         `entry.url = self._url_for(`entry);
         `entry.status = ServiceStatus.STARTING;
@@ -345,14 +359,19 @@ impl ServiceProcessManager.stop_service(name: str) -> bool {
 
     if proc {
         logger.info(f"Stopping {name} (pid={proc.pid})...");
+        own_session = bool(self._own_sessions.pop(proc.pid, False));
         proc.terminate();
-        _signal_group(proc.pid, int(signal.SIGTERM));
+        if own_session {
+            _signal_group(proc.pid, int(signal.SIGTERM));
+        }
         try {
             proc.`wait(timeout=10);
         } except subprocess.TimeoutExpired {
             logger.warning(f"{name} did not exit gracefully, force killing");
             proc.kill();
-            _signal_group(proc.pid, int(signal.SIGKILL));
+            if own_session {
+                _signal_group(proc.pid, int(signal.SIGKILL));
+            }
             proc.`wait();
         }
         del self.processes[name];

@@ -17,6 +17,7 @@ obj ServiceProcessManager {
     has registry: ServiceRegistry,
         deployer: (ServiceDeployer | None) = None,
         processes: dict[str, subprocess.Popen] = {},
+        _own_sessions: dict[int, bool] = {},
         _health_check_timeout: int = 3,
         _max_failures: int = 3,
         _failure_counts: dict[str, int] = {},
