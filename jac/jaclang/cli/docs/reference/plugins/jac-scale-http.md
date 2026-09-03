@@ -1775,7 +1775,7 @@ Nothing found is `BridgeUnavailable` at the first awaited call.
 
 #### Kubernetes
 
-`jac scale deploy` turns every serving app into its own `Deployment` + `Service` and injects each pod's peer URLs -- you write nothing by hand. For a provider that lives *outside* the cluster, set the env var on the consumer's Deployment:
+`jac scale deploy` turns every serving app into its own `Deployment` + `Service` and injects each pod's peer URLs -- you write nothing by hand. For a provider that lives _outside_ the cluster, set the env var on the consumer's Deployment:
 
 ```yaml
 # orders app: consumer, points at an inventory app hosted elsewhere
