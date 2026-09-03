@@ -2,7 +2,7 @@ import io;
 import tarfile;
 import tempfile;
 import from pathlib { Path }
-import from jaclang.scale.tests.support { pod_binary }
+import from jaclang.scale.tests.support { pod_binary, require_pod_binary }
 import from jaclang.scale.injector.bundle {
     _stage_app,
     add_source_members,
@@ -128,9 +128,7 @@ test "parking the entry module fails the pack, not the fleet" {
 test "a sealed .jab carries no tree that .jacignore parks" {
     # Unfixed, this seal dies on evaluation/broken.jac, which is the crash the
     # in-pod boot compile hits.
-    if not _JAC_BIN.is_file() {
-        return;
-    }
+    require_pod_binary();
     raw = pack_jab(str(_app(_PARKED)), _JAC_BIN.read_bytes());
     with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as tar {
         names = tar.getnames();

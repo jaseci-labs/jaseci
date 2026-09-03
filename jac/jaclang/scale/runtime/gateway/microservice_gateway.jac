@@ -67,10 +67,12 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
 
     def eligible_services -> list[tuple[str, ServiceEntry]];
     def root_member -> ServiceEntry | None;
-    async def handle_root(request: Request, path: str) -> Response | None;
+    def shell_answers(request: Request, path: str) -> bool;
+    async def forward_to_root(request: Request, path: str) -> Response | None;
+    async def forward_static_to_root(request: Request, path: str) -> Response | None;
     async def resolve_learned_owner(path: str) -> ServiceEntry | None;
     async def forward_root_path(
-        request: Request, service_entry: ServiceEntry, path: str
+        request: Request, service_entry: ServiceEntry, path: str, base_url: str = ""
     ) -> Response | None;
 
     async def deliver_once(request: Request, path: str) -> Response | None;

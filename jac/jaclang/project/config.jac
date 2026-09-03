@@ -279,6 +279,10 @@ def get_config(
 
 def set_config(config: JacConfig | None) -> None;
 
+def pin_project_scope(config: JacConfig | None) -> None;
+
+def project_scope_is_pinned -> bool;
+
 def get_explicit_config -> JacConfig | None;
 
 def get_config_for_path(start_path: Path) -> JacConfig | None;

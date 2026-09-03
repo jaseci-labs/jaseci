@@ -21,6 +21,21 @@ def headless_start_args(entry_file: str, port: int) -> list[str] {
     return ["run", "--serve", "--port", str(port), "--no-client", entry_file];
 }
 
+def app_start_args(
+    entry_file: str, port: int, dev: bool = False, api_port: int = 0
+) -> list[str] {
+    args: list[str] = ["run", "--serve", "--port", str(port)];
+    if dev {
+        args.append("--dev");
+        if api_port > 0 {
+            args.append("--api-port");
+            args.append(str(api_port));
+        }
+    }
+    args.append(entry_file);
+    return args;
+}
+
 def register(app: str, url: str, route: str = "") {
     _registry[app] = url.rstrip("/");
     if route {

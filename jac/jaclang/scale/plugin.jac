@@ -54,7 +54,11 @@ def scale_runtime_configured -> bool {
 }
 
 def scale_local_serve(
-    served: RunPlan, fleet: list[RunPlan], port: int = 8000
+    served: RunPlan,
+    fleet: list[RunPlan],
+    port: int = 8000,
+    dev: bool = False,
+    no_client: bool = False
 ) -> int | None {
     if not fleet or os.environ.get("JAC_SV_SIBLING") == "1" {
         return None;
@@ -85,6 +89,8 @@ def scale_local_serve(
         gateway_cfg["gateway_port"] = int(port);
         gateway_cfg["gateway_port_pinned"] = True;
     }
+    gateway_cfg["dev"] = dev and not no_client;
+    gateway_cfg["app_serves_client"] = not no_client;
     _print_local_fleet_banner(spec);
     try {
         LocalRealizer(fleet=spec, gateway_config=gateway_cfg).serve();

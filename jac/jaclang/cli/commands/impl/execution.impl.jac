@@ -13,7 +13,12 @@ import type from jaclang.compiler.backends.native.llvm.binding.executionengine {
 
 def _discover_config_from_file(filename: str) -> None {
     import from pathlib { Path }
-    import from jaclang.project.config { JacConfig, get_config, set_config }
+    import from jaclang.project.config {
+        JacConfig,
+        get_config,
+        project_scope_is_pinned,
+        set_config
+    }
     import from jaclang.project.pyvenv { add_venv_to_path }
     import from jaclang.runtime.runtime { JacRuntime as Jac }
 
@@ -21,6 +26,10 @@ def _discover_config_from_file(filename: str) -> None {
 
     Jac.set_full_target_path(str(file_path));
     file_dir = file_path.parent;
+
+    if project_scope_is_pinned() {
+        return;
+    }
 
     existing_config = get_config();
     active_profile = existing_config.active_profile if existing_config else None;
@@ -38,6 +47,131 @@ def _discover_config_from_file(filename: str) -> None {
             config.apply_profile_overlay(active_profile);
         }
         add_venv_to_path(config);
+    }
+}
+
+
+def _project_label(config: any) -> str {
+    name = config.project.name if config?.project else "";
+    proj_root = str(config.project_root) if config?.project_root else "?";
+    return f"'{name}' at {proj_root}" if name else proj_root;
+}
+
+
+def _app_serves(config: any, app: any) -> bool {
+    import from jaclang.project.kinds { kind_spec }
+    try {
+        spec = kind_spec(config.resolved_kind(app));
+    } except Exception {
+        return False;
+    }
+    return spec is not None and spec.action == "serve";
+}
+
+
+def _project_serves(config: any) -> bool {
+    if config is None {
+        return False;
+    }
+    for app in config.apps.values() {
+        if _app_serves(config, app) {
+            return True;
+        }
+    }
+    return False;
+}
+
+
+def _takes_over_app(config: any, file_path: str) -> bool {
+    if config is None {
+        return False;
+    }
+    app = config.app_for_path(file_path);
+    if app is None or not _app_serves(config, app) {
+        return False;
+    }
+    project_root = str(config.project_root) if config.project_root else "";
+    if not project_root {
+        return True;
+    }
+    try {
+        entry_file = app.entry_path(project_root);
+    } except Exception {
+        return True;
+    }
+    return os.path.abspath(file_path) != os.path.abspath(entry_file);
+}
+
+
+def _scope_notice(message: str) {
+    console.print(f"jac run: {message}", file=sys.stderr, style="muted");
+}
+
+
+def _pin_run_scope(filename: str, takeover: (bool | None)) -> None {
+    import from pathlib { Path }
+    import from jaclang.project.config { JacConfig, get_config, pin_project_scope }
+    import from jaclang.project.pyvenv { add_venv_to_path }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
+
+    file_path = Path(filename).resolve();
+    Jac.set_full_target_path(str(file_path));
+
+    existing_config = get_config();
+    active_profile = existing_config.active_profile if existing_config else None;
+
+    try {
+        owner = JacConfig.discover(start_path=file_path.parent);
+        ambient = JacConfig.discover(start_path=Path.cwd());
+    } except (OSError, KeyError, ValueError) as e {
+        console.warning(f"Failed to discover config from {file_path.parent}: {e}");
+        return;
+    }
+
+    chosen = owner;
+    notice = "";
+    if takeover is False {
+        chosen = None;
+        context = owner or ambient;
+        if context is not None {
+            notice = (
+                f"{file_path.name} runs standalone (--no-takeover); it will not "
+                f"touch the project {_project_label(context)}"
+            );
+        }
+    } elif owner is None {
+        if ambient is not None {
+            if takeover {
+                chosen = ambient;
+                notice = (
+                    f"takeover: {file_path.name} runs as the project "
+                    f"{_project_label(ambient)}, rewriting its client build"
+                );
+            } elif _project_serves(ambient) {
+                notice = (
+                    f"{file_path.name} is outside the project "
+                    f"{_project_label(ambient)}; running it standalone "
+                    "(--takeover runs it as this project)"
+                );
+            }
+        }
+    } elif takeover or _takes_over_app(owner, str(file_path)) {
+        notice = (
+            f"takeover: {file_path.name} runs as the project "
+            f"{_project_label(owner)}, rewriting its client build "
+            "(--no-takeover runs it standalone)"
+        );
+    }
+    if notice {
+        _scope_notice(notice);
+    }
+
+    if chosen is not None and active_profile {
+        chosen.apply_profile_overlay(active_profile);
+    }
+    pin_project_scope(chosen);
+    if chosen is not None {
+        add_venv_to_path(chosen);
     }
 }
 
@@ -183,7 +317,6 @@ def _serve_flag_spelling -> dict {
         "client": "--client",
         "host": "--host",
         "platform": "--platform",
-        "takeover": "--takeover",
         "fleet": "--fleet"
     };
 }
@@ -212,7 +345,6 @@ def _serve_overrides(
     client: (str | None),
     host: (str | None),
     platform: (str | None),
-    takeover: (bool | None),
     fleet: bool,
     cfg: any
 ) -> dict {
@@ -240,9 +372,6 @@ def _serve_overrides(
     }
     if platform is not None {
         over["platform"] = platform;
-    }
-    if takeover is not None {
-        over["takeover"] = takeover;
     }
     if fleet {
         over["fleet"] = True;
@@ -286,7 +415,12 @@ def _kind_serve_flags(
 }
 
 def _serve_with(
-    entry_path: str, plan_flags: dict, over: dict, main: bool, app_name: str
+    entry_path: str,
+    plan_flags: dict,
+    over: dict,
+    main: bool,
+    app_name: str,
+    takeover: bool = False
 ) -> int {
     import from jaclang.project.providers { initialize_provider_registry }
 
@@ -317,8 +451,12 @@ def _serve_with(
         }
     }
     for (k, v) in over.items() {
+        if k not in kw {
+            raise ValueError(f"serve override {k!r} is not a serve argument");
+        }
         kw[k] = v;
     }
+    kw["takeover"] = takeover;
     return serve(filename=entry_path, main=main, app=app_name, **kw);
 }
 
@@ -495,14 +633,29 @@ def _effective_config(cfg: any, app: any) -> any {
     return cfg.effective_for_app(app.name);
 }
 
-def _resolve_target(target: str) -> tuple {
+def _file_app(cfg: any, target: str, takeover: (bool | None)) -> any {
+    if cfg is None {
+        return None;
+    }
+    app = cfg.app_for_path(os.path.abspath(target));
+    if app is None and takeover is True {
+        try {
+            app = cfg.resolve_app("");
+        } except ValueError {
+            app = None;
+        }
+    }
+    return app;
+}
+
+def _resolve_target(target: str, takeover: (bool | None) = None) -> tuple {
     import from jaclang.project.config { get_config }
 
     if _is_file_target(target) {
+        _pin_run_scope(target, takeover);
         _discover_config_from_file(target);
         cfg = get_config();
-        app = cfg.app_for_path(os.path.abspath(target)) if cfg is not None else None;
-        return (cfg, app, target, 0);
+        return (cfg, _file_app(cfg, target, takeover), target, 0);
     }
     cfg = _load_cwd_config();
     if cfg is None {
@@ -526,14 +679,10 @@ def _resolve_target(target: str) -> tuple {
             return (cfg, app, "", 0);
         }
         if os.path.isfile(target) {
+            _pin_run_scope(target, takeover);
             _discover_config_from_file(target);
             file_cfg = get_config();
-            file_app = (
-                file_cfg.app_for_path(os.path.abspath(target))
-                    if file_cfg is not None
-                    else None
-            );
-            return (file_cfg, file_app, target, 0);
+            return (file_cfg, _file_app(file_cfg, target, takeover), target, 0);
         }
         console.error(
             f"No app named '{target}' in {cfg.toml_path}, and no such file.",
@@ -550,10 +699,10 @@ def _resolve_target(target: str) -> tuple {
     return (cfg, app, "", 0);
 }
 
-def _resolve_plan(target: str) -> tuple {
+def _resolve_plan(target: str, takeover: (bool | None) = None) -> tuple {
     import from jaclang.project.kinds { plan_app_run }
 
-    (cfg, app, file, rc) = _resolve_target(target);
+    (cfg, app, file, rc) = _resolve_target(target, takeover);
     if rc {
         return (None, cfg, None, file, rc);
     }
@@ -673,24 +822,14 @@ impl run(
         }
     }
 
-    (plan, cfg, app, file, rc) = _resolve_plan(target);
+    (plan, cfg, app, file, rc) = _resolve_plan(target, takeover);
     if rc {
         return rc;
     }
     eff = _effective_config(cfg, app);
 
     over = _serve_overrides(
-        port,
-        dev,
-        api_port,
-        no_client,
-        faux,
-        client,
-        host,
-        platform,
-        takeover,
-        fleet,
-        eff
+        port, dev, api_port, no_client, faux, client, host, platform, fleet, eff
     );
     entry_flags = _entry_flags_used(entry_name, nd, root_id, debug_mode);
     kind_serves = plan is not None and plan.action == "serve";
@@ -736,7 +875,8 @@ impl run(
             _kind_serve_flags(plan, kind_serves, serve_mode),
             over,
             main,
-            app.name if app is not None else ""
+            app.name if app is not None else "",
+            takeover=takeover is True
         );
     }
     if plan is not None and plan.action == "build" and not file {
@@ -927,13 +1067,33 @@ def _gateway_colocates(cfg: any) -> bool {
 }
 
 def _serve_fleet(
-    cfg: any, served: any, filename: str, port: int, fleet: bool
+    cfg: any,
+    served: any,
+    filename: str,
+    port: int,
+    fleet: bool,
+    dev: bool = False,
+    no_client: bool = False
 ) -> (int | None) {
     if cfg is None or served is None {
+        if fleet {
+            console.error(
+                "--fleet has nothing to run: no jac.toml app claims this file.\n"
+                "  Declare [apps.<name>] kind = \"service\" entries and run an app."
+            );
+            return 1;
+        }
         return None;
     }
     services = _service_apps(cfg, served);
     if not services {
+        if fleet {
+            console.error(
+                "--fleet has nothing to run: no service apps are declared.\n"
+                "  Declare them as [apps.<name>] kind = \"service\" in jac.toml."
+            );
+            return 1;
+        }
         return None;
     }
     if not fleet and _gateway_colocates(cfg) {
@@ -958,7 +1118,9 @@ def _serve_fleet(
         console.error(f"Cannot assemble the service fleet: {e}");
         return 1;
     }
-    return scale_local_serve(served_plan, members, port=port);
+    return scale_local_serve(
+        served_plan, members, port=port, dev=dev, no_client=no_client
+    );
 }
 
 def _colocate_services(cfg: any, served: any, base: str) -> None {
@@ -1060,7 +1222,7 @@ impl serve(
         return 1;
     }
 
-    fleet_rc = _serve_fleet(cfg, served, filename, port, fleet);
+    fleet_rc = _serve_fleet(cfg, served, filename, port, fleet, dev, no_client);
     if fleet_rc is not None {
         return fleet_rc;
     }
@@ -1219,8 +1381,19 @@ impl serve(
             free_vite_port = _find_free_port(
                 vite_port, skip_port=actual_port, strict=port_pinned
             );
+            declared_paths: list = [];
+            claimed_paths: list = [];
+            try {
+                import from jaclang.client.vite_bundler { DEV_PROXY_PREFIXES }
+                declared_paths = server.introspector.declared_api_paths();
+                claimed_paths = server.introspector.client_claimed_paths(
+                    DEV_PROXY_PREFIXES
+                );
+            } except Exception as e {
+                console.warning(f"Could not read declared API paths: {e}");
+            }
             (started_vite, bound_port) = _start_vite_dev_server(
-                base, free_vite_port, actual_port
+                base, free_vite_port, actual_port, declared_paths, claimed_paths
             );
             if started_vite {
                 vite_holder.append(started_vite);
@@ -1419,7 +1592,13 @@ def _find_free_port(start: int, skip_port: int = 0, strict: bool = False) -> int
     }
 }
 
-def _start_vite_dev_server(base_path: str, vite_port: int, api_port: int) -> any {
+def _start_vite_dev_server(
+    base_path: str,
+    vite_port: int,
+    api_port: int,
+    api_paths: (list[str] | None) = None,
+    client_paths: (list[str] | None) = None
+) -> any {
     import from pathlib { Path }
 
     try {
@@ -1431,7 +1610,13 @@ def _start_vite_dev_server(base_path: str, vite_port: int, api_port: int) -> any
         client_dir = bundler._get_client_dir();
         entry_file = client_dir / 'build' / 'main.js';
 
-        bundler.create_vite_config(entry_file, is_dev=True, api_port=api_port);
+        bundler.create_vite_config(
+            entry_file,
+            is_dev=True,
+            api_port=api_port,
+            api_paths=api_paths,
+            client_paths=client_paths
+        );
 
         if not (client_dir / 'configs' / 'package.json').exists() {
             bundler.create_package_json();

@@ -16,7 +16,8 @@ import from jaclang.scale.runtime.context.util {
     DEFAULT_GATEWAY_HOST
 }
 
-glob logger = logging.getLogger(__name__);
+glob logger = logging.getLogger(__name__),
+     _BOOT_RECHECK_INTERVAL: float = 2.0;
 
 
 def _log_gateway_only_ready(host: str, bound: int) {
@@ -55,8 +56,11 @@ obj FleetOrchestrator {
         registry = self._build_registry();
         logger.info(f"Registry: {len(registry.entries)} apps");
 
-        deployer = LocalDeployer(registry=registry);
+        deployer = LocalDeployer(registry=registry, dev_mode=self._dev_mode());
         pm = deployer._ensure_pm();
+        pm.app_boot_timeout = float(
+            self.gateway_config.get("app_boot_timeout", pm.app_boot_timeout)
+        );
         pm._boot_health_timeout = float(
             self.gateway_config.get("boot_health_timeout", pm._boot_health_timeout)
         );
@@ -66,13 +70,18 @@ obj FleetOrchestrator {
             )
         );
         deployer.deploy_all();
-        max_wait: int = int(self.gateway_config.get("boot_max_wait", 90));
+        max_wait: int = int(
+            max(
+                float(self.gateway_config.get("boot_max_wait", 90)),
+                pm._boot_health_timeout
+            )
+        );
 
         atexit.register(deployer.destroy_all);
 
         self._wait_for_health(pm, registry, max_wait);
 
-        pm.start_health_monitor();
+        pm.start_health_monitor(interval=_BOOT_RECHECK_INTERVAL);
 
         gateway = ProcessGateway(
             registry=registry,
@@ -109,8 +118,17 @@ obj FleetOrchestrator {
         gateway.serve(on_ready=partial(_log_gateway_only_ready, self._gateway_host()));
     }
 
+    def _dev_mode -> bool {
+        return bool(self.gateway_config.get("dev", False));
+    }
+
+    def _app_serves_client -> bool {
+        return bool(self.gateway_config.get("app_serves_client", False));
+    }
+
     def _build_registry -> ServiceRegistry {
         registry = ServiceRegistry();
+        serves_client: bool = self._app_serves_client();
         for (name, member) in self.fleet.members.items() {
             svc_entry = ServiceEntry(
                 name=name,
@@ -118,17 +136,19 @@ obj FleetOrchestrator {
                 prefix=ROOT_PREFIX if member.is_root else member.route,
                 port=0,
                 env={"JAC_SV_NAME": name},
-                is_root=member.is_root
+                is_root=member.is_root,
+                serves_client=member.is_root and member.client and serves_client
             );
             registry.register(svc_entry);
-            logger.info(f"Registered app: {name} -> {svc_entry.prefix}");
+            role: str = " (host)" if member.is_root else "";
+            logger.info(f"Registered app: {name} -> {svc_entry.prefix}{role}");
         }
         return registry;
     }
 
     def _wait_for_health(
         pm: ServiceProcessManager, registry: ServiceRegistry, max_wait: int
-    ) {
+    ) -> bool {
         logger.info("Waiting for apps to start...");
         start_time: float = time.time();
         all_healthy = False;
@@ -161,13 +181,21 @@ obj FleetOrchestrator {
         }
 
         if not all_healthy {
-            for (name, `entry) in registry.entries.items() {
-                if `entry.status != ServiceStatus.HEALTHY {
-                    logger.warning(f"  {name}: NOT HEALTHY");
-                }
+            starting: list[str] = [
+                name
+                for (name, `entry) in registry.entries.items()
+                if `entry.status not in (ServiceStatus.HEALTHY, ServiceStatus.STOPPED)
+            ];
+            if starting {
+                logger.warning(
+                    f"still starting after {max_wait}s: {', '.join(starting)}. "
+                    "The gateway keeps polling them and picks up their routes "
+                    "as soon as they answer; until then their paths reach the "
+                    "root app."
+                );
             }
-            logger.warning("Proceeding with unhealthy apps...");
         }
+        return all_healthy;
     }
 
     def _print_startup_banner(

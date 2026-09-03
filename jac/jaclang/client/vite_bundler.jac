@@ -16,7 +16,21 @@ glob logger = logging.getLogger(__name__),
      VITE_READY_PATTERNS = ['ready in', 'local:'],
      VITE_URL_PATTERNS = ['localhost', 'Local:', 'Network:'],
      CONFIG_META_KEYS = frozenset({'extension'}),
-     CLIENT_EVENT_PREFIX = '@@jac-client-event ';
+     CLIENT_EVENT_PREFIX = '@@jac-client-event ',
+     DEV_PROXY_PREFIXES: list[str] = [
+         '/walker',
+         '/function',
+         '/user',
+         '/introspect',
+         '/static',
+         '/docs',
+         '/openapi.json',
+         '/healthz',
+         '/admin',
+         '/graph',
+         '/redoc',
+         '/assets'
+     ];
 
 def client_deps_stale(build_dir: Path) -> bool;
 
@@ -61,7 +75,9 @@ class ViteBundler {
         mobile_hmr_host: str = "",
         mobile_hmr_port: int = 0,
         for_desktop_dev: bool = False,
-        desktop_broker_port: int = 0
+        desktop_broker_port: int = 0,
+        api_paths: (list[str] | None) = None,
+        client_paths: (list[str] | None) = None
     ) -> Path;
 
     def _format_config_object(self: ViteBundler, config: dict, indent: int = 0) -> str;
@@ -95,7 +111,9 @@ class ViteBundler {
         mobile_hmr_host: str = "",
         mobile_hmr_port: int = 0,
         for_desktop_dev: bool = False,
-        desktop_broker_port: int = 0
+        desktop_broker_port: int = 0,
+        api_paths: (list[str] | None) = None,
+        client_paths: (list[str] | None) = None
     ) -> str;
 
     def create_package_json(

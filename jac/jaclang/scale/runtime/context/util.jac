@@ -2,10 +2,17 @@ import os;
 import socket;
 import shutil;
 
-def pick_free_port(name: str, base: int = 18000, retries: int = 100) -> int {
+def pick_free_port(
+    name: str, base: int = 18000, retries: int = 100, avoid: set[int] | None = None
+) -> int {
+    blocked: set[int] = set(avoid) if avoid else set();
     start: int = base + (hash(name) % 1000);
     port: int = start;
     for _ in range(retries) {
+        if port in blocked {
+            port = port + 1;
+            continue;
+        }
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
         try {

@@ -951,6 +951,11 @@ jobs:
       # The docs section reads the corpus bundled with the jac binary under
       # test in-process (jaclang.cli.guide_store), so the docs journey stop is
       # hermetic with no extra setup.
+      # The site is a workspace whose service apps colocate in the served
+      # app's process by default, so `jac run --serve web` is the single
+      # process serving stack. The fleet topology (`--fleet`: one local
+      # process per service app behind the gateway) gets its own pass over
+      # the same journey below.
       - name: Start site server in background
         working-directory: jac/examples/jaclang_org
         run: |
@@ -1033,7 +1038,7 @@ jobs:
         if: failure()
         run: |
           pip install py-spy >/dev/null 2>&1 || true
-          for p in $(pgrep -f "jac run --serve main.jac"); do
+          for p in $(pgrep -f "jac run --serve"); do
             echo "=== py-spy dump pid $p ==="
             sudo env "PATH=$PATH" py-spy dump --pid "$p" --nonblocking || true
           done
@@ -1062,6 +1067,84 @@ jobs:
             sleep 3
             kill -9 ${{ env.SITE_PID }} 2>/dev/null || true
           fi
+
+      # The other topology for the same site: `jac run --fleet` puts the
+      # gateway in front of one local process per service app, with the
+      # served app (`web`) as the fleet's root member owning the project
+      # root. The journey below is the same one the single-process lane just
+      # ran, so the two lanes assert the same site, including the closing
+      # console-error sweep.
+      - name: Start the site behind the fleet gateway
+        working-directory: jac/examples/jaclang_org
+        env:
+          JAC_DOCS_LOCAL: ${{ github.workspace }}
+        run: |
+          timeout 1800 jac run --serve --fleet --port 8000 web \
+            > /tmp/site-ms.log 2>&1 &
+          MS_PID=$!
+          echo "MS_PID=$MS_PID" >> $GITHUB_ENV
+          echo "gateway starting with PID $MS_PID..."
+          sleep 10
+          if ! kill -0 $MS_PID 2>/dev/null; then
+            echo "Gateway process died during startup"
+            cat /tmp/site-ms.log
+            exit 1
+          fi
+
+      - name: Wait for the gateway to be ready
+        run: |
+          for i in $(seq 1 90); do
+            if ! kill -0 ${{ env.MS_PID }} 2>/dev/null; then
+              echo "Gateway exited unexpectedly"
+              tail -100 /tmp/site-ms.log
+              exit 1
+            fi
+            if curl -sf --max-time 10 http://localhost:8000/health -o /dev/null; then
+              echo "gateway is ready (attempt $i)"
+              exit 0
+            fi
+            echo "Attempt $i/90: gateway not ready, waiting 15s..."
+            sleep 15
+          done
+          echo "Gateway failed to answer after 90 attempts"
+          tail -200 /tmp/site-ms.log
+          exit 1
+
+      - name: Browse the site through the gateway (full journey)
+        timeout-minutes: 20
+        env:
+          SITE_JOURNEY_ARTIFACTS: /tmp
+        run: bash scripts/site-browse-journey.sh http://localhost:8000
+
+      - name: Dump gateway and service thread stacks on failure
+        if: failure()
+        run: |
+          pip install py-spy >/dev/null 2>&1 || true
+          for p in $(pgrep -f "jac run --serve"); do
+            echo "=== py-spy dump pid $p ==="
+            sudo env "PATH=$PATH" py-spy dump --pid "$p" --nonblocking || true
+          done
+
+      - name: Gateway and service logs
+        if: always()
+        run: |
+          echo "=== gateway ==="
+          tail -200 /tmp/site-ms.log || true
+          for f in jac/examples/jaclang_org/.jac/logs/*.log; do
+            echo "=== $f ==="
+            tail -80 "$f" || true
+          done
+
+      - name: Stop the fleet gateway
+        if: always()
+        run: |
+          jac browse close 2>/dev/null || true
+          if [ -n "${{ env.MS_PID }}" ]; then
+            kill ${{ env.MS_PID }} 2>/dev/null || true
+            sleep 5
+            kill -9 ${{ env.MS_PID }} 2>/dev/null || true
+          fi
+          pkill -f "jac run --serve --port 1" 2>/dev/null || true
 
       - name: Create fullstack project and eject it
         run: |

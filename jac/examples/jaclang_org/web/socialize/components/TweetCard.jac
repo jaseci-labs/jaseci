@@ -1,6 +1,6 @@
 import from "lucide-react" { Heart, MessageCircle, Trash2, Repeat2, Send }
 import from web.ui.avatar { Avatar, AvatarImage, AvatarFallback }
-import from web.ui.button { Button, buttonVariants }
+import from web.ui.button { Button }
 import from web.ui.input { Input }
 import from web.ui.tooltip { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent }
 import from web.ui.alert_dialog {
@@ -122,56 +122,57 @@ def:pub TweetCard(
             <TooltipProvider>
                 <div className="mt-2 flex items-center gap-1 text-muted-foreground">
                     <Tooltip>
-                        <TooltipTrigger
-                            className={cn(
-                                buttonVariants().call(
-                                    None, {"variant": "ghost", "size": "sm"}
-                                ),
-                                "h-8 gap-1.5 rounded-full px-2 text-muted-foreground hover:bg-reply/10 hover:text-reply"
-                            )}
-                            onClick={lambda { showComments = not showComments; }}
-                        >
-                            <MessageCircle size={16}/>
-                            {if comment_count > 0 {
-                                <span className="text-xs">{str(comment_count)}</span>
-                            }}
+                        <TooltipTrigger asChild={True}>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 gap-1.5 rounded-full px-2 text-muted-foreground hover:bg-reply/10 hover:text-reply"
+                                onClick={lambda { showComments = not showComments; }}
+                            >
+                                <MessageCircle size={16}/>
+                                {if comment_count > 0 {
+                                    <span className="text-xs">
+                                        {str(comment_count)}
+                                    </span>
+                                }}
+                            </Button>
                         </TooltipTrigger>
                         <TooltipContent>Reply</TooltipContent>
                     </Tooltip>
                     <Tooltip>
-                        <TooltipTrigger
-                            className={cn(
-                                buttonVariants().call(
-                                    None, {"variant": "ghost", "size": "sm"}
-                                ),
-                                "h-8 gap-1.5 rounded-full px-2 text-muted-foreground hover:bg-repost/10 hover:text-repost"
-                            )}
-                            onClick={lambda { onRepost(
-                                jid(tweet), tweet.content, tweet.author_username
-                            ); }}
-                        >
-                            <Repeat2 size={16}/>
+                        <TooltipTrigger asChild={True}>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 gap-1.5 rounded-full px-2 text-muted-foreground hover:bg-repost/10 hover:text-repost"
+                                onClick={lambda { onRepost(
+                                    jid(tweet), tweet.content, tweet.author_username
+                                ); }}
+                            >
+                                <Repeat2 size={16}/>
+                            </Button>
                         </TooltipTrigger>
                         <TooltipContent>Repost</TooltipContent>
                     </Tooltip>
                     <Tooltip>
-                        <TooltipTrigger
-                            className={cn(
-                                buttonVariants().call(
-                                    None, {"variant": "ghost", "size": "sm"}
-                                ),
-                                "h-8 gap-1.5 rounded-full px-2 hover:bg-like/10 hover:text-like",
-                                "text-like" if is_liked else "text-muted-foreground"
-                            )}
-                            onClick={lambda { onLike(jid(tweet)); }}
-                        >
-                            <Heart
-                                size={16}
-                                fill={"currentColor" if is_liked else "none"}
-                            />
-                            {if like_count > 0 {
-                                <span className="text-xs">{str(like_count)}</span>
-                            }}
+                        <TooltipTrigger asChild={True}>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className={cn(
+                                    "h-8 gap-1.5 rounded-full px-2 hover:bg-like/10 hover:text-like",
+                                    "text-like" if is_liked else "text-muted-foreground"
+                                )}
+                                onClick={lambda { onLike(jid(tweet)); }}
+                            >
+                                <Heart
+                                    size={16}
+                                    fill={"currentColor" if is_liked else "none"}
+                                />
+                                {if like_count > 0 {
+                                    <span className="text-xs">{str(like_count)}</span>
+                                }}
+                            </Button>
                         </TooltipTrigger>
                         <TooltipContent>
                             {"Unlike" if is_liked else "Like"}

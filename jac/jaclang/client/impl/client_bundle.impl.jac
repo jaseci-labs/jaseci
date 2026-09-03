@@ -16,7 +16,7 @@ impl _client_target_module(source_key: str, program: any) -> (Module | None) {
     if mod is None {
         return None;
     }
-    if 'TypeOf' in program.analysis.analyses_run.get(id(mod), set()) {
+    if program.analysis.analyses_run.provides(mod, 'TypeOf') {
         return mod;
     }
     return None;

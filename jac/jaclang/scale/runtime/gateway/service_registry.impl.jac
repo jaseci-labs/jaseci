@@ -41,6 +41,10 @@ impl ServiceRegistry.match_route(path: str) -> ServiceEntry | None {
     return None;
 }
 
+impl ServiceEntry.owns_root -> bool {
+    return self.is_root and self.serves_client;
+}
+
 impl ServiceRegistry.health_summary -> dict[str, dict] {
     result: dict[str, dict] = {};
     for (name, `entry) in self.entries.items() {
@@ -49,9 +53,11 @@ impl ServiceRegistry.health_summary -> dict[str, dict] {
             "prefix": `entry.prefix,
             "port": `entry.port,
             "url": `entry.url,
+            "page_url": `entry.page_url,
             "status": `entry.status.value,
             "pid": `entry.pid,
-            "root": `entry.is_root
+            "root": `entry.is_root,
+            "client": `entry.serves_client
         };
     }
     return result;

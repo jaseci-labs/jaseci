@@ -36,15 +36,18 @@ obj SelfHostCache {
         file_path: str, target_program: JacProgram, force: bool = False
     ) -> JacProgram {
         if not force and self.owns(file_path) {
+            if self.is_selfhost(target_program) {
+                return self.program;
+            }
+            import from jaclang.compiler.frontend.codeinfo { is_native_by_location }
+            if is_native_by_location(file_path) {
+                return target_program;
+            }
             import from jaclang.compiler.native_scope {
                 in_native_scope_path,
                 scope_lowering_active
             }
-            if (
-                scope_lowering_active()
-                and not self.is_selfhost(target_program)
-                and in_native_scope_path(file_path)
-            ) {
+            if scope_lowering_active() and in_native_scope_path(file_path) {
                 return target_program;
             }
             return self.program;

@@ -1801,13 +1801,13 @@ test "serialize_toml preserves arbitrarily deep nested tables" {
         "project": {"name": "deep"},
         "dependencies": {
             "npm": {
-                "react": "^18.2.0",
+                "react": "^19.2.0",
                 "dev": {"vite": "^6.4.1", "typescript": "^5.3.3"}
             }
         }
     };
     parsed = tomllib.loads(serialize_toml(doc));
-    assert parsed["dependencies"]["npm"]["react"] == "^18.2.0";
+    assert parsed["dependencies"]["npm"]["react"] == "^19.2.0";
     assert parsed["dependencies"]["npm"]["dev"]["vite"] == "^6.4.1" , (
         "deeply nested table must survive serialization"
     );

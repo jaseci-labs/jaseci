@@ -1074,7 +1074,7 @@ test "install pip and npm deps" {
     import from jaclang.client.npm_provider { NpmProvider }
     tmp = tempfile.mkdtemp(prefix="jac_test_");
     try {
-        toml = '[project]\nname = "fullstack"\nversion = "0.1.0"\n\n[dependencies]\nrequests = "~=2.31"\nflask = "~=3.0"\n\n[dependencies.npm]\nreact = "^18.0.0"\ntypescript = "^5.0.0"\n\n[dev-dependencies]\npytest = ">=8.0.0"\n';
+        toml = '[project]\nname = "fullstack"\nversion = "0.1.0"\n\n[dependencies]\nrequests = "~=2.31"\nflask = "~=3.0"\n\n[dependencies.npm]\nreact = "^19.2.0"\ntypescript = "^5.0.0"\n\n[dev-dependencies]\npytest = ">=8.0.0"\n';
         project_path = create_test_project(tmp, toml);
         os.makedirs(os.path.join(project_path, ".jac", "venv"), exist_ok=True);
         original_cwd = os.getcwd();

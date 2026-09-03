@@ -7,7 +7,7 @@ import from "lucide-react" {
     LogOut,
     MoreHorizontal
 }
-import from web.ui.button { Button, buttonVariants }
+import from web.ui.button { Button }
 import from web.ui.avatar { Avatar, AvatarImage, AvatarFallback }
 import from web.ui.badge { Badge }
 import from web.ui.dropdown_menu {
@@ -116,28 +116,28 @@ def:pub Sidebar(
         </Button>
         <div className="flex-1"/>
         <DropdownMenu>
-            <DropdownMenuTrigger
-                className={cn(
-                    buttonVariants().call(None, {"variant": "ghost"}),
-                    "h-auto w-full justify-start gap-2 rounded-full p-2"
-                )}
-            >
-                <Avatar className="size-9 shrink-0">
-                    <AvatarImage src={profileAvatar} alt={profileUsername}/>
-                    <AvatarFallback>{initial}</AvatarFallback>
-                </Avatar>
-                <div className="hidden min-w-0 flex-1 text-left xl:block">
-                    <div className="truncate text-sm font-semibold text-foreground">
-                        {displayUsername}
+            <DropdownMenuTrigger asChild={True}>
+                <Button
+                    variant="ghost"
+                    className="h-auto w-full justify-start gap-2 rounded-full p-2"
+                >
+                    <Avatar className="size-9 shrink-0">
+                        <AvatarImage src={profileAvatar} alt={profileUsername}/>
+                        <AvatarFallback>{initial}</AvatarFallback>
+                    </Avatar>
+                    <div className="hidden min-w-0 flex-1 text-left xl:block">
+                        <div className="truncate text-sm font-semibold text-foreground">
+                            {displayUsername}
+                        </div>
+                        <div className="truncate text-xs text-muted-foreground">
+                            {"@" + displayUsername}
+                        </div>
                     </div>
-                    <div className="truncate text-xs text-muted-foreground">
-                        {"@" + displayUsername}
-                    </div>
-                </div>
-                <MoreHorizontal
-                    size={18}
-                    className="hidden shrink-0 text-muted-foreground xl:block"
-                />
+                    <MoreHorizontal
+                        size={18}
+                        className="hidden shrink-0 text-muted-foreground xl:block"
+                    />
+                </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuGroup>

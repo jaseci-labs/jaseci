@@ -85,7 +85,6 @@ impl JacLangServer.postinit -> None {
     self._idle_event.set();
 
     self.worker_future = flow self.dispatcher() ;
-    logging.getLogger().setLevel(logging.CRITICAL);
 }
 
 impl JacLangServer.type_check(file_uri: str) -> None {

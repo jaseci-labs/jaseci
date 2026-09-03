@@ -128,8 +128,20 @@ impl JacAPIServerStatic.register_client_js_endpoint -> None {
     );
 }
 
+def _dev_client_elsewhere -> Response {
+    return Response(
+        content='Not found: in dev the client is served by the dev server on the web port',
+        status_code=404,
+        media_type='text/plain'
+    );
+}
+
+
 impl JacAPIServerStatic.serve_client_js_callback -> Callable[..., Response] {
     def callback -> Response {
+        if self.introspector.dev_mode {
+            return _dev_client_elsewhere();
+        }
         try {
             return Response(
                 content=Jac.get_client_js(self.introspector),
@@ -280,6 +292,9 @@ impl JacAPIServerStatic.render_page_callback -> Callable[..., Response] {
         if sibling is not None {
             return _sibling_app_file(sibling, '');
         }
+        if self.introspector.dev_mode {
+            return HTMLResponse(content='Not found', status_code=404);
+        }
         try {
             render_payload = self.introspector.render_page(
                 page_name, kwargs, Con.GUEST.value
@@ -301,6 +316,9 @@ impl JacAPIServerStatic.render_base_route_callback(
     app_name: str
 ) -> Callable[..., HTMLResponse] {
     def callback(**kwargs: JsonValue) -> HTMLResponse {
+        if self.introspector.dev_mode {
+            return HTMLResponse(content='Not found', status_code=404);
+        }
         try {
             render_payload = self.introspector.render_page(
                 app_name, kwargs, Con.GUEST.value
@@ -359,7 +377,12 @@ impl JacAPIServerStatic.serve_root_asset(file_path: str) -> Response {
     api_prefixes = ('cl/', 'walker/', 'function/', 'user/', 'static/');
     if (not file_ext or (file_ext not in allowed_extensions)) {
         root_app = self.introspector.resolve_root_app();
-        if (not file_ext and root_app and not file_path.startswith(api_prefixes)) {
+        if (
+            not file_ext
+            and root_app
+            and not self.introspector.dev_mode
+            and not file_path.startswith(api_prefixes)
+        ) {
             try {
                 render_payload = self.introspector.render_page(
                     root_app, {}, Con.GUEST.value

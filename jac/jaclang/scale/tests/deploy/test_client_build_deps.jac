@@ -44,7 +44,7 @@ def _project(dependencies: str, server_import: str) -> str {
         "jac.toml": (
             '[project]\nname = "shop"\nentry-point = "main.jac"\n\n'
             f"[dependencies]\n{dependencies}\n\n"
-            '[dependencies.npm]\nreact = "^18.2.0"\nreact-dom = "^18.2.0"\n'
+            '[dependencies.npm]\nreact = "^19.2.0"\nreact-dom = "^19.2.0"\n'
         ),
         "db.jac": (
             f"import {server_import};\n\n"

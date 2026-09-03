@@ -138,8 +138,8 @@ client_kind = "mobui"          # THE switch - without it it's a web-style client
 platform = "android"           # optional default for `jac run mobile`
 
 [dependencies.npm]
-react = "^18.2.0"
-react-dom = "^18.2.0"
+react = "^19.2.0"
+react-dom = "^19.2.0"
 react-native-web = "^0.19.13"      # REQUIRED - the web target aliases @jac/mobui to this
 lucide-react = "^0.469.0"          # icons (web) - optional
 lucide-react-native = "^0.469.0"   # icons (native) - optional

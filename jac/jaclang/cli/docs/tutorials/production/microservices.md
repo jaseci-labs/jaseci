@@ -150,6 +150,25 @@ jac run --port 8002 --fleet
 
 Now `math` is its own local process behind the `calculator` app's gateway, and the same `await add(...)` is a `POST /function/add` over loopback. Transitive providers come along either way: if `math` bridged to a third app, that app would be colocated or started too. Startup is **fail-fast**: if any service app fails to come up (missing entry file, syntax error, port in use), the served app exits at startup with the underlying error -- at deploy time, not at first request.
 
+### Which topology a local run picks
+
+`[apps]` describes the cut; the topology is a run-time choice:
+
+| Command | Topology |
+|---------|----------|
+| `jac run` | One process: the service apps are colocated in the served app's process (with vite and HMR under `--dev`) |
+| `jac run --fleet` | Gateway + one local process per service app; the served app is the fleet's root member and runs behind the gateway |
+| `jac run --dev --fleet` | The same fleet, dev client included: the root member runs vite and HMR behind the gateway |
+| `[scale.gateway] colocate = false` | Every local run is a fleet, as if `--fleet` were passed |
+
+In a fleet run the served app owns the project root: `/`, `/cl/<page>`, `/static/client.js` and any client-side route the fleet does not claim reach it through the gateway (in `--dev` at its vite dev server, with its own API as the fallback, so a client dev server that dies costs HMR, not the site). Root ownership needs a root member that actually serves a client, so a deployed gateway pod is unaffected and keeps serving the client bundle its image staged.
+
+`/cl/<page>` is not exclusive: it stays a discovery family, with the root member asked first and a page it does not serve still reaching the service app that does.
+
+Because the root member compiles the client, it starts and finishes booting before the rest of the fleet -- a module another member analyzed first reaches the client backend with its calls unresolved. The service apps then start in parallel behind it; `[scale.gateway] app_boot_timeout` bounds that wait, and a headless fleet skips it entirely.
+
+A service app still compiling never costs the fleet its routes either: the gateway keeps asking for its `/openapi.json` until it is healthy, and never caches what it said before then.
+
 `jac run --show` prints one plan row per app (`app`, `kind`, `entry`, `action`, `client`, `route`) without running anything.
 
 ---
@@ -373,7 +392,8 @@ The gateway's own knobs live under `[scale.gateway]` -- and the whole error enve
 | Per-app bridged-call timeout | `[apps.NAME.scale] rpc_timeout = 120.0` | 10s |
 | Boot-time per-app /healthz wait | `boot_health_timeout = 60.0` | 60s |
 | Boot-time overall startup window | `boot_max_wait = 90` | 90s |
-| Background recovery health-check cadence | `health_monitor_interval = 10.0` | 10s |
+| Root member's head start (it compiles the client, so it boots alone) | `app_boot_timeout = 900.0` | 900s, a stall budget: the clock resets while it is still writing to its log |
+| Background recovery health-check cadence | `health_monitor_interval = 10.0` | 10s (2s while anything is unhealthy) |
 | CORS | `[scale.gateway.cors] allow_origins = [...]` | open (`["*"]`); set to `[]` to disable |
 | Rate limiting | `[scale.gateway.rate_limit] enabled = true, per_ip_rpm = 600, per_user_rpm = 120` | disabled |
 | Centralised logs (Loki + Alloy) | `[scale.gateway.logs] enabled = true` | disabled -- see [Centralised Logs](../../reference/plugins/jac-scale-kubernetes.md#centralised-logs) |
