@@ -114,7 +114,7 @@ test "a second client build lowers exactly what the first one did" {
 
         warm = JacProgram();
         warm_dep = _ingest_as_dependency(warm, widget);
-        assert "TypeOf" not in warm.analysis.analyses_run.get(id(warm_dep), set()) , (
+        assert not warm.analysis.analyses_run.provides(warm_dep, "TypeOf") , (
             "the dependency schedule is supposed to leave the module unanalyzed;"
             " this test no longer reproduces the warm shape"
         );
