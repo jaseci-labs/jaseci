@@ -30,13 +30,16 @@ import from jaclang.compiler.frontend.unitree {
     WhileStmt
 }
 import from jaclang.compiler.driver.mtp { UseSiteInfo }
+import type from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.passes.transform { Transform }
 
 walker UseSitePass(Transform) {
     has ir_in: Module,
+        prog: JacProgram,
         cancel_token: any = None;
 
-    static has REQUIRES: tuple = ('TypeOf', );
+    static has REQUIRES: tuple = ('TypeOf', ),
+        HOST_PASS: bool = True;
 
     def postinit -> None;
     def transform(ir_in: Module) -> Module;

@@ -456,9 +456,7 @@ impl UseSitePass._reject(reason: str) -> UseSiteInfo {
 }
 
 impl UseSitePass._report_enabled -> bool {
-    import os;
-    return os.environ.get('JAC_USE_SITE_REPORT', '').strip().lower()
-        in ('1', 'true', 'yes');
+    return bool(self.prog?.options?.use_site_report);
 }
 
 impl UseSitePass._emit_report(rows: list[tuple[(str, UseSiteInfo)]]) -> None {
