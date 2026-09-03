@@ -816,6 +816,10 @@ obj ManifestBuilder {
         if cfg is not None and cfg.is_workspace {
             return "";
         }
+        if cfg is not None {
+            entry_point = str(cfg.project.entry_point or "").strip();
+            return entry_point or "main.jac";
+        }
         root_member = self.fleet.root_member() if self.fleet is not None else None;
         if root_member is not None {
             if not self._has_client_source() {
@@ -823,10 +827,7 @@ obj ManifestBuilder {
             }
             return root_member.file or "main.jac";
         }
-        entry_point = str(cfg.project.entry_point or "").strip()
-            if cfg is not None
-            else "";
-        return entry_point or "main.jac";
+        return "main.jac";
     }
 
     def _has_client_source -> bool {
