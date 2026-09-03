@@ -24,6 +24,14 @@ import from jaclang.byllm.mcp { McpClient, McpTool }
 import from jaclang.byllm.types { Tool, Message, MessageRole }
 import dataclasses;
 import from jaclang { JacRuntimeInterface as Jac }
+import from support_tests {
+    FakeLLM,
+    finish,
+    mk_run,
+    say,
+    tool_names,
+    call as tool_call
+}
 
 glob jac_import = Jac.jac_import,
      FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "fixtures");
@@ -1087,116 +1095,43 @@ test "finish tool invocation failure raises FinishToolError not TypeError" {
     assert raised , "Expected FinishToolError for argument-less finish call";
 }
 
-"""Model, finish_tool-only mt_run, and a fake response carrying `arguments`."""
-def _finish_env(arguments: str) -> tuple {
-    model = Model(model_name="test-model");
-    mt_run = MTRuntime(
-        messages=[
-            Message(role=MessageRole.SYSTEM, content="You are a helpful assistant."),
-            Message(role=MessageRole.USER, content="Who?")
-        ],
-        resp_type=_TestPerson,
-        stream=False,
-        tools=[Tool.make_finish_tool(_TestPerson)],
-        call_params={},
-        mtir=None  # type: ignore[arg-type]
-    );
-    fake_fn = types.SimpleNamespace(name="finish_tool", arguments=arguments);
-    fake_response = {
-        "choices": [
-            {
-                "message": {
-                    "content": None,
-                    "tool_calls": [types.SimpleNamespace(id="call_1", function=fake_fn)]
-                }
-            }
-        ],
+# finish_tool argument robustness end to end (issue #8169): a misnamed
+# argument is healed into the typed output; an unusable one comes back as a
+# recoverable tool error that must not masquerade as the finish call.
+glob _HEALABLE_FINISH = '{"output": {"name": "Dana", "age": 33}}',
+     _UNUSABLE_FINISH = '{"a": 1, "b": 2}';
 
-    };
-    return (model, mt_run, fake_response);
-}
-
-
-def _dispatch_finish_call(arguments: str) -> any {
-    (model, mt_run, fake_response) = _finish_env(arguments);
-    with unittest.mock.patch.object(
-        model, "model_call_no_stream", return_value=fake_response
-    ) {
-        return model.dispatch_no_streaming(mt_run);
-    }
-}
-
-test "misnamed finish argument is healed end to end" {
-    result = _dispatch_finish_call('{"output": {"name": "Dana", "age": 33}}');
-    finish_tc = result.tool_calls[0];
-    assert finish_tc.is_finish_call() , "Healed call should still be the finish call";
-    assert finish_tc.get_output().name == "Dana" , "Expected healed typed output";
-}
-
-# An error report that classified as the finish call would become the typed output.
-test "unusable finish arguments are recovered end to end" {
-    result = _dispatch_finish_call('{"a": 1, "b": 2}');
-    err_tc = result.tool_calls[0];
-    assert not err_tc.is_finish_call() , (
-        "Recovered error call must not masquerade as the finish call"
-    );
-    content = str(err_tc().content);
-    assert "Tool error" in content and "final_output" in content , f"got: {content}";
-}
-
-test "async dispatch heals a misnamed finish argument" {
+test "dispatch heals a misnamed finish argument and recovers an unusable one" {
     import asyncio;
-    (model, mt_run, fake_response) = _finish_env(
-        '{"output": {"name": "Eli", "age": 44}}'
-    );
-
-    async def _fake_async_call(params: dict) -> any {
-        return fake_response;
-    }
-
-    with unittest.mock.patch.object(
-        model, "model_call_no_stream_async", _fake_async_call
-    ) {
-        result = asyncio.run(model.adispatch_no_streaming(mt_run));
-    }
-    finish_tc = result.tool_calls[0];
-    assert finish_tc.is_finish_call() , "Async healed call should be the finish call";
-    assert finish_tc.get_output().name == "Eli" , "Expected healed typed output";
-}
-
-# The max-iterations terminal has no retry loop: heal or degrade, never raise.
-test "forced final answer heals or degrades without raising" {
-    for (arguments, expect_typed) in [
-        ('{"output": {"name": "Fay", "age": 51}}', True),
-        ('{"a": 1, "b": 2}', False)
+    for (why, arguments, use_async, expect_typed) in [
+        ("sync healed", _HEALABLE_FINISH, False, True),
+        ("async healed", _HEALABLE_FINISH, True, True),
+        ("sync unusable", _UNUSABLE_FINISH, False, False),
+        ("async unusable", _UNUSABLE_FINISH, True, False)
     ] {
-        (model, mt_run, fake_response) = _finish_env(arguments);
-        with unittest.mock.patch.object(
-            model, "model_call_no_stream", return_value=fake_response
-        ) {
-            out = model._force_final_answer(mt_run);
-        }
-        if expect_typed {
-            assert out.name == "Fay" , f"Expected healed typed output, got: {out}";
+        llm = FakeLLM(
+            model_name="test-model", replies=[tool_call("finish_tool", arguments)]
+        );
+        mt_run = mk_run(resp_type=_TestPerson, finish=True);
+        result: any = None;
+        if use_async {
+            coro: any = llm.adispatch_no_streaming(mt_run);
+            result = asyncio.run(coro);
         } else {
-            assert not isinstance(out, _TestPerson) , f"Expected degradation, got: {out}";
+            result = llm.dispatch_no_streaming(mt_run);
+        }
+        tc = result.tool_calls[0];
+        if expect_typed {
+            assert tc.is_finish_call() , f"{why}: healed call should still be the finish call";
+            assert tc.get_output().name == "Dana" , f"{why}: expected healed typed output";
+        } else {
+            assert not tc.is_finish_call() , (
+                f"{why}: recovered error call must not masquerade as the finish call"
+            );
+            content = str(tc().content);
+            assert "Tool error" in content and "final_output" in content , f"{why}: got: {content}";
         }
     }
-}
-
-test "recovery re-prompt heals a misnamed finish argument" {
-    (model, mt_run, fake_response) = _finish_env(
-        '{"output": {"name": "Gus", "age": 29}}'
-    );
-    with unittest.mock.patch.object(
-        model, "model_call_no_stream", return_value=fake_response
-    ) {
-        recovery = model._attempt_recovery(mt_run);
-    }
-    assert recovery is not None , "Recovery should run for a structured resp_type";
-    finish_tc = recovery.tool_calls[0];
-    assert finish_tc.is_finish_call() , "Recovered call should be the finish call";
-    assert finish_tc.get_output().name == "Gus" , "Expected healed typed output";
 }
 
 # Some backends downgrade json_schema to json_object and reject requests whose
@@ -1696,44 +1631,9 @@ test "prompt caching disabled via config" {
     }
 }
 
-"""Tool-call deltas are read by dict subscript; content deltas by attribute."""
-def _tc_chunk(delta: dict, finish: str | None = None) -> dict {
-    return {
-        "id": "c1",
-        "object": "chat.completion.chunk",
-        "created": 1,
-        "model": "m",
-        "choices": [{"index": 0, "delta": delta, "finish_reason": finish}]
-    };
-}
-
-def _text_chunks(text: str) -> list {
-    return [
-        types.SimpleNamespace(
-            usage=None,
-            choices=[
-                types.SimpleNamespace(delta=types.SimpleNamespace(content=w + " "))
-            ]
-        ) for w in text.split(" ")
-    ];
-}
-
-def _mk_run(tools: list) -> MTRuntime {
-    return MTRuntime(
-        messages=[
-            Message(role=MessageRole.SYSTEM, content="You are an agent."),
-            Message(role=MessageRole.USER, content="Do the thing.")
-        ],
-        resp_type=str,
-        stream=True,
-        tools=[*tools, Tool.make_finish_tool(str)],
-        call_params={},
-        mtir=None  # type: ignore[arg-type]
-    );
-}
-
 # Regression guard for jac#8381: tools serialize ahead of messages in Anthropic's
-# wire format, so shrinking mt_run.tools here broke the cached prefix.
+# wire format, so shrinking mt_run.tools on the narration call broke the cached
+# prefix. The terminal paths that force finish_tool must keep the array too.
 test "_stream_final_answer keeps the tools array intact" {
     def tool_a(x: str) -> str {
         return x;
@@ -1742,27 +1642,18 @@ test "_stream_final_answer keeps the tools array intact" {
         return y;
     }
 
-    model = Model(model_name="anthropic/claude-test");
-    mt_run = _mk_run([Tool(func=tool_a), Tool(func=tool_b)]);
+    llm = FakeLLM(model_name="anthropic/claude-test", replies=[say("Done.")]);
+    mt_run = mk_run(tools=[tool_a, tool_b], stream=True);
     expected = [t.get_name() for t in mt_run.tools];
 
-    seen: list = [];
-    def _serve(params: dict) -> list {
-        seen.append(params);
-        return _text_chunks("Done.");
-    }
-    with unittest.mock.patch.object(
-        model, "model_call_with_stream", side_effect=_serve
-    ) {
-        list(model._stream_final_answer(mt_run));
-    }
+    list(llm._stream_final_answer(mt_run));
 
-    assert len(seen) == 1;
-    assert [t["function"]["name"] for t in seen[0]["tools"]] == expected , (
+    assert len(llm.seen) == 1;
+    assert tool_names(llm.seen[0]) == expected , (
         "the narration call must send the same tools as the rest of the "
         "conversation, or Anthropic's cache prefix breaks"
     );
-    assert seen[0]["tool_choice"] == "none" , "must still forbid tool calls";
+    assert llm.seen[0]["tool_choice"] == "none" , "must still forbid tool calls";
     assert [t.get_name() for t in mt_run.tools] == expected , "mt_run.tools was mutated";
 }
 
@@ -1771,133 +1662,73 @@ test "finish_tool exit sends an identical tools payload on the narration call" {
         return f"found: {query}";
     }
 
-    model = Model(model_name="anthropic/claude-test");
-    mt_run = _mk_run([Tool(func=search_files)]);
+    llm = FakeLLM(
+        model_name="anthropic/claude-test",
+        replies=[finish("Fixed it."), say("Fixed it.")]
+    );
+    mt_run = mk_run(tools=[search_files], stream=True);
 
-    finish_chunks = [
-        _tc_chunk(
-            {
-                "role": "assistant",
-                "tool_calls": [
-                    {
-                        "index": 0,
-                        "id": "c_f",
-                        "type": "function",
-                        "function": {"name": "finish_tool", "arguments": ""}
-                    }
-                ]
-            }
-        ),
-        _tc_chunk(
-            {
-                "tool_calls": [
-                    {
-                        "index": 0,
-                        "function": {"arguments": '{"final_output": "Fixed it."}'}
-                    }
-                ]
-            }
-        ),
-        _tc_chunk({}, "tool_calls")
-    ];
+    list(llm._invoke_streaming(mt_run));
 
-    calls: list = [];
-    def _serve(params: dict) -> list {
-        calls.append(params.get("tools"));
-        return finish_chunks if len(calls) == 1 else _text_chunks("Fixed it.");
-    }
-    with unittest.mock.patch.object(
-        model, "model_call_with_stream", side_effect=_serve
-    ) {
-        list(model._invoke_streaming(mt_run));
-    }
-
-    assert len(calls) == 2 , f"expected exactly 2 LLM calls, got {len(calls)}";
-    assert calls[0] == calls[1] , (
+    sent = llm.sent("tools");
+    assert len(sent) == 2 , f"expected exactly 2 LLM calls, got {len(sent)}";
+    assert sent[0] == sent[1] , (
         f"the narration call must send a byte-identical tools payload "
-        f"(cache_control included); got {calls[1]} vs {calls[0]}"
+        f"(cache_control included); got {sent[1]} vs {sent[0]}"
     );
 }
 
-def _mk_forced_run -> tuple {
+# A structured resp_type still needs finish_tool callable, so the terminal
+# paths force it via tool_choice instead of tool_choice="none". Neither path
+# has a retry loop: heal a misnamed argument or degrade, never raise.
+test "forced answer and recovery force finish_tool, keep the tools array, and heal" {
     def extra_tool(x: str) -> str {
         return x;
     }
+    forced_choice = {"type": "function", "function": {"name": "finish_tool"}};
 
-    model = Model(model_name="anthropic/claude-test");
-    mt_run = MTRuntime(
-        messages=[
-            Message(role=MessageRole.SYSTEM, content="You are an agent."),
-            Message(role=MessageRole.USER, content="Who?")
-        ],
-        resp_type=_TestPerson,
-        stream=False,
-        tools=[Tool(func=extra_tool), Tool.make_finish_tool(_TestPerson)],
-        call_params={},
-        mtir=None  # type: ignore[arg-type]
-    );
-    fake_fn = types.SimpleNamespace(
-        name="finish_tool", arguments='{"final_output": {"name": "Amy", "age": 30}}'
-    );
-    fake_response = {
-        "choices": [
-            {
-                "message": {
-                    "content": None,
-                    "tool_calls": [types.SimpleNamespace(id="call_1", function=fake_fn)]
-                }
-            }
-        ]
-    };
-    return (model, mt_run, fake_response);
-}
+    for (why, arguments, expect_typed) in [
+        ("healable", _HEALABLE_FINISH, True),
+        ("unusable", _UNUSABLE_FINISH, False)
+    ] {
+        llm = FakeLLM(
+            model_name="anthropic/claude-test",
+            replies=[tool_call("finish_tool", arguments)]
+        );
+        mt_run = mk_run(resp_type=_TestPerson, tools=[extra_tool]);
+        expected = [t.get_name() for t in mt_run.tools];
+        out: any = llm._force_final_answer(mt_run);
+        assert tool_names(llm.seen[0]) == expected , (
+            f"force {why}: sent {tool_names(llm.seen[0])}, expected {expected}"
+        );
+        assert llm.seen[0]["tool_choice"] == forced_choice , (
+            f"force {why}: must force finish_tool specifically, not just narrow the tools list"
+        );
+        if expect_typed {
+            assert out.name == "Dana" , f"force {why}: expected the healed typed output, got: {out}";
+        } else {
+            assert not isinstance(out, _TestPerson) , f"force {why}: expected degradation, got: {out}";
+        }
 
-def _assert_forces_finish(expected: list, captured: list) {
-    assert len(captured) == 1;
-    sent_names = [t.get("function", {}).get("name") for t in captured[0]["tools"]];
-    assert sent_names == expected , f"got {sent_names}, expected {expected}";
-    assert captured[0]["tool_choice"]
-        == {"type": "function", "function": {"name": "finish_tool"}} , "must force finish_tool specifically, not just narrow the tools list";
-}
-
-# Same bug, but a structured resp_type still needs finish_tool callable, so this
-# forces it via tool_choice instead of tool_choice="none".
-test "_force_final_answer keeps the tools array intact and forces finish_tool" {
-    (model, mt_run, fake_response) = _mk_forced_run();
-    expected = [t.get_name() for t in mt_run.tools];
-
-    captured: list = [];
-    def _serve(params: dict) -> dict {
-        captured.append(params);
-        return fake_response;
+        llm = FakeLLM(
+            model_name="anthropic/claude-test",
+            replies=[tool_call("finish_tool", arguments)]
+        );
+        mt_run = mk_run(resp_type=_TestPerson, tools=[extra_tool]);
+        recovery = llm._attempt_recovery(mt_run);
+        assert recovery is not None , f"recover {why}: recovery should run for a structured resp_type";
+        assert tool_names(llm.seen[0]) == expected , (
+            f"recover {why}: sent {tool_names(llm.seen[0])}, expected {expected}"
+        );
+        assert llm.seen[0]["tool_choice"] == forced_choice , f"recover {why}: must force finish_tool";
+        recovered: any = recovery.tool_calls[0];
+        assert recovered.is_finish_call() == expect_typed , (
+            f"recover {why}: is_finish_call should be {expect_typed}"
+        );
+        if expect_typed {
+            assert recovered.get_output().name == "Dana" , f"recover {why}: expected healed typed output";
+        }
     }
-    with unittest.mock.patch.object(
-        model, "model_call_no_stream", side_effect=_serve
-    ) {
-        out = model._force_final_answer(mt_run);
-    }
-
-    _assert_forces_finish(expected, captured);
-    assert out.name == "Amy" , f"expected the healed typed output, got: {out}";
-}
-
-test "_attempt_recovery keeps the tools array intact and forces finish_tool" {
-    (model, mt_run, fake_response) = _mk_forced_run();
-    expected = [t.get_name() for t in mt_run.tools];
-
-    captured: list = [];
-    def _serve(params: dict) -> dict {
-        captured.append(params);
-        return fake_response;
-    }
-    with unittest.mock.patch.object(
-        model, "model_call_no_stream", side_effect=_serve
-    ) {
-        recovery = model._attempt_recovery(mt_run);
-    }
-
-    _assert_forces_finish(expected, captured);
-    assert recovery.tool_calls[0].is_finish_call();
 }
 
 import asyncio;

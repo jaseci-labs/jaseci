@@ -259,12 +259,14 @@ def tool_names(params: dict) -> list {
 obj FakeLLM(BaseLLM) {
     has model_name: str = "gpt-4o-mini",
         replies: list = [],
+        seen: list = [],
         chunk_size: int = 12,
         script: Script = Script();
 
     def postinit {
         self.script = Script(
             replies=list(self.replies),
+            seen=self.seen,
             model=self.model_name,
             chunk_size=self.chunk_size
         );
@@ -280,10 +282,6 @@ obj FakeLLM(BaseLLM) {
 
     override async def model_call_with_stream_async(params: dict) -> any {
         return await self.script.with_stream_async(params);
-    }
-
-    def seen -> list {
-        return self.script.seen;
     }
 
     def sent(key: str) -> list {
