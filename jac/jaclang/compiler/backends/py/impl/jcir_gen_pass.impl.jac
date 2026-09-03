@@ -1770,7 +1770,11 @@ impl JcirGenPass.exit_py_inline_code with PyInlineCode exit {
 }
 
 impl JcirGenPass.exit_import with Import exit {
-    import from jaclang.compiler.driver.boundary_classify { import_binds_client_native }
+    import from jaclang.compiler.driver.boundary_classify {
+        CrossAppKind,
+        classify_cross_app_import,
+        import_binds_client_native
+    }
     if (
         import_binds_client_native(here, self.ir_in.gen.interop_manifest)
         or here.native_only_drop
@@ -1792,8 +1796,8 @@ impl JcirGenPass.exit_import with Import exit {
     if (
         here.from_loc
         and here.items
-        and here.is_service_import
-        and here.code_context != CodeContext.CLIENT
+        and classify_cross_app_import(here, self.ir_in.gen.interop_manifest)
+            == CrossAppKind.SERVICE_BRIDGE
         and self._generate_sv_to_sv_stubs(here)
     ) {
         return;
@@ -2760,6 +2764,37 @@ impl JcirGenPass.exit_else_stmt with ElseStmt exit {
 }
 
 impl JcirGenPass.exit_expr_stmt with ExprStmt exit {
+    if not here.in_fstring {
+        stub_call = self._sv_bridge_walker_call(here.expr);
+        if stub_call is not None {
+            stub_name = stub_call.target.sym_name;
+            (args, keywords) = self.gen_call_args(stub_call);
+            deferred = self.nod(
+                'Call',
+                ['func', 'args', 'keywords'],
+                [
+                    self.nod(
+                        'Attribute',
+                        ['value', 'attr', 'ctx'],
+                        [
+                            self.nod(
+                                'Name',
+                                ['id', 'ctx'],
+                                [stub_name, self.nod('Load', [], [])]
+                            ),
+                            '_deferred',
+                            self.nod('Load', [], [])
+                        ]
+                    ),
+                    args,
+                    keywords
+                ],
+                jac_node=here.expr
+            );
+            self.set_out(here, [self.nod('Expr', ['value'], [deferred])]);
+            return;
+        }
+    }
     expr_stmt = self.nod('Expr', ['value'], [self.val(here.expr)])
         if not here.in_fstring
         else self.nod(
@@ -3541,6 +3576,11 @@ impl JcirGenPass.translate_jac_bin_op(nd: BinaryExpr) -> list {
         self._exit_func_call_impl(func_node);
         return self.outs(func_node);
     } elif (nd.op.name in [Tok.KW_SPAWN]) {
+        for side in (nd.right, nd.left) {
+            if self._sv_bridge_walker_call(side) is not None {
+                return [self.val(side)];
+            }
+        }
         return [
             self.nod(
                 'Call',
@@ -5977,10 +6017,23 @@ impl JcirGenPass._generate_sv_to_sv_stubs(nd: Import) -> bool {
     if not sv_to_sv_names {
         return False;
     }
+    import from jaclang.compiler.driver.boundary_classify {
+        import_provider_app,
+        import_provider_route
+    }
+    provider_app = import_provider_app(nd) or module_name;
+    provider_route = manifest.provider_routes.get(provider_app, '')
+        or import_provider_route(nd);
     boundary_types = manifest.boundary_types;
     parts: list = [
         "from jaclang.server import sv_client as __jac_sv_client",
-        "__jac_sv_client._declare_consumer_provider(__name__, '" + module_name + "')"
+        "__jac_sv_client._declare_consumer_provider("
+            + self._sv_consumer_app_expr()
+            + ", '"
+            + provider_app
+            + "', '"
+            + provider_route
+            + "')"
     ];
     names: list = ['__jac_sv_client'];
     for item in nd.items {
@@ -6011,7 +6064,7 @@ impl JcirGenPass._generate_sv_to_sv_stubs(nd: Import) -> bool {
         if binding.kind == 'walker' {
             parts.append(
                 self._gen_py_sv_walker_stub(
-                    local_name, item_name, module_name, binding, boundary_types
+                    local_name, item_name, provider_app, binding, boundary_types
                 )
             );
             names.append(local_name);
@@ -6019,7 +6072,7 @@ impl JcirGenPass._generate_sv_to_sv_stubs(nd: Import) -> bool {
         }
         parts.append(
             self._gen_py_sv_func_stub(
-                local_name, item_name, module_name, binding, boundary_types
+                local_name, item_name, provider_app, binding, boundary_types
             )
         );
         names.append(local_name);
@@ -6034,7 +6087,7 @@ impl JcirGenPass._generate_sv_to_sv_stubs(nd: Import) -> bool {
 impl JcirGenPass._gen_py_sv_func_stub(
     local_name: str,
     func_name: str,
-    module_name: str,
+    provider_app: str,
     binding: InteropBinding,
     boundary_types: dict[(str, BoundaryTypeInfo)]
 ) -> str {
@@ -6062,8 +6115,8 @@ impl JcirGenPass._gen_py_sv_func_stub(
     args_dict = '{' + ', '.join(args_kvs) + '}';
     ret_type = binding.ret_type;
     raw_call = (
-        "__jac_sv_client.call('"
-        + module_name
+        "await __jac_sv_client.call('"
+        + provider_app
         + "', '"
         + func_name
         + "', "
@@ -6075,13 +6128,13 @@ impl JcirGenPass._gen_py_sv_func_stub(
     } else {
         ret_expr = raw_call;
     }
-    return 'def ' + local_name + '(' + params + '):\n    return ' + ret_expr;
+    return 'async def ' + local_name + '(' + params + '):\n    return ' + ret_expr;
 }
 
 impl JcirGenPass._gen_py_sv_walker_stub(
     local_name: str,
     walker_name: str,
-    module_name: str,
+    provider_app: str,
     binding: InteropBinding,
     boundary_types: dict[(str, BoundaryTypeInfo)]
 ) -> str {
@@ -6128,7 +6181,7 @@ impl JcirGenPass._gen_py_sv_walker_stub(
     lines.append('class ' + local_name + ':');
     lines.append('    __jac_fields__ = ' + fields_repr);
     lines.append('    __jac_walker_name__ = ' + "'" + walker_name + "'");
-    lines.append('    __jac_provider_module__ = ' + "'" + module_name + "'");
+    lines.append('    __jac_provider_app__ = ' + "'" + provider_app + "'");
     lines.append('    __jac_boundary_types__ = ' + boundary_map);
     lines.append('    def __new__(' + init_params + '):');
     lines.append('        kwargs = ' + args_dict);
@@ -6140,13 +6193,27 @@ impl JcirGenPass._gen_py_sv_walker_stub(
     lines.append(
         '        return globals()["__jac_sv_client"].spawn_walker('
             + "'"
-            + module_name
+            + provider_app
             + "', '"
             + walker_name
             + "', kwargs, cls)"
     );
     lines.append('    def __init__(self, *args, **kwargs):');
     lines.append('        pass');
+    lines.append('    @classmethod');
+    lines.append('    def _deferred(cls, **kwargs):');
+    lines.append(
+        '        kwargs = {k: (v._to_wire() if hasattr(v, "_to_wire") else v)'
+    );
+    lines.append('                  for k, v in kwargs.items() if v is not None}');
+    lines.append(
+        '        return globals()["__jac_sv_client"].spawn_deferred('
+            + "'"
+            + provider_app
+            + "', '"
+            + walker_name
+            + "', kwargs)"
+    );
     lines.append('    def _to_wire(self):');
     lines.append(
         '        return {f: getattr(self, f, None) for f in self.__jac_fields__}'
@@ -6205,6 +6272,62 @@ impl JcirGenPass._gen_py_boundary_stub_class(
     lines.append('            setattr(inst, k, v)');
     lines.append('        return inst');
     return '\n'.join(lines);
+}
+
+impl JcirGenPass._sv_consumer_app_expr -> str {
+    import from jaclang.compiler.driver.boundary_classify { consumer_owner_app }
+    consumer = consumer_owner_app(self.ir_in);
+    if consumer {
+        return "'" + consumer + "'";
+    }
+    return '__name__';
+}
+
+impl JcirGenPass._sv_bridge_walker_call(expr: Expr) -> (FuncCall | None) {
+    import from jaclang.compiler.driver.boundary_classify {
+        CrossAppKind,
+        classify_cross_app_import
+    }
+    if isinstance(expr, BinaryExpr) and expr.op.name == Tok.KW_SPAWN {
+        for side in (expr.right, expr.left) {
+            found = self._sv_bridge_walker_call(side);
+            if found is not None {
+                return found;
+            }
+        }
+        return None;
+    }
+    if not isinstance(expr, FuncCall) or not isinstance(expr.target, Name) {
+        return None;
+    }
+    target = expr.target;
+    sym = target.sym;
+    if sym is None or not sym.defn {
+        return None;
+    }
+    item = sym.defn[0].parent;
+    if not isinstance(item, ModuleItem) {
+        return None;
+    }
+    imp = item.from_parent;
+    if (
+        classify_cross_app_import(imp, self.ir_in.gen.interop_manifest)
+        != CrossAppKind.SERVICE_BRIDGE
+    ) {
+        return None;
+    }
+    facts = imp.boundary_facts;
+    if facts is None {
+        return None;
+    }
+    item_name = getattr(item.name, 'value', str(item.name));
+    if item_name not in facts.sv_walkers {
+        binding = self.ir_in.gen.interop_manifest.bindings.get(target.sym_name);
+        if binding is None or binding.kind != 'walker' {
+            return None;
+        }
+    }
+    return expr;
 }
 
 impl JcirGenPass._invoke_llm_call(

@@ -29,6 +29,9 @@ obj ClientManifest {
         endpoint_effects: dict[(str, dict)] = field(default_factory=`dict),
         tests: list[dict[(str, str)]] = field(default_factory=`list),
         server_imports: list[str] = field(default_factory=`list),
+        server_import_routes: dict[(str, dict[(str, str)])] = field(
+            default_factory=`dict
+        ),
         page_export: (str | None) = None,
         layout_export: (str | None) = None;
 }
@@ -625,7 +628,8 @@ obj InteropBinding {
         param_names: list[str] = [],
         ast_node: any = None,
         source_module: (str | None) = None,
-        kind: str = 'function';
+        kind: str = 'function',
+        provider_app: str = '';
 
     has is_cross_module: bool { getter; }
 }
@@ -636,6 +640,8 @@ obj InteropManifest {
         endpoint_effects: dict[(str, dict)] = field(default_factory=`dict),
         func_access: dict[(str, bool)] = field(default_factory=`dict),
         walker_access: dict[(str, bool)] = field(default_factory=`dict),
+        app_edges: list[tuple[(str, str)]] = field(default_factory=`list),
+        provider_routes: dict[(str, str)] = field(default_factory=`dict),
         native_module_imports: dict[(str, NativeModuleInfo)] = field(
             default_factory=`dict
         ),

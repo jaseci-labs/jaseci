@@ -21,6 +21,10 @@ import from '@tanstack/react-form' { useForm }
 import from 'zod' { z }
 
 import from jaclang.client.client_runtime_core {
+    BridgeError as _BridgeError,
+    BridgeUnavailable as _BridgeUnavailable,
+    BridgeTimeout as _BridgeTimeout,
+    BridgeRejected as _BridgeRejected,
     navigate as _navigate,
     __createJacSchema as ___createJacSchema,
     __jacSpawn as ___jacSpawn,
@@ -60,6 +64,11 @@ import from jaclang.client.client_runtime_core {
     __jacReactErrorHandler as ___jacReactErrorHandler,
     __unwrapFormSchema as ___unwrapFormSchema
 }
+
+glob:pub BridgeError = _BridgeError,
+     BridgeUnavailable = _BridgeUnavailable,
+     BridgeTimeout = _BridgeTimeout,
+     BridgeRejected = _BridgeRejected;
 
 glob:pub __createJacSchema = ___createJacSchema,
      __jacSpawn = ___jacSpawn,

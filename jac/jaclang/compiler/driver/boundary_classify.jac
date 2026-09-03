@@ -83,15 +83,8 @@ def is_server_anchored_module(module: (uni.Module | None)) -> bool {
         return True;
     }
     anchor_path = module.loc.mod_path or '';
-    if anchor_path {
-        import from jaclang.compiler.placement.service_cut { is_service_module_stem }
-        anchor_stem = os.path.basename(anchor_path);
-        if anchor_stem.endswith('.jac') {
-            anchor_stem = anchor_stem[:-4];
-        }
-        if is_service_module_stem(anchor_path, anchor_stem) {
-            return True;
-        }
+    if anchor_path and is_service_app_entry(anchor_path) {
+        return True;
     }
     for arch in module.get_all_sub_nodes(uni.Archetype) {
         if arch.arch_kind is not None {
@@ -250,16 +243,130 @@ enum ClientImportVerdict {
     UNKNOWN = "unknown"
 }
 
+enum CrossAppKind {
+    LOCAL = "local",
+    CLIENT_BRIDGE = "client_bridge",
+    SERVICE_BRIDGE = "service_bridge",
+    NATIVE_BIND = "native_bind"
+}
+
+def bridgeable_import_target(nd: uni.Import) -> (str | None) {
+    if (
+        nd.from_loc is None
+        or not nd.items
+        or nd.is_typed
+        or nd.is_virtual_jac
+        or nd.has_clib_decls
+    ) {
+        return None;
+    }
+    try {
+        resolved = nd.from_loc.resolve_relative_path();
+    } except Exception {
+        return None;
+    }
+    if not isinstance(resolved, str) or not resolved.endswith('.jac') {
+        return None;
+    }
+    return resolved;
+}
+
+def owner_app_name_for_path(path: str, serving_only: bool = False) -> (str | None) {
+    import from jaclang.compiler.placement.workspace { owner_app_for_path }
+    if not path {
+        return None;
+    }
+    (owner, _ambiguous) = owner_app_for_path(path);
+    if owner is None or (serving_only and not owner.has_server) {
+        return None;
+    }
+    return owner.name;
+}
+
+def is_service_app_entry(path: str) -> bool {
+    import from jaclang.compiler.placement.workspace { app_for_path }
+    if not path {
+        return False;
+    }
+    app = app_for_path(path);
+    return app is not None and app.file_rooted and app.has_server;
+}
+
+def consumer_owner_app(module: (uni.Module | None)) -> (str | None) {
+    if module is None {
+        return None;
+    }
+    if module.owner_app is not None {
+        return module.owner_app;
+    }
+    return owner_app_name_for_path(module.loc.mod_path or '');
+}
+
+def import_consumer_app(nd: uni.Import) -> (str | None) {
+    return consumer_owner_app(nd.find_parent_of_type(uni.Module));
+}
+
+def import_provider_spec(nd: uni.Import) -> (object | None) {
+    import from jaclang.compiler.placement.workspace { owner_app_for_path }
+    resolved = bridgeable_import_target(nd);
+    if resolved is None {
+        return None;
+    }
+    (owner, _ambiguous) = owner_app_for_path(resolved);
+    if owner is None or not owner.has_server {
+        return None;
+    }
+    return owner;
+}
+
+def import_provider_app(nd: uni.Import) -> (str | None) {
+    spec = import_provider_spec(nd);
+    return spec.name if spec is not None else None;
+}
+
+def import_provider_route(nd: uni.Import) -> str {
+    spec = import_provider_spec(nd);
+    return spec.effective_route() if spec is not None else '';
+}
+
+def import_crosses_apps(nd: uni.Import) -> bool {
+    provider = import_provider_app(nd);
+    return provider is not None and provider != import_consumer_app(nd);
+}
+
+def is_service_bridge_import(nd: uni.Import) -> bool {
+    if bridgeable_import_target(nd) is None {
+        return False;
+    }
+    if nd.codespace() == CodeContext.CLIENT {
+        return False;
+    }
+    return import_crosses_apps(nd);
+}
+
+def classify_cross_app_import(
+    nd: uni.Import, manifest: (object | None)
+) -> CrossAppKind {
+    kind = CrossAppKind.LOCAL;
+    if bridgeable_import_target(nd) is not None {
+        if is_service_bridge_import(nd) {
+            kind = CrossAppKind.SERVICE_BRIDGE;
+        } elif manifest is not None and import_binds_client_native(nd, manifest) {
+            kind = CrossAppKind.NATIVE_BIND;
+        } elif nd.code_context == CodeContext.CLIENT {
+            kind = CrossAppKind.CLIENT_BRIDGE;
+        }
+    }
+    facts = nd.boundary_facts;
+    if facts is not None
+        and (manifest is not None or facts.cross_app_kind == CrossAppKind.LOCAL.value) {
+        facts.cross_app_kind = kind.value;
+    }
+    return kind;
+}
+
 def is_client_boundary_import(nd: uni.Import) -> bool {
-    return (
-        nd.code_context == CodeContext.CLIENT
-        and not nd.is_service_import
-        and not nd.is_typed
-        and not nd.is_virtual_jac
-        and nd.from_loc is not None
-        and bool(nd.items)
-        and nd.from_loc.resolve_relative_path().endswith('.jac')
-    );
+    return classify_cross_app_import(nd, None) == CrossAppKind.CLIENT_BRIDGE;
 }
 
 def symbol_linked_source_module(nd: uni.Import) -> (uni.Module | None) {

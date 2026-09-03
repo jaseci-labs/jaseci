@@ -444,6 +444,7 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
     }
     if (isinstance(caller_type, ClassType) and caller_type.is_instantiable_class()) {
         matched_method: FunctionType | None = None;
+        sv_async_ctor = self._is_sv_async_call(expr);
 
         ctor_arch = caller_type.shared.symbol_table;
         if isinstance(ctor_arch, Archetype)
@@ -497,10 +498,12 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
             );
             if has_inferred {
                 specialized = caller_type.specialize_generics(inferred_type_args);
-                return specialized.clone_as_instance();
+                inst = specialized.clone_as_instance();
+                return self._make_coroutine_type(inst) if sv_async_ctor else inst;
             }
         }
-        return caller_type.clone_as_instance();
+        inst = caller_type.clone_as_instance();
+        return self._make_coroutine_type(inst) if sv_async_ctor else inst;
     }
     if caller_type.is_class_instance() {
         if caller_type.is_any_instance() {

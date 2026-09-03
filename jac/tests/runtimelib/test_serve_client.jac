@@ -139,11 +139,15 @@ def make_dualrole_client(tmp_path: str) -> JacTestClient {
     shutil.copy(fixtures_src / "dualrole_app.jac", dest / f"{module_name}.jac");
     with open(str(dest / "jac.toml"), "w") as tf {
         tf.write(
-            "[project]\nname = \"dualrole\"\n\n[placement.pins]\n"
-            "\"dualrole_guestbook\" = \"server\"\n"
+            "[project]\nname = \"dualrole\"\n\n"
+            f"[apps.web]\nkind = \"web-app\"\nentry-point = \"{module_name}.jac\"\n\n"
+            "[apps.analytics]\nkind = \"service\"\n"
+            "entry-point = \"dualrole_analytics.jac\"\n"
+            "route = \"/analytics\"\n\n"
+            "[apps.web.placement.pins]\n"
+            "\"dualrole_guestbook\" = \"server\"\n\n"
+            "[placement.pins]\n"
             "\"dualrole_analytics\" = \"server\"\n"
-            "\n[scale.microservices.routes]\n"
-            "\"dualrole_analytics\" = \"/analytics\"\n"
         );
     }
     for name in [
@@ -2514,5 +2518,279 @@ test "spa fallback root is route aware without an index page" {
         intro = ModuleIntrospector("routed_app", str(proj));
         assert intro.spa_fallback_status("/") == 404;
         assert intro.spa_fallback_status("/dashboard") == 200;
+    }
+}
+
+# =============================================================================
+# sv_client: app-keyed bridge runtime (#8823)
+# =============================================================================
+import asyncio;
+import from jaclang.server { sv_client }
+import from jaclang.server.bridge {
+    BridgeError,
+    BridgeRejected,
+    BridgeTimeout,
+    BridgeUnavailable,
+    bridge_error_from,
+    idempotency_clear
+}
+import from jaclang.server.serving.client {
+    ClientConnectionError,
+    ClientReadTimeout,
+    ClientRequestNotSent
+}
+
+obj _BridgeStubResponse {
+    has payload: dict,
+        headers: dict = {},
+        text: str = "";
+
+    def json -> dict {
+        return self.payload;
+    }
+}
+
+obj _BridgeStubClient {
+    has calls: list = [],
+        payload: dict = {},
+        headers_seen: list = [];
+
+    def post(
+        path: str, json: dict, headers: (dict | None) = None
+    ) -> _BridgeStubResponse {
+        self.calls.append((path, json));
+        self.headers_seen.append(dict(headers or {}));
+        return _BridgeStubResponse(payload=self.payload);
+    }
+}
+
+obj _LocalProviderModule {
+    has seen: list = [];
+
+    def greet(name: str) -> str {
+        self.seen.append(name);
+        return "hi " + name;
+    }
+
+    async def greet_async(name: str) -> str {
+        return "async hi " + name;
+    }
+}
+
+def _reset_bridge_state {
+    sv_client.clear_test_clients();
+    sv_client.clear_local_providers();
+    sv_client.clear_consumer_providers();
+    for app in list(sv_client._registry.keys()) {
+        sv_client.unregister(app);
+    }
+}
+
+test "sv_client: peer url env key is app-keyed" {
+    assert sv_client.peer_url_env_key("social_graph") == "JAC_APP_SOCIAL_GRAPH_URL";
+    assert sv_client.peer_url_env_key("scoring-svc") == "JAC_APP_SCORING_SVC_URL";
+    assert sv_client.peer_route_env_key("social_graph") == "JAC_APP_SOCIAL_GRAPH_ROUTE";
+}
+
+test "sv_client: resolve_url appends the provider route to a gateway base" {
+    _reset_bridge_state();
+    try {
+        sv_client.register("social", "http://gateway:8000/", route="/api/social");
+        assert sv_client.resolve_url("social") == "http://gateway:8000/api/social";
+        sv_client._declare_consumer_provider("web", "scoring", "/api/scoring");
+        sv_client.register("scoring", "http://gateway:8000");
+        assert sv_client.resolve_url("scoring") == "http://gateway:8000/api/scoring";
+        assert sv_client.get_consumer_providers("web") == ["scoring"];
+    } finally {
+        _reset_bridge_state();
+    }
+}
+
+test "sv_client: unregistered app is BridgeUnavailable, not RuntimeError" {
+    _reset_bridge_state();
+    os.environ.pop(sv_client.peer_url_env_key("ghost"), None);
+    try {
+        asyncio.run(sv_client.call("ghost", "anything", {}));
+        assert False , "call to an unregistered app must raise";
+    } except BridgeUnavailable as e {
+        assert e.app == "ghost";
+        assert "JAC_APP_GHOST_URL" in str(e);
+    } finally {
+        _reset_bridge_state();
+    }
+}
+
+test "sv_client: call is awaitable and routes through the app-keyed test client" {
+    _reset_bridge_state();
+    stub = _BridgeStubClient(payload={"ok": True, "data": {"result": 41}});
+    sv_client.register_test_client("scoring", stub);
+    try {
+        got = asyncio.run(sv_client.call("scoring", "score", {"x": 1}));
+        assert got == 41 , f"unexpected result {got}";
+        assert stub.calls[0][0] == "/function/score";
+        assert stub.calls[0][1] == {"x": 1};
+    } finally {
+        _reset_bridge_state();
+    }
+}
+
+test "sv_client: provider-side failure envelope maps to the BridgeError family" {
+    _reset_bridge_state();
+    stub = _BridgeStubClient(
+        payload={"ok": False, "error": {"message": "score exploded"}}
+    );
+    sv_client.register_test_client("scoring", stub);
+    try {
+        asyncio.run(sv_client.call("scoring", "score", {}));
+        assert False , "failed envelope must raise";
+    } except BridgeError as e {
+        assert e.app == "scoring";
+        assert e.name == "score";
+        assert "score exploded" in e.detail;
+    } finally {
+        _reset_bridge_state();
+    }
+}
+
+test "sv_client: register_local short-circuits function calls in-process" {
+    _reset_bridge_state();
+    module = _LocalProviderModule();
+    sv_client.register_local("social", module);
+    try {
+        assert sv_client.is_local("social");
+        got = asyncio.run(sv_client.call("social", "greet", {"name": "ada"}));
+        assert got == "hi ada";
+        assert module.seen == ["ada"];
+        got_async = asyncio.run(sv_client.call("social", "greet_async", {"name": "bob"}));
+        assert got_async == "async hi bob";
+        try {
+            asyncio.run(sv_client.call("social", "missing", {}));
+            assert False , "unknown local function must raise";
+        } except BridgeError as e {
+            assert e.status == 404;
+        }
+    } finally {
+        _reset_bridge_state();
+    }
+}
+
+test "bridge_error_from: transport failures map by kind" {
+    unavailable = bridge_error_from(
+        ClientRequestNotSent(detail="connect refused"), "social", "greet"
+    );
+    assert isinstance(unavailable, BridgeUnavailable);
+    assert unavailable.app == "social" and unavailable.name == "greet";
+
+    timeout = bridge_error_from(ClientReadTimeout(detail="stalled"), "social", "greet");
+    assert isinstance(timeout, BridgeTimeout);
+
+    rejected = bridge_error_from(
+        ClientConnectionError(detail="HTTP 403", status_code=403), "social", "greet"
+    );
+    assert isinstance(rejected, BridgeRejected);
+    assert rejected.status == 403;
+
+    server_side = bridge_error_from(
+        ClientConnectionError(detail="HTTP 503", status_code=503), "social", "greet"
+    );
+    assert isinstance(server_side, BridgeError);
+    assert not isinstance(server_side, BridgeRejected);
+    assert server_side.status == 503;
+
+    generic = bridge_error_from(RuntimeError("boom"), "social", "greet");
+    assert isinstance(generic, BridgeError);
+    assert generic.detail == "boom";
+
+    passthrough = BridgeTimeout(app="a", name="b", detail="c");
+    assert bridge_error_from(passthrough, "x", "y") is passthrough;
+}
+
+test "serve: X-Jac-Idempotency-Key replays the first response for a repeated call" {
+    idempotency_clear();
+    with TemporaryDirectory() as tmpdir {
+        client = make_client(tmpdir);
+        headers = {"X-Jac-Idempotency-Key": "outbox-entry-1"};
+        first = client.post("/function/greet", json={"name": "ada"}, headers=headers);
+        assert first.ok , f"greet should be callable: {first.data}";
+        second = client.post("/function/greet", json={"name": "bob"}, headers=headers);
+        assert second.ok;
+        assert second.data == first.data , (
+            "a repeated idempotency key must replay the first response, "
+            f"got {second.data} vs {first.data}"
+        );
+        fresh = client.post(
+            "/function/greet",
+            json={"name": "bob"},
+            headers={"X-Jac-Idempotency-Key": "outbox-entry-2"}
+        );
+        assert fresh.ok;
+        assert fresh.data != first.data;
+        client.close();
+    }
+    idempotency_clear();
+}
+
+test "sv_client: bearer token is sent on bridged calls and falls back to JAC_BRIDGE_TOKEN" {
+    _reset_bridge_state();
+    stub = _BridgeStubClient(payload={"ok": True, "data": {"result": 1}});
+    sv_client.register_test_client("social", stub);
+    saved = os.environ.pop(sv_client.BRIDGE_TOKEN_ENV, None);
+    try {
+        sv_client.set_bearer_token("");
+        asyncio.run(sv_client.call("social", "load_feed", {}));
+        assert stub.headers_seen[-1] == {} , "no token means no Authorization header";
+
+        os.environ[sv_client.BRIDGE_TOKEN_ENV] = "env-token";
+        asyncio.run(sv_client.call("social", "load_feed", {}));
+        assert stub.headers_seen[-1] == {"Authorization": "Bearer env-token"};
+
+        sv_client.set_bearer_token("explicit-token");
+        asyncio.run(sv_client.call("social", "load_feed", {}));
+        assert stub.headers_seen[-1] == {"Authorization": "Bearer explicit-token"} , (
+            "an explicit token wins over the environment"
+        );
+    } finally {
+        sv_client.set_bearer_token("");
+        os.environ.pop(sv_client.BRIDGE_TOKEN_ENV, None);
+        if saved is not None {
+            os.environ[sv_client.BRIDGE_TOKEN_ENV] = saved;
+        }
+        _reset_bridge_state();
+    }
+}
+
+obj _StubWalker {
+    has name: str = "";
+
+    static def _from_wire(d: any) -> any {
+        inst = _StubWalker();
+        if isinstance(d, dict) {
+            for (k, v) in d.items() {
+                setattr(inst, k, v);
+            }
+        }
+        return inst;
+    }
+}
+
+test "sv_client: awaited walker spawn rehydrates the stub with reports" {
+    _reset_bridge_state();
+    stub = _BridgeStubClient(
+        payload={
+            "ok": True,
+            "data": {"result": {"name": "ada"}, "reports": [{"msg": "hi ada"}]}
+        }
+    );
+    sv_client.register_test_client("social", stub);
+    try {
+        got = asyncio.run(
+            sv_client.spawn_walker("social", "greet_walker", {"name": "ada"}, _StubWalker)
+        );
+        assert isinstance(got, _StubWalker);
+        assert got.name == "ada";
+        assert got.reports == [{"msg": "hi ada"}];
+        assert stub.calls[0][0] == "/walker/greet_walker";
+    } finally {
+        _reset_bridge_state();
     }
 }

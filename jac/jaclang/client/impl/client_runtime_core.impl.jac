@@ -166,7 +166,39 @@ def __nativeErrorMsg(response: any) -> str {
     return "Unknown error";
 }
 
-impl __doWalkerFetch(`walker: str, nodeId: str, fields: dict) -> any {
+impl __bridgeErrorFor(
+    status: int, message: str, app: str = "", name: str = ""
+) -> BridgeError {
+    if status == 401 or status == 403 or status == 404 {
+        return BridgeRejected(app=app, name=name, detail=message, status=status);
+    }
+    return BridgeError(app=app, name=name, detail=message, status=status);
+}
+
+impl __bridgeErrorFromFetch(err: any, app: str = "", name: str = "") -> BridgeError {
+    if isinstance(err, BridgeError) {
+        return err;
+    }
+    message = __errorMessage(err);
+    if err and (err.name == "AbortError" or err.name == "TimeoutError") {
+        return BridgeTimeout(app=app, name=name, detail=message);
+    }
+    return BridgeUnavailable(app=app, name=name, detail=message);
+}
+
+impl __bridgeApiBase(opts: (dict | None) = None) -> str {
+    base_url = __getApiBaseUrl();
+    route = opts["route"] if opts and opts["route"] else "";
+    if route {
+        return f"{base_url}{route}";
+    }
+    return base_url;
+}
+
+impl __doWalkerFetch(
+    `walker: str, nodeId: str, fields: dict, opts: (dict | None) = None
+) -> any {
+    app = opts["app"] if opts and opts["app"] else "";
     if globalThis.__JAC_NATIVE__ and globalThis.__jac_invoke {
         response = await __nativeInvoke("walker", `walker, nodeId, fields);
         if not response["ok"] {
@@ -175,12 +207,17 @@ impl __doWalkerFetch(`walker: str, nodeId: str, fields: dict) -> any {
                 window.location.reload();
                 return {};
             }
-            raise Exception(f"Walker {`walker} failed: {__nativeErrorMsg(response)}");
+            raise __bridgeErrorFor(
+                response["status"],
+                f"Walker {`walker} failed: {__nativeErrorMsg(response)}",
+                app,
+                `walker
+            );
         }
         return response["body"]["data"] if response["body"]["data"] else {};
     }
     token = __getLocalStorage("jac_token");
-    base_url = __getApiBaseUrl();
+    base_url = __bridgeApiBase(opts);
     url = f"{base_url}/walker/{`walker}";
     if nodeId != "" {
         url = f"{base_url}/walker/{`walker}/{nodeId}";
@@ -189,24 +226,34 @@ impl __doWalkerFetch(`walker: str, nodeId: str, fields: dict) -> any {
     if token {
         headers["Authorization"] = f"Bearer {token}";
     }
-    response = await fetch(
-        url, {"method": "POST", "headers": headers, "body": JSON.stringify(fields)}
-    );
+    response = None;
+    try {
+        response = await fetch(
+            url, {"method": "POST", "headers": headers, "body": JSON.stringify(fields)}
+        );
+    } except Exception as fetch_err {
+        raise __bridgeErrorFromFetch(fetch_err, app, `walker);
+    }
     if not response.ok {
-        if response.status == 401 {
+        if response.status == 401 and not app {
             __removeLocalStorage("jac_token");
             window.location.reload();
             return {};
         }
         error_text = await response.text();
         walker_name = f"{`walker}/{nodeId}" if nodeId else `walker;
-        raise Exception(f"Walker {walker_name} failed: {error_text}");
+        raise __bridgeErrorFor(
+            response.status, f"Walker {walker_name} failed: {error_text}", app, `walker
+        );
     }
     payload = await response.json();
     return payload["data"] if payload["data"] else {};
 }
 
-impl __doFuncFetch(function_name: str, args: dict) -> any {
+impl __doFuncFetch(
+    function_name: str, args: dict, opts: (dict | None) = None
+) -> any {
+    app = opts["app"] if opts and opts["app"] else "";
     if globalThis.__JAC_NATIVE__ and globalThis.__jac_invoke {
         response = await __nativeInvoke("function", function_name, "", args);
         if not response["ok"] {
@@ -215,8 +262,11 @@ impl __doFuncFetch(function_name: str, args: dict) -> any {
                 window.location.reload();
                 return {};
             }
-            raise Exception(
-                f"Function {function_name} failed: {__nativeErrorMsg(response)}"
+            raise __bridgeErrorFor(
+                response["status"],
+                f"Function {function_name} failed: {__nativeErrorMsg(response)}",
+                app,
+                function_name
             );
         }
         result = None;
@@ -231,28 +281,43 @@ impl __doFuncFetch(function_name: str, args: dict) -> any {
         return result;
     }
     token = __getLocalStorage("jac_token");
-    base_url = __getApiBaseUrl();
+    base_url = __bridgeApiBase(opts);
     headers = {"Content-Type": "application/json"};
     if token {
         headers["Authorization"] = f"Bearer {token}";
     }
-    response = await fetch(
-        f"{base_url}/function/{function_name}",
-        {"method": "POST", "headers": headers, "body": JSON.stringify(args)}
-    );
+    response = None;
+    try {
+        response = await fetch(
+            f"{base_url}/function/{function_name}",
+            {"method": "POST", "headers": headers, "body": JSON.stringify(args)}
+        );
+    } except Exception as fetch_err {
+        raise __bridgeErrorFromFetch(fetch_err, app, function_name);
+    }
     if not response.ok {
-        if response.status == 401 {
+        if response.status == 401 and not app {
             __removeLocalStorage("jac_token");
             window.location.reload();
             return {};
         }
         error_text = await response.text();
-        raise Exception(f"Function {function_name} failed: {error_text}");
+        raise __bridgeErrorFor(
+            response.status,
+            f"Function {function_name} failed: {error_text}",
+            app,
+            function_name
+        );
     }
     payload = await response.json();
     if not payload["ok"] {
         error_msg = __errorMessage(payload["error"]) or "Unknown error";
-        raise Exception(f"Function {function_name} failed: {error_msg}");
+        raise BridgeError(
+            app=app,
+            name=function_name,
+            detail=f"Function {function_name} failed: {error_msg}",
+            status=response.status
+        );
     }
     result = None;
     try {
@@ -308,33 +373,41 @@ impl __cachedEndpointCall(endpoint_key: str, args_key: str, fetch_fn: any) -> an
     return await fetch_fn();
 }
 
-impl __jacSpawn(left: str, right: str = "", fields: dict = {}) -> any {
+impl __jacSpawn(
+    left: str, right: str = "", fields: dict = {}, opts: (dict | None) = None
+) -> any {
     if left == "login"
         or left == "signup"
         or left == "logout"
         or left == "refresh_token" {
-        return await __doWalkerFetch(left, right, fields);
+        return await __doWalkerFetch(left, right, fields, opts);
     }
+    app = opts["app"] if opts and opts["app"] else "";
     endpoint_key = f"walker:{left}";
-    args_key = f"{endpoint_key}:{right}:{JSON.stringify(fields)}";
+    args_key = f"{endpoint_key}:{app}:{right}:{JSON.stringify(fields)}";
     return await __cachedEndpointCall(
         endpoint_key,
         args_key,
-        lambda -> any { return __doWalkerFetch(left, right, fields); }
+        lambda -> any { return __doWalkerFetch(left, right, fields, opts); }
     );
 }
 
-impl jacSpawn(left: str, right: str = "", fields: dict = {}) -> any {
-    return __jacSpawn(left, right, fields);
+impl jacSpawn(
+    left: str, right: str = "", fields: dict = {}, opts: (dict | None) = None
+) -> any {
+    return __jacSpawn(left, right, fields, opts);
 }
 
-impl __jacCallFunction(function_name: str, args: dict = {}) -> any {
+impl __jacCallFunction(
+    function_name: str, args: dict = {}, opts: (dict | None) = None
+) -> any {
+    app = opts["app"] if opts and opts["app"] else "";
     endpoint_key = f"func:{function_name}";
-    args_key = f"{endpoint_key}:{JSON.stringify(args)}";
+    args_key = f"{endpoint_key}:{app}:{JSON.stringify(args)}";
     return await __cachedEndpointCall(
         endpoint_key,
         args_key,
-        lambda -> any { return __doFuncFetch(function_name, args); }
+        lambda -> any { return __doFuncFetch(function_name, args, opts); }
     );
 }
 

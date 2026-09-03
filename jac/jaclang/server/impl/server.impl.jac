@@ -1798,11 +1798,53 @@ impl JacAPIServer.postinit -> None {
     self.app = None;
 }
 
+def _sibling_app_dist(config: any, name: str, base: str) -> (Path | None) {
+    import from jaclang.project.kinds { kind_spec }
+    if config is None or not config.is_workspace {
+        return None;
+    }
+    app = config.app(name);
+    if app is None {
+        return None;
+    }
+    served = config.app_for_path(Jac.get_full_target_path() or "");
+    if served is not None and served.name == app.name {
+        return None;
+    }
+    spec = kind_spec(app.kind);
+    if not (app.client or (spec is not None and spec.client_target)) {
+        return None;
+    }
+    root = str(config.project_root) if config.project_root else base;
+    dist = Path(root) / 'dist' / app.name;
+    return dist if (dist / 'index.html').is_file() else None;
+}
+
+def _colocated_providers -> dict[str, any] {
+    try {
+        import from jaclang.server.sv_client { _local_providers }
+    } except ImportError {
+        return {};
+    }
+    return dict(_local_providers);
+}
+
+def _sibling_app_names(config: any, base: str) -> list[str] {
+    if config is None or not config.is_workspace {
+        return [];
+    }
+    return [
+        name
+        for name in config.apps.keys()
+        if _sibling_app_dist(config, name, base) is not None
+    ];
+}
+
 impl JacAPIServer.build_app -> ServingApp {
+    import from jaclang.server.bridge { idempotency_lookup, idempotency_remember }
     server = self;
     config = get_config();
-    cl_route_prefix = config.serve.cl_route_prefix if config else 'cl';
-    cl_route_path = f"/{cl_route_prefix}/";
+    cl_route_path = "/cl/";
     app = ServingApp(title=f"{self.module_name} API", version='1.0.0');
     if server.introspector.has_client_route('/docs') {
         app.docs_url = None;
@@ -1903,7 +1945,31 @@ impl JacAPIServer.build_app -> ServingApp {
         return resp;
     }
 
+    def _app_dist_candidate(rel_path: str) -> (Path | None) {
+        if config is None or not config.apps {
+            return None;
+        }
+        import from jaclang.client.targets.registry { client_app_dir_for }
+        dist = client_app_dir_for(config) / 'dist';
+        rel = rel_path.lstrip('/');
+        for candidate in [dist / rel, dist / Path(rel).name] {
+            try {
+                resolved = candidate.resolve();
+            } except Exception {
+                continue;
+            }
+            if candidate.is_file() and dist.resolve() in resolved.parents {
+                return candidate;
+            }
+        }
+        return None;
+    }
+
     def _serve_static(request: Request, rel_path: str) -> ServingResponse {
+        app_candidate = _app_dist_candidate(rel_path);
+        if app_candidate is not None {
+            return _file_response(app_candidate);
+        }
         try {
             candidate = find_static_candidate(_static_base(), rel_path);
         } except Exception as exc {
@@ -2010,12 +2076,11 @@ impl JacAPIServer.build_app -> ServingApp {
     }
 
     def _root_index(request: Request) -> ServingResponse {
-        configured_root = config.serve.base_route_app if config else '';
-        base_route_app = server.introspector.resolve_root_app(configured_root);
-        if base_route_app {
+        root_app = server.introspector.resolve_root_app();
+        if root_app {
             return _render_page_response(
                 request,
-                base_route_app,
+                root_app,
                 _query_args(request),
                 server.introspector.spa_fallback_status('/')
             );
@@ -2033,29 +2098,54 @@ impl JacAPIServer.build_app -> ServingApp {
                     'GET /walker/<name>': 'Get walker fields',
                     'POST /function/<name>': 'Call a function',
                     'POST /walker/<name>': 'Spawn a walker',
-                    f'GET /{cl_route_prefix}/<name>': (
-                        'Render HTML page for client function'
-                    )
+                    'GET /cl/<name>': 'Render HTML page for client function',
+                    'GET /cl/<app>/': 'Serve a sibling app bundle (dist/<app>)'
                 }
             }
         );
     }
 
+    def _sibling_app_file(dist: Path, rel: str) -> ServingResponse {
+        candidate = (dist / rel) if rel else (dist / 'index.html');
+        try {
+            resolved = candidate.resolve();
+            inside = (
+                resolved == dist.resolve() or dist.resolve() in resolved.parents
+            );
+        } except Exception {
+            inside = False;
+        }
+        if inside and candidate.is_file() {
+            return _file_response(candidate);
+        }
+        return _file_response(dist / 'index.html');
+    }
+
     def _cl_page(request: Request, name: str) -> ServingResponse {
+        sibling = _sibling_app_dist(config, name, server.base_path);
+        if sibling is not None {
+            return _sibling_app_file(sibling, '');
+        }
         return _render_page_response(request, name, _query_args(request));
     }
 
     def _spa_or_asset(request: Request, rest: str) -> ServingResponse {
         path = f"/{rest}";
+        if rest.startswith('cl/') {
+            parts = rest[3:].split('/', 1);
+            sibling = _sibling_app_dist(config, parts[0], server.base_path);
+            if sibling is not None {
+                return _sibling_app_file(sibling, parts[1] if len(parts) > 1 else '');
+            }
+        }
         if is_asset_request(path, cl_route_path) {
             return _serve_static(request, path[1:]);
         }
-        configured_root = config.serve.base_route_app if config else '';
-        base_route_app = server.introspector.resolve_root_app(configured_root);
-        if base_route_app {
+        root_app = server.introspector.resolve_root_app();
+        if root_app {
             return _render_page_response(
                 request,
-                base_route_app,
+                root_app,
                 {},
                 server.introspector.spa_fallback_status(path)
             );
@@ -2166,6 +2256,14 @@ impl JacAPIServer.build_app -> ServingApp {
         );
     }
 
+    def _idempotency_key(request: Request, kind: str, name: str) -> str {
+        key = request.headers.get('X-Jac-Idempotency-Key');
+        if not key {
+            return '';
+        }
+        return f"{kind}:{name}:{key}";
+    }
+
     def _call_function(request: Request, name: str) -> any {
         server.introspector.load();
         if server.introspector.is_auth_required_for_function(name) {
@@ -2180,9 +2278,18 @@ impl JacAPIServer.build_app -> ServingApp {
         if data is None {
             return JSONResponse(content={'error': 'Invalid JSON'}, status_code=400);
         }
-        return asyncio.run(
+        idem = _idempotency_key(request, 'function', name);
+        replay = idempotency_lookup(idem) if idem else None;
+        if replay is not None {
+            return replay;
+        }
+        result = asyncio.run(
             _acall_function(server.execution_handler, name, data, username)
         );
+        if idem {
+            idempotency_remember(idem, result);
+        }
+        return result;
     }
 
     def _spawn_walker(request: Request, name: str, node_id: str = '') -> any {
@@ -2199,10 +2306,19 @@ impl JacAPIServer.build_app -> ServingApp {
         if data is None {
             return JSONResponse(content={'error': 'Invalid JSON'}, status_code=400);
         }
+        idem = _idempotency_key(request, 'walker', name);
+        replay = idempotency_lookup(idem) if idem else None;
+        if replay is not None {
+            return replay;
+        }
         fields = data | {'_jac_spawn_node': node_id};
-        return asyncio.run(
+        result = asyncio.run(
             _aspawn_walker(server.execution_handler, name, fields, username)
         );
+        if idem {
+            idempotency_remember(idem, result);
+        }
+        return result;
     }
 
     def _client_error(request: Request) -> any {
@@ -2301,7 +2417,7 @@ impl JacAPIServer.build_app -> ServingApp {
         params=[APIParameter(name='file_path', kind=ParameterType.PATH)]
     );
     _ep(HTTPMethod.GET, '/', _root_index);
-    _ep(HTTPMethod.GET, f"/{cl_route_prefix}/{{name}}", _cl_page, params=name_param);
+    _ep(HTTPMethod.GET, '/cl/{name}', _cl_page, params=name_param);
     _ep(HTTPMethod.GET, '/functions', _list_functions, in_schema=True);
     _ep(HTTPMethod.GET, '/walkers', _list_walkers, in_schema=True);
     _ep(
@@ -2410,6 +2526,135 @@ impl JacAPIServer.build_app -> ServingApp {
             in_schema=True
         );
     }
+    def _mount_provider(
+        route: str,
+        intro: ModuleIntrospector,
+        handler: ExecutionHandler,
+        listing: IntrospectionHandler
+    ) {
+        def _provider_user(request: Request, auth_required: bool) -> (str | None) {
+            if auth_required {
+                return _authenticate(request);
+            }
+            return _auth_or_guest(request);
+        }
+
+        def _mk_provider_walker(bound: str) -> Callable {
+            def _spawn_provider(request: Request, node_id: str = '') -> any {
+                intro.load();
+                username = _provider_user(
+                    request, intro.is_auth_required_for_walker(bound)
+                );
+                if not username {
+                    return JSONResponse(
+                        content={'error': 'Unauthorized'}, status_code=401
+                    );
+                }
+                data = _read_data(request);
+                if data is None {
+                    return JSONResponse(
+                        content={'error': 'Invalid JSON'}, status_code=400
+                    );
+                }
+                fields = data | {'_jac_spawn_node': node_id};
+                return asyncio.run(_aspawn_walker(handler, bound, fields, username));
+            }
+            return _spawn_provider;
+        }
+
+        def _mk_provider_function(bound: str) -> Callable {
+            def _call_provider(request: Request) -> any {
+                intro.load();
+                username = _provider_user(
+                    request, intro.is_auth_required_for_function(bound)
+                );
+                if not username {
+                    return JSONResponse(
+                        content={'error': 'Unauthorized'}, status_code=401
+                    );
+                }
+                data = _read_data(request);
+                if data is None {
+                    return JSONResponse(
+                        content={'error': 'Invalid JSON'}, status_code=400
+                    );
+                }
+                return asyncio.run(_acall_function(handler, bound, data, username));
+            }
+            return _call_provider;
+        }
+
+        def _list_provider_walkers(request: Request) -> any {
+            return listing.list_walkers();
+        }
+
+        def _list_provider_functions(request: Request) -> any {
+            return listing.list_functions();
+        }
+
+        _ep(HTTPMethod.GET, f'{route}/walkers', _list_provider_walkers, in_schema=True);
+        _ep(
+            HTTPMethod.GET, f'{route}/functions', _list_provider_functions, in_schema=True
+        );
+        for w_name in list(intro.get_walkers()) {
+            provider_walker = _mk_provider_walker(w_name);
+            _ep(
+                HTTPMethod.POST, f'{route}/walker/{w_name}', provider_walker, in_schema=True
+            );
+            _ep(
+                HTTPMethod.POST,
+                f'{route}/walker/{w_name}/{{node_id}}',
+                provider_walker,
+                params=[APIParameter(name='node_id', kind=ParameterType.PATH)],
+                in_schema=True
+            );
+        }
+        for f_name in list(intro.get_functions()) {
+            _ep(
+                HTTPMethod.POST,
+                f'{route}/function/{f_name}',
+                _mk_provider_function(f_name),
+                in_schema=True
+            );
+        }
+    }
+
+    for (provider_app, provider_module) in _colocated_providers().items() {
+        provider_cfg = config.app(provider_app) if config is not None else None;
+        route = (
+            provider_cfg.effective_route()
+                if provider_cfg is not None
+                else f"/api/{provider_app}"
+        );
+        mod_file = getattr(provider_module, '__file__', None);
+        intro = ModuleIntrospector(
+            module_name=getattr(provider_module, '__name__', provider_app),
+            base_path=(os.path.dirname(mod_file) if mod_file else server.base_path),
+            module_file=mod_file
+        );
+        try {
+            intro.load();
+        } except Exception as exc {
+            console.warning(
+                f"Colocated app '{provider_app}' could not be introspected: {exc}"
+            );
+            continue;
+        }
+        _mount_provider(
+            route.rstrip('/'),
+            intro,
+            ExecutionHandler(
+                introspector=intro,
+                execution_manager=server.execution_manager,
+                user_manager=server.user_manager
+            ),
+            IntrospectionHandler(
+                introspector=intro,
+                execution_manager=server.execution_manager,
+                user_manager=server.user_manager
+            )
+        );
+    }
     _ep(HTTPMethod.POST, '/cl/__error__', _client_error);
     _ep(
         HTTPMethod.POST,
@@ -2515,7 +2760,8 @@ impl JacAPIServer.start(
                 config = get_config();
 
                 if config {
-                    dist_dir = config.get_client_dir() / 'dist';
+                    import from jaclang.client.targets.registry { client_app_dir_for }
+                    dist_dir = client_app_dir_for(config) / 'dist';
                 } else {
                     dist_dir = Path(self.base_path) / '.jac' / 'client' / 'dist';
                 }
@@ -2536,9 +2782,8 @@ impl JacAPIServer.start(
         }
     }
     config = get_config();
-    cl_route_prefix = config.serve.cl_route_prefix if config else "cl";
-    configured_root = config.serve.base_route_app if config else "";
-    base_route_app = self.introspector.resolve_root_app(configured_root);
+    root_app = self.introspector.resolve_root_app();
+    sibling_apps = _sibling_app_names(config, self.base_path);
     if self.port <= 0 {
         raise RuntimeError(
             "Cannot start server: no socket was bound (test mode, port=0)"
@@ -2566,12 +2811,23 @@ impl JacAPIServer.start(
         console.print('  GET /walker/<name> - Get walker info');
         console.print('  POST /function/<name> - Call a function');
         console.print('  POST /walker/<name> - Spawn a walker');
-        console.print(
-            f'  GET /{cl_route_prefix}/<name> - Render HTML page for client function'
-        );
-        if base_route_app {
-            origin = "configured" if configured_root else "inferred";
-            console.print(f'\nBase route (/) {origin} to serve: {base_route_app}');
+        console.print('  GET /cl/<name> - Render HTML page for client function');
+        for sibling in sibling_apps {
+            console.print(f'  GET /cl/{sibling}/ - Sibling app bundle (dist/{sibling})');
+        }
+        for (provider_app, _module) in _colocated_providers().items() {
+            provider_cfg = config.app(provider_app) if config is not None else None;
+            route = (
+                provider_cfg.effective_route()
+                    if provider_cfg is not None
+                    else f"/api/{provider_app}"
+            );
+            console.print(
+                f'  POST {route}/walker/<name> - Colocated app {provider_app}'
+            );
+        }
+        if root_app {
+            console.print(f'\nBase route (/) serves: {root_app}');
         }
         console.print('\nPress Ctrl+C to stop the server');
         if bundle_error {
@@ -2696,9 +2952,8 @@ impl print_endpoint_docs(server: JacAPIServer) -> None {
         }
     }
     config = get_config();
-    cl_route_prefix = config.serve.cl_route_prefix if config else "cl";
-    configured_root = config.serve.base_route_app if config else "";
-    base_route_app = server.introspector.resolve_root_app(configured_root);
+    root_app = server.introspector.resolve_root_app();
+    sibling_apps = _sibling_app_names(config, server.base_path);
     section('CLIENT PAGES', 'Public');
     if client_exports {
         funcs_list = ', '.join(sorted(client_exports)[:8]);
@@ -2708,18 +2963,21 @@ impl print_endpoint_docs(server: JacAPIServer) -> None {
         console.print(f"Available ({len(client_exports)}): {funcs_list}");
         endpoint(
             'GET',
-            f'/{cl_route_prefix}/<name>',
+            '/cl/<name>',
             'Render HTML for client function',
-            f'Example: /{cl_route_prefix}/App?arg1=value1'
+            'Example: /cl/App?arg1=value1'
         );
     } else {
         console.print(
             "\nNo client functions. Define with 'cl def' for browser-side rendering."
         );
     }
+    for sibling in sibling_apps {
+        endpoint('GET', f'/cl/{sibling}/', f'Sibling app bundle: dist/{sibling}');
+    }
     section('STATIC');
-    if base_route_app {
-        endpoint('GET', '/', f'Serves client app: {base_route_app}');
+    if root_app {
+        endpoint('GET', '/', f'Serves client app: {root_app}');
     } else {
         endpoint('GET', '/', 'API information and endpoint list');
     }
