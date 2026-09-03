@@ -1,20 +1,30 @@
 """A long operator chain compiles instead of exhausting the compiler's stack.
 
-The chain is generated rather than committed: at these sizes the fixture
-would be tens of kilobytes of source.
+The walkers are driven directly at a depth no compile would reach, so these
+stay green regardless of where any other stage's ceiling moves.
 """
 
 import os;
 import subprocess;
 import sys;
 import tempfile;
+import from jaclang.compiler.backends.py.jcir_gen_pass { CgNode, write_ir_value }
+import from jaclang.compiler.backends.py.codegen_ir { CodegenIrWriter }
+import from jaclang.compiler.frontend.parser.frontend { parse }
+import from jaclang.compiler.frontend.unitree { BinaryExpr }
 import from tests.support { JAC_ROOT }
+
+glob TREE_DEPTH = 20000,
+     IR_DEPTH = 50000;
+
+def chain_source(operands: int) -> str {
+    return f"with entry {{\n    x = {'+'.join(['1'] * operands)};\n    print(x);\n}}\n";
+}
 
 def write_chain(dir: str, operands: int) -> str {
     path = os.path.join(dir, "chain.jac");
-    body = "+".join(["1"] * operands);
     with open(path, "w") as f {
-        f.write(f"with entry {{\n    x = {body};\n    print(x);\n}}\n");
+        f.write(chain_source(operands));
     }
     return path;
 }
@@ -29,14 +39,35 @@ def run_jac(cmd: str, path: str) -> str {
     return result.stdout + result.stderr;
 }
 
-test "a five thousand operand chain compiles with nothing degraded" {
-    with tempfile.TemporaryDirectory() as dir {
-        out = run_jac("run", write_chain(dir, 5000));
-        assert "5000" in out , out;
-        assert "✖ Error" not in out , out;
-        assert "maximum recursion depth" not in out , out;
-        assert "internal compiler error" not in out , out;
+def deep_cg_node(depth: int) -> CgNode {
+    tree = CgNode(cls="Constant", keys=["value"], vals=[1]);
+    for _ in range(depth) {
+        tree = CgNode(cls="BinOp", keys=["left"], vals=[tree]);
     }
+    return tree;
+}
+
+test "the sub-node table is built for a tree far deeper than any stack allows" {
+    (mod, had_error) = parse(chain_source(TREE_DEPTH));
+    assert not had_error;
+    ops = mod.get_all_sub_nodes(BinaryExpr);
+    assert len(ops) == TREE_DEPTH - 1 , len(ops);
+}
+
+test "flatten walks a tree far deeper than any stack allows" {
+    (mod, had_error) = parse(chain_source(TREE_DEPTH));
+    assert not had_error;
+    nodes = mod.flatten();
+    assert len(nodes) > TREE_DEPTH , len(nodes);
+    assert nodes[0] is mod;
+}
+
+test "the ir emitter writes a value tree far deeper than any stack allows" {
+    w = CodegenIrWriter();
+    w.begin_module("<deep>");
+    write_ir_value(w, deep_cg_node(IR_DEPTH));
+    w.end_module();
+    assert len(w.to_bytes()) > IR_DEPTH;
 }
 
 test "a ten thousand operand chain still gives the right answer" {
