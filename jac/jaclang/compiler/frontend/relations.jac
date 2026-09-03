@@ -32,7 +32,11 @@ node Codespace {
     has kind: str = "";
 }
 
-glob _CODESPACES: dict[str, Codespace] = {};
+glob _CODESPACES: dict[str, Codespace] = {
+         "server": Codespace(kind="server"),
+         "client": Codespace(kind="client"),
+         "native": Codespace(kind="native")
+     };
 
 def codespace_node(kind: str) -> Codespace {
     found = _CODESPACES.get(kind);
