@@ -699,6 +699,14 @@ impl NaIRGenStmt._codegen_open_stmt(nd: uni.OpenStmt) -> None {
     if _pushed {
         self.region_stack.append(_arena);
     }
+    _dyn_prev_slot: (ir.Value | None) = None;
+    if _pushed and self._dynamic_region_module() {
+        _dyn_prev = self.builder.call(
+            self.region_enter_fn, [_arena], name="region.enter"
+        );
+        _dyn_prev_slot = self._entry_alloca(_i8p, f".region.prev.{id(nd)}");
+        self.builder.store(_dyn_prev, _dyn_prev_slot);
+    }
 
     _region_prebody = set(self.local_vars.keys());
     if isinstance(nd.body, (list, tuple)) {
@@ -706,6 +714,12 @@ impl NaIRGenStmt._codegen_open_stmt(nd: uni.OpenStmt) -> None {
     }
     if _pushed {
         self.region_stack.pop();
+    }
+    if _dyn_prev_slot is not None and not self.builder.block.is_terminated {
+        self.builder.call(
+            self.region_leave_fn,
+            [self.builder.load(_dyn_prev_slot, name="region.prev")]
+        );
     }
     if not self.builder.block.is_terminated {
         _region_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.last_line

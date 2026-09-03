@@ -103,7 +103,7 @@ impl JacProgram.load_dependency_module(
     source_path: str,
     importer_path: (str | None) = None,
     use_str: (str | None) = None,
-    full_ast: bool = False
+    need_tree: bool = False
 ) -> uni.Module {
     import from pathlib { Path }
 
@@ -158,6 +158,7 @@ impl JacProgram.load_dependency_module(
 
             target_hub[resolved_path] = mod;
             target_program.hub_cache_stamp(resolved_path);
+            compiler.note_stub_tree_served(resolved_path, self);
             compiler.resolve_absorb_imports(mod, self);
             run_pass(SymTabBuildPass, mod, self);
         } else {
@@ -167,11 +168,10 @@ impl JacProgram.load_dependency_module(
             mod = self.compile(
                 source_path,
                 use_str=use_str,
-                options=_DepOpts(
-                    no_cgen=True,
-                    symtab_ir_only=True,
-                    iface_ok=not full_ast,
-                    need_full_ast=full_ast
+                options=(
+                    _DepOpts(no_cgen=True, symtab_ir_only=True, need_full_ast=True)
+                        if need_tree
+                        else _DepOpts(no_cgen=True, symtab_ir_only=True, iface_ok=True)
                 )
             );
         }
@@ -183,6 +183,12 @@ impl JacProgram.load_dependency_module(
 
     if importer_path is not None {
         self.record_dependency(importer_path, resolved_path);
+        if need_tree {
+            importer = self.find_module(JacProgram.hub_key(importer_path));
+            if importer is not None and resolved_path not in importer.ct_file_deps {
+                importer.ct_file_deps.append(resolved_path);
+            }
+        }
     }
     try {
         if not compiler.selfhost.is_selfhost(self) {
@@ -322,6 +328,7 @@ impl JacProgram.release_compile_closure(
     self.type_evaluator = None;
     self.diags.clear();
     self.scratch.clear();
+    self.analysis.analyses_run.clear();
     if self._iface is not None {
         self._iface.on_closure_release();
     }

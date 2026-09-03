@@ -61,7 +61,7 @@ class JacProgram {
         source_path: str,
         importer_path: (str | None) = None,
         use_str: (str | None) = None,
-        full_ast: bool = False
+        need_tree: bool = False
     ) -> uni.Module;
 
     def drop_module_alerts(self: JacProgram, resolved_path: str) -> None;

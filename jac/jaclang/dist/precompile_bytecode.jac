@@ -353,7 +353,7 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
     if pkg_dir.name != "jaclang" {
         return failed;
     }
-    import from jaclang.bootstrap_manifest { seed_abs_entries }
+    import from jaclang.bootstrap_manifest { seed_abs_entries, is_native_only_seed }
     (seed_dirs, seed_files) = seed_abs_entries(str(pkg_dir));
     seed_sources: list[Path] = [
         Path(p)
@@ -370,6 +370,11 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
         if any(
             part.startswith(".") or part == "__pycache__"
             for part in jac_file.relative_to(pkg_dir).parts
+        ) {
+            continue;
+        }
+        if is_native_only_seed(
+            str(jac_file.relative_to(pkg_dir)).replace(os.sep, "/")
         ) {
             continue;
         }
@@ -673,6 +678,13 @@ def write_manifest(
     }
     if app_meta {
         manifest.update(app_meta);
+    }
+    if pkg_name == "jaclang" {
+        import from jaclang.compiler.native_scope { NATIVE_SCOPE }
+        scope_mods = sorted([e.module for e in NATIVE_SCOPE]);
+        if scope_mods {
+            manifest["native"] = {"modules": scope_mods};
+        }
     }
     (precompiled_dir / MANIFEST_NAME).write_text(
         json.dumps(manifest, sort_keys=True, indent=1) + "\n", encoding="utf-8"

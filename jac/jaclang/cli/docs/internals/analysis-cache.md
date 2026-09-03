@@ -48,7 +48,14 @@ object graph, so payloads stay small and identity survives round trips.
 
 The payload is prefixed with its own sha256 -- the **interface hash**. The
 hash names the encoding, so byte-identical surfaces hash identically and any
-semantic change to the surface changes the hash.
+semantic change to the surface changes the hash. A compile that acted on an
+*inferred* native placement verdict never persists an interface: only the
+codegen flavor runs that verdict, and a module analyzed under it exports
+native typing that analysis-only compiles (dependency ingestion, `jac
+check`) never see, so a hash that depended on which flavor last persisted
+the module would defeat the cutoff for every importer. Declared and pinned
+placement is coerced at parse time in every flavor and is part of the
+interface.
 
 `compiler/types/stubcat/modiface.jac` holds the build/open entry points;
 the typeshed stub catalog itself is the degenerate case of the same format
@@ -193,8 +200,12 @@ rather than the center:
   pay hub churn, native-engine restoration, and closure release). A cold
   `jac precompile` over a tree any prior run has compiled collapses to IO.
 - **Interface bytes are memoized by MODKEY**, so re-persisting an unchanged
-  module (a check after a run, a precompile after a check) reuses the
-  encoded payload instead of re-deriving it.
+  module (a check after a run, a precompile after a check, a dependency the
+  client-boundary walk re-enters) reuses the encoded payload instead of
+  re-deriving it. Encoding forces every exported symbol's type, which pulls
+  the module's own dependencies in, so the memo is bounded by count at
+  closure release, never cleared: clearing it made a cold littleX precompile
+  re-ingest 64 dependency modules.
 - **The client-boundary walk consumes persisted facts.** When a changed
   module's client dependency is cache-valid, the walk restores the dep's
   interop manifest from `SEC_INTEROP` into `hub.artifacts` (the carrier
