@@ -30,6 +30,11 @@ def get_free_port -> int {
     return port;
 }
 
+"""The jac binary `zig build` writes, resolved from this file's depth in tests/."""
+def pod_binary -> Path {
+    return Path(__file__).parents[3] / "zig-out" / "bin" / "jac";
+}
+
 """Delete SQLite, legacy shelf, and client-build leftovers under fixtures_dir."""
 def cleanup_db_files(fixtures_dir: Path) {
     for pattern in [

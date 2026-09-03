@@ -17,6 +17,7 @@ import from jaclang.compiler.backends.es.scoped_styles {
 }
 import from jaclang.compiler.backends.es.framework_backend { FrameworkBackend }
 import from jaclang.compiler.backends.es.free_ident_audit {
+    FreeIdentifier,
     RUNTIME_PRELUDE_GLOBALS,
     client_ambient_globals,
     free_identifiers
@@ -42,7 +43,8 @@ import from jaclang.compiler.frontend.diagnostics {
     E5085,
     E5086,
     E5099,
-    E5101
+    E5101,
+    E5103
 }
 
 glob _T = TypeVar('_T', bound=es.Node),
@@ -399,6 +401,10 @@ walker EsastGenPass(BaseAstGenPass[es.Statement]) {
 
     can exit_module with uni.Module exit;
     def _audit_free_identifiers(nd: uni.Module, program: es.Program) -> None;
+    def _free_ident_site(
+        names: list[uni.Name], free: FreeIdentifier
+    ) -> (uni.Name | None);
+
     def populate_client_manifest(nd: uni.Module) -> None;
     can exit_sub_tag with uni.SubTag exit;
     can exit_import with uni.Import exit;

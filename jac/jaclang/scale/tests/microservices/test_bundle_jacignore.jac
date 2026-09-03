@@ -2,6 +2,7 @@ import io;
 import tarfile;
 import tempfile;
 import from pathlib { Path }
+import from jaclang.scale.tests.support { pod_binary }
 import from jaclang.scale.injector.bundle {
     _stage_app,
     add_source_members,
@@ -15,7 +16,7 @@ import from jaclang.scale.injector.bundle {
 }
 
 
-glob _JAC_BIN: Path = Path(__file__).parents[4] / "zig-out" / "bin" / "jac",
+glob _JAC_BIN: Path = pod_binary(),
      _PARKED: str = "# parked for the deploy\ndocsite/\nevaluation/\n";
 
 

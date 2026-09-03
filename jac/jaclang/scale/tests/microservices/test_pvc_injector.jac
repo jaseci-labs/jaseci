@@ -5,6 +5,7 @@ import tempfile;
 import tomllib;
 import from pathlib { Path }
 import from jaclang.scale.injector.bundle { sanitized_jac_toml, pack_jab }
+import from jaclang.scale.tests.support { pod_binary }
 import from jaclang.scale.injector.pvc_injector {
     PvcInjector,
     build_bundle_pvc,
@@ -17,7 +18,7 @@ import from jaclang.scale.injector.pvc_injector {
 }
 
 
-glob _JAC_BIN: Path = Path(__file__).parents[4] / "zig-out" / "bin" / "jac";
+glob _JAC_BIN: Path = pod_binary();
 
 
 def _make_project(project: str, toml: str) {
