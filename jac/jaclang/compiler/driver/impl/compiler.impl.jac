@@ -9,7 +9,7 @@ impl JacCompiler.selfhost.getter -> SelfHostCache {
 }
 
 impl JacCompiler.stub_catalog -> any {
-    if self.stub_catalog_disabled {
+    if self.stub_catalog_disabled or self._stub_trees_served {
         return None;
     }
     found = self._stub_catalog;
@@ -22,8 +22,21 @@ impl JacCompiler.stub_catalog -> any {
     return found;
 }
 
+impl JacCompiler.note_stub_tree_served(path: str, program: JacProgram) -> None {
+    if self._stub_trees_served or self.selfhost.is_selfhost(program) {
+        return;
+    }
+    if self.stub_catalog() is not None {
+        return;
+    }
+    import from jaclang.compiler.driver.modresolver { _in_typeshed_tree }
+    if _in_typeshed_tree(path) {
+        self._stub_trees_served = True;
+    }
+}
+
 impl JacCompiler.ensure_stub_catalog -> any {
-    if self.stub_catalog_disabled {
+    if self.stub_catalog_disabled or self._stub_trees_served {
         return None;
     }
     found = self.stub_catalog();
@@ -1132,12 +1145,11 @@ impl JacCompiler.compile(
         _scope_armed = True;
     }
     if self._reentrant_depth == 0 and not self.stub_catalog_disabled {
-        import from jaclang.compiler.driver.jir { is_compiler_tree_path }
-        if (
-            not self.selfhost.is_selfhost(target_program)
-            and not is_compiler_tree_path(str(file_path))
-        ) {
-            self.ensure_stub_catalog();
+        if not self.selfhost.is_selfhost(target_program) {
+            import from jaclang.compiler.types.stubcat.locate { StubCatalogUnavailable }
+            try {
+                self.ensure_stub_catalog();
+            } except StubCatalogUnavailable {}
         }
     }
     import from pathlib { Path as _WrapPath }
