@@ -575,6 +575,21 @@ impl NaIRGenOsp._osp_generic_edge -> (ir.Value | None) {
     if self.region_stack {
         return self._region_alloc(ir.Constant(i64, 8), name="osp.gedge.rgn");
     }
+    if self._dynamic_region_module() {
+        self._emit_arena_helpers();
+        _i8p_dy = ir.IntType(8).as_pointer();
+        _dedge = self.builder.call(
+            self.region_dyn_alloc_fn,
+            [
+                ir.Constant(i64, 8),
+                ir.Constant(_i8p_dy, None),
+                ir.Constant(_i8p_dy, None)
+            ],
+            name="osp.gedge.dyn"
+        );
+        self._osp_make_immortal(_dedge);
+        return _dedge;
+    }
     if "here" in self.local_vars {
         self._emit_arena_helpers();
         _i8p_ge = ir.IntType(8).as_pointer();

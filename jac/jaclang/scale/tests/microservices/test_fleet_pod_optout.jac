@@ -15,7 +15,7 @@ import time;
 import requests;
 import from pathlib { Path }
 import from jaclang.scale.runtime.context.util { jac_executable }
-import from jaclang.scale.tests.server_support { get_free_port }
+import from jaclang.scale.tests.support { get_free_port }
 
 glob _FLEET_KEYS: list[str] = ["JAC_SV_SIBLING", "JAC_SV_NAME", "JAC_SV_ROUTES"];
 

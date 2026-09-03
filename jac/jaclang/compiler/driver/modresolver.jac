@@ -2,7 +2,11 @@ import from importlib.machinery { ModuleSpec }
 import os;
 import sys;
 import from pathlib { Path }
-import from jaclang.jac0core.ext_registry { MODULE_SUFFIXES, language_of }
+import from jaclang.jac0core.ext_registry {
+    MODULE_SUFFIXES,
+    is_jac_namespace_package,
+    language_of
+}
 
 glob _project_root_cache: dict = {},
      _import_base_stack: list = [],
@@ -197,6 +201,14 @@ def _candidate_from(base: str, parts: list[str]) -> (tuple[(str, str)] | None) {
     return None;
 }
 
+def _namespace_candidate(base: str, parts: list[str]) -> (tuple[(str, str)] | None) {
+    candidate = os.path.join(base, *parts);
+    if os.path.isdir(candidate) and is_jac_namespace_package(candidate) {
+        return (candidate, 'jac');
+    }
+    return None;
+}
+
 def _self_tree_candidate(
     base_dir: str, actual_parts: list[str]
 ) -> (tuple[(str, str)] | None) {
@@ -210,6 +222,10 @@ def _self_tree_candidate(
         if os.path.basename(cur) == actual_parts[0] {
             if not is_compiler_pkg or os.path.isdir(os.path.join(cur, 'jac0core')) {
                 res = _candidate_from(parent, actual_parts);
+                if res {
+                    return res;
+                }
+                res = _namespace_candidate(parent, actual_parts);
                 if res {
                     return res;
                 }
@@ -436,6 +452,20 @@ def resolve_module(
                 return (origin, lang);
             }
         }
+        if (
+            isinstance(spec, ModuleSpec)
+            and not spec.origin
+            and spec.submodule_search_locations
+        ) {
+            for loc in `list(spec.submodule_search_locations) {
+                res = _namespace_candidate(
+                    os.path.dirname(str(loc)), [os.path.basename(str(loc))]
+                );
+                if res {
+                    return res;
+                }
+            }
+        }
     }
     parts = target.split('.');
     level = 0;
@@ -486,6 +516,18 @@ def resolve_module(
             }
             if (target_js in files) {
                 return (os.path.join(walk_dir, target_js), 'js');
+            }
+        }
+    }
+    if not target.startswith('.') {
+        res = _namespace_candidate(base_dir, actual_parts);
+        if res {
+            return res;
+        }
+        for sp in get_jac_search_paths(base_path) {
+            res = _namespace_candidate(sp, actual_parts);
+            if res {
+                return res;
             }
         }
     }

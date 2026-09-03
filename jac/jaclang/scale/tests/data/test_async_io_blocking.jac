@@ -23,36 +23,10 @@ import from pathlib { Path }
 import from concurrent.futures { ThreadPoolExecutor, as_completed }
 
 import requests;
-import from jaclang.scale.tests.server_support { get_free_port, start_server }
+import from jaclang.scale.tests.support { get_free_port, register_user, start_server }
 
 glob FIXTURES_DIR = Path(__file__).parent.parent / "fixtures",
      JAC_FILE = FIXTURES_DIR / "race_app.jac";
-
-def register_user(base_url: str, username: str) -> str {
-    res = requests.post(
-        f"{base_url}/user/register",
-        json={
-            "identities": [{"type": "username", "value": username}],
-            "credential": {"type": "password", "password": "pass123"}
-        },
-        timeout=5
-    );
-    assert res.status_code == 201 , f"register failed: {res.status_code} {res.text}";
-    login = requests.post(
-        f"{base_url}/user/login",
-        json={
-            "identity": {"type": "username", "value": username},
-            "credential": {"type": "password", "password": "pass123"}
-        },
-        timeout=5
-    );
-    assert login.status_code == 200 , f"login failed: {login.status_code} {login.text}";
-    body = login.json();
-    if isinstance(body, list) and len(body) == 2 {
-        body = body[1];
-    }
-    return body["data"]["token"];
-}
 
 test "N concurrent slow walkers must complete in ~1 SLOW_SEC (async honesty)" {
     SLOW_SEC = 2.0;

@@ -177,6 +177,8 @@ node UniNode {
     def thaw_structure -> None;
     def structure_thawed -> StructureThaw;
     def _attach(child: UniNode, role: type[Role]) -> None;
+    def _role_clear(role: type[Role]) -> None;
+    def _as_node_list(value: any) -> list[UniNode];
     def _children -> list[UniNode];
     def _role_shaped(role: type[Role], found: list[UniNode]) -> any;
     def _role_set(role: type[Role], value: any) -> None;
@@ -676,6 +678,7 @@ node Module(AstDocNode, UniScopeNode) {
     has annexable_by: (str | None) { getter; }
 
     def declares_codespace(ctx: CodeContext, path_hint: str = '') -> bool;
+    def absorb_annex_body(stmts: Sequence[UniNode]) -> None;
     static def make_stub(
         inject_name: (str | None) = None, inject_src: (Source | None) = None
     ) -> Module {
