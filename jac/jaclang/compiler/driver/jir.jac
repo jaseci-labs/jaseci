@@ -379,9 +379,9 @@ def _project_env_fingerprint(source_path: str) -> str {
     import from jaclang.compiler.placement.service_cut { cut_digest }
     h.update(cut_digest(source_path).encode());
     import from jaclang.compiler.driver.compile_options {
-        effective_codegen_fingerprint
+        effective_analysis_fingerprint
     }
-    h.update(effective_codegen_fingerprint().encode());
+    h.update(effective_analysis_fingerprint().encode());
     return h.hexdigest();
 }
 

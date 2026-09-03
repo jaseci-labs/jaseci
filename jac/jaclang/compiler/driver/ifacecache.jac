@@ -458,7 +458,7 @@ obj IfaceRegistry {
 
     def _prepare(ent: IfaceEntry, mod: any) {
         self._restore_placement(ent);
-        self.prog.analysis.analyses_run[id(mod)] = _symtab_provides();
+        self.prog.analysis.analyses_run.mark(mod, _symtab_provides());
     }
 
     def _profiles_of(diag_bytes: (bytes | None)) -> (dict | None) {
@@ -565,6 +565,10 @@ obj IfaceRegistry {
                 self._event("dep_profile_miss");
                 return None;
             }
+            if prof.get("errors") {
+                self._event("dep_error_profile");
+                return None;
+            }
         }
         mod = self._materialize(ent);
         if mod is None {
@@ -601,6 +605,17 @@ obj IfaceRegistry {
         prof = profiles.get(self.analysis_profile(options));
         if prof is None {
             self._event("replay_profile_miss");
+            return None;
+        }
+        if prof.get("errors") {
+            self._event("replay_error_profile");
+            if self.verifying is False and iface_verify_enabled() {
+                raise RuntimeError(
+                    f"analysis cache for {resolved} carries error records; a "
+                    "failed analysis is never persisted, so this cache entry is "
+                    "corrupted or predates that policy"
+                );
+            }
             return None;
         }
         if not self._deps_match(data) {
@@ -664,6 +679,24 @@ obj IfaceRegistry {
         return hashlib.sha256(ident.encode()).hexdigest()[:16];
     }
 
+    def _ensure_flow_graph(mod: any) -> None {
+        if getattr(mod, "stub_only", False)
+            or getattr(mod, "is_raised_from_py", False) {
+            return;
+        }
+        ledger = self.prog.analysis.analyses_run;
+        if ledger.provides(mod, "CfgSucc") {
+            return;
+        }
+        import from jaclang.compiler.driver.pass_driver { run_pass }
+        import from jaclang.compiler.passes.cfg_build_pass { CFGBuildPass }
+        run_pass(CFGBuildPass, mod, self.prog);
+        for tag in CFGBuildPass.PROVIDES {
+            ledger.provided(mod).add(tag);
+        }
+        self._event("iface_cfg");
+    }
+
     def persist_after_compile(
         resolved: str, mod: any, options: any, err_start: int, warn_start: int
     ) -> None {
@@ -693,6 +726,7 @@ obj IfaceRegistry {
         } else {
             self._event("iface_encode");
             ev = self.prog.get_type_evaluator();
+            self._ensure_flow_graph(mod);
             payload = build_module_iface(mod, ev, self._pkg_dir());
             digest = read_iface_hash(payload) or "";
             if modkey {
@@ -732,10 +766,12 @@ obj IfaceRegistry {
             for alert in self.prog.warnings_had[warn_start:] {
                 warnings.append(_alert_record(alert));
             }
-            profiles[self.analysis_profile(options)] = {
-                "errors": errors,
-                "warnings": warnings
-            };
+            _prof_key = self.analysis_profile(options);
+            if errors {
+                profiles.pop(_prof_key, None);
+            } else {
+                profiles[_prof_key] = {"errors": [], "warnings": warnings};
+            }
             sections[SEC_DIAG] = json.dumps(
                 {"schema": DIAG_SCHEMA, "profiles": profiles}
             ).encode(

@@ -343,6 +343,25 @@ test "a third-party Python dependency is fingerprinted, never compiled as a targ
     }
 }
 
+test "an analysis that ended in errors is not memoized for replay" {
+    (main, dep) = _project();
+    _rewrite(
+        main,
+        "import from depmod { f }\n\nwith entry { print(f() + undefined_name); }\n"
+    );
+    (cold_prog, cold_diags) = _check(main);
+    assert cold_prog.errors_had , "the fixture must fail analysis to be meaningful";
+    (warm_prog, warm_diags) = _check(main);
+    events = warm_prog.analysis.cache_events;
+    assert events.get("analysis_replay", 0) == 0 , (
+        f"a failed analysis was replayed from cache (events: {events})"
+    );
+    assert warm_prog.analysis.pass_runs , "the warm check of a failed module must re-run analysis";
+    assert len(warm_prog.errors_had) == len(cold_prog.errors_had) , (
+        "re-analysis must report the same errors as the cold run"
+    );
+}
+
 test "a compile acting on an inferred native verdict persists no interface" {
     # Only the codegen flavor runs the native verdict for a marker-less
     # module in a native-default project, and a module analyzed under it
@@ -406,4 +425,41 @@ test "the interface-bytes memo outlives the compile closure" {
     events = prog.analysis.cache_events;
     assert events.get("iface_persist", 0) == 2 , f"expected a second persist of the unchanged module (events: {events})";
     assert events.get("iface_encode", 0) == 1 , f"the unchanged module was re-encoded after closure release (events: {events})";
+}
+
+glob NARROW_DEP: str = """
+obj Info {
+    has help_text: str = "";
+}
+
+obj Alert {
+    has code: (Info | None) = None,
+        help_text: (str | None) = None;
+
+    def postinit {
+        if (self.help_text is None) and self.code {
+            self.help_text = self.code.help_text;
+        }
+    }
+}
+""",
+     NARROW_MAIN: str = "import type from depmod { Alert }\n\ndef show(a: Alert) -> str { return str(a.help_text); }\n\nwith entry { print(show); }\n";
+
+test "persisting a dependency interface neither reports nor mistypes its narrowing sites" {
+    (main, dep) = _project(NARROW_DEP);
+    with open(main, "w") as fh {
+        fh.write(NARROW_MAIN);
+    }
+    (prog, rendered) = _check(main);
+    assert rendered == [] , (
+        "a type-only import compiled its dependency lazily inside the type "
+        f"checker and persisting that interface leaked diagnostics: {rendered}"
+    );
+    events = prog.analysis.cache_events;
+    assert events.get("iface_encode", 0) >= 2 , (
+        f"expected both modules to be encoded on a cold cache (events: {events})"
+    );
+    assert events.get("iface_cfg", 0) >= 1 , (
+        f"the dependency's flow graph must be built before its interface is forced (events: {events})"
+    );
 }

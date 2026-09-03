@@ -90,6 +90,10 @@ def _native_deps_ok(
 ) -> bool {
     import from jaclang.compiler.frontend.codeinfo { effective_native_closure_cap }
     import from jaclang.compiler.driver.na_coverage { _note_native_closure_cap }
+    import from jaclang.compiler.native_scope {
+        in_native_scope_path,
+        scope_lowering_active
+    }
     cap = effective_native_closure_cap();
     edges: dict[str, list[str]] = {root_path: list(root_deps)};
     queue: list[str] = list(root_deps);
@@ -101,6 +105,9 @@ def _native_deps_ok(
         dep = queue.pop();
         if dep in edges {
             continue;
+        }
+        if in_native_scope_path(dep) and not scope_lowering_active() {
+            return False;
         }
         info = _native_dep_scan(dep, hold_exempt=hold_exempt);
         if info is None {
@@ -157,6 +164,13 @@ def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
     }
     if _is_demoted_native(os.path.realpath(mod_path)) {
         return (False, "previously-demoted");
+    }
+    import from jaclang.compiler.native_scope {
+        in_native_scope_path,
+        scope_lowering_active
+    }
+    if in_native_scope_path(mod_path) and not scope_lowering_active() {
+        return (False, "compiler frontend module: native only inside the kernel build");
     }
     base_dir = os.path.dirname(os.path.abspath(mod_path)) or '.';
     (sv_reason, deps) = scan_native_blockers(module, base_dir);
