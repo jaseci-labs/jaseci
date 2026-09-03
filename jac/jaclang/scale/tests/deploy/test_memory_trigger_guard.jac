@@ -53,8 +53,9 @@ test "hpa.behavior on one service does not leak onto another" {
             "orders_ops": {}
         }
     );
-    assert b._get_autoscaler_config("billing_ops")["behavior"]
-        == {"scaleDown": {"selectPolicy": "Min"}};
+    assert b._get_autoscaler_config("billing_ops")["behavior"] == {
+        "scaleDown": {"selectPolicy": "Min"}
+    };
     assert b._get_autoscaler_config("orders_ops")["behavior"] == {};
 }
 
@@ -77,8 +78,9 @@ test "hpa.behavior works for the gateway via the __gateway__ service key" {
     b = _builder(
         {GATEWAY_NAME: {"hpa": {"behavior": {"scaleDown": {"selectPolicy": "Min"}}}}}
     );
-    assert b._get_autoscaler_config(GATEWAY_NAME)["behavior"]
-        == {"scaleDown": {"selectPolicy": "Min"}};
+    assert b._get_autoscaler_config(GATEWAY_NAME)["behavior"] == {
+        "scaleDown": {"selectPolicy": "Min"}
+    };
 }
 
 test "malformed hpa.behavior warns and falls back to the empty fragment" {

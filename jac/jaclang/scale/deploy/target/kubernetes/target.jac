@@ -546,8 +546,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         http_activation_svc_names: set = {
             str(svc_name)
             for svc_name in scaling.keys()
-            if dict(scaling.get(svc_name, {})).get("mode")
-                == ScalingMode.HTTP_ACTIVATION
+            if dict(scaling.get(svc_name, {})).get("mode") == ScalingMode.HTTP_ACTIVATION
         };
         names: list[str] = [];
         app_labels: list[str] = [];
@@ -1207,8 +1206,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         for (svc_name, raw_manifest) in deployments.items() {
             dep_manifest = with_config_revision(raw_manifest, config_revision);
             patch_body = None;
-            if dict(scaling.get(svc_name, {})).get("mode")
-                == ScalingMode.HTTP_ACTIVATION {
+            if dict(scaling.get(svc_name, {})).get("mode") == ScalingMode.HTTP_ACTIVATION {
                 patch_body = dict(dep_manifest);
                 patch_body["spec"] = {
                     k: v

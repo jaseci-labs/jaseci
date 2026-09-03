@@ -68,8 +68,7 @@ test "the scale target comes from the resolved plan, not re-derived from the ser
         }
     };
     manifests = target.render_autoscaler_manifests(bundle);
-    assert manifests[0]["spec"]["scaleTargetRef"]["name"]
-        == "not-the-k8s-safe-name-deployment";
+    assert manifests[0]["spec"]["scaleTargetRef"]["name"] == "not-the-k8s-safe-name-deployment";
 }
 
 
@@ -127,6 +126,7 @@ test "keda engine renders the TriggerAuthentication apply() would create for an 
     auth_name = manifests[0]["spec"]["triggers"][0]["authenticationRef"]["name"];
     assert manifests[1]["kind"] == "TriggerAuthentication";
     assert manifests[1]["metadata"]["name"] == auth_name;
-    assert manifests[1]["spec"]["secretTargetRef"]
-        == [{"parameter": "password", "name": "redis-secret", "key": "pw"}];
+    assert manifests[1]["spec"]["secretTargetRef"] == [
+        {"parameter": "password", "name": "redis-secret", "key": "pw"}
+    ];
 }

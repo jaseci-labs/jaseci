@@ -274,8 +274,10 @@ test "a METRIC service has its stale HTTP activation resources reaped, autoscale
     delete_calls = custom_api.delete_namespaced_custom_object.call_args_list;
     assert len(delete_calls) == 2;
     deleted_names = {c[1]["name"] for c in delete_calls};
-    assert deleted_names
-        == {"worker-deployment-http-route", "worker-deployment-http-scaledobject"};
+    assert deleted_names == {
+        "worker-deployment-http-route",
+        "worker-deployment-http-scaledobject"
+    };
 }
 
 test "an HTTP_ACTIVATION service has its stale metric autoscaler destroyed, activation left alone" {
@@ -784,8 +786,11 @@ test "destroy sweeps the ScaledObject and every TriggerAuthentication it owns, t
     plurals = [
         c[1]["plural"] for c in mock_api4.delete_namespaced_custom_object.call_args_list
     ];
-    assert set(plurals)
-        == {"scaledobjects", "triggerauthentications", "interceptorroutes"};
+    assert set(plurals) == {
+        "scaledobjects",
+        "triggerauthentications",
+        "interceptorroutes"
+    };
     mock_v2.delete_collection_namespaced_horizontal_pod_autoscaler.assert_called_once_with(
         namespace="staging", label_selector="managed=jac-scale"
     );
@@ -878,8 +883,9 @@ test "apply_http_activation encodes multi-rule routing (AND-within-rule, OR-betw
     assert trigger_metadata["targetValue"] == "50";
     assert trigger_metadata["window"] == "5m";
     assert trigger_metadata["granularity"] == "10s";
-    assert so_spec["triggers"][0]["metadata"]["interceptorRoute"]
-        == keda.interceptor_route_name_for(spec.scale_target_name);
+    assert so_spec["triggers"][0]["metadata"]["interceptorRoute"] == keda.interceptor_route_name_for(
+        spec.scale_target_name
+    );
 
     # Redeploy: both resources now exist, so both get patched, not recreated.
     custom_api.get_namespaced_custom_object.side_effect = None;
@@ -945,8 +951,7 @@ test "apply_http_activation validates the spec itself (port XOR port_name, concu
     custom_api2.get_namespaced_custom_object.side_effect = ApiException(status=404);
     assert keda2.apply_http_activation(
         _spec(scale_target_name="preview-sts", scale_target_kind="StatefulSet")
-    )
-        == True;
+    ) == True;
 
     (keda3, custom_api3, _, _) = _mocked_keda();
     result = keda3.apply_http_activation(
@@ -1326,8 +1331,9 @@ test "discover_capabilities caches per (cluster, service-address, client-identit
     );
     core_missing_caps = core_missing_keda.discover_capabilities();
     assert core_missing_caps.http_addon_available == True;
-    assert "not ready"
-        in core_missing_keda.format_capabilities(core_missing_caps).lower() , (
+    assert "not ready" in core_missing_keda.format_capabilities(
+        core_missing_caps
+    ).lower() , (
         "a healthy Add-on with missing core KEDA must not be reported as ready"
     );
 
@@ -1368,11 +1374,10 @@ test "discover_capabilities caches per (cluster, service-address, client-identit
         (c[1]["name"], c[1]["namespace"])
         for c in fqdn_core.read_namespaced_service.call_args_list
     ];
-    assert lookups
-        == [
-            ("keda-add-ons-http-external-scaler", "keda"),
-            ("keda-add-ons-http-interceptor-proxy", "keda")
-        ] , f"FQDN service addresses must parse as name.namespace; got: {lookups}";
+    assert lookups == [
+        ("keda-add-ons-http-external-scaler", "keda"),
+        ("keda-add-ons-http-interceptor-proxy", "keda")
+    ] , f"FQDN service addresses must parse as name.namespace; got: {lookups}";
 
     preflight_api = unittest.mock.MagicMock();
     preflight_api.list_cluster_custom_object.side_effect = ApiException(status=403);

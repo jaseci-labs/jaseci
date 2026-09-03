@@ -53,10 +53,12 @@ test "unnamed lists are replaced wholesale" {
 test "build_behavior with no overlay returns the hardcoded default" {
     spec = AutoscalerSpec(scale_target_name="x", namespace="ns");
     result = Autoscaler._build_behavior(spec);
-    assert result["scaleDown"]["policies"]
-        == [{"type": "Percent", "value": 50, "periodSeconds": 60}];
-    assert result["scaleUp"]["policies"]
-        == [{"type": "Pods", "value": 2, "periodSeconds": 60}];
+    assert result["scaleDown"]["policies"] == [
+        {"type": "Percent", "value": 50, "periodSeconds": 60}
+    ];
+    assert result["scaleUp"]["policies"] == [
+        {"type": "Pods", "value": 2, "periodSeconds": 60}
+    ];
 }
 
 test "build_behavior with an empty overlay dict is a no-op" {
@@ -84,11 +86,13 @@ test "build_behavior overlay replaces scaleDown policy shape, leaves scaleUp def
     result = Autoscaler._build_behavior(spec);
     assert result["scaleDown"]["stabilizationWindowSeconds"] == 600;
     assert result["scaleDown"]["selectPolicy"] == "Min";
-    assert result["scaleDown"]["policies"]
-        == [{"type": "Pods", "value": 2, "periodSeconds": 300}];
+    assert result["scaleDown"]["policies"] == [
+        {"type": "Pods", "value": 2, "periodSeconds": 300}
+    ];
     assert result["scaleUp"]["stabilizationWindowSeconds"] == 60;
-    assert result["scaleUp"]["policies"]
-        == [{"type": "Pods", "value": 2, "periodSeconds": 60}];
+    assert result["scaleUp"]["policies"] == [
+        {"type": "Pods", "value": 2, "periodSeconds": 60}
+    ];
 }
 
 test "build_behavior overlay on scaleUp does not disturb the scaleDown default" {
@@ -102,11 +106,13 @@ test "build_behavior overlay on scaleUp does not disturb the scaleDown default" 
         }
     );
     result = Autoscaler._build_behavior(spec);
-    assert result["scaleUp"]["policies"]
-        == [{"type": "Percent", "value": 100, "periodSeconds": 15}];
+    assert result["scaleUp"]["policies"] == [
+        {"type": "Percent", "value": 100, "periodSeconds": 15}
+    ];
     assert result["scaleUp"]["stabilizationWindowSeconds"] == 60;
-    assert result["scaleDown"]["policies"]
-        == [{"type": "Percent", "value": 50, "periodSeconds": 60}];
+    assert result["scaleDown"]["policies"] == [
+        {"type": "Percent", "value": 50, "periodSeconds": 60}
+    ];
 }
 
 test "build_behavior overlay policies list replaces wholesale, not merged by item" {

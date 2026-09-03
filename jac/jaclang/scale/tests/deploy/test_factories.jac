@@ -331,8 +331,9 @@ test "hpa autoscaler build manifests applies behavior_overlay onto the default s
     behavior = result["spec"]["behavior"];
     assert behavior["scaleDown"]["stabilizationWindowSeconds"] == 600;
     assert behavior["scaleDown"]["selectPolicy"] == "Min";
-    assert behavior["scaleDown"]["policies"]
-        == [{"type": "Pods", "value": 2, "periodSeconds": 300}];
+    assert behavior["scaleDown"]["policies"] == [
+        {"type": "Pods", "value": 2, "periodSeconds": 300}
+    ];
     assert behavior["scaleUp"]["stabilizationWindowSeconds"] == 60;
 }
 

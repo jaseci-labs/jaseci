@@ -232,8 +232,6 @@ test "render smoke: realistic bundle prints every section" {
 }
 
 
-
-
 test "render: an http_activation service shows scale-to-zero and counts in Totals" {
     bundle: dict[str, Any] = {
         "deployments": {"llm": _dep(image="llm:v1")},

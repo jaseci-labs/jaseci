@@ -448,7 +448,7 @@ obj Plan {
             http: Any = (
                 plan_svc.get("http_activation")
                     if isinstance(plan_svc, dict)
-                        and mode == ScalingMode.HTTP_ACTIVATION
+                    and mode == ScalingMode.HTTP_ACTIVATION
                     else None
             );
             services.append(
