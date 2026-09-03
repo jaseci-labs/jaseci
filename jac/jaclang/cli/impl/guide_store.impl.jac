@@ -1,3 +1,4 @@
+import json;
 import re;
 import from pathlib { Path }
 
@@ -316,6 +317,46 @@ impl doc_corpora -> list[tuple[str, list[Guide]]] {
 
 impl corpus_blurb(ns: str) -> str {
     return _DOC_CORPUS_BLURBS.get(ns, "");
+}
+
+impl nav_manifest -> dict {
+    path = docs_dir() / "nav.json";
+    if not path.is_file() {
+        return {};
+    }
+    try {
+        loaded = json.loads(path.read_text(encoding="utf-8"));
+    } except (OSError, ValueError) {
+        return {};
+    }
+    return loaded if isinstance(loaded, dict) else {};
+}
+
+impl nav_pages -> list[NavPage] {
+    pages: list[NavPage] = [];
+
+    def walk(items: list, trail: list[str]) {
+        for item in items {
+            if not isinstance(item, dict) {
+                continue;
+            }
+            title = str(item.get("title", "")).strip();
+            if "page" in item {
+                pages.append(
+                    NavPage(
+                        page=str(item["page"]),
+                        title=title,
+                        order=len(pages),
+                        section=trail
+                    )
+                );
+            } elif "items" in item {
+                walk(item["items"] as list, trail + [title]);
+            }
+        }
+    }
+    walk(nav_manifest().get("nav", []) as list, []);
+    return pages;
 }
 
 def _resolve_by_suffix(clean: str) -> Guide | None {

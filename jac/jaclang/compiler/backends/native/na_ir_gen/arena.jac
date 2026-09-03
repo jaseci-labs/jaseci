@@ -18,6 +18,8 @@ obj NaIRGenArena(NaIRGenState) {
     def _emit_arena_helpers -> None;
     def _register_region_handle_var(nd: uni.Assignment, var_name: str) -> None;
     def _region_alloc(size: ir.Value, name: str = "region.alloc") -> ir.Value;
+    def _dynamic_region_module -> bool;
+    def _dyn_region_alloc(size: ir.Value, type_name: str) -> ir.Value;
     def _region_log_dtor_if_needed(obj_i8: ir.Value, type_name: str) -> None;
     def _emit_region_handle_drop(alloca: ir.Value, var_name: str) -> None;
     def _open_anon_region(gidx: int) -> None;

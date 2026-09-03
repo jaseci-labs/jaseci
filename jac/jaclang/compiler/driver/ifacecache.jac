@@ -12,6 +12,7 @@ import from jaclang.compiler.driver.jir {
     get_module_cache_path,
     is_compiler_source_path,
     is_module_cache_valid,
+    is_stub_like_path,
     jir_cacheable_source_path,
     module_cache_key,
     read_dep_hashes,
@@ -136,8 +137,13 @@ obj IfaceRegistry {
 
     def on_closure_release {
         self.closure_token += 1;
-        self._iface_bytes.clear();
         cap = 192;
+        if len(self._iface_bytes) > cap {
+            stale = list(self._iface_bytes.keys())[:len(self._iface_bytes) - cap];
+            for key in stale {
+                del self._iface_bytes[key];
+            }
+        }
         if len(self.entries) > cap {
             doomed: list[str] = [];
             excess = len(self.entries) - cap;
@@ -210,7 +216,7 @@ obj IfaceRegistry {
             return;
         }
         digest = "";
-        if real.endswith('.pyi') {
+        if is_stub_like_path(real) {
             try {
                 import from jaclang.compiler.driver.jir { compute_stub_module_key }
                 digest = compute_stub_module_key(real);
@@ -343,7 +349,7 @@ obj IfaceRegistry {
             if not recorded {
                 return False;
             }
-            if dep.endswith('.pyi') {
+            if is_stub_like_path(dep) {
                 try {
                     import from jaclang.compiler.driver.jir { compute_stub_module_key }
                     if compute_stub_module_key(dep) != recorded {
@@ -386,7 +392,11 @@ obj IfaceRegistry {
                 return found;
             }
         }
-        if not compile_on_miss or not jir_cacheable_source_path(resolved) {
+        if (
+            not compile_on_miss
+            or not jir_cacheable_source_path(resolved)
+            or is_stub_like_path(resolved)
+        ) {
             return None;
         }
         if not os.path.isfile(resolved) {
@@ -448,7 +458,7 @@ obj IfaceRegistry {
 
     def _prepare(ent: IfaceEntry, mod: any) {
         self._restore_placement(ent);
-        self.prog.analysis.analyses_run[id(mod)] = _symtab_provides();
+        self.prog.analysis.analyses_run.mark(mod, _symtab_provides());
     }
 
     def _profiles_of(diag_bytes: (bytes | None)) -> (dict | None) {
@@ -504,7 +514,7 @@ obj IfaceRegistry {
             or bool(options.default_codespace) {
             return False;
         }
-        if not jir_cacheable_source_path(resolved) {
+        if not jir_cacheable_source_path(resolved) or is_stub_like_path(resolved) {
             return False;
         }
         if compiler.stub_catalog_disabled {
@@ -555,6 +565,10 @@ obj IfaceRegistry {
                 self._event("dep_profile_miss");
                 return None;
             }
+            if prof.get("errors") {
+                self._event("dep_error_profile");
+                return None;
+            }
         }
         mod = self._materialize(ent);
         if mod is None {
@@ -591,6 +605,17 @@ obj IfaceRegistry {
         prof = profiles.get(self.analysis_profile(options));
         if prof is None {
             self._event("replay_profile_miss");
+            return None;
+        }
+        if prof.get("errors") {
+            self._event("replay_error_profile");
+            if self.verifying is False and iface_verify_enabled() {
+                raise RuntimeError(
+                    f"analysis cache for {resolved} carries error records; a "
+                    "failed analysis is never persisted, so this cache entry is "
+                    "corrupted or predates that policy"
+                );
+            }
             return None;
         }
         if not self._deps_match(data) {
@@ -654,6 +679,24 @@ obj IfaceRegistry {
         return hashlib.sha256(ident.encode()).hexdigest()[:16];
     }
 
+    def _ensure_flow_graph(mod: any) -> None {
+        if getattr(mod, "stub_only", False)
+            or getattr(mod, "is_raised_from_py", False) {
+            return;
+        }
+        ledger = self.prog.analysis.analyses_run;
+        if ledger.provides(mod, "CfgSucc") {
+            return;
+        }
+        import from jaclang.compiler.driver.pass_driver { run_pass }
+        import from jaclang.compiler.passes.cfg_build_pass { CFGBuildPass }
+        run_pass(CFGBuildPass, mod, self.prog);
+        for tag in CFGBuildPass.PROVIDES {
+            ledger.provided(mod).add(tag);
+        }
+        self._event("iface_cfg");
+    }
+
     def persist_after_compile(
         resolved: str, mod: any, options: any, err_start: int, warn_start: int
     ) -> None {
@@ -672,19 +715,27 @@ obj IfaceRegistry {
         } except Exception {
             modkey = "";
         }
+        inferred = bool(getattr(mod, "codespace_inferred", False));
         memo = self._iface_bytes.get(resolved);
-        if modkey and memo is not None and memo[0] == modkey {
+        payload: (bytes | None) = None;
+        if inferred {
+            digest = self._disk_iface_digest(resolved);
+        } elif modkey and memo is not None and memo[0] == modkey {
             payload = memo[1];
             digest = memo[2];
         } else {
+            self._event("iface_encode");
             ev = self.prog.get_type_evaluator();
+            self._ensure_flow_graph(mod);
             payload = build_module_iface(mod, ev, self._pkg_dir());
             digest = read_iface_hash(payload) or "";
             if modkey {
                 self._iface_bytes[resolved] = (modkey, payload, digest, );
             }
         }
-        sections[SEC_IFACE] = payload;
+        if payload is not None {
+            sections[SEC_IFACE] = payload;
+        }
         sections[SEC_DEPS] = deps_section(self.dep_rows(resolved, mod));
         try {
             import from jaclang.compiler.placement.placement {
@@ -715,10 +766,12 @@ obj IfaceRegistry {
             for alert in self.prog.warnings_had[warn_start:] {
                 warnings.append(_alert_record(alert));
             }
-            profiles[self.analysis_profile(options)] = {
-                "errors": errors,
-                "warnings": warnings
-            };
+            _prof_key = self.analysis_profile(options);
+            if errors {
+                profiles.pop(_prof_key, None);
+            } else {
+                profiles[_prof_key] = {"errors": [], "warnings": warnings};
+            }
             sections[SEC_DIAG] = json.dumps(
                 {"schema": DIAG_SCHEMA, "profiles": profiles}
             ).encode(
@@ -728,7 +781,7 @@ obj IfaceRegistry {
         if write_module_cache(resolved, None, extra_sections=sections) {
             self._event("iface_persist");
         }
-        if digest {
+        if digest and not inferred {
             self._register(
                 resolved,
                 digest,
@@ -736,6 +789,8 @@ obj IfaceRegistry {
                 sections.get(SEC_PLACEMENT),
                 diags=sections.get(SEC_DIAG)
             );
+        }
+        if digest {
             for frame in self.frames {
                 bucket = self.direct_deps.get(frame);
                 if bucket is not None and resolved in bucket {
@@ -743,6 +798,16 @@ obj IfaceRegistry {
                 }
             }
         }
+    }
+
+    def _disk_iface_digest(resolved: str) -> str {
+        import from jaclang.compiler.types.stubcat.modiface { read_iface_hash }
+        try {
+            data: bytes = get_module_cache_path(resolved).read_bytes();
+        } except Exception {
+            return "";
+        }
+        return read_iface_hash(read_section_bytes(data, SEC_IFACE)) or "";
     }
 
     def _existing_profiles(resolved: str) -> dict {
@@ -904,6 +969,21 @@ obj IfaceRegistry {
                     f"extra={extra})"
                 );
             }
+            import from jaclang.compiler.types.stubcat.modiface {
+                build_module_iface,
+                read_iface_hash
+            }
+            fresh_digest = read_iface_hash(
+                build_module_iface(fresh, prog2.get_type_evaluator(), self._pkg_dir())
+            )
+                or "";
+            if fresh_digest != ent.digest {
+                raise RuntimeError(
+                    f"analysis-cache verify failed for {resolved}: the served "
+                    f"interface digest {ent.digest[:12]} differs from a fresh "
+                    f"source compile's {fresh_digest[:12]}"
+                );
+            }
         } finally {
             self.verifying = False;
         }
@@ -929,7 +1009,7 @@ obj IfaceRegistry {
 
             def digestible(alert: any) -> tuple {
                 return (
-                    alert.loc.mod_path,
+                    os.path.realpath(alert.loc.mod_path),
                     alert.loc.first_line,
                     alert.loc.col_start,
                     alert.code.code if alert.code is not None else None,

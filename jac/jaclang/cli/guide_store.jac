@@ -13,6 +13,13 @@ obj GrepHit {
         text: str;
 }
 
+obj NavPage {
+    has page: str,
+        title: str,
+        order: int,
+        section: list[str];
+}
+
 def guides_dir -> Path;
 
 def docs_dir -> Path;
@@ -26,6 +33,10 @@ def list_docs -> list[Guide];
 def doc_corpora -> list[tuple[str, list[Guide]]];
 
 def corpus_blurb(ns: str) -> str;
+
+def nav_manifest -> dict;
+
+def nav_pages -> list[NavPage];
 
 def get_guide(name: str) -> Guide | None;
 
