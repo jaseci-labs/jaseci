@@ -6,10 +6,12 @@ import base64;
 import shutil;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
+import from jaclang.project.config { JacConfig }
 import from jaclang.project.template_loader {
     bundle_template,
     load_template_from_json,
-    load_template_from_directory
+    load_template_from_directory,
+    scaffold_app
 }
 import from jaclang.project.template_registry {
     ProjectTemplate,
@@ -263,4 +265,137 @@ test "list templates includes registered" {
     templates = registry.list_templates();
     names = [name for (name, _) in templates];
     assert "minimal" in names;
+}
+
+# --- Workspace templates and app scaffolds ---
+def _service_template() -> ProjectTemplate {
+    return ProjectTemplate(
+        name="service",
+        description="svc",
+        kind="service",
+        config={
+            "project": {"name": "{{name}}", "entry-point": "main.jac", "kind": "service"}
+        },
+        files={"main.jac": "walker:pub Ping {}\n", "README.md": "# {{name}}\n"}
+    );
+}
+
+test "template dir with [apps] loads as a workspace template" {
+    with TemporaryDirectory() as tmpdir {
+        template_dir = Path(tmpdir) / "ws";
+        (template_dir / "web").mkdir(parents=True);
+        (template_dir / "jac.toml").write_text(
+            '[project]\nname = "{{name}}"\n\n'
+            '[apps.web]\nkind = "web-app"\npath = "web"\n\n'
+            '[apps.api]\nkind = "service"\nentry-point = "core/api.jac"\n\n'
+            '[jacpack]\nname = "ws"\ndescription = "workspace template"\n'
+        );
+        (template_dir / "web" / "main.jac").write_text("with entry {}\n");
+        tmpl = load_template_from_directory(template_dir);
+        assert tmpl.kind == "workspace";
+        assert "jacpack" not in tmpl.config;
+        assert set(tmpl.config["apps"].keys()) == {"web", "api"};
+        assert "web/main.jac" in tmpl.files;
+    }
+}
+
+test "template dir with an invalid [apps] table is rejected" {
+    with TemporaryDirectory() as tmpdir {
+        template_dir = Path(tmpdir) / "ws";
+        template_dir.mkdir();
+        (template_dir / "jac.toml").write_text(
+            '[project]\nname = "{{name}}"\nkind = "cli"\n\n'
+            '[apps.web]\nkind = "web-app"\n\n'
+            '[jacpack]\nname = "ws"\ndescription = "bad"\n'
+        );
+        raised = False;
+        try {
+            load_template_from_directory(template_dir);
+        } except ValueError as e {
+            raised = True;
+            assert "[apps]" in str(e) , str(e);
+        }
+        assert raised , "Expected ValueError for [project] kind alongside [apps]";
+    }
+}
+
+test "scaffold_app appends an [apps] table and copies the template" {
+    with TemporaryDirectory() as tmpdir {
+        root = Path(tmpdir) / "proj";
+        (root / "web").mkdir(parents=True);
+        (root / "jac.toml").write_text(
+            '[project]\nname = "acme"\nversion = "0.1.0"\n\n'
+            '[apps.web]\nkind = "web-app"\npath = "web"\n\n'
+            '[serve]\nport = 8090\n'
+        );
+        (root / "web" / "main.jac").write_text("with entry {}\n");
+        created = scaffold_app(
+            str(root), "api", "service", "services/api", _service_template()
+        );
+        assert str(root / "services" / "api" / "main.jac") in created;
+        assert str(root / "services" / "api" / "README.md") in created;
+        assert (root / "services" / "api" / "README.md").read_text() == "# api\n";
+        text = (root / "jac.toml").read_text();
+        assert "[serve]\nport = 8090" in text , "existing content must be untouched";
+        assert '[apps.web]\nkind = "web-app"\npath = "web"' in text;
+        assert "[apps.api]" in text;
+        assert "jacpack" not in text;
+        cfg = JacConfig.load(root / "jac.toml");
+        assert list(cfg.apps.keys()) == ["web", "api"];
+        assert cfg.apps["api"].kind == "service";
+        assert cfg.apps["api"].path == "services/api";
+        assert cfg.apps["api"].entry_point == "" , "the kind default entry is not spelled out";
+    }
+}
+
+test "scaffold_app migrates a single-app project into a workspace" {
+    with TemporaryDirectory() as tmpdir {
+        root = Path(tmpdir) / "proj";
+        root.mkdir();
+        (root / "jac.toml").write_text(
+            '[project]\nname = "acme"\nkind = "cli"\nentry-point = "main.jac"\n\n'
+            '[dependencies]\nrequests = ">=2"\n'
+        );
+        (root / "main.jac").write_text("with entry {}\n");
+        scaffold_app(str(root), "api", "service", "api", _service_template());
+        cfg = JacConfig.load(root / "jac.toml");
+        assert cfg.is_workspace;
+        assert list(cfg.apps.keys()) == ["acme", "api"];
+        assert cfg.apps["acme"].kind == "cli";
+        assert cfg.apps["acme"].is_file_rooted();
+        assert cfg.apps["acme"].entry_point == "main.jac";
+        assert cfg.default_app == "acme" , "bare `jac run` keeps running the old app";
+        assert cfg.project.kind == "" and cfg.project.entry_point == "main.jac";
+        assert cfg.dependencies["requests"] == ">=2";
+        assert cfg.resolve_app("").name == "acme";
+        assert (root / "api" / "main.jac").exists();
+    }
+}
+
+test "scaffold_app rejects duplicate names, claimed paths and unknown kinds" {
+    with TemporaryDirectory() as tmpdir {
+        root = Path(tmpdir) / "proj";
+        root.mkdir();
+        (root / "jac.toml").write_text(
+            '[project]\nname = "acme"\n\n[apps.api]\nkind = "service"\npath = "api"\n'
+        );
+        for (args, needle) in [
+            (("api", "service", "api2"), "already exists"),
+            (("api2", "service", "api"), "already the root"),
+            (("svc", "nope", "svc"), "Unknown app kind"),
+            (("bad/name", "service", "x"), "cannot contain")
+        ] {
+            raised = False;
+            try {
+                scaffold_app(str(root), args[0], args[1], args[2], _service_template());
+            } except ValueError as e {
+                raised = True;
+                assert needle in str(e) , str(e);
+            }
+            assert raised , f"Expected ValueError for {args}";
+        }
+        assert (root / "jac.toml").read_text().count("[apps.") == 1 , (
+            "a rejected scaffold must leave jac.toml untouched"
+        );
+    }
 }

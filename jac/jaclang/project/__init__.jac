@@ -23,9 +23,17 @@ glob __all__ = [
          'is_valid_kind',
          'kind_entry',
          'kind_spec',
-         'plan_project_run',
+         'plan_app_run',
+         'plan_workspace',
          'resolve_entry',
-         'resolve_project_kind',
+         'resolve_app_kind',
+         'CLIENT_TARGETS',
+         'normalize_client_target',
+         'AppConfig',
+         'VALID_CLIENT_KINDS',
+         'implicit_app',
+         'parse_apps',
+         'CAPABILITY_SECTIONS',
          'DependencyPlan',
          'EcosystemProvider',
          'InstallContext',
@@ -63,7 +71,8 @@ glob __all__ = [
          'load_template_from_directory',
          'load_template_from_json',
          'bundle_template',
-         'resolve_post_create_hook'
+         'resolve_post_create_hook',
+         'scaffold_app'
      ],
      _LAZY_EXPORTS: dict[str, str] = {
          'BuildConfig': 'jaclang.project.config',
@@ -90,9 +99,17 @@ glob __all__ = [
          'is_valid_kind': 'jaclang.project.kinds',
          'kind_entry': 'jaclang.project.kinds',
          'kind_spec': 'jaclang.project.kinds',
-         'plan_project_run': 'jaclang.project.kinds',
+         'plan_app_run': 'jaclang.project.kinds',
+         'plan_workspace': 'jaclang.project.kinds',
          'resolve_entry': 'jaclang.project.kinds',
-         'resolve_project_kind': 'jaclang.project.kinds',
+         'resolve_app_kind': 'jaclang.project.kinds',
+         'CLIENT_TARGETS': 'jaclang.project.kinds',
+         'normalize_client_target': 'jaclang.project.kinds',
+         'AppConfig': 'jaclang.project.apps',
+         'VALID_CLIENT_KINDS': 'jaclang.project.apps',
+         'implicit_app': 'jaclang.project.apps',
+         'parse_apps': 'jaclang.project.apps',
+         'CAPABILITY_SECTIONS': 'jaclang.project.config',
          'DependencyPlan': 'jaclang.project.providers',
          'EcosystemProvider': 'jaclang.project.providers',
          'InstallContext': 'jaclang.project.providers',
@@ -130,7 +147,8 @@ glob __all__ = [
          'load_template_from_directory': 'jaclang.project.template_loader',
          'load_template_from_json': 'jaclang.project.template_loader',
          'bundle_template': 'jaclang.project.template_loader',
-         'resolve_post_create_hook': 'jaclang.project.template_loader'
+         'resolve_post_create_hook': 'jaclang.project.template_loader',
+         'scaffold_app': 'jaclang.project.template_loader'
      };
 
 def __getattr__(name: str) -> object {

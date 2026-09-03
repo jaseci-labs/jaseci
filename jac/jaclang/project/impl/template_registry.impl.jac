@@ -26,9 +26,7 @@ impl TemplateRegistry.register(template_info: dict[str, any]) -> None {
         raise ValueError(f"Template '{name}' must have a 'config' field");
     }
 
-    kind = template_info.get("kind")
-        or config.get("project", {}).get("kind", "")
-        or "cli";
+    kind = template_kind_for(config, str(template_info.get("kind") or ""));
 
     template = ProjectTemplate(
         name=name,
@@ -255,4 +253,17 @@ def _register_core_templates(registry: TemplateRegistry) {
     ] {
         registry.register(info);
     }
+}
+
+impl template_kind_for(config: dict[str, any], explicit: str = "") -> str {
+    if explicit {
+        return explicit;
+    }
+    apps = config.get("apps") if isinstance(config, dict) else None;
+    if isinstance(apps, dict) and apps {
+        return "workspace";
+    }
+    project = config.get("project", {}) if isinstance(config, dict) else {};
+    kind = project.get("kind", "") if isinstance(project, dict) else "";
+    return str(kind or "") or "cli";
 }
