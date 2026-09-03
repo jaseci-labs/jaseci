@@ -30,6 +30,7 @@ import from support_tests {
     mk_run,
     say,
     tool_names,
+    run_fixture,
     call as tool_call
 }
 
@@ -42,11 +43,7 @@ def _as_any(v: any) -> any {
 }
 
 test "llm mail summerize" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("llm_mail_summerize", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("llm_mail_summerize");
     summaries = [
         "AetherGuard reports a login to your account from a new device in Berlin and advises a password reset if the activity was unauthorized.",
         "Claire from Novelink invites writers to a biweekly Writer's Circle this Friday for sharing work and receiving feedback in a supportive environment.",
@@ -61,39 +58,23 @@ test "llm mail summerize" {
 }
 
 test "method include context" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("method_incl_ctx", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("method_incl_ctx");
     assert "Average marks for Alice : 86.75" in stdout_value;
 }
 
 test "with llm function" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("with_llm_function", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("with_llm_function");
     assert "\U0001f464\u27a1\ufe0f\U0001f5fc" in stdout_value;
 }
 
 test "method tool call" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("method_tool", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("method_tool");
     assert "Calculator.add called with 12, 34" in stdout_value;
     assert "Result: 46" in stdout_value;
 }
 
 test "params format" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("llm_params", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("llm_params");
     dict_str = stdout_value[stdout_value.find("{"):stdout_value.rfind("}") + 1];
     extracted_dict = yaml.safe_load(dict_str);
 
@@ -131,11 +112,7 @@ test "params format" {
 }
 
 test "temperature passed through when set" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("llm_params_temp", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("llm_params_temp");
     dict_str = stdout_value[stdout_value.find("{"):stdout_value.rfind("}") + 1];
     extracted_dict = yaml.safe_load(dict_str);
 
@@ -146,29 +123,17 @@ test "temperature passed through when set" {
 }
 
 test "image input" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("image_test", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("image_test");
     assert "The image shows a hot air balloon shaped like a heart" in stdout_value;
 }
 
 test "image param with sem string doesn't crash Message.to_dict" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("image_with_sem", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("image_with_sem");
     assert "IMAGE_SEM_PASS" in stdout_value;
 }
 
 test "streaming output" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("streaming_output", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("streaming_output");
     assert (
         "The orca whale, or killer whale, is one of the most intelligent and adaptable marine predators"
         in stdout_value
@@ -176,31 +141,19 @@ test "streaming output" {
 }
 
 test "streaming with react" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("streaming_with_react", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("streaming_with_react");
     assert "29-10-2025" in stdout_value;
     assert "100" in stdout_value;
     assert "Test passed!" in stdout_value;
 }
 
 test "logging stream no tools" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("logging_stream_no_tools", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("logging_stream_no_tools");
     assert "NO_TOOLS_PASS" in stdout_value;
 }
 
 test "logging stream react" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("logging_stream_react", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("logging_stream_react");
     assert "REACT_LOGGING_PASS" in stdout_value;
 }
 
@@ -208,38 +161,22 @@ test "logging stream str answer without finish_tool delivers on chunk" {
     # a `-> str` agent whose model skips finish_tool and
     # returns plain text must deliver that terminal text on the `chunk` channel,
     # not leave it stranded as `thought`-only.
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("logging_stream_str_skip_finish", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("logging_stream_str_skip_finish");
     assert "STR_SKIP_FINISH_CHUNK_PASS" in stdout_value;
 }
 
 test "conversation kwarg writes back history with tool calls preserved" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("conversation_param", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("conversation_param");
     assert "CONV_PARAM_PASS" in stdout_value;
 }
 
 test "streaming + conversation persists assistant message and emits dicts" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("streaming_conversation", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("streaming_conversation");
     assert "STREAM_CONV_PASS" in stdout_value;
 }
 
 test "transient mid-stream drop retried on same model, output de-duplicated" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("stream_retry", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("stream_retry");
     assert "STREAM_RETRY_PASS" in stdout_value;
 }
 
@@ -249,20 +186,12 @@ test "streaming generator survives consumption from a foreign Context" {
     # thread-pool worker, which is how the scale backend's sse_frame_stream drives SSE.
     # Pre-fix, the wrapper reset a ContextVar Token across Context boundaries and
     # raised "Token was created in a different Context", killing the stream.
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("streaming_cross_context", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("streaming_cross_context");
     assert "CROSS_CONTEXT_PASS" in stdout_value;
 }
 
 test "by expr" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("by_expr", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("by_expr");
     expected_lines = (
         "Generated greeting: Hello, Alice! It's great to see you!",
         "[run_and_test_python_code] Executing code:",
@@ -279,11 +208,7 @@ test "by expr" {
 }
 
 test "with llm method" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("with_llm_method", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("with_llm_method");
     assert "Personality.INTROVERT" in stdout_value;
 }
 
@@ -307,22 +232,14 @@ test "deprecated method param" {
 }
 
 test "with llm lower" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("with_llm_lower", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("with_llm_lower");
     assert (
         "J. Robert Oppenheimer was a Introvert person who died in 1967" in stdout_value
     );
 }
 
 test "with llm type" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("with_llm_type", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("with_llm_type");
     assert "14/03/1879" in stdout_value;
     assert (
         'University (University) (obj) = type(__module__="with_llm_type", __doc__=None, '
@@ -341,22 +258,14 @@ test "with llm image" {
     } except ImportError {
         testskip("This test requires Pillow to be installed");
     }
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("with_llm_image", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("with_llm_image");
     assert "'role': 'system'" in stdout_value;
     assert "{'type': 'text', 'text': 'solve_math_question" in stdout_value;
     assert "data:image/jpeg;base64," in stdout_value[:500];
 }
 
 test "webp image support" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("webp_support_test", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("webp_support_test");
     assert "full_name='Albert Einstein'" in stdout_value;
     assert "year_of_death='1955'" in stdout_value;
 }
@@ -367,11 +276,7 @@ test "with llm video" {
     } except ImportError {
         testskip("This test requires OpenCV to be installed");
     }
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("with_llm_video", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("with_llm_video");
     video_explanation = (
         "The video features a large rabbit emerging from a burrow in a lush, green environment. "
         "The rabbit stretches and yawns, seemingly enjoying the morning. The scene is set in a "
@@ -381,11 +286,7 @@ test "with llm video" {
 }
 
 test "semstrings" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("llm_semstrings", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("llm_semstrings");
     assert "Specific number generated: 120597" in stdout_value;
 
     i = stdout_value.find("Generated password:");
@@ -420,11 +321,7 @@ test "enum without value" {
 }
 
 test "fixtures image types" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("image_types", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("image_types");
     expected_labels = [
         "PIL Image",
         "Image from file path",
@@ -445,11 +342,7 @@ test "fixtures image types" {
 }
 
 test "visit by for routing" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("math_poem_agents", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("math_poem_agents");
     assert "Agentic minds, we hold dear" in stdout_value;
     assert "Math Result: 35" in stdout_value;
 }
@@ -458,11 +351,7 @@ test "streaming visit by routes and streams tokens to handler" {
     # `visit [-->] by model(stream=True, stream_handler=fn)` streams the routing
     # decision token-by-token to the handler (the path a live token feed
     # consumes) while the structured choice still selects the successor edge.
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("streaming_visit_by", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("streaming_visit_by");
     assert "STREAMING_VISIT_BY_PASS" in stdout_value;
     # The structured choice [1] picked the second successor edge.
     assert "VISITED: green" in stdout_value;
@@ -473,11 +362,7 @@ test "structured streaming without a handler is rejected" {
     # Streaming a non-str return needs a stream_handler to consume the events;
     # omitting it raises ConfigurationError up front (the guard the visit-by
     # streaming path relaxes only when a handler is supplied).
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("streaming_structured_no_handler", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("streaming_structured_no_handler");
     assert "STREAMING_GUARD_PASS" in stdout_value;
 }
 
@@ -508,11 +393,7 @@ test "http client with system prompt override" {
 }
 
 test "max react iterations" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("react_max_iterations", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("react_max_iterations");
     assert "get_live_wind_speed called for Puttalam" in stdout_value;
     assert "get_speed_unit called" in stdout_value;
     assert "RESULT: FINAL_REPORT" in stdout_value;
@@ -527,11 +408,7 @@ test "max react iterations" {
 test "max react iterations with finish tool call" {
     # Verifies that when max_react_iterations is exceeded and the LLM responds
     # with a finish_tool call (instead of plain text), the output is correctly extracted.
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("react_max_iterations_finish_tool", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("react_max_iterations_finish_tool");
     assert "get_live_wind_speed called for Puttalam" in stdout_value;
     assert "get_speed_unit called" in stdout_value;
     assert "RESULT: FINAL_REPORT" in stdout_value;
@@ -540,11 +417,7 @@ test "max react iterations with finish tool call" {
 }
 
 test "on_iteration callback ABORT and ABORT_WITH_SUMMARY" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("on_iteration_callback", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("on_iteration_callback");
     # ABORT: hook fired, only 2 tool calls (a, b), c and d skipped
     assert "ABORT_TRIGGERED" in stdout_value;
     assert "ABORT_TOOLS: 2" in stdout_value;
@@ -560,11 +433,7 @@ test "plain text recovery - LLM bypasses finish_tool" {
     # Verifies the Bug 2B fix: when a model (e.g. gpt-4o) returns plain conversational
     # text instead of calling finish_tool, the invoke loop detects the failure,
     # re-prompts with only finish_tool available, and correctly extracts the typed result.
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("plain_text_recovery", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("plain_text_recovery");
     assert "PERSON: Merchant" in stdout_value;
     assert "MESSAGE: Greetings traveller, I have wares to trade!" in stdout_value;
 }
@@ -708,11 +577,7 @@ test "api key not in verbose output" {
 }
 
 test "builtin llm with mock override" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-    jac_import("builtin_llm", base_path=FIXTURE_DIR + "/");
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("builtin_llm");
     assert "POSITIVE" in stdout_value or "positive" in stdout_value;
 }
 
@@ -1254,26 +1119,14 @@ test "all exception types log and propagate regardless of debug" {
 """Test ModelPool fallback strategy: router is configured with unique aliases and
 a fallbacks chain; successful responses are returned via the dispatch pipeline."""
 test "model pool router fallback" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-
-    jac_import("model_pool_fallback", base_path=FIXTURE_DIR + "/");
-
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("model_pool_fallback");
     assert "fallback_success" in stdout_value;
 }
 
 """Test ModelPool load-balancing (simple-shuffle): all three deployments share the
 pool-model alias; three independent calls all succeed and the alias is pool-model."""
 test "model pool router load balance" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-
-    jac_import("model_pool_round_robin", base_path=FIXTURE_DIR + "/");
-
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("model_pool_round_robin");
     assert "pool_alias:pool-model" in stdout_value;
     assert stdout_value.count("load_balance_response") == 3;
 }
@@ -1281,13 +1134,7 @@ test "model pool router load balance" {
 """Test ModelPool propagates router exceptions: when the LiteLLM Router
 raises (all deployments exhausted) the exception reaches the caller."""
 test "model pool router all fail" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-
-    jac_import("model_pool_all_fail", base_path=FIXTURE_DIR + "/");
-
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("model_pool_all_fail");
     assert "EXPECTED_ERROR: RateLimitError" in stdout_value;
     assert "UNEXPECTED" not in stdout_value;
 }
@@ -1296,13 +1143,7 @@ test "model pool router all fail" {
 LiteLLM Router only supports cost-based-routing via acompletion(); ModelPool
 bridges this via ThreadPoolExecutor to stay safe in async frameworks."""
 test "model pool router cost based" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-
-    jac_import("model_fallbacks_convenience", base_path=FIXTURE_DIR + "/");
-
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("model_fallbacks_convenience");
     assert "cost_based_success" in stdout_value;
 }
 
@@ -1310,13 +1151,7 @@ test "model pool router cost based" {
 Fallback strategy: unique per-model aliases + fallbacks list.
 Load-balance strategy: all models share pool-model alias."""
 test "model pool router init" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-
-    jac_import("model_pool_router_init", base_path=FIXTURE_DIR + "/");
-
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("model_pool_router_init");
     assert "fb_pool_alias:pool-primary" in stdout_value;
     assert "fb_deploy_count:2" in stdout_value;
     assert "fb_fallbacks_has_primary:True" in stdout_value;
@@ -1421,13 +1256,7 @@ test "McpClient raises McpError when mcp package is missing" {
 
 """Test ModelPool streaming fallback path."""
 test "model pool streaming fallback" {
-    captured_output = io.StringIO();
-    sys.stdout = captured_output;
-
-    jac_import("model_pool_streaming_fallback", base_path=FIXTURE_DIR + "/");
-
-    sys.stdout = sys.__stdout__;
-    stdout_value = captured_output.getvalue();
+    stdout_value = run_fixture("model_pool_streaming_fallback");
     assert "output:stream_fallback_success" in stdout_value;
     assert "primary_tried:True" in stdout_value;
     assert "fallback_tried:True" in stdout_value;
