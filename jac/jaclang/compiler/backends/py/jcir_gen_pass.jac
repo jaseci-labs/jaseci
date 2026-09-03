@@ -294,13 +294,15 @@ def write_ir_value(w: CodegenIrWriter, v: object) {
         t = tasks.pop();
         kind = t[0];
         val = t[1];
-        if kind == TASK_NODE {
-            w.emit_loc_needed(val.l1, val.c1, val.l2, val.c2);
-            w.emit_node(val.cls, val.keys);
+        if kind == TASK_NODE and isinstance(val, CgNode) {
+            nd: CgNode = val;
+            w.emit_loc_needed(nd.l1, nd.c1, nd.l2, nd.c2);
+            w.emit_node(nd.cls, nd.keys);
             continue;
         }
-        if kind == TASK_LIST {
-            w.emit_list(val);
+        if kind == TASK_LIST and isinstance(val, int) {
+            n: int = val;
+            w.emit_list(n);
             continue;
         }
         if val is None {
