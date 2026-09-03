@@ -1083,21 +1083,26 @@ impl UniNode._sub_node_tab.getter -> dict[(type, list[UniNode])] {
 }
 
 impl UniNode._construct_sub_node_tab -> None {
-    frames: list[list] = [[self, self.kid, 0]];
-    while frames {
-        fr = frames[-1];
-        kids = fr[_FRAME_KIDS];
-        idx = fr[_FRAME_POS];
+    nodes: list[UniNode] = [self];
+    kidsets: list[list[UniNode]] = [self.kid];
+    cursors: list[int] = [0];
+    while nodes {
+        kids = kidsets[-1];
+        idx = cursors[-1];
         if idx < len(kids) {
-            fr[_FRAME_POS] = idx + 1;
+            cursors[-1] = idx + 1;
             i = kids[idx];
             if i and not i.ct_pruned and i.__sub_node_tab is None {
                 i.__sub_node_tab = {};
-                frames.append([i, i.kid, 0]);
+                nodes.append(i);
+                kidsets.append(i.kid);
+                cursors.append(0);
             }
             continue;
         }
-        tab = frames.pop()[_FRAME_NODE].__sub_node_tab;
+        tab = nodes.pop().__sub_node_tab;
+        kidsets.pop();
+        cursors.pop();
         for i in kids {
             if not i or i.ct_pruned {
                 continue;

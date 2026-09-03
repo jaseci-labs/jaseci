@@ -2504,10 +2504,6 @@ node PythonModuleAst(EmptyToken) {
     def __repr__ -> str;
 }
 
-glob _FRAME_NODE: int = 0,
-     _FRAME_KIDS: int = 1,
-     _FRAME_POS: int = 2;
-
 glob _HEX_DIGITS: str = '0123456789abcdefABCDEF',
      _OCT_DIGITS: str = '01234567',
      _LIT_PREFIX_CHARS: str = 'bBrR',
