@@ -342,18 +342,7 @@ impl _writable_txn(mem: any, store: Store) -> None {
         }
         return;
     }
-    with mem._lock {
-        if store.txn_isolation() is TxnIsolation.SNAPSHOT_READ_ONLY {
-            if mem._ro_units > 0 {
-                mem._raise_ro_retry();
-            }
-            store.commit();
-            mem._drop_snapshot_reads();
-            store.begin(TxnIsolation.SERIALIZABLE);
-        } elif not store.in_txn() {
-            store.begin(TxnIsolation.SERIALIZABLE);
-        }
-    }
+    mem.ensure_writable_txn();
 }
 
 

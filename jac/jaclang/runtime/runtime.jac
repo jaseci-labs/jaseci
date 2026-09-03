@@ -454,12 +454,6 @@ class JacServe {
     ) -> ClientBundle;
 
     static def get_api_server_class -> type;
-    static def ensure_sv_service(module_name: str, base_path: str) -> None;
-    static def sv_service_call(module_name: str, func_name: str, args: dict) -> any;
-    static def sv_walker_call(
-        module_name: str, walker_name: str, args: dict, stub_cls: any
-    ) -> any;
-
     static def get_sv_registry -> dict[str, str];
     static def create_server(
         jac_server: JacServer, host: str, port: int, max_retries: int = 10

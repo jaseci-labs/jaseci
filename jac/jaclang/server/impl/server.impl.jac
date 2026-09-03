@@ -1841,7 +1841,8 @@ def _sibling_app_names(config: any, base: str) -> list[str] {
 }
 
 impl JacAPIServer.build_app -> ServingApp {
-    import from jaclang.server.bridge { idempotency_lookup, idempotency_remember }
+    import from jaclang.server.bridge { replay_response, serialize_response }
+    import from jaclang.server.outbox { cached_result, remember_idempotency_key }
     server = self;
     config = get_config();
     cl_route_path = "/cl/";
@@ -2256,12 +2257,26 @@ impl JacAPIServer.build_app -> ServingApp {
         );
     }
 
-    def _idempotency_key(request: Request, kind: str, name: str) -> str {
-        key = request.headers.get('X-Jac-Idempotency-Key');
+    def _idempotency_key(request: Request) -> str {
+        return str(request.headers.get('X-Jac-Idempotency-Key') or '').strip();
+    }
+
+    def _idempotent_replay(key: str) -> any {
         if not key {
-            return '';
+            return None;
         }
-        return f"{kind}:{name}:{key}";
+        cached = cached_result(key);
+        return replay_response(cached) if cached is not None else None;
+    }
+
+    def _idempotent_remember(key: str, result: any) -> any {
+        if key {
+            ok = result.ok if isinstance(result, TransportResponse) else True;
+            if ok {
+                remember_idempotency_key(key, result=serialize_response(result));
+            }
+        }
+        return result;
     }
 
     def _call_function(request: Request, name: str) -> any {
@@ -2278,18 +2293,15 @@ impl JacAPIServer.build_app -> ServingApp {
         if data is None {
             return JSONResponse(content={'error': 'Invalid JSON'}, status_code=400);
         }
-        idem = _idempotency_key(request, 'function', name);
-        replay = idempotency_lookup(idem) if idem else None;
+        idem = _idempotency_key(request);
+        replay = _idempotent_replay(idem);
         if replay is not None {
             return replay;
         }
-        result = asyncio.run(
+        called = asyncio.run(
             _acall_function(server.execution_handler, name, data, username)
         );
-        if idem {
-            idempotency_remember(idem, result);
-        }
-        return result;
+        return _idempotent_remember(idem, called);
     }
 
     def _spawn_walker(request: Request, name: str, node_id: str = '') -> any {
@@ -2306,19 +2318,16 @@ impl JacAPIServer.build_app -> ServingApp {
         if data is None {
             return JSONResponse(content={'error': 'Invalid JSON'}, status_code=400);
         }
-        idem = _idempotency_key(request, 'walker', name);
-        replay = idempotency_lookup(idem) if idem else None;
+        idem = _idempotency_key(request);
+        replay = _idempotent_replay(idem);
         if replay is not None {
             return replay;
         }
         fields = data | {'_jac_spawn_node': node_id};
-        result = asyncio.run(
+        spawned = asyncio.run(
             _aspawn_walker(server.execution_handler, name, fields, username)
         );
-        if idem {
-            idempotency_remember(idem, result);
-        }
-        return result;
+        return _idempotent_remember(idem, spawned);
     }
 
     def _client_error(request: Request) -> any {
@@ -2556,8 +2565,15 @@ impl JacAPIServer.build_app -> ServingApp {
                         content={'error': 'Invalid JSON'}, status_code=400
                     );
                 }
+                idem = _idempotency_key(request);
+                replay = _idempotent_replay(idem);
+                if replay is not None {
+                    return replay;
+                }
                 fields = data | {'_jac_spawn_node': node_id};
-                return asyncio.run(_aspawn_walker(handler, bound, fields, username));
+                return _idempotent_remember(
+                    idem, asyncio.run(_aspawn_walker(handler, bound, fields, username))
+                );
             }
             return _spawn_provider;
         }
@@ -2732,8 +2748,13 @@ impl JacAPIServer.start(
     on_ready: Callable[[int], None] | None = None
 ) -> None {
     import from pathlib { Path }
+    import from jaclang.server { sv_client }
+    import from jaclang.server.outbox { start_worker, stop_worker }
     self.introspector.load();
     self._ensure_sv_siblings();
+    if sv_client.has_consumers() {
+        start_worker();
+    }
 
     for (name, walker_cls) in self.introspector._walkers.items() {
         walker_spec = getattr(walker_cls, 'schedule_spec', '');
@@ -2864,6 +2885,7 @@ impl JacAPIServer.start(
         console.print('\nShutting down server...');
     } finally {
         self.scheduler.stop();
+        stop_worker();
     }
 }
 

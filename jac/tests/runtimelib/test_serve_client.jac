@@ -2531,8 +2531,12 @@ import from jaclang.server.bridge {
     BridgeRejected,
     BridgeTimeout,
     BridgeUnavailable,
-    bridge_error_from,
-    idempotency_clear
+    bridge_error_from
+}
+import from jaclang.server.outbox {
+    SqliteOutboxStore,
+    cached_result,
+    use_store
 }
 import from jaclang.server.serving.client {
     ClientConnectionError,
@@ -2706,28 +2710,34 @@ test "bridge_error_from: transport failures map by kind" {
 }
 
 test "serve: X-Jac-Idempotency-Key replays the first response for a repeated call" {
-    idempotency_clear();
     with TemporaryDirectory() as tmpdir {
-        client = make_client(tmpdir);
-        headers = {"X-Jac-Idempotency-Key": "outbox-entry-1"};
-        first = client.post("/function/greet", json={"name": "ada"}, headers=headers);
-        assert first.ok , f"greet should be callable: {first.data}";
-        second = client.post("/function/greet", json={"name": "bob"}, headers=headers);
-        assert second.ok;
-        assert second.data == first.data , (
-            "a repeated idempotency key must replay the first response, "
-            f"got {second.data} vs {first.data}"
-        );
-        fresh = client.post(
-            "/function/greet",
-            json={"name": "bob"},
-            headers={"X-Jac-Idempotency-Key": "outbox-entry-2"}
-        );
-        assert fresh.ok;
-        assert fresh.data != first.data;
-        client.close();
+        use_store(SqliteOutboxStore(path=os.path.join(tmpdir, "outbox.sqlite")));
+        try {
+            client = make_client(tmpdir);
+            headers = {"X-Jac-Idempotency-Key": "outbox-entry-1"};
+            first = client.post("/function/greet", json={"name": "ada"}, headers=headers);
+            assert first.ok , f"greet should be callable: {first.data}";
+            assert cached_result("outbox-entry-1") is not None , (
+                "a successful keyed call is remembered in the outbox seen-table"
+            );
+            second = client.post("/function/greet", json={"name": "bob"}, headers=headers);
+            assert second.ok;
+            assert second.data == first.data , (
+                "a repeated idempotency key must replay the first response, "
+                f"got {second.data} vs {first.data}"
+            );
+            fresh = client.post(
+                "/function/greet",
+                json={"name": "bob"},
+                headers={"X-Jac-Idempotency-Key": "outbox-entry-2"}
+            );
+            assert fresh.ok;
+            assert fresh.data != first.data;
+            client.close();
+        } finally {
+            use_store(None);
+        }
     }
-    idempotency_clear();
 }
 
 test "sv_client: bearer token is sent on bridged calls and falls back to JAC_BRIDGE_TOKEN" {
@@ -2784,12 +2794,21 @@ test "sv_client: awaited walker spawn rehydrates the stub with reports" {
     sv_client.register_test_client("social", stub);
     try {
         got = asyncio.run(
-            sv_client.spawn_walker("social", "greet_walker", {"name": "ada"}, _StubWalker)
+            sv_client.spawn_walker(
+                "social",
+                "greet_walker",
+                {"name": "ada"},
+                _StubWalker,
+                idempotency_key="entry-42"
+            )
         );
         assert isinstance(got, _StubWalker);
         assert got.name == "ada";
         assert got.reports == [{"msg": "hi ada"}];
         assert stub.calls[0][0] == "/walker/greet_walker";
+        assert stub.headers_seen[-1].get("X-Jac-Idempotency-Key") == "entry-42" , (
+            "a deferred delivery forwards its idempotency key on the wire"
+        );
     } finally {
         _reset_bridge_state();
     }

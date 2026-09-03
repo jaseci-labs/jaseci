@@ -76,6 +76,18 @@ def auth_headers -> dict[str, str] {
     return {"Authorization": f"Bearer {token}"};
 }
 
+def request_headers(idempotency_key: str = "") -> dict[str, str] {
+    headers = auth_headers();
+    if idempotency_key {
+        headers["X-Jac-Idempotency-Key"] = idempotency_key;
+    }
+    return headers;
+}
+
+def has_consumers -> bool {
+    return any(bool(v) for v in _consumer_providers.values());
+}
+
 def _declare_consumer_provider(consumer_app: str, provider_app: str, route: str = "") {
     if consumer_app not in _consumer_providers {
         _consumer_providers[consumer_app] = [];
@@ -218,9 +230,15 @@ def _rehydrate_walker(envelope: any, stub_cls: any) -> any {
     return instance;
 }
 
-def _http_spawn(app: str, walker_name: str, kwargs: dict, stub_cls: any) -> any {
+def _http_spawn(
+    app: str,
+    walker_name: str,
+    kwargs: dict,
+    stub_cls: any,
+    idempotency_key: str = ""
+) -> any {
     import from jaclang.server.serving.client { request_sync }
-    headers = auth_headers();
+    headers = request_headers(idempotency_key);
     if app in _test_clients {
         client = _test_clients[app];
         data = client.post(
@@ -261,7 +279,8 @@ async def _local_call(app: str, fn: str, kwargs: dict) -> any {
 }
 
 async def _local_spawn(app: str, walker_name: str, kwargs: dict) -> any {
-    import jaclang;
+    import from jaclang { JacRuntime }
+    import from jaclang.runtime.context { ExecutionContext }
     module = _local_providers[app];
     walker_cls = getattr(module, walker_name, None);
     if walker_cls is None or not isinstance(walker_cls, type) {
@@ -269,17 +288,43 @@ async def _local_spawn(app: str, walker_name: str, kwargs: dict) -> any {
             app=app, name=walker_name, detail=f"no walker '{walker_name}'", status=404
         );
     }
-    instance = walker_cls(**kwargs);
-    result = await _await_if_needed(
-        jaclang.JacRuntime.`spawn(instance, jaclang.JacRuntime.root())
-    );
-    walked = result if result is not None else instance;
-    if not hasattr(walked, "reports") {
-        try {
-            walked.reports = [];
-        } except Exception {}
+    current = JacRuntime.peek_context();
+    owns_ctx = current is None or current is JacRuntime.exec_ctx;
+    req_ctx = current;
+    token: any = None;
+    if owns_ctx {
+        parent = JacRuntime.get_context();
+        req_ctx = ExecutionContext(_parent=parent);
+        req_ctx.set_user_root(str(parent.system_root.id));
+        token = JacRuntime.push_request_context(req_ctx);
     }
-    return walked;
+    try {
+        mem = req_ctx.mem;
+        session = mem if hasattr(mem, "run_request") else None;
+
+        def _spawn_body -> any {
+            instance = walker_cls(**kwargs);
+            spawned = JacRuntime.`spawn(instance, req_ctx.get_root());
+            return spawned if spawned is not None else instance;
+        }
+        result = (
+            session.run_request(_spawn_body) if session is not None else _spawn_body()
+        );
+        walked = await _await_if_needed(result);
+        if session is not None and result is not walked {
+            session.commit();
+        }
+        if not hasattr(walked, "reports") {
+            try {
+                walked.reports = [];
+            } except Exception {}
+        }
+        return walked;
+    } finally {
+        if owns_ctx and token is not None {
+            JacRuntime.reset_request_context(token);
+        }
+    }
 }
 
 async def call(app: str, fn: str, kwargs: dict) -> any {
@@ -298,7 +343,13 @@ async def call(app: str, fn: str, kwargs: dict) -> any {
     }
 }
 
-async def spawn_walker(app: str, walker_name: str, kwargs: dict, stub_cls: any) -> any {
+async def spawn_walker(
+    app: str,
+    walker_name: str,
+    kwargs: dict,
+    stub_cls: any,
+    idempotency_key: str = ""
+) -> any {
     try {
         if app in _local_providers {
             return await _local_spawn(app, walker_name, kwargs);
@@ -308,7 +359,7 @@ async def spawn_walker(app: str, walker_name: str, kwargs: dict, stub_cls: any) 
         if transport is not None and app not in _test_clients {
             return transport.sv_walker_call(app, walker_name, kwargs, stub_cls);
         }
-        return _http_spawn(app, walker_name, kwargs, stub_cls);
+        return _http_spawn(app, walker_name, kwargs, stub_cls, idempotency_key);
     } except Exception as e {
         raise bridge_error_from(e, app, walker_name);
     }

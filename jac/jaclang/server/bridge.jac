@@ -1,32 +1,28 @@
-import from collections { OrderedDict }
-
-glob IDEMPOTENCY_LRU_SIZE: int = 4096,
-     _idempotency_seen: OrderedDict = OrderedDict();
+import json;
 
 
-def idempotency_lookup(key: str) -> any {
-    if not key or key not in _idempotency_seen {
-        return None;
+def serialize_response(resp: any) -> str {
+    import from jaclang.server.serving.app { transport_to_response }
+    import from jaclang.server.serving.datatypes { JSONResponse }
+    import from jaclang.server.transport { TransportResponse }
+    if isinstance(resp, TransportResponse) {
+        resp = transport_to_response(resp);
     }
-    _idempotency_seen.move_to_end(key);
-    return _idempotency_seen[key];
+    if isinstance(resp, JSONResponse) {
+        return json.dumps(
+            {"status": resp.status_code, "body": resp.content}, `default=str
+        );
+    }
+    return json.dumps({"status": 200, "body": resp}, `default=str);
 }
 
 
-def idempotency_remember(key: str, response: any) -> None {
-    if not key {
-        return;
-    }
-    _idempotency_seen[key] = response;
-    _idempotency_seen.move_to_end(key);
-    while len(_idempotency_seen) > IDEMPOTENCY_LRU_SIZE {
-        _idempotency_seen.popitem(last=False);
-    }
-}
-
-
-def idempotency_clear -> None {
-    _idempotency_seen.clear();
+def replay_response(cached: str) -> any {
+    import from jaclang.server.serving.datatypes { JSONResponse }
+    payload = json.loads(cached);
+    return JSONResponse(
+        content=payload.get("body"), status_code=int(payload.get("status", 200))
+    );
 }
 
 
