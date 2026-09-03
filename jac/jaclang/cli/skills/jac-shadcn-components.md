@@ -209,16 +209,33 @@ def:pub RadixTriggerExample() -> JsxElement {
 
 ## ⚠ `asChild` triggers and ref forwarding (silent no-open bug)
 
-`<DialogTrigger asChild={True}>`, `<DropdownMenuTrigger asChild={True}>`, `<PopoverTrigger asChild={True}>`, etc. render their **child** as the trigger and attach a positioning-anchor ref to it. The installed `components/ui/` primitives handle this. But if the child is a **hand-written composite of your own**, it MUST declare a trailing `ref: Ref[...]` parameter (which lowers to React `forwardRef`) - otherwise the anchor ref lands nowhere and the menu/popover/dialog **silently never opens**. No compile error, no console error.
+`<DialogTrigger asChild={True}>`, `<DropdownMenuTrigger asChild={True}>`, `<PopoverTrigger asChild={True}>`, etc. render their **child** as the trigger and attach a positioning-anchor ref to it. The installed `components/ui/` primitives handle this: each takes one `props` bundle and spreads it onto its host tag, and under React 19 `ref` rides that spread like any other prop.
+
+A **hand-written composite of your own** has to land the ref somewhere too, or the anchor stays null and the popper positions at the viewport origin instead of at the trigger. No compile error, no console error. Spread your props onto the host tag, or declare a trailing `ref: Ref[...]` parameter (which lowers to React `forwardRef`) if the component takes named params:
 
 ```jac
-# Usable as an asChild trigger child - the trailing ref param forwards the anchor
-def:pub MyMenuButton(label: str, ref: Ref[HTMLButtonElement]) -> JsxElement {
+# Usable as an asChild trigger child - the rest spread carries the anchor ref.
+# `children` is excluded and rendered explicitly, as the shipped button.jac does.
+# jac:ignore[W5015]
+def:pub MyMenuButton(props: dict) -> JsxElement {
+    restProps = {};
+    for key in Object.keys(props) {
+        if key != "children" {
+            restProps[key] = props[key];
+        }
+    }
+    <button className="..." {**restProps}>{props["children"]}</button>
+}
+
+# Named-param form: `ref` is not among the named props, so declare it
+def:pub MyLabeledButton(label: str, ref: Ref[HTMLButtonElement] = Ref()) -> JsxElement {
     <button ref={ref} className="...">{label}</button>
 }
 ```
 
-Prefer the installed `Button` (already handles this) or style the trigger directly with `buttonVariants()` as above. See `jac-npm-packages` for ref-forwarding details and its known `jac check` false positives.
+The `props` bundle is what makes the first form a ref target, and it is also what earns **W5015** (`jac-cl-components` says to default to named params) - ref forwarding is the intentional forwarding that warning leaves room for, so `# jac:ignore[W5015]` belongs on these and not on ordinary components.
+
+Prefer the installed `Button` (already handles this) or style the trigger directly with `buttonVariants()` as above. See `jac-npm-packages` for ref details and its known `jac check` false positives.
 
 ## Theming
 
