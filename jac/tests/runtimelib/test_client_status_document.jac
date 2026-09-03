@@ -277,6 +277,10 @@ test "the /cl/__error__ endpoint logs a rendered diagnostic with a Jac location"
         sink = logging.StreamHandler(buf);
         logger = logging.getLogger("jaclang.client_errors");
         logger.addHandler(sink);
+        # The sink must see the record whatever level the root logger was left
+        # at, so the level is pinned here and restored below.
+        old_level = logger.level;
+        logger.setLevel(logging.ERROR);
         _error_rate_limiter._seen = {};
         _error_rate_limiter._count = 0;
         client = JacTestClient.from_file(
@@ -317,6 +321,7 @@ test "the /cl/__error__ endpoint logs a rendered diagnostic with a Jac location"
             assert "at app (app.jac:2:" in logged , logged;
         } finally {
             logger.removeHandler(sink);
+            logger.setLevel(old_level);
             client.close();
             _reset_client_globals();
         }

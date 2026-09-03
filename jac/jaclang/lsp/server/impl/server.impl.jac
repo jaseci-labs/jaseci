@@ -1,6 +1,10 @@
 import from jaclang.cli.console { console }
 
 impl run_lang_server -> None {
+    # The stdio transport owns this process, so process-wide quieting belongs
+    # here: an embedded JacLangServer (tests, tooling) must not silence the
+    # host's logging.
+    logging.getLogger().setLevel(logging.CRITICAL);
     server = JacLangServer();
 
     server.feature(lspt.TEXT_DOCUMENT_DID_OPEN)(did_open);
