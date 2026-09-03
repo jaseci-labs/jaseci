@@ -106,33 +106,39 @@ def fail(error: Exception, content: str = "", after: int = 0) -> Reply {
 }
 
 
-def _tool_call_objects(reply: Reply) -> list {
+def _tool_call_dicts(reply: Reply) -> list {
     return [
-        types.SimpleNamespace(
-            id=call_id,
-            type="function",
-            function=types.SimpleNamespace(name=name, arguments=arguments)
-        ) for (call_id, name, arguments) in reply.tool_calls
+        {
+            "id": call_id,
+            "type": "function",
+            "function": {"name": name, "arguments": arguments}
+        } for (call_id, name, arguments) in reply.tool_calls
     ];
 }
 
 
-"""The non-streaming completion dict `model_call_no_stream` returns."""
-def response(reply: Reply, model: str = "gpt-4o-mini") -> dict {
-    return {
+"""The completion `model_call_no_stream` returns, as a real litellm ModelResponse.
+Usage is omitted, not empty, when the reply carries none: litellm turns an empty
+dict into a zero-token Usage, which production never sends."""
+def response(reply: Reply, model: str = "gpt-4o-mini") -> object {
+    payload: dict = {
         "model": model,
         "choices": [
             {
+                "index": 0,
                 "message": {
                     "role": "assistant",
                     "content": reply.content,
-                    "tool_calls": _tool_call_objects(reply)
+                    "tool_calls": _tool_call_dicts(reply)
                 },
                 "finish_reason": reply.reason()
             }
-        ],
-        "usage": dict(reply.usage) if reply.usage is not None else {}
+        ]
     };
+    if reply.usage {
+        payload["usage"] = dict(reply.usage);
+    }
+    return litellm.ModelResponse(**payload);
 }
 
 
@@ -226,7 +232,7 @@ obj Script {
         return self.replies.pop(0);
     }
 
-    def no_stream(params: dict) -> dict {
+    def no_stream(params: dict) -> object {
         reply = self.next_reply(params);
         if reply.error is not None {
             raise reply.error;
@@ -248,7 +254,7 @@ obj Script {
         }
     }
 
-    async def no_stream_async(params: dict) -> dict {
+    async def no_stream_async(params: dict) -> object {
         return self.no_stream(params);
     }
 
@@ -294,7 +300,7 @@ obj FakeLLM(BaseLLM) {
         );
     }
 
-    override def model_call_no_stream(params: dict) -> dict {
+    override def model_call_no_stream(params: dict) -> object {
         return self.script.no_stream(params);
     }
 
