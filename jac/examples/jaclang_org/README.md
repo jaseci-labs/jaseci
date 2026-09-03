@@ -21,20 +21,22 @@ jac start          # serves on http://localhost:8000
 jac start --dev    # hot-reload dev loop
 ```
 
-Docs content syncs in the background: a scheduled in-server job
-(`docs/sync.jac`) keeps a blobless clone of the monorepo under
-`.jac/data/docs-repo` and serves every release series from it -- newest
-patch per minor from v0.31 up, one menu entry each -- plus main as `dev`.
-A rate-gated `git fetch --tags` drives freshness: `dev` re-ingests when
-main's head moves, and a full re-ingest picks up new release tags with no
-redeploy. `/docs/latest` is a resolve-time alias for the newest release,
-which is also where `/docs` lands. Requests never trigger a sync -- they
-only read whatever the job last committed, and the graph persists across
-restarts. The clone is a disposable cache: any git failure resets it and
-the next tick re-clones. Set `JAC_DOCS_LOCAL=<monorepo-root>` to feed the
-job from a local docs tree instead (no git, no network), and
-`JAC_DOCS_CLONE_DIR` to move the clone. The docs job needs no GitHub API
-token; `GITHUB_TOKEN` only matters to the leaderboard's repo analysis.
+Docs content comes from the binary. The docs corpus bundled with jaclang
+-- the same one `jac guide` serves offline and `jac mcp` exposes as
+`jac://docs/*` -- is read in-process through `jaclang.cli.guide_store` by a
+scheduled in-server job (`docs/sync.jac`) and grown into the docs graph as
+one version labelled after the running jac (`v0.37` for jac 0.37.1). No
+clone, no network, no GitHub token. The graph is populated once: the job
+fingerprints the corpus (version string plus every page and nav title), and
+a restart whose persisted graph already carries that fingerprint does
+nothing. Only a binary whose bundled docs differ triggers a rebuild, which
+replaces the version in place. After its first pass the tick is a no-op for
+the life of the process, so an edited docs tree under the `[dev]`
+live-source stanza shows up on the next restart. `/docs/latest` is a
+resolve-time alias for that version, which is also where `/docs` lands.
+Requests never trigger a sync -- they only read whatever the job last
+committed. Which docs the site shows is decided by which jac binary serves
+it. `GITHUB_TOKEN` only matters to the leaderboard's repo analysis.
 
 ## Checks
 
@@ -146,12 +148,13 @@ in `DocPageView.toc`; the client renders them and never re-derives a slug.
 ## Tests
 
 `jac test` covers the pure logic on both sides of the wire: the URL parser,
-repo analyzer and scoring rubric (`leaderboard/board.test.jac`), the docs
+repo analyzer and scoring rubric (`leaderboard/*.test.jac`), the docs
 slugifier, route rewriter, TOC builder and swap-commit protocol
-(`docs/graph.test.jac`), the nav parsers, release-tag
-picker and drift check (`docs/sync.test.jac`), the progress protocol
-(`shared/progress.test.jac`), and the Jac syntax highlighter
-(`shared/jac_tokenizer.test.jac`) -- 49 tests.
+(`docs/graph.test.jac`), the version label, link rewriter, corpus
+fingerprint and once-only ingest (`docs/sync.test.jac`), the progress protocol
+(`shared/progress.test.jac`), the Jac syntax highlighter
+(`shared/jac_tokenizer.test.jac`), and the social graph plus its fullstack
+smoke (`socialize/*.test.jac`) -- 58 tests.
 
 ## The centerpiece diagrams
 

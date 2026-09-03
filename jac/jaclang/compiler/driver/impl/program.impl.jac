@@ -316,6 +316,7 @@ impl JacProgram.release_compile_closure(
     self.type_evaluator = None;
     self.diags.clear();
     self.scratch.clear();
+    self.analysis.analyses_run.clear();
     if self._iface is not None {
         self._iface.on_closure_release();
     }

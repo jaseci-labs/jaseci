@@ -21,11 +21,7 @@ import from jaclang.scale.tests.scale_test_client {
     make_client,
     extract_data
 }
-import from jaclang.scale.tests.server_support {
-    get_free_port,
-    _cleanup_db_files,
-    _extract_transport_response_data
-}
+import from jaclang.scale.tests.support { cleanup_db_files, get_free_port }
 
 def _as_any(v: any) -> any {
     return v;
@@ -180,13 +176,13 @@ def setup_serve_server -> subprocess.Popen {
     if not sv_test_file.exists() {
         raise FileNotFoundError(f"Test fixture not found: {sv_test_file}");
     }
-    _cleanup_db_files(sv_fixtures_dir);
+    cleanup_db_files(sv_fixtures_dir);
     return _start_server(sv_fixtures_dir, sv_test_file, sv_port, sv_base_url);
 }
 
 def teardown_serve_server(sp: subprocess.Popen | None) {
     _stop_server(sp);
-    _cleanup_db_files(sv_fixtures_dir);
+    cleanup_db_files(sv_fixtures_dir);
 }
 
 test "static and schema endpoints" {
@@ -1533,7 +1529,7 @@ def setup_dev_mode_server -> subprocess.Popen {
     if not dm_test_file.exists() {
         raise FileNotFoundError(f"Test fixture not found: {dm_test_file}");
     }
-    _cleanup_db_files(dm_fixtures_dir);
+    cleanup_db_files(dm_fixtures_dir);
 
     # Only --api_port is pinned: that is the one this suite talks to, and a
     # pinned port is now a contract that fails rather than relocating. The app
@@ -1598,7 +1594,7 @@ def setup_dev_mode_server -> subprocess.Popen {
 
 def teardown_dev_mode_server(sp: subprocess.Popen | None) {
     _stop_server(sp);
-    _cleanup_db_files(dm_fixtures_dir);
+    cleanup_db_files(dm_fixtures_dir);
 }
 
 test "dev mode operations" {
@@ -2094,7 +2090,7 @@ test "server startup - a second server refuses an already-taken explicit port" {
         if sp1 {
             _stop_server(sp1);
         }
-        _cleanup_db_files(sv_fixtures_dir);
+        cleanup_db_files(sv_fixtures_dir);
     }
 }
 

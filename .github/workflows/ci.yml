@@ -240,14 +240,21 @@ jobs:
       # whole-repo sweep collapses to diagnostics replay. Restored before
       # jac-kit (which pins XDG_CACHE_HOME to this path) so the kit's own
       # warm-up precompile re-wraps cached JIRs instead of compiling.
+      #
+      # The path is the whole jac cache, not jac/jir: this lane runs the
+      # reroute (the checkout's compiler), and a rerouted compiler keeps
+      # every JIR it writes -- its own precompiled modules and the sweep's
+      # analysis entries -- under jac/rt/<generation>/. Caching jac/jir alone
+      # saved ~7 MB and restored nothing. There is no digest-agnostic
+      # fallback key: a generation directory from another compiler digest
+      # is dead weight to restore.
       - name: Restore JIR analysis cache
         uses: actions/cache/restore@v4
         with:
-          path: ${{ runner.temp }}/.cache/jac/jir
-          key: jac-check-jir-${{ runner.os }}-${{ hashFiles('jac/jaclang/compiler/**', 'jac/jaclang/runtime/**', 'jac/jaclang/lib/**', 'jac/jaclang/jac0core/**', 'jac/jaclang/jac0.py', 'jac/jaclang/meta_importer.py', 'jac/jaclang/bootstrap_manifest.py', 'jac/jaclang/cli/cli_boot.jac', 'jac/jaclang/project/tomlio.jac', 'jac/jaclang/dist/precompile_bytecode.jac') }}-${{ github.sha }}
+          path: ${{ runner.temp }}/.cache/jac
+          key: jac-check-cache-${{ runner.os }}-${{ hashFiles('jac/jaclang/compiler/**', 'jac/jaclang/runtime/**', 'jac/jaclang/lib/**', 'jac/jaclang/jac0core/**', 'jac/jaclang/jac0.py', 'jac/jaclang/meta_importer.py', 'jac/jaclang/bootstrap_manifest.py', 'jac/jaclang/cli/cli_boot.jac', 'jac/jaclang/project/tomlio.jac', 'jac/jaclang/dist/precompile_bytecode.jac') }}-${{ github.sha }}
           restore-keys: |
-            jac-check-jir-${{ runner.os }}-${{ hashFiles('jac/jaclang/compiler/**', 'jac/jaclang/runtime/**', 'jac/jaclang/lib/**', 'jac/jaclang/jac0core/**', 'jac/jaclang/jac0.py', 'jac/jaclang/meta_importer.py', 'jac/jaclang/bootstrap_manifest.py', 'jac/jaclang/cli/cli_boot.jac', 'jac/jaclang/project/tomlio.jac', 'jac/jaclang/dist/precompile_bytecode.jac') }}-
-            jac-check-jir-${{ runner.os }}-
+            jac-check-cache-${{ runner.os }}-${{ hashFiles('jac/jaclang/compiler/**', 'jac/jaclang/runtime/**', 'jac/jaclang/lib/**', 'jac/jaclang/jac0core/**', 'jac/jaclang/jac0.py', 'jac/jaclang/meta_importer.py', 'jac/jaclang/bootstrap_manifest.py', 'jac/jaclang/cli/cli_boot.jac', 'jac/jaclang/project/tomlio.jac', 'jac/jaclang/dist/precompile_bytecode.jac') }}-
 
       - uses: ./.github/actions/jac-kit
 
@@ -371,8 +378,8 @@ jobs:
         if: always()
         uses: actions/cache/save@v4
         with:
-          path: ${{ runner.temp }}/.cache/jac/jir
-          key: jac-check-jir-${{ runner.os }}-${{ hashFiles('jac/jaclang/compiler/**', 'jac/jaclang/runtime/**', 'jac/jaclang/lib/**', 'jac/jaclang/jac0core/**', 'jac/jaclang/jac0.py', 'jac/jaclang/meta_importer.py', 'jac/jaclang/bootstrap_manifest.py', 'jac/jaclang/cli/cli_boot.jac', 'jac/jaclang/project/tomlio.jac', 'jac/jaclang/dist/precompile_bytecode.jac') }}-${{ github.sha }}
+          path: ${{ runner.temp }}/.cache/jac
+          key: jac-check-cache-${{ runner.os }}-${{ hashFiles('jac/jaclang/compiler/**', 'jac/jaclang/runtime/**', 'jac/jaclang/lib/**', 'jac/jaclang/jac0core/**', 'jac/jaclang/jac0.py', 'jac/jaclang/meta_importer.py', 'jac/jaclang/bootstrap_manifest.py', 'jac/jaclang/cli/cli_boot.jac', 'jac/jaclang/project/tomlio.jac', 'jac/jaclang/dist/precompile_bytecode.jac') }}-${{ github.sha }}
 
       - name: Error-code breakdown (label "type-error-report")
         if: contains(github.event.pull_request.labels.*.name, 'type-error-report')
@@ -571,8 +578,24 @@ jobs:
             "litellm>=1.70.0,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
             "httpx>=0.27.0" "loguru>=0.7.2,<0.8.0" \
             --global
+      # Run from a copy OUTSIDE the checkout. The resolver's self-tree rule
+      # binds a `jaclang.*` import from any file inside a jaclang checkout to
+      # that checkout, so run in place, a fixture's `jaclang.byllm.lib`
+      # resolved to the checkout's copy and the sealed kit analyzed the
+      # checkout's own compiler as project code: some 190 modules cold, two
+      # identities for every compiler class, and errors the reroute lanes
+      # never see. Copied out, the same import binds to the kit's bundle,
+      # which is what "sealed" is meant to test. Cut off at five minutes: the
+      # file takes 30 seconds, and the one time it did not (#8876) it took
+      # the 4-vcpu runner down with it and uploaded no log, so a regression
+      # fails the step, with its log, instead of the runner.
       - name: MTIR integration (byllm)
-        run: jac test jac/jaclang/byllm/tests/test_mtir_integration.jac
+        env:
+          JAC_TEST_RSS_LOG: "1"
+        run: |
+          set -o pipefail
+          cp -r jac/jaclang/byllm/tests "$RUNNER_TEMP/byllm-tests"
+          timeout --kill-after=30 300 jac test "$RUNNER_TEMP/byllm-tests/test_mtir_integration.jac"
       - name: HMR refresh (scale server)
         env:
           JAC_TEST_JOBS: "0"
@@ -925,16 +948,15 @@ jobs:
         working-directory: jac/examples/jaclang_org
         run: jac check main.jac
 
-      # JAC_DOCS_LOCAL points the docs sync at this checkout so the docs
-      # journey stop is hermetic (no clone of the repo from inside CI).
+      # The docs section reads the corpus bundled with the jac binary under
+      # test in-process (jaclang.cli.guide_store), so the docs journey stop is
+      # hermetic with no extra setup.
       # The site declares [scale.microservices.routes] for the cut it wants
       # when deployed, so a bare `jac run --serve` there is the gateway
       # topology. This lane smokes the single-process serving stack; the
       # gateway topology gets its own pass over the same journey below.
       - name: Start site server in background
         working-directory: jac/examples/jaclang_org
-        env:
-          JAC_DOCS_LOCAL: ${{ github.workspace }}
         run: |
           timeout 1200 jac run --serve --no-ms main.jac > /tmp/site-server.log 2>&1 &
           SERVER_PID=$!
