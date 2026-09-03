@@ -62,11 +62,45 @@ def dual_compile(src: str, path: str) -> tuple {
     return (ref_tree, mods[0][1], blob);
 }
 
+glob _SPY: dict = {"stack": "", "orig": None};
+
+def _spy_emit(ev: any, diag: any, nd: any, **kwargs: any) {
+    import traceback;
+    if _SPY["stack"] == "" and str(getattr(diag, "code", "")) == "E1099" {
+        _SPY["stack"] = "".join(traceback.format_stack(limit=45));
+    }
+    _SPY["orig"](ev, diag, nd, **kwargs);
+}
+
+def _debug_state(prog: any, mod: any) -> str {
+    import from jaclang.runtime.runtime { JacRuntime }
+    sh = JacRuntime.get_selfhost();
+    lines: list[str] = [];
+    for e in prog.errors_had {
+        lines.append(str(e)[:220]);
+    }
+    lines.append("decided=" + str(mod.decided_codespace if mod is not None else None));
+    lines.append("cache_events=" + str(dict(prog.analysis.cache_events)));
+    lines.append("pass_runs=" + str(dict(prog.analysis.pass_runs)));
+    lines.append("selfhost_events=" + str(dict(sh.program.analysis.cache_events)));
+    lines.append("selfhost_pass_runs=" + str(dict(sh.program.analysis.pass_runs)));
+    lines.append("prog_hub=" + str(sorted(prog.mod.hub.keys())));
+    lines.append("selfhost_hub=" + str(sorted(sh.program.mod.hub.keys())));
+    lines.append("stack=\n" + _SPY["stack"]);
+    return "\n".join(lines);
+}
+
 """The same double emission, for a fixture that must be compiled from disk."""
 def dual_compile_file(path: str) -> tuple {
+    import from jaclang.compiler.types.type_evaluator { TypeEvaluator }
+    _SPY["stack"] = "";
+    if _SPY["orig"] is None {
+        _SPY["orig"] = TypeEvaluator.emit_diag;
+        setattr(TypeEvaluator, "emit_diag", _spy_emit);
+    }
     prog = JacProgram();
     mod = prog.compile(path, options=CompileOptions(no_ir_cache=True));
-    assert len(prog.errors_had) == 0 , str([str(e) for e in prog.errors_had]);
+    assert len(prog.errors_had) == 0 , _debug_state(prog, mod);
     ref_tree = mod.gen.py_ast[0];
     emitter = JcirGenPass(ir_in=mod);
     blob = emitter.ir_bytes();
