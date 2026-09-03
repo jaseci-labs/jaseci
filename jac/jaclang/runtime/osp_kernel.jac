@@ -79,7 +79,7 @@ def osp_node_desc(tag: int) -> NodeDesc {
         found: NodeDesc = _descs[tag];
         return found;
     }
-    return managed(NodeDesc(type_tag=tag, `entry=[], `exit=[]));
+    return NodeDesc(type_tag=tag, `entry=[], `exit=[]);
 }
 
 def _new_plans -> dict[int, Plan] {
@@ -90,16 +90,14 @@ def _new_plans -> dict[int, Plan] {
 def _plan_for(
     rt: OspRuntime, wdesc: WalkerDesc, wtag: int, ndesc: NodeDesc, ctag: int
 ) -> Plan {
-    plan = managed(
-        Plan(
-            ctag=ctag,
-            w_entry=[],
-            n_entry_u=[],
-            n_entry_t=[],
-            n_exit_t=[],
-            n_exit_u=[],
-            w_exit=[]
-        )
+    plan = Plan(
+        ctag=ctag,
+        w_entry=[],
+        n_entry_u=[],
+        n_entry_t=[],
+        n_exit_t=[],
+        n_exit_u=[],
+        w_exit=[]
     );
     for s in wdesc.`entry {
         if s.trig_tag != UNTYPED and rt.is_a(ctag, s.trig_tag) {
@@ -253,16 +251,14 @@ obj OspEngine {
     }
 
     def begin(wlk: any, starts: list[int]) -> WalkScope {
-        scope = managed(
-            WalkScope(
-                wlk=wlk,
-                path=[],
-                next=`list(starts),
-                front=[],
-                ignores=[],
-                reports=[],
-                nested=(len(self.stack) > 0)
-            )
+        scope = WalkScope(
+            wlk=wlk,
+            path=[],
+            next=`list(starts),
+            front=[],
+            ignores=[],
+            reports=[],
+            nested=(len(self.stack) > 0)
         );
         scope.frames = [];
         self.stack.append(scope);
@@ -317,7 +313,7 @@ obj OspEngine {
                         scope.sidx = 0;
                         continue;
                     }
-                    frames.append(managed(Frame(loc=nxt)));
+                    frames.append(Frame(loc=nxt));
                     continue;
                 }
                 f: Frame = frames[-1];
@@ -409,7 +405,7 @@ obj OspEngine {
                         }
                         f.budget = budget;
                         if found {
-                            frames.append(managed(Frame(loc=child)));
+                            frames.append(Frame(loc=child));
                         } else {
                             f.phase = 2;
                             scope.pending_fence = 0;
@@ -417,7 +413,7 @@ obj OspEngine {
                     } else {
                         nxt = _dequeue(scope);
                         if nxt is not None {
-                            frames.append(managed(Frame(loc=nxt)));
+                            frames.append(Frame(loc=nxt));
                         } else {
                             f.phase = 2;
                             scope.pending_fence = 0;

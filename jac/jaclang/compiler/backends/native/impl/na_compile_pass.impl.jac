@@ -390,12 +390,14 @@ impl NativeCompilePass._run_impl(ir_in: uni.Module) -> uni.Module {
             module.gen.llvm_ir = mod;
         }
 
+        _is_kernel_unit = bool(getattr(_compile_opts, "kernel_unit", False));
+
         _needs_osp_kernel = (manifest is not None)
             and ("osp_kernel" in manifest.native_transitive_sources);
         if (not _needs_osp_kernel) and self._references_undefined_osp_kernel(mod) {
             _needs_osp_kernel = True;
         }
-        if _needs_osp_kernel {
+        if _needs_osp_kernel and not _is_kernel_unit {
             self._link_osp_kernel(mod);
             module.gen.llvm_ir = mod;
         }
@@ -405,7 +407,7 @@ impl NativeCompilePass._run_impl(ir_in: uni.Module) -> uni.Module {
         if (not _needs_fmt_kernel) and self._references_undefined_fmt_kernel(mod) {
             _needs_fmt_kernel = True;
         }
-        if _needs_fmt_kernel {
+        if _needs_fmt_kernel and not _is_kernel_unit {
             self._link_fmt_kernel(mod);
             module.gen.llvm_ir = mod;
         }
@@ -416,7 +418,7 @@ impl NativeCompilePass._run_impl(ir_in: uni.Module) -> uni.Module {
             and self._references_undefined_region_kernel(mod) {
             _needs_region_kernel = True;
         }
-        if _needs_region_kernel {
+        if _needs_region_kernel and not _is_kernel_unit {
             self._link_region_kernel(mod);
             module.gen.llvm_ir = mod;
         }
@@ -1160,6 +1162,7 @@ def _kernel_unit_opts(gc_mode: str, enforce: bool) -> any {
     }
     return _KernelOpts(
         aot_mode=True,
+        kernel_unit=True,
         default_codespace='native',
         na_gc_mode=gc_mode,
         nogc_enforce_all=enforce,
@@ -1301,6 +1304,11 @@ impl NativeCompilePass._link_region_kernel(main_mod: ModuleRef) -> None {
     try {
         kmod = llvm.parse_assembly(ir_str);
         kmod.verify();
+        for _gv in _mod_globals(kmod) {
+            if not _gv.is_declaration {
+                _gv.linkage = "internal";
+            }
+        }
         main_mod.link_in(kmod);
     } except Exception as _e {
         self.emit(E5025, path=f"region kernel unit (gc={_gc})", error=str(_e));

@@ -33,11 +33,8 @@ def _units_dir -> str {
     return d;
 }
 
-def unit_source(parts: list[str], preamble: str = "") -> str {
+def unit_source(parts: list[str]) -> str {
     texts: list[str] = [];
-    if preamble {
-        texts.append(preamble);
-    }
     base = _jaclang_dir();
     for part in parts {
         with open(os.path.join(base, part.replace("/", os.sep)), "r") as f {
@@ -47,7 +44,7 @@ def unit_source(parts: list[str], preamble: str = "") -> str {
     return "\n\n".join(texts);
 }
 
-def region_layout_preamble -> str {
+def _region_layout_facts -> dict[str, int] {
     import from jaclang.compiler.frontend.codeinfo {
         HDR_ALLOC_ID_OFF,
         HDR_DTOR_OFF,
@@ -58,17 +55,39 @@ def region_layout_preamble -> str {
         HDR_TOTAL,
         RC_SENTINEL
     }
-    return (
-        f"glob HDR_ALLOC_ID_OFF: int = {HDR_ALLOC_ID_OFF},\n"
-        f"     HDR_TAG_OFF: int = {HDR_TAG_OFF},\n"
-        f"     HDR_RC_OFF: int = {HDR_RC_OFF},\n"
-        f"     HDR_DTOR_OFF: int = {HDR_DTOR_OFF},\n"
-        f"     HDR_TOTAL: int = {HDR_TOTAL},\n"
-        f"     HDR_MAGIC: int = {HDR_MAGIC},\n"
-        f"     HDR_MAGIC_SHIFT_BASE: int = {HDR_MAGIC_SHIFT_BASE},\n"
-        f"     ARENA_MAGIC_SHIFT_BASE: int = {(HDR_MAGIC + 1) * 4294967296},\n"
-        f"     RC_SENTINEL: int = {RC_SENTINEL};\n"
-    );
+    return {
+        "HDR_ALLOC_ID_OFF": HDR_ALLOC_ID_OFF,
+        "HDR_TAG_OFF": HDR_TAG_OFF,
+        "HDR_RC_OFF": HDR_RC_OFF,
+        "HDR_DTOR_OFF": HDR_DTOR_OFF,
+        "HDR_TOTAL": HDR_TOTAL,
+        "HDR_MAGIC": HDR_MAGIC,
+        "HDR_MAGIC_SHIFT_BASE": HDR_MAGIC_SHIFT_BASE,
+        "ARENA_MAGIC_SHIFT_BASE": (HDR_MAGIC + 1) * 4294967296,
+        "RC_SENTINEL": RC_SENTINEL
+    };
+}
+
+def verify_region_layout(source: str) {
+    import re;
+    facts = _region_layout_facts();
+    for (name, want) in facts.items() {
+        m = re.search(rf"\b{name}: int = (-?\d+)", source);
+        if m is None {
+            raise RuntimeError(
+                f"region kernel unit does not declare {name}; the header layout "
+                f"is defined once in compiler/frontend/codeinfo.jac and restated "
+                f"in runtime/region_native.jac"
+            );
+        }
+        if int(m.group(1)) != want {
+            raise RuntimeError(
+                f"region kernel unit declares {name} = {m.group(1)} but "
+                f"compiler/frontend/codeinfo.jac says {want}; update "
+                f"runtime/region_native.jac to match"
+            );
+        }
+    }
 }
 
 def _atomic_write(path: str, text: str) {
@@ -108,9 +127,9 @@ def _retire_superseded_artifacts(name: str, keep: str) {
     }
 }
 
-def kernel_unit_path(name: str, parts: list[str], preamble: str = "") -> str {
+def kernel_unit_path(name: str, parts: list[str]) -> str {
     import hashlib;
-    source = unit_source(parts, preamble);
+    source = unit_source(parts);
     digest = hashlib.sha256(source.encode()).hexdigest()[:16];
     path = os.path.join(_units_dir(), f"{name}.{digest}.jac");
     if not os.path.exists(path) {
@@ -129,9 +148,8 @@ def fmt_kernel_unit_path(variant: str) -> str {
 }
 
 def region_kernel_unit_path(variant: str) -> str {
-    return kernel_unit_path(
-        f"region_kernel_{variant}", REGION_KERNEL_PARTS, region_layout_preamble()
-    );
+    verify_region_layout(unit_source(REGION_KERNEL_PARTS));
+    return kernel_unit_path(f"region_kernel_{variant}", REGION_KERNEL_PARTS);
 }
 
 def _artifact_key(unit_path: str, fingerprint: str) -> str {

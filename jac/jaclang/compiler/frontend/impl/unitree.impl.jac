@@ -1104,7 +1104,7 @@ impl UniNode._construct_sub_node_tab -> None {
 
 impl UniNode._invalidate_sub_node_tab -> None {
     cur: (UniNode | None) = self;
-    while cur is not None and cur.__sub_node_tab is not None {
+    while cur is not None {
         cur.__sub_node_tab = None;
         cur = cur.parent;
     }

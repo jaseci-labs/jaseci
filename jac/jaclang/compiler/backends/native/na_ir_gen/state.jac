@@ -190,6 +190,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         rc_region_allocs: int = 0,
         _region_kernel_registered: bool = False,
         _managed_ctor_node: int = 0,
+        clib_declared_sigs: dict[str, tuple] = {},
         nogc_no_free_vars: set[str] = set(),
         nogc_owned_str_vars: set[str] = set(),
         list_release_fns: dict[str, ir.Function] = {},

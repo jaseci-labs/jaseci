@@ -2350,14 +2350,14 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
             self._register_region_handle_var(nd, var_name);
             if isinstance(alloca.type.pointee, ir.PointerType)
                 and not is_inplace_set_op {
-                if _is_raw_int_ptr {
-                    self.param_vars.add(var_name);
-                } elif var_name in self.region_handle_vars {
+                if var_name in self.region_handle_vars {
                     _old_hdl = self.builder.load(alloca, name=f"{var_name}.old");
                     self.builder.call(
                         self._region_kernel_fn("__jac_region_drop"),
                         [self._region_i64(_old_hdl, name=f"{var_name}.old.i64")]
                     );
+                } elif _is_raw_int_ptr {
+                    self.param_vars.add(var_name);
                 } else {
                     if self._nogc_headerless()
                         and isinstance(nd.value, uni.Name)
@@ -2467,6 +2467,13 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                 } elif self._is_owned(value) {
                     self.rc_ops_elided += 1;
                 }
+            } elif var_name in self.region_handle_vars
+                and self._opt_ptr_payload_of(alloca.type.pointee) is not None {
+                _old_opt_hdl = self.builder.load(alloca, name=f"{var_name}.old");
+                self.builder.call(
+                    self._region_kernel_fn("__jac_region_drop"),
+                    [self._region_i64(_old_opt_hdl, name=f"{var_name}.old.i64")]
+                );
             } elif self._opt_ptr_payload_of(alloca.type.pointee) is not None
                 and not self._nogc_headerless()
                 and not is_inplace_set_op
@@ -2844,8 +2851,7 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                 self.builder.position_at_end(_cur_bb);
             }
             self._register_region_handle_var(nd, var_name);
-            if isinstance(var_type, ir.PointerType)
-                and var_name in self.region_handle_vars {} elif isinstance(
+            if var_name in self.region_handle_vars {} elif isinstance(
                 var_type, ir.PointerType
             )
                 or (self._str_desc_ty is not None and var_type == self._str_desc_ty) {
@@ -3025,7 +3031,13 @@ impl NaIRGenStmt._codegen_ctrl(nd: uni.CtrlStmt) -> None {
     (continue_bb, break_bb) = self.loop_stack[-1];
     _loop_depth = len(self.loop_stack);
     self._emit_region_leaves(
-        len([_d for _d in self.region_open_stack if _d >= _loop_depth])
+        len(
+            [
+                _d
+                for _d in self.region_open_stack
+                if _d >= _loop_depth
+            ]
+        )
     );
     if ctrl_name == Tok.KW_BREAK {
         self.builder.branch(break_bb);

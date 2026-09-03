@@ -525,7 +525,7 @@ impl OwnershipCheckPass._region_call_result_rooted(
     return True;
 }
 
-impl OwnershipCheckPass._emit_region_call_escape(call: FuncCall, region: OpenStmt) -> None {
+impl OwnershipCheckPass._emit_region_call_escape(call: Expr, region: OpenStmt) -> None {
     self.emit(
         E1307,
         node_override=call,

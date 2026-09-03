@@ -366,6 +366,7 @@ impl NaIRGenFunc._declare_clib_ability(nd: uni.Ability) -> None {
     ret_type = self._resolve_clib_type(sig.return_type);
 
     fnty = ir.FunctionType(ret_type, param_types, var_arg=is_variadic);
+    self.clib_declared_sigs[name] = (ret_type, list(param_types));
     if name in self.extern_funcs {
         func = self.extern_funcs[name];
     } elif name in self.func_symtab {

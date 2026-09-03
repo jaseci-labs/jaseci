@@ -804,16 +804,45 @@ impl NaIRGenExpr._is_walker_arch(name: str) -> bool {
 }
 
 impl NaIRGenExpr._codegen_compare(nd: uni.CompareExpr) -> (ir.Value | None) {
-    left = self._codegen_expr(nd.left);
-    if left is None or not nd.rights or not nd.ops {
+    if not nd.rights or not nd.ops {
         return None;
     }
-    if len(nd.ops) > 1 and len(nd.rights) == len(nd.ops) {
-        return self._codegen_compare_chain(nd, left);
-    }
-    right = self._codegen_expr(nd.rights[0]);
-    if right is None {
-        return None;
+    _l_nd = nd.left.expr if isinstance(nd.left, uni.CfgExpr) else nd.left;
+    _left_is_empty_lit = (
+        isinstance(_l_nd, uni.ListVal) and not _l_nd.values and len(nd.rights) == 1
+    );
+    _cmp_peer_saved = self._peer_container_ty;
+    if _left_is_empty_lit {
+        right = self._codegen_expr(nd.rights[0]);
+        if right is None {
+            return None;
+        }
+        self._peer_container_ty = right.type;
+        try {
+            left = self._codegen_expr(nd.left);
+        } finally {
+            self._peer_container_ty = _cmp_peer_saved;
+        }
+        if left is None {
+            return None;
+        }
+    } else {
+        left = self._codegen_expr(nd.left);
+        if left is None {
+            return None;
+        }
+        if len(nd.ops) > 1 and len(nd.rights) == len(nd.ops) {
+            return self._codegen_compare_chain(nd, left);
+        }
+        self._peer_container_ty = left.type;
+        try {
+            right = self._codegen_expr(nd.rights[0]);
+        } finally {
+            self._peer_container_ty = _cmp_peer_saved;
+        }
+        if right is None {
+            return None;
+        }
     }
     op = nd.ops[0].name if isinstance(nd.ops[0], uni.Token) else str(nd.ops[0]);
     return self._codegen_compare_link(op, left, right, nd.left, nd.rights[0]);
@@ -1436,7 +1465,13 @@ impl NaIRGenExpr._codegen_compare_chain(
     result: (ir.Value | None) = None;
     cur = left;
     for (i, op_name) in enumerate(op_names) {
-        right = self._codegen_required(nd.rights[i]);
+        _chain_peer_saved = self._peer_container_ty;
+        self._peer_container_ty = cur.type;
+        try {
+            right = self._codegen_required(nd.rights[i]);
+        } finally {
+            self._peer_container_ty = _chain_peer_saved;
+        }
         if right is None {
             return None;
         }

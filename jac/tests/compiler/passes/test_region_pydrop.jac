@@ -71,5 +71,5 @@ test "python backend: an inferred anonymous open runs drop hooks LIFO too" {
     a ++> b;
     b ++> c;
     Sum() spawn a;
-    assert log == [3, 2, 1];
+    assert log == [3, 2, 1] , f"log={log}";
 }

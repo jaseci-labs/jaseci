@@ -1191,6 +1191,9 @@ impl NaIRGenCalls._intrinsic_operand(
         self._emit_intrinsic_misuse(nd, intr, "operand did not lower to a value");
         return None;
     }
+    if spec == "i64" and isinstance(arg_val.type, ir.PointerType) {
+        arg_val = self.builder.ptrtoint(arg_val, ir.IntType(64), name="intr.addr");
+    }
     if not isinstance(arg_val.type, (ir.IntType, ir.FloatType, ir.DoubleType)) {
         self._emit_intrinsic_misuse(
             nd,
@@ -2320,12 +2323,32 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             }
         }
     }
+    if _is_foreign {
+        _actual_params = func.function_type.args;
+        for (_ai, _av) in enumerate(coerced) {
+            if _ai < len(_actual_params) and _av.type != _actual_params[_ai] {
+                coerced[_ai] = self._clib_reinterpret(
+                    _av, _actual_params[_ai], name=f"clib.arg.{_ai}"
+                );
+            }
+        }
+    }
     if not self._call_args_lowered(nd, func, func_name, coerced) {
         return None;
     }
     result = self.builder.call(func, coerced, name=f"call.{func_name}");
     if func_name in self.clib_extern_names {
-        if _clib_str_ret and isinstance(result.type, ir.PointerType) {
+        _declared = self.clib_declared_sigs.get(func_name);
+        _declared_ret = _declared[0] if _declared is not None else None;
+        if (
+            isinstance(_declared_ret, ir.Type)
+            and not isinstance(_declared_ret, ir.VoidType)
+            and result.type != _declared_ret
+            and not _clib_str_ret
+            and not _clib_managed_ret
+        ) {
+            result = self._clib_reinterpret(result, _declared_ret, name="clib.ret");
+        } elif _clib_str_ret and isinstance(result.type, ir.PointerType) {
             result = self._membrane_str_in(self.builder, result);
         } elif _clib_managed_ret and isinstance(result.type, ir.PointerType) {
             result = self._mark_owned(result);

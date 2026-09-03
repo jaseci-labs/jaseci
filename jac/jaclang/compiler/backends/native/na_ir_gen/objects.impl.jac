@@ -1943,6 +1943,7 @@ impl NaIRGenObjects._codegen_instantiation(
         _region_eligible = (
             id(nd) != self._managed_ctor_node
             and not self._arch_is_walker_name(type_name)
+            and not bool(getattr(self.prog.options, "kernel_unit", False))
         );
         if not _region_eligible {
             raw_ptr = self._emit_heap_object_alloc(nd, type_name, size, _headerless);

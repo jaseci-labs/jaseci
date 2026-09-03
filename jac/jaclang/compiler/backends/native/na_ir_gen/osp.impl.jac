@@ -534,7 +534,7 @@ impl NaIRGenOsp._emit_osp_setup -> None {
     self._osp_ensure_fn = _ensure;
 
     _died_fn = self.func_symtab.get("osp_region_died");
-    if (_died_fn is not None) and ("__jac_region_died_hook" not in self.func_symtab) {
+    if (_died_fn is not None) and ("__jac_region_died_hook" not in self.extern_funcs) {
         _hook = ir.Function(
             self.llvm_module,
             ir.FunctionType(ir.VoidType(), [i64]),
@@ -551,7 +551,7 @@ impl NaIRGenOsp._emit_osp_setup -> None {
         }
         _hb.call(_died_fn, [_died_arg]);
         _hb.ret_void();
-        self.func_symtab["__jac_region_died_hook"] = _hook;
+        self.extern_funcs["__jac_region_died_hook"] = _hook;
     }
     _e_entry = _ensure.append_basic_block("entry");
     _e_krun = _ensure.append_basic_block("kernel_run");
@@ -600,7 +600,9 @@ impl NaIRGenOsp._osp_generic_edge -> (ir.Value | None) {
     merge_bb = func.append_basic_block(name="gedge.merge");
     _cur = self._region_current();
     self.builder.cbranch(
-        self.builder.icmp_unsigned("==", _cur, ir.Constant(i8p, None), name="gedge.nocur"),
+        self.builder.icmp_unsigned(
+            "==", _cur, ir.Constant(i8p, None), name="gedge.nocur"
+        ),
         heap_bb,
         rgn_bb
     );

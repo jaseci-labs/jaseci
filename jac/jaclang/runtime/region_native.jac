@@ -4,6 +4,16 @@ import from c { def __jac_region_tls_get -> int;  }
 import from c { def __jac_region_tls_set(v: int) -> None;  }
 import from c { def __jac_region_died_hook(rgn: int) -> None;  }
 
+glob HDR_ALLOC_ID_OFF: int = -32,
+     HDR_TAG_OFF: int = -24,
+     HDR_RC_OFF: int = -16,
+     HDR_DTOR_OFF: int = -8,
+     HDR_TOTAL: int = 32,
+     HDR_MAGIC: int = 44061,
+     HDR_MAGIC_SHIFT_BASE: int = 189240554029056,
+     ARENA_MAGIC_SHIFT_BASE: int = 189244848996352,
+     RC_SENTINEL: int = 9223372036854775807;
+
 glob RGN_CHUNK: int = 0,
      RGN_OFF: int = 8,
      RGN_CAP: int = 16,
@@ -49,7 +59,7 @@ def _tls_block -> int {
     return blk;
 }
 
-def _stack_push(blk: int, hdl: int) -> None {
+def _stack_push(blk: int, hdl: int) {
     depth = __mem_load_i64(blk + TLS_DEPTH);
     cap = __mem_load_i64(blk + TLS_CAP);
     stk = __mem_load_i64(blk + TLS_STACK);
@@ -88,13 +98,13 @@ def __jac_region_depth -> int {
     return __mem_load_i64(blk + TLS_DEPTH);
 }
 
-def __jac_region_enter(hdl: int) -> None {
+def __jac_region_enter(hdl: int) {
     blk = _tls_block();
     _stack_push(blk, hdl);
     __mem_store_i64(blk + TLS_CUR, hdl);
 }
 
-def __jac_region_unwind(depth: int) -> None {
+def __jac_region_unwind(depth: int) {
     blk = _tls_block();
     if depth < 0 {
         depth = 0;
@@ -111,19 +121,19 @@ def __jac_region_unwind(depth: int) -> None {
     __mem_store_i64(blk + TLS_CUR, __mem_load_i64(stk + (depth - 1) * 8));
 }
 
-def __jac_region_leave -> None {
+def __jac_region_leave {
     blk = _tls_block();
     __jac_region_unwind(__mem_load_i64(blk + TLS_DEPTH) - 1);
 }
 
-def _lock(hdl: int) -> None {
+def _lock(hdl: int) {
     spins = 0;
     while __atomic_xchg_i64(hdl + RGN_LOCK, 1) != 0 {
         spins += 1;
     }
 }
 
-def _unlock(hdl: int) -> None {
+def _unlock(hdl: int) {
     __atomic_xchg_i64(hdl + RGN_LOCK, 0);
 }
 
@@ -164,7 +174,7 @@ def _draw_page(parent: int) -> int {
     return run + RUN_HDR;
 }
 
-def _region_grow(hdl: int, size: int) -> None {
+def _region_grow(hdl: int, size: int) {
     want = ((size + CHUNK_HDR + 15) // 16) * 16;
     small = want < CHUNK_DEFAULT;
     csize = CHUNK_DEFAULT if small else want;
@@ -205,35 +215,31 @@ def _region_raw(hdl: int, size: int) -> int {
 }
 
 def __jac_region_alloc(hdl: int, size: int) -> int {
-    obj = _region_raw(hdl, size + HDR_TOTAL) + HDR_TOTAL;
-    __mem_store_i64(obj + HDR_ALLOC_ID_OFF, ARENA_MAGIC_SHIFT_BASE);
-    __mem_store_i64(obj + HDR_TAG_OFF, 0);
-    __mem_store_i64(obj + HDR_RC_OFF, RC_SENTINEL);
-    __mem_store_i64(obj + HDR_DTOR_OFF, hdl);
-    return obj;
+    o = _region_raw(hdl, size + HDR_TOTAL) + HDR_TOTAL;
+    __mem_store_i64(o + HDR_ALLOC_ID_OFF, ARENA_MAGIC_SHIFT_BASE);
+    __mem_store_i64(o + HDR_TAG_OFF, 0);
+    __mem_store_i64(o + HDR_RC_OFF, RC_SENTINEL);
+    __mem_store_i64(o + HDR_DTOR_OFF, hdl);
+    return o;
 }
 
-def __jac_region_alloc_raw(hdl: int, size: int) -> int {
-    return _region_raw(hdl, size);
-}
-
-def __jac_region_log_dtor(hdl: int, obj: int, fn: int) -> None {
+def __jac_region_log_dtor(hdl: int, o: int, fn: int) {
     ent = _region_raw(hdl, DTOR_ENTRY);
     __mem_store_i64(ent + DTOR_NEXT, __mem_load_i64(hdl + RGN_DTL));
-    __mem_store_i64(ent + DTOR_OBJ, obj);
+    __mem_store_i64(ent + DTOR_OBJ, o);
     __mem_store_i64(ent + DTOR_FN, fn);
     __mem_store_i64(hdl + RGN_DTL, ent);
 }
 
-def __jac_region_of(obj: int) -> int {
-    if obj == 0 {
+def __jac_region_of(o: int) -> int {
+    if o == 0 {
         return 0;
     }
-    aid = __mem_load_i64(obj + HDR_ALLOC_ID_OFF);
+    aid = __mem_load_i64(o + HDR_ALLOC_ID_OFF);
     if ((aid >> 32) & 65535) != HDR_MAGIC + 1 {
         return 0;
     }
-    return __mem_load_i64(obj + HDR_DTOR_OFF);
+    return __mem_load_i64(o + HDR_DTOR_OFF);
 }
 
 def __jac_region_partition(parent: int) -> int {
@@ -280,7 +286,7 @@ def _list_tail(head: int, link_off: int) -> int {
     return cur;
 }
 
-def _reabsorb(child: int, parent: int) -> None {
+def _reabsorb(child: int, parent: int) {
     ch = __mem_load_i64(child + RGN_CHUNK);
     if ch != 0 {
         ph = __mem_load_i64(parent + RGN_CHUNK);
@@ -334,7 +340,7 @@ def _reabsorb(child: int, parent: int) -> None {
     }
 }
 
-def _teardown(hdl: int) -> None {
+def _teardown(hdl: int) {
     __jac_region_died_hook(hdl);
     cur = __mem_load_i64(hdl + RGN_DTL);
     while cur != 0 {
@@ -365,14 +371,12 @@ def _teardown(hdl: int) -> None {
     free(hdl - HDR_TOTAL);
 }
 
-def __jac_region_drop(hdl: int) -> None {
+def __jac_region_drop(hdl: int) {
     if hdl == 0 {
         return;
     }
     if __mem_load_i64(hdl + RGN_KIDS) > 0 {
-        __mem_store_i64(
-            hdl + RGN_FLAGS, __mem_load_i64(hdl + RGN_FLAGS) | FLAG_ZOMBIE
-        );
+        __mem_store_i64(hdl + RGN_FLAGS, __mem_load_i64(hdl + RGN_FLAGS) | FLAG_ZOMBIE);
         return;
     }
     parent = __mem_load_i64(hdl + RGN_PARENT);

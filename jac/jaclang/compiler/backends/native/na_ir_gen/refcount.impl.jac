@@ -2049,6 +2049,14 @@ impl NaIRGenRefcount._emit_scope_cleanup(
             }
             continue;
         }
+        if var_name in self.region_handle_vars
+            and isinstance(alloca.type, ir.PointerType)
+            and self._opt_ptr_payload_of(alloca.type.pointee) is not None {
+            if var_name != skip_var {
+                _region_handles.append((var_name, alloca));
+            }
+            continue;
+        }
         if not self._nogc_headerless()
             and isinstance(alloca.type, ir.PointerType)
             and self._opt_ptr_payload_of(alloca.type.pointee) is not None {
@@ -2119,6 +2127,12 @@ impl NaIRGenRefcount._emit_loop_iter_cleanup(body_locals: list, loc: str = "") -
                 self._nogc_str_free_owned(val);
                 self.builder.store(ir.Constant(alloca.type.pointee, None), alloca);
             }
+            continue;
+        }
+        if var_name in self.region_handle_vars
+            and isinstance(alloca.type, ir.PointerType)
+            and self._opt_ptr_payload_of(alloca.type.pointee) is not None {
+            _region_handles.append((var_name, alloca));
             continue;
         }
         if not self._nogc_headerless()

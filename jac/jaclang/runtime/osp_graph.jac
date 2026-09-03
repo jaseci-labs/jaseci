@@ -69,7 +69,7 @@ obj OspGraph {
             found: Adj = self.adj[h];
             return found;
         }
-        made = managed(Adj(rows_out=[], rows_in=[], out={}, inn={}));
+        made = Adj(rows_out=[], rows_in=[], out={}, inn={});
         self.adj[h] = made;
         return made;
     }
@@ -229,9 +229,7 @@ obj OspGraph {
         }
         rid = len(self.rows);
         self.rows.append(
-            managed(
-                EdgeRow(src=src, tgt=tgt, tag=tag, handle=eobj, undirected=undirected)
-            )
+            EdgeRow(src=src, tgt=tgt, tag=tag, handle=eobj, undirected=undirected)
         );
         self.row_of[eobj] = rid;
         return rid;
@@ -804,9 +802,7 @@ obj OspGraph {
 }
 
 def _new_graph -> OspGraph {
-    return managed(
-        OspGraph(adj={}, rows=[], free_rows=[], row_of={}, dead={}, regions={})
-    );
+    return OspGraph(adj={}, rows=[], free_rows=[], row_of={}, dead={}, regions={});
 }
 
 glob DEFAULT_GRAPH: OspGraph = _new_graph();
