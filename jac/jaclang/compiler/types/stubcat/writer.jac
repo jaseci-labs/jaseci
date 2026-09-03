@@ -369,6 +369,9 @@ obj CatalogWriter {
         if mod is None {
             return -1;
         }
+        if self.boundary is None {
+            return id(mod);
+        }
         try {
             mpath = mod.loc.mod_path if mod.loc else "";
         } except Exception {
@@ -383,6 +386,9 @@ obj CatalogWriter {
     def _scope_ident(scope: (UniScopeNode | None)) -> any {
         if scope is None {
             return -1;
+        }
+        if self.boundary is None {
+            return id(scope);
         }
         mod = module_of(scope);
         if mod is None or not self.in_boundary(mod) {
@@ -404,6 +410,9 @@ obj CatalogWriter {
     }
 
     def _sym_ident(sym: Symbol) -> any {
+        if self.boundary is None {
+            return id(sym);
+        }
         home = home_scope(sym);
         mod = module_of(home);
         if home is None or mod is None or not self.in_boundary(mod) {
@@ -423,6 +432,9 @@ obj CatalogWriter {
     }
 
     def _shared_ident(shared: ClassDetailsShared) -> any {
+        if self.boundary is None {
+            return id(shared);
+        }
         tab: (UniScopeNode | None) = None;
         try {
             tab = shared.symbol_table;
@@ -651,6 +663,9 @@ obj CatalogWriter {
 
     def _type_ident(t: TypeBase) -> any {
         tid = id(t);
+        if self.boundary is None {
+            return tid;
+        }
         memo = self._type_ident_memo.get(tid);
         if memo is not None {
             return memo;
