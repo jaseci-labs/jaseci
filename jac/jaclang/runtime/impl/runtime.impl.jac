@@ -1552,22 +1552,45 @@ impl JacBuiltin.get_console -> ConsoleImpl {
 }
 
 impl JacServe.get_api_server_class -> type {
-    _sp = _scale_provider();
-    if _sp is not None {
-        _scaled = _sp.get_api_server_class();
-        if _scaled is not None {
-            return _scaled;
-        }
+    import from jaclang.server.identity_owner {
+        SCALE_IDENTITY,
+        identity_owner,
+        scale_stack_unavailable
     }
-    import from jaclang.server.server { JacAPIServer }
-    return JacAPIServer;
+    _served = JacRuntime.get_full_target_path() or JacRuntime.get_base_path_dir();
+    if identity_owner(_served) != SCALE_IDENTITY {
+        import from jaclang.server.server { JacAPIServer }
+        return JacAPIServer;
+    }
+    _sp = _scale_provider();
+    if _sp is None {
+        raise scale_stack_unavailable('jaclang.scale.plugin', scale_provider_error());
+    }
+    _scaled = _sp.get_api_server_class();
+    if _scaled is None {
+        raise RuntimeError(
+            'the scale plugin returned no API server class while the scale '
+            'identity owns /user/* for this project. Nothing falls back to the '
+            'core store from here: the two stacks keep credentials in '
+            'different databases, so serving the other one would answer for '
+            'accounts this project does not have.'
+        );
+    }
+    return _scaled;
 }
 
 impl JacServe.ensure_sv_service(module_name: str, base_path: str) -> None {
+    import from jaclang.server.identity_owner {
+        scale_stack_installed,
+        scale_stack_unavailable
+    }
     _sp = _scale_provider();
     if _sp is not None {
         _sp.ensure_sv_service(module_name, base_path);
         return;
+    }
+    if scale_stack_installed() {
+        raise scale_stack_unavailable('jaclang.scale.plugin', scale_provider_error());
     }
     import os;
     import time;

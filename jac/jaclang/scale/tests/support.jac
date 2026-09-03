@@ -9,6 +9,7 @@ database scrub. Not a test module: the runner collects `test_*.jac` only.
 """
 
 import contextlib;
+import gc;
 import glob;
 import os;
 import shutil;
@@ -103,33 +104,76 @@ def register_user(base_url: str, username: str, password: str = "pass123") -> st
     return cast(dict, extract(res.json()))["token"];
 }
 
-"""Start `jac run --serve` in fixtures_dir and block until /healthz answers 200."""
-def start_server(fixtures_dir: Path, jac_file: Path, port: int) -> subprocess.Popen {
+"""Start `jac run --serve` in fixtures_dir and block until /healthz answers 200.
+
+`env` overlays the inherited environment, for fixtures that need a variable
+set for the server process (a PYTHONPATH entry, say). A server that exits
+before answering is reported immediately with its output rather than waited
+out. The 120s budget covers a cold compile cache, where the first boot must
+compile the app before it can serve /healthz.
+"""
+def start_server(
+    fixtures_dir: Path, jac_file: Path, port: int, env: dict[str, str] | None = None
+) -> subprocess.Popen {
     import from jaclang.scale.runtime.context.util { jac_executable }
     cmd = [jac_executable(), "run", "--serve", "--port", str(port), str(jac_file.name)];
+    proc_env = os.environ.copy();
+    if env {
+        proc_env.update(env);
+    }
     server = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
         cwd=str(fixtures_dir),
-        env=os.environ.copy()
+        env=proc_env
     );
     base_url = f"http://localhost:{port}";
-    for _ in range(120) {
+    # A subprocess that has to compile the tree cold takes minutes, and a
+    # health check that answers anything but 200 used to burn the whole budget
+    # without pausing, so the wait is a wall clock that sleeps on every outcome
+    # short of ready. A server that exits still ends the wait immediately.
+    deadline = time.monotonic() + 300.0;
+    while time.monotonic() < deadline {
+        if server.poll() is not None {
+            (stdout, stderr) = server.communicate();
+            raise RuntimeError(
+                f"server exited before serving {jac_file.name} on port {port}"
+                f"\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}"
+            );
+        }
         try {
             r = requests.get(f"{base_url}/healthz", timeout=1);
             if r.status_code == 200 {
                 return server;
             }
-        } except Exception {
-            time.sleep(1);
-        }
-        if server.poll() is not None {
-            break;
-        }
+        } except Exception {}
+        time.sleep(1);
     }
     server.kill();
     (stdout, stderr) = server.communicate(timeout=5);
-    raise RuntimeError(f"server failed\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}");
+    raise RuntimeError(
+        f"server did not answer /healthz for {jac_file.name} on port {port} "
+        f"within 300s\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}"
+    );
+}
+
+"""Terminate a server started by start_server, escalating to kill if it lingers.
+
+Tolerates None so a caller's `finally` needs no guard, and yields the port
+before returning: a terminated child can hold the listening socket briefly.
+"""
+def stop_server(server: subprocess.Popen | None) {
+    if server {
+        server.terminate();
+        try {
+            server.`wait(timeout=5);
+        } except subprocess.TimeoutExpired {
+            server.kill();
+            server.`wait();
+        }
+    }
+    time.sleep(0.2);
+    gc.collect();
 }

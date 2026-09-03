@@ -463,3 +463,127 @@ test "persisting a dependency interface neither reports nor mistypes its narrowi
         f"the dependency's flow graph must be built before its interface is forced (events: {events})"
     );
 }
+
+test "a tree-demanding closure does not disable hydration for later compiles" {
+    # need_full_ast is a closure's demand (code intelligence, native-decided
+    # targets): it must flow to that closure's dependency ingestion and stop
+    # there. It was read from the program's last options instead, so one
+    # such compile turned hydration off for the rest of the program's life;
+    # in the check pool that is every target after the first native one.
+    (main, dep) = _project();
+    _check(main);
+    prog = JacProgram();
+    prog.compile(
+        main,
+        options=CompileOptions(
+            no_cgen=True, force_target_program=True, need_full_ast=True
+        )
+    );
+    assert prog.analysis.cache_events.get("dep_hydrate", 0) == 0 , "a tree-demanding closure must not hydrate its dependencies";
+    prog.release_compile_closure();
+    prog.load_dependency_module(dep);
+    events = prog.analysis.cache_events;
+    assert events.get("dep_hydrate", 0) == 1 , (
+        f"hydration stayed off after the tree-demanding closure ended (events: {events})"
+    );
+}
+
+test "a module-level comprehension variable is not part of the interface" {
+    # Comprehension scopes are Python scopes; their loop variables must not
+    # be exported as module members (the writer walked them as block scopes,
+    # and name-level verify flagged every such module as diverging).
+    (main, dep) = _project(
+        "glob NAMES: set = {v for v in ['a', 'b']};\ndef f() -> int { return 1; }\n"
+    );
+    _check(main);
+    prog = JacProgram();
+    mod = prog.load_dependency_module(dep);
+    assert prog.analysis.cache_events.get("dep_hydrate", 0) == 1 , "the dependency was not hydrated";
+    names = set(mod.names_in_scope.keys());
+    assert "NAMES" in names and "f" in names , f"exports lost: {sorted(names)}";
+    assert "v" not in names , "a comprehension variable leaked into the interface";
+}
+
+test "an interface is identical however many twins of its module are reachable" {
+    # A long-lived program (the compiler's own, here) can hold an older tree
+    # of a module through memoized types when the module is compiled again in
+    # a fresh program; the writer keyed scopes and symbols by object identity
+    # while judging the boundary by path, so both twins were emitted and the
+    # second interface carried every name twice with a different digest.
+    import from tests.support { JAC_ROOT }
+    import from jaclang.compiler.types.stubcat.locate { jaclang_pkg_dir }
+    import from jaclang.compiler.types.stubcat.modiface {
+        build_module_iface,
+        open_module_iface,
+        iface_module
+    }
+    target = os.path.join(
+        JAC_ROOT,
+        "jaclang",
+        "compiler",
+        "backends",
+        "native",
+        "llvm",
+        "ir",
+        "__init__.jac"
+    );
+    pkg = jaclang_pkg_dir();
+    digests: list[str] = [];
+    names: list[int] = [];
+    for i in range(2) {
+        prog = JacProgram();
+        mod = prog.compile(
+            target,
+            options=CompileOptions(
+                no_cgen=True,
+                symtab_ir_only=True,
+                force_target_program=True,
+                need_full_ast=True
+            )
+        );
+        payload = build_module_iface(mod, prog.get_type_evaluator(), pkg);
+        digests.append(read_iface_hash(payload) or "");
+        cat = open_module_iface(payload, pkg);
+        served = iface_module(cat) if cat is not None else None;
+        names.append(len(served.names_in_scope) if served is not None else -1);
+    }
+    assert digests[0] == digests[1] , f"the interface digest changed between two compiles of one module: {digests}";
+    assert names[0] == names[1] , f"the interface's name count changed between compiles: {names}";
+}
+
+test "a comptime import takes the dependency's tree and rides its edits" {
+    # A comptime import needs the dependency's values, which an interface
+    # does not carry: served from the cache, the initializer was "not known
+    # at compile time" (false E0033s on every warm check). And a value edit
+    # that leaves the interface unchanged must still re-analyze the importer.
+    tmp = tempfile.mkdtemp();
+    dep = os.path.join(tmp, "routes.jac");
+    main = os.path.join(tmp, "app.jac");
+    with open(dep, "w") as fh {
+        fh.write('comptime ROUTES: list[str] = ["home", "about"];\n');
+    }
+    with open(main, "w") as fh {
+        fh.write(
+            "comptime import from routes { ROUTES }\n"
+            "comptime NAMES: list[str] = ROUTES;\n"
+            "comptime assert len(NAMES) == 2;\n"
+            "with entry { print(NAMES); }\n"
+        );
+    }
+    main = os.path.realpath(main);
+    dep = os.path.realpath(dep);
+    (cold, cold_diags) = _check(main);
+    assert not cold.errors_had , f"cold: {cold_diags}";
+    _rewrite(main, open(main).read() + "# touched\n");
+    (warm, warm_diags) = _check(main);
+    assert not warm.errors_had , f"the importer re-analyzed against the cached dependency: {warm_diags}";
+    assert warm.analysis.cache_events.get("dep_hydrate", 0) == 0 , (
+        f"a comptime import was served from the interface (events: {warm.analysis.cache_events})"
+    );
+    _rewrite(dep, 'comptime ROUTES: list[str] = ["home", "about", "help"];\n');
+    (edited, edited_diags) = _check(main);
+    assert edited.errors_had , "a comptime value edit that keeps the interface did not re-analyze the importer";
+    assert edited.analysis.cache_events.get("analysis_replay", 0) == 0 , (
+        f"the importer replayed stale diagnostics after a comptime input changed (events: {edited.analysis.cache_events})"
+    );
+}

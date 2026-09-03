@@ -83,6 +83,7 @@ obj ServeConfig {
         main: bool = True,
         cl_route_prefix: str = "cl",
         base_route_app: str = "",
+        identity: str = "auto",
         on_conflict: str = "retry",
         conflict_max_attempts: int = 5,
         conflict_backoff_ms: int = 0;

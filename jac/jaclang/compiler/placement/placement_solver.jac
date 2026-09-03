@@ -172,6 +172,9 @@ def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
     if in_native_scope_path(mod_path) and not scope_lowering_active() {
         return (False, "compiler frontend module: native only inside the kernel build");
     }
+    if not any([isinstance(e, uni.ElementStmt) for e in module.body]) {
+        return (False, "empty module: nothing to lower");
+    }
     base_dir = os.path.dirname(os.path.abspath(mod_path)) or '.';
     (sv_reason, deps) = scan_native_blockers(module, base_dir);
     if sv_reason {

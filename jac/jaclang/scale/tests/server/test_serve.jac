@@ -1,6 +1,5 @@
 import asyncio;
 import contextlib;
-import gc;
 import glob;
 import json;
 import socket;
@@ -14,6 +13,7 @@ import from jaclang.server.serving.authcrypt {
     jwt_decode as _jwt_decode,
     jwt_encode as _jwt_encode
 }
+import from jaclang.scale.identity.user_manager { jwt_secret }
 import from datetime { UTC, datetime, timedelta }
 import from pathlib { Path }
 import from jaclang.scale.tests.scale_test_client {
@@ -21,7 +21,12 @@ import from jaclang.scale.tests.scale_test_client {
     make_client,
     extract_data
 }
-import from jaclang.scale.tests.support { cleanup_db_files, get_free_port }
+import from jaclang.scale.tests.support {
+    cleanup_db_files,
+    get_free_port,
+    start_server,
+    stop_server
+}
 
 def _as_any(v: any) -> any {
     return v;
@@ -57,91 +62,8 @@ def register_and_get_token(client: any, username: str, password: str) -> str {
     return result["token"];
 }
 
-"""Start the jac-scale server in a subprocess."""
-def _start_server(
-    fixtures_dir: Path,
-    test_file: Path,
-    port: int,
-    base_url: str,
-    extra_args: list[str] | None = None
-) -> subprocess.Popen {
-    cmd = [
-        jac_executable(),
-        "run",
-        "--serve",
-        "--port",
-        str(port),
-        test_file.name if not extra_args else str(test_file)
-    ];
-    if extra_args {
-        cmd.extend(extra_args);
-    }
-
-    server_process = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        cwd=str(fixtures_dir) if not extra_args else None
-    );
-
-    max_attempts = 120;
-    server_ready = False;
-
-    for _ in range(max_attempts) {
-        if server_process.poll() is not None {
-            (stdout, stderr) = server_process.communicate();
-            raise RuntimeError(
-                f"Server process terminated unexpectedly.\n"
-                f"STDOUT: {stdout}\nSTDERR: {stderr}"
-            );
-        }
-
-        try {
-            response = requests.get(f"{base_url}/healthz", timeout=2);
-            if response.status_code == 200 {
-                print(f"Server started successfully on port {port}");
-                server_ready = True;
-                break;
-            }
-        } except (requests.ConnectionError, requests.Timeout) {
-            time.sleep(0.5);
-        }
-    }
-
-    if not (server_ready) {
-        server_process.terminate();
-        try {
-            (stdout, stderr) = server_process.communicate(timeout=2);
-        } except subprocess.TimeoutExpired {
-            server_process.kill();
-            (stdout, stderr) = server_process.communicate();
-        }
-        raise RuntimeError(
-            f"Server failed to start after {max_attempts} attempts.\n"
-            f"STDOUT: {stdout}\nSTDERR: {stderr}"
-        );
-    }
-
-    return server_process;
-}
-
-def _stop_server(server_process: subprocess.Popen | None) {
-    if server_process {
-        server_process.terminate();
-        try {
-            server_process.`wait(timeout=5);
-        } except subprocess.TimeoutExpired {
-            server_process.kill();
-            server_process.`wait();
-        }
-    }
-    time.sleep(0.2);
-    gc.collect();
-}
-
 def _create_expired_token(username: str, days_ago: int = 1) -> str {
-    secret = "supersecretkey_for_testing_only!";
+    secret = jwt_secret();
     algorithm = "HS256";
 
     past_time = datetime.now(UTC) - timedelta(days=days_ago);
@@ -154,7 +76,7 @@ def _create_expired_token(username: str, days_ago: int = 1) -> str {
 }
 
 def _create_very_old_token(username: str, days_ago: int = 15) -> str {
-    secret = "supersecretkey_for_testing_only!";
+    secret = jwt_secret();
     algorithm = "HS256";
 
     past_time = datetime.now(UTC) - timedelta(days=days_ago);
@@ -177,11 +99,11 @@ def setup_serve_server -> subprocess.Popen {
         raise FileNotFoundError(f"Test fixture not found: {sv_test_file}");
     }
     cleanup_db_files(sv_fixtures_dir);
-    return _start_server(sv_fixtures_dir, sv_test_file, sv_port, sv_base_url);
+    return start_server(sv_fixtures_dir, sv_test_file, sv_port);
 }
 
 def teardown_serve_server(sp: subprocess.Popen | None) {
-    _stop_server(sp);
+    stop_server(sp);
     cleanup_db_files(sv_fixtures_dir);
 }
 
@@ -569,7 +491,7 @@ test "token refresh functionality" {
         refresh_result = extract_data(response.json());
         new_token = refresh_result["token"];
 
-        secret = "supersecretkey_for_testing_only!";
+        secret = jwt_secret();
         algorithm = "HS256";
 
         original_payload = _jwt_decode(token, secret, algorithms=[algorithm]);
@@ -1018,7 +940,7 @@ test "walker calls" {
         data = response_data["reports"][0];
         assert data["message"] == "This is a public endpoint";
 
-        secret = "supersecretkey_for_testing_only!";
+        secret = jwt_secret();
         now = datetime.now(UTC);
         payload = {
             "username": "deleted_user",
@@ -1593,7 +1515,7 @@ def setup_dev_mode_server -> subprocess.Popen {
 }
 
 def teardown_dev_mode_server(sp: subprocess.Popen | None) {
-    _stop_server(sp);
+    stop_server(sp);
     cleanup_db_files(dm_fixtures_dir);
 }
 
@@ -2042,9 +1964,7 @@ test "server startup - a second server refuses an already-taken explicit port" {
     sp2: subprocess.Popen | None = None;
 
     try {
-        sp1 = _start_server(
-            sv_fixtures_dir, sv_test_file, port1, f"http://localhost:{port1}"
-        );
+        sp1 = start_server(sv_fixtures_dir, sv_test_file, port1);
 
         response = requests.get(f"http://localhost:{port1}/healthz", timeout=5);
         assert response.status_code == 200 , "First server should be running";
@@ -2088,7 +2008,7 @@ test "server startup - a second server refuses an already-taken explicit port" {
             }
         }
         if sp1 {
-            _stop_server(sp1);
+            stop_server(sp1);
         }
         cleanup_db_files(sv_fixtures_dir);
     }
