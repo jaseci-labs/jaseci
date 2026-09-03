@@ -284,46 +284,65 @@ obj CgSplice(CgItem) {
 obj CgEllipsis(CgItem) {}
 
 def write_ir_value(w: CodegenIrWriter, v: object) {
-    if v is None {
-        w.emit_none();
-    } elif isinstance(v, CgEllipsis) {
-        w.emit_ellipsis();
-    } elif isinstance(v, CgNode) {
-        for item in v.vals {
-            write_ir_value(w, item);
+    tasks: list = [[0, v]];
+    while tasks {
+        t = tasks.pop();
+        kind = t[0];
+        val = t[1];
+        if kind == 1 {
+            w.emit_loc_needed(val.l1, val.c1, val.l2, val.c2);
+            w.emit_node(val.cls, val.keys);
+            continue;
         }
-        w.emit_loc_needed(v.l1, v.c1, v.l2, v.c2);
-        w.emit_node(v.cls, v.keys);
-    } elif isinstance(v, CgSplice) {
-        w.emit_parse_splice(v.src, v.offset);
-    } elif isinstance(v, bool) {
-        if v {
-            w.emit_true();
+        if kind == 2 {
+            w.emit_list(val);
+            continue;
+        }
+        if val is None {
+            w.emit_none();
+        } elif isinstance(val, CgEllipsis) {
+            w.emit_ellipsis();
+        } elif isinstance(val, CgNode) {
+            tasks.append([1, val]);
+            items = val.vals;
+            i = len(items) - 1;
+            while i >= 0 {
+                tasks.append([0, items[i]]);
+                i -= 1;
+            }
+        } elif isinstance(val, CgSplice) {
+            w.emit_parse_splice(val.src, val.offset);
+        } elif isinstance(val, bool) {
+            if val {
+                w.emit_true();
+            } else {
+                w.emit_false();
+            }
+        } elif isinstance(val, int) {
+            w.emit_int(val);
+        } elif isinstance(val, float) {
+            w.emit_float(val);
+        } elif isinstance(val, str) {
+            w.emit_str(val);
+        } elif isinstance(val, bytes) {
+            w.emit_bytes(val);
+        } elif isinstance(val, list) {
+            tasks.append([2, len(val)]);
+            i = len(val) - 1;
+            while i >= 0 {
+                tasks.append([0, val[i]]);
+                i -= 1;
+            }
         } else {
-            w.emit_false();
+            raise ValueError(
+                "JCIR emitter produced a value outside the v1 constant domain. "
+                "The whole domain is None, a CgEllipsis marker, a CgNode, a "
+                "CgSplice, bool, int, float, str, bytes, and a list of those; a "
+                "value of any other type reached a recipe slot, most often "
+                "because a producer put a live Python object where an encodable "
+                "one belongs."
+            );
         }
-    } elif isinstance(v, int) {
-        w.emit_int(v);
-    } elif isinstance(v, float) {
-        w.emit_float(v);
-    } elif isinstance(v, str) {
-        w.emit_str(v);
-    } elif isinstance(v, bytes) {
-        w.emit_bytes(v);
-    } elif isinstance(v, list) {
-        for item in v {
-            write_ir_value(w, item);
-        }
-        w.emit_list(len(v));
-    } else {
-        raise ValueError(
-            "JCIR emitter produced a value outside the v1 constant domain. "
-            "The whole domain is None, a CgEllipsis marker, a CgNode, a "
-            "CgSplice, bool, int, float, str, bytes, and a list of those; a "
-            "value of any other type reached a recipe slot, most often "
-            "because a producer put a live Python object where an encodable "
-            "one belongs."
-        );
     }
 }
 
