@@ -132,7 +132,7 @@ obj JacCompiler {
 
     def _get_precompiled_jir_bytecode(
         full_target: str, allow_unsealed: bool = True
-    ) -> (bytes | None);
+    ) -> (tuple[bytes, bytes] | None);
 
     def _sealed_jir_data(full_target: str) -> (tuple[bytes, str] | None);
     def _build_interop_dict(result: uni.Module) -> dict;
@@ -167,6 +167,10 @@ obj JacCompiler {
         use_str: (str | None) = None,
         options: CompileOptions = CompileOptions()
     ) -> uni.Module;
+
+    def _ingest_comptime_producers(
+        mod_targ: uni.Module, actual_program: JacProgram, file_path: str
+    ) -> None;
 
     def _compile_pipeline(
         file_path: str,
