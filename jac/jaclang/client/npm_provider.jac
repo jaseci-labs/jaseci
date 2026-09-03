@@ -17,7 +17,7 @@ glob CORE_RUNTIME_DEPS: dict[str, str] = {
      },
      OPTIONAL_RUNTIME_DEPS: dict[str, str] = {
          "@tanstack/react-form": "^1.33.0",
-         "zod": "^4.3.6"
+         "zod": "~4.4.3"
      },
      CORE_DEV_DEPS: dict[str, str] = {
          "vite": "^6.4.1",
