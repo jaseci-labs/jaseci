@@ -11,7 +11,7 @@ import logging;
 import from datetime { date, datetime, time }
 import from enum { Enum }
 import from uuid { UUID, uuid4 }
-import from jaclang.runtime.archetype { NodeAnchor, Root }
+import from jaclang.runtime.archetype { NodeAnchor, Root, GenericEdge }
 # archetype_alias is an ambient Jac builtin (no import). Serializer is
 # an explicit import because we directly test its internals here.
 import from jaclang.data.serializer { Serializer }
@@ -61,6 +61,45 @@ test "alias to same qualified name is a no-op (does not self-alias)" {
 test "_get_class returns None for truly unregistered class names" {
     resolved = Serializer._get_class("definitely.not", "Present");
     assert resolved is None;
+}
+
+
+# --- Persisted built-in identity manifest -----------------------------------
+#
+# jaclang's own built-in archetypes are pinned here on purpose. Their
+# fully-qualified name is part of the on-disk wire format (see
+# `Serializer._get_class` / `is_auto_registered_module`), so moving one of
+# these classes to a new module is a data migration, not just a refactor
+# (jaclang/issues/8747 is what happens when that migration is skipped).
+#
+# This intentionally lists only the *concrete* persisted archetypes -- the
+# base classes (NodeArchetype, EdgeArchetype, WalkerArchetype,
+# ObjectArchetype) are never instantiated as themselves, so no stored row
+# ever carries their name and moving them needs no alias.
+#
+# If this test starts failing because you moved one of these classes: don't
+# just update the entry below. First register the class's old fully-qualified
+# name as an alias in `data/serializer.jac`'s `_BUILTIN_MOVED_FROM`, so
+# existing databases keep resolving it -- then update this manifest to match.
+glob _PERSISTED_BUILTIN_IDENTITIES: dict[str, str] = {
+         'Root': 'jaclang.runtime.archetype',
+         'GenericEdge': 'jaclang.runtime.archetype'
+     };
+
+
+test "persisted built-ins keep their pinned module identity" {
+    live = {'Root': Root, 'GenericEdge': GenericEdge};
+    for (name, expected_module) in _PERSISTED_BUILTIN_IDENTITIES.items() {
+        cls = live[name];
+        actual = f"{getattr(cls, '__module__')}.{getattr(cls, '__name__')}";
+        expected = f"{expected_module}.{name}";
+        assert actual == expected , (
+            f"{name} moved from {expected} to {actual}. It is a persisted "
+            "built-in, so existing databases still carry the old module "
+            "name -- register it as an alias in data/serializer.jac's "
+            "_BUILTIN_MOVED_FROM before updating this manifest entry."
+        );
+    }
 }
 
 
