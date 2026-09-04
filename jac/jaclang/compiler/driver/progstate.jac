@@ -37,6 +37,16 @@ obj ModuleHub {
         }
     }
 
+    def install(resolved_path: str, mod: uni.Module) -> (uni.Module | None) {
+        prev = self.mod.hub.get(resolved_path);
+        self.mod.hub[resolved_path] = mod;
+        self.stamp(resolved_path);
+        if prev is None or prev is mod {
+            return None;
+        }
+        return prev;
+    }
+
     def evict(resolved_path: str) {
         if resolved_path in self.mod.hub {
             self.mod.hub.pop(resolved_path);

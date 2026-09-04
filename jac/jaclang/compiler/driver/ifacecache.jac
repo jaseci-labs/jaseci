@@ -137,6 +137,11 @@ obj IfaceRegistry {
 
     def on_closure_release {
         self.closure_token += 1;
+
+        for ent in self.entries.values() {
+            ent.module = None;
+            ent.catalog = None;
+        }
         cap = 192;
         if len(self._iface_bytes) > cap {
             stale = list(self._iface_bytes.keys())[:len(self._iface_bytes) - cap];
@@ -697,6 +702,23 @@ obj IfaceRegistry {
         self._event("iface_cfg");
     }
 
+    def _encode_iface(mod: any) -> (bytes | None) {
+        import from jaclang.compiler.types.stubcat.modiface {
+            IncoherentInterface,
+            build_module_iface
+        }
+        self._event("iface_encode");
+        self._ensure_flow_graph(mod);
+        try {
+            return build_module_iface(
+                mod, self.prog.get_type_evaluator(), self._pkg_dir()
+            );
+        } except IncoherentInterface {
+            self._event("iface_incoherent");
+            return None;
+        }
+    }
+
     def persist_after_compile(
         resolved: str, mod: any, options: any, err_start: int, warn_start: int
     ) -> None {
@@ -704,10 +726,7 @@ obj IfaceRegistry {
         if mod is None or mod.parse_failed {
             return;
         }
-        import from jaclang.compiler.types.stubcat.modiface {
-            build_module_iface,
-            read_iface_hash
-        }
+        import from jaclang.compiler.types.stubcat.modiface { read_iface_hash }
         sections: dict[int, bytes] = {};
         modkey = "";
         try {
@@ -724,13 +743,14 @@ obj IfaceRegistry {
             payload = memo[1];
             digest = memo[2];
         } else {
-            self._event("iface_encode");
-            ev = self.prog.get_type_evaluator();
-            self._ensure_flow_graph(mod);
-            payload = build_module_iface(mod, ev, self._pkg_dir());
-            digest = read_iface_hash(payload) or "";
+            encoded = self._encode_iface(mod);
+            if encoded is None {
+                return;
+            }
+            payload = encoded;
+            digest = read_iface_hash(encoded) or "";
             if modkey {
-                self._iface_bytes[resolved] = (modkey, payload, digest, );
+                self._iface_bytes[resolved] = (modkey, encoded, digest, );
             }
         }
         if payload is not None {
@@ -889,9 +909,12 @@ obj IfaceRegistry {
             return None;
         }
         resolved = os.path.realpath(path);
-        found = self.prog.find_module(resolved);
-        if found is not None {
-            return found;
+
+        if not is_stub_like_path(resolved) {
+            found = self.prog.find_module(resolved);
+            if found is not None {
+                return found;
+            }
         }
         try {
             return self.prog.load_dependency_module(resolved);
