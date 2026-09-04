@@ -345,6 +345,60 @@ test "every service pod carries the sibling flag in its env, and no override dro
 }
 
 
+test "a shared volume is handed to the runtime identity before the service starts" {
+    # A PVC from [scale.microservices] shared_volumes arrives root-owned
+    # from most provisioners, the service container runs as the image's
+    # `jac` user, and nothing adjusted the mount: the first write into the
+    # volume the app declared failed with EACCES (jac#8949). The bundle
+    # volume already solved this with a root init container that chowns the
+    # mount root; a shared volume gets the same container, plus fsGroup for
+    # the backends that honor it.
+    import from jaclang.scale.injector.pvc_injector {
+        RUNTIME_UID,
+        RUNTIME_GID,
+        VOLUME_PERMS_NAME
+    }
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    declared = {
+        "routes": {"orders_app": "/orders", "cart_app": "/cart"},
+        "shared_volumes": [
+            {
+                "name": "workspace",
+                "mount_path": "/app/.jachome/.jac-ide",
+                "services": ["orders_app"],
+                "size": "1Gi",
+                "access_mode": "ReadWriteMany",
+                "storage_class": "standard"
+            }
+        ]
+    };
+    builder = ManifestBuilder(
+        k8s_config=cfg, project_dir=str(_K8S_E2E_FIXTURE), microservices_config=declared
+    );
+    app_cfg = AppConfig(code_folder=str(_K8S_E2E_FIXTURE), app_name="jac-shop");
+    specs = builder.generate_service_pod_specs(app_cfg, "img");
+
+    orders = specs["orders_app"];
+    inits = orders["initContainers"];
+    assert inits[0]["name"] == VOLUME_PERMS_NAME , [c["name"] for c in inits];
+    perms = inits[0];
+    assert perms["volumeMounts"]
+        == [{"name": "workspace", "mountPath": "/app/.jachome/.jac-ide"}];
+    script = perms["command"][-1];
+    assert f'chown {RUNTIME_UID}:{RUNTIME_GID} "/app/.jachome/.jac-ide"'
+        in script , script;
+    assert "-R" not in script , "application data is never re-owned recursively";
+    assert perms["securityContext"]["runAsUser"] == 0;
+    assert perms["image"] == orders["containers"][0]["image"];
+    assert orders["securityContext"]["fsGroup"] == RUNTIME_GID;
+    assert orders["securityContext"]["fsGroupChangePolicy"] == "OnRootMismatch";
+
+    cart = specs["cart_app"];
+    assert VOLUME_PERMS_NAME not in [c["name"] for c in cart["initContainers"]];
+    assert "securityContext" not in cart , "a pod without a shared volume is left as it was";
+}
+
+
 test "a service pod boots exactly the module the deploy resolved" {
     import tempfile;
     with tempfile.TemporaryDirectory() as project {

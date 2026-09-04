@@ -1577,6 +1577,20 @@ obj ManifestBuilder {
         }
         spec["volumes"] = list(shared_vols);
         spec["initContainers"] = list(self.deploy_context.init_containers);
+        if shared_mounts {
+            import from jaclang.scale.injector.pvc_injector {
+                VOLUME_PERMS_NAME,
+                build_volume_perms_init_container,
+                runtime_pod_security_context
+            }
+            spec["initContainers"].insert(
+                0,
+                build_volume_perms_init_container(
+                    VOLUME_PERMS_NAME, resolved_image, shared_mounts
+                )
+            );
+            spec["securityContext"] = runtime_pod_security_context();
+        }
 
         import from jaclang.scale.injector.binary_injector { BinaryInjector }
         injector: BinaryInjector = BinaryInjector(
