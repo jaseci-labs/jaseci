@@ -2297,17 +2297,6 @@ impl JacRuntime.set_shared_root_resolver(
 ) -> None {
     _shared_root_resolver[0] = resolver;
     _shared_root_resolver[1] = None;
-    if resolver is None {
-        return;
-    }
-    try {
-        JacRuntime.shared_root_id();
-    } except Exception as e {
-        logger.warning(
-            "shared root not resolved at registration "
-            f"({type(e).__name__}: {e}); it resolves on first use of root.shared"
-        );
-    }
 }
 
 impl JacRuntime.get_base_path_dir -> (str | None) {
