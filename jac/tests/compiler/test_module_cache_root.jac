@@ -11,8 +11,19 @@ looked for later beside the file, and recompiled. The root now follows the
 import os;
 import tempfile;
 import from pathlib { Path }
-import from jaclang.compiler.driver.jir { get_module_cache_path }
-import from jaclang.project.config { get_config, project_scope_is_pinned, set_config }
+import jaclang.compiler.driver.compile_options as compile_options;
+import jaclang.compiler.placement.placement_pins as placement_pins;
+import from jaclang.compiler.driver.jir {
+    get_module_cache_path,
+    module_env_fingerprint
+}
+import from jaclang.project.config {
+    get_config,
+    get_config_for_path,
+    pin_project_scope,
+    project_scope_is_pinned,
+    set_config
+}
 
 
 test "a module's cache path follows the jac.toml above it, not the ambient config" {
@@ -45,4 +56,49 @@ test "a module's cache path follows the jac.toml above it, not the ambient confi
         "the cache path must not depend on the ambient config: "
         f"{without_ambient} vs {with_ambient}"
     );
+}
+
+
+test "a module's env key is the same inside and outside the config probe guards" {
+    # The analysis identity used to come from an ambient CompileOptions whose
+    # re-entrancy guard answers "no config" while another one is being built, so
+    # a module first keyed inside another compile was keyed one way on read and
+    # another on write, and recompiled on every run.
+    base = Path(os.path.realpath(tempfile.mkdtemp(prefix="jac_key_purity_")));
+    (base / "jac.toml").write_text(
+        '[project]\nname = "keyed"\n\n[gc]\ndefault = "none"\n'
+    );
+    mod = base / "util.jac";
+    mod.write_text("def two -> int {\n    return 2;\n}\n");
+    import jaclang;
+    internal = str(
+        Path(str(jaclang.__file__)).parent / "compiler" / "symbol_utils.jac"
+    );
+    pinned = project_scope_is_pinned();
+    saved = get_config();
+    try {
+        pin_project_scope(get_config_for_path(base));
+        for path in [str(mod), internal] {
+            plain = module_env_fingerprint(path);
+            compile_options._config_probe["active"] = True;
+            placement_pins._kind_probe["active"] = True;
+            try {
+                guarded = module_env_fingerprint(path);
+            } finally {
+                compile_options._config_probe["active"] = False;
+                placement_pins._kind_probe["active"] = False;
+            }
+            assert plain == guarded , (
+                f"the env key of {os.path.basename(path)} must not depend on the "
+                "config probe guards"
+            );
+        }
+    } finally {
+        if pinned {
+            pin_project_scope(saved);
+        } else {
+            set_config(None);
+            get_config(force_discover=True);
+        }
+    }
 }
