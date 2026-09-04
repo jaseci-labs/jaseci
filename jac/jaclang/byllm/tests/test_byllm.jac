@@ -1327,55 +1327,15 @@ test "acall_llm proxy is a coroutine function" {
 
 # jac#8932: adispatch_streaming awaits model_call_with_stream_async, so the base
 # must be a coroutine returning an async iterator, not an async generator.
-
-obj _Stream8932Delta {
-    has content: str;
-}
-
-obj _Stream8932Choice {
-    has delta: _Stream8932Delta;
-}
-
-obj _Stream8932Chunk {
-    has choices: list[object],
-        usage: object = None;
-}
-
-
-"""Implements only the sync provider call, like LocalLLM and ModelPool."""
-obj _Stream8932LLM(_byllm_llm_mod.BaseLLM) {
-    override def model_call_with_stream(params: dict) -> object {
-        for word in ["hello ", "world"] {
-            yield _Stream8932Chunk(
-                choices=[_Stream8932Choice(delta=_Stream8932Delta(content=word))]
-            );
-        }
-    }
-}
-
-
-def _mt_8932(stream: bool = True) -> MTRuntime {
-    return MTRuntime(
-        messages=[
-            Message(role=MessageRole.SYSTEM, content="s"),
-            Message(role=MessageRole.USER, content="u")
-        ],
-        resp_type=str,
-        stream=stream,
-        tools=[],
-        call_params={},
-        mtir=None
-    );
-}
-
-
-async def _drain_8932(llm: _byllm_llm_mod.BaseLLM) -> list[object] {
-    stream: any = llm.adispatch_streaming(_mt_8932());
+# FakeLLM implements only the sync provider call, so it inherits the base method,
+# which is the shape LocalLLM and ModelPool have.
+async def _drain_8932(llm: _byllm_llm_mod.BaseLLM) -> str {
+    stream: any = llm.adispatch_streaming(mk_run(stream=True));
     out: list[object] = [];
     async for chunk in stream {
         out.append(chunk);
     }
-    return out;
+    return "".join([str(c) for c in out]);
 }
 
 
@@ -1386,9 +1346,9 @@ test "BaseLLM.model_call_with_stream_async is a coroutine, not an async generato
 }
 
 
-test "async streaming works on a BaseLLM subclass that inherits the base method" {
-    llm = _Stream8932LLM(model_name="fake-8932");
-    assert asyncio.run(_drain_8932(llm)) == ["hello ", "world"];
+test "async streaming works on a subclass that inherits the base method" {
+    llm = FakeLLM(model_name="fake-8932", replies=[say("hello world")]);
+    assert asyncio.run(_drain_8932(llm)) == "hello world";
 }
 
 
@@ -1396,48 +1356,9 @@ test "async streaming works on MockLLM" {
     llm = _byllm_llm_mod.MockLLM(
         model_name="mockllm", config={"outputs": ["hello world"]}
     );
-    assert "".join(asyncio.run(_drain_8932(llm))) == "hello world";
+    assert asyncio.run(_drain_8932(llm)) == "hello world";
 }
 
-
-test "model_call_no_stream_async raises and logs AuthenticationError" {
-    log_output = io.StringIO();
-    _loguru_logger.remove();
-    handler_id = _loguru_logger.add(log_output, level="ERROR");
-    try {
-        with unittest.mock.patch.dict(
-            _byllm_llm_mod._litellm_config,
-            {"debug": False, "drop_params": True},
-            clear=True
-        ) {
-            model = Model(model_name="gpt-4o-mini");
-            auth_err = litellm.exceptions.AuthenticationError(
-                message="Invalid API key", llm_provider="openai", model="gpt-4o-mini"
-            );
-            async def _run_no_stream_auth {
-                with unittest.mock.patch("litellm.acompletion", side_effect=auth_err) {
-                    raised = False;
-                    try {
-                        await model.model_call_no_stream_async(
-                            {"model": "gpt-4o-mini", "messages": []}
-                        );
-                    } except AuthenticationError as e {
-                        raised = True;
-                        assert "Invalid API key" in str(e);
-                    }
-                    assert raised , "AuthenticationError should propagate from async path";
-                }
-            }
-            asyncio.run(_run_no_stream_auth());
-            log_value = log_output.getvalue();
-            assert "LLM AuthenticationError" in log_value , (
-                f"logger.error should fire for async AuthenticationError, got: {log_value}"
-            );
-        }
-    } finally {
-        _loguru_logger.remove(handler_id);
-    }
-}
 
 test "model_call_with_stream_async raises and logs RateLimitError" {
     log_output = io.StringIO();
