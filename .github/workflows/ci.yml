@@ -817,6 +817,14 @@ jobs:
         run: |
           jac test jac/jaclang/scale/tests/test_deploy_k8s.jac -x --test_name "early exit"
 
+      # Destroy deletes namespaces and volumes, so what it reclaims and what it
+      # spares is only decidable by an API server. Runs on every scale PR.
+      - name: Run destroy reclamation e2e
+        env:
+          CLUSTER_TYPE: microk8s
+          JAC_SCALE_BINARY_PATH: ${{ github.workspace }}/jac/zig-out/bin/jac
+        run: bash jac/jaclang/scale/tests/deploy/destroy_reclaim_real_e2e.sh
+
   # aarch64 cross lane: in-house ELF linker + arch-parameterized musl from the
   # kit, binaries run under qemu-user.
   test-native-aarch64:
