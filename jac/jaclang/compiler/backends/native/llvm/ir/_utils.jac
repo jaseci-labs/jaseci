@@ -41,9 +41,7 @@ class _StrCaching(object) {
     def _clear_string_cache(self: _StrCaching) -> object {
         try {
             del self.__cached_str;
-        } except AttributeError {
-            ;
-        }
+        } except AttributeError {}
     }
 
     def __str__(self: _StrCaching) -> object {

@@ -9,12 +9,16 @@ the cwd. So the same file, byte for byte, drives both halves of the comparison
 and neither tree needs to carry a copy.
 
 Corpus paths are resolved against the cwd and so name the sources of whichever
-tree is being measured. The four phases are the schedules `JacCompiler`
-`_compile_once` itself runs for a plain Python-lane module, driven here one at a
-time so each is attributable; `full` is the whole-closure `JacProgram.compile`
-that a real `jac run` pays. Every phase is measured warm: `phase_row` is called
-once before any sample is kept, and the on-disk JIR cache is populated by that
-first call.
+tree is being measured. The schedule phases (parse, ir_gen, analysis, boundary,
+codegen) are the schedules `JacCompiler` `_compile_once` itself runs for a
+plain Python-lane module, driven here one at a time so each is attributable;
+`full` is the whole-closure `JacProgram.compile` that a real `jac run` pays,
+and `check` is a fresh-program full-analysis compile (`no_cgen` +
+`native_parity`), the per-file work a `jac check` pays. Every phase is
+measured warm: `phase_row` is called once before any sample is kept, and the
+on-disk JIR cache is populated by that first call - so on a compiler with the
+analysis cache, `check` measures diagnostics replay while older baselines
+measure a full re-analysis.
 
 Each phase reports the MINIMUM across the samples, not the mean. On a loaded
 developer machine the mean is dominated by whatever else the box was doing; the
@@ -28,7 +32,9 @@ import os;
 import time;
 
 import from pathlib { Path }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.driver.schedules {
+    get_analysis_sched,
     get_boundary_analysis_sched,
     get_ir_gen_sched,
     get_py_code_gen
@@ -42,7 +48,15 @@ glob CORPUS: list[str] = [
          "jaclang/compiler/frontend/constant.jac",
          "examples/chess/chess.jac"
      ],
-     PHASES: list[str] = ["parse", "ir_gen", "boundary", "codegen", "full"];
+     PHASES: list[str] = [
+         "parse",
+         "ir_gen",
+         "analysis",
+         "boundary",
+         "codegen",
+         "full",
+         "check"
+     ];
 
 """Time one pass of every phase over `src`, on programs nothing else has touched."""
 def phase_row(src: str) -> dict {
@@ -53,6 +67,8 @@ def phase_row(src: str) -> dict {
     t1 = time.perf_counter();
     staged.run_schedule(mod, get_ir_gen_sched());
     t2 = time.perf_counter();
+    staged.run_schedule(mod, get_analysis_sched());
+    t2a = time.perf_counter();
     staged.run_schedule(mod, get_boundary_analysis_sched());
     t3 = time.perf_counter();
     staged.run_schedule(mod, get_py_code_gen(native=False));
@@ -65,12 +81,25 @@ def phase_row(src: str) -> dict {
     t6 = time.perf_counter();
     errors += len(whole.errors_had);
     whole.release_compile_closure();
+    checker = JacProgram();
+    check_opts = CompileOptions(
+        no_cgen=True, native_parity=True, force_target_program=True
+    );
+    if hasattr(check_opts, "iface_ok") {
+        check_opts.iface_ok = True;
+    }
+    t7 = time.perf_counter();
+    checker.compile(file_path=src, options=check_opts);
+    t8 = time.perf_counter();
+    checker.release_compile_closure();
     return {
         "parse": t1 - t0,
         "ir_gen": t2 - t1,
-        "boundary": t3 - t2,
+        "analysis": t2a - t2,
+        "boundary": t3 - t2a,
         "codegen": t4 - t3,
         "full": t6 - t5,
+        "check": t8 - t7,
         "errors": errors
     };
 }

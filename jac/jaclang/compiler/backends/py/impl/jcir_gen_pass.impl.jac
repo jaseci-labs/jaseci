@@ -671,6 +671,42 @@ impl JcirGenPass._class_ref(module: str, name: str, jac_node: UniNode) -> CgNode
     return self._import_ref(module, name, jac_node);
 }
 
+impl JcirGenPass._ct_order_key(v: any) -> str {
+    if v is None {
+        return "0";
+    }
+    if isinstance(v, bool) {
+        return "1" + ("1" if v else "0");
+    }
+    if isinstance(v, (int, float)) {
+        return "2" + repr(v);
+    }
+    if isinstance(v, str) {
+        return "3" + v;
+    }
+    if isinstance(v, bytes) {
+        return "4" + v.hex();
+    }
+    if isinstance(v, frozenset) {
+        return "5" + "\x00".join(sorted([self._ct_order_key(x) for x in v]));
+    }
+    if isinstance(v, tuple) {
+        return "6" + "\x00".join([self._ct_order_key(x) for x in v]);
+    }
+    return "7"
+        + self._ct_kind(v)
+        + ":"
+        + str(getattr(v, "enum_name", ""))
+        + ":"
+        + str(getattr(v, "member", ""))
+        + ":"
+        + str(
+            getattr(v, "qualname", "")
+                or getattr(v, "name", "")
+                or getattr(v, "__name__", "")
+        );
+}
+
 impl JcirGenPass._materialize(v: any, jac_node: UniNode) -> (CgNode | None) {
     import from jaclang.compiler.frontend.codeinfo { module_dotted_name }
     load = self.nod('Load', [], []);
@@ -696,7 +732,7 @@ impl JcirGenPass._materialize(v: any, jac_node: UniNode) -> (CgNode | None) {
     }
     if isinstance(v, (set, frozenset)) {
         elts2: list = [];
-        for item in v {
+        for item in sorted(v, key=self._ct_order_key) {
             m = self._materialize(item, jac_node);
             if m is None {
                 return None;
@@ -2278,13 +2314,9 @@ impl JcirGenPass.exit_ability with Ability exit {
     self.set_out(here, [func_def]);
 }
 
-impl JcirGenPass.exit_impl_def with ImplDef exit {
-    ;
-}
+impl JcirGenPass.exit_impl_def with ImplDef exit {}
 
-impl JcirGenPass.exit_sem_def with SemDef exit {
-    ;
-}
+impl JcirGenPass.exit_sem_def with SemDef exit {}
 
 impl JcirGenPass.exit_func_signature with FuncSignature exit {
     posonlyargs = [self.val(i) for i in here.posonly_params];
@@ -3930,9 +3962,7 @@ impl JcirGenPass.exit_dict_val with DictVal exit {
     );
 }
 
-impl JcirGenPass.exit_k_v_pair with KVPair exit {
-    ;
-}
+impl JcirGenPass.exit_k_v_pair with KVPair exit {}
 
 impl JcirGenPass.exit_k_w_pair with KWPair exit {
     self.set_out(
@@ -5412,9 +5442,7 @@ impl JcirGenPass.exit_match_mapping with MatchMapping exit {
     );
 }
 
-impl JcirGenPass.exit_match_k_v_pair with MatchKVPair exit {
-    ;
-}
+impl JcirGenPass.exit_match_k_v_pair with MatchKVPair exit {}
 
 impl JcirGenPass.exit_match_star with MatchStar exit {
     self.set_out(here, [self.nod('MatchStar', ['name'], [here.name.sym_name])]);
@@ -5791,13 +5819,9 @@ impl JcirGenPass.exit_jsx_comment with JsxComment exit {
     self.set_out(here, []);
 }
 
-impl JcirGenPass.exit_semi with Semi exit {
-    ;
-}
+impl JcirGenPass.exit_semi with Semi exit {}
 
-impl JcirGenPass.exit_comment_token with CommentToken exit {
-    ;
-}
+impl JcirGenPass.exit_comment_token with CommentToken exit {}
 
 impl JcirGenPass._gen_native_interop_stubs(nd: UniNode) -> None {
     manifest = self.ir_in.gen.interop_manifest;

@@ -7,6 +7,24 @@ This page documents significant breaking changes in Jac and Jaseci that may affe
 
 ---
 
+### Regions have dynamic extent on every backend ([#8913](https://github.com/jaseci-labs/jac/issues/8913), unreleased)
+
+`in r { }` now means one thing everywhere: everything constructed while the open is active on the current thread lands in `r`, including allocations made inside helpers the open calls. Native user code used to get lexical extent (only constructor calls written between the braces were arena-allocated; a helper allocated on the RC heap unless it took a `Region` parameter and opened it itself), and the compiler's own kernel modules got dynamic extent through a hidden second implementation keyed on their file paths. Both are gone; the Python backend already behaved this way.
+
+| Old | New |
+|---|---|
+| `in r { x = helper(); }` allocates `helper`'s result on the heap natively | allocated in `r`, reclaimed at `r`'s drop |
+| `in r { xs.append(helper()); }` with `xs` outside the open | `E1307`: a heap-typed call result made under an open is region-rooted unless the callee receives the handle |
+| runtime bookkeeping constructed under an open leaks into the region | `managed(T(...))` constructs on the managed heap regardless of the current region |
+| `flow for` body under an open inherits nothing | worker threads start with no current region; move a partition in to allocate |
+| inferred anonymous regions were native-only | `RegionInferPass` desugars them to real `in Region() { }` opens, so `drop` hooks fire on the Python backend too |
+
+`region_of(x)` is a declared builtin, and the walker growth rule is the same mechanism: ability dispatch enters `region_of(here)`. The native arena is a Jac kernel unit (`runtime/region_native.jac`) linked like the OSP kernel; `__mem_load_i64`, `__mem_store_i64`, `__atomic_xchg_i64`, and `__mem_call_dtor` are reserved intrinsic names.
+
+**Impact:** native code that relied on a helper's allocation outliving an enclosing open must either hoist the call out of the open, pass the handle so the checker ties the result to it, or rebox scalars with `own`. Everything else is a fix of behaviour the docs already promised.
+
+---
+
 ### `jac run` absorbs `jac start` and `jac dev`; deploying is `jac scale deploy` ([#8596](https://github.com/jaseci-labs/jac/pull/8596), unreleased)
 
 One verb runs and serves. `jac run` resolves the project kind and executes, serves, or builds accordingly; `--serve` and `--dev` force the serve projections; a named file now resolves the kind too, so `jac run main.jac` in a `web-app` or `service` project serves just like the bare form. `jac start` and `jac dev` are tombstoned -- they hard-error with the replacement spelling. Deployment leaves the serve path entirely: the `--scale` flag is gone and `jac scale deploy [app.jac] [--target T] [--enable-tls] [--dry-run] [--show-yaml]` is the deploy command (with no file it deploys `[project] entry-point`).

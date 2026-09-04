@@ -177,6 +177,8 @@ node UniNode {
     def thaw_structure -> None;
     def structure_thawed -> StructureThaw;
     def _attach(child: UniNode, role: type[Role]) -> None;
+    def _role_clear(role: type[Role]) -> None;
+    def _as_node_list(value: any) -> list[UniNode];
     def _children -> list[UniNode];
     def _role_shaped(role: type[Role], found: list[UniNode]) -> any;
     def _role_set(role: type[Role], value: any) -> None;
@@ -638,13 +640,11 @@ node Module(AstDocNode, UniScopeNode) {
         access_enforced: bool = False,
         ct_resolved: bool = False,
         ct_file_deps: list[str] postinit,
+        ct_body_deps: list[str] postinit,
         native_viols_reported: bool = False,
         client_viols_reported: bool = False,
         rc_last_use: dict[int, list[str]] postinit,
-        rc_move_in: set[int] postinit,
-        anon_region_open: dict[int, int] postinit,
-        anon_region_close: dict[int, int] postinit,
-        anon_region_locals: dict[int, list[str]] postinit;
+        rc_move_in: set[int] postinit;
 
     has body: Sequence[ElementStmt | String | EmptyToken] { getter; }
 
@@ -669,12 +669,14 @@ node Module(AstDocNode, UniScopeNode) {
     ) -> None;
 
     has decided_codespace: str { getter; setter(decided_codespace: str); }
+    has codespace_inferred: bool = False;
 
     def postinit -> None;
 
     has annexable_by: (str | None) { getter; }
 
     def declares_codespace(ctx: CodeContext, path_hint: str = '') -> bool;
+    def absorb_annex_body(stmts: Sequence[UniNode]) -> None;
     static def make_stub(
         inject_name: (str | None) = None, inject_src: (Source | None) = None
     ) -> Module {

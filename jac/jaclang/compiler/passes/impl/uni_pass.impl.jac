@@ -2,9 +2,9 @@ impl UniPass.postinit -> None {
     super.postinit();
 }
 
-impl UniPass.before_pass -> None { }
+impl UniPass.before_pass -> None {}
 
-impl UniPass.after_pass -> None { }
+impl UniPass.after_pass -> None {}
 
 impl UniPass.recalculate_parents(nd: UniNode) -> None {
     if nd {

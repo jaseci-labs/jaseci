@@ -786,7 +786,7 @@ impl JacScaleScheduler._on_jobs_changed(payload: str) -> None {
         try {
             self._apscheduler.remove_job(job_id);
             logger.debug(f"jobs-changed: removed local schedule for {job_id}");
-        } except Exception { }
+        } except Exception {}
         return;
     }
     try {

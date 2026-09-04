@@ -4,7 +4,22 @@ glob OSP_CORE_PARTS: list[str] = [
          "runtime/osp_kernel.jac",
          "runtime/osp_graph.jac"
      ],
-     FMT_KERNEL_PARTS: list[str] = ["compiler/backends/fmt_kernel.jac"];
+     FMT_KERNEL_PARTS: list[str] = ["compiler/backends/fmt_kernel.jac"],
+     REGION_KERNEL_PARTS: list[str] = ["runtime/region_native.jac"],
+     REGION_KERNEL_ABI: dict[str, tuple[bool, int]] = {
+         "__jac_region_new": (True, 0),
+         "__jac_region_alloc": (True, 2),
+         "__jac_region_log_dtor": (False, 3),
+         "__jac_region_drop": (False, 1),
+         "__jac_region_partition": (True, 1),
+         "__jac_region_enter": (False, 1),
+         "__jac_region_leave": (False, 0),
+         "__jac_region_unwind": (False, 1),
+         "__jac_region_current": (True, 0),
+         "__jac_region_depth": (True, 0),
+         "__jac_region_of": (True, 1),
+         "__jac_region_owns": (True, 1)
+     };
 
 def _jaclang_dir -> str {
     import jaclang;
@@ -27,6 +42,52 @@ def unit_source(parts: list[str]) -> str {
         }
     }
     return "\n\n".join(texts);
+}
+
+def _region_layout_facts -> dict[str, int] {
+    import from jaclang.compiler.frontend.codeinfo {
+        HDR_ALLOC_ID_OFF,
+        HDR_DTOR_OFF,
+        HDR_MAGIC,
+        HDR_MAGIC_SHIFT_BASE,
+        HDR_RC_OFF,
+        HDR_TAG_OFF,
+        HDR_TOTAL,
+        RC_SENTINEL
+    }
+    return {
+        "HDR_ALLOC_ID_OFF": HDR_ALLOC_ID_OFF,
+        "HDR_TAG_OFF": HDR_TAG_OFF,
+        "HDR_RC_OFF": HDR_RC_OFF,
+        "HDR_DTOR_OFF": HDR_DTOR_OFF,
+        "HDR_TOTAL": HDR_TOTAL,
+        "HDR_MAGIC": HDR_MAGIC,
+        "HDR_MAGIC_SHIFT_BASE": HDR_MAGIC_SHIFT_BASE,
+        "ARENA_MAGIC_SHIFT_BASE": (HDR_MAGIC + 1) * 4294967296,
+        "RC_SENTINEL": RC_SENTINEL
+    };
+}
+
+def verify_region_layout(source: str) {
+    import re;
+    facts = _region_layout_facts();
+    for (name, want) in facts.items() {
+        m = re.search(rf"\b{name}: int = (-?\d+)", source);
+        if m is None {
+            raise RuntimeError(
+                f"region kernel unit does not declare {name}; the header layout "
+                f"is defined once in compiler/frontend/codeinfo.jac and restated "
+                f"in runtime/region_native.jac"
+            );
+        }
+        if int(m.group(1)) != want {
+            raise RuntimeError(
+                f"region kernel unit declares {name} = {m.group(1)} but "
+                f"compiler/frontend/codeinfo.jac says {want}; update "
+                f"runtime/region_native.jac to match"
+            );
+        }
+    }
 }
 
 def _atomic_write(path: str, text: str) {
@@ -62,9 +123,7 @@ def _retire_superseded_artifacts(name: str, keep: str) {
             if os.path.getmtime(path) < cutoff {
                 os.remove(path);
             }
-        } except OSError {
-            ;
-        }
+        } except OSError {}
     }
 }
 
@@ -86,6 +145,11 @@ def osp_core_unit_path(variant: str) -> str {
 
 def fmt_kernel_unit_path(variant: str) -> str {
     return kernel_unit_path(f"fmt_kernel_{variant}", FMT_KERNEL_PARTS);
+}
+
+def region_kernel_unit_path(variant: str) -> str {
+    verify_region_layout(unit_source(REGION_KERNEL_PARTS));
+    return kernel_unit_path(f"region_kernel_{variant}", REGION_KERNEL_PARTS);
 }
 
 def _artifact_key(unit_path: str, fingerprint: str) -> str {
@@ -131,9 +195,7 @@ def store_unit_artifact(unit_path: str, kind: str, fingerprint: str, text: str) 
         if stale != path {
             try {
                 os.remove(stale);
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
     }
     try {
@@ -142,9 +204,7 @@ def store_unit_artifact(unit_path: str, kind: str, fingerprint: str, text: str) 
                 return;
             }
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     _atomic_write(path, text);
 }
 
@@ -159,9 +219,7 @@ def es_pass_fingerprint -> str {
                 with open(p, "rb") as f {
                     h.update(f.read());
                 }
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
     }
     return h.hexdigest()[:8];

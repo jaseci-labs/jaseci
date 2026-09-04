@@ -92,25 +92,22 @@ impl WorkPool._spawn(slot: int) -> dict[(str, any)] {
             os.close(dispatch_w);
             os.close(result_r);
             for other in self.kids {
+                if not other["alive"] {
+                    continue;
+                }
                 try {
                     os.close(other["dispatch_fd"]);
-                } except OSError {
-                    ;
-                }
+                } except OSError {}
                 try {
                     os.close(other["result_fd"]);
-                } except OSError {
-                    ;
-                }
+                } except OSError {}
             }
             self._worker_loop(dispatch_r, result_w);
             exit_hook = self.worker_exit;
             if exit_hook is not None {
                 exit_hook();
             }
-        } except BaseException {
-            ;
-        }
+        } except BaseException {}
         os._exit(0);
     }
     os.close(dispatch_r);
@@ -277,14 +274,10 @@ impl WorkPool._reap(kid: dict[(str, any)]) -> None {
     kid["alive"] = False;
     try {
         os.close(kid["result_fd"]);
-    } except OSError {
-        ;
-    }
+    } except OSError {}
     try {
         os.close(kid["dispatch_fd"]);
-    } except OSError {
-        ;
-    }
+    } except OSError {}
     status = 0;
     try {
         (_, status) = os.waitpid(kid["pid"], 0);
@@ -322,17 +315,17 @@ impl WorkPool._reap(kid: dict[(str, any)]) -> None {
 impl WorkPool._pump -> None {
     import select;
     while True {
-        live = [
+        self.kids = [
             k
             for k in self.kids
             if k["alive"]
         ];
-        if not live {
+        if not self.kids {
             break;
         }
         busy = [
             k
-            for k in live
+            for k in self.kids
             if (k["inflight"] is not None) or k.get("retired")
         ];
         if not busy {
@@ -387,9 +380,7 @@ impl WorkPool._shutdown -> None {
         }
         try {
             os.write(kid["dispatch_fd"], b"q\n");
-        } except OSError {
-            ;
-        }
+        } except OSError {}
     }
     for kid in self.kids {
         if not kid["alive"] {
@@ -399,9 +390,7 @@ impl WorkPool._shutdown -> None {
         for fd_key in ("dispatch_fd", "result_fd") {
             try {
                 os.close(kid[fd_key]);
-            } except OSError {
-                ;
-            }
+            } except OSError {}
         }
         reaped = False;
         deadline = time.monotonic() + 2.0;
@@ -421,22 +410,16 @@ impl WorkPool._shutdown -> None {
         if not reaped {
             try {
                 os.kill(int(kid["pid"]), int(signal.SIGKILL));
-            } except OSError {
-                ;
-            }
+            } except OSError {}
             try {
                 os.waitpid(kid["pid"], 0);
-            } except OSError {
-                ;
-            }
+            } except OSError {}
         }
     }
     for path in self.crashlogs {
         try {
             os.unlink(path);
-        } except OSError {
-            ;
-        }
+        } except OSError {}
     }
     self.crashlogs = [];
 }
@@ -465,7 +448,7 @@ impl maybe_malloc_trim -> None {
     try {
         import ctypes;
         ctypes.CDLL("libc.so.6").malloc_trim(0);
-    } except (ImportError, OSError, AttributeError, ValueError) { }
+    } except (ImportError, OSError, AttributeError, ValueError) {}
 }
 
 impl env_int(name: str, fallback: int) -> int {
@@ -480,20 +463,22 @@ impl env_int(name: str, fallback: int) -> int {
     }
 }
 
-impl default_jobs -> int {
+impl default_jobs(worker_bytes: int = 0, avail_bytes: int = 0) -> int {
     cpus = os.cpu_count() or 1;
-    avail = 0;
-    try {
-        with open("/proc/meminfo", encoding="utf-8") as f {
-            for line in f {
-                if line.startswith("MemAvailable:") {
-                    avail = int(line.split()[1]) * 1024;
-                    break;
+    avail = int(avail_bytes or 0);
+    if not avail {
+        try {
+            with open("/proc/meminfo", encoding="utf-8") as f {
+                for line in f {
+                    if line.startswith("MemAvailable:") {
+                        avail = int(line.split()[1]) * 1024;
+                        break;
+                    }
                 }
             }
+        } except Exception {
+            avail = 0;
         }
-    } except Exception {
-        avail = 0;
     }
     if not avail {
         try {
@@ -502,9 +487,11 @@ impl default_jobs -> int {
             avail = 0;
         }
     }
+
+    per_worker = max(WORKER_MEM_BYTES, int(worker_bytes or 0));
     cap = cpus;
     if avail {
-        cap = max(1, int((avail * MEM_HEADROOM) // WORKER_MEM_BYTES));
+        cap = max(1, int((avail * MEM_HEADROOM) // per_worker));
     }
     return max(1, min(cpus, cap, MAX_AUTO_JOBS));
 }
@@ -535,26 +522,28 @@ impl jobs_setting(
 }
 
 impl resolve_jobs(
-    requested: (str | int | None) = None, env_var: str = "JAC_JOBS"
+    requested: (str | int | None) = None,
+    env_var: str = "JAC_JOBS",
+    worker_bytes: int = 0
 ) -> int {
     raw: (str | int | None) = requested;
     if (raw is None) or (str(raw).strip() == "") {
         raw = os.environ.get(env_var, "");
     }
     if (raw is None) or (str(raw).strip() == "") {
-        return default_jobs();
+        return default_jobs(worker_bytes);
     }
     if isinstance(raw, int) {
         return max(1, raw);
     }
     text = str(raw).strip().lower();
     if text == "auto" {
-        return default_jobs();
+        return default_jobs(worker_bytes);
     }
     try {
         return max(1, int(text));
     } except ValueError {
-        return default_jobs();
+        return default_jobs(worker_bytes);
     }
 }
 

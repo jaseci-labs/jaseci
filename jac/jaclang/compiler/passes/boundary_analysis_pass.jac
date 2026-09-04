@@ -35,7 +35,8 @@ import from jaclang.compiler.frontend.unitree {
     TupleVal,
     UnaryExpr,
     UniNode,
-    ability_of_symbol
+    ability_of_symbol,
+    resolved_decl_of
 }
 import from jaclang.compiler.frontend.constant {
     CodeContext,
@@ -83,6 +84,10 @@ walker BoundaryAnalysisPass(UniPass) {
     ) -> tuple[list[str], list[str]];
 
     def _find_archetype(nd: UniNode, target: str) -> (Archetype | Enum | None);
+    def _parse_imported_archetype(
+        type_name: str, search_mods: list[Module]
+    ) -> (Archetype | Enum | None);
+
     can enter_ability with Ability entry;
     can enter_func_call with FuncCall entry;
     def _extract_subscript_inner(expr: (UniNode | None)) -> str;
@@ -93,3 +98,7 @@ walker BoundaryAnalysisPass(UniPass) {
     def after_pass -> None;
     def _record_access_levels(manifest: any) -> None;
 }
+
+glob _type_parse_memo: dict[str, tuple[float, Module | None]] = {};
+
+def _parse_module_for_types(file_path: str) -> (Module | None);

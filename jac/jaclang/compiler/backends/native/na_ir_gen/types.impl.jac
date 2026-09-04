@@ -77,6 +77,18 @@ impl NaIRGenTypes._lower_type(t: any) -> (ir.Type | None) {
 }
 
 impl NaIRGenTypes._unify_repr_lowering(reprs: list) -> (ir.Type | None) {
+    """One representation for a set of lowerings that share a slot.
+
+    Members that share a lowering keep it. An all-pointer set keeps the
+    first member's layout only when every member is the same kind of
+    pointer, or when every member is callable: a closure struct and a raw
+    function pointer meet at one calling convention once the raw function
+    is wrapped into a closure (`_coerce_type` does the wrapping), so the
+    closure layout is the union's layout and boxing them would leave
+    nothing callable behind. Any other mix, including two headered heap
+    kinds such as `list | Expr` in the unitree, boxes to a tagged jacval so
+    the payload is never reinterpreted through the wrong layout.
+    """;
     if not reprs {
         return None;
     }
@@ -98,10 +110,68 @@ impl NaIRGenTypes._unify_repr_lowering(reprs: list) -> (ir.Type | None) {
             _all_ptr = False;
         }
     }
-    if _shared or _all_ptr or not self?.jacval_type {
+    if _shared or not self?.jacval_type {
         return _first;
     }
+    if _all_ptr {
+        _kinds = [self._ptr_box_kind(_first)];
+        for _r in _rest {
+            _kinds.append(self._ptr_box_kind(_r));
+        }
+        _same_kind = True;
+        _all_callable = True;
+        for _k in _kinds {
+            if _k != _kinds[0] {
+                _same_kind = False;
+            }
+            if _k != 7 {
+                _all_callable = False;
+            }
+        }
+        if _same_kind {
+            return _first;
+        }
+
+        if _all_callable {
+            for _r in reprs {
+                if self._closure_struct_of(_r) is not None {
+                    return _r;
+                }
+            }
+            return _first;
+        }
+    }
     return self.jacval_type;
+}
+
+impl NaIRGenTypes._ptr_box_kind(rt: any) -> int {
+    if isinstance(rt, ir.PointerType) and isinstance(rt.pointee, ir.FunctionType) {
+        return 7;
+    }
+    if self._closure_struct_of(rt) is not None {
+        return 7;
+    }
+    for (_, ltype) in self.list_types.items() {
+        if rt == ltype.as_pointer() {
+            return 3;
+        }
+    }
+    for (_, dtype) in self.dict_types.items() {
+        if rt == dtype.as_pointer() {
+            return 4;
+        }
+    }
+    for (_, stype) in self.set_types.items() {
+        if rt == stype.as_pointer() {
+            return 5;
+        }
+    }
+    for (_, structt) in self.struct_types.items() {
+        if rt == structt.as_pointer() {
+            return 6;
+        }
+    }
+    return 2;
 }
 
 impl NaIRGenTypes._type_key_of(expr: (uni.UniNode | None)) -> (str | None) {
@@ -967,7 +1037,7 @@ impl NaIRGenTypes._resolve_field_type(var: uni.UniNode) -> ir.Type {
             if isinstance(_ptb, _FieldFnType) {
                 return self._lower_function_type_raw(_ptb);
             }
-        } except ImportError { }
+        } except ImportError {}
         lowered = self._lower_type(_ptb);
         if lowered is not None {
             if self._str_desc_ty is not None and lowered == self._str_desc_ty {
@@ -986,7 +1056,7 @@ impl NaIRGenTypes._resolve_field_type(var: uni.UniNode) -> ir.Type {
             if isinstance(_ptb, _RfTypeVarType) {
                 return ir.IntType(8).as_pointer();
             }
-        } except ImportError { }
+        } except ImportError {}
         if not self._type_base_is_unknown(_ptb) {
             return self._emit_unlowerable_type(var, _ptb);
         }
@@ -1228,7 +1298,7 @@ impl NaIRGenTypes._resolve_clib_type(type_expr: (uni.UniNode | None)) -> ir.Type
         if isinstance(type_expr?.type, _ClibSigFnType) {
             return self._lower_function_type_raw(type_expr.type);
         }
-    } except ImportError { }
+    } except ImportError {}
 
     return self._resolve_jac_type(type_expr);
 }
@@ -1717,6 +1787,9 @@ impl NaIRGenTypes._apply_flow_narrowing(nd: uni.UniNode, val: ir.Value) -> ir.Va
         return val;
     }
     if not isinstance(nd, uni.Name) {
+        if _is_jv and isinstance(nd, uni.AtomTrailer) {
+            return self._unbox_narrowed_member(nd, val);
+        }
         return val;
     }
     _nm = nd.value;
@@ -1791,6 +1864,51 @@ impl NaIRGenTypes._apply_flow_narrowing(nd: uni.UniNode, val: ir.Value) -> ir.Va
         return self._coerce_type(_ub, _want);
     }
     return _ub;
+}
+
+impl NaIRGenTypes._unbox_narrowed_member(
+    nd: uni.AtomTrailer, val: ir.Value
+) -> ir.Value {
+    """Unbox a member read the checker narrowed to one heap kind.
+
+    A member typed as a mix of heap kinds (`list[Item] | Item`) is stored
+    boxed, and the analysis pipeline stamps `narrowed_type` on an occurrence
+    it has narrowed (`src.body` after `isinstance(src.body, list)`). Before
+    unions boxed, every pointer union carried its first member's layout and
+    the narrow was a free reinterpretation; the box needs an explicit unbox
+    or the consumer sees a jacval where the checker promised a list, and
+    `list(src.body)` refuses to lower. Only a class or container narrow
+    unboxes here: an Optional payload read stays a Name-only retype, because
+    a callee can rebind an attribute to None between the test and the use
+    (`optional_narrowing.jac`'s `callee_rebinds_attr`), and that unwrap must
+    keep its tag check.
+    """;
+    if not isinstance(nd, uni.Expr) or nd.narrowed_type is None {
+        return val;
+    }
+    if self._narrowing_blocked_by_none_test(nd) {
+        return val;
+    }
+    _nt = nd.narrowed_type;
+    try {
+        import from jaclang.compiler.types.types { ClassType as _ClassType }
+    } except ImportError {
+        return val;
+    }
+    if not isinstance(_nt, _ClassType)
+        or _nt.shared.class_name in ("NoneType", "None") {
+        return val;
+    }
+    _want = self._lower_type(_nt);
+    if _want is None
+        or isinstance(_want, ir.VoidType)
+        or _want == val.type
+        or self._opt_payload_of(_want) is not None
+        or not isinstance(_want, ir.PointerType)
+        or isinstance(_want.pointee, ir.FunctionType) {
+        return val;
+    }
+    return self._unbox_from_jacval(val, _want);
 }
 
 impl NaIRGenTypes._opt_ptr_payload_of(t: ir.Type) -> (ir.Type | None) {

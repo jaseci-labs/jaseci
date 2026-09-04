@@ -7,6 +7,7 @@ import type from jaclang.runtime.context { ExecutionContext }
 import from jaclang.jac0core.ext_registry { base_stem }
 import from jaclang.scale.identity.user_manager { JacScaleUserManager }
 import from jaclang.scale.server.serve { JacAPIServer }
+import from jaclang.server.identity_owner { CORE_IDENTITY, identity_setting }
 
 
 obj PreparedInProcessRuntime {
@@ -83,6 +84,18 @@ def prepare_inprocess_runtime(
                 + "only 'testclient' (in-process, single serialized worker) is "
                 + "supported today. 'asgi' / 'isolated_worker' are reserved for the "
                 + "execution-isolation choice recorded in #6596 P0-0."
+        );
+    }
+
+    if identity_setting(jac_file) == CORE_IDENTITY {
+        raise RuntimeError(
+            "the in-process runtime serves the scale identity, and "
+                + str(jac_file)
+                + " belongs to a project that asks for the core one. Refusing "
+                + "to build it anyway: the two stacks keep credentials in "
+                + "different databases, so the accounts it served would not be "
+                + "the accounts the project has. Drop [serve] identity = "
+                + "'core' to let this project serve the scale stack in process."
         );
     }
 

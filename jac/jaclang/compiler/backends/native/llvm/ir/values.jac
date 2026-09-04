@@ -111,126 +111,126 @@ class _ConstOpMixin(object) {
             lhs << rhs
         """
     @_binop('shl')
-    def shl(self: _ConstOpMixin, other: any) -> object { }
+    def shl(self: _ConstOpMixin, other: any) -> object {}
 
     """
         Logical (unsigned) right integer shift:
             lhs >> rhs
         """
     @_binop('lshr')
-    def lshr(self: _ConstOpMixin, other: any) -> object { }
+    def lshr(self: _ConstOpMixin, other: any) -> object {}
 
     """
         Arithmetic (signed) right integer shift:
             lhs >> rhs
         """
     @_binop('ashr')
-    def ashr(self: _ConstOpMixin, other: any) -> object { }
+    def ashr(self: _ConstOpMixin, other: any) -> object {}
 
     """
         Integer addition:
             lhs + rhs
         """
     @_binop('add')
-    def add(self: _ConstOpMixin, other: any) -> object { }
+    def add(self: _ConstOpMixin, other: any) -> object {}
 
     """
         Floating-point addition:
             lhs + rhs
         """
     @_binop('fadd')
-    def fadd(self: _ConstOpMixin, other: any) -> object { }
+    def fadd(self: _ConstOpMixin, other: any) -> object {}
 
     """
         Integer subtraction:
             lhs - rhs
         """
     @_binop('sub')
-    def sub(self: _ConstOpMixin, other: any) -> object { }
+    def sub(self: _ConstOpMixin, other: any) -> object {}
 
     """
         Floating-point subtraction:
             lhs - rhs
         """
     @_binop('fsub')
-    def fsub(self: _ConstOpMixin, other: any) -> object { }
+    def fsub(self: _ConstOpMixin, other: any) -> object {}
 
     """
         Integer multiplication:
             lhs * rhs
         """
     @_binop('mul')
-    def mul(self: _ConstOpMixin, other: any) -> object { }
+    def mul(self: _ConstOpMixin, other: any) -> object {}
 
     """
         Floating-point multiplication:
             lhs * rhs
         """
     @_binop('fmul')
-    def fmul(self: _ConstOpMixin, other: any) -> object { }
+    def fmul(self: _ConstOpMixin, other: any) -> object {}
 
     """
         Unsigned integer division:
             lhs / rhs
         """
     @_binop('udiv')
-    def udiv(self: _ConstOpMixin, other: any) -> object { }
+    def udiv(self: _ConstOpMixin, other: any) -> object {}
 
     """
         Signed integer division:
             lhs / rhs
         """
     @_binop('sdiv')
-    def sdiv(self: _ConstOpMixin, other: any) -> object { }
+    def sdiv(self: _ConstOpMixin, other: any) -> object {}
 
     """
         Floating-point division:
             lhs / rhs
         """
     @_binop('fdiv')
-    def fdiv(self: _ConstOpMixin, other: any) -> object { }
+    def fdiv(self: _ConstOpMixin, other: any) -> object {}
 
     """
         Unsigned integer remainder:
             lhs % rhs
         """
     @_binop('urem')
-    def urem(self: _ConstOpMixin, other: any) -> object { }
+    def urem(self: _ConstOpMixin, other: any) -> object {}
 
     """
         Signed integer remainder:
             lhs % rhs
         """
     @_binop('srem')
-    def srem(self: _ConstOpMixin, other: any) -> object { }
+    def srem(self: _ConstOpMixin, other: any) -> object {}
 
     """
         Floating-point remainder:
             lhs % rhs
         """
     @_binop('frem')
-    def frem(self: _ConstOpMixin, other: any) -> object { }
+    def frem(self: _ConstOpMixin, other: any) -> object {}
 
     """
         Bitwise integer OR:
             lhs | rhs
         """
     @_binop('or')
-    def or_(self: _ConstOpMixin, other: any) -> object { }
+    def or_(self: _ConstOpMixin, other: any) -> object {}
 
     """
         Bitwise integer AND:
             lhs & rhs
         """
     @_binop('and')
-    def and_(self: _ConstOpMixin, other: any) -> object { }
+    def and_(self: _ConstOpMixin, other: any) -> object {}
 
     """
         Bitwise integer XOR:
             lhs ^ rhs
         """
     @_binop('xor')
-    def xor(self: _ConstOpMixin, other: any) -> object { }
+    def xor(self: _ConstOpMixin, other: any) -> object {}
 
     def _cmp(
         self: _ConstOpMixin, prefix: str, sign: str, cmpop: any, other: any
@@ -333,55 +333,55 @@ class _ConstOpMixin(object) {
         Truncating integer downcast to a smaller type.
         """
     @_castop('trunc')
-    def trunc(self: _ConstOpMixin, typ: any) -> object { }
+    def trunc(self: _ConstOpMixin, typ: any) -> object {}
 
     """
         Zero-extending integer upcast to a larger type
         """
     @_castop('zext')
-    def zext(self: _ConstOpMixin, typ: any) -> object { }
+    def zext(self: _ConstOpMixin, typ: any) -> object {}
 
     """
         Sign-extending integer upcast to a larger type.
         """
     @_castop('sext')
-    def sext(self: _ConstOpMixin, typ: any) -> object { }
+    def sext(self: _ConstOpMixin, typ: any) -> object {}
 
     """
         Floating-point downcast to a less precise type.
         """
     @_castop('fptrunc')
-    def fptrunc(self: _ConstOpMixin, typ: any) -> object { }
+    def fptrunc(self: _ConstOpMixin, typ: any) -> object {}
 
     """
         Floating-point upcast to a more precise type.
         """
     @_castop('fpext')
-    def fpext(self: _ConstOpMixin, typ: any) -> object { }
+    def fpext(self: _ConstOpMixin, typ: any) -> object {}
 
     """
         Pointer cast to a different pointer type.
         """
     @_castop('bitcast')
-    def bitcast(self: _ConstOpMixin, typ: any) -> object { }
+    def bitcast(self: _ConstOpMixin, typ: any) -> object {}
 
     """
         Convert unsigned integer to floating-point.
         """
     @_castop('uitofp')
-    def uitofp(self: _ConstOpMixin, typ: any) -> object { }
+    def uitofp(self: _ConstOpMixin, typ: any) -> object {}
 
     """
         Convert floating-point to signed integer.
         """
     @_castop('fptosi')
-    def fptosi(self: _ConstOpMixin, typ: any) -> object { }
+    def fptosi(self: _ConstOpMixin, typ: any) -> object {}
 
     """
         Convert signed integer to floating-point.
         """
     @_castop('sitofp')
-    def sitofp(self: _ConstOpMixin, typ: any) -> object { }
+    def sitofp(self: _ConstOpMixin, typ: any) -> object {}
 
     """
         Cast pointer to integer.
@@ -918,6 +918,7 @@ class GlobalVariable(GlobalValue) {
         self.initializer = None;
         self.unnamed_addr = False;
         self.global_constant = False;
+        self.thread_local = False;
         self.addrspace = addrspace;
         self.align = None;
         self.parent.add_global(self);
@@ -939,6 +940,13 @@ class GlobalVariable(GlobalValue) {
         }
         if self.storage_class {
             buf.append((self.storage_class + " "));
+        }
+        # LLVM grammar puts the thread-local model between the storage class
+        # and unnamed_addr; a bare `thread_local` selects the general-dynamic
+        # model, which every target we emit for accepts (the wasm backend
+        # strips it to a plain global when the module has no atomics).
+        if self.thread_local {
+            buf.append("thread_local ");
         }
         if self.unnamed_addr {
             buf.append("unnamed_addr ");
