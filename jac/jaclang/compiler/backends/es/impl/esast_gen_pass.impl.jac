@@ -8322,6 +8322,24 @@ impl EsastGenPass._collect_stmt_body(
     return statements;
 }
 
+impl EsastGenPass._import_item_named(name: str) -> (uni.ModuleItem | None) {
+    for imp in self.ir_in.get_all_sub_nodes(uni.Import) {
+        if imp.from_loc is None {
+            continue;
+        }
+        for item in imp.items {
+            if not isinstance(item, uni.ModuleItem) {
+                continue;
+            }
+            local = item.alias.value if item.alias is not None else item.name.value;
+            if local == name {
+                return item;
+            }
+        }
+    }
+    return None;
+}
+
 impl EsastGenPass._build_spawn_runtime_call(
     nd: uni.BinaryExpr, parts: SpawnCallParts
 ) -> es.AwaitExpression {
@@ -8335,13 +8353,20 @@ impl EsastGenPass._build_spawn_runtime_call(
     ];
     call_target = parts.`walker.call_node.target;
     walker_sym = call_target.sym if isinstance(call_target, uni.AtomExpr) else None;
+    item: (uni.ModuleItem | None) = None;
     if walker_sym is not None and walker_sym.defn {
-        item = walker_sym.defn[0].parent;
-        if isinstance(item, uni.ModuleItem) {
-            provider_opts = self._sv_provider_options(item.from_parent);
-            if provider_opts is not None {
-                spawn_args.append(provider_opts);
-            }
+        candidate = walker_sym.defn[0].parent;
+        if isinstance(candidate, uni.ModuleItem) {
+            item = candidate;
+        }
+    }
+    if item is None {
+        item = self._import_item_named(parts.`walker.walker_name);
+    }
+    if item is not None {
+        provider_opts = self._sv_provider_options(item.from_parent);
+        if provider_opts is not None {
+            spawn_args.append(provider_opts);
         }
     }
     spawn_call = self.sync_loc(

@@ -1186,7 +1186,7 @@ test "bridged import nested in a client block emits no dead import" {
     js_code = compile_fixture_to_js(
         "svc_kwargs/sv_import_cl_block_client.jac", FIXTURES
     );
-    assert "sv_import_cl_block_server" not in js_code , (
+    assert 'from "./sv_import_cl_block_server.js"' not in js_code , (
         "nested bridged import must not emit a client import of the server "
         "module; got:\n"
         + js_code
