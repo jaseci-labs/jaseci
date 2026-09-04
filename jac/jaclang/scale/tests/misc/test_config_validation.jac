@@ -8,7 +8,11 @@ import from jaclang.scale.config.validation {
     known_deploy_targets,
     validate_scale_config
 }
+import from jaclang.comptime { fields }
 import from jaclang.scale.config.plugin_config { JacScalePluginConfig }
+import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
+    KubernetesConfig
+}
 import from jaclang.scale.config.config_loader {
     JacScaleConfig,
     get_scale_config,
@@ -120,6 +124,76 @@ test "schema defaults agree with runtime defaults" {
     );
     assert bad == [] , f"schema/defaults disagree: {bad}";
 }
+
+# get_default_config no longer restates the [scale.kubernetes] block, because
+# KubernetesConfig's own has-declaration is the single source of those
+# defaults. The test above therefore no longer reaches that section; these two
+# hold the same contract against the declaration instead. _LOADER_DERIVED are
+# the fields get_kubernetes_config assigns after loading, from
+# [scale.monitoring], [scale.admin] and the system plugin deps: declaring them
+# under [scale.kubernetes] would validate a value that is then overwritten.
+# app_name is exempt from the default comparison alone: the schema's None means
+# "derive a slug from [project].name", the declaration's 'jaseci' is the
+# fallback when no project name is usable.
+glob _LOADER_DERIVED: set[str] = {
+         "admin_username",
+         "monitoring_enabled",
+         "k8s_metrics_enabled",
+         "prometheus_admin_password",
+         "service_dependencies"
+     },
+     _DERIVED_DEFAULT: set[str] = {"app_name"};
+
+
+def _k8s_schema_options -> dict[str, any] {
+    return JacScalePluginConfig.get_config_schema()["options"]["kubernetes"]["nested"];
+}
+
+
+test "every [scale.kubernetes] field the loader reads is declared in the schema" {
+    opts = _k8s_schema_options();
+    undeclared: list[str] = [];
+    for f in fields(KubernetesConfig) {
+        if f.name in _LOADER_DERIVED {
+            continue;
+        }
+        if f.name not in opts {
+            undeclared.append(f.name);
+        }
+    }
+    assert sorted(undeclared) == [] , (
+        f"KubernetesConfig declares {sorted(undeclared)}, which [scale.kubernetes] "
+        "never names, so a user setting one is warned it is unknown while the "
+        "loader uses it"
+    );
+}
+
+
+test "the [scale.kubernetes] schema agrees with the declaration it documents" {
+    opts = _k8s_schema_options();
+    declared = KubernetesConfig();
+    drift: list[str] = [];
+    for f in fields(KubernetesConfig) {
+        if f.name in _LOADER_DERIVED or f.name in _DERIVED_DEFAULT {
+            continue;
+        }
+        spec = opts.get(f.name);
+        if not isinstance(spec, dict) {
+            continue;
+        }
+        if spec.get("default") != getattr(declared, f.name) {
+            drift.append(
+                f"{f.name}: schema={spec.get('default')!r} "
+                f"declaration={getattr(declared, f.name)!r}"
+            );
+        }
+    }
+    disagreed = sorted(drift);
+    assert disagreed == [] , (
+        f"the schema documents a default the declaration does not apply: {disagreed}"
+    );
+}
+
 
 test "reporting does not raise outside strict mode" {
     os.environ.pop(STRICT_ENV, None);
@@ -327,68 +401,4 @@ test "normalizer passes documented boot and static-mount keys through" {
     assert "boot_health_timeout" not in normalized , normalized;
     mounts = normalized["client"]["static_mounts"];
     assert mounts == [{"url_prefix": "/assets", "local_path": "public"}] , mounts;
-}
-
-
-def _collect_schema_keys(schema: dict, out: set) -> None {
-    if not isinstance(schema, dict) {
-        return;
-    }
-    for (key, value) in schema.items() {
-        if isinstance(value, dict) {
-            out.add(str(key));
-            _collect_schema_keys(value.get("nested", {}), out);
-        }
-    }
-}
-
-
-# The blocker this guards: a KubernetesConfig field that from_dict reads but
-# the schema never declares. _walk_schema then warns "unknown key ... defaults
-# apply instead" on every command, and hard-fails under
-# JAC_SCALE_CONFIG_STRICT, for a key the loader does read. Walking the DEFAULT
-# config dict cannot catch it, because the default dict is not what
-# from_config consumes.
-test "every [scale.kubernetes] key the constructor reads is declared in the schema" {
-    import re;
-    import from pathlib { Path }
-    source = (
-        Path(__file__).parents[2]
-        / "deploy"
-        / "target"
-        / "kubernetes"
-        / "kubernetes_config.jac"
-    ).read_text();
-    # Split on the constructor's real name. Splitting on a name the file does
-    # not contain returns the WHOLE source, so the scrape silently widens to
-    # every config.get in the module and the guard below can never fire.
-    marker = "from_dict";
-    assert marker in source , (
-        f"'{marker}' is gone from kubernetes_config.jac, so this test is "
-        "scraping the whole file instead of the constructor; update it"
-    );
-    body = source.split(marker, 1)[-1];
-    consumed = set(re.findall(r"config\.get\(\s*'([a-z_]+)'", body));
-    assert consumed , "could not read the constructor's keys; update this test";
-
-    # Any section: a few keys the kubernetes block reads are owned by another
-    # section and merged in, so "declared somewhere" is the honest bar. What
-    # must never happen is a key the loader reads that the schema never names.
-    declared: set = set();
-    _collect_schema_keys(
-        JacScalePluginConfig.get_config_schema().get("options", {}), declared
-    );
-
-    # Keys get_kubernetes_config assigns unconditionally after loading, from
-    # [scale.monitoring] and from the system plugin deps. Declaring them under
-    # [scale.kubernetes] would validate a value that is then thrown away, which
-    # is the same lie this test exists to catch, pointing the other way.
-    derived: set = {"monitoring_enabled", "service_dependencies"};
-
-    missing = sorted(consumed - declared - derived);
-    assert missing == [] , (
-        f"the constructor reads {missing} but [scale.kubernetes] does not declare "
-        "them, so a user setting one gets an 'unknown key' warning and the "
-        "value is reported as ignored while the loader actually uses it"
-    );
 }

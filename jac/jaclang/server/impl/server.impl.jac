@@ -9,6 +9,12 @@ import from jaclang.server.auth_types {
     LoginRequest,
     RegisterRequest
 }
+import from jaclang.server.serving.authcrypt {
+    hash_password,
+    needs_rehash,
+    project_data_dir,
+    verify_password
+}
 
 impl JacAPIServer._make_user_manager -> UserManager {
     return UserManager(base_path=self.base_path);
@@ -18,9 +24,7 @@ impl UserManager.postinit -> None {
     import sqlite3;
     import threading;
 
-    data_path_override = os.environ.get('JAC_DATA_PATH');
-    effective_data_path = data_path_override or self.base_path;
-    data_dir = os.path.join(effective_data_path, ".jac", "data");
+    data_dir = project_data_dir(self.base_path);
     os.makedirs(data_dir, exist_ok=True);
     self._db_path = os.path.join(data_dir, "main.db");
     self._conn = None;
@@ -56,6 +60,7 @@ impl UserManager._ensure_connection -> None {
 
 impl UserManager.create_user(username: str, password: str) -> dict[str, str] {
     import from jaclang.runtime.constructs { Root }
+    password_hash = hash_password(password);
     self._ensure_connection();
     assert self._conn is not None;
     with self._lock {
@@ -72,7 +77,6 @@ impl UserManager.create_user(username: str, password: str) -> dict[str, str] {
         Jac.commit(root_anchor);
         root_id = root_anchor.ensure_id().hex;
         token = secrets.token_urlsafe(32);
-        password_hash = hashlib.sha256(password.encode()).hexdigest();
         self._conn.execute(
             "INSERT INTO users (username, password_hash, token, root_id) VALUES (?, ?, ?, ?)",
             (username, password_hash, token, root_id)
@@ -111,18 +115,37 @@ impl UserManager.authenticate(
 ) -> (dict[(str, str)] | None) {
     self._ensure_connection();
     assert self._conn is not None;
-    password_hash = hashlib.sha256(password.encode()).hexdigest();
     with self._lock {
         cursor = self._conn.execute(
-            "SELECT token, root_id FROM users WHERE username = ? AND password_hash = ?",
-            (username, password_hash)
+            "SELECT password_hash, token, root_id FROM users WHERE username = ?",
+            (username, )
         );
         row = cursor.fetchone();
     }
-    if row {
-        return {'username': username, 'token': row[0], 'root_id': row[1]};
+    if not row {
+        return None;
     }
-    return None;
+    stored = str(row[0]);
+    if not verify_password(password, stored) {
+        return None;
+    }
+    if needs_rehash(stored) {
+        self._rehash_password(username, password);
+    }
+    return {'username': username, 'token': row[1], 'root_id': row[2]};
+}
+
+impl UserManager._rehash_password(username: str, password: str) -> None {
+    rehashed = hash_password(password);
+    self._ensure_connection();
+    assert self._conn is not None;
+    with self._lock {
+        self._conn.execute(
+            "UPDATE users SET password_hash = ? WHERE username = ?",
+            (rehashed, username)
+        );
+        self._conn.commit();
+    }
 }
 
 impl UserManager.validate_token(token: str) -> (str | None) {
@@ -182,7 +205,6 @@ impl UserManager.user_exists(username: str) -> bool {
 impl UserManager.update_username(
     current_username: str, new_username: str
 ) -> dict[str, str] {
-    import hashlib;
     self._ensure_connection();
     assert self._conn is not None;
     with self._lock {
@@ -211,26 +233,25 @@ impl UserManager.update_username(
 impl UserManager.update_password(
     username: str, current_password: str, new_password: str
 ) -> dict[str, str] {
-    import hashlib;
     self._ensure_connection();
     assert self._conn is not None;
     with self._lock {
-        current_password_hash = hashlib.sha256(current_password.encode()).hexdigest();
         cursor = self._conn.execute(
-            "SELECT 1 FROM users WHERE username = ?  AND password_hash = ?",
-            (username, current_password_hash)
+            "SELECT password_hash FROM users WHERE username = ?", (username, )
         );
-        if not cursor.fetchone() {
-            return {'error': 'Current password is incorrect'};
-        }
-        new_password_hash = hashlib.sha256(new_password.encode()).hexdigest();
-        cursor = self._conn.execute(
-            "UPDATE users SET password_hash = ? WHERE username = ?",
-            (new_password_hash, username)
+        row = cursor.fetchone();
+    }
+    if not row or not verify_password(current_password, str(row[0])) {
+        return {'error': 'Current password is incorrect'};
+    }
+    updated = hash_password(new_password);
+    with self._lock {
+        self._conn.execute(
+            "UPDATE users SET password_hash = ? WHERE username = ?", (updated, username)
         );
         self._conn.commit();
-        return {'username': username, 'message': 'Password updated successfully'};
     }
+    return {'username': username, 'message': 'Password updated successfully'};
 }
 
 impl UserManager.close -> None {
@@ -1365,6 +1386,12 @@ impl ModuleIntrospector.ensure_bundle -> str {
     if self._bundle {
         return self._bundle.hash;
     }
+    if self.dev_mode {
+        raise ClientBundleError(
+            'the dev server owns the client in dev mode; the API port does not '
+            'build a production bundle'
+        );
+    }
 
     entry_epoch = self._bundle_epoch;
     with self._bundle_lock {
@@ -1494,6 +1521,59 @@ impl ModuleIntrospector.is_auth_required_for_function(func_name: str) -> bool {
 
 impl ModuleIntrospector.is_auth_required_for_walker(walker_name: str) -> bool {
     return self._walker_access.get(walker_name, True);
+}
+
+
+impl ModuleIntrospector.restspec_routes -> list[tuple[str, str, any]] {
+    routes: list[tuple[str, str, any]] = [];
+    try {
+        for (name, target) in sorted(self.get_walkers().items()) {
+            spec = target?.restspec;
+            if spec is not None {
+                routes.append((name, 'walker', spec));
+            }
+        }
+        for (name, target) in sorted(self.get_functions().items()) {
+            fn_target: any = target;
+            fn_spec = fn_target?.restspec;
+            if fn_spec is not None {
+                routes.append((name, 'function', fn_spec));
+            }
+        }
+    } except Exception {
+        return routes;
+    }
+    return routes;
+}
+
+
+impl ModuleIntrospector.declared_api_paths -> list[str] {
+    paths: list[str] = [];
+    for (_name, _kind, spec) in self.restspec_routes() {
+        path = str(spec.path or '');
+        if not path.startswith('/') or path == '/' {
+            continue;
+        }
+        if path not in paths {
+            paths.append(path);
+        }
+    }
+    return sorted(paths);
+}
+
+
+impl ModuleIntrospector.client_claimed_paths(candidates: list[str]) -> list[str] {
+    claimed: list[str] = [];
+    for candidate in candidates {
+        try {
+            if self.has_client_route(candidate) {
+                claimed.append(candidate);
+            }
+        } except Exception {
+            continue;
+        }
+    }
+    return claimed;
 }
 
 
@@ -1870,6 +1950,16 @@ impl JacAPIServer.build_app -> ServingApp {
         return parsed if isinstance(parsed, dict) else {};
     }
 
+    def _dev_client_elsewhere -> ServingResponse {
+        return JSONResponse(
+            content={
+                'error': 'Not found',
+                'detail': 'in dev the client is served by the dev server on the web port'
+            },
+            status_code=404
+        );
+    }
+
     def _render_page_response(
         request: Request, func_name: str, args: dict[str, any], status: int = 200
     ) -> ServingResponse {
@@ -1992,6 +2082,9 @@ impl JacAPIServer.build_app -> ServingApp {
     }
 
     def _client_js(request: Request) -> ServingResponse {
+        if server.dev_mode {
+            return _dev_client_elsewhere();
+        }
         try {
             js_code = Jac.get_client_js(server.introspector);
         } except RuntimeError as exc {
@@ -2013,6 +2106,9 @@ impl JacAPIServer.build_app -> ServingApp {
         configured_root = config.serve.base_route_app if config else '';
         base_route_app = server.introspector.resolve_root_app(configured_root);
         if base_route_app {
+            if server.dev_mode {
+                return _dev_client_elsewhere();
+            }
             return _render_page_response(
                 request,
                 base_route_app,
@@ -2042,6 +2138,9 @@ impl JacAPIServer.build_app -> ServingApp {
     }
 
     def _cl_page(request: Request, name: str) -> ServingResponse {
+        if server.dev_mode {
+            return _dev_client_elsewhere();
+        }
         return _render_page_response(request, name, _query_args(request));
     }
 
@@ -2049,6 +2148,9 @@ impl JacAPIServer.build_app -> ServingApp {
         path = f"/{rest}";
         if is_asset_request(path, cl_route_path) {
             return _serve_static(request, path[1:]);
+        }
+        if server.dev_mode {
+            return _dev_client_elsewhere();
         }
         configured_root = config.serve.base_route_app if config else '';
         base_route_app = server.introspector.resolve_root_app(configured_root);
@@ -2360,25 +2462,113 @@ impl JacAPIServer.build_app -> ServingApp {
         _named_walkers = [];
         _named_functions = [];
     }
-    try {
-        _all_targets = dict(server.introspector.get_walkers());
-        _all_targets.update(server.introspector.get_functions());
-        _spec_carriers = [
-            n
-            for (n, t) in _all_targets.items()
-            if t?.restspec is not None
-        ];
-        if _spec_carriers {
-            import logging;
-            logging.getLogger(__name__).warning(
-                "@restspec is ignored by the core server: "
-                f"{', '.join(sorted(_spec_carriers))} will serve at the "
-                "default /walker/ and /function/ POST routes only. Custom "
-                "methods, paths, webhooks, and websockets need the scale "
-                "serving stack (`jac run`)."
+    def _raw_spec_response(outcome: any, media_type: str) -> any {
+        if isinstance(outcome, ServingResponse) {
+            return outcome;
+        }
+        if isinstance(outcome, TransportResponse) {
+            if not outcome.ok {
+                return transport_to_response(outcome);
+            }
+            payload = outcome.data;
+            if isinstance(payload, dict) and 'result' in payload {
+                payload = payload['result'];
+            }
+            if isinstance(payload, bytes) {
+                body = payload;
+            } elif isinstance(payload, str) {
+                body = payload.encode('utf-8');
+            } elif payload is None {
+                body = b"";
+            } else {
+                body = json.dumps(payload).encode('utf-8');
+            }
+            return ServingResponse(content=body, media_type=media_type);
+        }
+        return outcome;
+    }
+
+    def _query_bound_request(request: Request) -> Request {
+        args = dict(request.query_params.items());
+        if not args {
+            return request;
+        }
+        body = _read_data(request) or {};
+        for (key, value) in args.items() {
+            if key not in body {
+                body[key] = value;
+            }
+        }
+        return dataclasses.replace(request, body=json.dumps(body).encode('utf-8'));
+    }
+
+    def _mk_spec_ep(
+        bound: str, is_walker: bool, media_type: str, binds_query: bool
+    ) -> Callable {
+        def _serve_spec(request: Request) -> any {
+            bound_request = _query_bound_request(request) if binds_query else request;
+            outcome = _spawn_walker(bound_request, bound)
+                if is_walker
+                else _call_function(bound_request, bound);
+            if not media_type {
+                return outcome;
+            }
+            return _raw_spec_response(outcome, media_type);
+        }
+        return _serve_spec;
+    }
+    _unserved_specs: list[str] = [];
+    _registered_spec_routes: dict = {};
+    for (_spec_name, _spec_kind, _spec) in server.introspector.restspec_routes() {
+        _is_walker = _spec_kind == 'walker';
+        _spec_path = str(_spec.path or '');
+        _spec_method = HTTPMethod(str(_spec.method or 'POST').upper());
+        if not _spec_path {
+            if _spec_method == HTTPMethod.POST {
+                continue;
+            }
+            _spec_path = (
+                f'/walker/{_spec_name}' if _is_walker else f'/function/{_spec_name}'
             );
         }
-    } except Exception {}
+        _spec_http = _spec.protocol == APIProtocol.HTTP;
+        if (
+            not _spec_path.startswith('/')
+            or '{' in _spec_path
+            or not _spec_http
+            or _spec.broadcast
+        ) {
+            _unserved_specs.append(_spec_name);
+            continue;
+        }
+        _spec_media = (
+            (_spec.produces or 'text/plain')
+                if (not _spec.envelope and not _is_walker)
+                else ''
+        );
+        if _spec_path in _registered_spec_routes.get(_spec_method, set()) {
+            continue;
+        }
+        _registered_spec_routes.setdefault(_spec_method, set()).add(_spec_path);
+        _ep(
+            _spec_method,
+            _spec_path,
+            _mk_spec_ep(
+                _spec_name, _is_walker, _spec_media, _spec_method == HTTPMethod.GET
+            ),
+            in_schema=True
+        );
+    }
+    if _unserved_specs {
+        import logging;
+        logging.getLogger(__name__).warning(
+            "@restspec on "
+            f"{', '.join(sorted(_unserved_specs))} declares a surface this "
+            "server does not build: path parameters, websockets, webhooks and "
+            "broadcast need the scale serving stack. The declared method and "
+            "path of every other @restspec is served here."
+        );
+    }
     for _w_name in _named_walkers {
         def _mk_walker_ep(bound: str) -> Callable {
             def _spawn_named(request: Request, node_id: str = '') -> any {
@@ -2544,6 +2734,8 @@ impl JacAPIServer.start(
             "Cannot start server: no socket was bound (test mode, port=0)"
         );
     }
+    self.dev_mode = dev;
+    self.introspector.dev_mode = dev;
     self.app = self.build_app();
     serving = ServingServer(app=self.app, host='0.0.0.0', port=self.port);
     self.server = serving;

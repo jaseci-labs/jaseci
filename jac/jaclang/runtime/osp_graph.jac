@@ -846,16 +846,6 @@ def osp_adj_pairs(origin: int, dir: int) -> list[int] {
     return out;
 }
 
-def osp_graph_wipe -> int {
-    DEFAULT_GRAPH.adj = {};
-    DEFAULT_GRAPH.rows = [];
-    DEFAULT_GRAPH.free_rows = [];
-    DEFAULT_GRAPH.row_of = {};
-    DEFAULT_GRAPH.dead = {};
-    DEFAULT_GRAPH.regions = {};
-    return 0;
-}
-
 def osp_has_edge(eh: int) -> int {
     return 1 if DEFAULT_GRAPH.has_edge(eh) else 0;
 }

@@ -41,7 +41,7 @@ def _print_local_ms_banner(routes: dict[str, str]) {
     }
 }
 
-def _scale_runtime_active -> bool {
+def scale_runtime_configured -> bool {
     if (
         os.environ.get("JAC_SCALE_RUNTIME") == "1"
         or os.environ.get("JAC_SV_SIBLING") == "1"
@@ -54,60 +54,104 @@ def _scale_runtime_active -> bool {
     );
 }
 
-def scale_local_serve(filename: str, port: int = 8000) -> int | None {
+def _app_serves_client(no_client: bool) -> bool {
+    if no_client {
+        return False;
+    }
+    try {
+        import from jaclang.project.config { get_config }
+        cfg = get_config();
+        if cfg is None {
+            return False;
+        }
+        kind: str = str(cfg.project.kind or "");
+        if kind {
+            return kind in ("web-app", "web-static");
+        }
+        if "jac-client" in cfg.dependencies or "client" in cfg.plugins {
+            return True;
+        }
+        raw = getattr(cfg, "_raw_data", {});
+        return isinstance(raw, dict) and bool(raw.get("client"));
+    } except Exception {
+        return False;
+    }
+}
+
+def scale_local_serve(
+    filename: str,
+    port: int = 8000,
+    ms: bool | None = None,
+    dev: bool = False,
+    no_client: bool = False
+) -> int | None {
     os.environ["JAC_SCALE_RUNTIME"] = "1";
     scale_config = get_scale_config();
     ms_config = scale_config.get_microservices_config();
     if port {
         ms_config["gateway_port"] = port;
     }
-    is_sv_sibling = os.environ.get("JAC_SV_SIBLING") == "1";
+    if os.environ.get("JAC_SV_SIBLING") == "1" {
+        return None;
+    }
 
     enabled = ms_config.get("enabled", None);
-    if (not is_sv_sibling) and (enabled is not False) {
+    asked_for_ms: bool = ms is True or (ms is None and enabled is True);
+    if asked_for_ms and not ms_config.get("routes") {
+        how: str = "--ms" if ms is True else "[scale.microservices] enabled = true";
+        console.error(
+            f"{how} has nothing to run: no services are declared.\n"
+            "  Declare them in [scale.microservices.routes] "
+            "(`jac scale split <module>` adds one).",
+            emoji=False
+        );
+        return 1;
+    }
+    dev_client: bool = dev and (not no_client);
+    realizer = None;
+    should_serve_ms = False;
+    try {
+        import from jaclang.scale.runtime.routing {
+            resolve_routes,
+            resolve_service_files
+        }
+        ms_config["routes"] = resolve_routes(ms_config);
+        ms_config["service_files"] = resolve_service_files(
+            ms_config, ms_config["routes"]
+        );
+        if ms_config["routes"] {
+            import from jaclang.scale.runtime.routing { ensure_main_service }
+            ensure_main_service(
+                ms_config["routes"],
+                ms_config["service_files"],
+                os.path.basename(filename)
+            );
+        }
+
+        import from jaclang.scale.runtime.realizer.local_realizer { LocalRealizer }
+        realizer = LocalRealizer(ms_config=ms_config);
+        should_serve_ms = realizer.should_serve(enabled, ms, dev_client);
+    } except ValueError as e {
+        console.error(f"Microservice configuration invalid: {e}", emoji=False);
+        return 1;
+    } except Exception as e {
+        console.error(
+            f"Microservice mode unavailable "
+            f"({type(e).__name__}: {e}); starting as a monolith.",
+            emoji=False
+        );
         realizer = None;
         should_serve_ms = False;
-        try {
-            import from jaclang.scale.runtime.routing {
-                resolve_routes,
-                resolve_service_files
-            }
-            ms_config["routes"] = resolve_routes(ms_config);
-            ms_config["service_files"] = resolve_service_files(
-                ms_config, ms_config["routes"]
-            );
-            if ms_config["routes"] {
-                import from jaclang.scale.runtime.routing { ensure_main_service }
-                ensure_main_service(
-                    ms_config["routes"],
-                    ms_config["service_files"],
-                    os.path.basename(filename)
-                );
-            }
-
-            import from jaclang.scale.runtime.realizer.local_realizer { LocalRealizer }
-            realizer = LocalRealizer(ms_config=ms_config);
-            should_serve_ms = realizer.should_serve(enabled);
-        } except ValueError as e {
-            console.error(f"Microservice configuration invalid: {e}", emoji=False);
-            return 1;
-        } except Exception as e {
-            console.error(
-                f"Microservice mode unavailable "
-                f"({type(e).__name__}: {e}); starting as a monolith.",
-                emoji=False
-            );
-            realizer = None;
-            should_serve_ms = False;
+    }
+    if should_serve_ms and realizer is not None {
+        ms_config["gateway_port_pinned"] = bool(port);
+        ms_config["dev"] = dev_client;
+        ms_config["app_serves_client"] = _app_serves_client(no_client);
+        if not asked_for_ms {
+            _print_local_ms_banner(ms_config.get("routes", {}));
         }
-        if should_serve_ms and realizer is not None {
-            ms_config["gateway_port_pinned"] = bool(port);
-            if enabled is None {
-                _print_local_ms_banner(ms_config.get("routes", {}));
-            }
-            realizer.serve();
-            return 0;
-        }
+        realizer.serve();
+        return 0;
     }
 
     return None;
@@ -652,7 +696,7 @@ class JacScalePlugin {
         base_path_dir: (str | None) = None,
         full_target_path: (str | None) = None
     ) -> ExecutionContext | None {
-        if not _scale_runtime_active() {
+        if not scale_runtime_configured() {
             return None;
         }
         import from .memory.context { JScaleExecutionContext }
@@ -668,27 +712,37 @@ class JacScalePlugin {
     }
 
     static def get_api_server_class -> type | None {
+        import from jaclang.server.identity_owner {
+            SCALE_IDENTITY,
+            identity_owner,
+            scale_stack_unavailable
+        }
+        import from jaclang.runtime.runtime { JacRuntime }
+        served = JacRuntime.get_full_target_path() or JacRuntime.get_base_path_dir();
+        if identity_owner(served) != SCALE_IDENTITY {
+            return None;
+        }
         try {
             import from .server.serve { JacAPIServer }
         } except ImportError as e {
-            import logging;
-            logging.getLogger(__name__).debug(
-                "scale API server unavailable, falling back to core server: "
-                f"missing module '{e?.name or ''}' ({e})"
-            );
-            return None;
+            raise scale_stack_unavailable('jaclang.scale.server.serve', e);
         }
         return JacAPIServer;
     }
 
     static def get_user_manager(base_path: str) -> UserManager | None {
-        if not _scale_runtime_active() {
+        import from jaclang.server.identity_owner {
+            SCALE_IDENTITY,
+            identity_owner,
+            scale_stack_unavailable
+        }
+        if identity_owner(base_path) != SCALE_IDENTITY {
             return None;
         }
         try {
             import from .identity.user_manager { JacScaleUserManager }
-        } except ImportError {
-            return None;
+        } except ImportError as e {
+            raise scale_stack_unavailable('jaclang.scale.identity.user_manager', e);
         }
         return JacScaleUserManager(base_path=base_path);
     }

@@ -96,18 +96,23 @@ obj WebSocket {
         closed: bool = False,
         close_code: int = 1000,
         max_message_bytes: int = MAX_FRAME_BYTES,
-        is_client_side: bool = False;
+        is_client_side: bool = False,
+        subprotocol: str = '';
 
-    async def accept {
+    async def accept(subprotocol: str = '') {
         if self.accepted or self.is_client_side {
             self.accepted = True;
             return;
         }
+        chosen = subprotocol.strip();
+        self.subprotocol = chosen;
+        protocol_line = f'Sec-WebSocket-Protocol: {chosen}\r\n' if chosen else '';
         response = (
             'HTTP/1.1 101 Switching Protocols\r\n'
             'Upgrade: websocket\r\n'
             'Connection: Upgrade\r\n'
             f'Sec-WebSocket-Accept: {self.accept_key}\r\n'
+            f'{protocol_line}'
             '\r\n'
         );
         self.writer.write(response.encode('latin-1'));

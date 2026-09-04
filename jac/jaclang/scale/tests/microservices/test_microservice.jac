@@ -319,7 +319,7 @@ test "sv boundary: private function rejects malformed token (401)" {
 test "sv boundary: private function rejects expired token (401)" {
     import from datetime { datetime, UTC, timedelta }
     import from jaclang.server.serving.authcrypt { jwt_encode }
-    import from jaclang.scale.identity.user_manager { JWT_SECRET, JWT_ALGORITHM }
+    import from jaclang.scale.identity.user_manager { jwt_secret, jwt_algorithm }
 
     tmp = setup_env();
     try {
@@ -333,8 +333,8 @@ test "sv boundary: private function rejects expired token (401)" {
                 "exp": past,
                 "iat": (past - timedelta(minutes=1)).timestamp()
             },
-            JWT_SECRET,
-            algorithm=JWT_ALGORITHM
+            jwt_secret(),
+            algorithm=jwt_algorithm()
         );
         resp = prov.post(
             "/function/report_status",
