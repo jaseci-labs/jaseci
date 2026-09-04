@@ -364,9 +364,7 @@ def staged_venv_files(stage: Path) -> list[Path] {
     files = [marker];
     for path in sorted(site.rglob("*")) {
         if (
-            path.is_file()
-            and path.suffix != ".pyc"
-            and "__pycache__" not in path.parts
+            path.is_file() and path.suffix != ".pyc" and "__pycache__" not in path.parts
         ) {
             files.append(path);
         }
@@ -386,9 +384,8 @@ def _prune_seed_pip(site: Path, specs: list[str]) {
         }
     }
     for item in sorted(site.iterdir()) {
-        if item.name == "pip" or (
-            item.name.startswith("pip-") and item.name.endswith(".dist-info")
-        ) {
+        if item.name == "pip"
+        or (item.name.startswith("pip-") and item.name.endswith(".dist-info")) {
             shutil.rmtree(str(item), ignore_errors=True);
         }
     }
@@ -405,6 +402,10 @@ def _venv_stage(stage: Path, pod_binary: bytes, timeout_s: int = 900) {
     # digest stays deterministic across seals.
     env["PIP_NO_INDEX"] = "1";
     env["PIP_FIND_LINKS"] = str(stage / "_vendor" / "wheels");
+    env["PIP_PREFIX"] = str(stage / ".jac" / "venv");
+    # The seal host's own runtime site may already satisfy some specs, which
+    # would make pip skip them and leave the staged prefix silently empty.
+    env["PIP_IGNORE_INSTALLED"] = "1";
     env["JAC_CLIENT_SKIP_NPM_INSTALL"] = "1";
     try {
         result = subprocess.run(
@@ -429,9 +430,7 @@ def _venv_stage(stage: Path, pod_binary: bytes, timeout_s: int = 900) {
     import from jaclang.project.pyvenv { get_venv_site_packages }
     site = get_venv_site_packages(venv);
     if not site.is_dir() {
-        raise RuntimeError(
-            f"seal-time venv build left no site-packages under {venv}"
-        );
+        raise RuntimeError(f"seal-time venv build left no site-packages under {venv}");
     }
     specs = _resolved_python_specs(stage);
     _prune_seed_pip(site, specs);
@@ -475,20 +474,6 @@ def pack_jab(project_dir: str, provisioned_database: str, pod_binary: bytes) -> 
         ) {
             try {
                 _venv_stage(staged, pod_binary);
-            } except Exception as exc {
-                shutil.rmtree(str(staged / ".jac"), ignore_errors=True);
-                logger.warning(
-                    f"Seal-time venv staging failed; pods will build the venv "
-                    f"at boot instead. {exc}"
-                );
-            }
-        }
-        if (
-            not os.environ.get("JAC_SEAL_SKIP_VENV")
-            and (staged / "_vendor" / "wheels").is_dir()
-        ) {
-            try {
-                _venv_stage(staged, seal_binary, seal_timeout_setting(project_dir));
             } except Exception as exc {
                 shutil.rmtree(str(staged / ".jac"), ignore_errors=True);
                 logger.warning(

@@ -2098,8 +2098,9 @@ test "a local install never writes the marker" {
             PythonProvider, "_run_project_pip"
         ) as mock_pip {
             mock_pip.return_value = (0, "Successfully installed", "");
-            assert python.install_specs(config, ["requests>=2.28.0"], InstallContext())
-                is True;
+            assert python.install_specs(
+                config, ["requests>=2.28.0"], InstallContext()
+            ) is True;
         }
         assert not (venv_dir / VENV_DEPS_MARKER).exists();
     } finally {
