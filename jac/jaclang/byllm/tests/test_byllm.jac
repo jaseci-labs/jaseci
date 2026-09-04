@@ -1325,11 +1325,8 @@ test "acall_llm proxy is a coroutine function" {
     );
 }
 
-# --- jac#8932 -----------------------------------------------------------------
-# BaseLLM.adispatch_streaming awaits model_call_with_stream_async before
-# iterating it, so the base implementation must be a coroutine returning an
-# async iterator, not an async generator. Every BaseLLM subclass that does not
-# define its own inherits it; only Model used to be safe.
+# jac#8932: adispatch_streaming awaits model_call_with_stream_async, so the base
+# must be a coroutine returning an async iterator, not an async generator.
 
 obj _Stream8932Delta {
     has content: str;
@@ -1345,7 +1342,7 @@ obj _Stream8932Chunk {
 }
 
 
-"""Subclass that implements only the sync provider call, like LocalLLM and ModelPool."""
+"""Implements only the sync provider call, like LocalLLM and ModelPool."""
 obj _Stream8932LLM(_byllm_llm_mod.BaseLLM) {
     override def model_call_with_stream(params: dict) -> object {
         for word in ["hello ", "world"] {
@@ -1384,13 +1381,8 @@ async def _drain_8932(llm: _byllm_llm_mod.BaseLLM) -> list[object] {
 
 test "BaseLLM.model_call_with_stream_async is a coroutine, not an async generator" {
     fn = _byllm_llm_mod.BaseLLM.model_call_with_stream_async;
-    assert not inspect.isasyncgenfunction(fn) , (
-        "must not be an async generator: adispatch_streaming awaits it, and "
-        "awaiting an async_generator raises TypeError (jac#8932)"
-    );
-    assert inspect.iscoroutinefunction(fn) , (
-        "must be a coroutine returning an async iterator, matching Model"
-    );
+    assert not inspect.isasyncgenfunction(fn) , "awaiting one raises TypeError";
+    assert inspect.iscoroutinefunction(fn) , "must be a coroutine, matching Model";
 }
 
 
