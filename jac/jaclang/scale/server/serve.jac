@@ -125,6 +125,7 @@ obj JacAPIServerParts {
     def get_emailer -> Emailer | None abst;
     def register_walkers_endpoints -> None abst;
     def register_functions_endpoints -> None abst;
+    def register_colocated_provider_endpoints -> None abst;
     def register_webhook_endpoints -> None abst;
     def register_websocket_endpoints -> None abst;
     def register_scheduler_endpoints -> None abst;
@@ -221,6 +222,7 @@ obj JacAPIServerEndpoints(JacAPIServerHost) {
     ) -> list[APIParameter];
 
     def register_functions_endpoints -> None;
+    def register_colocated_provider_endpoints -> None;
     def create_function_callback(
         func_name: str
     ) -> Callable[..., (TransportResponse | StreamingResponse)];

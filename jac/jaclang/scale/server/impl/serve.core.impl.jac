@@ -523,6 +523,7 @@ impl JacAPIServerCore._register_endpoints -> None {
 
     self.register_walkers_endpoints();
     self.register_functions_endpoints();
+    self.register_colocated_provider_endpoints();
     self.register_webhook_endpoints();
     self.register_websocket_endpoints();
 

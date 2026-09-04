@@ -924,8 +924,10 @@ test "separated files" {
     # `input` is destructured from useState (external React typings) so its
     # static type is unknown — `.strip()` routes through the polymorphic
     # runtime dispatcher instead of leaking the Python method name.
+    # The walker lives in the `separated` service app, so the spawn also
+    # carries the provider's app and route after the fields object.
     assert (
-        "__jacSpawn(\"create_todo\", \"\", {\"text\": _jac.poly.call(input, \"strip\")});"
+        "__jacSpawn(\"create_todo\", \"\", {\"text\": _jac.poly.call(input, \"strip\")},"
         in js_code
     );
 }

@@ -161,6 +161,250 @@ impl JacAPIServerEndpoints.create_walker_callback(
     return callback;
 }
 
+impl JacAPIServerEndpoints.register_colocated_provider_endpoints -> None {
+    import os;
+    import from jaclang.server.server { ModuleIntrospector }
+    import from jaclang.server.sv_client { _local_providers }
+    import from jaclang.server.bridge { replay_response, serialize_response }
+    import from jaclang.server.outbox { cached_result, remember_idempotency_key }
+    import from jaclang.server.transport { TransportResponse, Meta }
+    import from jaclang.server.serving.datatypes { Request }
+    import from jaclang.server.serving.endpoint { APIParameter, ParameterType }
+    import from jaclang.project.config { get_config }
+    providers = dict(_local_providers);
+    if not providers {
+        return;
+    }
+    config = get_config();
+
+    def _body(request: Request) -> (dict | None) {
+        if not request.body {
+            return {};
+        }
+        try {
+            parsed = request.json_sync();
+        } except Exception {
+            return None;
+        }
+        return parsed if isinstance(parsed, dict) else {};
+    }
+
+    def _idem_key(request: Request) -> str {
+        return str(request.headers.get('X-Jac-Idempotency-Key') or '').strip();
+    }
+
+    def _outcome(result: any) -> TransportResponse {
+        if isinstance(result, dict) and 'error' in result {
+            if result.get('error') == 'User not found' {
+                return TransportResponse.fail(
+                    code='UNAUTHORIZED',
+                    message='Unauthorized: unknown user',
+                    meta=Meta(extra={'http_status': 401})
+                );
+            }
+            return TransportResponse.fail(
+                code=str(result.get('error_code') or 'EXECUTION_ERROR').upper(),
+                message=result.get('error', 'Walker execution failed'),
+                details=result.get('traceback') if 'traceback' in result else None,
+                meta=Meta(extra={'http_status': int(result.get('http_status') or 500)})
+            );
+        }
+        return TransportResponse.success(
+            data=result, meta=Meta(extra={'http_status': 200})
+        );
+    }
+
+    def _walker_callback(
+        walker_cls: any, requires_auth: bool
+    ) -> Callable[..., TransportResponse] {
+        async def callback(
+            request: Request, nd: (str | None) = None, **kwargs: JsonValue
+        ) -> TransportResponse {
+            username: (str | None) = request.state?.username
+                if request?.state
+                else None;
+            if requires_auth and not username {
+                return TransportResponse.fail(
+                    code='UNAUTHORIZED',
+                    message='Unauthorized',
+                    meta=Meta(extra={'http_status': 401})
+                );
+            }
+            fields = _body(request);
+            if fields is None {
+                return TransportResponse.fail(
+                    code='INVALID_JSON',
+                    message='Invalid JSON',
+                    meta=Meta(extra={'http_status': 400})
+                );
+            }
+            if nd {
+                fields['_jac_spawn_node'] = nd;
+            }
+            key = _idem_key(request);
+            if key {
+                cached = cached_result(key);
+                if cached is not None {
+                    return replay_response(cached);
+                }
+            }
+            result = await self.execution_manager.spawn_walker(
+                walker_cls, fields, (username or Con.GUEST.value)
+            );
+            outcome = _outcome(result);
+            if key and outcome.ok {
+                remember_idempotency_key(key, result=serialize_response(outcome));
+            }
+            return outcome;
+        }
+        return callback;
+    }
+
+    def _function_callback(
+        func_obj: any, requires_auth: bool
+    ) -> Callable[..., TransportResponse] {
+        async def callback(request: Request, **kwargs: JsonValue) -> TransportResponse {
+            username: (str | None) = request.state?.username
+                if request?.state
+                else None;
+            if requires_auth and not username {
+                return TransportResponse.fail(
+                    code='UNAUTHORIZED',
+                    message='Unauthorized',
+                    meta=Meta(extra={'http_status': 401})
+                );
+            }
+            args = _body(request);
+            if args is None {
+                return TransportResponse.fail(
+                    code='INVALID_JSON',
+                    message='Invalid JSON',
+                    meta=Meta(extra={'http_status': 400})
+                );
+            }
+            result = await self.execution_manager.execute_function(
+                func_obj, args, (username or Con.GUEST.value)
+            );
+            return _outcome(result);
+        }
+        return callback;
+    }
+
+    def _listing(names: list[str], key: str) -> Callable[..., TransportResponse] {
+        async def callback(request: Request, **kwargs: JsonValue) -> TransportResponse {
+            return TransportResponse.success(
+                data={key: list(names)}, meta=Meta(extra={'http_status': 200})
+            );
+        }
+        return callback;
+    }
+
+    for (provider_app, provider_module) in providers.items() {
+        provider_cfg = config.app(provider_app) if config is not None else None;
+        route = (
+            provider_cfg.effective_route()
+                if provider_cfg is not None
+                else f"/api/{provider_app}"
+        ).rstrip(
+            '/'
+        );
+        mod_file = provider_module?.__file__;
+        intro = ModuleIntrospector(
+            module_name=str(provider_module?.__name__ or provider_app),
+            base_path=(os.path.dirname(mod_file) if mod_file else self.base_path),
+            module_file=mod_file
+        );
+        try {
+            intro.load();
+        } except Exception as exc {
+            console.warning(
+                f"Colocated app '{provider_app}' could not be introspected: {exc}"
+            );
+            continue;
+        }
+        walkers = intro.get_walkers();
+        functions = intro.get_functions();
+        self.server.add_endpoint(
+            JEndPoint(
+                method=HTTPMethod.GET,
+                path=f"{route}/walkers",
+                callback=_listing(list(walkers.keys()), 'walkers'),
+                parameters=[],
+                response_model=None,
+                tags=['Colocated'],
+                summary=f"Walkers of {provider_app}",
+                description=f"Walkers served for the colocated app {provider_app}",
+                requires_auth=False,
+                forward_undeclared_query_params=False
+            )
+        );
+        self.server.add_endpoint(
+            JEndPoint(
+                method=HTTPMethod.GET,
+                path=f"{route}/functions",
+                callback=_listing(list(functions.keys()), 'functions'),
+                parameters=[],
+                response_model=None,
+                tags=['Colocated'],
+                summary=f"Functions of {provider_app}",
+                description=f"Functions served for the colocated app {provider_app}",
+                requires_auth=False,
+                forward_undeclared_query_params=False
+            )
+        );
+        for (walker_name, walker_cls) in walkers.items() {
+            walker_auth = intro.is_auth_required_for_walker(walker_name);
+            cb = _walker_callback(walker_cls, walker_auth);
+            self.server.add_endpoint(
+                JEndPoint(
+                    method=HTTPMethod.POST,
+                    path=f"{route}/walker/{walker_name}/{{nd}}",
+                    callback=cb,
+                    parameters=[APIParameter(name='nd', kind=ParameterType.PATH)],
+                    response_model=None,
+                    tags=['Colocated'],
+                    summary=f"{provider_app}.{walker_name}",
+                    description=f"Spawn {walker_name} in the colocated app {provider_app}",
+                    requires_auth=walker_auth,
+                    forward_undeclared_query_params=False
+                )
+            );
+            self.server.add_endpoint(
+                JEndPoint(
+                    method=HTTPMethod.POST,
+                    path=f"{route}/walker/{walker_name}",
+                    callback=cb,
+                    parameters=[],
+                    response_model=None,
+                    tags=['Colocated'],
+                    summary=f"{provider_app}.{walker_name}",
+                    description=f"Spawn {walker_name} in the colocated app {provider_app}",
+                    requires_auth=walker_auth,
+                    forward_undeclared_query_params=False
+                )
+            );
+        }
+        for (func_name, func_obj) in functions.items() {
+            func_auth = intro.is_auth_required_for_function(func_name);
+            self.server.add_endpoint(
+                JEndPoint(
+                    method=HTTPMethod.POST,
+                    path=f"{route}/function/{func_name}",
+                    callback=_function_callback(func_obj, func_auth),
+                    parameters=[],
+                    response_model=None,
+                    tags=['Colocated'],
+                    summary=f"{provider_app}.{func_name}",
+                    description=f"Call {func_name} in the colocated app {provider_app}",
+                    requires_auth=func_auth,
+                    forward_undeclared_query_params=False
+                )
+            );
+        }
+    }
+}
+
+
 impl JacAPIServerEndpoints.register_functions_endpoints -> None {
     for func_name in self.get_functions() {
         func_obj = self.get_functions()[func_name];
