@@ -367,10 +367,14 @@ def _toolchain_env_fingerprint -> str {
     return h.hexdigest();
 }
 
-def _module_client_framework -> str {
+def _config_for_module(resolved: Path) -> any {
+    config_mod = __import__("jaclang.project.config", fromlist=["get_config_for_path"]);
+    return config_mod.get_config_for_path(resolved.parent);
+}
+
+def _module_client_framework(source_path: str) -> str {
     try {
-        config_mod = __import__("jaclang.project.config", fromlist=["get_config"]);
-        cfg = config_mod.get_config();
+        cfg = _config_for_module(Path(source_path).resolve());
         if cfg is not None and cfg.client {
             return str(cfg.client.framework or "react");
         }
@@ -381,7 +385,7 @@ def _module_client_framework -> str {
 def _project_env_fingerprint(source_path: str) -> str {
     h = hashlib.sha256();
     h.update(_module_client_kind(source_path).encode());
-    h.update(_module_client_framework().encode());
+    h.update(_module_client_framework(source_path).encode());
     h.update(_module_codespace_mode(source_path).encode());
     import from jaclang.compiler.placement.placement_pins {
         pins_digest,
@@ -697,8 +701,7 @@ def _module_cache_root(source_path: str) -> Path {
     } except ValueError {}
 
     try {
-        config_mod = __import__("jaclang.project.config", fromlist=["get_config"]);
-        cfg = config_mod.get_config();
+        cfg = _config_for_module(resolved);
         if cfg is not None and cfg.is_valid() and cfg.project_root is not None {
             try {
                 resolved.relative_to(cfg.project_root);
