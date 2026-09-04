@@ -28,7 +28,7 @@ def:pub RightSidebar(
             />
             <Input
                 className="rounded-full bg-muted pl-9 pr-9"
-                placeholder="Search Little-X"
+                placeholder="Search Jacyak"
                 value={searchQuery}
                 onChange={lambda (e: ChangeEvent) { onSearchChange(e.target.value); }}
                 onKeyDown={lambda (e: KeyboardEvent) { if e.key == "Enter" {
@@ -184,7 +184,7 @@ def:pub RightSidebar(
         <Card className="bg-muted/30">
             <CardHeader>
                 <CardTitle className="font-display text-base text-primary">
-                    LITTLE-X
+                    JACYAK
                 </CardTitle>
             </CardHeader>
             <CardContent className="-mt-3">

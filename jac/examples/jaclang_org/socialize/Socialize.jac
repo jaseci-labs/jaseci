@@ -104,7 +104,7 @@ def:pub Socialize -> JsxElement {
     if checkingAuth {
         return
             <div
-                className="flex min-h-screen items-center justify-center bg-background"
+                className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-background"
             >
                 <div
                     className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent"
@@ -154,7 +154,7 @@ def:pub Socialize -> JsxElement {
     ];
 
     <div
-        className="mx-auto flex min-h-screen w-full max-w-7xl bg-background text-foreground"
+        className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-7xl bg-background text-foreground"
     >
         <Sidebar
             {activeTab}
@@ -166,7 +166,7 @@ def:pub Socialize -> JsxElement {
             onLogout={handleLogout}
         />
         <main
-            className="min-h-screen min-w-0 flex-1 border-x border-border pb-20 md:pb-0"
+            className="min-h-[calc(100vh-4rem)] min-w-0 flex-1 border-x border-border pb-20 md:pb-0"
         >
             <header
                 className="sticky top-16 z-30 flex items-center justify-between gap-2 border-b border-border bg-background/80 px-4 py-3 backdrop-blur-lg"

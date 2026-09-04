@@ -1,14 +1,24 @@
 import from ..shared.ui.badge { Badge }
 import from ..shared.ui.button { Button }
 import from .Reveal { Reveal }
+import from react { useEffect }
 import from "@hugeicons/react" { HugeiconsIcon }
 import from "@hugeicons/core-free-icons" { GameController01Icon, PlayIcon }
 
 def:pub WasmGame -> JsxElement {
     has launched: bool = False,
-        canvasRef: Ref[HTMLCanvasElement] = Ref();
+        canvasRef: Ref[HTMLCanvasElement] = Ref(),
+        stopRef: Ref[any] = Ref();
 
     def launch(_e: MouseEvent);
+
+    useEffect(
+        lambda { return lambda { if stopRef.current {
+            stopRef.current();
+            stopRef.current = None;
+        }}; },
+        []
+    );
 
     return
         <section
@@ -65,7 +75,8 @@ def:pub WasmGame -> JsxElement {
                                     ref={canvasRef}
                                     width={960}
                                     height={600}
-                                    className="h-full w-full"
+                                    tabIndex={0}
+                                    className="h-full w-full focus:outline-none"
                                     style={{"display": "block", "cursor": "crosshair"}}
                                 />
                                 <div
@@ -127,7 +138,7 @@ def:pub WasmGame -> JsxElement {
                             </div>
                         </div>
                         <p className="mt-4 text-center text-sm text-muted-foreground">
-                            Click the canvas to capture the mouse ·{" "}
+                            Click the canvas to play and capture the mouse ·{" "}
                             <b className="text-foreground">WASD</b>{" "}
                             move · mouse / arrows aim ·{" "}
                             <b className="text-foreground">Space</b>{" "}
