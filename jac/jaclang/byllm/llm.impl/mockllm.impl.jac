@@ -41,6 +41,8 @@ impl MockLLM.dispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
         }
     }
 
+    mt_run._usage_history.append(usage);
+
     if isinstance(output, MockRawResponse) {
         return CompletionResult(
             output=mt_run.parse_response(output.content), tool_calls=[], usage=usage
@@ -91,5 +93,5 @@ impl MockLLM.dispatch_streaming(mt_run: MTRuntime) -> Generator[str, None, None]
         }
     }
 
-    self._usage_history.append({});
+    mt_run._usage_history.append({});
 }
