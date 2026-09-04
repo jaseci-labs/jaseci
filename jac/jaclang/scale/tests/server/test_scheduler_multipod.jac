@@ -13,7 +13,7 @@ import time;
 import from tempfile { mkdtemp }
 import from jaclang.data.pgembed { PgRuntime }
 import from jaclang.data.store { PgStore }
-import from jaclang.scale._optdeps.apscheduler { HAS_APSCHEDULER }
+import from jaclang.testing.requires { require_module }
 import from jaclang.scale.scheduler.scheduler {
     JOBS_CHANGED_CHANNEL,
     JacScaleScheduler,
@@ -144,9 +144,7 @@ test "jobs-changed NOTIFY from one pod reaches the other pod's listener" {
 
 
 test "two live pods fire a due job exactly once and DELETE stops both" {
-    if not HAS_APSCHEDULER {
-        testskip('apscheduler not installed; covered in CI');
-    }
+    require_module("apscheduler");
     import datetime as _dt;
     import from apscheduler.schedulers.background { BackgroundScheduler }
     sa = _store();

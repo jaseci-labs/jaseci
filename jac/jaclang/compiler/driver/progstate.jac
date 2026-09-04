@@ -2,11 +2,13 @@ import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.frontend.relations { ScopeChild }
 import from jaclang.compiler.passes.transform { Alert }
 import type from jaclang.compiler.driver.mtp { Info }
+import type from jaclang.compiler.frontend.codeinfo { ClientArtifact }
 
 obj ModuleHub {
     has mod: uni.ProgramModule,
         stamps: dict[str, float] = {},
-        artifacts: dict[str, any] = {};
+        artifacts: dict[str, any] = {},
+        client_artifacts: dict[str, ClientArtifact] = {};
 
     def stamp(resolved_path: str) {
         import time;
@@ -45,6 +47,9 @@ obj ModuleHub {
         if resolved_path in self.artifacts {
             del self.artifacts[resolved_path];
         }
+        if resolved_path in self.client_artifacts {
+            del self.client_artifacts[resolved_path];
+        }
     }
 
     def reset {
@@ -82,6 +87,7 @@ obj ModuleHub {
         prog_root.hub.update(retained_mods);
         self.stamps.clear();
         self.stamps.update(retained_stamps);
+        self.client_artifacts.clear();
     }
 }
 
@@ -223,10 +229,60 @@ obj BuildScratch {
     }
 }
 
+class AnalysisLedger {
+    has _tags: dict[int, set[str]],
+        _owners: dict[int, any];
+
+    def init(self: AnalysisLedger) {
+        self._tags: dict[int, set[str]] = {};
+        self._owners: dict[int, any] = {};
+    }
+
+    def _drop(self: AnalysisLedger, key: int) {
+        try {
+            self._tags.pop(key, None);
+            self._owners.pop(key, None);
+        } except Exception {}
+    }
+
+    def provided(self: AnalysisLedger, mod: any) -> set[str] {
+        import weakref;
+        key = id(mod);
+        owner = self._owners.get(key);
+        if owner is not None and owner() is mod {
+            return self._tags[key];
+        }
+        tags: set[str] = set();
+        self._tags[key] = tags;
+        self._owners[key] = weakref.ref(mod, lambda (_ref: any) { self._drop(key); });
+        return tags;
+    }
+
+    def provides(self: AnalysisLedger, mod: any, tag: str) -> bool {
+        owner = self._owners.get(id(mod));
+        return owner is not None and owner() is mod and tag in self._tags[id(mod)];
+    }
+
+    def mark(self: AnalysisLedger, mod: any, tags: set[str]) {
+        live = self.provided(mod);
+        live.clear();
+        live.update(tags);
+    }
+
+    def clear(self: AnalysisLedger) {
+        self._tags.clear();
+        self._owners.clear();
+    }
+
+    def __len__(self: AnalysisLedger) -> int {
+        return len(self._tags);
+    }
+}
+
 class AnalysisCaches {
     has placement_summaries: dict[str, any],
         placement_state: dict[str, any],
-        analyses_run: dict[int, set[str]],
+        analyses_run: AnalysisLedger,
         mtir_map: dict[(str, Info)],
         pass_runs: dict[str, int],
         pass_time: dict[str, float],
@@ -235,7 +291,7 @@ class AnalysisCaches {
     def init(self: AnalysisCaches) {
         self.placement_summaries: dict[str, any] = {};
         self.placement_state: dict[str, any] = {};
-        self.analyses_run: dict[int, set[str]] = {};
+        self.analyses_run: AnalysisLedger = AnalysisLedger();
         self.mtir_map: dict[(str, Info)] = {};
         self.pass_runs: dict[str, int] = {};
         self.pass_time: dict[str, float] = {};

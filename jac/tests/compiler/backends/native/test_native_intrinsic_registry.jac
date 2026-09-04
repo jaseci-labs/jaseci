@@ -78,6 +78,14 @@ def _call_lines(ir_text: str, name: str) -> list[str] {
     return hits;
 }
 
+glob RAW_MEM_IMPORTS = "import from c { def malloc(n: int) -> int; def free(p: int) -> None; }\n",
+     RAW_MEM_MARKERS = {
+         IntrinsicDispatch.MEM_LOAD: "mem.ld",
+         IntrinsicDispatch.MEM_STORE: "mem.p",
+         IntrinsicDispatch.ATOMIC_XCHG: "atomicrmw xchg",
+         IntrinsicDispatch.CALL_DTOR: "dtor.fn"
+     };
+
 """Probe source per dispatch kind; a new dispatch kind must add one here."""
 def _probe_source(intr: any) -> str {
     if intr.dispatch == IntrinsicDispatch.FLOAT_BITS {
@@ -88,6 +96,27 @@ def _probe_source(intr: any) -> str {
     }
     if intr.dispatch == IntrinsicDispatch.RC_RUNTIME {
         return "def probe(x: int) -> int { " + intr.name + "(); return x + 7; }\n";
+    }
+    if intr.dispatch in (IntrinsicDispatch.MEM_LOAD, IntrinsicDispatch.MEM_STORE) {
+        return (
+            RAW_MEM_IMPORTS
+            + "def probe(x: int) -> int { p = malloc(8); __mem_store_i64(p, x + 7); "
+            "v = __mem_load_i64(p); free(p); return v; }\n"
+        );
+    }
+    if intr.dispatch == IntrinsicDispatch.ATOMIC_XCHG {
+        return (
+            RAW_MEM_IMPORTS
+            + "def probe(x: int) -> int { p = malloc(8); __mem_store_i64(p, 0); "
+            "old = __atomic_xchg_i64(p, x + 7); v = __mem_load_i64(p); free(p); "
+            "return v + old; }\n"
+        );
+    }
+    if intr.dispatch == IntrinsicDispatch.CALL_DTOR {
+        return (
+            "def probe(x: int) -> int { if x == 0 { __mem_call_dtor(x, x); } "
+            "return x + 7; }\n"
+        );
     }
     assert False , (
         f"no probe strategy for dispatch {intr.dispatch}: add one so this "
@@ -112,6 +141,15 @@ test "every registry intrinsic lowers through its registered emitter" {
         } elif intr.dispatch == IntrinsicDispatch.BITS_FLOAT {
             fn = _get_func(eng, "probe", ctypes.c_double, ctypes.c_int64);
             assert fn(BITS_1_5) == 1.5 , f"{intr.name}(bits(1.5)) != 1.5";
+        } elif intr.dispatch in RAW_MEM_MARKERS {
+            ir_text = str(ir_mod.gen.llvm_ir);
+            marker = RAW_MEM_MARKERS[intr.dispatch];
+            assert marker in ir_text , (
+                f"{intr.name}: the raw-memory lowering ({marker!r}) is missing "
+                "from the emitted IR - the intrinsic was stranded"
+            );
+            fn = _get_func(eng, "probe", ctypes.c_int64, ctypes.c_int64);
+            assert fn(35) == 42 , f"{intr.name}: probe did not execute cleanly";
         } else {
             ir_text = str(ir_mod.gen.llvm_ir);
             assert _call_lines(ir_text, intr.name) , (

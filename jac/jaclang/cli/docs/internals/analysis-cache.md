@@ -76,7 +76,46 @@ changes the hash and exactly the affected importers re-analyze.
 Comptime dependencies (`SEC_CTDEPS`) fold in through validity rather than
 through the hash: a changed comptime input invalidates the module's cache
 entirely, the interface is rebuilt, and the rebuild cascades only if the
-exported surface actually moved -- the same cutoff rule.
+exported surface actually moved -- the same cutoff rule. The inputs are
+whatever the comptime evaluation actually read: every `embed_file` target,
+plus the home module of every comptime binding it unfolded, every ability
+body it interpreted, every enum whose member values it read, every
+class-body constant it reached through an attribute, and every archetype
+whose `has` defaults it folded during construction. Each is attributed to
+the module whose expression started the evaluation, so a value that
+travelled through an intermediate producer lands on the consumer that baked
+it in. The interface hash cannot serve this role: a producer whose comptime
+value changed still exports the same interface, which is why folds need
+their own section rather than a `SEC_DEPS` row.
+
+Entries are keyed on a content digest, so a rebuild or a `touch` is not an
+invalidation. A row records whether the evaluator read the module's source
+or interpreted a body out of it, and only the body rows fold in the impl and
+test annex digests. That split is what keeps the dev loop cheap: editing an
+impl annex of a CLI command module does not rebuild `cli/manifest.jac`,
+while editing the declaration that holds the folded `SPEC_*` value does.
+
+A module that folds across a `comptime import` also ingests those producers
+with full trees rather than from `SEC_IFACE`: an interface carries the
+declared surface, not the initializer the fold has to evaluate. The
+ingestion runs at the top of the compile pipeline, so a producer already
+resident in the program's hub is taken as it stands; a hub entry that
+arrived as a hydrated interface earlier in the same process is therefore not
+upgraded, which is why the ingestion is seeded before analysis rather than
+on demand.
+
+Every carrier of a fold checks the same section, because any one of them
+that does not becomes the stale path:
+
+| Carrier | Rule |
+|---|---|
+| Module cache | `is_module_cache_valid` fails when a row's digest moved |
+| Unsealed precompiled bundle | served only while its rows are fresh; a sealed image is a frozen build and is served on its seal alone |
+| Bundle promoted into the module cache | the bundle's rows ride along on the promotion write, absolutized onto the package root |
+| Native dependency IR cache | `.ir_cache` is keyed on the module's own source, so its `.ir_meta` stamps the rows the fold read and a hit whose stamp moved is dropped and rebuilt |
+
+Bundle rows are stored relative to the package root so a relocated bundle
+still resolves them, and absolutized again on the way into a module cache.
 
 Dependency edges are recorded at the one seam every ingestion path goes
 through (`JacProgram.load_dependency_module`), attributed to the innermost
