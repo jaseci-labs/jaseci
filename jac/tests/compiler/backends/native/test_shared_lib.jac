@@ -20,9 +20,14 @@ import from tests.support { TESTS_DIR }
 import jaclang;
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.backends.native.na_compile_pass { native_linked_ir_text }
 import from jaclang.compiler.backends.native.elf_linker { ElfLinker }
 import from jaclang.compiler.backends.native.macho_linker { MachOLinker }
 import from jaclang.compiler.backends.native.pe_linker { PeLinker }
+import from jaclang.compiler.backends.native.linker_common {
+    clib_needed_libs,
+    clib_symbol_lib_map
+}
 # The real CLI emitter owns __jac_shared_init + the public RC wrappers.
 # Re-using it here (instead of re-deriving the injection inline) keeps the
 # tests on the production code path -- a prior divergence here let a quoted-
@@ -55,7 +60,7 @@ def emit_shared_object(fixture: str, triple: str) -> tuple {
         assert not prog.errors_had , f"compile errors: {[
             str(e) for e in prog.errors_had
         ]}";
-        ir_txt = str(ir.gen.llvm_ir);
+        ir_txt = native_linked_ir_text(ir);
         exports = list(ir.gen._exported_symbols);
         # Delegate to the production emitter so shared-init + RC-wrapper
         # injection is identical to `jac nacompile --shared` (no divergence).
@@ -589,6 +594,120 @@ test "jac nacompile --shared initialises runtime globals via __jac_shared_init" 
         lib = ctypes.CDLL(lib_out);
         lib.set_g.restype = ctypes.c_int64;
         assert lib.set_g() == 42 , "global clib struct not initialised (null pointer)";
+    } finally {
+        shutil.rmtree(d, ignore_errors=True);
+    }
+}
+
+
+# ─── C imports of a shared library: process lookup on darwin ─────────────────
+# The compiler kernel (libjac_compiler) declares the CPython C API under
+# `import from c` and is dlopened by a process that holds libpython
+# RTLD_GLOBAL. On darwin that path resolves to "libc.dylib", a library no macOS
+# has, and nacompile's link two-level-bound every one of those symbols to it
+# (dyld reported libSystem): every macOS build of 0.37.3 died at first run with
+# `Symbol not found: _PyDict_GetItem`. These pin both halves of the fix in
+# linker_common, on any host.
+
+test "a darwin shared build binds its C imports through the process" {
+    needed: list[str] = ["/usr/lib/libSystem.B.dylib"];
+    norm = clib_needed_libs(needed, ["libc.dylib"], set());
+    assert needed == ["/usr/lib/libSystem.B.dylib"] , f"phantom dependency named: {needed}";
+    assert norm == {"libc.dylib": "/usr/lib/libSystem.B.dylib"} , f"unexpected normalization: {norm}";
+    syms = {"PyDict_GetItem": "libc.dylib", "memcpy": "libc.dylib"};
+    shared_map = clib_symbol_lib_map(syms, set(), norm, True, True);
+    assert shared_map == {"PyDict_GetItem": "@process", "memcpy": "@process"} , (
+        f"a dylib's C imports must be process lookups, got {shared_map}"
+    );
+}
+
+
+test "a darwin executable binds its C imports to libSystem, never to libc.dylib" {
+    needed: list[str] = ["/usr/lib/libSystem.B.dylib"];
+    norm = clib_needed_libs(needed, ["@loader_path/libc.dylib", "libm.dylib"], set());
+    assert needed == ["/usr/lib/libSystem.B.dylib"] , f"phantom dependency named: {needed}";
+    exe_map = clib_symbol_lib_map(
+        {"memcpy": "@loader_path/libc.dylib", "sin": "libm.dylib"},
+        set(),
+        norm,
+        False,
+        True
+    );
+    assert exe_map
+        == {
+            "memcpy": "/usr/lib/libSystem.B.dylib",
+            "sin": "/usr/lib/libSystem.B.dylib"
+        } , f"an executable keeps two-level binding, got {exe_map}";
+}
+
+
+test "an ELF link still names libc.so.6 and binds two-level" {
+    needed: list[str] = [];
+    norm = clib_needed_libs(needed, ["libc.so", "$ORIGIN/libfoo.so"], set());
+    assert needed == ["libc.so.6", "$ORIGIN/libfoo.so"] , f"{needed}";
+    m = clib_symbol_lib_map(
+        {"write": "libc.so", "foo": "$ORIGIN/libfoo.so"}, set(), norm, True, False
+    );
+    assert m == {"write": "libc.so.6", "foo": "$ORIGIN/libfoo.so"} , f"{m}";
+}
+
+
+test "a floor-satisfied C import names no library and maps no symbol" {
+    needed: list[str] = ["/usr/lib/libSystem.B.dylib"];
+    handled: set[str] = {"libcrypto.dylib"};
+    norm = clib_needed_libs(needed, ["libcrypto.dylib"], handled);
+    assert needed == ["/usr/lib/libSystem.B.dylib"] and norm == {} , f"{needed} {norm}";
+    m = clib_symbol_lib_map({"SHA256": "libcrypto.dylib"}, handled, norm, True, True);
+    assert m == {} , f"{m}";
+}
+
+
+glob _CLI_PROCESS_EXTERN_FIXTURE = (
+         "import from c {\n"
+         "    def PyDict_Size(d: int) -> int;\n"
+         "}\n"
+         "def:pub dict_len(d: int) -> int {\n"
+         "    return PyDict_Size(d);\n"
+         "}\n"
+     );
+
+
+test "jac nacompile --shared resolves a CPython C-API import from the host process (macOS host only)" {
+    # What the compiler kernel does, end to end: `import from c` a CPython
+    # C-API symbol and get called from Python through ctypes. This test process
+    # is CPython, so a correctly linked dylib finds PyDict_Size by flat lookup
+    # and the call agrees with len(). On 0.37.3 dlopen itself failed here.
+    triple = llvm.get_default_triple();
+    if not (sys.platform == "darwin" and "apple" in triple) {
+        return;
+    }
+    import ctypes;
+    import shutil;
+    import subprocess;
+    jac = shutil.which("jac") or "jac";
+    d = tempfile.mkdtemp();
+    try {
+        lib_src = os.path.join(d, "procext.jac");
+        with open(lib_src, "w") as f {
+            f.write(_CLI_PROCESS_EXTERN_FIXTURE);
+        }
+        lib_out = os.path.join(d, "libprocext.dylib");
+        res = subprocess.run(
+            [jac, "nacompile", "--shared", lib_src, "-o", lib_out],
+            capture_output=True,
+            text=True,
+            timeout=600
+        );
+        assert res.returncode == 0 , f"nacompile --shared failed:\n{res.stderr}";
+        assert os.path.exists(lib_out) , "shared library not produced";
+        # dlopen: the 0.37.3 kernel died on this line.
+        lib = ctypes.PyDLL(lib_out);
+        lib.dict_len.restype = ctypes.c_int64;
+        lib.dict_len.argtypes = [ctypes.c_void_p];
+        probe = {"a": 1, "b": 2, "c": 3};
+        assert lib.dict_len(id(probe)) == 3 , (
+            "PyDict_Size through the dylib disagrees with len()"
+        );
     } finally {
         shutil.rmtree(d, ignore_errors=True);
     }

@@ -152,3 +152,58 @@ def collect_floor_archives(
     }
     return (member_bytes, handled);
 }
+
+
+def clib_needed_libs(
+    needed_libs: list[str], clib_paths: list[str], floor_handled: set[str]
+) -> dict[str, str] {
+    import os;
+    lib_norm: dict[str, str] = {};
+    for lib_path in clib_paths {
+        if lib_path in floor_handled {
+            continue;
+        }
+        needed = lib_path;
+        if (not os.path.isabs(lib_path))
+            and (not lib_path.startswith("$"))
+            and (not lib_path.startswith("@"))
+            and ("/" in lib_path or "\\" in lib_path) {
+            needed = os.path.basename(lib_path);
+        }
+        base = os.path.basename(needed);
+        if base == "libc.so" {
+            needed = "libc.so.6";
+        } elif base == "libm.so" {
+            needed = "libm.so.6";
+        } elif base in ["libc.dylib", "libm.dylib"] {
+            needed = "/usr/lib/libSystem.B.dylib";
+        }
+        if needed not in needed_libs {
+            needed_libs.append(needed);
+        }
+        lib_norm[lib_path] = needed;
+    }
+    return lib_norm;
+}
+
+
+def clib_symbol_lib_map(
+    clib_symbol_lib: dict[str, str],
+    floor_handled: set[str],
+    lib_norm: dict[str, str],
+    shared: bool,
+    is_macos: bool
+) -> dict[str, str] {
+    symbol_lib_map: dict[str, str] = {};
+    for (sym, raw) in clib_symbol_lib.items() {
+        if raw in floor_handled {
+            continue;
+        }
+        if shared and is_macos {
+            symbol_lib_map[sym] = "@process";
+        } else {
+            symbol_lib_map[sym] = lib_norm.get(raw, raw);
+        }
+    }
+    return symbol_lib_map;
+}

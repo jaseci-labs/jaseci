@@ -72,7 +72,7 @@ jac install
 numpy = ">=1.26"
 
 [dependencies.npm]
-react = "^18.2.0"
+react = "^19.2.0"
 ```
 
 Both PyPI and npm packages live in the same config file, managed by the same tool.

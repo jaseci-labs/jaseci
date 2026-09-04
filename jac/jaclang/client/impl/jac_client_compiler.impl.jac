@@ -621,14 +621,14 @@ impl JacClientCompiler.rescan_pages(self: JacClientCompiler) -> bool {
             console.warning(f"Could not compile page {page_file}: {e}");
         }
     }
-    self._generate_routes_manifest();
+    self.routes_manifest_changed = self._generate_routes_manifest();
     return True;
 }
 
-impl JacClientCompiler._generate_routes_manifest(self: JacClientCompiler) -> None {
+impl JacClientCompiler._generate_routes_manifest(self: JacClientCompiler) -> bool {
     scanner = self._route_scanner;
     if scanner is None {
-        return;
+        return False;
     }
     routes = scanner._routes;
     layouts = scanner.get_layouts();
@@ -683,13 +683,20 @@ impl JacClientCompiler._generate_routes_manifest(self: JacClientCompiler) -> Non
     manifest_path.parent.mkdir(parents=True, exist_ok=True);
     new_content = "\n".join(lines);
 
-    try {
-        if manifest_path.exists()
-            and manifest_path.read_text(encoding='utf-8') == new_content {
-            return;
+    previous: (str | None) = None;
+    readable = True;
+    if manifest_path.exists() {
+        try {
+            previous = manifest_path.read_text(encoding='utf-8');
+        } except OSError {
+            readable = False;
         }
-    } except OSError {}
+    }
+    if readable and previous == new_content {
+        return False;
+    }
     manifest_path.write_text(new_content, encoding='utf-8');
+    return readable;
 }
 
 impl JacClientCompiler.init(
@@ -714,6 +721,7 @@ impl JacClientCompiler.init(
     self._has_pages = False;
     self._route_scanner: (RouteScanner | None) = None;
     self.na_wasm_modules = set();
+    self.routes_manifest_changed = False;
 }
 
 impl JacClientCompiler._collect_na_modules(self: JacClientCompiler, mod: any) -> None {

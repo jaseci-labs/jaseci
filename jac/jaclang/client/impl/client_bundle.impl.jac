@@ -11,6 +11,17 @@ impl _lookup_module_in_hub(path_key: str, hub: dict) -> (Module | None) {
     return None;
 }
 
+impl _client_target_module(source_key: str, program: any) -> (Module | None) {
+    mod = _lookup_module_in_hub(source_key, program.mod.hub);
+    if mod is None {
+        return None;
+    }
+    if program.analysis.analyses_run.provides(mod, 'TypeOf') {
+        return mod;
+    }
+    return None;
+}
+
 impl _ensure_js_generated(mod: Module, program: any) -> None {
     if mod and not mod.gen.js {
         import from jaclang.compiler.backends.es.esast_gen_pass { EsastGenPass }
@@ -151,7 +162,7 @@ impl ClientBundleBuilder._compile_to_js(source_path: Path) -> tuple[str, Module]
         );
     }
     source_key = str(source_path);
-    mod = _lookup_module_in_hub(source_key, program.mod.hub);
+    mod = _client_target_module(source_key, program);
     if not mod {
         prev_error_count = len(program.errors_had);
         mod = program.compile(source_key);

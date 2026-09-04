@@ -241,6 +241,7 @@ import from jaclang.compiler.frontend.diagnostics {
     E1121,
     E1129,
     E1131,
+    E1134,
     E0049,
     E5094,
     W1050,
@@ -402,13 +403,15 @@ walker TypeEvaluator {
     def resolve_to_definition_symbol(symbol: Symbol) -> Symbol;
     def _widen_literal_for_declaration(ty: TypeBase) -> TypeBase;
     def _import_module_from_path(
-        path: str, importer_path: (str | None) = None
+        path: str, importer_path: (str | None) = None, need_tree: bool = False
     ) -> Module;
 
     def _resolve_importer_path(ast_node: UniNode) -> (str | None);
     def forget_module(resolved_path: str) -> None;
     def _resolve_from_path(from_mod: ModulePath) -> Path;
     def _resolve_client_npm_module(node_: ModulePath) -> (str | None);
+    def _relative_import_must_resolve(node_: ModulePath) -> bool;
+    def _import_error_is_handled(imp: Import) -> bool;
     def _client_npm_base(spec: str, mod_path: str) -> (str | None);
     def _client_entry_mod_path -> (str | None);
     def _get_ts_declared_item_type(

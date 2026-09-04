@@ -13,6 +13,7 @@ import from jaclang.server.serving.authcrypt {
     jwt_decode as _jwt_decode,
     jwt_encode as _jwt_encode
 }
+import from jaclang.scale.identity.user_manager { jwt_secret }
 import from datetime { UTC, datetime, timedelta }
 import from pathlib { Path }
 import from jaclang.scale.tests.scale_test_client {
@@ -62,7 +63,7 @@ def register_and_get_token(client: any, username: str, password: str) -> str {
 }
 
 def _create_expired_token(username: str, days_ago: int = 1) -> str {
-    secret = "supersecretkey_for_testing_only!";
+    secret = jwt_secret();
     algorithm = "HS256";
 
     past_time = datetime.now(UTC) - timedelta(days=days_ago);
@@ -75,7 +76,7 @@ def _create_expired_token(username: str, days_ago: int = 1) -> str {
 }
 
 def _create_very_old_token(username: str, days_ago: int = 15) -> str {
-    secret = "supersecretkey_for_testing_only!";
+    secret = jwt_secret();
     algorithm = "HS256";
 
     past_time = datetime.now(UTC) - timedelta(days=days_ago);
@@ -197,11 +198,7 @@ test "user registration and login" {
     try {
         test_username = f"testuser_{uuid.uuid4().hex[:8]}";
         response = client.post(
-            "/user/register",
-            json={
-                "identities": [{"type": "username", "value": test_username}],
-                "credential": {"type": "password", "password": "testpass123"}
-            }
+            "/user/register", json=register_payload(test_username, "testpass123")
         );
         result = extract_data(response.json());
         assert "user_id" in result;
@@ -209,40 +206,24 @@ test "user registration and login" {
 
         status_user = f"status_{uuid.uuid4().hex[:8]}";
         response = client.post(
-            "/user/register",
-            json={
-                "identities": [{"type": "username", "value": status_user}],
-                "credential": {"type": "password", "password": "password123"}
-            }
+            "/user/register", json=register_payload(status_user, "password123")
         );
         assert response.status_code == 201;
         data = extract_data(response.json());
         assert "user_id" in data;
 
         response = client.post(
-            "/user/register",
-            json={
-                "identities": [{"type": "username", "value": status_user}],
-                "credential": {"type": "password", "password": "password123"}
-            }
+            "/user/register", json=register_payload(status_user, "password123")
         );
         assert response.status_code == 400;
 
         login_username = f"login_{uuid.uuid4().hex[:8]}";
         response = client.post(
-            "/user/register",
-            json={
-                "identities": [{"type": "username", "value": login_username}],
-                "credential": {"type": "password", "password": "loginpass"}
-            }
+            "/user/register", json=register_payload(login_username, "loginpass")
         );
         create_result = extract_data(response.json());
         response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": login_username},
-                "credential": {"type": "password", "password": "loginpass"}
-            }
+            "/user/login", json=login_payload(login_username, "loginpass")
         );
         login_result = extract_data(response.json());
         assert "token" in login_result;
@@ -250,38 +231,22 @@ test "user registration and login" {
         assert "root_id" in login_result;
 
         response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": login_username},
-                "credential": {"type": "password", "password": "loginpass"}
-            }
+            "/user/login", json=login_payload(login_username, "loginpass")
         );
         assert response.status_code == 200;
 
         fail_username = f"fail_{uuid.uuid4().hex[:8]}";
         response = client.post(
-            "/user/register",
-            json={
-                "identities": [{"type": "username", "value": fail_username}],
-                "credential": {"type": "password", "password": "correctpass"}
-            }
+            "/user/register", json=register_payload(fail_username, "correctpass")
         );
         response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": fail_username},
-                "credential": {"type": "password", "password": "wrongpass"}
-            }
+            "/user/login", json=login_payload(fail_username, "wrongpass")
         );
         login_result = extract_data(response.json());
         assert "error" in login_result;
 
         response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": fail_username},
-                "credential": {"type": "password", "password": "wrongpass"}
-            }
+            "/user/login", json=login_payload(fail_username, "wrongpass")
         );
         assert response.status_code == 401;
         data = extract_data(response.json());
@@ -296,21 +261,11 @@ test "user registration and login" {
         );
         assert response.status_code in (400, 422);
 
-        response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": ""},
-                "credential": {"type": "password", "password": "x"}
-            }
-        );
+        response = client.post("/user/login", json=login_payload("", "x"));
         assert response.status_code in (400, 422);
 
         response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": "nonexistent"},
-                "credential": {"type": "password", "password": "password"}
-            }
+            "/user/login", json=login_payload("nonexistent", "password")
         );
         assert response.status_code == 401;
     } finally {
@@ -490,7 +445,7 @@ test "token refresh functionality" {
         refresh_result = extract_data(response.json());
         new_token = refresh_result["token"];
 
-        secret = "supersecretkey_for_testing_only!";
+        secret = jwt_secret();
         algorithm = "HS256";
 
         original_payload = _jwt_decode(token, secret, algorithms=[algorithm]);
@@ -534,33 +489,21 @@ test "integration auth flow" {
         username = f"integration_{uuid.uuid4().hex[:8]}";
 
         register_response = client.post(
-            "/user/register",
-            json={
-                "identities": [{"type": "username", "value": username}],
-                "credential": {"type": "password", "password": "secure123"}
-            }
+            "/user/register", json=register_payload(username, "secure123")
         );
         assert register_response.status_code == 201;
         data = extract_data(register_response.json());
         assert "user_id" in data;
 
         login_response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": username},
-                "credential": {"type": "password", "password": "secure123"}
-            }
+            "/user/login", json=login_payload(username, "secure123")
         );
         assert login_response.status_code == 200;
         data = extract_data(login_response.json());
         token1 = data["token"];
 
         login_response2 = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": username},
-                "credential": {"type": "password", "password": "secure123"}
-            }
+            "/user/login", json=login_payload(username, "secure123")
         );
         assert login_response2.status_code == 200;
         data = extract_data(login_response2.json());
@@ -572,11 +515,7 @@ test "integration auth flow" {
         token3 = data["token"];
 
         fail_response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": username},
-                "credential": {"type": "password", "password": "wrongpass"}
-            }
+            "/user/login", json=login_payload(username, "wrongpass")
         );
         assert fail_response.status_code == 401;
 
@@ -594,10 +533,7 @@ def _me_register_and_login(
     password: str = "pw12345",
     profile: dict[str, any] | None = None
 ) -> tuple[str, str] {
-    body: dict[str, any] = {
-        "identities": [{"type": "username", "value": username}],
-        "credential": {"type": "password", "password": password}
-    };
+    body: dict[str, any] = register_payload(username, password);
     if profile is not None {
         body["profile"] = profile;
     }
@@ -605,13 +541,7 @@ def _me_register_and_login(
     assert register.status_code == 201 , f"register failed: {register.json()}";
     user_id = extract_data(register.json())["user_id"];
 
-    login = client.post(
-        "/user/login",
-        json={
-            "identity": {"type": "username", "value": username},
-            "credential": {"type": "password", "password": password}
-        }
-    );
+    login = client.post("/user/login", json=login_payload(username, password));
     assert login.status_code == 200 , f"login failed: {login.json()}";
     return (user_id, extract_data(login.json())["token"]);
 }
@@ -775,21 +705,11 @@ test "function calls" {
     try {
         func_user = f"funcuser_{uuid.uuid4().hex[:8]}";
         response = client.post(
-            "/user/register",
-            json={
-                "identities": [{"type": "username", "value": func_user}],
-                "credential": {"type": "password", "password": "pass"}
-            }
+            "/user/register", json=register_payload(func_user, "pass")
         );
         create_result = extract_data(response.json());
         assert "user_id" in create_result;
-        response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": func_user},
-                "credential": {"type": "password", "password": "pass"}
-            }
-        );
+        response = client.post("/user/login", json=login_payload(func_user, "pass"));
         login_result = extract_data(response.json());
         token = login_result["token"];
 
@@ -885,21 +805,11 @@ test "walker calls" {
     try {
         walker_user = f"walkeruser_{uuid.uuid4().hex[:8]}";
         response = client.post(
-            "/user/register",
-            json={
-                "identities": [{"type": "username", "value": walker_user}],
-                "credential": {"type": "password", "password": "pass"}
-            }
+            "/user/register", json=register_payload(walker_user, "pass")
         );
         create_result = extract_data(response.json());
         assert "user_id" in create_result;
-        response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": walker_user},
-                "credential": {"type": "password", "password": "pass"}
-            }
-        );
+        response = client.post("/user/login", json=login_payload(walker_user, "pass"));
         login_result = extract_data(response.json());
         token = login_result["token"];
 
@@ -939,7 +849,7 @@ test "walker calls" {
         data = response_data["reports"][0];
         assert data["message"] == "This is a public endpoint";
 
-        secret = "supersecretkey_for_testing_only!";
+        secret = jwt_secret();
         now = datetime.now(UTC);
         payload = {
             "username": "deleted_user",
@@ -964,21 +874,11 @@ test "walker calls" {
 
         g_user = f"guser_{uuid.uuid4().hex[:8]}";
         response = client.post(
-            "/user/register",
-            json={
-                "identities": [{"type": "username", "value": g_user}],
-                "credential": {"type": "password", "password": "gpass"}
-            }
+            "/user/register", json=register_payload(g_user, "gpass")
         );
         reg = extract_data(response.json());
         assert "user_id" in reg;
-        response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": g_user},
-                "credential": {"type": "password", "password": "gpass"}
-            }
-        );
+        response = client.post("/user/login", json=login_payload(g_user, "gpass"));
         reg_login = extract_data(response.json());
         response = client.post(
             "/walker/CreateTask",
@@ -1232,20 +1132,14 @@ test "websocket functionality" {
 
         response = requests.post(
             f"{sv_base_url}/user/register",
-            json={
-                "identities": [{"type": "username", "value": username}],
-                "credential": {"type": "password", "password": password}
-            },
+            json=register_payload(username, password),
             timeout=10
         );
         assert response.status_code in (200, 201) , f"Failed to create user: {response.text}";
 
         response = requests.post(
             f"{sv_base_url}/user/login",
-            json={
-                "identity": {"type": "username", "value": username},
-                "credential": {"type": "password", "password": password}
-            },
+            json=login_payload(username, password),
             timeout=10
         );
         assert response.status_code == 200 , f"Failed to login: {response.text}";
@@ -1273,20 +1167,14 @@ test "websocket functionality" {
         username = f"ws_query_user_{uuid.uuid4().hex[:8]}";
         response = requests.post(
             f"{sv_base_url}/user/register",
-            json={
-                "identities": [{"type": "username", "value": username}],
-                "credential": {"type": "password", "password": password}
-            },
+            json=register_payload(username, password),
             timeout=10
         );
         assert response.status_code in (200, 201);
 
         response = requests.post(
             f"{sv_base_url}/user/login",
-            json={
-                "identity": {"type": "username", "value": username},
-                "credential": {"type": "password", "password": password}
-            },
+            json=login_payload(username, password),
             timeout=10
         );
         assert response.status_code == 200;
@@ -1364,20 +1252,14 @@ test "websocket functionality" {
 
             response = requests.post(
                 f"{sv_base_url}/user/register",
-                json={
-                    "identities": [{"type": "username", "value": username}],
-                    "credential": {"type": "password", "password": password}
-                },
+                json=register_payload(username, password),
                 timeout=10
             );
             assert response.status_code in (200, 201);
 
             response = requests.post(
                 f"{sv_base_url}/user/login",
-                json={
-                    "identity": {"type": "username", "value": username},
-                    "credential": {"type": "password", "password": password}
-                },
+                json=login_payload(username, password),
                 timeout=10
             );
             assert response.status_code == 200;
@@ -1524,19 +1406,13 @@ test "dev mode operations" {
         devtest_user = f"devtest_{uuid.uuid4().hex[:8]}";
         register_response = requests.post(
             f"{dm_base_url}/user/register",
-            json={
-                "identities": [{"type": "username", "value": devtest_user}],
-                "credential": {"type": "password", "password": "pass"}
-            },
+            json=register_payload(devtest_user, "pass"),
             timeout=10
         );
         assert register_response.status_code == 201;
         login_response = requests.post(
             f"{dm_base_url}/user/login",
-            json={
-                "identity": {"type": "username", "value": devtest_user},
-                "credential": {"type": "password", "password": "pass"}
-            },
+            json=login_payload(devtest_user, "pass"),
             timeout=10
         );
         token = _extract_data_dev(login_response.json())["token"];
@@ -1557,19 +1433,13 @@ test "dev mode operations" {
         devfunc_user = f"devfunc_{uuid.uuid4().hex[:8]}";
         register_response = requests.post(
             f"{dm_base_url}/user/register",
-            json={
-                "identities": [{"type": "username", "value": devfunc_user}],
-                "credential": {"type": "password", "password": "pass"}
-            },
+            json=register_payload(devfunc_user, "pass"),
             timeout=10
         );
         assert register_response.status_code == 201;
         login_response = requests.post(
             f"{dm_base_url}/user/login",
-            json={
-                "identity": {"type": "username", "value": devfunc_user},
-                "credential": {"type": "password", "password": "pass"}
-            },
+            json=login_payload(devfunc_user, "pass"),
             timeout=10
         );
         token = _extract_data_dev(login_response.json())["token"];
@@ -1606,19 +1476,13 @@ test "dev mode operations" {
         username = f"asyncuser_{uuid.uuid4().hex[:8]}";
         register_response = requests.post(
             f"{dm_base_url}/user/register",
-            json={
-                "identities": [{"type": "username", "value": username}],
-                "credential": {"type": "password", "password": "password123"}
-            },
+            json=register_payload(username, "password123"),
             timeout=10
         );
         assert register_response.status_code == 201;
         login_response = requests.post(
             f"{dm_base_url}/user/login",
-            json={
-                "identity": {"type": "username", "value": username},
-                "credential": {"type": "password", "password": "password123"}
-            },
+            json=login_payload(username, "password123"),
             timeout=10
         );
         token = _extract_data_dev(login_response.json())["token"];
@@ -2208,21 +2072,9 @@ test "jwt middleware: per-user isolation and token rejection" {
     client = make_client();
     try {
         def reg(name: str) -> str {
-            r = client.post(
-                "/user/register",
-                json={
-                    "identities": [{"type": "username", "value": name}],
-                    "credential": {"type": "password", "password": "Pass!99"}
-                }
-            );
+            r = client.post("/user/register", json=register_payload(name, "Pass!99"));
             assert r.status_code == 201;
-            login = client.post(
-                "/user/login",
-                json={
-                    "identity": {"type": "username", "value": name},
-                    "credential": {"type": "password", "password": "Pass!99"}
-                }
-            );
+            login = client.post("/user/login", json=login_payload(name, "Pass!99"));
             assert login.status_code == 200;
             return extract_data(login.json())["token"];
         }

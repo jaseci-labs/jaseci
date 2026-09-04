@@ -1104,7 +1104,7 @@ impl UniNode._construct_sub_node_tab -> None {
 
 impl UniNode._invalidate_sub_node_tab -> None {
     cur: (UniNode | None) = self;
-    while cur is not None and cur.__sub_node_tab is not None {
+    while cur is not None {
         cur.__sub_node_tab = None;
         cur = cur.parent;
     }
@@ -2181,12 +2181,10 @@ impl Module.postinit -> None {
     self.src_terminals = self.terminals;
     self.codespace_inferred = False;
     self.ct_file_deps = [];
+    self.ct_body_deps = [];
     self.rc_last_use = {};
     _rc_move_in: set[int] = set();
     self.rc_move_in = _rc_move_in;
-    self.anon_region_open = {};
-    self.anon_region_close = {};
-    self.anon_region_locals = {};
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=self.name);
 }
