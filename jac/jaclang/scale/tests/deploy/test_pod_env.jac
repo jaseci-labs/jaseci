@@ -254,10 +254,15 @@ test "no client entry means no client build in the gateway entrypoint" {
 }
 
 
-def _entrypoint_run(project: str, env: dict[str, str]) -> tuple[int, str, str] {
+def _entrypoint_run(
+    project: str,
+    env: dict[str, str],
+    cfg: (KubernetesConfig | None) = None,
+    failing_tools: (list[str] | None) = None
+) -> tuple[int, str, str] {
     import subprocess;
     import from jaclang.scale.injector.bundle { APP_MOUNT_PATH }
-    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    cfg = cfg or KubernetesConfig(app_name="jac-shop", namespace="ns");
     script: str = ManifestBuilder(k8s_config=cfg)._pod_entrypoint()["args"][0];
     mount = f"cd {APP_MOUNT_PATH}; ";
     assert mount in script , script;
@@ -268,6 +273,11 @@ def _entrypoint_run(project: str, env: dict[str, str]) -> tuple[int, str, str] {
     stub = bin_dir / "jac";
     stub.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$@\" > \"{record}\"\n");
     stub.chmod(0o755);
+    for tool in (failing_tools or []) {
+        broken = bin_dir / tool;
+        broken.write_text("#!/bin/sh\nexit 1\n");
+        broken.chmod(0o755);
+    }
     run_env = dict(os.environ);
     run_env["PATH"] = f"{bin_dir}{os.pathsep}{run_env.get('PATH', '')}";
     run_env.pop("JAC_SV_FILE", None);
@@ -277,6 +287,61 @@ def _entrypoint_run(project: str, env: dict[str, str]) -> tuple[int, str, str] {
     );
     argv = record.read_text() if record.is_file() else "";
     return (proc.returncode, argv, proc.stderr);
+}
+
+
+test "a failed system package install neither stops the boot nor drops the sibling flag" {
+    # `fi && export JAC_SV_SIBLING=1` chained the export onto the apt block,
+    # and `set -e` exempts the left side of `&&`: on any non-root image that
+    # lacked the packages the install failed, the export was skipped, and the
+    # pod entered local microservice mode with the whole fleet inside it
+    # (jac#8935). The apt step is one best-effort statement now, and the flag
+    # travels in the pod env, where a boot script cannot lose it.
+    import tempfile;
+    cfg = KubernetesConfig(
+        app_name="jac-shop", namespace="ns", service_dependencies=["git", "curl"]
+    );
+    with tempfile.TemporaryDirectory() as project {
+        (Path(project) / "svc.jac").write_text("");
+        (rc, argv, err) = _entrypoint_run(
+            project,
+            {"JAC_SV_NAME": "svc", "JAC_SV_FILE": "svc.jac"},
+            cfg=cfg,
+            failing_tools=["dpkg-query", "apt-get"]
+        );
+        assert rc == 0 , err;
+        assert argv.split() == ["run", "--serve", "svc.jac"] , argv;
+        assert "could not install system packages (curl git)" in err , err;
+    }
+    script = ManifestBuilder(k8s_config=cfg)._pod_entrypoint()["args"][0];
+    assert "fi && " not in script , script;
+    assert "JAC_SV_SIBLING" not in script , (
+        "the sibling flag is a property of the pod, not a boot-script side effect"
+    );
+}
+
+
+test "every service pod carries the sibling flag in its env, and no override drops it" {
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    builder = ManifestBuilder(
+        k8s_config=cfg,
+        project_dir=str(_K8S_E2E_FIXTURE),
+        microservices_config={"routes": {"orders_app": "/orders"}}
+    );
+    app_cfg = AppConfig(code_folder=str(_K8S_E2E_FIXTURE), app_name="jac-shop");
+    specs = builder.generate_service_pod_specs(app_cfg, "img");
+    assert set(specs.keys()) == {"orders_app", "main", GATEWAY_NAME};
+    for (name, spec) in specs.items() {
+        env = {e["name"]: e["value"] for e in spec["containers"][0]["env"]};
+        assert env.get("JAC_SV_SIBLING") == "1" , f"{name}: {env}";
+    }
+    overridden = builder._build_env("orders_app", {"env": {"JAC_SV_SIBLING": "0"}});
+    values = [
+        e["value"]
+        for e in overridden
+        if e["name"] == "JAC_SV_SIBLING"
+    ];
+    assert values == ["1"] , overridden;
 }
 
 
