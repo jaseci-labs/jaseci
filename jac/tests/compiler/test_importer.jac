@@ -641,9 +641,18 @@ test "stub module cache key is source focused" {
         assert stub_key == module_cache_key(stub_file) , (
             "module_cache_key should use stub key for .pyi"
         );
-        jac_key = compute_module_key(stub_file);
+        jac_probe = stub_file[:-4] + ".jac";
+        with open(jac_probe, "w") as jac_tmp {
+            jac_tmp.write("class KeyProbe:\n    k: int\n");
+        }
+        try {
+            jac_key = compute_module_key(jac_probe);
+        } finally {
+            os.unlink(jac_probe);
+        }
         assert stub_key != jac_key , (
-            "stub cache key should not include placement/client config"
+            "a project module's key folds in placement/client config; "
+            "a stub's key must not"
         );
     } finally {
         os.unlink(stub_file);

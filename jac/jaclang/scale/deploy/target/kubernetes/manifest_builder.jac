@@ -10,10 +10,6 @@ import from jaclang.scale.models.deploy_context { DeployContext }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
-import from jaclang.scale.deploy.autoscale.autoscaler {
-    DEFAULT_CPU_UTILIZATION_TARGET,
-    DEFAULT_MEMORY_UTILIZATION_TARGET
-}
 import from jaclang.scale.deploy.autoscale.http_activation_config {
     build_http_activation_spec
 }
@@ -294,11 +290,7 @@ obj ManifestBuilder {
         if self.gateway_config is not None {
             return normalize_gateway_config(self.gateway_config);
         }
-        try {
-            return get_scale_config().get_gateway_config();
-        } except Exception {
-            return normalize_gateway_config({});
-        }
+        return get_scale_config().get_gateway_config();
     }
 
     def _project_config -> any {
@@ -693,11 +685,7 @@ obj ManifestBuilder {
         if user_secret is not None {
             bundle["user_secret"] = user_secret;
         }
-        try {
-            ingress_cfg: dict[str, any] = self._gateway_cfg().get("ingress", {});
-        } except Exception {
-            ingress_cfg = {};
-        }
+        ingress_cfg: dict[str, any] = self._gateway_cfg().get("ingress", {});
         ingress = self._build_ingress_manifest(ingress_cfg);
         if ingress is not None {
             bundle["ingress"] = ingress;
@@ -753,11 +741,7 @@ obj ManifestBuilder {
     }
 
     def _drain_timeout -> int {
-        try {
-            return int(self._gateway_cfg().get("drain_timeout_seconds", 10));
-        } except Exception {
-            return 10;
-        }
+        return int(self._gateway_cfg().get("drain_timeout_seconds", 10));
     }
 
     def _service_config(svc_name: str) -> dict[str, any] {
@@ -851,21 +835,17 @@ obj ManifestBuilder {
     }
 
     def _shared_volumes_config -> list[dict[str, any]] {
-        try {
-            raw = self._gateway_cfg().get("shared_volumes", []);
-            if not isinstance(raw, list) {
-                return [];
-            }
-            out: list[dict[str, any]] = [];
-            for `entry in raw {
-                if isinstance(`entry, dict) {
-                    out.append(dict(`entry));
-                }
-            }
-            return out;
-        } except Exception {
+        raw = self._gateway_cfg().get("shared_volumes", []);
+        if not isinstance(raw, list) {
             return [];
         }
+        out: list[dict[str, any]] = [];
+        for `entry in raw {
+            if isinstance(`entry, dict) {
+                out.append(dict(`entry));
+            }
+        }
+        return out;
     }
 
     def _shared_volumes_for_service(
@@ -952,7 +932,8 @@ obj ManifestBuilder {
                     "labels": {
                         "app": "jac-scale-shared",
                         "managed": "jac-scale",
-                        "jac-scale.role": "shared-volume"
+                        "jac-scale.role": "shared-volume",
+                        "jac-scale.owner": k8s_safe_name(self.k8s_config.app_name)
                     }
                 },
                 "spec": spec
@@ -1393,12 +1374,13 @@ obj ManifestBuilder {
             }
             behavior = {};
         }
+        cfg = self.k8s_config;
         return {
-            "min": int(hpa.get("min", 1)),
-            "max": int(hpa.get("max", 3)),
-            "cpu_target": int(hpa.get("cpu_target", DEFAULT_CPU_UTILIZATION_TARGET)),
+            "min": int(hpa.get("min", cfg.min_replicas)),
+            "max": int(hpa.get("max", cfg.max_replicas)),
+            "cpu_target": int(hpa.get("cpu_target", cfg.cpu_utilization_target)),
             "memory_target": int(
-                hpa.get("memory_target", DEFAULT_MEMORY_UTILIZATION_TARGET)
+                hpa.get("memory_target", cfg.memory_utilization_target)
             ),
             "has_memory_request": bool(
                 self._resolved_memory_request(svc, svc_name == GATEWAY_NAME)

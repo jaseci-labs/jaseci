@@ -72,6 +72,8 @@ def app_scale_overrides(config: any, app_name: str) -> dict[str, any];
 
 def _pick_app_scale_keys(section: dict[str, any] | None) -> dict[str, any];
 
+def load_microservices_config -> dict[str, any];
+
 glob _scale_config_instance: JacScaleConfig | None = None,
      _app_scale_cache: dict[str, dict[str, any]] = {},
      _placeholder_jwt_secret_warned: bool = False,

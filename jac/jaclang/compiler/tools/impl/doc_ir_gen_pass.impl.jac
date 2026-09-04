@@ -1396,6 +1396,10 @@ impl DocIRGenPass.exit_try_stmt with uni.TryStmt exit {
     here.gen.doc_ir = self.format_simple_stmt_with_body(here, here.body);
 }
 
+impl DocIRGenPass.exit_awaiting_clause with uni.AwaitingClause exit {
+    here.gen.doc_ir = self.format_simple_stmt_with_body(here, here.body);
+}
+
 impl DocIRGenPass.exit_iter_for_stmt with uni.IterForStmt exit {
     here.gen.doc_ir = self.format_simple_stmt_with_body(here, here.body);
 }
@@ -2663,6 +2667,12 @@ impl DocIRGenPass.line_suffix(contents: doc.DocType) -> doc.LineSuffix {
 
 impl DocIRGenPass.break_parent -> doc.BreakParent {
     return doc.BreakParent();
+}
+
+impl DocIRGenPass.doc_ir_default_exit with uni.UniNode exit {
+    if (here.gen._doc_ir is None) and here.kid {
+        self._assign_space_group(here);
+    }
 }
 
 impl DocIRGenPass.finish_doc_comments with uni.UniNode exit {

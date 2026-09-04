@@ -1,6 +1,8 @@
 import atexit;
 import os;
 import sys;
+import from collections.abc { Callable, Iterator }
+import from contextlib { contextmanager }
 import from jaclang.compiler.passes.transform { DiagnosticPolicy }
 import from jaclang.compiler.driver.program { JacProgram }
 
@@ -179,3 +181,14 @@ obj _SetupProgress {
 }
 
 glob setup_progress = _SetupProgress();
+
+obj CompileProgress {
+    has _listeners: list[Callable[[str], None]] postinit;
+
+    def postinit -> None;
+    def notify(file_path: str) -> None;
+    @contextmanager
+    def listen(callback: Callable[[str], None]) -> Iterator[None];
+}
+
+glob compile_progress = CompileProgress();

@@ -272,7 +272,7 @@ jobs:
             "firebase-admin>=6.0.0,<8.0.0" "requests>=2.32.0,<3.0.0" \
             --global
           jac install \
-            "litellm>=1.70.0,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
+            "litellm>=1.75.2,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
             "httpx>=0.27.0" "loguru>=0.7.2,<0.8.0" \
             --global
 
@@ -575,7 +575,7 @@ jobs:
             requests "moto[s3]>=5.0.0" \
             --global
           jac install \
-            "litellm>=1.70.0,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
+            "litellm>=1.75.2,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
             "httpx>=0.27.0" "loguru>=0.7.2,<0.8.0" \
             --global
       # Run from a copy OUTSIDE the checkout. The resolver's self-tree rule
@@ -657,7 +657,7 @@ jobs:
       - name: Install byllm deps + test deps
         run: |
           jac install \
-            "litellm>=1.70.0,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
+            "litellm>=1.75.2,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
             "httpx>=0.27.0" "loguru>=0.7.2,<0.8.0" \
             --global
       # test_mtir_integration.jac runs in test-in-package-sealed (see there).
@@ -816,6 +816,14 @@ jobs:
           JAC_SCALE_BINARY_PATH: ${{ github.workspace }}/jac/zig-out/bin/jac
         run: |
           jac test jac/jaclang/scale/tests/test_deploy_k8s.jac -x --test_name "early exit"
+
+      # Destroy deletes namespaces and volumes, so what it reclaims and what it
+      # spares is only decidable by an API server. Runs on every scale PR.
+      - name: Run destroy reclamation e2e
+        env:
+          CLUSTER_TYPE: microk8s
+          JAC_SCALE_BINARY_PATH: ${{ github.workspace }}/jac/zig-out/bin/jac
+        run: bash jac/jaclang/scale/tests/deploy/destroy_reclaim_real_e2e.sh
 
   # aarch64 cross lane: in-house ELF linker + arch-parameterized musl from the
   # kit, binaries run under qemu-user.

@@ -25,6 +25,7 @@ glob MAGIC = b"JIR\x00",
      SEC_IFACE: int = 0x0D,
      SEC_DEPS: int = 0x0E,
      SEC_DIAG: int = 0x0F,
+     SEC_CLIENT: int = 0x10,
      SEC_TERMINATOR: int = 0xFF,
      FLAG_PRECOMPILED: int = 0x02,
      PRECOMPILE_SENTINEL: str = "__PKG_ROOT__",
@@ -349,6 +350,32 @@ def _toolchain_env_fingerprint -> str {
     return h.hexdigest();
 }
 
+def _config_for_module(resolved: Path) -> any {
+    config_mod = __import__("jaclang.project.config", fromlist=["get_config_for_path"]);
+    return config_mod.get_config_for_path(resolved.parent);
+}
+
+def _analysis_fingerprint_for(source_path: str) -> str {
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
+    cfg: any = None;
+    try {
+        cfg = _config_for_module(Path(source_path).resolve());
+    } except Exception {
+        cfg = None;
+    }
+    gc_cfg = cfg.gc if cfg is not None else None;
+    native_cfg = cfg.build.native if cfg is not None else None;
+    return CompileOptions(
+        na_gc_mode=(gc_cfg.`default if gc_cfg else "cycles"),
+        nogc_enforce_modules=(list(gc_cfg.enforce.modules) if gc_cfg else []),
+        nogc_grandfathered=(list(gc_cfg.enforce.grandfathered) if gc_cfg else []),
+        native_target=(
+            os.environ.get("JAC_NATIVE_TARGET", "")
+            or (native_cfg.target if native_cfg else "")
+        )
+    ).analysis_fingerprint();
+}
+
 def _project_env_fingerprint(source_path: str) -> str {
     h = hashlib.sha256();
     h.update(_module_codespace_mode(source_path).encode());
@@ -366,10 +393,7 @@ def _project_env_fingerprint(source_path: str) -> str {
     h.update(app_fact_digest(app_for_path(source_path)).encode());
     _ws = workspace_for_path(source_path);
     h.update((_ws.digest if _ws is not None else '').encode());
-    import from jaclang.compiler.driver.compile_options {
-        effective_analysis_fingerprint
-    }
-    h.update(effective_analysis_fingerprint().encode());
+    h.update(_analysis_fingerprint_for(source_path).encode());
     return h.hexdigest();
 }
 
@@ -380,20 +404,23 @@ def _full_env_fingerprint(source_path: str) -> str {
     return h.hexdigest();
 }
 
+def _env_fingerprint_for(source_path: str) -> str {
+    if is_stub_like_path(source_path) or is_compiler_source_path(source_path) {
+        return _toolchain_env_fingerprint();
+    }
+    return _full_env_fingerprint(source_path);
+}
+
 def module_env_fingerprint(source_path: str) -> str {
     h = hashlib.sha256();
-    if is_stub_like_path(source_path) {
-        h.update(_toolchain_env_fingerprint().encode());
-    } else {
-        h.update(_full_env_fingerprint(source_path).encode());
-    }
+    h.update(_env_fingerprint_for(source_path).encode());
     h.update(running_compiler_digest().encode());
     return h.hexdigest();
 }
 
 def compute_module_key(source_path: str) -> str {
     h = hashlib.sha256();
-    h.update(_full_env_fingerprint(source_path).encode());
+    h.update(_env_fingerprint_for(source_path).encode());
     h.update(compute_content_sha256(source_path).encode());
     for (rel, digest) in _related_files(source_path) {
         h.update(rel.encode());
@@ -672,8 +699,7 @@ def _module_cache_root(source_path: str) -> Path {
     } except ValueError {}
 
     try {
-        config_mod = __import__("jaclang.project.config", fromlist=["get_config"]);
-        cfg = config_mod.get_config();
+        cfg = _config_for_module(resolved);
         if cfg is not None and cfg.is_valid() and cfg.project_root is not None {
             try {
                 resolved.relative_to(cfg.project_root);

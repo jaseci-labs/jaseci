@@ -14,7 +14,9 @@ import from jaclang.compiler.driver.jir {
     SEC_NATIVE_OBJ,
     SEC_PLACEMENT,
     SEC_IFACE,
+    SEC_CLIENT,
     FLAG_PRECOMPILED,
+    compute_content_sha256,
     get_module_cache_path,
     is_module_cache_valid,
     precompiled_jir_matches_source,
@@ -28,6 +30,7 @@ import from jaclang.compiler.driver.jir {
     HEADER_SIZE
 }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
+import type from jaclang.compiler.frontend.codeinfo { ClientArtifact }
 import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
 import from jaclang.compiler.frontend.constant { CodeContext, Tokens as Tok }
 import from jaclang.compiler.backends.py.jcir_gen_pass { JcirGenPass }
@@ -39,6 +42,7 @@ import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.selfhost { SelfHostCache }
 import from jaclang.compiler.driver.pass_driver {
     build_diagnostic_policy,
+    compile_progress,
     deliver_alerts,
     run_pass,
     setup_progress
@@ -111,6 +115,19 @@ obj JacCompiler {
         full_target: str, target_program: JacProgram
     ) -> (types.CodeType | None);
 
+    def get_client_artifact(
+        full_target: str, target_program: JacProgram
+    ) -> (ClientArtifact | None);
+
+    def client_codegen_target(
+        full_target: str, target_program: JacProgram
+    ) -> (uni.Module | None);
+
+    def ensure_client_codegen(mod: uni.Module, target_program: JacProgram) -> bool;
+    def client_artifact_of(mod: uni.Module) -> (ClientArtifact | None);
+    def _cached_client_artifact(full_target: str) -> (ClientArtifact | None);
+    static def _client_deps_fresh(artifact: ClientArtifact) -> bool;
+    def _persist_client_artifact(full_target: str, artifact: ClientArtifact) -> None;
     def _load_native_from_cache(
         full_target: str,
         target_program: JacProgram,

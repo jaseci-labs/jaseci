@@ -1165,6 +1165,20 @@ def _colocate_services(cfg: any, served: any, base: str) -> None {
     }
 }
 
+def _client_display_path(path: Path, base: str) -> str {
+    import jaclang;
+    resolved = path.resolve();
+    roots = [Path(base).resolve(), Path(jaclang.__file__).resolve().parent.parent];
+    for parent in roots {
+        try {
+            return str(resolved.relative_to(parent));
+        } except ValueError {
+            continue;
+        }
+    }
+    return path.name;
+}
+
 impl serve(
     filename: str,
     port: int = 0,
@@ -1362,9 +1376,32 @@ impl serve(
 
         if not no_client {
             try {
+                import time;
+                import from jaclang.compiler.driver.pass_driver { compile_progress }
                 compiler = server.introspector._bundle_builder._get_compiler();
-                compiler.compile(server.introspector._module, Path(filename));
-                console.print("  ✔ Initial client compilation completed");
+                compiled: list[str] = [];
+                started = time.perf_counter();
+                with console.status("Compiling client...") as status {
+                    def _on_module(file_path: str) {
+                        compiled.append(file_path);
+                        status.update(
+                            "Compiling client: "
+                                + _client_display_path(Path(file_path), base)
+                        );
+                    }
+                    with compile_progress.listen(_on_module) {
+                        compiler.compile(server.introspector._module, Path(filename));
+                    }
+                }
+                elapsed = time.perf_counter() - started;
+                detail = (
+                    f"{len(compiled)} modules compiled"
+                        if compiled
+                        else "all modules served from cache"
+                );
+                console.print(
+                    f"  ✔ Initial client compilation completed ({detail}, {elapsed:.1f}s)"
+                );
 
                 compiler._emit_na_wasm(Path(filename));
             } except Exception as e {
