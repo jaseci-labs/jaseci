@@ -70,8 +70,8 @@ impl ViteClientBundleBuilder._get_compiler(
                 'Vite package.json not found. Set vite_package_json when using ViteClientBundleBuilder'
             );
         }
-        compile_to_js_func: Callable[([Path], tuple[(str, (ModuleType | None))])] = cast(
-            Callable[([Path], tuple[(str, (ModuleType | None))])], self._compile_to_js
+        compile_to_js_func: Callable[[Path], ClientArtifact] = cast(
+            Callable[[Path], ClientArtifact], self._compile_to_js
         );
         self._compiler = ViteCompiler(
             vite_package_json=self.vite_package_json,

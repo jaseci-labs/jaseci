@@ -4,6 +4,7 @@ import shutil;
 import tarfile;
 import tempfile;
 import from pathlib { Path }
+import from jaclang.scale.tests.support { pod_binary, require_pod_binary }
 import from jaclang.scale.injector.bundle {
     assert_entry_module_ships,
     bundle_source_files,
@@ -14,7 +15,7 @@ import from jaclang.scale.injector.bundle {
 }
 
 
-glob _JAC_BIN: Path = Path(__file__).parents[4] / "zig-out" / "bin" / "jac",
+glob _JAC_BIN: Path = pod_binary(),
      _ROOT: Path = Path(tempfile.mkdtemp(prefix="jac-bundle-services-")),
      _ROUTED_TOML: str = (
          "[project]\nname = \"mini\"\n\n[scale.microservices.routes]\n"
@@ -310,9 +311,7 @@ test "the entry-module guard covers baseline exclusions, not just .jacignore" {
 
 
 test "a sealed .jab ships exactly the sources the resolution ran against" {
-    if not _JAC_BIN.is_file() {
-        return;
-    }
+    require_pod_binary();
     base = _app(
         _ROUTED_TOML, {"svc.jac": _PING, "lib/svc.jac": _PING, "main.jac": _PING}
     );

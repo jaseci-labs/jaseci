@@ -75,7 +75,7 @@ The built-in roles gate *platform* surfaces (admin portal, `/metrics`). For **ap
 
 ## JWT production footgun
 
-The default signing secret is `supersecretkey_for_testing_only!` - anyone who knows it can forge tokens for any user. Always set a real secret in production:
+With no secret configured, a dev server mints one per project into `.jac/data/jwt_secret` (gitignored, mode 0600) and reuses it across restarts, so browser sessions survive a restart and no two projects share a signing key. A deployment must set its own secret, because a per-project file would be per-replica in a cluster - a cluster with none configured falls back to the shipped placeholder and warns at boot, and anyone who knows that placeholder can forge tokens for any user:
 
 ```toml
 [scale.jwt]

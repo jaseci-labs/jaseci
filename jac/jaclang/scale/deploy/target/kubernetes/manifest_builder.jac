@@ -2,15 +2,12 @@ import from jaclang.server { sv_client }
 import from jaclang.scale.config.app_config { AppConfig }
 import from jaclang.scale.config.config_loader {
     get_scale_config,
+    load_microservices_config,
     normalize_microservices_config
 }
 import from jaclang.scale.models.deploy_context { DeployContext }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
-}
-import from jaclang.scale.deploy.autoscale.autoscaler {
-    DEFAULT_CPU_UTILIZATION_TARGET,
-    DEFAULT_MEMORY_UTILIZATION_TARGET
 }
 import from jaclang.scale.deploy.autoscale.http_activation_config {
     build_http_activation_spec
@@ -291,11 +288,7 @@ obj ManifestBuilder {
                 self.microservices_config, env_routes_fallback=False
             );
         }
-        try {
-            return get_scale_config().get_microservices_config();
-        } except Exception {
-            return {};
-        }
+        return load_microservices_config();
     }
 
     def _injector_object_key -> str {
@@ -611,12 +604,7 @@ obj ManifestBuilder {
         if user_secret is not None {
             bundle["user_secret"] = user_secret;
         }
-        try {
-            ms_cfg = self._ms_cfg();
-            ingress_cfg: dict[str, any] = ms_cfg.get("ingress", {});
-        } except Exception {
-            ingress_cfg = {};
-        }
+        ingress_cfg: dict[str, any] = self._ms_cfg().get("ingress", {});
         ingress = self._build_ingress_manifest(ingress_cfg);
         if ingress is not None {
             bundle["ingress"] = ingress;
@@ -701,21 +689,11 @@ obj ManifestBuilder {
     }
 
     def _drain_timeout -> int {
-        try {
-            ms_cfg = self._ms_cfg();
-            return int(ms_cfg.get("drain_timeout_seconds", 10));
-        } except Exception {
-            return 10;
-        }
+        return int(self._ms_cfg().get("drain_timeout_seconds", 10));
     }
 
     def _service_config(svc_name: str) -> dict[str, any] {
-        try {
-            ms_cfg = self._ms_cfg();
-            return dict(ms_cfg.get("services", {}).get(svc_name, {}));
-        } except Exception {
-            return {};
-        }
+        return dict(self._ms_cfg().get("services", {}).get(svc_name, {}));
     }
 
     def _bundle_services -> dict[str, str] {
@@ -796,22 +774,17 @@ obj ManifestBuilder {
     }
 
     def _shared_volumes_config -> list[dict[str, any]] {
-        try {
-            ms_cfg = self._ms_cfg();
-            raw = ms_cfg.get("shared_volumes", []);
-            if not isinstance(raw, list) {
-                return [];
-            }
-            out: list[dict[str, any]] = [];
-            for `entry in raw {
-                if isinstance(`entry, dict) {
-                    out.append(dict(`entry));
-                }
-            }
-            return out;
-        } except Exception {
+        raw = self._ms_cfg().get("shared_volumes", []);
+        if not isinstance(raw, list) {
             return [];
         }
+        out: list[dict[str, any]] = [];
+        for `entry in raw {
+            if isinstance(`entry, dict) {
+                out.append(dict(`entry));
+            }
+        }
+        return out;
     }
 
     def _shared_volumes_for_service(
@@ -898,7 +871,8 @@ obj ManifestBuilder {
                     "labels": {
                         "app": "jac-scale-shared",
                         "managed": "jac-scale",
-                        "jac-scale.role": "shared-volume"
+                        "jac-scale.role": "shared-volume",
+                        "jac-scale.owner": k8s_safe_name(self.k8s_config.app_name)
                     }
                 },
                 "spec": spec
@@ -943,12 +917,7 @@ obj ManifestBuilder {
     }
 
     def _microservice_routes -> dict[str, str] {
-        try {
-            ms_cfg = self._ms_cfg();
-            return dict(ms_cfg.get("routes", {}));
-        } except Exception {
-            return {};
-        }
+        return dict(self._ms_cfg().get("routes", {}));
     }
 
     def _peer_dns_url(peer_name: str) -> str {
@@ -1349,12 +1318,13 @@ obj ManifestBuilder {
             }
             behavior = {};
         }
+        cfg = self.k8s_config;
         return {
-            "min": int(hpa.get("min", 1)),
-            "max": int(hpa.get("max", 3)),
-            "cpu_target": int(hpa.get("cpu_target", DEFAULT_CPU_UTILIZATION_TARGET)),
+            "min": int(hpa.get("min", cfg.min_replicas)),
+            "max": int(hpa.get("max", cfg.max_replicas)),
+            "cpu_target": int(hpa.get("cpu_target", cfg.cpu_utilization_target)),
             "memory_target": int(
-                hpa.get("memory_target", DEFAULT_MEMORY_UTILIZATION_TARGET)
+                hpa.get("memory_target", cfg.memory_utilization_target)
             ),
             "has_memory_request": bool(
                 self._resolved_memory_request(svc, svc_name == GATEWAY_NAME)

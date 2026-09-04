@@ -27,7 +27,14 @@ def _install_ws_catchall(gw: MicroserviceGateway) {
             await gw.refresh_app_routes();
             matched = gw.registry.entries.get(gw.route_table.owner(full_path));
         }
-        if not matched or not matched.url {
+        page_base: str = "";
+        if not matched {
+            matched = gw.registry.app_entry();
+            if matched is not None {
+                page_base = matched.page_url;
+            }
+        }
+        if not matched or not (page_base or matched.url) {
             await websocket.accept();
             await websocket.close(code=1008);
             return;
@@ -42,14 +49,19 @@ def _install_ws_catchall(gw: MicroserviceGateway) {
             else full_path;
         remaining = remaining or "/";
         query: str = str(websocket.url.query);
-        target_http: str = f"{matched.url}{remaining}";
+        target_http: str = f"{page_base or matched.url}{remaining}";
         if query {
             target_http = f"{target_http}?{query}";
         }
-        await websocket.accept();
+
+        async def _accept_as_upstream_did(selected: str) {
+            await websocket.accept(subprotocol=selected);
+        }
         req_headers: dict[str, str] = dict(websocket.headers.items());
-        logger.info(f"ws proxy: {full_path} -> {target_http}");
-        await websocket_forward(websocket, target_http, req_headers);
+        logger.debug(f"ws proxy: {full_path} -> {target_http}");
+        await websocket_forward(
+            websocket, target_http, req_headers, on_upstream=_accept_as_upstream_did
+        );
     }
     gw.app.add_ws_endpoint(WSEndPoint(path="/{ws_path:path}", handler=ws_proxy));
 }
@@ -176,7 +188,11 @@ impl MicroserviceGateway.serve_extra_static(
 
 
 impl MicroserviceGateway.has_client_bundle -> bool {
-    return (Path(self.client_dist_dir) / "index.html").is_file();
+    if (Path(self.client_dist_dir) / "index.html").is_file() {
+        return True;
+    }
+    app = self.app_service();
+    return app is not None and app.serves_client;
 }
 
 impl MicroserviceGateway.serve_spa_fallback -> Response | None {
@@ -191,14 +207,9 @@ impl MicroserviceGateway.bootstrap_admin_ui -> None {
     if (Path(self.admin_dist_dir) / "index.html").is_file() {
         return;
     }
-    logger.info("No staged admin console - building it from source.");
-    try {
-        self.build_admin_client();
-    } except (ImportError, ModuleNotFoundError) {
-        logger.debug("Admin module not available, skipping admin UI bootstrap");
-    } except Exception as e {
-        logger.warning(f"Admin UI build failed: {e}");
-    }
+    logger.info(
+        "No staged admin console; the first request to /admin builds it from " "source."
+    );
 }
 
 impl MicroserviceGateway.serve_admin_asset(asset_path: str) -> Response | None {
@@ -384,6 +395,7 @@ impl MicroserviceGateway.handle_builtin_passthrough(
 
     stripped: str = path.strip("/");
     first_seg: str = stripped.split("/")[0] if stripped else "";
+    app = self.app_service();
     if first_seg in _DISCOVERY_SEGMENTS {
         return await self.probe_services(request, path, self.eligible_services());
     }
@@ -401,6 +413,9 @@ impl MicroserviceGateway.handle_builtin_passthrough(
         if not self.route_table.is_learned(name)
     ];
     if not unknown {
+        if app is not None {
+            return None;
+        }
         import from jaclang.scale.runtime.context.errors { not_found }
         return not_found(path, message="No service declares");
     }
@@ -413,6 +428,43 @@ impl MicroserviceGateway.eligible_services -> list[tuple[str, ServiceEntry]] {
         for (name, svc) in self.registry.entries.items()
         if svc.is_routable()
     ];
+}
+
+impl MicroserviceGateway.app_service -> ServiceEntry | None {
+    return self.registry.app_entry();
+}
+
+impl MicroserviceGateway.forward_to_app(
+    request: Request, path: str
+) -> Response | None {
+    app = self.app_service();
+    if app is None or not app.is_routable() {
+        return None;
+    }
+    if app.page_url {
+        page_resp = await self.forward_root_path(request, app, path, app.page_url);
+        if page_resp is not None and page_resp.status_code not in (502, 504) {
+            return page_resp;
+        }
+        logger.warning(
+            f"client dev server at {app.page_url} did not answer {path}; "
+            f"falling back to {app.name}'s own page rendering"
+        );
+    }
+    return await self.forward_root_path(request, app, path);
+}
+
+impl MicroserviceGateway.forward_static_to_app(
+    request: Request, path: str
+) -> Response | None {
+    if request.method != "GET" or not path.startswith("/static/") {
+        return None;
+    }
+    app = self.registry.fleet_app_entry();
+    if app is None or not app.is_routable() {
+        return None;
+    }
+    return await self.forward_root_path(request, app, path);
 }
 
 impl MicroserviceGateway.resolve_learned_owner(path: str) -> ServiceEntry | None {
@@ -431,14 +483,15 @@ impl MicroserviceGateway.resolve_learned_owner(path: str) -> ServiceEntry | None
 }
 
 impl MicroserviceGateway.forward_root_path(
-    request: Request, service_entry: ServiceEntry, path: str
+    request: Request, service_entry: ServiceEntry, path: str, base_url: str = ""
 ) -> Response | None {
     if not service_entry.is_routable() {
         import from jaclang.scale.runtime.context.errors { service_unavailable }
         return service_unavailable(service_entry.name, "not accepting traffic");
     }
     query: str = str(request.url.query);
-    target_url: str = f"{self.service_base_url(service_entry)}{path}";
+    base: str = base_url or self.service_base_url(service_entry);
+    target_url: str = f"{base}{path}";
     if query {
         target_url = f"{target_url}?{query}";
     }
@@ -458,7 +511,13 @@ impl MicroserviceGateway.deliver_once(request: Request, path: str) -> Response |
         for (name, svc) in eligible
         if svc.status == ServiceStatus.HEALTHY
     ];
-    (_name, svc) = (ready or eligible)[0];
+    pool = ready or eligible;
+    for (_app_name, candidate) in pool {
+        if candidate.owns_root() {
+            return await self.forward_root_path(request, candidate, path);
+        }
+    }
+    (_name, svc) = pool[0];
     return await self.forward_root_path(request, svc, path);
 }
 
@@ -472,8 +531,18 @@ impl MicroserviceGateway.probe_services(
     body: bytes = request.body;
     query: str = str(request.url.query);
 
-    for (svc_name, svc_entry) in candidates {
-        target_url = f"{self.service_base_url(svc_entry)}{path}";
+    ordered: list[tuple[str, ServiceEntry]] = sorted(
+        candidates,
+        key=lambda (pair: tuple) { (
+            0 if pair[1].is_app else 1,
+            0 if pair[1].status == ServiceStatus.HEALTHY else 1
+        ); }
+    );
+    for (svc_name, svc_entry) in ordered {
+        base: str = svc_entry.page_url
+            if (svc_entry.owns_root() and svc_entry.page_url)
+            else self.service_base_url(svc_entry);
+        target_url = f"{base}{path}";
         if query {
             target_url = f"{target_url}?{query}";
         }
@@ -779,16 +848,18 @@ impl MicroserviceGateway.setup -> ServingApp {
                     resp = gw.handle_docs();
                 }
             } elif decision.kind == ROUTE_CLIENT_PAGE {
-                svc_label = "__static__";
                 page_resp: Response | None = None;
-                if request.method == "GET" {
+                if request.method == "GET" and gw.app_service() is None {
                     page_resp = gw.serve_spa_fallback();
+                    if page_resp is None {
+                        import from jaclang.scale.runtime.context.errors { not_found }
+                        page_resp = not_found(path);
+                    }
                 }
-                if page_resp is None {
-                    import from jaclang.scale.runtime.context.errors { not_found }
-                    page_resp = not_found(path);
+                if page_resp is not None {
+                    svc_label = "__static__";
+                    resp = page_resp;
                 }
-                resp = page_resp;
             } elif decision.kind == ROUTE_ADMIN {
                 svc_label = "__admin__";
                 admin_resp: Response | None = None;
@@ -837,6 +908,22 @@ impl MicroserviceGateway.setup -> ServingApp {
                 if app_resp is not None {
                     svc_label = gw.route_table.owner(path) or "__app_route__";
                     resp = app_resp;
+                }
+            }
+            if resp is None {
+                served_by_app = await gw.forward_to_app(request, path);
+                if served_by_app is not None {
+                    app_svc = gw.app_service();
+                    svc_label = app_svc.name if app_svc is not None else "__app__";
+                    resp = served_by_app;
+                }
+            }
+            if resp is None {
+                static_from_app = await gw.forward_static_to_app(request, path);
+                if static_from_app is not None {
+                    fleet_app = gw.registry.fleet_app_entry();
+                    svc_label = fleet_app.name if fleet_app is not None else "__app__";
+                    resp = static_from_app;
                 }
             }
             if resp is None {

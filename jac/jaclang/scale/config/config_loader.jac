@@ -35,9 +35,15 @@ def normalize_microservices_config(
     ms_config: dict[str, any], env_routes_fallback: bool = True
 ) -> dict[str, any];
 
+def load_microservices_config -> dict[str, any];
+
 glob _scale_config_instance: JacScaleConfig | None = None,
-     _ms_enabled_deprecation_warned: bool = False,
+     _placeholder_jwt_secret_warned: bool = False,
+     _minted_jwt_secret_announced: bool = False,
      _prometheus_namespace_warned: bool = False;
+
+def _warn_placeholder_jwt_secret -> None;
+def _announce_minted_jwt_secret(path: str) -> None;
 
 def sanitize_prometheus_namespace(name: str) -> str;
 def _resolve_prometheus_namespace(configured: str | None, k8s_namespace: str) -> str;

@@ -104,6 +104,7 @@ walker DocIRGenPass(UniPass) {
     can exit_in_for_stmt with uni.InForStmt exit;
     can exit_iter_for_stmt with uni.IterForStmt exit;
     can exit_try_stmt with uni.TryStmt exit;
+    can exit_awaiting_clause with uni.AwaitingClause exit;
     can exit_except with uni.Except exit;
     can exit_finally_stmt with uni.FinallyStmt exit;
     can exit_tuple_val with uni.TupleVal exit;
@@ -188,5 +189,6 @@ walker DocIRGenPass(UniPass) {
     can exit_jsx_expression with uni.JsxExpression exit;
     can exit_jsx_slot with uni.JsxSlot exit;
     can exit_jsx_comment with uni.JsxComment exit;
+    can doc_ir_default_exit with uni.UniNode exit;
     can finish_doc_comments with uni.UniNode exit;
 }

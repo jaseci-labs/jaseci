@@ -28,6 +28,7 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder { ManifestBuilder }
 import from jaclang.scale.injector.bundle { release_binary_env }
 import from jaclang.scale.runtime.context.util { jac_executable }
+import from jaclang.scale.tests.support { require_pod_binary }
 
 # No jac release carries this version, so it can never collide with the jac
 # running the suite.
@@ -307,10 +308,7 @@ test "a genuine compile error fails on the first attempt with no retry" {
 test "a pinned app builds its client on the pinned release, not the deploying jac" {
     # The checkout's own binary is published as the pinned release, the same way
     # the seal tests reuse it as the pod binary.
-    jac_bin = Path(str(__file__)).parents[4] / "zig-out" / "bin" / "jac";
-    if not jac_bin.is_file() {
-        return;
-    }
+    jac_bin = require_pod_binary();
     tmp = tempfile.mkdtemp(prefix="client-pin-");
     project_dir = _web_app_project(tmp);
     _pin(project_dir, PINNED);

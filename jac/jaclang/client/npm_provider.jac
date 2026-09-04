@@ -10,8 +10,8 @@ import from jaclang.project.providers {
 import from jaclang.client.client_bundle { ClientBundleError }
 
 glob CORE_RUNTIME_DEPS: dict[str, str] = {
-         "react": "^18.2.0",
-         "react-dom": "^18.2.0",
+         "react": "^19.2.0",
+         "react-dom": "^19.2.0",
          "react-router-dom": "^6.22.0",
          "react-error-boundary": "^5.0.0"
      },
@@ -21,10 +21,10 @@ glob CORE_RUNTIME_DEPS: dict[str, str] = {
      },
      CORE_DEV_DEPS: dict[str, str] = {
          "vite": "^6.4.1",
-         "@vitejs/plugin-react": "4.7.0",
+         "@vitejs/plugin-react": "^4.7.0",
          "typescript": "^5.3.3",
-         "@types/react": "^18.2.0",
-         "@types/react-dom": "^18.2.0"
+         "@types/react": "^19.2.0",
+         "@types/react-dom": "^19.2.0"
      },
      LEGACY_META_PACKAGES: set = {"jac-client-node", "@jac-client/dev-deps"};
 
