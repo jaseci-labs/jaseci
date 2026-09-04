@@ -1,3 +1,4 @@
+import from jaclang.project.config { JacConfig }
 import shutil;
 import os;
 import from jaclang.cli.console { console }
@@ -76,6 +77,20 @@ def _clear_node_modules(client_dir: Path | None) {
     }
 }
 
+impl _app_effective_config(jac_config: JacConfig) -> JacConfig {
+    import from jaclang.client.targets.registry { client_workspace_app }
+    app = client_workspace_app(jac_config);
+    if app is None {
+        return jac_config;
+    }
+    try {
+        return jac_config.effective_for_app(app.name);
+    } except ValueError {
+        return jac_config;
+    }
+}
+
+
 impl JacClientConfig.get_plugin_name(self: JacClientConfig) -> str {
     return "client";
 }
@@ -115,7 +130,7 @@ impl JacClientConfig.load(self: JacClientConfig) -> dict[str, any] {
     default_config = self.get_default_config();
     jac_config = self.get_jac_config();
 
-    client_config = jac_config.get_plugin_config('client');
+    client_config = _app_effective_config(jac_config).get_plugin_config('client');
 
     npm_deps = jac_config.get_plugin_deps('npm');
     target_scoped_deps: dict[str, str] = {};

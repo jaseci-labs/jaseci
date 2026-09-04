@@ -129,7 +129,9 @@ impl ViteCompiler.create_entry_file(self: ViteCompiler, module_path: Path) -> No
     if self._has_pages {
         entry_content = self._create_pages_entry_content(module_path);
     } else {
-        entry_content = backend.build_entry_script(module_path.stem);
+        entry_content = backend.build_entry_script(
+            self._entry_module_name(module_path)
+        );
     }
     entry_file.parent.mkdir(parents=True, exist_ok=True);
 
@@ -162,13 +164,23 @@ impl ViteCompiler._create_pages_entry_content(
         );
     }
 
-    app_module = self.compiled_dir / f"{module_path.stem}.js";
-    has_app_wrapper = app_module.exists();
+    entry_module = self._entry_module_name(module_path);
+    has_app_wrapper = (self.compiled_dir / f"{entry_module}.js").exists();
 
     backend = resolve_active_backend();
     return backend.build_pages_entry_script(
-        module_path.stem, auth_redirect, has_app_wrapper
+        entry_module, auth_redirect, has_app_wrapper
     );
+}
+
+impl ViteCompiler._entry_module_name(self: ViteCompiler, module_path: Path) -> str {
+    app_js = self.jac_client_compiler._output_path_for(module_path, self.project_dir);
+    try {
+        rel = app_js.relative_to(self.compiled_dir).as_posix();
+    } except ValueError {
+        rel = app_js.name;
+    }
+    return rel[:-3] if rel.endswith('.js') else rel;
 }
 
 impl ViteCompiler.compile_runtime_utils(self: ViteCompiler) -> tuple[str, list[str]] {

@@ -13,7 +13,11 @@ import from jaclang.cli.console { console }
 
 impl JacAPIServerStatic.serve_static_file(file_path: str) -> Response {
     try {
-        import from jaclang.project.config { find_project_root }
+        import from jaclang.project.config { find_project_root, get_config_for_dir }
+        import from jaclang.client.targets.registry {
+            client_app_dir_for,
+            client_app_root
+        }
         base_path_dir = Path(bp_dir)
             if (bp_dir := Jac.get_context().base_path_dir or Jac.get_base_path_dir())
             else Path.cwd();
@@ -24,65 +28,57 @@ impl JacAPIServerStatic.serve_static_file(file_path: str) -> Response {
             base_path = base_path_dir;
         }
         file_name = Path(file_path).name;
-
-        client_build_dist_file = base_path / '.jac' / 'client' / 'dist' / file_path;
-        client_build_dist_file_simple = base_path
-            / '.jac'
-            / 'client'
-            / 'dist'
-            / file_name;
-
-        dist_file = base_path / 'dist' / file_path;
-        dist_file_simple = base_path / 'dist' / file_name;
-
-        assets_file = base_path / 'assets' / file_path;
-        assets_file_simple = base_path / 'assets' / file_name;
-        if file_name.endswith('.css') {
-            if client_build_dist_file.exists() {
-                css_content = client_build_dist_file.read_text(encoding='utf-8');
-                return Response(content=css_content, media_type='text/css');
-            } elif client_build_dist_file_simple.exists() {
-                css_content = client_build_dist_file_simple.read_text(encoding='utf-8');
-                return Response(content=css_content, media_type='text/css');
-            } elif dist_file.exists() {
-                css_content = dist_file.read_text(encoding='utf-8');
-                return Response(content=css_content, media_type='text/css');
-            } elif dist_file_simple.exists() {
-                css_content = dist_file_simple.read_text(encoding='utf-8');
-                return Response(content=css_content, media_type='text/css');
-            } elif assets_file.exists() {
-                css_content = assets_file.read_text(encoding='utf-8');
-                return Response(content=css_content, media_type='text/css');
-            } elif assets_file_simple.exists() {
-                css_content = assets_file_simple.read_text(encoding='utf-8');
-                return Response(content=css_content, media_type='text/css');
-            } else {
+        roots: list[Path] = [];
+        dists: list[Path] = [];
+        cfg = get_config_for_dir(str(base_path));
+        if cfg is not None {
+            app_root = Path(client_app_root(cfg, base_path));
+            app_dist = client_app_dir_for(cfg) / 'dist';
+            if app_root != base_path {
+                roots.append(app_root);
+            }
+            dists.append(app_dist);
+        }
+        roots.append(base_path);
+        base_dist = base_path / '.jac' / 'client' / 'dist';
+        if base_dist not in dists {
+            dists.append(base_dist);
+        }
+        candidates: list[Path] = [];
+        for dist in dists {
+            candidates.append(dist / file_path);
+            candidates.append(dist / file_name);
+        }
+        for root_dir in roots {
+            candidates.append(root_dir / 'dist' / file_path);
+            candidates.append(root_dir / 'dist' / file_name);
+            candidates.append(root_dir / 'assets' / file_path);
+            candidates.append(root_dir / 'assets' / file_name);
+        }
+        for candidate_file in candidates {
+            if not (candidate_file.exists() and candidate_file.is_file()) {
+                continue;
+            }
+            if file_name.endswith('.css') {
                 return Response(
-                    status_code=404,
-                    content='CSS file not found',
-                    media_type='text/plain'
+                    content=candidate_file.read_text(encoding='utf-8'),
+                    media_type='text/css'
                 );
             }
-        }
-        for candidate_file in [
-            client_build_dist_file,
-            client_build_dist_file_simple,
-            dist_file,
-            dist_file_simple,
-            assets_file,
-            assets_file_simple
-        ] {
-            if (candidate_file.exists() and candidate_file.is_file()) {
-                file_content = candidate_file.read_bytes();
-                (content_type, _) = mimetypes.guess_type(str(candidate_file));
-                if (content_type is None) {
-                    content_type = 'application/octet-stream';
-                }
-                return Response(content=file_content, media_type=content_type);
+            (content_type, _) = mimetypes.guess_type(str(candidate_file));
+            if (content_type is None) {
+                content_type = 'application/octet-stream';
             }
+            return Response(
+                content=candidate_file.read_bytes(), media_type=content_type
+            );
         }
         return Response(
-            status_code=404, content='Static file not found', media_type='text/plain'
+            status_code=404,
+            content='CSS file not found'
+                if file_name.endswith('.css')
+                else 'Static file not found',
+            media_type='text/plain'
         );
     } except Exception as exc {
         return Response(status_code=500);
