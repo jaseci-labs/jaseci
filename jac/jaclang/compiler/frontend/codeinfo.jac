@@ -33,6 +33,17 @@ obj ClientManifest {
         layout_export: (str | None) = None;
 }
 
+obj ClientArtifact {
+    has js: str,
+        manifest: ClientManifest,
+        native_import_sources: list[str] = field(default_factory=`list),
+        source_map: list[tuple[int, int, int, int, str]] = field(default_factory=`list),
+        dep_digests: dict[str, str] = field(default_factory=`dict);
+
+    def to_bytes -> bytes;
+    static def from_bytes(raw: bytes) -> (ClientArtifact | None);
+}
+
 enum InteropContext { SERVER = 'server', NATIVE = 'native', CLIENT = 'client' }
 
 obj NativeFunctionInfo {

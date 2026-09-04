@@ -25,6 +25,7 @@ glob MAGIC = b"JIR\x00",
      SEC_IFACE: int = 0x0D,
      SEC_DEPS: int = 0x0E,
      SEC_DIAG: int = 0x0F,
+     SEC_CLIENT: int = 0x10,
      SEC_TERMINATOR: int = 0xFF,
      FLAG_PRECOMPILED: int = 0x02,
      PRECOMPILE_SENTINEL: str = "__PKG_ROOT__",
@@ -366,9 +367,21 @@ def _toolchain_env_fingerprint -> str {
     return h.hexdigest();
 }
 
+def _module_client_framework -> str {
+    try {
+        config_mod = __import__("jaclang.project.config", fromlist=["get_config"]);
+        cfg = config_mod.get_config();
+        if cfg is not None and cfg.client {
+            return str(cfg.client.framework or "react");
+        }
+    } except Exception {}
+    return "react";
+}
+
 def _project_env_fingerprint(source_path: str) -> str {
     h = hashlib.sha256();
     h.update(_module_client_kind(source_path).encode());
+    h.update(_module_client_framework().encode());
     h.update(_module_codespace_mode(source_path).encode());
     import from jaclang.compiler.placement.placement_pins {
         pins_digest,

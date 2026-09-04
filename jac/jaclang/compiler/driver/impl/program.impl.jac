@@ -386,6 +386,12 @@ impl JacProgram.get_bytecode(
     return self._get_compiler().get_bytecode(full_target, self);
 }
 
+impl JacProgram.get_client_artifact(
+    self: JacProgram, full_target: str
+) -> (ClientArtifact | None) {
+    return self._get_compiler().get_client_artifact(full_target, self);
+}
+
 impl JacProgram.parse_str(
     self: JacProgram,
     source_str: str,
