@@ -31,6 +31,8 @@ import from support_tests {
     say,
     tool_names,
     run_fixture,
+    load_fixture,
+    capture_logs,
     call as tool_call
 }
 
@@ -900,67 +902,43 @@ test "response format requests always carry the json word" {
 }
 
 # =============================================================================
-# LiteLLM Debug Config Tests
+# LiteLLM debug config and provider-error mapping
 # =============================================================================
-test "litellm debug disabled by default" {
-    # Default config has debug=False, so _disable_debugging should be called
+test "litellm debug config toggles litellm's verbose loggers" {
     import from litellm._logging {
         verbose_logger,
         verbose_router_logger,
         verbose_proxy_logger
     }
-    with unittest.mock.patch.dict(
-        _byllm_llm_mod._litellm_config,
-        {"debug": False, "drop_params": True},
-        clear=True
-    ) {
-        model = Model(model_name="gpt-4o-mini");
-        # When debug is False, _disable_debugging() sets .disabled = True
-        assert verbose_logger.disabled , "verbose_logger should be disabled when debug=False";
-        assert verbose_router_logger.disabled , "verbose_router_logger should be disabled when debug=False";
-        assert verbose_proxy_logger.disabled , "verbose_proxy_logger should be disabled when debug=False";
+    loggers = [verbose_logger, verbose_router_logger, verbose_proxy_logger];
+    for (debug, expect_disabled) in [(False, True), (True, False)] {
+        for lg in loggers {
+            lg.disabled = False;
+        }
+        with unittest.mock.patch.dict(
+            _byllm_llm_mod._litellm_config,
+            {"debug": debug, "drop_params": True},
+            clear=True
+        ) {
+            Model(model_name="gpt-4o-mini");
+        }
+        for lg in loggers {
+            assert lg.disabled == expect_disabled , (
+                f"debug={debug}: {lg.name} disabled={lg.disabled}"
+            );
+        }
     }
 }
 
-test "litellm debug enabled via config" {
-    # When debug=True, _disable_debugging should NOT be called
-    import from litellm._logging {
-        verbose_logger,
-        verbose_router_logger,
-        verbose_proxy_logger
-    }
-    # Re-enable the loggers so we can verify they stay enabled
-    verbose_logger.disabled = False;
-    verbose_router_logger.disabled = False;
-    verbose_proxy_logger.disabled = False;
-
-    with unittest.mock.patch.dict(
-        _byllm_llm_mod._litellm_config, {"debug": True, "drop_params": True}, clear=True
-    ) {
-        model = Model(model_name="gpt-4o-mini");
-        assert not verbose_logger.disabled , "verbose_logger should remain enabled when debug=True";
-        assert not verbose_router_logger.disabled , "verbose_router_logger should remain enabled when debug=True";
-        assert not verbose_proxy_logger.disabled , "verbose_proxy_logger should remain enabled when debug=True";
-    }
-}
-
-test "litellm debug default config value" {
-    # Verify the default config structure includes debug=False
+test "litellm debug defaults to False and get_litellm_config exposes it" {
     import from jaclang.byllm.config_loader { JacByllmConfig }
     config = JacByllmConfig();
-    defaults = config.get_default_config();
-    assert "litellm" in defaults , "Default config should have 'litellm' section";
-    assert "debug" in defaults["litellm"] , "litellm defaults should include 'debug' key";
-    assert defaults["litellm"]["debug"] == False , "litellm debug should default to False";
-}
-
-test "litellm config get_litellm_config includes debug" {
-    # Verify get_litellm_config returns the debug field
-    import from jaclang.byllm.config_loader { JacByllmConfig }
-    config = JacByllmConfig();
-    litellm_config = config.get_litellm_config();
-    assert "debug" in litellm_config , "get_litellm_config should return 'debug' key";
-    assert isinstance(litellm_config["debug"], bool) , "debug value should be a boolean";
+    assert config.get_default_config()["litellm"]["debug"] == False , (
+        "litellm debug should default to False"
+    );
+    assert isinstance(config.get_litellm_config().get("debug"), bool) , (
+        "get_litellm_config should expose 'debug' as a bool"
+    );
 }
 
 import litellm;
@@ -972,150 +950,61 @@ import from jaclang.byllm.exceptions {
 
 import from loguru { logger as _loguru_logger }
 
-test "exception logging works with debug disabled" {
-    # With debug=False, litellm verbose loggers are disabled but byllm's
-    # own logger.error calls should still fire and exceptions should propagate.
-    log_output = io.StringIO();
-    _loguru_logger.remove();
-    handler_id = _loguru_logger.add(log_output, level="ERROR");
-    try {
-        with unittest.mock.patch.dict(
-            _byllm_llm_mod._litellm_config,
-            {"debug": False, "drop_params": True},
-            clear=True
-        ) {
-            model = Model(model_name="gpt-4o-mini");
-            auth_err = litellm.exceptions.AuthenticationError(
-                message="Invalid API key", llm_provider="openai", model="gpt-4o-mini"
-            );
-            with unittest.mock.patch("litellm.completion", side_effect=auth_err) {
-                raised = False;
-                try {
-                    model.model_call_no_stream(
-                        {"model": "gpt-4o-mini", "messages": []}
-                    );
-                } except AuthenticationError as e {
-                    raised = True;
-                    assert "Invalid API key" in str(e);
+# Provider errors map to byllm's own exceptions and log at ERROR through byllm's
+# logger whatever the litellm debug flag says. litellm.completion is the seam
+# here because the mapping under test lives in Model.model_call_no_stream.
+test "provider errors map to byllm exceptions and log at ERROR regardless of debug" {
+    # Rows carry byllm's classes; litellm's AuthenticationError and RateLimitError
+    # share those names, so matching by name would let an unmapped error through.
+    rows: list = [
+        (False, "AuthenticationError", AuthenticationError, "Invalid API key"),
+        (True, "RateLimitError", RateLimitError, "Rate limit exceeded"),
+        (False, "RateLimitError", RateLimitError, "quota exceeded"),
+        (False, "NotFoundError", ModelNotFoundError, "model not found")
+    ];
+    for (debug, litellm_name, expected, message) in rows {
+        provider_error = getattr(litellm.exceptions, litellm_name)(
+            message=message, llm_provider="openai", model="gpt-4o-mini"
+        );
+        log_output = io.StringIO();
+        _loguru_logger.remove();
+        handler_id = _loguru_logger.add(log_output, level="ERROR");
+        raised: any = None;
+        try {
+            with unittest.mock.patch.dict(
+                _byllm_llm_mod._litellm_config,
+                {"debug": debug, "drop_params": True},
+                clear=True
+            ) {
+                model = Model(model_name="gpt-4o-mini");
+                with unittest.mock.patch(
+                    "litellm.completion", side_effect=provider_error
+                ) {
+                    try {
+                        model.model_call_no_stream(
+                            {"model": "gpt-4o-mini", "messages": []}
+                        );
+                    } except Exception as e {
+                        raised = e;
+                    }
                 }
-                assert raised , "AuthenticationError should propagate with debug disabled";
-                log_value = log_output.getvalue();
-                assert "LLM AuthenticationError" in log_value , f"logger.error should log AuthenticationError, got: {log_value}";
             }
+        } finally {
+            _loguru_logger.remove(handler_id);
         }
-    } finally {
-        _loguru_logger.remove(handler_id);
+        why = f"debug={debug} litellm.{litellm_name}";
+        assert isinstance(raised, expected) , (
+            f"{why}: expected byllm's {expected.__name__}, got {type(
+                raised
+            ).__module__}.{raised!r}"
+        );
+        assert message in str(raised) , f"{why}: message lost, got {raised}";
+        assert f"LLM {expected.__name__}" in log_output.getvalue() , (
+            f"{why}: logger.error should record it, got: {log_output.getvalue()}"
+        );
     }
 }
 
-test "exception logging works with debug enabled" {
-    # With debug=True, same exception handling and logging should work identically.
-    log_output = io.StringIO();
-    _loguru_logger.remove();
-    handler_id = _loguru_logger.add(log_output, level="ERROR");
-    try {
-        with unittest.mock.patch.dict(
-            _byllm_llm_mod._litellm_config,
-            {"debug": True, "drop_params": True},
-            clear=True
-        ) {
-            model = Model(model_name="gpt-4o-mini");
-            rate_err = litellm.exceptions.RateLimitError(
-                message="Rate limit exceeded",
-                llm_provider="openai",
-                model="gpt-4o-mini"
-            );
-            with unittest.mock.patch("litellm.completion", side_effect=rate_err) {
-                raised = False;
-                try {
-                    model.model_call_no_stream(
-                        {"model": "gpt-4o-mini", "messages": []}
-                    );
-                } except RateLimitError as e {
-                    raised = True;
-                    assert "Rate limit" in str(e);
-                }
-                assert raised , "RateLimitError should propagate with debug enabled";
-                log_value = log_output.getvalue();
-                assert "LLM RateLimitError" in log_value , f"logger.error should log RateLimitError, got: {log_value}";
-            }
-        }
-    } finally {
-        _loguru_logger.remove(handler_id);
-    }
-}
-
-test "all exception types log and propagate regardless of debug" {
-    # Test all three exception types with debug disabled — verify both raise and log
-    log_output = io.StringIO();
-    _loguru_logger.remove();
-    handler_id = _loguru_logger.add(log_output, level="ERROR");
-    try {
-        with unittest.mock.patch.dict(
-            _byllm_llm_mod._litellm_config,
-            {"debug": False, "drop_params": True},
-            clear=True
-        ) {
-            model = Model(model_name="gpt-4o-mini");
-            # AuthenticationError
-            with unittest.mock.patch(
-                "litellm.completion",
-                side_effect=litellm.exceptions.AuthenticationError(
-                    message="bad key", llm_provider="openai", model="gpt-4o-mini"
-                )
-            ) {
-                raised = False;
-                try {
-                    model.model_call_no_stream(
-                        {"model": "gpt-4o-mini", "messages": []}
-                    );
-                } except AuthenticationError {
-                    raised = True;
-                }
-                assert raised , "AuthenticationError should propagate";
-            }
-            # RateLimitError
-            with unittest.mock.patch(
-                "litellm.completion",
-                side_effect=litellm.exceptions.RateLimitError(
-                    message="quota exceeded", llm_provider="openai", model="gpt-4o-mini"
-                )
-            ) {
-                raised = False;
-                try {
-                    model.model_call_no_stream(
-                        {"model": "gpt-4o-mini", "messages": []}
-                    );
-                } except RateLimitError {
-                    raised = True;
-                }
-                assert raised , "RateLimitError should propagate";
-            }
-            # NotFoundError
-            with unittest.mock.patch(
-                "litellm.completion",
-                side_effect=litellm.exceptions.NotFoundError(
-                    message="model not found", model="gpt-fake", llm_provider="openai"
-                )
-            ) {
-                raised = False;
-                try {
-                    model.model_call_no_stream({"model": "gpt-fake", "messages": []});
-                } except ModelNotFoundError {
-                    raised = True;
-                }
-                assert raised , "ModelNotFoundError should propagate";
-            }
-            # Verify all three were logged
-            log_value = log_output.getvalue();
-            assert "LLM AuthenticationError" in log_value , f"Should log AuthenticationError, got: {log_value}";
-            assert "LLM RateLimitError" in log_value , f"Should log RateLimitError, got: {log_value}";
-            assert "LLM ModelNotFoundError" in log_value , f"Should log ModelNotFoundError, got: {log_value}";
-        }
-    } finally {
-        _loguru_logger.remove(handler_id);
-    }
-}
 
 """Test ModelPool fallback strategy: router is configured with unique aliases and
 a fallbacks chain; successful responses are returned via the dispatch pipeline."""
@@ -1304,9 +1193,9 @@ test "prompt caching marks system, last non-system message, and last tool for an
     assert messages[0].get("cache_control") == _CACHE_CONTROL_EPHEMERAL;
     assert "cache_control" not in messages[1];
     assert "cache_control" not in messages[2];
-    assert "cache_control" not in messages[3].get("content")[0];
-    assert messages[3].get("content")[-1].get("cache_control")
-        == _CACHE_CONTROL_EPHEMERAL;
+    tool_content: any = messages[3].get("content");
+    assert "cache_control" not in tool_content[0];
+    assert tool_content[-1].get("cache_control") == _CACHE_CONTROL_EPHEMERAL;
     # Only last tool marked
     assert "cache_control" not in tools[0];
     assert tools[-1].get("cache_control") == _CACHE_CONTROL_EPHEMERAL;
@@ -1363,7 +1252,9 @@ test "finish_tool exit sends an identical tools payload on the narration call" {
     list(llm._invoke_streaming(mt_run));
 
     sent = llm.sent("tools");
-    assert len(sent) == 2 , f"expected exactly 2 LLM calls, got {len(sent)}";
+    assert len(sent) == 2 and llm.exhausted() , (
+        f"expected exactly 2 LLM calls, got {len(sent)}"
+    );
     assert sent[0] == sent[1] , (
         f"the narration call must send a byte-identical tools payload "
         f"(cache_control included); got {sent[1]} vs {sent[0]}"
@@ -1718,93 +1609,75 @@ test "gemma models default to the text tool protocol" {
 # ---------------------------------------------------------------------------
 # Typed-output retry, driven through real `by llm()` calls
 # ---------------------------------------------------------------------------
-# The llm_typed_retry fixture declares `by llm()` functions backed by MockLLM.
-# MockRawResponse routes text through parse_response (malformed JSON raises
-# OutputConversionError, valid JSON parses to the typed object); MockError raises
-# a non-conversion error; each MockLLM records seen_prompts per attempt. Tests
-# import the fixture, call the functions, and inspect each llm, exercising the
-# full invoke -> react loop -> parse -> retry path. The module is imported once
-# (not reloaded, so exception classes stay identical to the test's) and every
-# fixture function is invoked by exactly one test, so the mock outputs are
-# consumed exactly once.
-def _load_retry_fixture -> any {
-    return jac_import("llm_typed_retry", base_path=FIXTURE_DIR + "/")[0];
-}
-
-test "typed retry regenerates after broken json and echoes it" {
-    mod = _load_retry_fixture();
-    person = mod.get_person_recovering();
-    assert person.name == "Ada" and person.age == 36 , f"malformed-then-valid JSON should retry and recover the typed value, got {person}";
-    assert len(mod.recover_llm.seen_prompts) == 2 , f"expected one retry (2 attempts), got {len(
-        mod.recover_llm.seen_prompts
-    )}";
-    # seen_prompts[1] is the retry attempt: original prompt + injected feedback.
-    retry_prompt = mod.recover_llm.seen_prompts[1];
-    assert "{\"name\": \"Ada\", \"age\":" in retry_prompt , f"retry prompt missing the broken output:\n{retry_prompt}";
-    assert "age" in retry_prompt , "retry prompt should re-show the schema (fields)";
-}
-
-test "async typed retry regenerates after broken json" {
-    # The async no-tools path (ainvoke fast path) must retry too, not just sync.
-    mod = _load_retry_fixture();
-    person = asyncio.run(mod.aget_person_recovering());
-    assert person.name == "Zoe" and person.age == 27 , f"async malformed-then-valid JSON should retry and recover, got {person}";
-    assert len(mod.arecover_llm.seen_prompts) == 2 , f"async path expected one retry (2 attempts), got {len(
-        mod.arecover_llm.seen_prompts
-    )}";
-}
-
-test "typed retry raises after exhausting attempts" {
-    mod = _load_retry_fixture();
-    # Catch broadly and check the type by name: a fixture loaded via jac_import
-    # can carry a distinct OutputConversionError class object, so `except <class>`
-    # is unreliable across that boundary.
-    err_name = "";
-    err_msg = "";
-    try {
-        mod.get_person_failing();
-    } except Exception as e {
-        err_name = type(e).__name__;
-        err_msg = str(e);
+# The llm_typed_retry fixture declares `by llm()` functions backed by MockLLM:
+# MockRawResponse routes text through parse_response, MockError raises a
+# non-conversion error, and each MockLLM records the prompt it saw per attempt.
+# The module is imported once per test so the mock outputs are consumed exactly
+# once, and exception classes are matched by name because a jac_import can carry
+# a distinct class object.
+test "typed retry regenerates after broken json, then gives up after the configured attempts" {
+    mod = load_fixture("llm_typed_retry");
+    for (why, person, llm, name, age) in [
+        ("sync", mod.get_person_recovering(), mod.recover_llm, "Ada", 36),
+        (
+            "async",
+            asyncio.run(mod.aget_person_recovering()),
+            mod.arecover_llm,
+            "Zoe",
+            27
+        )
+    ] {
+        assert (person.name, person.age) == (name, age) , (
+            f"{why}: malformed-then-valid JSON should retry and recover, got {person}"
+        );
+        assert len(llm.seen_prompts) == 2 , (
+            f"{why}: expected one retry (2 attempts), got {len(llm.seen_prompts)}"
+        );
+        retry_prompt = llm.seen_prompts[1];
+        broken = '{"name": "' + name + '", "age":';
+        assert broken in retry_prompt , f"{why}: retry prompt missing the broken output:\n{retry_prompt}";
+        assert "age" in retry_prompt , f"{why}: retry prompt should re-show the schema";
     }
-    assert err_name == "OutputConversionError" , f"expected OutputConversionError once retries are exhausted, got {err_name}";
-    # Default 3 retries = 4 attempts, all malformed.
-    assert len(mod.exhaust_llm.seen_prompts) == 4 , f"expected exactly 4 attempts, got {len(
-        mod.exhaust_llm.seen_prompts
-    )}";
-    assert "4 attempt" in err_msg , f"final error should report the attempt count, got: {err_msg}";
-    assert "3 retries" in err_msg , f"final error should report the retry count, got: {err_msg}";
-}
 
-test "typed retry limit honors the config flow" {
-    mod = _load_retry_fixture();
-    # Instance call_params on the MockLLM caps retries at 1 -> 2 attempts.
-    try {
-        mod.get_person_limited();
-    } except Exception {}
-    assert len(mod.limited_llm.seen_prompts) == 2 , f"instance retries=1 should give 2 attempts, got {len(
-        mod.limited_llm.seen_prompts
-    )}";
+    for (why, run, llm, attempts, retries) in [
+        ("default limit", mod.get_person_failing, mod.exhaust_llm, 4, 3),
+        ("instance limit of 1", mod.get_person_limited, mod.limited_llm, 2, 1)
+    ] {
+        err: any = None;
+        try {
+            run();
+        } except Exception as e {
+            err = e;
+        }
+        assert type(err).__name__ == "OutputConversionError" , (
+            f"{why}: expected OutputConversionError once retries are exhausted, got {err!r}"
+        );
+        assert len(llm.seen_prompts) == attempts , (
+            f"{why}: expected exactly {attempts} attempts, got {len(llm.seen_prompts)}"
+        );
+        assert f"{attempts} attempt" in str(err) and f"{retries} retries" in str(err) , (
+            f"{why}: final error should report the counts, got: {err}"
+        );
+    }
 
-    # jac.toml/default config surfaces the knob through get_call_params_config.
     reset_byllm_config();
     cfg = get_byllm_config(Path(FIXTURE_DIR));
-    assert cfg.get_call_params_config().get("max_output_retries") == 3 , "default config flow should expose max_output_retries=3";
+    assert cfg.get_call_params_config().get("max_output_retries") == 3 , (
+        "default config flow should expose max_output_retries=3"
+    );
     reset_byllm_config();
 }
 
 test "typed retry only fires for structured output failures" {
-    mod = _load_retry_fixture();
-    # (a) a non-empty string for a structured type (MockLLM passthrough) is
-    # accepted, not treated as a failure.
-    assert mod.get_person_passthrough() == "Average: 86.75" , "a non-empty string should pass through for a structured type";
+    mod = load_fixture("llm_typed_retry");
+    assert mod.get_person_passthrough() == "Average: 86.75" , (
+        "a non-empty string should pass through for a structured type"
+    );
     assert len(mod.passthrough_llm.seen_prompts) == 1 , "passthrough must not retry";
 
-    # (b) a str return type passes an empty response through unchanged.
     assert mod.get_text() == "" , "empty str return should pass through";
     assert len(mod.str_llm.seen_prompts) == 1 , "str return must not retry";
 
-    # (c) a non-conversion error propagates without any retry.
     raised = False;
     try {
         mod.get_person_erroring();
@@ -1812,152 +1685,111 @@ test "typed retry only fires for structured output failures" {
         raised = True;
     }
     assert raised , "a ValueError must propagate, not be retried";
-    assert len(mod.error_llm.seen_prompts) == 1 , f"non-conversion error must not retry, got {len(
-        mod.error_llm.seen_prompts
-    )}";
+    assert len(mod.error_llm.seen_prompts) == 1 , (
+        f"non-conversion error must not retry, got {len(mod.error_llm.seen_prompts)}"
+    );
 }
 
 
-"""A tool requiring an argument; calling it with none raises inside Tool.__call__,
-exercising the handled tool-failure path (issue #7657)."""
+"""A tool requiring an argument; calling it with none raises inside Tool.__call__."""
 def _needs_arg_tool(x: int) -> str {
     return str(x);
 }
 
 
-test "tool call failure logs at WARNING not ERROR (issue #7657)" {
-    import logging;
-
-    # Capture every log record emitted anywhere (the types-module logger
-    # propagates to root) while a tool fails and is handled.
-    buf = io.StringIO();
-    handler = logging.StreamHandler(buf);
-    handler.setLevel(int(logging.DEBUG));
-    handler.setFormatter(logging.Formatter("%(levelname)s %(message)s"));
-    root_logger = logging.getLogger();
-    prev_level = root_logger.level;
-    root_logger.addHandler(handler);
-    root_logger.setLevel(int(logging.DEBUG));
-    try {
-        t = Tool(func=_needs_arg_tool);
-        result = t();  # missing required arg -> raises -> caught -> returned to model
-    } finally {
-        root_logger.removeHandler(handler);
-        root_logger.setLevel(prev_level);
-    }
-    captured = buf.getvalue();
-
-    # (a) the failure is still handed back to the model as a recoverable
-    # observation -- behaviour must be unchanged by the logging fix.
-    assert isinstance(result, str) , f"expected str, got {type(result).__name__}";
-    assert result.startswith("Tool error:") , f"unexpected return: {result!r}";
-
-    # (b) logged once at WARNING, message names the failing tool.
-    assert "WARNING" in captured , f"expected a WARNING record, got: {captured!r}";
-    assert "_needs_arg_tool" in captured , f"WARNING should name the tool, got: {captured!r}";
-
-    # (c) the regression itself: never ERROR level, never a stack trace.
-    assert "ERROR" not in captured , f"handled tool failure must not log at ERROR: {captured!r}";
-    assert "Traceback (most recent call last)" not in captured , f"handled tool failure must not emit a traceback: {captured!r}";
-}
-
-
-"""A tool body that raises at call time; used to exercise the failure path on a
-callable that has no __name__ (issue #7657, PR #7665)."""
+"""A tool body that raises at call time."""
 def _raising_tool -> str {
     raise ValueError("kaboom");
 }
 
 
-test "tool failure on a callable without __name__ is handled, not escaped (issue #7657)" {
-    import functools;
-
-    # functools.partial is callable but has no __name__. Before the fix,
-    # Tool.get_name() read self.func.__name__ directly, so is_finish_tool() (and
-    # the failure log) raised AttributeError on such a callable, and a tool that
-    # threw at runtime escaped as AttributeError instead of reaching the model as
-    # a "Tool error: ..." observation.
-    escaped = None;
-    result = None;
-    try {
-        t = Tool(func=functools.partial(_raising_tool));
-        result = t();  # underlying raises -> caught -> returned, not escaped
-    } except Exception as e {
-        escaped = e;
-    }
-
-    assert escaped is None , f"handled failure escaped as {type(escaped).__name__}: {escaped}";
-    assert isinstance(result, str) , f"expected str, got {type(result).__name__}";
-    assert result.startswith("Tool error:") , f"unexpected return: {result!r}";
-}
-
-
-test "a tool call cut off mid-arguments is reported to the model (issue #7657)" {
-    # Streaming leaves finish_reason empty exactly when a call was cut short, so
-    # keying truncation off "length" alone misses the real case: the unparseable
-    # arguments are replaced with "{}" and the tool is then invoked bare.
-    cut_off = types.SimpleNamespace(
-        name="write_code",
-        arguments='{"file_path": "/app/Landing.jac", "content": "node Landing { has t'
-    );
-    message = {
-        "tool_calls": [
-            types.SimpleNamespace(id="call_1", function=cut_off, type="function")
-        ],
-        "content": ""
-    };
-    damaged = _byllm_llm_mod._sanitize_tool_calls(_as_any(message));
-    assert "call_1" in damaged , f"damaged call must be reported, got {damaged!r}";
-    # finish_reason is "tool_calls" for a corrupted batch, so the truncation
-    # guard cannot be what reports it.
-    assert not _byllm_llm_mod._truncated_call_ids(_as_any(message), "tool_calls") , "the truncation guard must not be the thing catching this";
-
-    # A tool that genuinely takes no arguments is normal, not damage.
-    blank = {
-        "tool_calls": [
-            types.SimpleNamespace(
-                id="call_2",
-                function=types.SimpleNamespace(name="list_files", arguments=""),
-                type="function"
-            )
-        ],
-        "content": ""
-    };
-    assert not _byllm_llm_mod._sanitize_tool_calls(_as_any(blank)) , "an argument-less call must not be reported as truncated";
-}
-
-
-"""A tool with required parameters, for exercising the damaged/truncated split."""
+"""A tool with required parameters, for the damaged/truncated split."""
 def _writer_tool(file_path: str, content: str) -> str {
     return f"wrote {len(content)} bytes to {file_path}";
 }
 
 
-test "damaged and truncated calls get the advice that fits the cause (issue #7657)" {
-    tool = Tool(func=_writer_tool);
+# Issue #7657: a handled tool failure is returned to the model as a "Tool error"
+# observation and logged once at WARNING with no traceback, never at ERROR. A
+# callable without __name__ (functools.partial) used to escape as AttributeError.
+test "a handled tool failure returns a Tool error at WARNING, even for a callable without __name__" {
+    import functools;
+    for (why, func, named) in [
+        ("missing required argument", _needs_arg_tool, "_needs_arg_tool"),
+        ("functools.partial without __name__", functools.partial(_raising_tool), "")
+    ] {
+        with capture_logs() as logs {
+            result: any = Tool(func=func)();
+        }
+        assert isinstance(result, str) and result.startswith("Tool error:") , (
+            f"{why}: unexpected return: {result!r}"
+        );
+        text = logs.text();
+        assert "WARNING" in text , f"{why}: expected a WARNING record, got: {text!r}";
+        if named {
+            assert named in text , f"{why}: WARNING should name the tool, got: {text!r}";
+        }
+        assert "ERROR" not in text , f"{why}: handled tool failure must not log at ERROR: {text!r}";
+        assert "Traceback (most recent call last)" not in text , (
+            f"{why}: handled tool failure must not emit a traceback: {text!r}"
+        );
+    }
+}
 
-    def _get_tool(name: str) -> any {
+# Streaming leaves finish_reason empty exactly when a call was cut short, so a
+# corrupted call is reported by the sanitizer, not the max_tokens guard, and the
+# two causes get different advice: only a genuinely truncated call should split.
+test "damaged and truncated tool calls are told apart and get the advice that fits (issue #7657)" {
+    for (why, arguments, expect_damaged) in [
+        (
+            "cut off mid-arguments",
+            '{"file_path": "/app/Landing.jac", "content": "node Landing { has t',
+            True
+        ),
+        ("argument-less call", "", False)
+    ] {
+        message = {
+            "tool_calls": [
+                types.SimpleNamespace(
+                    id="call_1",
+                    function=types.SimpleNamespace(
+                        name="write_code", arguments=arguments
+                    ),
+                    type="function"
+                )
+            ],
+            "content": ""
+        };
+        damaged = _byllm_llm_mod._sanitize_tool_calls(_as_any(message));
+        assert ("call_1" in damaged) == expect_damaged , f"{why}: damaged={damaged!r}";
+        assert not _byllm_llm_mod._truncated_call_ids(_as_any(message), "tool_calls") , (
+            f"{why}: the truncation guard must not be the thing catching this"
+        );
+    }
+
+    tool = Tool(func=_writer_tool);
+    def _get_tool(_name: str) -> any {
         return tool;
     }
     mt_run: any = types.SimpleNamespace(get_tool=_get_tool);
     fn = types.SimpleNamespace(name="_writer_tool", arguments='{"file_path"');
-    call = types.SimpleNamespace(id="call_1", function=fn, type="function");
-
-    # A genuine max_tokens truncation really was too large, so splitting helps.
-    truncated = _byllm_llm_mod._parse_tool_calls(
-        mt_run, [call], `set(["call_1"]), `set()
-    );
-    _trunc_tool: any = truncated[0].tool;
-    truncated_msg = str(_trunc_tool.func());
-    assert "smaller payload" in truncated_msg , f"a truncated call should be told to split: {truncated_msg!r}";
-
-    # A call corrupted in transit was never too large; telling it to split would
-    # make the agent fragment files for no reason.
-    damaged = _byllm_llm_mod._parse_tool_calls(
-        mt_run, [call], `set(), `set(["call_1"])
-    );
-    _dmg_tool: any = damaged[0].tool;
-    damaged_msg = str(_dmg_tool.func());
-    assert "same call again unchanged" in damaged_msg , f"a damaged call should be told to re-send: {damaged_msg!r}";
-    assert "smaller payload" not in damaged_msg , f"a damaged call must not be told to split: {damaged_msg!r}";
+    cut = types.SimpleNamespace(id="call_1", function=fn, type="function");
+    for (why, truncated, damaged, expect, forbid) in [
+        ("truncated at max_tokens", `set(["call_1"]), `set(), "smaller payload", ""),
+        (
+            "damaged in transit",
+            `set(),
+            `set(["call_1"]),
+            "same call again unchanged",
+            "smaller payload"
+        )
+    ] {
+        parsed = _byllm_llm_mod._parse_tool_calls(mt_run, [cut], truncated, damaged);
+        tool_obj: any = parsed[0].tool;
+        advice = str(tool_obj.func());
+        assert expect in advice , f"{why}: expected {expect!r} in {advice!r}";
+        if forbid {
+            assert forbid not in advice , f"{why}: must not say {forbid!r}: {advice!r}";
+        }
+    }
 }
