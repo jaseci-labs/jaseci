@@ -6234,7 +6234,6 @@ impl TypeEvaluator._intern_shared(shared: ClassDetailsShared) -> ClassDetailsSha
         self._shared_intern[key] = shared;
         return shared;
     }
-
     if found.symbol_table is not shared.symbol_table
         and self._scope_is_current(shared.symbol_table) {
         found.symbol_table = shared.symbol_table;

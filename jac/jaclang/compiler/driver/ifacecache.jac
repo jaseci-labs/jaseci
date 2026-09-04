@@ -137,7 +137,6 @@ obj IfaceRegistry {
 
     def on_closure_release {
         self.closure_token += 1;
-
         for ent in self.entries.values() {
             ent.module = None;
             ent.catalog = None;
@@ -909,7 +908,6 @@ obj IfaceRegistry {
             return None;
         }
         resolved = os.path.realpath(path);
-
         if not is_stub_like_path(resolved) {
             found = self.prog.find_module(resolved);
             if found is not None {
