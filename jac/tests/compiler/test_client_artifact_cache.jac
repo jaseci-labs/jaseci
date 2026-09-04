@@ -132,3 +132,22 @@ test "editing a module it imports invalidates the cached artifact" {
     );
     assert artifact is not None;
 }
+
+
+test "an artifact built for another framework is not served" {
+    (_, widget) = _project();
+    first = JacProgram().get_client_artifact(widget);
+    assert first is not None and first.framework == "react" , (
+        f"the artifact records the framework it was lowered for, got {first}"
+    );
+    other = JacProgram();
+    held = other.get_client_artifact(widget);
+    assert held is not None;
+    held.framework = "solid";
+    other._get_compiler()._persist_client_artifact(widget, held);
+    (again, compiled) = _compiled_for(JacProgram(), widget);
+    assert "widget.jac" in compiled , (
+        f"an artifact lowered for another framework must recompile, saw {compiled}"
+    );
+    assert again is not None and again.framework == "react";
+}

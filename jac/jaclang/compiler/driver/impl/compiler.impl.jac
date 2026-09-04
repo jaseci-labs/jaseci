@@ -2143,12 +2143,16 @@ impl JacCompiler.client_artifact_of(mod: uni.Module) -> (ClientArtifact | None) 
             continue;
         }
     }
+    import from jaclang.compiler.backends.es.backends.registry {
+        resolve_active_backend
+    }
     return ClientArtifact(
         js=js,
         manifest=manifest,
         native_import_sources=native_sources,
         source_map=segments,
-        dep_digests=digests
+        dep_digests=digests,
+        framework=resolve_active_backend().name()
     );
 }
 
@@ -2218,7 +2222,13 @@ impl JacCompiler.get_client_artifact(
         held = self._cached_client_artifact(full_target);
     }
     if held is not None {
-        if JacCompiler._client_deps_fresh(held) {
+        import from jaclang.compiler.backends.es.backends.registry {
+            resolve_active_backend
+        }
+        if (
+            held.framework == resolve_active_backend().name()
+            and JacCompiler._client_deps_fresh(held)
+        ) {
             actual_program.hub.client_artifacts[full_target] = held;
             return held;
         }

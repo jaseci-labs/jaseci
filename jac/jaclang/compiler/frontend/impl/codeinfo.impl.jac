@@ -112,7 +112,8 @@ impl ClientArtifact.to_bytes -> bytes {
             self.manifest,
             list(self.native_import_sources),
             list(self.source_map),
-            dict(self.dep_digests)
+            dict(self.dep_digests),
+            self.framework
         ),
         int(pickle.HIGHEST_PROTOCOL)
     );
@@ -121,8 +122,8 @@ impl ClientArtifact.to_bytes -> bytes {
 impl ClientArtifact.from_bytes(raw: bytes) -> (ClientArtifact | None) {
     import pickle;
     try {
-        (js, manifest, native_import_sources, source_map, dep_digests) = pickle.loads(
-            raw
+        (js, manifest, native_import_sources, source_map, dep_digests, framework) = (
+            pickle.loads(raw)
         );
     } except Exception {
         return None;
@@ -135,6 +136,7 @@ impl ClientArtifact.from_bytes(raw: bytes) -> (ClientArtifact | None) {
         manifest=manifest,
         native_import_sources=[str(s) for s in native_import_sources],
         source_map=[tuple(seg) for seg in source_map],
-        dep_digests={str(k): str(v) for (k, v) in dict(dep_digests).items()}
+        dep_digests={str(k): str(v) for (k, v) in dict(dep_digests).items()},
+        framework=str(framework)
     );
 }
