@@ -43,6 +43,21 @@ glob BAD_NA_SOURCE: str = (
          "with entry {\n"
          "    print(answer());\n"
          "}\n"
+     ),
+     # A lambda param/return with no annotation (#7139). Lambdas are the
+     # one case exempt from Jac's "every parameter needs a type" rule
+     # (E0052) -- the type evaluator infers the type from context instead
+     # (here: `str`, from the `Callable[[str], str]` slot `f` fills).
+     # `_codegen_lambda` used to ignore that inferred type and default to
+     # `i64` whenever nothing was written down, with no diagnostic.
+     UNTYPED_LAMBDA_INFERRED_SOURCE: str = (
+         "def call_str(f: Callable[[str], str]) -> str {\n"
+         "    return f(\"hello\");\n"
+         "}\n"
+         "\n"
+         "with entry {\n"
+         "    print(call_str(lambda (x) { x; }));\n"
+         "}\n"
      );
 
 """Write a module source into a fresh temp dir; return its path."""
@@ -149,5 +164,36 @@ test "clean na module still publishes artifacts and caches" {
     assert bc is not None , "clean na module must still produce bytecode";
     assert os.path.exists(get_module_cache_path(src)) , (
         "clean na module must still be written to the jir cache"
+    );
+}
+
+test "untyped lambda param/return use the inferred type, not silent i64 (#7139)" {
+    import re;
+    src = write_module(
+        "gate_untyped_lambda_inferred.jac", UNTYPED_LAMBDA_INFERRED_SOURCE
+    );
+    prog = JacProgram();
+    mod = prog.compile(file_path=src, options=native_force_opts());
+    assert not prog.errors_had , (
+        "a lambda parameter whose type is inferred from context must "
+        f"compile clean, got: {fmt_errors(prog)}"
+    );
+    assert mod.gen.llvm_ir is not None , (
+        "a clean na module must still publish llvm ir"
+    );
+    txt = str(mod.gen.llvm_ir);
+    lambda_lines = [
+        ln
+        for ln in txt.splitlines()
+        if re.search(r"define.*__jac_lambda", ln)
+    ];
+    assert len(lambda_lines) == 1 , (
+        f"expected exactly one lambda definition, got: {lambda_lines}"
+    );
+    assert "i64" not in lambda_lines[0] , (
+        "a lambda parameter/return type inferred as `str` from its "
+        "Callable[[str], str] call site must lower to its real native "
+        "type, not the untyped-signature i64 default, got: "
+        f"{lambda_lines[0]}"
     );
 }
