@@ -67,6 +67,18 @@ obj Headers {
         self.raw.append((name, value));
     }
 
+    def merge(name: str, value: str) {
+        members = [
+            m.strip() for existing in self.getlist(name)
+            for m in existing.split(',')
+            if m.strip()
+        ];
+        if value.lower() in [m.lower() for m in members] {
+            return;
+        }
+        self.set(name, ', '.join(members + [value]));
+    }
+
     def remove(name: str) {
         low = name.lower();
         self.raw = [

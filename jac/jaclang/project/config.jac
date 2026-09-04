@@ -77,6 +77,12 @@ obj TestConfig {
         max_failures: int = 0;
 }
 
+obj CompressionConfig {
+    has enabled: bool = True,
+        min_bytes: int = 1024,
+        level: int = 4;
+}
+
 obj ServeConfig {
     has port: int = 8000,
         session: str = "",
@@ -86,7 +92,8 @@ obj ServeConfig {
         identity: str = "auto",
         on_conflict: str = "retry",
         conflict_max_attempts: int = 5,
-        conflict_backoff_ms: int = 0;
+        conflict_backoff_ms: int = 0,
+        compression: CompressionConfig = CompressionConfig();
 }
 
 obj FormatConfig {

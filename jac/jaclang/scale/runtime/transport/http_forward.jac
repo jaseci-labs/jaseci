@@ -25,9 +25,15 @@ def _filtered_headers(resp: any) -> dict[str, str] {
 async def raw_forward(
     method: str, url: str, headers: dict[str, str], body: bytes, timeout: int = 30
 ) -> tuple[int, dict[str, str], bytes] | None {
+    identity_headers: dict[str, str] = {
+        k: v
+        for (k, v) in headers.items()
+        if k.lower() != "accept-encoding"
+    };
+    identity_headers["Accept-Encoding"] = "identity";
     try {
         resp = await arequest(
-            method, url, headers=headers, data=body, timeout=float(timeout)
+            method, url, headers=identity_headers, data=body, timeout=float(timeout)
         );
     } except (ClientConnectionError, OSError) as e {
         _logger.error(f"HTTP forward error: {type(e).__name__}: {e}");

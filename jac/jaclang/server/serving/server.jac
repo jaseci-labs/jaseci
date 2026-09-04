@@ -12,6 +12,7 @@ import from jaclang.server.serving.datatypes {
     URL,
     parse_query_string
 }
+import from jaclang.server.serving.encoding { EncodingPolicy }
 import from jaclang.server.serving.ws { WebSocket, compute_accept_key }
 import from jaclang.server.net { PortInUseError }
 
@@ -66,6 +67,7 @@ obj ServingServer {
         max_body_bytes: int = MAX_BODY_BYTES,
         ws_allowed_origins: list[str] = [],
         ws_max_message_bytes: int = 0,
+        encoding: EncodingPolicy = EncodingPolicy(),
         bound_port: int = 0,
         _server: any = None,
         _loop: any = None,
@@ -479,6 +481,9 @@ obj ServingServer {
         body = b'';
         if not chunked and not bodiless and not (is_head and stream is not None) {
             body = response.body_bytes();
+        }
+        if not bodiless {
+            (body, stream) = self.encoding.apply(request, response, body, stream);
         }
         reason = _REASONS.get(response.status_code, 'OK');
         head_lines = [f"HTTP/1.1 {response.status_code} {reason}"];

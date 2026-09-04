@@ -373,6 +373,7 @@ The gateway exposes a standard error envelope (`{ok, error: {code, message, serv
 | Background recovery health-check cadence | `health_monitor_interval = 10.0` | 10s (2s while anything is unhealthy) |
 | CORS | `[...cors] allow_origins = [...]` | open (`["*"]`); set to `[]` to disable |
 | Rate limiting | `[...rate_limit] enabled = true, per_ip_rpm = 600, per_user_rpm = 120` | disabled |
+| Response compression (negotiated in the serving transport, so it covers the gateway, every service, and plain `jac serve`) | `[serve.compression] enabled = true, min_bytes = 1024, level = 4` | on: gzip level 4 for text, JSON, JavaScript, SVG, XML, wasm bodies of 1 KB or more, and for every streamed body of those types, when the client sends `Accept-Encoding: gzip` |
 | Centralised logs (Loki + Alloy) | `[...logs] enabled = true` | disabled -- see [Centralised Logs](../../reference/plugins/jac-scale-kubernetes.md#centralised-logs) for the deployed components, dashboard, and storage caveats |
 
 WebSockets (`/ws/*`) and SSE / chunked responses flow through the gateway transparently -- no config. On `SIGTERM` (or `jac scale stop`), each service flips a drain flag (new requests get `503` with `Retry-After: 2`) and the server waits up to `drain_timeout_seconds` for in-flight requests to complete before exiting. Mirrors K8s `terminationGracePeriodSeconds`.

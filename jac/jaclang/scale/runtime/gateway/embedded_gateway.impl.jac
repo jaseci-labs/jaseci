@@ -148,7 +148,13 @@ impl EmbeddedGateway.serve(on_ready: any = None) -> None {
     pinned = bool(
         get_scale_config().get_microservices_config().get("gateway_port_pinned", False)
     );
-    serving = ServingServer(app=self.app, host=self.host, port=self.port);
+    import from jaclang.server.serving.encoding { encoding_policy_from_project }
+    serving = ServingServer(
+        app=self.app,
+        host=self.host,
+        port=self.port,
+        encoding=encoding_policy_from_project()
+    );
     ready: any = on_ready;
     if ready is None {
         ready = partial(_log_embedded_ready, self.host);

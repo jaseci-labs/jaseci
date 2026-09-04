@@ -2,6 +2,7 @@ import logging;
 import from jaclang.server.serving.app { ServingApp }
 import from jaclang.server.serving.endpoint { JEndPoint, WSEndPoint }
 import from jaclang.server.serving.server { ACCESS_LOGGER_NAME, ServingServer }
+import from jaclang.server.serving.encoding { encoding_policy_from_project }
 
 
 glob logger: logging.Logger = logging.getLogger(__name__),
@@ -248,7 +249,8 @@ obj NativeJServer {
             port=port,
             drain_timeout=drain_timeout,
             ws_allowed_origins=[str(o) for o in (ws_cfg.get('allowed_origins') or [])],
-            ws_max_message_bytes=int(ws_cfg.get('max_message_bytes') or 0)
+            ws_max_message_bytes=int(ws_cfg.get('max_message_bytes') or 0),
+            encoding=encoding_policy_from_project()
         );
         install_signal_drain(self.serving, timeout_s=drain_timeout);
         self.serving.run(on_ready=on_ready, port_retries=max_retries);

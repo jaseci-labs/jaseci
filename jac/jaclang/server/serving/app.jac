@@ -26,13 +26,16 @@ import from jaclang.server.serving.sse { sse_frame_stream }
 import from jaclang.server.transport { TransportResponse }
 
 
-glob _logger: logging.Logger = logging.getLogger("jaclang.server.serving.app");
+glob _logger: logging.Logger = logging.getLogger("jaclang.server.serving.app"),
+     _HTTP_ONLY_META: tuple[str, str] = ('http_status', 'http_headers');
 
 
 def transport_to_response(tr: TransportResponse) -> JSONResponse {
     status = 200 if tr.ok else 500;
+    headers: (dict[str, str] | None) = None;
     if tr.meta and tr.meta.extra {
         status = tr.meta.extra.get('http_status', status);
+        headers = tr.meta.extra.get('http_headers');
     }
     body: dict[str, any] = {
         'ok': tr.ok,
@@ -68,7 +71,7 @@ def transport_to_response(tr: TransportResponse) -> JSONResponse {
             meta_dict['extra'] = {
                 k: v
                 for (k, v) in tr.meta.extra.items()
-                if k != 'http_status'
+                if k not in _HTTP_ONLY_META
             };
             if not meta_dict['extra'] {
                 meta_dict.pop('extra');
@@ -78,7 +81,7 @@ def transport_to_response(tr: TransportResponse) -> JSONResponse {
             body['meta'] = meta_dict;
         }
     }
-    return JSONResponse(content=body, status_code=status);
+    return JSONResponse(content=body, status_code=status, headers=headers);
 }
 
 def _slash_alternate(path: str) -> (str | None) {

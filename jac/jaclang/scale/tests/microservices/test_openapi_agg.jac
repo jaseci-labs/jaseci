@@ -14,8 +14,12 @@ import from jaclang.scale.runtime.gateway.service_registry {
 }
 
 
-"""Serve `payload` as JSON on every GET after `delay` seconds; (server, port)."""
-def _serve_spec(payload: dict, delay: float = 0.0) -> tuple {
+"""Serve `payload` as JSON on every GET after `delay` seconds; (server, port).
+With `gzip_if_asked` the fake gzips whenever Accept-Encoding lists gzip."""
+def _serve_spec(
+    payload: dict, delay: float = 0.0, gzip_if_asked: bool = False
+) -> tuple {
+    import gzip;
     import http.server;
     import json;
     import threading;
@@ -26,11 +30,17 @@ def _serve_spec(payload: dict, delay: float = 0.0) -> tuple {
         if delay {
             time.sleep(delay);
         }
+        out = body;
+        accept = handler_self.headers.get("Accept-Encoding") or "";
         handler_self.send_response(200);
         handler_self.send_header("Content-Type", "application/json");
-        handler_self.send_header("Content-Length", str(len(body)));
+        if gzip_if_asked and "gzip" in accept {
+            out = gzip.compress(body);
+            handler_self.send_header("Content-Encoding", "gzip");
+        }
+        handler_self.send_header("Content-Length", str(len(out)));
         handler_self.end_headers();
-        handler_self.wfile.write(body);
+        handler_self.wfile.write(out);
     }
 
     def _log_quiet(handler_self: any, fmt: str, *args: any) {}
@@ -80,6 +90,23 @@ test "service specs are fetched concurrently, not serially" {
     assert elapsed < 2.5 , (
         f"two 1.5s fetches took {elapsed:.1f}s; serial fetching adds every "
         f"slow service's latency to the docs endpoint"
+    );
+}
+
+
+test "a service that compresses still yields a readable spec" {
+    spec = {"openapi": "3.0.2", "paths": {"/walker/A": {"post": {}}}};
+    (srv_a, port_a) = _serve_spec(spec, gzip_if_asked=True);
+
+    reg = ServiceRegistry();
+    reg.register(_entry("orders", "/orders", port_a));
+    try {
+        doc = asyncio.run(aggregate_openapi(reg));
+    } finally {
+        srv_a.shutdown();
+    }
+    assert "/orders/walker/A" in doc["paths"] , (
+        "the aggregator parses the body itself, so the fetch must ask for identity"
     );
 }
 
