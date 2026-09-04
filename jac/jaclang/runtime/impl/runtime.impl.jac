@@ -53,11 +53,8 @@ impl JacAccessValidation._check_access(
 }
 
 impl JacAccessValidation._is_shared_root(to: Anchor) -> bool {
-    return (
-        to.id is not None
-        and _shared_root_resolver[0] is not None
-        and to.id == JacRuntime.shared_root_id()
-    );
+    shared_id = _shared_root_resolver[1];
+    return isinstance(shared_id, UUID) and to.id == shared_id;
 }
 
 impl JacAccessValidation.allow_root(
@@ -2300,6 +2297,17 @@ impl JacRuntime.set_shared_root_resolver(
 ) -> None {
     _shared_root_resolver[0] = resolver;
     _shared_root_resolver[1] = None;
+    if resolver is None {
+        return;
+    }
+    try {
+        JacRuntime.shared_root_id();
+    } except Exception as e {
+        logger.warning(
+            "shared root not resolved at registration "
+            f"({type(e).__name__}: {e}); it resolves on first use of root.shared"
+        );
+    }
 }
 
 impl JacRuntime.get_base_path_dir -> (str | None) {
