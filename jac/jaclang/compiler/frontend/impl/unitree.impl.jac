@@ -1083,21 +1083,42 @@ impl UniNode._sub_node_tab.getter -> dict[(type, list[UniNode])] {
 }
 
 impl UniNode._construct_sub_node_tab -> None {
-    for i in self.kid {
-        if not i or i.ct_pruned {
+    nodes: list[UniNode] = [self];
+    kidsets: list[list[UniNode]] = [self.kid];
+    cursors: list[int] = [0];
+    while nodes {
+        kids = kidsets[-1];
+        idx = cursors[-1];
+        if idx < len(kids) {
+            cursors[-1] = idx + 1;
+            i = kids[idx];
+            if i and not i.ct_pruned and i.__sub_node_tab is None {
+                i.__sub_node_tab = {};
+                nodes.append(i);
+                kidsets.append(i.kid);
+                cursors.append(0);
+            }
             continue;
         }
-        for (k, v) in i._sub_node_tab.items() {
-            if (k in self.__sub_node_tab) {
-                self.__sub_node_tab[k].extend(v);
-            } else {
-                self.__sub_node_tab[k] = `list(v);
+        tab = nodes.pop().__sub_node_tab;
+        kidsets.pop();
+        cursors.pop();
+        for i in kids {
+            if not i or i.ct_pruned {
+                continue;
             }
-        }
-        if (`type(i) in self.__sub_node_tab) {
-            self.__sub_node_tab[`type(i)].append(i);
-        } else {
-            self.__sub_node_tab[`type(i)] = [i];
+            for (k, v) in i._sub_node_tab.items() {
+                if (k in tab) {
+                    tab[k].extend(v);
+                } else {
+                    tab[k] = `list(v);
+                }
+            }
+            if (`type(i) in tab) {
+                tab[`type(i)].append(i);
+            } else {
+                tab[`type(i)] = [i];
+            }
         }
     }
 }
@@ -1351,12 +1372,16 @@ impl Module.declares_codespace(ctx: CodeContext, path_hint: str = '') -> bool {
 }
 
 impl UniNode.flatten -> list[UniNode] {
-    ret: list[UniNode] = [self];
-    for k in self.kid {
-        if k.ct_pruned {
-            continue;
+    ret: list[UniNode] = [];
+    stack: list[UniNode] = [self];
+    while stack {
+        nd = stack.pop();
+        ret.append(nd);
+        for k in reversed(nd.kid) {
+            if not k.ct_pruned {
+                stack.append(k);
+            }
         }
-        ret += k.flatten();
     }
     return ret;
 }

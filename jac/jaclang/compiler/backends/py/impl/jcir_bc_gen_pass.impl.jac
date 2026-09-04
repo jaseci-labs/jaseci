@@ -12,7 +12,6 @@ impl JcirBytecodeGenPass.process_modules(root_module: Module) -> None {
 }
 
 impl JcirBytecodeGenPass.transcribe_module(mod: Module) -> None {
-    import ast as ast3;
     import from jaclang.compiler.backends.py.codegen_shim { compile_ir, transcribe }
     if not mod.gen.jcir {
         if not mod.gen.py_bytecode {
@@ -23,7 +22,6 @@ impl JcirBytecodeGenPass.transcribe_module(mod: Module) -> None {
     (tmods, diags) = transcribe(mod.gen.jcir);
     if tmods {
         mod.gen.py_ast = [tmods[0][1]];
-        mod.gen.py = ast3.unparse(tmods[0][1]);
     }
     result = compile_ir(mod.gen.jcir);
     for d in result.diags {

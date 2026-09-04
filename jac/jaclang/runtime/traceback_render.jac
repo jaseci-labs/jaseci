@@ -31,7 +31,8 @@ def dump_traceback(e: Exception) -> str {
         );
     }
     seen_runtime_marker: bool = False;
-    collapse_internal: bool = True;
+    import from jaclang.cli.errmap { show_tracebacks }
+    collapse_internal: bool = not show_tracebacks();
     for (idx, frame) in enumerate(tb.stack) {
         is_internal: bool = is_internal_runtime_frame(frame.filename);
         if (is_internal and collapse_internal) {
