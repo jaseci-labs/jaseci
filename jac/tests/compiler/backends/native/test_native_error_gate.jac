@@ -43,6 +43,48 @@ glob BAD_NA_SOURCE: str = (
          "with entry {\n"
          "    print(answer());\n"
          "}\n"
+     ),
+     # A signature-position annotation that cannot be lowered natively
+     # (issue #7139). `_resolve_jac_type` must route it through the
+     # `_emit_unlowerable_type` backstop (E5092) instead of silently defaulting
+     # the ABI to i64 -- every caller of `_resolve_jac_type` is an annotation
+     # position, so a silent i64 here would mis-lay-out storage with no
+     # diagnostic.
+     UNLOWERABLE_ANNOT_SOURCE: str = (
+         "def gives() -> type {\n"
+         "    return int;\n"
+         "}\n"
+         "\n"
+         "with entry {\n"
+         "    print(gives());\n"
+         "}\n"
+     ),
+     # The builtin `type` used as a *param* annotation now resolves cleanly on
+     # the native pathway (the semantic pass stamps it and structural lowering
+     # accepts it), so it must NOT be diagnosed. Guards against over-eagerly
+     # diagnosing annotations that main's resolver handles structurally.
+     TYPE_PARAM_ANNOT_SOURCE: str = (
+         "def takes(x: type) -> int {\n"
+         "    return 1;\n"
+         "}\n"
+         "\n"
+         "with entry {\n"
+         "    print(takes(int));\n"
+         "}\n"
+     ),
+     # An ability with *no* return annotation is a legitimately-absent type,
+     # not an unresolved one: `_resolve_jac_type(None)` must keep its i64
+     # default WITHOUT emitting a diagnostic. Guards against over-eagerly
+     # turning the absent-annotation default into a false positive.
+     NO_RET_ANNOT_SOURCE: str = (
+         "def noret() {\n"
+         "    x = 1;\n"
+         "    print(x);\n"
+         "}\n"
+         "\n"
+         "with entry {\n"
+         "    noret();\n"
+         "}\n"
      );
 
 """Write a module source into a fresh temp dir; return its path."""
@@ -137,6 +179,43 @@ test "check-path compile surfaces native codegen errors (check/run parity)" {
         assert key not in seen , f"duplicate diagnostic reported: {alrt}";
         seen.add(key);
     }
+}
+
+test "unlowerable annotation in a native signature diagnoses, not silent i64" {
+    src = write_module("gate_unlowerable_annot.jac", UNLOWERABLE_ANNOT_SOURCE);
+    prog = JacProgram();
+    mod = prog.compile(file_path=src, options=native_force_opts());
+    assert has_error_code(prog, "E5092") , (
+        f"an unlowerable type in a native signature position must be "
+        f"diagnosed (not silently laid out as i64), got: {fmt_errors(prog)}"
+    );
+    assert mod.gen.llvm_ir is None , (
+        "a module with an unlowerable signature type must not publish llvm ir"
+    );
+}
+
+test "builtin type as param annotation resolves structurally, no false positive" {
+    src = write_module("gate_type_param_annot.jac", TYPE_PARAM_ANNOT_SOURCE);
+    prog = JacProgram();
+    mod = prog.compile(file_path=src, options=native_force_opts());
+    assert not has_error_code(prog, "E5092") , (
+        f"a `type` param annotation resolves structurally and must not be "
+        f"diagnosed, got: {fmt_errors(prog)}"
+    );
+}
+
+test "absent return annotation is a legitimate i64 default, not a diagnostic" {
+    src = write_module("gate_no_ret_annot.na.jac", NO_RET_ANNOT_SOURCE);
+    prog = JacProgram();
+    mod = prog.compile(file_path=src);
+    assert not prog.errors_had , (
+        f"an ability with no return annotation must compile clean "
+        f"(absent != unresolved), got: {fmt_errors(prog)}"
+    );
+    assert mod.gen.llvm_ir is not None , (
+        "a clean na module with an unannotated return type must still "
+        "publish llvm ir"
+    );
 }
 
 test "clean na module still publishes artifacts and caches" {
