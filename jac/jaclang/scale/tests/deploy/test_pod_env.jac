@@ -29,7 +29,7 @@ import from jaclang.server.sv_client { peer_url_env_key }
 import from jaclang.scale.runtime.fleet { FLEET_ENV, fleet_of }
 
 
-glob _K8S_E2E_FIXTURE: Path = Path(__file__).parent / "fixtures" / "k8s_e2e",
+glob _K8S_E2E_FIXTURE: Path = Path(__file__).parents[1] / "fixtures" / "k8s_e2e",
      _DISCOVERED_ROUTES: dict[str, str] = {
          "cart_app": "/cart",
          "orders_app": "/orders",
