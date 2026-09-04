@@ -62,7 +62,9 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
             'readiness_period': 20,
             'liveness_initial_delay': 10,
             'liveness_period': 20,
-            'liveness_failure_threshold': 80
+            'liveness_failure_threshold': 80,
+            'startup_probe_period': 2,
+            'readiness_period_scale_to_zero': 2
         },
         'secrets': {},
         'server': {

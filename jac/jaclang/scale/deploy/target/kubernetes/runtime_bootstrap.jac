@@ -11,6 +11,10 @@ import from jaclang.scale.injector.pvc_injector {
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
+import from jaclang.scale.deploy.target.kubernetes.venv_cache {
+    venv_cache_key,
+    is_cache_eligible
+}
 
 
 def build_service_apt_prefix(k8s_config: KubernetesConfig) -> str {
@@ -127,7 +131,9 @@ def runtime_container_env -> list[dict[str, str]] {
 
 
 def build_bootstrap_init_container(
-    k8s_config: KubernetesConfig, base_image: str
+    k8s_config: KubernetesConfig,
+    base_image: str,
+    resolved_specs: list[str] | None = None
 ) -> dict[str, any] {
     import from jaclang.scale.injector.binary { OFFICIAL_IMAGE }
     prefer_image_binary = base_image.startswith(f"{OFFICIAL_IMAGE}:experimental-");
@@ -148,7 +154,8 @@ def build_bootstrap_init_container(
         f'fi'
     );
 
-    commands.append(f'export PIP_PREFIX="{APP_MOUNT_PATH}/.jac/venv"');
+    venv_dir = f"{APP_MOUNT_PATH}/.jac/venv";
+    commands.append(f'export PIP_PREFIX="{venv_dir}"');
 
     commands.append("export JAC_CLIENT_SKIP_NPM_INSTALL=1");
 
@@ -159,7 +166,32 @@ def build_bootstrap_init_container(
         'echo "[jac-scale] vendored wheels found; python deps install '
         'offline"; fi'
     );
+
+    bootstrap_env: list[dict[str, str]] = [];
+
+    cache_eligible = False;
+    venv_cache_dir = "";
+    venv_cache_root = f"{BUNDLE_MOUNT_PATH}/.cache/venv";
+    if resolved_specs and is_cache_eligible(base_image) {
+        cache_eligible = True;
+        venv_cache_dir = f"{venv_cache_root}/{venv_cache_key(
+            resolved_specs, base_image
+        )}";
+        bootstrap_env.append({"name": "JAC_VENV_CACHE_DIR", "value": venv_cache_dir});
+        bootstrap_env.append({"name": "JAC_VENV_DIR", "value": venv_dir});
+        commands.append('jac scale venv-cache-restore');
+    }
+
+    if cache_eligible {
+        bootstrap_env.append({"name": "JAC_VENV_CACHE_IMAGE_ID", "value": base_image});
+    }
     commands.append("jac install");
+
+    if cache_eligible {
+        bootstrap_env.append({"name": "JAC_VENV_CACHE_ROOT", "value": venv_cache_root});
+        commands.append('jac scale venv-cache-publish');
+    }
+
     script = ' && '.join(commands);
     container: dict[str, any] = {
         "name": "jac-bootstrap",
@@ -180,6 +212,9 @@ def build_bootstrap_init_container(
             {"name": BUNDLE_VOLUME_NAME, "mountPath": BUNDLE_MOUNT_PATH}
         ]
     };
+    if bootstrap_env {
+        container["env"] = bootstrap_env;
+    }
     policy = image_pull_policy(base_image);
     if policy {
         container["imagePullPolicy"] = policy;

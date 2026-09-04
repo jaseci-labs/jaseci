@@ -412,6 +412,11 @@ class JacScalePluginConfig {
                             "default": 20,
                             "description": "Readiness probe periodSeconds"
                         },
+                        "readiness_period_scale_to_zero": {
+                            "type": "int",
+                            "default": 2,
+                            "description": "Readiness probe periodSeconds for a service whose replica floor is 0 (hpa.min == 0), overriding readiness_period so a woken pod isn't left waiting on a stale poll interval"
+                        },
                         "liveness_initial_delay": {
                             "type": "int",
                             "default": 10,
@@ -426,6 +431,11 @@ class JacScalePluginConfig {
                             "type": "int",
                             "default": 80,
                             "description": "Liveness probe failureThreshold"
+                        },
+                        "startup_probe_period": {
+                            "type": "int",
+                            "default": 2,
+                            "description": "Startup probe periodSeconds for no-image pods; failureThreshold scales automatically to preserve the ~900s total startup budget"
                         },
                         "health_check_path": {
                             "type": "string",

@@ -9,6 +9,7 @@ import os;
 import sys;
 import tempfile;
 import shutil;
+import hashlib;
 import from pathlib { Path }
 import from unittest.mock { MagicMock, patch }
 
@@ -307,6 +308,13 @@ test "ensure_venv recreates fused jac-as-python venvs" {
 }
 
 # ===== PythonProvider install/uninstall =====
+# _venv_deps_stale (a marker written into the venv, hashed over the resolved
+# specs, mirroring client_deps_stale on the npm side) has no dedicated unit
+# tests: the two tests below already drive it for real in both directions --
+# "success" proves the stale/write-marker path by asserting the marker's
+# real hash content, "skips pip when the venv marker matches" proves the
+# not-stale path by pre-seeding a real matching marker -- so a separate hash
+# compare would only re-assert what these already prove end to end.
 test "PythonProvider install_specs success" {
     reset_config();
     (tmp, project_dir) = make_temp_project();
@@ -328,6 +336,104 @@ test "PythonProvider install_specs success" {
             assert "--upgrade" in call_args;
             assert "requests>=2.28.0" in call_args;
             assert "--target" not in call_args;
+            # A successful install must leave a marker behind so the next
+            # call can skip a needless pip pass.
+            marker = config.get_venv_dir() / ".jac-deps-hash";
+            assert marker.exists();
+            expected_hash = hashlib.sha256(
+                "\n".join(sorted(["requests>=2.28.0"])).encode()
+            ).hexdigest();
+            assert marker.read_text(encoding="utf-8").strip() == expected_hash;
+        }
+    } finally {
+        shutil.rmtree(tmp, ignore_errors=True);
+        reset_config();
+    }
+}
+
+test "PythonProvider install_specs skips pip when the venv marker matches" {
+    reset_config();
+    (tmp, project_dir) = make_temp_project();
+    try {
+        config = JacConfig.load(project_dir / "jac.toml");
+        python = PythonProvider();
+        specs = ["requests>=2.28.0"];
+
+        venv_dir = config.get_venv_dir();
+        venv_dir.mkdir(parents=True, exist_ok=True);
+        current = hashlib.sha256("\n".join(sorted(specs)).encode()).hexdigest();
+        (venv_dir / ".jac-deps-hash").write_text(current, encoding="utf-8");
+
+        with patch("jaclang.project.providers.ensure_venv") as _ev, patch.object(
+            PythonProvider, "_run_project_pip"
+        ) as mock_pip {
+            result = python.install_specs(config, specs, InstallContext());
+            assert result is True;
+            assert mock_pip.call_count == 0;
+        }
+    } finally {
+        shutil.rmtree(tmp, ignore_errors=True);
+        reset_config();
+    }
+}
+
+test "PythonProvider install_specs folds image_identity into the marker hash" {
+    reset_config();
+    (tmp, project_dir) = make_temp_project();
+    try {
+        config = JacConfig.load(project_dir / "jac.toml");
+        python = PythonProvider();
+        specs = ["requests>=2.28.0"];
+
+        with patch("jaclang.project.providers.ensure_venv") as _ev, patch.object(
+            PythonProvider, "_run_project_pip"
+        ) as mock_pip {
+            mock_pip.return_value = (0, "Successfully installed", "");
+            result = python.install_specs(
+                config, specs, InstallContext(image_identity="repo@sha256:deadbeef")
+            );
+            assert result is True;
+            marker = config.get_venv_dir() / ".jac-deps-hash";
+            expected_hash = hashlib.sha256(
+                ("repo@sha256:deadbeef\n" + "\n".join(sorted(specs))).encode()
+            ).hexdigest();
+            assert marker.read_text(encoding="utf-8").strip() == expected_hash;
+        }
+    } finally {
+        shutil.rmtree(tmp, ignore_errors=True);
+        reset_config();
+    }
+}
+
+test "PythonProvider install_specs treats a marker from a different image identity as stale" {
+    reset_config();
+    (tmp, project_dir) = make_temp_project();
+    try {
+        config = JacConfig.load(project_dir / "jac.toml");
+        python = PythonProvider();
+        specs = ["requests>=2.28.0"];
+
+        # A marker written for the same specs but a different base image (the
+        # shape a restored venv-cache entry can leave behind once #8695's
+        # venv cache is keyed on the image): must not be trusted just because
+        # the specs match, or a wrong-ABI venv would be silently kept.
+        venv_dir = config.get_venv_dir();
+        venv_dir.mkdir(parents=True, exist_ok=True);
+        stale_marker = hashlib.sha256(
+            ("repo@sha256:oldimage\n" + "\n".join(sorted(specs))).encode()
+        ).hexdigest();
+        (venv_dir / ".jac-deps-hash").write_text(stale_marker, encoding="utf-8");
+
+        with patch("jaclang.project.providers.ensure_venv") as _ev, patch.object(
+            PythonProvider, "_run_project_pip"
+        ) as mock_pip {
+            mock_pip.return_value = (0, "Successfully installed", "");
+            result = python.install_specs(
+                config, specs, InstallContext(image_identity="repo@sha256:newimage")
+            );
+            assert result is True;
+            # A real pip pass ran instead of trusting the other image's marker.
+            assert mock_pip.call_count == 3;
         }
     } finally {
         shutil.rmtree(tmp, ignore_errors=True);
