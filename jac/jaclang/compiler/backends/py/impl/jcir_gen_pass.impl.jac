@@ -6127,6 +6127,7 @@ impl JcirGenPass._gen_py_sv_walker_stub(
     lines: list[str] = [];
     lines.append('class ' + local_name + ':');
     lines.append('    __jac_fields__ = ' + fields_repr);
+    lines.append('    __jac_field_defaults__ = ' + repr(binding.field_defaults));
     lines.append('    __jac_walker_name__ = ' + "'" + walker_name + "'");
     lines.append('    __jac_provider_module__ = ' + "'" + module_name + "'");
     lines.append('    __jac_boundary_types__ = ' + boundary_map);

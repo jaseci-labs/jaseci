@@ -1672,19 +1672,7 @@ impl JacServe.sv_service_call(module_name: str, func_name: str, args: dict) -> a
         data = payload;
     }
 
-    if isinstance(data, dict) and data.get("ok") {
-        result_envelope = data.get("data");
-        if isinstance(result_envelope, dict) and ("result" in result_envelope) {
-            return result_envelope["result"];
-        }
-        return result_envelope;
-    }
-
-    err = (data.get("error") if isinstance(data, dict) else None) or {};
-    msg = err.get("message") if isinstance(err, dict) else str(err);
-    raise RuntimeError(
-        f"sv-to-sv RPC '{module_name}.{func_name}' failed: {msg or 'unknown error'}"
-    );
+    return sv_client.function_result(data, f"RPC '{module_name}.{func_name}'");
 }
 
 impl JacServe.sv_walker_call(

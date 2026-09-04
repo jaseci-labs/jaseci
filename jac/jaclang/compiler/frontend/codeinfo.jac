@@ -623,6 +623,7 @@ obj InteropBinding {
         ret_type: str = 'int',
         param_types: list[str] = [],
         param_names: list[str] = [],
+        field_defaults: dict[str, any] = field(default_factory=`dict),
         ast_node: any = None,
         source_module: (str | None) = None,
         kind: str = 'function';

@@ -1,3 +1,4 @@
+import copy;
 import os;
 
 glob _registry: dict[str, str] = {},
@@ -153,19 +154,34 @@ def ensure_all(module_names: list[str]) -> None {
     }
 }
 
-def hydrate_walker_envelope(data: any, label: str, args: dict, stub_cls: any) -> any {
-    if not (isinstance(data, dict) and data.get("ok")) {
-        err = (data.get("error") if isinstance(data, dict) else None) or {};
-        msg = err.get("message") if isinstance(err, dict) else str(err);
-        raise RuntimeError(
-            f"sv-to-sv walker spawn '{label}' failed: {msg or 'unknown error'}"
-        );
+def unwrap_envelope(data: any, label: str) -> any {
+    if isinstance(data, dict) and data.get("ok") {
+        return data.get("data");
     }
-    envelope = data.get("data") or {};
-    reports = envelope.get("reports") if isinstance(envelope, dict) else None;
-    fields = {name: None for name in stub_cls.__jac_fields__};
-    fields.update(args);
-    instance = stub_cls._from_wire(fields);
-    instance.reports = list(reports) if isinstance(reports, list) else [];
-    return instance;
+    err = (data.get("error") if isinstance(data, dict) else None) or {};
+    msg = err.get("message") if isinstance(err, dict) else str(err);
+    raise RuntimeError(f"sv-to-sv {label} failed: {msg or 'unknown error'}");
+}
+
+def function_result(data: any, label: str) -> any {
+    envelope = unwrap_envelope(data, label);
+    if isinstance(envelope, dict) and ("result" in envelope) {
+        return envelope["result"];
+    }
+    return envelope;
+}
+
+def hydrate_walker_envelope(data: any, label: str, args: dict, stub_cls: any) -> any {
+    envelope = unwrap_envelope(data, f"walker spawn '{label}'") or {};
+    if stub_cls is None {
+        return envelope;
+    }
+    reports = envelope.get("reports");
+    fields = (
+        dict.fromkeys(stub_cls.__jac_fields__)
+        | stub_cls.__jac_field_defaults__
+        | copy.deepcopy(args)
+    );
+    fields["reports"] = reports if isinstance(reports, list) else [];
+    return stub_cls._from_wire(fields);
 }

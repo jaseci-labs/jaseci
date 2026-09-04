@@ -68,7 +68,7 @@ def service_call(module_name: str, func_name: str, args: dict) -> any {
             return _iter_sse_text(str(resp.text), func_label);
         }
         data = resp.json();
-        return _unwrap_sv_envelope(data, module_name, func_name);
+        return sv_client.function_result(data, f"RPC '{func_label}'");
     }
 
     if breaker_should_skip(module_name) {
@@ -119,7 +119,7 @@ def service_call(module_name: str, func_name: str, args: dict) -> any {
     if kind == 'sse' {
         return payload;
     }
-    return _unwrap_sv_envelope(payload, module_name, func_name);
+    return sv_client.function_result(payload, f"RPC '{func_label}'");
 }
 
 
@@ -203,20 +203,4 @@ def _sv_rpc_timeout(module_name: str) -> float {
         }
     } except Exception {}
     return _SV_DEFAULT_RPC_TIMEOUT;
-}
-
-
-def _unwrap_sv_envelope(data: any, module_name: str, func_name: str) -> any {
-    if isinstance(data, dict) and data.get("ok") {
-        result_envelope = data.get("data");
-        if isinstance(result_envelope, dict) and ("result" in result_envelope) {
-            return result_envelope["result"];
-        }
-        return result_envelope;
-    }
-    err = (data.get("error") if isinstance(data, dict) else None) or {};
-    msg = err.get("message") if isinstance(err, dict) else str(err);
-    raise RuntimeError(
-        f"sv-to-sv RPC '{module_name}.{func_name}' failed: {msg or 'unknown error'}"
-    );
 }
