@@ -1984,3 +1984,42 @@ test "bug_tvarmeth1_method_type_param_shadows_class_param" {
         f"Got errors: {[str(e) for e in program.errors_had]}"
     );
 }
+
+# =========================================================================
+# Bug #LITEQ-1: comparing an optional to an int literal erased the int arm.
+#
+# `x == 0` classifies as a literal comparison whose narrow type is plain
+# `int`, not `Literal[0]`. The false branch then excluded `int` from
+# `int | None` outright, as if `x != 0` meant "x is not an int", leaving
+# `NoneType` for every later guard to reason from. A comparison against a
+# value narrows on the branch that confirms the value and on no other, so
+# the two literal predicates now declare the branch they do not narrow.
+# =========================================================================
+test "bug_liteq_1_int_literal_comparison_keeps_int_arm" {
+    program = compile_and_check("checker_literal_eq_keeps_base.jac");
+
+    by_line = {
+        e.loc.first_line: str(e)
+        for e in program.errors_had
+        if e.loc
+    };
+
+    assert len(program.errors_had) == 3 , (
+        "Bug #LITEQ-1: only the three optional returns may report. "
+        f"Got: {[str(e) for e in program.errors_had]}"
+    );
+
+    # The discriminating half: both of these read plain "NoneType" before
+    # the fix, because the int arm had been excluded by the literal guard.
+    for line in [25, 30] {
+        assert "int | NoneType" in by_line.get(line, "") , (
+            "Bug #LITEQ-1: an int-literal comparison must leave the int arm "
+            f"standing. Line {line} reported: {by_line.get(line)}"
+        );
+    }
+
+    # A str literal never collapsed its arm; pinned so the two stay symmetric.
+    assert "str | NoneType" in by_line.get(39, "") , (
+        f"Bug #LITEQ-1: the str arm must survive too. Got: {by_line.get(39)}"
+    );
+}

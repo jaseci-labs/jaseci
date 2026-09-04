@@ -5237,12 +5237,18 @@ impl TypeEvaluator._find_predicate_for(
 
             case NarrowingKind.LITERAL_EQ:
                 return NarrowingPredicate(
-                    key=key, narrow_type=info.narrow_type, is_inverted=False
+                    key=key,
+                    narrow_type=info.narrow_type,
+                    is_inverted=False,
+                    narrows_on_false=False
                 );
 
             case NarrowingKind.LITERAL_NE:
                 return NarrowingPredicate(
-                    key=key, narrow_type=info.narrow_type, is_inverted=True
+                    key=key,
+                    narrow_type=info.narrow_type,
+                    is_inverted=True,
+                    narrows_on_true=False
                 );
 
             case NarrowingKind.TRUTHINESS:
