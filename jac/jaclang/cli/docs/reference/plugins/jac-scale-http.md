@@ -1628,7 +1628,7 @@ A plain import bridges the boundary in two flavors depending on where the import
 
 In the sv-to-sv flavor, `order_service.jac` doing `import from inventory_service { check_stock }` -- with `inventory_service` in the routes table -- does not load `inventory_service` into the consumer's process. Calling `check_stock(sku)` issues a `POST /function/check_stock` against the inventory service's URL and returns the result. The same source runs unchanged whether `inventory_service` is a separate microservice, a sibling process started by the same `jac run` command, or (when the routes entry is removed) a normal in-process import.
 
-Both `def:pub` functions and `walker:pub` archetypes can cross the boundary. Function imports POST to `/function/<name>` and return the function's value. Walker imports POST to `/walker/<name>` and return the rehydrated walker instance with its `has` fields populated and `reports` attached, so call sites read the result the same way they would after a local spawn. See [Walker Imports](#walker-imports) for the wire shape and ergonomics.
+Both `def:pub` functions and `walker:pub` archetypes can cross the boundary. Function imports POST to `/function/<name>` and return the function's value. Walker imports POST to `/walker/<name>` and return a walker instance carrying the fields you passed (provider literal defaults for the rest) and the `reports` the provider produced, so call sites read the result the same way they would after a local spawn. See [Walker Imports](#walker-imports) for the wire shape and ergonomics.
 
 For a step-by-step walkthrough that covers project setup, running both services, and watching the round-trip, see the [Microservices tutorial](../../tutorials/production/microservices.md). The rest of this section is a reference for the discovery rules, wire contract, and plugin override surface.
 
@@ -1693,10 +1693,10 @@ What happens when the consumer evaluates `Greet(name=self.who)`:
 
 1. The stub class collects the keyword arguments into a JSON dict (boundary-typed values are serialized via `_to_wire` first).
 2. The runtime POSTs that dict to `/walker/Greet` on the resolved provider URL using the same dispatch chain as function calls (test client → registry → `JAC_SV_<MOD>_URL` → automatic spawn).
-3. The provider spawns and runs the walker, then returns a `TransportResponse` envelope whose `data.result` is the executed walker as a dict and whose `data.reports` is the list of values it emitted via `report`.
-4. The consumer rehydrates `data.result` into an instance of the local stub class, attaches `data.reports` as the instance's `reports` attribute, and returns it.
+3. The provider spawns and runs the walker, then returns a `TransportResponse` envelope whose `data.result` is `{}` (a walker on the wire is its reports) and whose `data.reports` is the list of values it emitted via `report`.
+4. The consumer builds an instance of the local stub class from the arguments it sent, filling omitted fields with the provider's literal defaults, attaches `data.reports` as the instance's `reports` attribute, and returns it. Field state the provider's walk mutated stays on the provider.
 
-The result is a normal walker instance on the consumer: `rg.name`, `rg.reports[0]`, and `isinstance(rg, Greet)` all work. Boundary-typed values inside the walker's `has` fields and inside the `reports` list are unwrapped recursively, so a walker that emits an `obj` type comes back as that type, not as a raw dict.
+The result is a normal walker instance on the consumer: `rg.name`, `rg.reports[0]`, and `isinstance(rg, Greet)` all work. Boundary-typed values inside the walker's `has` fields are rebuilt as their stub types, so a walker that takes an `obj` argument carries it back as that type, not as a raw dict.
 
 A few notes:
 
@@ -1832,7 +1832,7 @@ Two parallel hooks let a plugin own the wire-level transport for sv-to-sv calls:
 
 Plugins typically override both with the same auth-forwarding, tracing, retry, and circuit-breaker policy. The jac-scale plugin does exactly that: walker calls share the per-provider circuit breaker with function calls (both express provider liveness, so a tripped breaker should protect either kind), forward the inbound `Authorization` header, propagate `X-Trace-Id` across the hop, retry transport-level failures with exponential backoff, and respect the per-service `rpc_timeout` config.
 
-Overrides for `sv_walker_call` must end by returning the rehydrated walker instance: call `stub_cls._from_wire(envelope.data.result)` and attach `envelope.data.reports` to the resulting instance's `reports` attribute. The default implementation is a useful reference and reusing `_unwrap_sv_envelope` / `_hydrate_walker_envelope` from the jac-scale source keeps error semantics consistent with the function path.
+Overrides for `sv_walker_call` must end by returning the hydrated walker instance: hand the decoded response to `sv_client.hydrate_walker_envelope(data, label, args, stub_cls)`, which builds the instance from the caller's arguments plus the provider's `reports` (and returns the raw `data` payload when no stub class is given). Function overrides finish with `sv_client.function_result(data, label)`. Both raise the same `sv-to-sv ... failed` error on a non-ok envelope, so error semantics stay consistent across the two paths.
 
 ## CLI Commands
 

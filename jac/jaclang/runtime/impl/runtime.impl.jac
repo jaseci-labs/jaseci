@@ -1672,19 +1672,7 @@ impl JacServe.sv_service_call(module_name: str, func_name: str, args: dict) -> a
         data = payload;
     }
 
-    if isinstance(data, dict) and data.get("ok") {
-        result_envelope = data.get("data");
-        if isinstance(result_envelope, dict) and ("result" in result_envelope) {
-            return result_envelope["result"];
-        }
-        return result_envelope;
-    }
-
-    err = (data.get("error") if isinstance(data, dict) else None) or {};
-    msg = err.get("message") if isinstance(err, dict) else str(err);
-    raise RuntimeError(
-        f"sv-to-sv RPC '{module_name}.{func_name}' failed: {msg or 'unknown error'}"
-    );
+    return sv_client.function_result(data, f"RPC '{module_name}.{func_name}'");
 }
 
 impl JacServe.sv_walker_call(
@@ -1710,26 +1698,7 @@ impl JacServe.sv_walker_call(
         ).json();
     }
 
-    if isinstance(data, dict) and data.get("ok") {
-        envelope = data.get("data") or {};
-        result_dict = envelope.get("result") if isinstance(envelope, dict) else None;
-        reports = envelope.get("reports") if isinstance(envelope, dict) else None;
-        instance = stub_cls._from_wire(result_dict)
-            if (stub_cls is not None and result_dict is not None)
-            else result_dict;
-        if instance is not None and reports is not None {
-            try {
-                instance.reports = reports;
-            } except Exception {}
-        }
-        return instance;
-    }
-
-    err = (data.get("error") if isinstance(data, dict) else None) or {};
-    msg = err.get("message") if isinstance(err, dict) else str(err);
-    raise RuntimeError(
-        f"sv-to-sv walker spawn '{label}' failed: {msg or 'unknown error'}"
-    );
+    return sv_client.hydrate_walker_envelope(data, label, args, stub_cls);
 }
 
 

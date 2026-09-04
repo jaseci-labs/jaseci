@@ -4,8 +4,8 @@ Imports a walker (`Greet`) and a function-shaped boundary type
 (`NotifyResult`) plus another walker (`Notify`) from `notify_service`
 via `sv import`. Exercises the cross-service walker-spawn path: the
 consumer constructs `Greet(name=...)`, the runtime turns that into a
-POST to `/walker/Greet` on the provider, and the rehydrated walker
-flows back with its `reports` populated.
+POST to `/walker/Greet` on the provider, and a walker instance flows
+back carrying the caller's arguments and the provider's `reports`.
 """
 
 import from notify_service { Greet, Notify, NotifyResult }
@@ -32,4 +32,10 @@ walker:pub Announce {
 def:pub greet_via_walker(who: str) -> str {
     rg = Greet(name=who);
     return rg.reports[0];
+}
+
+def:pub remote_walker_fields(who: str) -> dict {
+    rg = Greet(name=who);
+    rn = Notify(channel="ops", subject="hello");
+    return {"name": rg.name, "greeting": rg.reports[0], "body": rn.body};
 }
