@@ -20,6 +20,7 @@ import from tests.support { TESTS_DIR }
 import jaclang;
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.backends.native.na_compile_pass { native_linked_ir_text }
 import from jaclang.compiler.backends.native.elf_linker { ElfLinker }
 import from jaclang.compiler.backends.native.macho_linker { MachOLinker }
 import from jaclang.compiler.backends.native.pe_linker { PeLinker }
@@ -59,7 +60,7 @@ def emit_shared_object(fixture: str, triple: str) -> tuple {
         assert not prog.errors_had , f"compile errors: {[
             str(e) for e in prog.errors_had
         ]}";
-        ir_txt = str(ir.gen.llvm_ir);
+        ir_txt = native_linked_ir_text(ir);
         exports = list(ir.gen._exported_symbols);
         # Delegate to the production emitter so shared-init + RC-wrapper
         # injection is identical to `jac nacompile --shared` (no divergence).

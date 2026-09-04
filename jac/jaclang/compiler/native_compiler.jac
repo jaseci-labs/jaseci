@@ -80,13 +80,7 @@ class NativeCompiler {
             fn.argtypes = [c_void_p, c_void_p, c_int64, c_void_p, c_void_p, c_int64];
             fn.restype = c_int64;
         }
-        for name in (
-            "jc_probe",
-            "jc_err_count",
-            "jc_lex_errs",
-            "jc_mz_skipped",
-            "jc_graph_wipe"
-        ) {
+        for name in ("jc_probe", "jc_err_count", "jc_lex_errs", "jc_mz_skipped") {
             fn = getattr(L, name);
             fn.argtypes = [];
             fn.restype = c_int64;
