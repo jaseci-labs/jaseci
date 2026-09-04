@@ -1342,7 +1342,7 @@ impl NormalizePass.enter_index_slice with uni.IndexSlice entry {
     here.set_kids(nodes=new_kid);
 }
 
-impl NormalizePass.enter_slice with uni.Slice entry { }
+impl NormalizePass.enter_slice with uni.Slice entry {}
 
 impl NormalizePass.enter_edge_ref_trailer with uni.EdgeRefTrailer entry {
     new_kid: list[uni.UniNode] = [];
@@ -1500,11 +1500,11 @@ impl NormalizePass.enter_assign_compr with uni.AssignCompr entry {
     here.set_kids(nodes=new_kid);
 }
 
-impl NormalizePass.enter_jsx_attribute with uni.JsxAttribute entry { }
+impl NormalizePass.enter_jsx_attribute with uni.JsxAttribute entry {}
 
-impl NormalizePass.enter_jsx_child with uni.JsxChild entry { }
+impl NormalizePass.enter_jsx_child with uni.JsxChild entry {}
 
-impl NormalizePass.enter_jsx_element with uni.JsxElement entry { }
+impl NormalizePass.enter_jsx_element with uni.JsxElement entry {}
 
 impl NormalizePass.enter_jsx_element_name with uni.JsxElementName entry {
     new_kid: list[uni.UniNode] = [];
@@ -1736,7 +1736,7 @@ impl NormalizePass.enter_match_arch with uni.MatchArch entry {
     here.set_kids(nodes=new_kid);
 }
 
-impl NormalizePass.enter_token with uni.Token entry { }
+impl NormalizePass.enter_token with uni.Token entry {}
 
 impl NormalizePass.enter_string with uni.String entry {
     here.value = f"{here.value}";

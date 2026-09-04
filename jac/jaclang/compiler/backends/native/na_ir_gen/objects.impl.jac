@@ -230,6 +230,10 @@ impl NaIRGenObjects._register_archetypes(module: uni.Module) -> None {
 
     self._register_osp_kernel_module();
     self._emit_osp_setup();
+    import from jaclang.compiler.native_scope { scope_lowering_active }
+    if scope_lowering_active() {
+        self.ir_in.gen.jc_layout = self._build_jc_layout();
+    }
 
     self._predemote_capability_constructors();
     self._codegen_constructors_first(archetypes);
@@ -498,7 +502,7 @@ impl NaIRGenObjects._codegen_archetype(nd: uni.Archetype) -> None {
                         FunctionType as _ClibFnType
                     }
                     _cf_fnty = isinstance(var?.type, _ClibFnType);
-                } except ImportError { }
+                } except ImportError {}
                 if _cf_fnty {
                     ftype = self._lower_clib_function_type(arch_name, fname, var.type);
                 } else {
@@ -583,9 +587,7 @@ impl NaIRGenObjects._codegen_archetype(nd: uni.Archetype) -> None {
         }
     }
 
-    if arch_name in self.clib_struct_names and not struct_type.is_opaque {
-        ;
-    } else {
+    if arch_name in self.clib_struct_names and not struct_type.is_opaque {} else {
         struct_type.set_body(*field_types);
     }
     self.struct_field_indices[arch_name] = field_index_map;
@@ -1156,7 +1158,7 @@ impl NaIRGenObjects._demote_method_if_unlowerable(
                 self.ir_in.loc.mod_path,
                 f"{full_name}: {_code_tag}" + str(_own[0]).split('\n')[0]
             );
-        } except Exception { }
+        } except Exception {}
     }
     del self.errors_had[local_mark:];
 
@@ -1187,7 +1189,7 @@ impl NaIRGenObjects._seam_warnings_on -> bool {
         if _cfg and _cfg.check {
             return bool(_cfg.check.warn_native_seams);
         }
-    } except Exception { }
+    } except Exception {}
     return True;
 }
 
@@ -1231,7 +1233,7 @@ impl NaIRGenObjects._opaque_field_if_unlowerable(
             self.ir_in.loc.mod_path,
             f"{arch_name}.{fname}: " + (f"[{_code}] " if _code else "") + _why
         );
-    } except Exception { }
+    } except Exception {}
     del self.errors_had[local_mark:];
     if arch_name not in self.struct_field_opaque {
         self.struct_field_opaque[arch_name] = {};
@@ -1622,6 +1624,7 @@ impl NaIRGenObjects._codegen_event_method(arch_name: str, method: uni.Ability) -
     saved_self_arch = self._self_arch;
     saved_cell_vars = self.closure_cell_vars;
     saved_cell_handles = self.closure_cell_handles;
+    saved_region_opens = self.region_open_stack;
     self._self_arch = arch_name;
     self._builder = ir.IRBuilder(block);
     self.local_vars = {};
@@ -1629,6 +1632,7 @@ impl NaIRGenObjects._codegen_event_method(arch_name: str, method: uni.Ability) -
     self.var_list_elem_struct = {};
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};
+    self.region_open_stack = [];
     self._attach_di_subprogram(
         func, full_name, method.loc.first_line if method.loc else 0
     );
@@ -1648,6 +1652,9 @@ impl NaIRGenObjects._codegen_event_method(arch_name: str, method: uni.Ability) -
     self.builder.store(loc_arg, loc_alloca);
     self.local_vars[loc_name] = loc_alloca;
     self.param_vars.add(loc_name);
+    _grow_anchor = loc_arg if sig.from_walker else func.args[0];
+    self._region_enter(self._region_of_value(_grow_anchor));
+    self.region_open_stack.append(len(self.loop_stack));
     if sig.arch_tag_info is not None {
         _members = self._trigger_struct_names(method);
         _conflict = self._union_layout_conflict(_members);
@@ -1664,7 +1671,9 @@ impl NaIRGenObjects._codegen_event_method(arch_name: str, method: uni.Ability) -
     if body is not None {
         self._codegen_body(body);
     }
+    self.region_open_stack.pop();
     if not self.builder.block.is_terminated {
+        self._region_leave();
         _ev_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{method.loc.last_line
             if method.loc
             else 0}";
@@ -1680,6 +1689,57 @@ impl NaIRGenObjects._codegen_event_method(arch_name: str, method: uni.Ability) -
     self._self_arch = saved_self_arch;
     self.closure_cell_vars = saved_cell_vars;
     self.closure_cell_handles = saved_cell_handles;
+    self.region_open_stack = saved_region_opens;
+}
+
+impl NaIRGenObjects._emit_heap_object_alloc(
+    nd: uni.UniNode, type_name: str, size: ir.Value, headerless: bool
+) -> ir.Value {
+    i8p = ir.IntType(8).as_pointer();
+    i64 = ir.IntType(64);
+    if headerless {
+        _malloc_fn = self._get_or_declare_extern("malloc", i8p, [i64]);
+        raw_ptr = self.builder.call(_malloc_fn, [size], name="raw.ptr");
+        self._emit_struct_drop_fn(type_name);
+        return raw_ptr;
+    }
+    _inst_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+        if nd.loc
+        else 0}";
+    if self.rc_alloc_fn is None {
+        self._emit_rc_helpers();
+    }
+    _alloc_fn = self.rc_alloc_fn;
+    assert _alloc_fn is not None , "rc helpers are emitted before allocation";
+    raw_ptr = self._rc_call_with_ctx(
+        _alloc_fn, [size], op="new", loc=_inst_loc, name="raw.ptr"
+    );
+    self._emit_struct_release_fn(type_name);
+    _dtor_fn_s = self.struct_release_fns.get(type_name);
+    if _dtor_fn_s is not None {
+        _dtor_slot_s = self.builder.gep(
+            raw_ptr, [ir.Constant(i64, HDR_DTOR_OFF)], name="obj_dtor_slot"
+        );
+        _dtor_slot_i64_s = self.builder.bitcast(
+            _dtor_slot_s, i64.as_pointer(), name="obj_dtor_i64p"
+        );
+        _dtor_i64_s = self.builder.ptrtoint(_dtor_fn_s, i64, name="obj_dtor_i64");
+        self.builder.store(_dtor_i64_s, _dtor_slot_i64_s);
+    }
+    self._emit_trace_fn(type_name);
+    _trace_fn_s = self.struct_trace_fns.get(type_name);
+    self._require_trace_fn(
+        type_name,
+        (
+            self._struct_has_ref_fields(type_name)
+            and not self._arch_is_acyclic(type_name)
+        ),
+        _trace_fn_s is not None
+    );
+    if self.rc_set_type_fn is not None {
+        self._emit_set_type_tag(self.builder, raw_ptr, type_name);
+    }
+    return raw_ptr;
 }
 
 impl NaIRGenObjects._stack_alloc_target_ok(nd: uni.UniNode) -> bool {
@@ -1824,7 +1884,6 @@ impl NaIRGenObjects._codegen_instantiation(
         and not self._arch_is_osp_name(type_name)
         and f"{type_name}.drop" not in self.func_symtab
         and not self.struct_field_inline.get(type_name, None)
-        and not self.region_stack
         and self._pyb_base_of(type_name) is None
     );
     _headerless = self._nogc_headerless() and not self._arch_is_osp_name(type_name);
@@ -1875,123 +1934,48 @@ impl NaIRGenObjects._codegen_instantiation(
         }
     } elif _vt_struct {
         obj_ptr = self._clib_alloc_vtable(type_name);
-    } elif _headerless and not self.region_stack {
-        null_ptr = ir.Constant(struct_ptr_type, None);
-        size_gep = self.builder.gep(
-            null_ptr, [ir.Constant(ir.IntType(32), 1)], name="sizeof.gep"
-        );
-        size = self.builder.ptrtoint(size_gep, ir.IntType(64), name="sizeof");
-        _malloc_fn = self._get_or_declare_extern(
-            "malloc", ir.IntType(8).as_pointer(), [ir.IntType(64)]
-        );
-        raw_ptr = self.builder.call(_malloc_fn, [size], name="raw.ptr");
-        obj_ptr = self.builder.bitcast(raw_ptr, struct_ptr_type, name="obj.ptr");
-        self._emit_struct_drop_fn(type_name);
-    } elif self.region_stack and not self._arch_is_walker_name(type_name) {
-        null_ptr = ir.Constant(struct_ptr_type, None);
-        size_gep = self.builder.gep(
-            null_ptr, [ir.Constant(ir.IntType(32), 1)], name="sizeof.gep"
-        );
-        size = self.builder.ptrtoint(size_gep, ir.IntType(64), name="sizeof");
-        raw_ptr = self._region_alloc(size, name="region.obj");
-        obj_ptr = self.builder.bitcast(raw_ptr, struct_ptr_type, name="obj.ptr");
-        if self._gc_mode() == "none" {
-            _rg_asgn = nd.find_parent_of_type(uni.Assignment);
-            if _rg_asgn is not None
-                and len(_rg_asgn.target) == 1
-                and isinstance(_rg_asgn.target[0], uni.Name) {
-                self.nogc_no_free_vars.add(_rg_asgn.target[0].sym_name);
-            }
-        }
-        if self.rc_set_type_fn is not None {
-            _obj_i8_r = self.builder.bitcast(
-                obj_ptr, ir.IntType(8).as_pointer(), name="obj.i8.rtag"
-            );
-            self._emit_set_type_tag(self.builder, _obj_i8_r, type_name);
-        }
-        self._region_log_dtor_if_needed(raw_ptr, type_name);
-    } elif (
-        self._arch_is_osp_name(type_name)
-        and not self._arch_is_walker_name(type_name)
-        and "here" in self.local_vars
-    ) {
-        self._emit_arena_helpers();
-        null_ptr = ir.Constant(struct_ptr_type, None);
-        size_gep = self.builder.gep(
-            null_ptr, [ir.Constant(ir.IntType(32), 1)], name="sizeof.gep"
-        );
-        size = self.builder.ptrtoint(size_gep, ir.IntType(64), name="sizeof");
-        _i8p_g = ir.IntType(8).as_pointer();
-        _here_val = self.builder.load(self.local_vars["here"], name="growth.here");
-        _here_i8 = self.builder.bitcast(_here_val, _i8p_g, name="growth.here.i8");
-        _gdtor = self._emit_struct_drop_fields_fn(type_name);
-        _gdtor_i8 = (
-            self.builder.bitcast(_gdtor, _i8p_g, name="growth.dtor")
-                if _gdtor is not None
-                else ir.Constant(_i8p_g, None)
-        );
-        raw_ptr = self.builder.call(
-            self.osp_anchor_alloc_fn, [_here_i8, size, _gdtor_i8], name="growth.obj"
-        );
-        obj_ptr = self.builder.bitcast(raw_ptr, struct_ptr_type, name="obj.ptr");
-        if self.rc_set_type_fn is not None {
-            _obj_i8_g = self.builder.bitcast(
-                obj_ptr, ir.IntType(8).as_pointer(), name="obj.i8.gtag"
-            );
-            self._emit_set_type_tag(self.builder, _obj_i8_g, type_name);
-        }
     } else {
         null_ptr = ir.Constant(struct_ptr_type, None);
         size_gep = self.builder.gep(
             null_ptr, [ir.Constant(ir.IntType(32), 1)], name="sizeof.gep"
         );
         size = self.builder.ptrtoint(size_gep, ir.IntType(64), name="sizeof");
-        _inst_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
-            if nd.loc
-            else 0}";
-        if self.rc_alloc_fn is None {
-            self._emit_rc_helpers();
-        }
-        _alloc_fn = self.rc_alloc_fn;
-        assert _alloc_fn is not None , "rc helpers are emitted before allocation";
-        raw_ptr = self._rc_call_with_ctx(
-            _alloc_fn, [size], op="new", loc=_inst_loc, name="raw.ptr"
+        _region_eligible = (
+            id(nd) != self._managed_ctor_node
+            and not self._arch_is_walker_name(type_name)
+            and not bool(getattr(self.prog.options, "kernel_unit", False))
         );
+        if not _region_eligible {
+            raw_ptr = self._emit_heap_object_alloc(nd, type_name, size, _headerless);
+        } else {
+            _i8p_a = ir.IntType(8).as_pointer();
+            _func_a = self.builder.function;
+            _heap_bb = _func_a.append_basic_block(name="alloc.heap");
+            _rgn_bb = _func_a.append_basic_block(name="alloc.region");
+            _merge_bb = _func_a.append_basic_block(name="alloc.merge");
+            _cur = self._region_current();
+            self.builder.cbranch(
+                self.builder.icmp_unsigned(
+                    "==", _cur, ir.Constant(_i8p_a, None), name="alloc.nocur"
+                ),
+                _heap_bb,
+                _rgn_bb
+            );
+            self.builder.position_at_end(_heap_bb);
+            _heap_raw = self._emit_heap_object_alloc(nd, type_name, size, _headerless);
+            _heap_end = self.builder.block;
+            self.builder.branch(_merge_bb);
+            self.builder.position_at_end(_rgn_bb);
+            _rgn_raw = self._region_alloc_object(_cur, size, type_name);
+            _rgn_end = self.builder.block;
+            self.builder.branch(_merge_bb);
+            self.builder.position_at_end(_merge_bb);
+            _phi = self.builder.phi(_i8p_a, name="alloc.raw");
+            _phi.add_incoming(_heap_raw, _heap_end);
+            _phi.add_incoming(_rgn_raw, _rgn_end);
+            raw_ptr = _phi;
+        }
         obj_ptr = self.builder.bitcast(raw_ptr, struct_ptr_type, name="obj.ptr");
-        self._emit_struct_release_fn(type_name);
-        _dtor_fn_s = self.struct_release_fns.get(type_name);
-        if _dtor_fn_s is not None {
-            _i8p_s = ir.IntType(8).as_pointer();
-            _i64_s = ir.IntType(64);
-            _i64p_s = _i64_s.as_pointer();
-            _raw_s = self.builder.bitcast(obj_ptr, _i8p_s, name="obj_raw_s");
-            _dtor_slot_s = self.builder.gep(
-                _raw_s, [ir.Constant(_i64_s, HDR_DTOR_OFF)], name="obj_dtor_slot"
-            );
-            _dtor_slot_i64_s = self.builder.bitcast(
-                _dtor_slot_s, _i64p_s, name="obj_dtor_i64p"
-            );
-            _dtor_i64_s = self.builder.ptrtoint(
-                _dtor_fn_s, _i64_s, name="obj_dtor_i64"
-            );
-            self.builder.store(_dtor_i64_s, _dtor_slot_i64_s);
-        }
-        self._emit_trace_fn(type_name);
-        _trace_fn_s = self.struct_trace_fns.get(type_name);
-        self._require_trace_fn(
-            type_name,
-            (
-                self._struct_has_ref_fields(type_name)
-                and not self._arch_is_acyclic(type_name)
-            ),
-            _trace_fn_s is not None
-        );
-        if self.rc_set_type_fn is not None {
-            _obj_i8 = self.builder.bitcast(
-                obj_ptr, ir.IntType(8).as_pointer(), name="obj.i8.tag"
-            );
-            self._emit_set_type_tag(self.builder, _obj_i8, type_name);
-        }
     }
 
     vtable_global = self._vtable_global_for(type_name);
@@ -2486,23 +2470,15 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
         );
         return None;
     }
-    if method_name == "partition"
-        and (
-            self._type_key_of(trailer.target) == "Region"
-            or (target_name is not None and target_name in self.region_handle_vars)
-        ) {
-        self._emit_arena_helpers();
-        _pt_recv = self._codegen_expr(trailer.target);
-        if _pt_recv is None or self.region_partition_fn is None {
-            return None;
+    if method_name == "partition" {
+        import from jaclang.compiler.expr_keys { is_builtin_region_type }
+        if is_builtin_region_type(trailer.target.type) {
+            _pt_recv = self._codegen_expr(trailer.target);
+            if _pt_recv is None {
+                return None;
+            }
+            return self._region_partition(_pt_recv);
         }
-        _pt_i8p = ir.IntType(8).as_pointer();
-        if _pt_recv.type != _pt_i8p {
-            _pt_recv = self.builder.bitcast(_pt_recv, _pt_i8p, name="part.hdl");
-        }
-        return self.builder.call(
-            self.region_partition_fn, [_pt_recv], name="region.part"
-        );
     }
     if (
         method_name in ("get", "keys", "values", "items", "setdefault", "update", "pop")
@@ -3299,7 +3275,7 @@ impl NaIRGenObjects._codegen_accessor_call(
     if self._arch_has_vtable(type_name) {
         result = self._codegen_virtual_call(obj_val, slot, _all_args, type_name);
         if result is not None {
-            return result;
+            return self._own_accessor_result(result);
         }
     }
     coerced: list[ir.Value] = [];
@@ -3308,7 +3284,17 @@ impl NaIRGenObjects._codegen_accessor_call(
             self._coerce_type(arg, func.args[i].type) if i < len(func.args) else arg
         );
     }
-    return self.builder.call(func, coerced, name=f"acc.{slot}");
+    return self._own_accessor_result(
+        self.builder.call(func, coerced, name=f"acc.{slot}")
+    );
+}
+
+impl NaIRGenObjects._own_accessor_result(result: ir.Value) -> ir.Value {
+    if isinstance(result.type, ir.PointerType)
+        or self._opt_ptr_payload_of(result.type) is not None {
+        return self._mark_owned(result);
+    }
+    return result;
 }
 
 impl NaIRGenObjects._receiver_union_parts(
@@ -4165,4 +4151,129 @@ impl NaIRGenObjects._emit_class_routed_call(
         return None;
     }
     return _sr;
+}
+
+
+impl NaIRGenObjects._jc_abi_offsets(field_types: list) -> tuple {
+    offsets: list[int] = [];
+    off = 0;
+    for ft in field_types {
+        sz = 8;
+        if isinstance(ft, ir.IntType) {
+            sz = 1 if ft.width <= 8 else (ft.width // 8);
+        } elif isinstance(ft, ir.DoubleType) {
+            sz = 8;
+        } elif isinstance(ft, ir.PointerType) {
+            sz = 8;
+        } elif ft?.elements and ft.elements is not None {
+            (_sub, _ssz) = self._jc_abi_offsets(list(ft.elements));
+            _align = 8;
+            if off % _align != 0 {
+                off += _align - (off % _align);
+            }
+            offsets.append(off);
+            off += _ssz;
+            continue;
+        }
+        if off % sz != 0 {
+            off += sz - (off % sz);
+        }
+        offsets.append(off);
+        off += sz;
+    }
+    if off % 8 != 0 {
+        off += 8 - (off % 8);
+    }
+    return (offsets, off);
+}
+
+impl NaIRGenObjects._build_jc_layout -> str {
+    import json;
+    out: dict = {"classes": {}};
+    _model = self.ir_in.gen.osp_model;
+    _tags = _model.tags if _model is not None else {};
+    for arch_name in self.struct_field_indices {
+        st = self.struct_types.get(arch_name);
+        if st is None or st?.elements is None {
+            continue;
+        }
+        (offsets, total) = self._jc_abi_offsets(list(st.elements));
+        idx_map = self.struct_field_indices.get(arch_name, {});
+        ftypes = self.struct_field_types.get(arch_name, {});
+        enum_map = self.struct_field_enum_type.get(arch_name, {});
+        fields: dict = {};
+        for (fname, fidx) in idx_map.items() {
+            if fidx >= len(offsets) {
+                continue;
+            }
+            ft = ftypes.get(fname);
+            code = "opaque";
+            aux = "";
+            if fname in enum_map {
+                code = "enum";
+                aux = enum_map[fname];
+            } elif fname in self.struct_field_erased_tv.get(arch_name, {}) {
+                code = "obj";
+            } elif (
+                isinstance(ft, ir.PointerType)
+                and isinstance(ft.pointee, ir.IntType)
+                and ft.pointee.width == 8
+            ) {
+                code = "str";
+            } elif getattr(ft, "name", "") == "JacVal" {
+                code = "union";
+            } elif (
+                ft?.elements
+                and ft.elements is not None
+                and len(ft.elements) == 2
+                and isinstance(ft.elements[0], ir.IntType)
+                and isinstance(ft.elements[1], ir.PointerType)
+            ) {
+                code = "optref";
+                _opn = getattr(ft.elements[1].pointee, "name", "") or "";
+                aux = _opn;
+            } elif isinstance(ft, ir.IntType) {
+                code = "bool" if ft.width == 1 else "int";
+            } elif isinstance(ft, ir.DoubleType) {
+                code = "float";
+            } elif isinstance(ft, ir.PointerType) {
+                _pn = getattr(ft.pointee, "name", "") or "";
+                _is_list = False;
+                for (_, _lt) in self.list_types.items() {
+                    if ft == _lt.as_pointer() {
+                        _is_list = True;
+                        break;
+                    }
+                }
+                if _is_list {
+                    code = "natlist";
+                    aux = _pn;
+                } elif _pn in self.struct_field_indices {
+                    code = "obj";
+                    aux = _pn;
+                } elif _pn == "jac.str" or _pn.endswith(".str") or _pn == "str" {
+                    code = "str";
+                } else {
+                    code = "ptr";
+                    aux = _pn;
+                }
+            }
+            fields[fname] = {
+                "index": fidx,
+                "offset": offsets[fidx],
+                "code": code,
+                "aux": aux
+            };
+        }
+        _lay_tag_idx = self.osp_type_tag_field.get(arch_name);
+        out["classes"][arch_name] = {
+            "size": total,
+            "tag": _tags.get(arch_name, 0),
+            "tag_offset": offsets[_lay_tag_idx]
+                if (_lay_tag_idx is not None and _lay_tag_idx < len(offsets))
+                else -1,
+            "fields": fields
+        };
+    }
+    return json.dumps(out);
 }

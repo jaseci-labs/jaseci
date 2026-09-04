@@ -80,6 +80,10 @@ obj NaIRGenRefcount(NaIRGenState) {
     def _arch_is_osp_name(arch_name: str) -> bool;
     def _arch_is_walker_name(arch_name: str) -> bool;
     def _emit_struct_drop_fn(type_name: str) -> (ir.Function | None);
+    def _emit_nogc_field_drops(
+        b: ir.IRBuilder, type_name: str, _dobj: ir.Value
+    ) -> None;
+
     def _emit_container_drop_fn(cont_name: str) -> (ir.Function | None);
     def _nogc_elem_drop_slot_ty -> ir.Type;
     def _nogc_stamp_elem_drops(cont: ir.Value | None, elem_mangles: list) -> None;

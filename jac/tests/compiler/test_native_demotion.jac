@@ -185,3 +185,24 @@ test "the demotion fallback re-lowers importers away from the na seam" {
         _clear_demoted_native(models_path);
     }
 }
+
+test "a docstring-only module is never decided native" {
+    # Empty package markers passed the native verdict trivially and ran the
+    # whole native pipeline for nothing; an interface hung on that inferred
+    # verdict. A module with no executable element has nothing to lower.
+    import tempfile;
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
+    import from jaclang.compiler.placement.placement_solver { native_default_verdict }
+    tmp = tempfile.mkdtemp();
+    path = os.path.join(tmp, "__init__.jac");
+    with open(path, "w") as fh {
+        fh.write('"""pkg."""\n');
+    }
+    prog = JacProgram();
+    mod = prog.compile(
+        path, options=CompileOptions(no_cgen=True, force_target_program=True)
+    );
+    (ok, why) = native_default_verdict(mod);
+    assert not ok , "an empty module passed the native verdict";
+    assert "empty module" in why , why;
+}

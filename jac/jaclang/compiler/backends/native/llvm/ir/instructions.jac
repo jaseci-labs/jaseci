@@ -124,9 +124,7 @@ class CallInstr(Instruction) {
         self.cconv = func.calling_convention
             if ((cconv is None) and isinstance(func, Function))
             else cconv;
-        if (isinstance(tail, str) and (tail in TailMarkerOptions)) {
-            ;
-        } elif tail {
+        if (isinstance(tail, str) and (tail in TailMarkerOptions)) {} elif tail {
             tail = "tail";
         } else {
             tail = "";

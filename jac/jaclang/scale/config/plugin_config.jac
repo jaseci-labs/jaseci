@@ -151,7 +151,7 @@ class JacScalePluginConfig {
                         "secret": {
                             "type": "string",
                             "default": "supersecretkey_for_testing_only!",
-                            "description": "Secret key for JWT signing"
+                            "description": "Secret key for JWT signing. Left unset, a dev server mints one per project into .jac/data/jwt_secret; a deployment must set it so every replica signs alike"
                         },
                         "algorithm": {
                             "type": "string",
@@ -635,7 +635,7 @@ class JacScalePluginConfig {
                         "enabled": {
                             "type": "bool",
                             "default": None,
-                            "description": "Deprecated - declaring [scale.microservices.routes] is what turns microservice mode on; set false to force single-process while keeping the routes table. Absent means auto-detect (enable when routes exist). Ignored inside deployed fleet pods (the deploy already realized the topology). A future release removes this key."
+                            "description": "Whether `jac run` realizes the declared routes as local microservice subprocesses behind a gateway. Absent (the default) means: yes when serving without a dev client, no for a dev-client run (`jac run` on a web-app stays single-process with vite and HMR). true asks for the gateway even in dev; false keeps every local run single-process while the routes table still describes the deployed cut. `jac run --ms` / `--no-ms` overrides this per invocation. Ignored inside deployed fleet pods (the deploy already realized the topology)."
                         },
                         "gateway_port": {
                             "type": "int",
@@ -670,7 +670,12 @@ class JacScalePluginConfig {
                         "health_monitor_interval": {
                             "type": "float",
                             "default": None,
-                            "description": "Cadence (seconds) of the background health check that restarts services which died after boot; absent uses the process manager default (10)."
+                            "description": "Cadence (seconds) of the background health check that restarts services which died after boot; absent uses the process manager default (10). While any service is not healthy the monitor polls at 2s regardless, and steps back to this cadence once the fleet settles."
+                        },
+                        "app_boot_timeout": {
+                            "type": "float",
+                            "default": 900.0,
+                            "description": "How long the orchestrator waits for the client-serving service to finish booting before it starts the rest of the fleet (seconds). That service compiles the client, and a module another service analyzed first reaches the client backend with its calls unresolved, so it goes first and alone. Like `boot_health_timeout` this is a stall budget, not a wall-clock cap: while the service is still writing to its log the clock resets, so a cold client build is not cut off. Only applies when a service serves the client (a local web-app run); a headless fleet starts every service in parallel."
                         },
                         "identity": {
                             "type": "dict",

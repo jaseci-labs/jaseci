@@ -10,7 +10,7 @@ import from jaclang.client.route_scanner { RouteScanner, resolve_route_exports }
 import from jaclang.jac0core.ext_registry { ANNEX_SUFFIXES }
 
 with entry {
-    if TYPE_CHECKING { }
+    if TYPE_CHECKING {}
 }
 
 class JacClientCompiler {
@@ -95,7 +95,7 @@ class JacClientCompiler {
         self: JacClientCompiler, scanner: RouteScanner
     ) -> None;
 
-    def _generate_routes_manifest(self: JacClientCompiler) -> None;
+    def _generate_routes_manifest(self: JacClientCompiler) -> bool;
     def _write_source_map(
         self: JacClientCompiler,
         mod: any,

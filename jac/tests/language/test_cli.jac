@@ -2051,13 +2051,13 @@ test "error traceback shows source code" {
     # Should show the error message
     assert "Error" in stderr , "stderr should contain Error";
     assert (
-        "attempted relative import" in stderr
+        "No module named" in stderr
         or "ImportError" in stderr
-        or "__package__" in stderr
+        or "ModuleNotFoundError" in stderr
     ) , "stderr should contain import error message";
 
     # Should show the source code line that caused the error
-    assert "import from .nonexistent_module" in stderr , (
+    assert "import from jac_nonexistent_module" in stderr , (
         "stderr should show the problematic import statement"
     );
 

@@ -1,6 +1,7 @@
 import from jaclang.cli.console { console }
 
 impl run_lang_server -> None {
+    logging.getLogger().setLevel(logging.CRITICAL);
     server = JacLangServer();
 
     server.feature(lspt.TEXT_DOCUMENT_DID_OPEN)(did_open);

@@ -191,15 +191,11 @@ def _sv_on_complete(scope: WalkScope, ok: bool) {
                 cs.reports.put_nowait(r);
             }
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     if ok and (ctx is not None) {
         try {
             ctx.mem.commit();
-        } except Exception {
-            ;
-        }
+        } except Exception {}
     }
 }
 

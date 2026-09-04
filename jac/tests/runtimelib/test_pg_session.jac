@@ -15,6 +15,8 @@ import from jaclang.runtime.graph_query { GraphQuery, QHop }
 import from jaclang.runtime.runtime { JacRuntime }
 import from jaclang.runtime.context { ExecutionContext }
 import from jaclang.data.query_planner { resolve_query }
+import from jaclang.server.session { Session }
+import from typing { cast }
 
 def _as_any(v: any) -> any {
     return v;
@@ -60,7 +62,7 @@ def _root(ctx: ExecutionContext) -> NodeAnchor {
 
 def _out_items(ctx: ExecutionContext, ranch: NodeAnchor) -> list {
     q = GraphQuery(ranch.archetype, hops=[QHop(dir=2, nd=SItem)]);
-    return resolve_query(ctx.mem, q);
+    return resolve_query(cast(Session, ctx.mem), q);
 }
 
 
@@ -240,6 +242,13 @@ test "read barrier hashes only dirty anchors, not the whole session" {
         try {
             ranch = _root(ctx);
             items = [_attach(ctx, ranch, f"i{n}") for n in range(5)];
+            # Field writes now resolve access, which resolves the context's
+            # roots on first use - and root resolution persists a freshly
+            # materialized super-root the first time it runs (session.impl.jac
+            # _resolve_roots -> mem.put). A real request always resolves roots
+            # during auth, long before its first write; force that here too so
+            # this commit - not the counted read barrier below - absorbs it.
+            _ = ctx.user_root;
             ctx.mem.commit();
 
             smod._persist_hash = counting_hash;

@@ -189,6 +189,26 @@ obj _ClientHmrHandler {
     }
 }
 
+def dev_proxy_paths(project_dir: Path, entry_file: Path) -> tuple {
+    import from jaclang.client.vite_bundler { DEV_PROXY_PREFIXES }
+    import from jaclang.jac0core.ext_registry { base_stem }
+    try {
+        import from jaclang.server.server { ModuleIntrospector }
+        introspector = ModuleIntrospector(
+            module_name=base_stem(entry_file.name), base_path=str(project_dir)
+        );
+        introspector.load();
+        return (
+            introspector.declared_api_paths(),
+            introspector.client_claimed_paths(DEV_PROXY_PREFIXES)
+        );
+    } except Exception as e {
+        console.warning(f"Could not resolve dev proxy paths: {e}");
+        return ([], []);
+    }
+}
+
+
 def invalidate_runtime_module_cache(paths: list[str]) -> None {
     try {
         import from jaclang { JacRuntime as Jac }
@@ -229,7 +249,7 @@ def stop_dev_watcher(watcher: any) {
     if watcher {
         try {
             watcher.stop();
-        } except Exception { }
+        } except Exception {}
     }
 }
 
@@ -246,7 +266,7 @@ def terminate_dev_processes(
         } except Exception {
             try {
                 p.kill();
-            } except Exception { }
+            } except Exception {}
         }
     }
 }

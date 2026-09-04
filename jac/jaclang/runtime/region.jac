@@ -1,4 +1,5 @@
 import threading;
+import weakref;
 
 glob _region_tls: any = threading.local();
 
@@ -89,7 +90,13 @@ def register_drop(item: any) {
     s = _stack();
     if s {
         s[-1]._jac_register(item);
+        item._jac_region = weakref.ref(s[-1]);
     }
+}
+
+def region_of(item: any) -> any {
+    ref = item?._jac_region;
+    return ref() if ref is not None else None;
 }
 
 def instrument_drops(cls: any) {
