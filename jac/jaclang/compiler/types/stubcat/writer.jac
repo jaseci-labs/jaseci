@@ -31,13 +31,9 @@ import from jaclang.compiler.types.types {
     ClassType,
     EnumMemberType,
     FunctionType,
-    FunctionTypeFlags,
     ModuleType,
     NeverType,
     OverloadedType,
-    ParamKind,
-    Parameter,
-    ParameterCategory,
     TypeBase,
     TypeVarType,
     UnionType,
@@ -79,6 +75,7 @@ import from jaclang.compiler.types.stubcat.format {
     SH_XREF,
     SYMF_DEFER,
     SYMF_HAS_DEFAULT,
+    SYMF_INSTANCE_METHOD,
     SYMF_NA_ESCAPES,
     SYMF_NA_REGION_HANDLE,
     SYMF_NA_STACK_OK,
@@ -629,9 +626,7 @@ obj CatalogWriter {
         }
         resolved: (TypeBase | None) = None;
         try {
-            resolved = self._with_explicit_self(
-                sym, self.evaluator.get_type_of_symbol(sym)
-            );
+            resolved = self.evaluator.get_type_of_symbol(sym);
             self.evaluated += 1;
         } except Exception as e {
             self.failures += 1;
@@ -677,50 +672,6 @@ obj CatalogWriter {
             }
         }
         return node_;
-    }
-
-    def _prepend_self(fn: FunctionType) -> FunctionType {
-        params = list(fn.parameters or []);
-        if params and (params[0].is_self or params[0].is_cls) {
-            return fn;
-        }
-        if fn.function_flags
-            & (FunctionTypeFlags.StaticMethod | FunctionTypeFlags.ClassMethod) {
-            return fn;
-        }
-        me = Parameter(
-            name="self",
-            category=ParameterCategory.Positional,
-            param_type=None,
-            is_self=True,
-            param_kind=ParamKind.NORMAL
-        );
-        return FunctionType(
-            func_name=fn.func_name,
-            return_type=fn.return_type,
-            parameters=[me] + params,
-            function_flags=fn.function_flags,
-            type_params=fn.type_params,
-            is_async=fn.is_async,
-            type_guard=fn.type_guard
-        );
-    }
-
-    def _with_explicit_self(
-        sym: Symbol, resolved: (TypeBase | None)
-    ) -> (TypeBase | None) {
-        if self._jac_method_of(sym) is None {
-            return resolved;
-        }
-        if isinstance(resolved, FunctionType) {
-            return self._prepend_self(resolved);
-        }
-        if isinstance(resolved, OverloadedType) and resolved.overloads {
-            return OverloadedType(
-                overloads=[self._prepend_self(fn) for fn in resolved.overloads]
-            );
-        }
-        return resolved;
     }
 
     def property_facts(sym: Symbol) -> tuple[int, int, (TypeBase | None)] {
@@ -1212,6 +1163,9 @@ obj CatalogWriter {
         }
         if sym.na_stack_ok {
             symbits |= SYMF_NA_STACK_OK;
+        }
+        if self._jac_method_of(sym) is not None {
+            symbits |= SYMF_INSTANCE_METHOD;
         }
         try {
             decl_node = sym.decl.name_of if sym.decl else None;

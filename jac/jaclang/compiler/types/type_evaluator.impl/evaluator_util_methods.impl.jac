@@ -1061,6 +1061,13 @@ impl TypeEvaluator._is_unbound_method_call(expr: FuncCall) -> bool {
                         return False;
                     }
 
+                    import from jaclang.compiler.types.stubcat.format {
+                        SYMF_INSTANCE_METHOD
+                    }
+                    prov: any = member.symbol.provider;
+                    if int(getattr(prov, "symbits", 0) or 0) & SYMF_INSTANCE_METHOD {
+                        return True;
+                    }
                     if not isinstance(node_, Ability) or not node_.is_method {
                         return False;
                     }

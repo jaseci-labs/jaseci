@@ -209,13 +209,14 @@ content, and sections copied from a module cache depend on that cache's
 history. Producing them deterministically at seal time, by running the
 analysis frontier per unit, is the precompiler's follow-up.
 
-A Jac method's interface carries its self parameter explicitly, the way a
-typeshed method does, so an unbound `Cls.method(self, ...)` call through a
-hydrated class binds like it does through a real tree. The writer also
-materializes the members the evaluator would only discover lazily (an
-`init` parameter or a `self.x` assignment first looked up on a miss), so an
-interface never depends on which attributes an earlier closure happened to
-touch.
+A Jac instance method's interface symbol carries an instance-method bit
+(`SYMF_INSTANCE_METHOD`), which the unbound-call check reads in place of the
+real `Ability` node, so `Cls.method(self, ...)` through a hydrated class
+binds like it does through a real tree while the member's type stays the
+self-less form the tree presents. The writer also materializes the members
+the evaluator would only discover lazily (an `init` parameter or a `self.x`
+assignment first looked up on a miss), so an interface never depends on
+which attributes an earlier closure happened to touch.
 
 ## The codegen lane
 
