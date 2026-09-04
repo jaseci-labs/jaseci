@@ -14,7 +14,15 @@ obj ModuleHub {
 
     def stamp(resolved_path: str) {
         import time;
-        self.stamps[resolved_path] = time.time();
+        import from jaclang.compiler.driver.bccache { discover_annex_files }
+        seen = time.time();
+        try {
+            seen = max(seen, os.path.getmtime(resolved_path));
+            for related in discover_annex_files(resolved_path) {
+                seen = max(seen, os.path.getmtime(related));
+            }
+        } except OSError {}
+        self.stamps[resolved_path] = seen;
     }
 
     def is_fresh(resolved_path: str) -> bool {
