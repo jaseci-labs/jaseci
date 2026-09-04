@@ -17,7 +17,7 @@ import uuid;
 import requests;
 import from pathlib { Path }
 import from tempfile { mkdtemp }
-import from jaclang.scale.tests.server_support { get_free_port }
+import from jaclang.scale.tests.support { get_free_port }
 import from jaclang.scale.runtime.gateway.service_registry {
     ServiceRegistry,
     ServiceEntry,
