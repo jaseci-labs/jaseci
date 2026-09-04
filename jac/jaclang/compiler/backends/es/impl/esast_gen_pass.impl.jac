@@ -6975,7 +6975,9 @@ impl EsastGenPass.exit_import with uni.Import exit {
         if resolved_path.endswith('.jac')
             and not import_path.startswith('.')
             and not is_jac_runtime {
-            js_import_path = relative_js_specifier(resolved_path, here.loc.mod_path);
+            js_import_path = relative_js_specifier(
+                resolved_path, self.ir_in.loc.mod_path or here.loc.mod_path
+            );
         } else {
             js_import_path = convert_to_js_import_path(import_path);
         }
@@ -6999,7 +7001,9 @@ impl EsastGenPass.exit_import with uni.Import exit {
         self.client_manifest.imports[import_key] = resolved_path;
         import_path = import_key;
         if resolved_path.endswith('.jac') and not import_path.startswith('.') {
-            js_import_path = relative_js_specifier(resolved_path, here.loc.mod_path);
+            js_import_path = relative_js_specifier(
+                resolved_path, self.ir_in.loc.mod_path or here.loc.mod_path
+            );
         } else {
             js_import_path = convert_to_js_import_path(import_path);
         }

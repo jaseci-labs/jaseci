@@ -68,7 +68,7 @@ obj KubernetesRealizer {
         }
         import from jaclang.project.config { get_config_for_dir }
         cfg = get_config_for_dir(code_folder);
-        if cfg is None or not cfg.apps {
+        if cfg is None or not cfg.is_workspace {
             return None;
         }
         root_dir = str(cfg.project_root) if cfg.project_root else code_folder;

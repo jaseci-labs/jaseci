@@ -312,7 +312,7 @@ obj ManifestBuilder {
 
     def _derive_fleet(app_config: AppConfig) -> FleetSpec {
         cfg = self._project_config();
-        if cfg is not None and cfg.apps {
+        if cfg is not None and cfg.is_workspace {
             root_dir = str(cfg.project_root) if cfg.project_root else self.project_dir;
             fleet = fleet_from_config(
                 cfg,

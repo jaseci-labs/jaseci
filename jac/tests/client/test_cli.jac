@@ -239,16 +239,17 @@ test "create jac app with button component" {
                 f"serve table still carries the deleted key: {config_data.get('serve')}"
             );
 
-            # The mobile scaffold is an explicit [apps.main] mobUI app.
+            # The mobile scaffold is a single-app mobUI project: the kind
+            # implies the React Native client and the mobUI client kind.
             assert "client_kind" not in config_data["project"] , (
                 f"[project] client_kind is gone: {config_data['project']}"
             );
-            main_app = config_data.get("apps", {}).get("main", {});
-            assert main_app.get("kind") == "mobile" , f"apps table: {config_data.get(
-                'apps'
-            )}";
-            assert main_app.get("client") == "react-native" , f"apps.main: {main_app}";
-            assert main_app.get("client_kind") == "mobui" , f"apps.main: {main_app}";
+            assert "apps" not in config_data , (
+                f"a single-app scaffold has no [apps] table: {config_data.get('apps')}"
+            );
+            assert config_data["project"].get("kind") == "mobile" , (
+                f"project table: {config_data['project']}"
+            );
 
             # Verify components directory and Button.jac were created at project root
             components_dir = os.path.join(project_path, "components");
