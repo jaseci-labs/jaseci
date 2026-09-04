@@ -954,34 +954,18 @@ import from loguru { logger as _loguru_logger }
 # logger whatever the litellm debug flag says. litellm.completion is the seam
 # here because the mapping under test lives in Model.model_call_no_stream.
 test "provider errors map to byllm exceptions and log at ERROR regardless of debug" {
-    for (debug, provider_error, expected_name, needle) in [
-        (
-            False,
-            litellm.exceptions.AuthenticationError(
-                message="Invalid API key", llm_provider="openai", model="gpt-4o-mini"
-            ),
-            "AuthenticationError",
-            "Invalid API key"
-        ),
-        (
-            True,
-            litellm.exceptions.RateLimitError(
-                message="Rate limit exceeded",
-                llm_provider="openai",
-                model="gpt-4o-mini"
-            ),
-            "RateLimitError",
-            "Rate limit"
-        ),
-        (
-            False,
-            litellm.exceptions.NotFoundError(
-                message="model not found", model="gpt-fake", llm_provider="openai"
-            ),
-            "ModelNotFoundError",
-            "model not found"
-        )
-    ] {
+    # Rows carry byllm's classes; litellm's AuthenticationError and RateLimitError
+    # share those names, so matching by name would let an unmapped error through.
+    rows: list = [
+        (False, "AuthenticationError", AuthenticationError, "Invalid API key"),
+        (True, "RateLimitError", RateLimitError, "Rate limit exceeded"),
+        (False, "RateLimitError", RateLimitError, "quota exceeded"),
+        (False, "NotFoundError", ModelNotFoundError, "model not found")
+    ];
+    for (debug, litellm_name, expected, message) in rows {
+        provider_error = getattr(litellm.exceptions, litellm_name)(
+            message=message, llm_provider="openai", model="gpt-4o-mini"
+        );
         log_output = io.StringIO();
         _loguru_logger.remove();
         handler_id = _loguru_logger.add(log_output, level="ERROR");
@@ -1008,12 +992,14 @@ test "provider errors map to byllm exceptions and log at ERROR regardless of deb
         } finally {
             _loguru_logger.remove(handler_id);
         }
-        why = f"debug={debug} {expected_name}";
-        assert type(raised).__name__ == expected_name , (
-            f"{why}: expected it to propagate as byllm's {expected_name}, got {raised!r}"
+        why = f"debug={debug} litellm.{litellm_name}";
+        assert isinstance(raised, expected) , (
+            f"{why}: expected byllm's {expected.__name__}, got {type(
+                raised
+            ).__module__}.{raised!r}"
         );
-        assert needle in str(raised) , f"{why}: message lost, got {raised}";
-        assert f"LLM {expected_name}" in log_output.getvalue() , (
+        assert message in str(raised) , f"{why}: message lost, got {raised}";
+        assert f"LLM {expected.__name__}" in log_output.getvalue() , (
             f"{why}: logger.error should record it, got: {log_output.getvalue()}"
         );
     }
