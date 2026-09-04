@@ -990,7 +990,9 @@ impl MicroserviceGateway.setup -> ServingApp {
     import from jaclang.scale.runtime.middleware.rate_limit {
         build_rate_limit_middleware
     }
-    rl_mw = build_rate_limit_middleware(ms_cfg.get("rate_limit", {}));
+    rl_mw = build_rate_limit_middleware(
+        ms_cfg.get("rate_limit", {}), shared_state=True
+    );
     if rl_mw is not None {
         registry.register(Middleware(name="rate_limit", priority=10, fn=rl_mw));
     }

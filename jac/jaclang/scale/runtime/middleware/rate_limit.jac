@@ -216,7 +216,9 @@ def _resolve_user_key(request: any) -> str | None {
 }
 
 
-def build_rate_limit_middleware(cfg: dict[str, any]) -> any {
+def build_rate_limit_middleware(
+    cfg: dict[str, any], shared_state: bool = False
+) -> any {
     if not cfg.get("enabled") {
         return None;
     }
@@ -228,7 +230,7 @@ def build_rate_limit_middleware(cfg: dict[str, any]) -> any {
         cfg.get("trusted_proxies", []) or []
     );
 
-    backend: StateBackend = get_state_backend(bool(cfg.get("scale_enabled", False)));
+    backend: StateBackend = get_state_backend(shared_state);
 
     ns: str = f"mw{next(_mw_seq)}";
 
