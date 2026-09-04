@@ -86,7 +86,7 @@ def _cold_rebuild -> tuple[int, dict, int] {
         "no rebuild happened: the probe ran on a warm compiler, so the checkout "
         "was not rerouted or the cache was not isolated"
     );
-    payload: (dict | None) = None;
+    payload: (dict[str, any] | None) = None;
     for line in proc.stdout.splitlines() {
         if line.startswith("SELFHOST=") {
             payload = json.loads(line[len("SELFHOST="):]);
