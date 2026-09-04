@@ -11,7 +11,7 @@ import logging;
 import from datetime { date, datetime, time }
 import from enum { Enum }
 import from uuid { UUID, uuid4 }
-import from jaclang.runtime.archetype { NodeAnchor, Root }
+import from jaclang.runtime.archetype { NodeAnchor, EdgeAnchor, Root, GenericEdge }
 # archetype_alias is an ambient Jac builtin (no import). Serializer is
 # an explicit import because we directly test its internals here.
 import from jaclang.data.serializer { Serializer }
@@ -61,6 +61,73 @@ test "alias to same qualified name is a no-op (does not self-alias)" {
 test "_get_class returns None for truly unregistered class names" {
     resolved = Serializer._get_class("definitely.not", "Present");
     assert resolved is None;
+}
+
+
+# --- Built-in package moves (regression: jaclang/issues/8747) ---------------
+#
+# `Root` and `GenericEdge` moved from `jaclang.jac0core.archetype` to
+# `jaclang.runtime.archetype` in #8682. Anchors persisted before that move
+# still carry the old module name in their stored `__module__` field. The
+# built-ins must alias their pre-move identity the same way any user
+# archetype would, so old rows keep resolving.
+test "Root resolves anchors stored under its pre-move module path" {
+    mod = getattr(Root, '__module__');
+    nm = getattr(Root, '__name__');
+    assert Serializer._aliases.get("jaclang.jac0core.archetype.Root")
+        == f"{mod}.{nm}" , (
+        f"no alias recorded for Root's pre-move name: {Serializer._aliases}"
+    );
+    blob = {
+        '__type__': 'NodeAnchor',
+        '__module__': 'jaclang.runtime.archetype',
+        'id': str(uuid4()),
+        'root': None,
+        'persistent': True,
+        'access': {'all': -1, 'roots': {'anchors': {}}},
+        'archetype': {'__type__': 'Root', '__module__': 'jaclang.jac0core.archetype'},
+        'edges': [],
+        'version': 0
+    };
+    anchor = Serializer.deserialize(blob);
+    assert isinstance(anchor, NodeAnchor) , (
+        f"Root anchor stored under the pre-move module failed to deserialize: {anchor}"
+    );
+    assert isinstance(anchor.archetype, Root) , (
+        f"expected a Root archetype, got {anchor.archetype}"
+    );
+}
+
+
+test "GenericEdge resolves anchors stored under its pre-move module path" {
+    mod = getattr(GenericEdge, '__module__');
+    nm = getattr(GenericEdge, '__name__');
+    assert (
+        Serializer._aliases.get("jaclang.jac0core.archetype.GenericEdge")
+        == f"{mod}.{nm}"
+    ) , f"no alias recorded for GenericEdge's pre-move name: {Serializer._aliases}";
+    blob = {
+        '__type__': 'EdgeAnchor',
+        '__module__': 'jaclang.runtime.archetype',
+        'id': str(uuid4()),
+        'root': None,
+        'persistent': True,
+        'access': {'all': -1, 'roots': {'anchors': {}}},
+        'archetype': {
+            '__type__': 'GenericEdge',
+            '__module__': 'jaclang.jac0core.archetype'
+        },
+        'edges': [],
+        'version': 0
+    };
+    anchor = Serializer.deserialize(blob);
+    assert isinstance(anchor, EdgeAnchor) , (
+        "GenericEdge anchor stored under the pre-move module failed to "
+        f"deserialize: {anchor}"
+    );
+    assert isinstance(anchor.archetype, GenericEdge) , (
+        f"expected a GenericEdge archetype, got {anchor.archetype}"
+    );
 }
 
 
