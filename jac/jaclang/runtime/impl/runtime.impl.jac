@@ -52,6 +52,14 @@ impl JacAccessValidation._check_access(
     return granted;
 }
 
+impl JacAccessValidation._is_shared_root(to: Anchor) -> bool {
+    return (
+        to.id is not None
+        and _shared_root_resolver[0] is not None
+        and to.id == JacRuntime.shared_root_id()
+    );
+}
+
 impl JacAccessValidation.allow_root(
     archetype: Archetype, root_id: UUID, level: (AccessLevel | int | str | None) = None
 ) -> None {
@@ -60,6 +68,9 @@ impl JacAccessValidation.allow_root(
     }
     level = access_level_cast(level);
     (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
+    if not JacAccessValidation.check_write_access(anchor, op_hint="acl_write") {
+        return;
+    }
     access = anchor.own_access().roots;
     _root_id = str(root_id);
     if (level != access.anchors.get(_root_id, AccessLevel.NO_ACCESS)) {
@@ -76,6 +87,9 @@ impl JacAccessValidation.allow_group(
     }
     level = access_level_cast(level);
     (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
+    if not JacAccessValidation.check_write_access(anchor, op_hint="acl_write") {
+        return;
+    }
     access = anchor.own_access().groups;
     _group_id = str(group_id);
     if (level != access.anchors.get(_group_id, AccessLevel.NO_ACCESS)) {
@@ -86,6 +100,9 @@ impl JacAccessValidation.allow_group(
 
 impl JacAccessValidation.disallow_group(archetype: Archetype, group_id: UUID) -> None {
     (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
+    if not JacAccessValidation.check_write_access(anchor, op_hint="acl_write") {
+        return;
+    }
     anchor.own_access().groups.anchors.pop(str(group_id), None);
     jctx.mem.put(anchor);
 }
@@ -98,6 +115,9 @@ impl JacAccessValidation.disallow_root(
     }
     level = access_level_cast(level);
     (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
+    if not JacAccessValidation.check_write_access(anchor, op_hint="acl_write") {
+        return;
+    }
     access = anchor.own_access().roots;
     access.anchors.pop(str(root_id), None);
     jctx.mem.put(anchor);
@@ -111,6 +131,9 @@ impl JacAccessValidation.perm_grant(
     }
     level = access_level_cast(level);
     (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
+    if not JacAccessValidation.check_write_access(anchor, op_hint="acl_write") {
+        return;
+    }
     if (level != _all_grant(anchor)) {
         anchor.own_access().all = level;
         jctx.mem.put(anchor);
@@ -119,6 +142,9 @@ impl JacAccessValidation.perm_grant(
 
 impl JacAccessValidation.perm_revoke(archetype: Archetype) -> None {
     (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
+    if not JacAccessValidation.check_write_access(anchor, op_hint="acl_write") {
+        return;
+    }
     if (_all_grant(anchor).value > AccessLevel.NO_ACCESS.value) {
         anchor.own_access().all = AccessLevel.NO_ACCESS;
         jctx.mem.put(anchor);
@@ -166,6 +192,8 @@ impl JacAccessValidation.check_access_level(
     to_access = to.access;
     if to_access is not None and to_access.all.value > AccessLevel.NO_ACCESS.value {
         access_level = to_access.all;
+    } elif JacAccessValidation._is_shared_root(to) {
+        access_level = AccessLevel.CONNECT;
     }
     if (to.root and isinstance((to_root := jctx.mem.get(to.root)), Anchor)) {
         root_access = to_root.access;
@@ -2228,32 +2256,41 @@ impl JacRuntime.get_selfhost(cls: any) -> SelfHostCache {
     return cls.selfhost;
 }
 
-impl JacRuntime.get_shared_root -> Root {
+impl JacRuntime.shared_root_id -> (UUID | None) {
     resolver = _shared_root_resolver[0];
     if resolver is None {
+        return None;
+    }
+    cached = _shared_root_resolver[1];
+    if isinstance(cached, UUID) {
+        return cached;
+    }
+    resolved = resolver();
+    if not isinstance(resolved, str) {
+        return None;
+    }
+    root_id = UUID(resolved);
+    _shared_root_resolver[1] = root_id;
+    return root_id;
+}
+
+impl JacRuntime.get_shared_root -> Root {
+    if _shared_root_resolver[0] is None {
         return JacRuntimeInterface.get_context().get_root();
     }
-    root_id = _shared_root_resolver[1];
-    if not isinstance(root_id, str) {
-        root_id = resolver();
-        if not isinstance(root_id, str) {
-            raise RuntimeError(
-                "Shared root unavailable: the registered shared-root resolver "
-                "returned no root id."
-            );
-        }
-        _shared_root_resolver[1] = root_id;
+    root_id = JacRuntime.shared_root_id();
+    if root_id is None {
+        raise RuntimeError(
+            "Shared root unavailable: the registered shared-root resolver "
+            "returned no root id."
+        );
     }
-    shared_anchor = JacRuntimeInterface.get_context().mem.get(UUID(root_id));
+    shared_anchor = JacRuntimeInterface.get_context().mem.get(root_id);
     shared = shared_anchor.archetype if shared_anchor else None;
     if not isinstance(shared, Root) {
         raise RuntimeError(
             f"Shared root unavailable: id {root_id} did not resolve to a Root node."
         );
-    }
-
-    if _all_grant(shared.__jac__) == AccessLevel.NO_ACCESS {
-        JacRuntimeInterface.perm_grant(shared, AccessLevel.CONNECT);
     }
     return shared;
 }
