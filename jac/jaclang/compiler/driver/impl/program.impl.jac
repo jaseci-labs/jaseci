@@ -191,9 +191,7 @@ impl JacProgram.load_dependency_module(
         }
     }
     try {
-        if not compiler.selfhost.is_selfhost(self) {
-            self.iface_registry().note_dep(resolved_path);
-        }
+        self.iface_registry().note_dep(resolved_path);
     } except Exception {}
     return mod;
 }
@@ -332,7 +330,7 @@ impl JacProgram.release_compile_closure(
     if self._iface is not None {
         self._iface.on_closure_release();
     }
-    if collect {
+    if collect and unit_collect_budget.due() {
         import gc;
         gc.collect();
     }

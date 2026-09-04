@@ -179,15 +179,34 @@ real-AST derivation (a pinned identity contract; their frontend is the
 cheap phase) -- they participate in `SEC_DEPS` through their content key
 instead, so a stub edit still re-analyzes its importers.
 
-The bootstrap and sealed-image paths are untouched: hydration never engages
-for the selfhost program (the compiler compiling itself), and the jac0 seed
-path does not know the cache exists. The firewall is the program, not the
-path: a regular program analyzing compiler-tree files (`jac check` over the
-jaclang tree) hydrates and replays like anything else, and those files are
-the most replay-stable of all -- every ENVKEY folds the compiler digest, so
-any compiler edit invalidates them wholesale. For the same reason,
-compiler-tree dependencies carry no `SEC_DEPS` edges: the ENVKEY already
-subsumes them.
+The compiler's own tree is an ordinary citizen of the cache. The selfhost
+program (the compiler compiling itself) hydrates and persists like any
+other program; the one bootstrap rule is readiness, not identity. While the
+interface codec's own modules (the type evaluator and the stubcat reader,
+writer and modiface) are not yet importable, or are mid-import, `eligible`
+answers no and those compiles run cold. The jac0 seed tier never goes
+through `compile()` and does not know the cache exists.
+
+Interfaces are encoded only inside analysis-driven closures: the compile
+at the root of the closure (the outermost `compile()` call) must be a
+`no_cgen` or `symtab_ir_only` compile. A codegen-driven closure, which is
+what an import or `jac run` produces, records `SEC_DEPS` and
+`SEC_PLACEMENT` for every module it touches and leaves `SEC_IFACE` to the
+first analysis-driven closure that asks for it. Encoding forces the type of
+every export, which cascades dependency ingestion through the reachable
+closure, so an import-order rebuild of the compiler must never trigger it;
+the first `jac check`, LSP open or precompile analysis produces each
+interface once and every later consumer hydrates.
+
+Dependency rows exempt only modules inside the compiler digest roots
+(`is_compiler_tree_path`): every ENVKEY folds the compiler digest, so any
+edit there invalidates every JIR wholesale and a row would be redundant.
+Non-root jaclang modules (cli, server, scale, byllm and friends) are mutable
+within a generation and carry rows like any other dependency. A sealed
+image carries the analysis sections alongside bytecode (`precompile_unit`
+forwards them, with `SEC_DEPS` paths relocated through the package-root
+sentinel the way comptime deps already are), and the registry reads the
+module cache first and the sealed image second.
 
 ## The codegen lane
 

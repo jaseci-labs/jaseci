@@ -20,6 +20,10 @@ import from jaclang.compiler.driver.jir {
     SEC_BYTECODE,
     SEC_CTDEPS,
     SEC_DEBUG_SRC,
+    SEC_DEPS,
+    SEC_DIAG,
+    SEC_IFACE,
+    SEC_PLACEMENT,
     FORMAT_VERSION,
     compute_precompile_module_key,
     get_module_cache_path,
@@ -27,6 +31,7 @@ import from jaclang.compiler.driver.jir {
     precompiled_jir_matches_source,
     read_section_bytes,
     rebase_ct_deps_section,
+    rebase_deps_section,
     running_compiler_digest,
     PRECOMPILE_SENTINEL
 }
@@ -282,6 +287,39 @@ def _ct_deps_extra(jac_path: str, pkg_root: str) -> dict[int, bytes] {
     }
 }
 
+def _analysis_extra(jac_path: str, pkg_root: str) -> dict[int, bytes] {
+    out: dict[int, bytes] = {};
+    try {
+        cache_path = get_module_cache_path(jac_path);
+        if not is_module_cache_valid(jac_path, cache_path) {
+            return out;
+        }
+        data = cache_path.read_bytes();
+        for sec in (SEC_IFACE, SEC_PLACEMENT, SEC_DIAG) {
+            raw = read_section_bytes(data, sec);
+            if raw is not None {
+                out[int(sec)] = raw;
+            }
+        }
+        deps = read_section_bytes(data, SEC_DEPS);
+        if deps is not None {
+            out[int(SEC_DEPS)] = rebase_deps_section(deps, os.path.normpath(pkg_root));
+        }
+    } except Exception {
+        return {};
+    }
+    return out;
+}
+
+def _unit_extra(jac_path: str, pkg_root: str, embed_src: bool) -> dict[int, bytes] {
+    extra: dict[int, bytes] = _ct_deps_extra(jac_path, pkg_root);
+    extra.update(_analysis_extra(jac_path, pkg_root));
+    if embed_src {
+        extra[int(SEC_DEBUG_SRC)] = zlib.compress(Path(jac_path).read_bytes(), 9);
+    }
+    return extra;
+}
+
 def precompile_unit(
     jac_path: str, pkg_root: str, embed_src: bool = False, collect: bool = True
 ) -> bytes | None {
@@ -299,17 +337,11 @@ def precompile_unit(
                 rewrapped = patch_co_filenames_bytes(
                     cached_bc, pkg_root, PRECOMPILE_SENTINEL
                 );
-                wrap_extra: dict[int, bytes] = _ct_deps_extra(jac_path, pkg_root);
-                if embed_src {
-                    wrap_extra[int(SEC_DEBUG_SRC)] = zlib.compress(
-                        Path(jac_path).read_bytes(), 9
-                    );
-                }
                 return write_precompiled_jir(
                     rewrapped,
                     compute_precompile_module_key(jac_path),
                     FLAG_PRECOMPILED,
-                    wrap_extra
+                    _unit_extra(jac_path, pkg_root, embed_src)
                 );
             }
         }
@@ -335,12 +367,11 @@ def precompile_unit(
     patched = patch_co_filenames_bytes(
         marshal.dumps(code), pkg_root, PRECOMPILE_SENTINEL
     );
-    extra: dict[int, bytes] = _ct_deps_extra(jac_path, pkg_root);
-    if embed_src {
-        extra[int(SEC_DEBUG_SRC)] = zlib.compress(Path(jac_path).read_bytes(), 9);
-    }
     return write_precompiled_jir(
-        patched, compute_precompile_module_key(jac_path), FLAG_PRECOMPILED, extra
+        patched,
+        compute_precompile_module_key(jac_path),
+        FLAG_PRECOMPILED,
+        _unit_extra(jac_path, pkg_root, embed_src)
     );
 }
 

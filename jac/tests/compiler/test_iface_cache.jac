@@ -587,3 +587,25 @@ test "a comptime import takes the dependency's tree and rides its edits" {
         f"the importer replayed stale diagnostics after a comptime input changed (events: {edited.analysis.cache_events})"
     );
 }
+
+test "a codegen compile records dependency rows but encodes no interface" {
+    (main, dep) = _project();
+    prog = JacProgram();
+    prog.compile(main, options=CompileOptions(force_target_program=True));
+    data = get_module_cache_path(main).read_bytes();
+    assert read_section_bytes(data, SEC_DEPS) is not None , "no SEC_DEPS after codegen";
+    assert read_section_bytes(data, SEC_IFACE) is None , (
+        "a codegen compile encoded an interface; encoding belongs to the frontier"
+    );
+    assert prog.analysis.cache_events.get("iface_encode", 0) == 0 , (
+        f"codegen compile encoded (events: {prog.analysis.cache_events})"
+    );
+    _check(main);
+    data = get_module_cache_path(main).read_bytes();
+    assert read_section_bytes(data, SEC_IFACE) is not None , (
+        "the frontier compile did not add the interface to the merged JIR"
+    );
+    assert read_section_bytes(data, SEC_DEPS) is not None , (
+        "the frontier merge dropped the dependency rows"
+    );
+}
