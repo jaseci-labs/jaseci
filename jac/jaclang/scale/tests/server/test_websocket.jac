@@ -1,6 +1,11 @@
-"""Tests for WebSocket hardening: connection caps, message-size limit, the JWT
-auth handshake (query-token and first-frame, with tagged reject reasons), and
-the control-frame path (rate limiting, token expiry, refresh).
+"""The scale websocket surface: function and walker endpoints, and the hardening around them.
+
+Endpoints: /ws/function/{name} echo and streaming, /ws/walker/{name} and the
+legacy /ws/{name}, and the token gate on private functions. Hardening: the
+[scale.websocket] config block, backplane selection, per-target, per-user and
+anonymous connection caps, slot release on a failed subscribe, control-frame
+rate limiting, heartbeat expiry, token refresh and identity checks, frame size
+limits, and first-frame auth.
 """
 import asyncio;
 import os;
@@ -492,6 +497,102 @@ test "ws first-frame auth rejects an invalid token with a tagged reason" {
             resp = ws.receive_json();
             assert resp["ok"] == False , f"got {resp}";
             assert resp["error"]["code"] == "UNAUTHORIZED" , f"got {resp}";
+        }
+    } finally {
+        client.close();
+    }
+}
+
+
+test "ws function echo returns the function result envelope" {
+    client = _ws_client();
+    try {
+        tc = client.raw_client;
+        with tc.websocket_connect("/ws/function/ws_echo") as ws {
+            ws.send_json({"message": "hi", "client_id": "c1"});
+            resp = ws.receive_json();
+            assert resp["ok"] == True , f"expected ok, got {resp}";
+            data = resp["data"];
+            body = data["result"]
+                if isinstance(data, dict) and "result" in data
+                else data;
+            assert body["echo"] == "hi" , f"got {body}";
+            assert body["client_id"] == "c1" , f"got {body}";
+            assert body["protocol"] == "websocket" , f"got {body}";
+        }
+    } finally {
+        client.close();
+    }
+}
+
+
+test "ws function streaming yields chunk frames then a done frame" {
+    client = _ws_client();
+    try {
+        tc = client.raw_client;
+        with tc.websocket_connect("/ws/function/ws_stream") as ws {
+            ws.send_json({"count": 3});
+            frames = [];
+            for _ in range(20) {
+                frame = ws.receive_json();
+                frames.append(frame);
+                if frame.get("type") == "done" {
+                    break;
+                }
+            }
+            chunks = [
+                f
+                for f in frames
+                if f.get("type") == "chunk"
+            ];
+            assert len(chunks) == 3 , f"expected 3 chunks, got {frames}";
+            assert frames[-1] == {"ok": True, "type": "done"} , f"got {frames}";
+        }
+    } finally {
+        client.close();
+    }
+}
+
+
+test "ws walker canonical path /ws/walker/{name} works" {
+    client = _ws_client();
+    try {
+        tc = client.raw_client;
+        with tc.websocket_connect("/ws/walker/EchoMessage") as ws {
+            ws.send_json({"message": "cw", "client_id": "c2"});
+            resp = ws.receive_json();
+            assert resp["ok"] == True , f"expected ok, got {resp}";
+        }
+    } finally {
+        client.close();
+    }
+}
+
+
+test "ws private function rejects a message with no token" {
+    client = _ws_client();
+    try {
+        tc = client.raw_client;
+        with tc.websocket_connect("/ws/function/ws_private_echo") as ws {
+            ws.send_json({"message": "secret"});
+            resp = ws.receive_json();
+            assert resp["ok"] == False , f"expected rejection, got {resp}";
+            assert resp["error"]["code"] == "UNAUTHORIZED" , f"got {resp}";
+        }
+    } finally {
+        client.close();
+    }
+}
+
+
+test "ws walker legacy path /ws/{name} still works" {
+    client = _ws_client();
+    try {
+        tc = client.raw_client;
+        with tc.websocket_connect("/ws/EchoMessage") as ws {
+            ws.send_json({"message": "lw", "client_id": "c3"});
+            resp = ws.receive_json();
+            assert resp["ok"] == True , f"expected ok, got {resp}";
         }
     } finally {
         client.close();
