@@ -35,6 +35,8 @@ def normalize_microservices_config(
     ms_config: dict[str, any], env_routes_fallback: bool = True
 ) -> dict[str, any];
 
+def load_microservices_config -> dict[str, any];
+
 glob _scale_config_instance: JacScaleConfig | None = None,
      _placeholder_jwt_secret_warned: bool = False,
      _minted_jwt_secret_announced: bool = False;
