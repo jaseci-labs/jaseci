@@ -273,13 +273,19 @@ with entry {
 ## Regions: first-class `Region` handles and `in` opens
 
 A **`Region`** is an ownable, sendable, escape-checked allocation extent. A
-region is *opened* for allocation with the `in <handle> { ... }` statement:
-everything constructed under an open lives in that region and is reclaimed
-wholesale when the handle drops -- on the native backend a bump-allocating
-arena is torn down with one dtor-log walk (LIFO) plus a bulk free at the
-handle's static drop point; on the Python backend memory stays GC-managed
-but `drop` hooks fire at the same points. `in Region() { ... }` opens an
-anonymous region whose extent is exactly the block.
+region is *opened* for allocation with the `in <handle> { ... }` statement.
+The open has **dynamic, thread-scoped extent**: every archetype, node, and
+edge constructed while the open is active on the current thread lives in
+that region -- including allocations made inside helpers the open calls --
+and is reclaimed wholesale when the handle drops. On the native backend a
+bump-allocating arena is torn down with one dtor-log walk (LIFO) plus a bulk
+free at the handle's static drop point; on the Python backend memory stays
+GC-managed but `drop` hooks fire at the same points. `in Region() { ... }`
+opens an anonymous region whose extent is exactly the block. A thread starts
+with no current region, so a `flow`/`thread_run` body allocates on the
+managed heap unless it opens a handle it was sent. `managed(T(...))`
+constructs on the managed heap regardless of the current region: it is the
+allocation-side exit, for bookkeeping that must outlive any open.
 
 ```jac
 def plan() -> int {
@@ -301,6 +307,10 @@ cycles freely. The checker's only job is the boundary:
 - A reference rooted in a region may not be returned, stored where it
   outlives the handle, handed to an opaque callee, or sent across a
   `flow`/`wait` boundary: each is [`E1307`](../diagnostics.md#ownership-borrow-errors).
+  Because extent is dynamic, the heap-typed result of a call made under
+  the open is region-rooted too, unless the call receives the handle (the
+  carrier idiom below); constructors and non-retaining builtins such as
+  `print` and `len` are exempt.
 - A region-rooted value that flows to a binding which cannot outlive the
   handle becomes a **shared borrow of the handle**, and ordinary borrow
   discipline polices it from there. Helpers that receive the handle
@@ -319,10 +329,12 @@ cycles freely. The checker's only job is the boundary:
 
 Handles have **dynamic extent**: return one from a helper, extend it
 through a `Region`-typed parameter in another function, and drop it in the
-caller at scope exit. A walker traversing a region may also *grow* it: a
-node or edge created in an ability allocates into the region of the visited
-node (`region_of(here)`) with no `&Region` field on the walker; anchored to
-a managed node it stays managed.
+caller at scope exit. A walker traversing a region *grows* it by the same
+rule: ability dispatch makes `region_of(here)` the current region for the
+ability body, so a node or edge created mid-traversal allocates into the
+visited node's region with no `&Region` field on the walker; anchored to a
+managed node it stays managed. `region_of(x)` is a builtin: the region a
+value was allocated in, or `None` for a managed value.
 
 ```jac
 def seed(r: &Region) -> Cand {
@@ -406,12 +418,12 @@ death, single teardown) is what that work slots into.
 A graph that never touches managed state does not need an explicit open to
 get region semantics. When a code block builds a graph from fresh node
 locals, connects them only among themselves, and consumes it with
-expression-statement spawns, the compiler proves the component unrooted (a
-conservative may-reach-root scan over the connect operations) and anchors
-it to an implicit anonymous region: the nodes, their edges, and an inline
-walker are arena-allocated, `drop` hooks fire LIFO right after the last
-spawn, and teardown is one bulk free -- the ephemeral-OSP fast path at zero
-annotation.
+expression-statement spawns, `RegionInferPass` proves the component
+unrooted (a conservative may-reach-root scan over the connect operations)
+and rewrites the extent into a real `in Region() { ... }` open in the tree:
+the nodes, their edges, and an inline walker are arena-allocated, `drop`
+hooks fire LIFO right after the last spawn, and teardown is one bulk free
+-- the ephemeral-OSP fast path at zero annotation.
 
 ```jac
 with entry {
@@ -427,10 +439,10 @@ Any contact with `root` or `here` in the extent, a member passed to a call
 or read after the spawn, a spawn whose result is consumed, or control flow
 that could jump the close point declines the inference and the graph stays
 managed -- conservative-only is the contract, so a declined graph is never
-wrong, just unoptimized. The inference is native-backend-only: the Python
-backend erases it, which is observable solely through `drop`-hook timing
-(already scoped as native-reliable above). Traversals under `--enforce-nogc`
-still wait on the walker engine's zero-RC factoring.
+wrong, just unoptimized. Because the inference produces an ordinary open
+in the tree, it is portable: the Python backend runs the same `drop` hooks
+LIFO at the close. Traversals under `--enforce-nogc` still wait on the
+walker engine's zero-RC factoring.
 
 Only payloads that are statically race-free may cross a `flow`/`wait`/`thread_run` boundary: a deep-immutable `imm` value, or an `own` value that is *moved* into the boundary (a planned `linear` value will cross the same way). Sending a live `&`/`&mut` borrow is [`E1308`](../diagnostics.md#ownership-borrow-errors):
 

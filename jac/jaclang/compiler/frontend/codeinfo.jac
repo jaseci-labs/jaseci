@@ -130,7 +130,7 @@ def native_test_symbol(name: str, line: int) -> str {
 }
 
 def native_safe_sym(src: str) -> str {
-    if src in ("osp_kernel", "fmt_kernel") {
+    if src in ("osp_kernel", "fmt_kernel", "region_kernel") {
         return src;
     }
     safe = '';
@@ -677,6 +677,7 @@ obj CodeGenTarget {
         llvm_ir: (ModuleRef | None) = None,
         native_engine: (ExecutionEngine | None) = None,
         native_bitcode: (bytes | None) = None,
+        native_linked_ir: (str | None) = None,
         _interop_manifest: (InteropManifest | None) = None,
         interop_py_funcs: dict[(str, any)] = field(default_factory=`dict),
         _interop_callbacks: list[any] = field(default_factory=`list),

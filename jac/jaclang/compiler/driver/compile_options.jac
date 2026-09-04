@@ -28,6 +28,7 @@ obj CompileOptions {
         resolve_annex_parent: bool = False,
         force_target_program: bool = False,
         aot_mode: bool = False,
+        kernel_unit: bool = False,
         force_codespace: str = "",
         na_gc_mode: (str | None) = None,
         nogc_enforce_all: bool = False,
@@ -118,7 +119,8 @@ obj CompileOptions {
                 f"native_debug={int(bool(self.native_debug))}",
                 f"opt={self.opt_level}",
                 f"app={self.target_app}",
-                f"app_kind={self.app_kind}"
+                f"app_kind={self.app_kind}",
+                f"kernel_unit={int(bool(self.kernel_unit))}"
             ]
         );
     }

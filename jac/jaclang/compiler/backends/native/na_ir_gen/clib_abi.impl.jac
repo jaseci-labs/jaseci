@@ -263,6 +263,14 @@ impl NaIRGenClibAbi._codegen_clib_call(
             }
         }
     }
+    _actual_params = func.function_type.args;
+    for (k, _ca) in enumerate(call_args) {
+        if k < len(_actual_params) and _ca.type != _actual_params[k] {
+            call_args[k] = self._clib_reinterpret(
+                _ca, _actual_params[k], name=f"clib.arg.{k}"
+            );
+        }
+    }
     result = self.builder.call(
         func, call_args, name=f"call.{func_name}", arg_attrs=arg_attrs
     );
@@ -304,6 +312,14 @@ impl NaIRGenClibAbi._codegen_clib_call(
         return self._clib_box_c_ptr(c_view, sname);
     }
 
+    _declared_ret = ret_plan.get("type");
+    if (
+        isinstance(_declared_ret, ir.Type)
+        and not isinstance(_declared_ret, ir.VoidType)
+        and result.type != _declared_ret
+    ) {
+        return self._clib_reinterpret(result, _declared_ret, name="clib.ret");
+    }
     if isinstance(result.type, ir.PointerType) {
         if ret_plan.get("is_str") {
             result = self._membrane_str_in(self.builder, result);
@@ -311,4 +327,22 @@ impl NaIRGenClibAbi._codegen_clib_call(
         self._mark_owned(result);
     }
     return result;
+}
+
+impl NaIRGenClibAbi._clib_reinterpret(
+    val: ir.Value, want: ir.Type, name: str
+) -> ir.Value {
+    if val.type == want {
+        return val;
+    }
+    if isinstance(val.type, ir.PointerType) and isinstance(want, ir.IntType) {
+        return self.builder.ptrtoint(val, want, name=name);
+    }
+    if isinstance(val.type, ir.IntType) and isinstance(want, ir.PointerType) {
+        return self.builder.inttoptr(val, want, name=name);
+    }
+    if isinstance(val.type, ir.PointerType) and isinstance(want, ir.PointerType) {
+        return self.builder.bitcast(val, want, name=name);
+    }
+    return self._coerce_type(val, want);
 }

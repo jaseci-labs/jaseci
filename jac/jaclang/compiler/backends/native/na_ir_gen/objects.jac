@@ -30,6 +30,10 @@ import os;
 import sys;
 
 obj NaIRGenObjects(NaIRGenState) {
+    def _emit_heap_object_alloc(
+        nd: uni.UniNode, type_name: str, size: ir.Value, headerless: bool
+    ) -> ir.Value;
+
     def _erased_sig_typevars(nd: uni.Archetype) -> dict;
     def _reject_scalar_type_args(nd: uni.UniNode, type_name: str) -> bool;
     def _emit_scalar_type_arg_refusal(

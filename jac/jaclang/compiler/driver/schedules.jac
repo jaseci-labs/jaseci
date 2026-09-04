@@ -211,9 +211,11 @@ def get_analysis_sched -> list[type[Transform]] {
             PortabilityWarnPass
         }
         import from jaclang.compiler.passes.ownership_check_pass { OwnershipCheckPass }
+        import from jaclang.compiler.passes.region_infer_pass { RegionInferPass }
         import from jaclang.compiler.tools.jac_auto_lint_pass { JacLintCheckPass }
         return validate_schedule(
             [
+                RegionInferPass,
                 VariantAgreementPass,
                 TypeCheckPass,
                 StaticAnalysisPass,

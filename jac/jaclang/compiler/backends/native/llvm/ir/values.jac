@@ -918,6 +918,7 @@ class GlobalVariable(GlobalValue) {
         self.initializer = None;
         self.unnamed_addr = False;
         self.global_constant = False;
+        self.thread_local = False;
         self.addrspace = addrspace;
         self.align = None;
         self.parent.add_global(self);
@@ -939,6 +940,13 @@ class GlobalVariable(GlobalValue) {
         }
         if self.storage_class {
             buf.append((self.storage_class + " "));
+        }
+        # LLVM grammar puts the thread-local model between the storage class
+        # and unnamed_addr; a bare `thread_local` selects the general-dynamic
+        # model, which every target we emit for accepts (the wasm backend
+        # strips it to a plain global when the module has no atomics).
+        if self.thread_local {
+            buf.append("thread_local ");
         }
         if self.unnamed_addr {
             buf.append("unnamed_addr ");
