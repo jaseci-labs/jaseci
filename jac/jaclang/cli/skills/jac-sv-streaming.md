@@ -1,9 +1,9 @@
 ---
 name: jac-sv-streaming
-description: Streaming endpoints - SSE (server-sent events), `def:pub ... -> Generator`, `report stream()`, progress updates, live feeds, token-by-token output, sv-to-sv stream pass-through, consuming a stream in the browser with fetch + getReader. Load when an endpoint must deliver results incrementally instead of one response. Pair with `jac-sv-endpoints`, `jac-sv-microservices`.
+description: Streaming endpoints - SSE (server-sent events), `def:pub ... -> Generator`, `return stream()`, progress updates, live feeds, token-by-token output, sv-to-sv stream pass-through, consuming a stream in the browser with fetch + getReader. Load when an endpoint must deliver results incrementally instead of one response. Pair with `jac-sv-endpoints`, `jac-sv-microservices`.
 ---
 
-A function endpoint streams by returning a `Generator`: build a nested generator and `report` it - the ONE place a `def` uses `report` (everywhere else only walkers report). Each `yield` leaves the server as one SSE frame the moment it happens:
+A function endpoint streams by returning a `Generator`: build a nested generator and `return` it. Only walkers `report`; a `def` that reports is a compile error (E1135). Each `yield` leaves the server as one SSE frame the moment it happens:
 
 ```jac
 import time;
@@ -16,7 +16,7 @@ def:pub narrate(n: int) -> Generator {
             yield f"chunk {i}";
         }
     }
-    report stream();                    # a def that reports - streaming's one exception
+    return stream();                    # the generator is the response
 }
 ```
 
@@ -37,7 +37,7 @@ def:pub story() -> Generator {
             yield str(chunk);           # ...frame out; nothing is buffered
         }
     }
-    report stream();
+    return stream();
 }
 ```
 
@@ -86,8 +86,8 @@ import from guestbook { story }     # in main.jac, top level (server context)
 
 ## Pitfalls
 
-- **`report stream();`, not `return stream();`** - and the outer endpoint's return type must be `Generator`, or the result is serialized as one ordinary response.
+- **`return stream();` with the endpoint typed `-> Generator`** - otherwise the result is serialized as one ordinary response. A `def` that reports is a compile error (E1135); a streaming walker still does `report stream();`.
 - **`data:` payloads are JSON-encoded** - `data: "chunk 0"` with quotes; `JSON.parse(line[6:])`, not the raw slice.
 - Chunks may coalesce or split at arbitrary byte boundaries - always buffer and split on the blank-line separator, keeping the last partial frame for the next read.
 - 404/405 on the stream URL = nothing registers it: no client-side stub reference AND no entry-module import (the registration rule above).
-- Iterating without re-yielding (e.g. `list(narrate(n))`) collapses the stream into one buffered response - the gateway must itself report a generator.
+- Iterating without re-yielding (e.g. `list(narrate(n))`) collapses the stream into one buffered response - the gateway must itself return a generator.
