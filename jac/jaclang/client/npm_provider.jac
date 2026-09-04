@@ -65,14 +65,23 @@ def app_npm_deps(config: JacConfig) -> list[tuple[str, str, str, bool]] {
     import from jaclang.client.targets.registry { app_client_target }
     (base_deps, base_dev) = manifest_plugin_deps(config, "npm");
     out: list[tuple[str, str, str, bool]] = [];
-    seen: set[tuple[str, bool]] = set();
+    seen: dict[tuple[str, bool], tuple[str, str]] = {};
 
     def _add(name: str, version: str, origin: str, dev: bool) {
         key = (name, dev);
-        if key in seen {
+        first = seen.get(key);
+        if first is not None {
+            if first[1] != version {
+                import from jaclang.cli.console { console }
+                console.warning(
+                    f"npm dependency '{name}' is pinned to '{first[1]}' by "
+                    f"{first[0]} and to '{version}' by {origin}; using "
+                    f"'{first[1]}' ({first[0]} was declared first)"
+                );
+            }
             return;
         }
-        seen.add(key);
+        seen[key] = (origin, version);
         out.append((name, version, origin, dev));
     }
 

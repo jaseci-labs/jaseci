@@ -20,3 +20,7 @@ def:pub greet(name: str) -> Profile {
 def hidden(name: str) -> str {
     return name;
 }
+
+node Post {
+    has text: str = "";
+}

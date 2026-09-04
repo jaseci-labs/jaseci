@@ -6016,12 +6016,24 @@ impl JcirGenPass._generate_sv_to_sv_stubs(nd: Import) -> bool {
             sv_to_sv_names.add(b.name);
         }
     }
-    if not sv_to_sv_names {
-        return False;
-    }
     import from jaclang.compiler.driver.boundary_classify {
+        import_crosses_apps,
         import_provider_app,
         import_provider_route
+    }
+    mirrored_names: set[str] = set();
+    if import_crosses_apps(nd) {
+        for item in nd.items {
+            if isinstance(item, ModuleItem) {
+                mirrored = getattr(item.name, 'value', str(item.name));
+                if mirrored in manifest.boundary_types {
+                    mirrored_names.add(mirrored);
+                }
+            }
+        }
+    }
+    if not sv_to_sv_names and not mirrored_names {
+        return False;
     }
     provider_app = import_provider_app(nd) or module_name;
     provider_route = manifest.provider_routes.get(provider_app, '')

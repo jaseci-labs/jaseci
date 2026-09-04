@@ -358,12 +358,30 @@ impl app_fact_digest(app: (AppSpec | None)) -> str {
     if app is None {
         return '';
     }
+    anchor = app.root_dir or (os.path.dirname(app.`entry) if app.`entry else '');
+    ws_root = (find_jac_project_root(anchor) if anchor else None) or '';
+
+    def _rel(path: str, base: str) -> str {
+        if not path {
+            return '';
+        }
+        if base {
+            try {
+                return os.path.relpath(path, base).replace(os.sep, '/');
+            } except ValueError {}
+        }
+        return os.path.normpath(path).replace(os.sep, '/');
+    }
     h = hashlib.sha256();
     h.update(
         json.dumps(
             [
                 app.name,
                 app.kind,
+                _rel(app.root_dir, ws_root),
+                _rel(app.`entry, app.root_dir or ws_root),
+                app.file_rooted,
+                app.effective_route(),
                 app.client,
                 app.client_kind,
                 app.platform,

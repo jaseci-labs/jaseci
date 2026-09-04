@@ -254,3 +254,24 @@ test "the workspace gate reports E5107 for a walker module two serving apps reac
     assert "E5107" in out and "graph.jac" in out , out;
     assert "web" in out and "svc" in out , out;
 }
+
+test "the app-isolation law fires on a warm interface cache too" {
+    d = _workspace();
+    leak = os.path.join("web", "leak.jac");
+    with open(os.path.join(d, leak), "w") as f {
+        f.write(
+            "import from cli.main { cli_secret }\n\n"
+            "def leak -> str {\n    return cli_secret();\n}\n"
+        );
+    }
+    (rc_cold, cold) = _check_in(d, paths=[leak]);
+    # The second run hydrates cli/main.jac from the interface cache instead of
+    # compiling it; the law must read the app off the file, not off a stamp
+    # that only a full compile writes.
+    (rc_warm, warm) = _check_in(d, paths=[leak]);
+    assert cold.count("W2039") >= 1 , f"cold run:\n{cold}";
+    assert warm.count("W2039") == cold.count("W2039") , (
+        f"warm run lost the law:\n{warm}"
+    );
+    _cleanup();
+}

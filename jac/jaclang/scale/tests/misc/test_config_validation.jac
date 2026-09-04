@@ -197,6 +197,57 @@ test "a clean on-disk jac.toml loads without complaint under strict mode" {
     }
 }
 
+# A leftover [scale.microservices] table must stop every command at config
+# parse, not degrade into an "unknown key" warning and a single-pod deploy.
+# This guards what test_ms_config_failloud guarded before the table dissolved.
+test "a leftover [scale.microservices] table is a hard config error" {
+    import from jaclang.project.config { JacConfig }
+    for toml in [
+        "[project]\nname = \"demo\"\n\n[scale.microservices]\nenabled = true\n",
+        "[project]\nname = \"demo\"\n\n[scale.microservices.routes]\nadmin = \"\"\n",
+        "[project]\nname = \"demo\"\n\n[scale.microservices.logs]\nenabled = true\n",
+        "[project]\nname = \"demo\"\n\n[scale.microservices.services.billing]\n"
+        "replicas = 2\n"
+    ] {
+        caught = "";
+        try {
+            JacConfig.from_toml_str(toml);
+        } except ValueError as e {
+            caught = str(e);
+        }
+        assert caught , f"expected a ValueError for:\n{toml}";
+        assert "[scale.microservices]" in caught , caught;
+        assert "[apps.<name>]" in caught , caught;
+        assert "[scale.gateway]" in caught , caught;
+        assert "breaking-changes" in caught , caught;
+    }
+    d = tempfile.mkdtemp();
+    (Path(d) / "jac.toml").write_text(
+        "[project]\nname = \"demo\"\nentry-point = \"main.jac\"\n\n"
+        "[scale.microservices.routes]\nadmin = \"\"\n"
+    );
+    (Path(d) / "main.jac").write_text("with entry {}\n");
+    reset_scale_config();
+    try {
+        raised = "";
+        try {
+            get_scale_config(Path(d)).load();
+        } except ValueError as e {
+            raised = str(e);
+        }
+        assert "[scale.microservices]" in raised , (
+            f"the scale loader must refuse the on-disk table: {raised!r}"
+        );
+        clean = JacConfig.from_toml_str(
+            "[project]\nname = \"demo\"\n\n[scale.gateway]\ncolocate = false\n"
+        );
+        assert clean.plugins["scale"]["gateway"]["colocate"] is False;
+    } finally {
+        reset_scale_config();
+        shutil.rmtree(d, ignore_errors=True);
+    }
+}
+
 test "plugins without a declared schema opt out of validation" {
     cfg = JacScaleConfig();
     assert cfg.get_config_strict_env() == STRICT_ENV;

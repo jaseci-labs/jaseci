@@ -507,3 +507,68 @@ test "scaffold_app rejects duplicate names, claimed paths and unknown kinds" {
         );
     }
 }
+
+def _entry_template -> ProjectTemplate {
+    return ProjectTemplate(
+        name="worker",
+        description="service with its own entry",
+        kind="service",
+        config={
+            "project": {
+                "name": "{{name}}",
+                "entry-point": "server.jac",
+                "kind": "service"
+            }
+        },
+        files={"server.jac": "walker:pub Ping {}\n"}
+    );
+}
+
+test "scaffold_app honors a template entry-point other than the kind default" {
+    with TemporaryDirectory() as tmpdir {
+        root_path = Path(tmpdir) / "proj";
+        (root_path / "web").mkdir(parents=True);
+        (root_path / "jac.toml").write_text(
+            '[project]\nname = "acme"\n\n[apps.web]\nkind = "web-app"\npath = "web"\n'
+        );
+        (root_path / "web" / "main.jac").write_text("with entry {}\n");
+        created = scaffold_app(
+            str(root_path), "worker", "service", "services/worker", _entry_template()
+        );
+        assert str(root_path / "services" / "worker" / "server.jac") in created;
+        text = (root_path / "jac.toml").read_text();
+        assert 'entry-point = "server.jac"' in text , text;
+        cfg = JacConfig.load(root_path / "jac.toml");
+        app = cfg.apps["worker"];
+        assert app.entry_point == "server.jac" , app.entry_point;
+        assert app.entry_path(str(root_path))
+            == str(root_path / "services" / "worker" / "server.jac");
+        assert _app_name(
+            cfg.app_for_path(str(root_path / "services" / "worker" / "server.jac"))
+        )
+            == "worker";
+    }
+}
+
+test "scaffold_app migration keeps the base app loadable and reusable" {
+    import from jaclang.project.template_loader { migrate_implicit_app }
+    with TemporaryDirectory() as tmpdir {
+        root_path = Path(tmpdir) / "proj";
+        root_path.mkdir();
+        (root_path / "jac.toml").write_text(
+            '[project]\nname = "acme"\nkind = "web-app"\nentry-point = "app.jac"\n'
+            'client_kind = "web"\n\n[serve]\nport = 8090\n'
+        );
+        (root_path / "app.jac").write_text("with entry {}\n");
+        lines = (root_path / "jac.toml").read_text().split("\n");
+        base_name = migrate_implicit_app(lines, JacConfig.load(root_path / "jac.toml"));
+        assert base_name == "acme" , base_name;
+        (root_path / "jac.toml").write_text("\n".join(lines));
+        cfg = JacConfig.load(root_path / "jac.toml");
+        assert cfg.is_workspace and cfg.default_app == "acme";
+        assert cfg.project.kind == "" and cfg.serve.port == 8090;
+        assert cfg.apps["acme"].kind == "web-app";
+        assert cfg.apps["acme"].entry_point == "app.jac";
+        assert cfg.apps["acme"].client_kind == "web";
+    }
+}

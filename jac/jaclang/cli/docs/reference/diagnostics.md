@@ -619,6 +619,7 @@ Emitted by the driver and the boundary passes from the app facts of a workspace 
 | `E5104` | App dependency cycle: {cycle} |
 | `E5105` | Variant '{variant}' disagrees with '{base}' on '{name}': {detail} |
 | `E5106` | App '{consumer}' bridges to '{name}', which is not a pub element of app '{provider}' |
+| `E5108` | App '{consumer}' imports '{name}', a {kind} owned by app '{provider}'; nodes and edges never cross an app boundary |
 
 `E5107`: a shared module with server-placed elements runs on exactly one app's server so that every other app bridges to the same owner. With more than one serving app in the workspace the compiler cannot pick one. Give the module its own `[apps.<name>]` table (`kind = "service"`, `entry-point = "<path>"`), or pin it to an owner with `[apps.<owner>.placement.pins] "<module>" = "server"`. It is reported once per module.
 
@@ -627,6 +628,8 @@ Emitted by the driver and the boundary passes from the app facts of a workspace 
 `E5105`: a `.native.jac` variant stands in for its sibling module on the `react-native` target, so the two have to expose the same public surface -- the same names, the same kinds of declaration, the same parameters and annotations, the same `has` fields. Bring the variant's declaration in line with the base module, or remove it from both. Reported on the variant, once per disagreement.
 
 `E5106`: an app's bridge surface is its walkers and its `def:pub` functions; everything else is private to the app's own server. Make the element a walker or mark it `:pub` in the provider app, or move it into shared code if both apps need it in-process.
+
+`E5108`: a node or edge lives in the graph of the app that owns it, so another app cannot construct or hold one. Spawn one of the provider's walkers and work with what it reports, or move the type into shared code as an obj. An `obj` or `enum` imported across the boundary mirrors locally as a boundary type instead.
 
 A bridged call is a coroutine in every context -- server-to-app as much as client-to-server -- so a missing `await` at a cross-app seam is the ordinary `E1042`.
 

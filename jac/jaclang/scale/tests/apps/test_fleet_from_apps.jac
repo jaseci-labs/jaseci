@@ -275,3 +275,61 @@ test "root paths forward to the served app and 503 while it boots" {
     body = resp.json();
     assert body["error"]["code"] == "SERVICE_UNAVAILABLE" , body;
 }
+
+
+test "reading app edges compiles for analysis only, never codegen" {
+    import unittest.mock;
+    import from jaclang.compiler.driver.program { JacProgram }
+    d = _workspace();
+    sv_client.clear_consumer_providers();
+    real_compile = JacProgram.compile;
+    seen: list[tuple[str, bool]] = [];
+
+    def _spy(self: any, file_path: str, *args: any, **kwargs: any) -> any {
+        opts = kwargs.get("options");
+        no_cgen = bool(kwargs.get("no_cgen", False))
+            or bool(opts is not None and opts.no_cgen);
+        seen.append((os.path.basename(str(file_path)), no_cgen));
+        return real_compile(self, file_path, *args, **kwargs);
+    }
+    try {
+        with unittest.mock.patch.object(JacProgram, "compile", _spy) {
+            fleet = fleet_from_config(_config(d), project_root=d);
+        }
+        assert set(fleet.names()) == {"web", "orders", "cart"} , fleet.names();
+        compiled = {name for (name, _) in seen};
+        assert {"orders.jac", "cart.jac", "main.jac"} <= compiled , seen;
+        assert all(no_cgen for (_, no_cgen) in seen) , (
+            f"fleet ordering must not run codegen: {seen}"
+        );
+    } finally {
+        sv_client.clear_consumer_providers();
+        shutil.rmtree(d, ignore_errors=True);
+    }
+}
+
+
+test "an app that does not compile stops the fleet loudly" {
+    d = _workspace();
+    sv_client.clear_consumer_providers();
+    (Path(d) / "core" / "cart.jac").write_text(
+        "walker:pub Add {\n    def run -> int {\n        return 1\n    }\n",
+        encoding="utf-8"
+    );
+    try {
+        caught = "";
+        try {
+            fleet_from_config(_config(d), project_root=d);
+        } except ValueError as e {
+            caught = str(e);
+        }
+        assert caught , "a broken app must not boot in declaration order silently";
+        assert "cart" in caught , caught;
+        assert "cart.jac" in caught , caught;
+        assert "does not compile" in caught , caught;
+        assert "line" in caught , f"the first error must be named: {caught}";
+    } finally {
+        sv_client.clear_consumer_providers();
+        shutil.rmtree(d, ignore_errors=True);
+    }
+}

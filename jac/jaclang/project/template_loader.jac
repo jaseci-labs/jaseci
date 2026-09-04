@@ -1,4 +1,5 @@
 import from pathlib { Path }
+import from jaclang.project.config { JacConfig }
 import from jaclang.project.template_registry { ProjectTemplate, template_kind_for }
 
 def load_template_from_directory(
@@ -18,6 +19,8 @@ def scaffold_app(
 ) -> list[str];
 
 def template_app_table(template: ProjectTemplate) -> dict[str, any];
+
+def migrate_implicit_app(lines: list[str], base: JacConfig) -> str;
 
 def _append_overlay_tables(
     lines: list[str], parts: tuple[str, ...], table: dict[str, any]

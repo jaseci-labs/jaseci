@@ -1273,6 +1273,16 @@ impl _parse_toml_data(
             fmt_jobs=str(dev_data.get("fmt_jobs", ""))
         );
     }
+    _scale_raw = data.get("scale");
+    if isinstance(_scale_raw, dict) and "microservices" in _scale_raw {
+        raise ValueError(
+            "jac.toml [scale.microservices] was removed: declare each service as "
+            "an [apps.<name>] table (kind = \"service\", entry-point, route) and "
+            "move the gateway settings (logs, ingress, cors, boot keys) to "
+            "[scale.gateway]. See the Breaking Changes page "
+            "(docs/community/breaking-changes.md, Workspaces)."
+        );
+    }
     for _feat in CAPABILITY_SECTIONS {
         if _feat in data and isinstance(data[_feat], dict) {
             config.plugins[_feat] = data[_feat];

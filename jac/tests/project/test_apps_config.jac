@@ -648,3 +648,94 @@ test "the pure client-kind lane names no project config" {
         "belongs in client_kind."
     );
 }
+
+# ===========================================================================
+# The compiler-side app fact digest
+# ===========================================================================
+glob _toml_bumps: dict[str, int] = {};
+
+"""Rewrite the workspace toml and bump its mtime so the workspace cache misses."""
+def _rewrite_toml(root_path: Path, toml: str) {
+    toml_path = root_path / "jac.toml";
+    toml_path.write_text(toml);
+    key = str(toml_path);
+    _toml_bumps[key] = _toml_bumps.get(key, 0) + 1;
+    st = os.stat(toml_path);
+    bump = 10 * _toml_bumps[key];
+    os.utime(toml_path, (st.st_atime + bump, st.st_mtime + bump));
+}
+
+test "app_fact_digest tracks route, root, entry-point and file rooting" {
+    import from jaclang.compiler.placement.workspace { app_fact_digest, app_for_path }
+    with TemporaryDirectory() as td {
+        root_path = write_workspace(Path(td) / "acme");
+        (root_path / "core" / "social_graph2.jac").write_text("walker:pub Hi {}\n");
+        (root_path / "web2").mkdir();
+        (root_path / "web2" / "main.jac").write_text(MAIN_JAC);
+        (root_path / "web" / "index.jac").write_text(MAIN_JAC);
+        sg_file = str(root_path / "core" / "social_graph.jac");
+        web_file = str(root_path / "web" / "main.jac");
+        sg_before = app_fact_digest(app_for_path(sg_file));
+        web_before = app_fact_digest(app_for_path(web_file));
+        assert len(sg_before) == 12 and len(web_before) == 12;
+        assert sg_before != web_before;
+        assert app_fact_digest(app_for_path(sg_file)) == sg_before , "stable";
+        _rewrite_toml(root_path, WORKSPACE_TOML.replace('/api/social', '/api/graph'));
+        sg_route = app_fact_digest(app_for_path(sg_file));
+        assert sg_route != sg_before , "the effective route is part of the digest";
+        assert app_fact_digest(app_for_path(web_file)) == web_before , (
+            "another app's route does not perturb this app"
+        );
+        _rewrite_toml(
+            root_path,
+            WORKSPACE_TOML.replace(
+                'route = "/api/social"', 'route = "/api/social_graph"'
+            )
+        );
+        sg_default = app_fact_digest(app_for_path(sg_file));
+        _rewrite_toml(root_path, WORKSPACE_TOML.replace('route = "/api/social"\n', ""));
+        assert app_fact_digest(app_for_path(sg_file)) == sg_default , (
+            "an explicit route equal to the /api/<name> default is the same fact"
+        );
+        _rewrite_toml(
+            root_path,
+            WORKSPACE_TOML.replace("core/social_graph.jac", "core/social_graph2.jac")
+        );
+        sg2_file = str(root_path / "core" / "social_graph2.jac");
+        assert app_fact_digest(app_for_path(sg2_file)) != sg_before , (
+            "the entry-point is part of the digest"
+        );
+        _rewrite_toml(
+            root_path, WORKSPACE_TOML.replace('path = "web"\n', 'path = "web2"\n')
+        );
+        web2_file = str(root_path / "web2" / "main.jac");
+        assert app_fact_digest(app_for_path(web2_file)) != web_before , (
+            "the app root is part of the digest"
+        );
+        _rewrite_toml(
+            root_path,
+            WORKSPACE_TOML.replace(
+                '[apps.web]\nkind = "web-app"\npath = "web"\n',
+                '[apps.web]\nkind = "web-app"\nentry-point = "web/main.jac"\n'
+            )
+        );
+        web_rooted = app_fact_digest(app_for_path(web_file));
+        assert web_rooted != web_before , "file rooting is part of the digest";
+        assert app_for_path(str(root_path / "web" / "index.jac")) is None , (
+            "a file-rooted app claims only its entry"
+        );
+    }
+}
+
+test "app_fact_digest does not depend on where the workspace is checked out" {
+    import from jaclang.compiler.placement.workspace { app_fact_digest, app_for_path }
+    with TemporaryDirectory() as td_a, TemporaryDirectory() as td_b {
+        root_a = write_workspace(Path(td_a) / "acme");
+        root_b = write_workspace(Path(td_b) / "elsewhere" / "acme");
+        for rel in [("web", "main.jac"), ("core", "social_graph.jac")] {
+            da = app_fact_digest(app_for_path(str(root_a.joinpath(*rel))));
+            db = app_fact_digest(app_for_path(str(root_b.joinpath(*rel))));
+            assert da == db , f"{rel}: {da} != {db}";
+        }
+    }
+}

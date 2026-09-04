@@ -403,6 +403,29 @@ def _append_app_table(
 }
 
 
+def _ensure_workspace(toml_path: str, dry_run: bool) -> str {
+    import tomllib;
+    import from pathlib { Path }
+    import from jaclang.project.config { JacConfig }
+    import from jaclang.project.template_loader { migrate_implicit_app }
+    text = _read_text_if_exists(toml_path);
+    doc = tomllib.loads(text);
+    apps = doc.get('apps') if isinstance(doc, dict) else None;
+    if isinstance(apps, dict) and apps {
+        return '';
+    }
+    base = JacConfig.load(Path(toml_path));
+    lines: list[str] = text.split("\n");
+    base_name = migrate_implicit_app(lines, base);
+    if not dry_run {
+        with open(toml_path, 'w') as f {
+            f.write("\n".join(lines));
+        }
+    }
+    return base_name;
+}
+
+
 def _service_file_for(
     target: str, importer: str, root_dir: str, scanned: list[str]
 ) -> str {
@@ -703,10 +726,31 @@ impl fix(
         }
     }
     for (app_root, tables) in sorted(apps_by_root.items()) {
-        for (name, table) in sorted(tables.items()) {
-            added = _append_app_table(
-                os.path.join(app_root, 'jac.toml'), name, table, dry_run
+        toml_path = os.path.join(app_root, 'jac.toml');
+        try {
+            base_name = _ensure_workspace(toml_path, dry_run);
+        } except Exception as e {
+            skipped.append(
+                f"{toml_path} ([project] could not be migrated into [apps]: {e}; "
+                "declare the service apps by hand)"
             );
+            continue;
+        }
+        if base_name {
+            apps_added.append(
+                f"{app_root}: [apps.{base_name}] migrated from [project] "
+                f"kind/entry-point (default-app = \"{base_name}\")"
+            );
+        }
+        for (name, table) in sorted(tables.items()) {
+            if name == base_name {
+                skipped.append(
+                    f"[apps.{name}] (service module shares the project app's name; "
+                    "declare it by hand)"
+                );
+                continue;
+            }
+            added = _append_app_table(toml_path, name, table, dry_run);
             if added {
                 apps_added.append(f"{app_root}: [apps.{name}] " + " ".join(added));
             }

@@ -177,3 +177,30 @@ test "missing await on a SERVICE_BRIDGE stub is E1042" {
         f"expected E1042, got {[str(e) for e in prog.errors_had]}"
     );
 }
+
+test "a bridged obj imported alone mirrors as a boundary type, not an RPC stub" {
+    (prog, mod) = compile_fixture(fixture("web", "only_profile.jac"), cgen=True);
+    assert not prog.errors_had , [str(e) for e in prog.errors_had];
+    py = mod.gen.py;
+    assert "async def Profile" not in py , (
+        "a data type must never lower to a coroutine stub; got:\n" + py
+    );
+    assert "class Profile:" in py , (
+        "the consumer needs a local mirror of the provider's obj; got:\n" + py
+    );
+    assert "Profile" in mod.gen.interop_manifest.boundary_types;
+}
+
+test "a bridged node imported alone is E5108" {
+    (prog, mod) = compile_fixture(fixture("web", "only_node.jac"));
+    found = codes(prog);
+    assert "E5108" in found , (
+        f"expected E5108, got {[str(e) for e in prog.errors_had]}"
+    );
+    msg = [
+        str(e)
+        for e in prog.errors_had
+        if e.code is not None and e.code.code == "E5108"
+    ][0];
+    assert "Post" in msg and "node" in msg and "social" in msg , msg;
+}

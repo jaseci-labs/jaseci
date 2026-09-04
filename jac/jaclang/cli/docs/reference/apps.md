@@ -407,6 +407,9 @@ and [Kubernetes & Operations](plugins/jac-scale-kubernetes.md#service-apps-in-ku
   outside the bridge surface.
 - `E2040` / `W2040` -- shared layering: a shared module importing from an app.
 - `E5107` -- a server-placed shared module with no single owner.
+- `E5108` -- an app importing another app's node or edge; only walkers and
+  `def:pub` functions bridge, and an imported `obj` or `enum` mirrors as a
+  boundary type.
 - `E5104` -- an app dependency cycle.
 - `E5105` -- a `.native.jac` variant disagrees with its base module's public
   surface.

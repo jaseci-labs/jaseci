@@ -1935,6 +1935,13 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "OSP type-tag collision: archetypes '{name}' and '{other}' share one dispatch tag",
          help="Object-spatial dispatch keys every archetype by a stable hash of its bare name, shared across backends. Two archetypes with the same bare name (or, astronomically rarely, colliding hashes) would dispatch each other's abilities; the server runtime also refuses the second registration at first use. Rename one of the archetypes."
      ),
+     E5108 = _err(
+         "E5108",
+         Category.CODEGEN,
+         "App '{consumer}' imports '{name}', a {kind} owned by app '{provider}'; nodes and edges never cross an app boundary",
+         help="A node or edge lives in the graph of the app that owns it, so another app cannot construct or hold one. Spawn one of '{provider}''s walkers and work with what it reports, or move the type into shared code as an obj.",
+         blocks_codegen=True
+     ),
      E5107 = _err(
          "E5107",
          Category.CODEGEN,

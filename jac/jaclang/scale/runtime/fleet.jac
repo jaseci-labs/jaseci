@@ -295,9 +295,18 @@ def _compiled_app_edges(
     prog.compile(
         entry_path,
         options=CompileOptions(
-            target_app=app_name, app_kind=app_kind, project_root=project_root
+            no_cgen=True,
+            target_app=app_name,
+            app_kind=app_kind,
+            project_root=project_root
         )
     );
+    if prog.errors_had {
+        first = prog.errors_had[0];
+        raise ValueError(
+            f"app '{app_name}' entry '{entry_path}' does not compile: {first}"
+        );
+    }
     edges: list[tuple[str, str]] = [];
     for hub in prog._search_hubs() {
         for mod in hub.values() {
@@ -355,6 +364,8 @@ def consumer_provider_edges(
                     edges.append((app.name, provider));
                 }
             }
+        } except ValueError {
+            raise;
         } except Exception as e {
             logger.warning(
                 f"could not read app edges for '{app.name}' ({type(e).__name__}: "

@@ -5,3 +5,7 @@ import from core.helper { label }
 with entry {
     print(label(3));
 }
+
+def cli_secret -> str {
+    return "secret";
+}

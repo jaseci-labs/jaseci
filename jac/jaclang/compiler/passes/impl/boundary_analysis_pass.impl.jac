@@ -287,6 +287,10 @@ impl BoundaryAnalysisPass._register_sv_import(
     provider_app = (import_provider_app(nd) or '') if cross_app else '';
     provider_route = import_provider_route(nd) if provider_app else '';
     provider_mod = self._provider_module_of(nd);
+    parsed_mod: (Module | None) = None;
+    if provider_mod is None or provider_mod.stub_only {
+        parsed_mod = self._parsed_provider_of(nd);
+    }
     for item in nd.items {
         if not isinstance(item, ModuleItem) {
             continue;
@@ -296,6 +300,12 @@ impl BoundaryAnalysisPass._register_sv_import(
         walker_node = source_walkers.get(sym_name);
         if walker_node is None and provider_mod is not None {
             found = self._find_archetype(provider_mod, sym_name);
+            if isinstance(found, Archetype) and found.arch_kind == 'walker' {
+                walker_node = found;
+            }
+        }
+        if walker_node is None and parsed_mod is not None {
+            found = self._find_archetype(parsed_mod, sym_name);
             if isinstance(found, Archetype) and found.arch_kind == 'walker' {
                 walker_node = found;
             }
@@ -320,6 +330,34 @@ impl BoundaryAnalysisPass._register_sv_import(
         ability_node: (Ability | None) = source_abilities.get(sym_name);
         if ability_node is None and provider_mod is not None {
             ability_node = ability_of_symbol(provider_mod.lookup(sym_name));
+        }
+        if ability_node is None and parsed_mod is not None {
+            ability_node = self._find_ability(parsed_mod, sym_name);
+        }
+        if ability_node is None {
+            type_mod = (
+                provider_mod
+                    if (provider_mod is not None and not provider_mod.stub_only)
+                    else parsed_mod
+            );
+            type_node = (
+                self._find_archetype(type_mod, sym_name)
+                    if type_mod is not None
+                    else None
+            );
+            if isinstance(type_node, Enum)
+                or (
+                    isinstance(type_node, Archetype)
+                    and type_node.arch_kind not in ('walker', 'node', 'edge')
+                ) {
+                self._collect_boundary_type(sym_name, type_mod);
+                continue;
+            }
+            if isinstance(type_node, Archetype)
+                and type_node.arch_kind in ('node', 'edge') {
+                self._reject_owned_type_import(nd, item, str(type_node.arch_kind));
+                continue;
+            }
         }
         if provider_app {
             self._check_provider_pub(nd, item);
@@ -557,6 +595,44 @@ impl BoundaryAnalysisPass._check_app_cycle(
     }
 }
 
+impl BoundaryAnalysisPass._find_ability(mod: Module, target: str) -> (Ability | None) {
+    for stmt in mod.body {
+        if isinstance(stmt, Ability) and stmt.sym_name == target {
+            return stmt;
+        }
+    }
+    return None;
+}
+
+impl BoundaryAnalysisPass._parsed_provider_of(nd: Import) -> (Module | None) {
+    import os;
+    import from jaclang.compiler.driver.boundary_classify { bridgeable_import_target }
+    target = bridgeable_import_target(nd);
+    if not target or not os.path.isfile(str(target)) {
+        return None;
+    }
+    return _parse_module_for_types(str(target));
+}
+
+impl BoundaryAnalysisPass._reject_owned_type_import(
+    nd: Import, item: ModuleItem, kind: str
+) -> None {
+    import from jaclang.compiler.driver.boundary_classify {
+        consumer_owner_app,
+        import_provider_app
+    }
+    import from jaclang.compiler.frontend.diagnostics { E5108 }
+    consumer = consumer_owner_app(self.ir_in) or self.ir_in.name;
+    self.emit(
+        E5108,
+        node_override=item,
+        consumer=consumer,
+        name=item.name.value,
+        kind=kind,
+        provider=import_provider_app(nd) or ''
+    );
+}
+
 impl BoundaryAnalysisPass._check_provider_pub(nd: Import, item: ModuleItem) -> None {
     import from jaclang.compiler.driver.boundary_classify {
         ClientImportVerdict,
@@ -574,6 +650,12 @@ impl BoundaryAnalysisPass._check_provider_pub(nd: Import, item: ModuleItem) -> N
         return;
     }
     verdict = classify_client_import_item(provider_mod, item);
+    if verdict == ClientImportVerdict.UNKNOWN and provider_mod.stub_only {
+        parsed = self._parsed_provider_of(nd);
+        if parsed is not None {
+            verdict = classify_client_import_item(parsed, item);
+        }
+    }
     if verdict != ClientImportVerdict.DEAD {
         return;
     }

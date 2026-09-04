@@ -128,14 +128,33 @@ impl AccessCheckPass._check_use(use_node: AstSymbolNode, sym: Symbol) -> None {
     }
 }
 
+impl AccessCheckPass._module_app_facts(
+    mod: Module
+) -> tuple[(str | None), (str | None)] {
+    if not mod.stub_only or mod.app is not None {
+        return (mod.app, mod.jac_project_root);
+    }
+    mod_path = mod.loc.mod_path if mod.loc else '';
+    if not mod_path {
+        return (None, mod.jac_project_root);
+    }
+    import from jaclang.compiler.driver.modresolver { find_jac_project_root }
+    import from jaclang.compiler.placement.workspace { app_for_path }
+    app = app_for_path(mod_path);
+    return (
+        app.name if app is not None else None,
+        mod.jac_project_root or find_jac_project_root(mod_path)
+    );
+}
+
 impl AccessCheckPass._check_app_laws(
     use_node: AstSymbolNode, sym: Symbol, def_module: Module
 ) -> bool {
-    def_app = def_module.app;
+    (def_app, def_root) = self._module_app_facts(def_module);
     if def_app is None or def_module is self.ir_in {
         return True;
     }
-    if def_module.jac_project_root != self.ir_in.jac_project_root {
+    if def_root != self.ir_in.jac_project_root {
         return True;
     }
     use_app = self.ir_in.app;

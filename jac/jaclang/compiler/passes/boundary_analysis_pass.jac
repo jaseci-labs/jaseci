@@ -83,6 +83,9 @@ walker BoundaryAnalysisPass(UniPass) {
     def _record_app_edge(nd: Import) -> None;
     def _bridge_targets(mod: Module) -> list[tuple[(str, str)]];
     def _check_app_cycle(nd: Import, consumer_app: str, provider_app: str) -> None;
+    def _find_ability(mod: Module, target: str) -> (Ability | None);
+    def _parsed_provider_of(nd: Import) -> (Module | None);
+    def _reject_owned_type_import(nd: Import, item: ModuleItem, kind: str) -> None;
     def _check_provider_pub(nd: Import, item: ModuleItem) -> None;
     def _extract_walker_has_fields(
         walker_nd: (Archetype | None)

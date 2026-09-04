@@ -1,4 +1,5 @@
 import from pathlib { Path }
+import from jaclang.project.config { JacConfig }
 import from jaclang.project.template_registry { ProjectTemplate, template_kind_for }
 import from jaclang.project.tomlio { read_toml_with_encoding }
 import json;
@@ -250,13 +251,7 @@ impl scaffold_app(
     import tomllib;
     import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
     import from jaclang.project.apps { APP_TABLE_KEYS, parse_apps, validate_app_name }
-    import from jaclang.project.config {
-        JacConfig,
-        _toml_append_section,
-        _toml_delete_key,
-        _toml_insert_key,
-        toml_value
-    }
+    import from jaclang.project.config { _toml_append_section }
     import from jaclang.project.kinds { KIND_SPECS, kind_entry }
     validate_app_name(name);
     if kind not in KIND_SPECS {
@@ -297,28 +292,13 @@ impl scaffold_app(
     lines: list[str] = text.split("\n");
     if not apps_table {
         base = JacConfig.load(toml_path);
-        base_app = base.resolve_app("");
-        if base_app.name == name {
+        if base.resolve_app("").name == name {
             raise ValueError(
                 f"App '{name}' collides with the project's own app name; "
                 "pick another name"
             );
         }
-        base_kind = base.resolved_kind(base_app);
-        for key in ("kind", "entry-point", "client_kind") {
-            _toml_delete_key(lines, ("project", ), key);
-        }
-        _toml_insert_key(
-            lines, ("project", ), "default-app", toml_value(base_app.name)
-        );
-        _toml_append_section(
-            lines,
-            ("apps", base_app.name),
-            {
-                "kind": base_kind,
-                "entry-point": base_app.entry_point or kind_entry(base_kind)
-            }
-        );
+        migrate_implicit_app(lines, base);
     }
     table: dict[str, any] = {"kind": kind, "path": app_path};
     tmpl_app = template_app_table(template);
@@ -385,8 +365,36 @@ impl template_app_table(template: ProjectTemplate) -> dict[str, any] {
     if not isinstance(project, dict) {
         return {};
     }
-    entry_file = str(project.get("entry_file-point", "") or "");
-    return {"entry_file-point": entry_file} if entry_file else {};
+    entry_point = str(project.get("entry-point", "") or "");
+    return {"entry-point": entry_point} if entry_point else {};
+}
+
+impl migrate_implicit_app(lines: list[str], base: JacConfig) -> str {
+    import from jaclang.project.config {
+        _toml_append_section,
+        _toml_delete_key,
+        _toml_insert_key,
+        toml_value
+    }
+    import from jaclang.project.kinds { kind_entry }
+    base_app = base.resolve_app("");
+    base_kind = base.resolved_kind(base_app);
+    for key in ("kind", "entry-point", "entry_point", "client_kind", "client-kind") {
+        _toml_delete_key(lines, ("project", ), key);
+    }
+    default_line = toml_value(base_app.name);
+    if not _toml_insert_key(lines, ("project", ), "default-app", default_line) {
+        lines[0:0] = ["[project]", f"default-app = {default_line}", ""];
+    }
+    _toml_append_section(
+        lines,
+        ("apps", base_app.name),
+        {
+            "kind": base_kind,
+            "entry-point": base_app.entry_point or kind_entry(base_kind)
+        }
+    );
+    return base_app.name;
 }
 
 impl _append_overlay_tables(
