@@ -2147,3 +2147,49 @@ test "jwt middleware: per-user isolation and token rejection" {
         client.close();
     }
 }
+
+
+test "dev-mode server negotiates gzip on the wire and never on a token response" {
+    sp = None;
+    try {
+        sp = setup_dev_mode_server();
+
+        spec = requests.get(f"{dm_base_url}/openapi.json", timeout=10);
+        assert spec.status_code == 200;
+        assert spec.headers.get("content-encoding") == "gzip" , (
+            f"requests advertises gzip by default; the transport must answer it: "
+            f"{dict(spec.headers)}"
+        );
+        assert "accept-encoding" in (spec.headers.get("vary") or "").lower();
+        assert "paths" in spec.json() , "the decoded body must still be the spec";
+
+        plain = requests.get(
+            f"{dm_base_url}/openapi.json",
+            headers={"Accept-Encoding": "identity"},
+            timeout=10
+        );
+        assert plain.status_code == 200;
+        assert "content-encoding" not in plain.headers;
+
+        user = f"gz_{uuid.uuid4().hex[:8]}";
+        requests.post(
+            f"{dm_base_url}/user/register",
+            json=register_payload(user, "pass"),
+            timeout=10
+        );
+        login = requests.post(
+            f"{dm_base_url}/user/login", json=login_payload(user, "pass"), timeout=10
+        );
+        assert login.status_code == 200 , login.text;
+        assert "token" in _extract_data_dev(login.json());
+        cache_control = (login.headers.get("cache-control") or "").lower();
+        assert "no-store" in cache_control and "no-transform" in cache_control , (
+            f"a token response is never cached or compressed (BREACH): {dict(
+                login.headers
+            )}"
+        );
+        assert "content-encoding" not in login.headers , dict(login.headers);
+    } finally {
+        teardown_dev_mode_server(sp);
+    }
+}

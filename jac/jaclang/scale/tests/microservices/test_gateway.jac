@@ -305,8 +305,11 @@ test "browser navigation to a client route gets the SPA index (history fallback)
     );
 }
 
-"""Serve `payload` as JSON on every GET; returns (server, port)."""
-def _serve_fragment(payload: dict) -> tuple {
+"""Serve `payload` as JSON on every GET; returns (server, port). With
+`gzip_if_asked` the fake behaves like a compressing service: it gzips
+whenever the request's Accept-Encoding lists gzip."""
+def _serve_fragment(payload: dict, gzip_if_asked: bool = False) -> tuple {
+    import gzip;
     import http.server;
     import json;
     import threading;
@@ -314,11 +317,17 @@ def _serve_fragment(payload: dict) -> tuple {
     body = json.dumps(payload).encode();
 
     def _do_get(handler_self: any) {
+        out = body;
+        accept = handler_self.headers.get("Accept-Encoding") or "";
         handler_self.send_response(200);
         handler_self.send_header("Content-Type", "application/json");
-        handler_self.send_header("Content-Length", str(len(body)));
+        if gzip_if_asked and "gzip" in accept {
+            out = gzip.compress(body);
+            handler_self.send_header("Content-Encoding", "gzip");
+        }
+        handler_self.send_header("Content-Length", str(len(out)));
         handler_self.end_headers();
-        handler_self.wfile.write(body);
+        handler_self.wfile.write(out);
     }
 
     def _log_quiet(handler_self: any, fmt: str, *args: any) {}
@@ -388,6 +397,55 @@ test "/graph/data merges the graph fragments of every healthy service" {
         );
         edge_pairs = {(e["from"], e["to"]) for e in data["edges"]};
         assert edge_pairs == {("r", "a"), ("r", "b")};
+    } finally {
+        srv_a.shutdown();
+        srv_b.shutdown();
+    }
+}
+
+test "/graph/data keeps every service's nodes when the services compress" {
+    frag_a = {"version": "1.0", "nodes": [{"id": "r"}, {"id": "a"}], "edges": []};
+    frag_b = {"version": "1.0", "nodes": [{"id": "r"}, {"id": "b"}], "edges": []};
+    (srv_a, port_a) = _serve_fragment(frag_a);
+    (srv_b, port_b) = _serve_fragment(frag_b, gzip_if_asked=True);
+
+    reg = ServiceRegistry();
+    reg.register(
+        ServiceEntry(
+            name="analytics",
+            file="analytics.jac",
+            prefix="/analytics",
+            port=port_a,
+            url=f"http://127.0.0.1:{port_a}",
+            status=ServiceStatus.HEALTHY
+        )
+    );
+    reg.register(
+        ServiceEntry(
+            name="guestbook",
+            file="guestbook.jac",
+            prefix="/guestbook",
+            port=port_b,
+            url=f"http://127.0.0.1:{port_b}",
+            status=ServiceStatus.HEALTHY
+        )
+    );
+    gw = MicroserviceGateway(registry=reg);
+    gw.setup();
+
+    import from jaclang.testing.testkit { ServingTestClient as TestClient }
+    client = TestClient(gw.app);
+    try {
+        resp = client.get(
+            "/graph/data", headers={"Accept-Encoding": "gzip, deflate, br"}
+        );
+        assert resp.status_code == 200;
+        node_ids = {n["id"] for n in resp.json()["nodes"]};
+        assert node_ids == {"r", "a", "b"} , (
+            f"the gateway forwards the browser's Accept-Encoding and then parses "
+            f"the fragment itself; a gzip body raises a ValueError that the merge "
+            f"loop swallows, so the service's nodes silently vanish: {node_ids}"
+        );
     } finally {
         srv_a.shutdown();
         srv_b.shutdown();

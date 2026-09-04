@@ -29,6 +29,10 @@ obj Meta {
         extra: dict[(str, any)] = {};
 }
 
+glob TOKEN_RESPONSE_HEADERS: dict[str, str] = {
+         'Cache-Control': 'no-store, no-transform'
+     };
+
 obj TransportResponse {
     has type: str = MessageType.RESPONSE.value,
         ok: bool = True,

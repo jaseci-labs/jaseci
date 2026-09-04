@@ -29,7 +29,7 @@ import from jaclang.runtime.runtime { JacRuntime as Jac }
 import from jaclang.server.server { JacAPIServer as JServer }
 import from jaclang.server.server { UserManager as CoreUserManager }
 import from jaclang.server.server { JsonValue }
-import from jaclang.server.transport { TransportResponse, Meta }
+import from jaclang.server.transport { TransportResponse, Meta, TOKEN_RESPONSE_HEADERS }
 import from jaclang.scale.shared.utils { _extract_path_param_names }
 import from jaclang.scale.config.config_loader { get_scale_config }
 import from jaclang.scale.webhook.webhook { ApiKeyManager, WebhookUtils }

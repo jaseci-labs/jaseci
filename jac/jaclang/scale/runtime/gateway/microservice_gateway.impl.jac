@@ -1032,8 +1032,13 @@ impl MicroserviceGateway.start(on_ready: any = None) -> None {
     drain_timeout: float = float(ms_cfg.get("drain_timeout_seconds", 10));
 
     import from jaclang.server.serving.server { ServingServer, PORT_RETRY_LIMIT }
+    import from jaclang.server.serving.encoding { encoding_policy_from_project }
     serving = ServingServer(
-        app=self.app, host=self.host, port=self.port, drain_timeout=drain_timeout
+        app=self.app,
+        host=self.host,
+        port=self.port,
+        drain_timeout=drain_timeout,
+        encoding=encoding_policy_from_project()
     );
     install_signal_drain(serving, timeout_s=drain_timeout);
     import from functools { partial }

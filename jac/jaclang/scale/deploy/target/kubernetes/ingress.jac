@@ -9,6 +9,7 @@ import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     delete_if_exists
 }
 import from jaclang.scale.deploy.target.kubernetes.cluster_provider { ClusterProvider }
+import from jaclang.server.serving.encoding { nginx_gzip_types }
 
 obj IngressDeployer {
     has k8s_config: KubernetesConfig,
@@ -166,7 +167,7 @@ obj IngressDeployer {
                 'allow-snippet-annotations': 'true',
                 'annotations-risk-level': 'Critical',
                 'use-gzip': 'true',
-                'gzip-types': 'application/javascript text/css application/json image/svg+xml'
+                'gzip-types': nginx_gzip_types()
             }
         };
         try {

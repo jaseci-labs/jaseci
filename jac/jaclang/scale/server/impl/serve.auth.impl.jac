@@ -81,7 +81,10 @@ impl JacAPIServerAuth.register_login_endpoint -> None {
         }
         result['token'] = self.user_manager.create_jwt_token(user_id);
         return TransportResponse.success(
-            data=dict[(str, JsonValue)](result), meta=Meta(extra={'http_status': 200})
+            data=dict[(str, JsonValue)](result),
+            meta=Meta(
+                extra={'http_status': 200, 'http_headers': TOKEN_RESPONSE_HEADERS}
+            )
         );
     }
     self.server.add_endpoint(
@@ -129,7 +132,9 @@ impl JacAPIServerAuth.register_refresh_token_endpoint -> None {
         }
         return TransportResponse.success(
             data={'token': new_token, 'message': 'Token refreshed successfully'},
-            meta=Meta(extra={'http_status': 200})
+            meta=Meta(
+                extra={'http_status': 200, 'http_headers': TOKEN_RESPONSE_HEADERS}
+            )
         );
     }
     self.server.add_endpoint(

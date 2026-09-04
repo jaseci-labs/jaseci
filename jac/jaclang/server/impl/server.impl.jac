@@ -1615,7 +1615,8 @@ impl AuthHandler.login(username: str, password: str) -> TransportResponse {
         );
     }
     return TransportResponse.success(
-        data=result, meta=Meta(extra={'http_status': 200})
+        data=result,
+        meta=Meta(extra={'http_status': 200, 'http_headers': TOKEN_RESPONSE_HEADERS})
     );
 }
 
@@ -2737,7 +2738,12 @@ impl JacAPIServer.start(
     self.dev_mode = dev;
     self.introspector.dev_mode = dev;
     self.app = self.build_app();
-    serving = ServingServer(app=self.app, host='0.0.0.0', port=self.port);
+    serving = ServingServer(
+        app=self.app,
+        host='0.0.0.0',
+        port=self.port,
+        encoding=encoding_policy_from_project()
+    );
     self.server = serving;
 
     def _announce(bound_port: int) {

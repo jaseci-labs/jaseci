@@ -451,6 +451,34 @@ test "serve on_conflict default and normalization" {
     assert typo.serve.on_conflict == "retry";
 }
 
+test "serve.compression defaults, overrides, and level clamping" {
+    config_mod._config = None;
+    base = JacConfig.from_toml_str("\n[serve]\nport = 8000\n");
+    assert base.serve.compression.enabled is True;
+    assert base.serve.compression.min_bytes == 1024;
+    assert base.serve.compression.level == 4;
+
+    config_mod._config = None;
+    cfg = JacConfig.from_toml_str(
+        "\n[serve.compression]\nenabled = false\nmin_bytes = 4096\nlevel = 6\n"
+    );
+    assert cfg.serve.compression.enabled is False;
+    assert cfg.serve.compression.min_bytes == 4096;
+    assert cfg.serve.compression.level == 6;
+
+    config_mod._config = None;
+    high = JacConfig.from_toml_str("\n[serve.compression]\nlevel = 42\n");
+    assert high.serve.compression.level == 9;
+
+    config_mod._config = None;
+    low = JacConfig.from_toml_str("\n[serve.compression]\nlevel = 0\n");
+    assert low.serve.compression.level == 1;
+
+    config_mod._config = None;
+    junk = JacConfig.from_toml_str("\n[serve.compression]\nlevel = \"fast\"\n");
+    assert junk.serve.compression.level == 4;
+}
+
 test "dev section parsing" {
     config_mod._config = None;
     # Absent -> every knob is empty. An empty jobs knob means "unset": the

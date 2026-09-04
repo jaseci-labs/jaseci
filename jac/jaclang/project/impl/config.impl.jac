@@ -1244,6 +1244,22 @@ impl _parse_toml_data(
             );
             on_conflict = "retry";
         }
+        _comp_data = serve_data.get("compression", {});
+        if not isinstance(_comp_data, dict) {
+            _comp_data = {};
+        }
+        _builtin_comp = CompressionConfig();
+        _comp_level = _builtin_comp.level;
+        try {
+            _comp_level = int(_comp_data.get("level", _builtin_comp.level));
+        } except (TypeError, ValueError) {
+            import from jaclang.cli.console { console }
+            console.warning(
+                f"[serve.compression] level='{_comp_data.get('level')}' must be an "
+                f"integer from 1 to 9; defaulting to {_builtin_comp.level}."
+            );
+        }
+        _comp_level = max(1, min(9, _comp_level));
         config.serve = ServeConfig(
             port=serve_data.get("port", 8000),
             session=serve_data.get("session", ""),
@@ -1253,7 +1269,12 @@ impl _parse_toml_data(
             identity=str(serve_data.get("identity", "auto")),
             on_conflict=on_conflict,
             conflict_max_attempts=serve_data.get("conflict_max_attempts", 5),
-            conflict_backoff_ms=serve_data.get("conflict_backoff_ms", 0)
+            conflict_backoff_ms=serve_data.get("conflict_backoff_ms", 0),
+            compression=CompressionConfig(
+                enabled=bool(_comp_data.get("enabled", _builtin_comp.enabled)),
+                min_bytes=int(_comp_data.get("min_bytes", _builtin_comp.min_bytes)),
+                level=_comp_level
+            )
         );
     }
     if "format" in data {

@@ -116,6 +116,22 @@ def _spawn_upstream -> tuple[object, object, str] {
     def fourofour -> Response {
         return Response(content=b"nope", status_code=404);
     }
+
+    def accept_seen(request: Request) -> Response {
+        return Response(
+            content=request.headers.get("Accept-Encoding") or "",
+            media_type="text/plain"
+        );
+    }
+
+    def gz -> Response {
+        import gzip;
+        return Response(
+            content=gzip.compress(b'{"already": "gzipped"}', mtime=0),
+            media_type="application/json",
+            headers={"Content-Encoding": "gzip"}
+        );
+    }
     app = ServingApp();
     app.add_endpoint(JEndPoint(method=HTTPMethod.POST, path="/echo", callback=echo));
     app.add_endpoint(JEndPoint(method=HTTPMethod.GET, path="/sse", callback=sse));
@@ -123,6 +139,10 @@ def _spawn_upstream -> tuple[object, object, str] {
     app.add_endpoint(
         JEndPoint(method=HTTPMethod.GET, path="/fourofour", callback=fourofour)
     );
+    app.add_endpoint(
+        JEndPoint(method=HTTPMethod.GET, path="/accept-seen", callback=accept_seen)
+    );
+    app.add_endpoint(JEndPoint(method=HTTPMethod.GET, path="/gz", callback=gz));
     server = ServingServer(app=app, host="127.0.0.1", port=0);
     stop = server.serve_background();
     return (stop, server, f"http://127.0.0.1:{server.bound_port}");
@@ -232,6 +252,63 @@ test "raw_forward still buffers for the passthrough path" {
     (status, headers, body_bytes) = result;
     assert status == 200;
     assert body_bytes == b"hello";
+}
+
+
+test "raw_forward asks for identity whatever the browser asked for" {
+    async def body -> object {
+        (stop_upstream, server, base) = _spawn_upstream();
+        try {
+            return await raw_forward(
+                "GET",
+                f"{base}/accept-seen",
+                {"accept-encoding": "gzip, br", "X-Trace-Id": "t1"},
+                b""
+            );
+        } finally {
+            stop_upstream();
+        }
+    }
+    result = _run(body());
+    assert result is not None;
+    (status, _headers, body_bytes) = result;
+    assert status == 200;
+    assert body_bytes == b"identity" , (
+        f"the gateway parses this body itself, so it must never receive gzip; "
+        f"upstream saw {body_bytes!r}"
+    );
+}
+
+
+test "stream_forward keeps an upstream Content-Encoding and the raw bytes" {
+    import gzip;
+
+    async def body -> dict {
+        (stop_upstream, server, base) = _spawn_upstream();
+        try {
+            fr = await stream_forward(
+                "GET", f"{base}/gz", {"Accept-Encoding": "gzip"}, b""
+            );
+            assert fr is not None;
+            sr = fr.to_response();
+            got = b"";
+            async for chunk in sr.body_iterator {
+                got += chunk;
+            }
+            return {
+                "headers": {k.lower(): v for (k, v) in fr.headers.items()},
+                "body": got
+            };
+        } finally {
+            stop_upstream();
+        }
+    }
+    result = _run(body());
+    assert result["headers"].get("content-encoding") == "gzip" , result["headers"];
+    assert result["body"] == gzip.compress(b'{"already": "gzipped"}', mtime=0) , (
+        "the proxy path passes the encoded bytes through untouched; the gateway's "
+        "own transport sees Content-Encoding set and leaves them alone"
+    );
 }
 
 

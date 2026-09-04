@@ -245,6 +245,18 @@ on_conflict = "retry"        # "retry": abort + replay so the loser converges
                              # "fail":  no replay, return HTTP 409 immediately
 conflict_max_attempts = 5    # max walker/function attempts under "retry"
 conflict_backoff_ms = 0      # linear backoff between replay attempts (0 = none)
+
+# Response compression. Negotiated in the serving transport itself, so one
+# setting covers `jac serve`, scale services, and both gateways. A client that
+# sends `Accept-Encoding: gzip` gets text, JSON, JavaScript, SVG, XML, and wasm
+# bodies gzipped; every other client gets the bytes as-is. Streamed bodies
+# (SSE, proxied responses) are compressed incrementally, so frames still
+# arrive as they are produced. Token-issuing responses (`/user/login`,
+# `/user/refresh-token`) are never compressed.
+[serve.compression]
+enabled = true               # false answers identity to everyone
+min_bytes = 1024             # buffered bodies below this are sent as-is
+level = 4                    # zlib level 1..9; 6 costs ~70% more CPU for ~5%
 ```
 
 `identity` decides which stack owns `/user/*`, and with it which database the
