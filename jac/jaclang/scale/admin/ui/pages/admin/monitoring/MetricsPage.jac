@@ -35,47 +35,9 @@ def:pub MetricsPage -> JsxElement {
     # (closure), so the chart froze after the first few points. The ref is
     # stable across renders, so .current always reads the latest buffer.
     histRef = useRef([]);
-    infEdge = 1000000000.0;
 
-    def classifyPath(path: str) -> str {
-        if path.startswith("/healthz") or path.startswith("/health") {
-            return "health";
-        }
-        if path.startswith("/admin") {
-            return "admin";
-        }
-        return "app";
-    }
-
-    def scopeTotals(metricsList: list) -> dict {
-        out = {"app": 0, "other": 0, "all": 0, "appErr": 0, "otherErr": 0, "allErr": 0};
-        counter = {};
-        for mm in metricsList {
-            if str(mm["name"]).endswith("_http_requests_total") {
-                counter = mm;
-                break;
-            }
-        }
-        if not counter or not counter["values"] {
-            return out;
-        }
-        for v in counter["values"] {
-            labels = v["labels"] or {};
-            path = str(labels["path"] or "");
-            status = str(labels["status_code"] or "");
-            count = int(v["value"] or 0);
-            key = "other";
-            if classifyPath(path) == "app" {
-                key = "app";
-            }
-            out[key] = out[key] + count;
-            out["all"] = out["all"] + count;
-            if status.startswith("4") or status.startswith("5") {
-                out[key + "Err"] = out[key + "Err"] + count;
-                out["allErr"] = out["allErr"] + count;
-            }
-        }
-        return out;
+    def scopeFailed(s: dict) -> int {
+        return (s["server_errors"] or 0) + (s["client_errors"] or 0);
     }
 
     async def loadMetrics {
@@ -85,23 +47,25 @@ def:pub MetricsPage -> JsxElement {
             summary = result["data"]["summary"] or {};
             metrics = result["data"]["metrics"] or [];
             prevBuf = histRef.current or [];
-            totals = scopeTotals(metrics);
+            scopes = summary["scopes"] or {};
+            appScope = scopes["app"] or {};
+            otherScope = scopes["other"] or {};
+            allScope = scopes["all"] or {};
             newPoint = {
                 "time": Date.now(),
-                "app": totals["app"],
-                "other": totals["other"],
-                "all": totals["all"],
-                "appErr": totals["appErr"],
-                "otherErr": totals["otherErr"],
-                "allErr": totals["allErr"],
-                "active": summary["active_requests"] or 0
+                "app": appScope["requests"] or 0,
+                "other": otherScope["requests"] or 0,
+                "all": allScope["requests"] or 0,
+                "appErr": scopeFailed(appScope),
+                "otherErr": scopeFailed(otherScope),
+                "allErr": scopeFailed(allScope)
             };
             # Read/write through histRef (stable across renders) so the polling
             # interval accumulates instead of freezing on a stale `history`
-            # closure. Avoid a negative slice ([-300:]) too -- the client
+            # closure. Avoid a negative slice ([-400:]) too -- the client
             # transpiler mishandles it (returns []).
             combined = prevBuf + [newPoint];
-            startIdx = max(0, len(combined) - 300);
+            startIdx = max(0, len(combined) - 400);
             trimmed = [];
             idx = 0;
             for p in combined {
@@ -157,15 +121,6 @@ def:pub MetricsPage -> JsxElement {
         return {};
     }
 
-    def getMetricBySuffix(suffix: str) -> dict {
-        for m in metrics {
-            if str(m["name"]).endswith(suffix) {
-                return m;
-            }
-        }
-        return {};
-    }
-
     def getMetricValue(name: str, labelKey: str = "", labelVal: str = "") -> float {
         m = getMetricByName(name);
         if not m or not m["values"] {
@@ -183,116 +138,23 @@ def:pub MetricsPage -> JsxElement {
         return 0.0;
     }
 
+    def formatSpan(secs: float) -> str {
+        if secs < 60 {
+            return str(int(secs)) + "s";
+        }
+        if secs < 3600 {
+            return str(int(secs / 60)) + "m " + str(int(secs % 60)) + "s";
+        }
+        hours = int(secs / 3600);
+        mins = int((secs % 3600) / 60);
+        return str(hours) + "h " + str(mins) + "m";
+    }
+
     def formatUptime(startTimeVal: float) -> str {
         if startTimeVal == 0 {
             return "N/A";
         }
-        nowSecs = Date.now() / 1000;
-        uptimeSecs = nowSecs - startTimeVal;
-        if uptimeSecs < 60 {
-            return str(int(uptimeSecs)) + "s";
-        }
-        if uptimeSecs < 3600 {
-            return str(int(uptimeSecs / 60)) + "m " + str(int(uptimeSecs % 60)) + "s";
-        }
-        hours = int(uptimeSecs / 3600);
-        mins = int((uptimeSecs % 3600) / 60);
-        return str(hours) + "h " + str(mins) + "m";
-    }
-
-    def inScope(path: str) -> bool {
-        if scope == "all" {
-            return True;
-        }
-        if scope == "app" {
-            return classifyPath(path) == "app";
-        }
-        return classifyPath(path) != "app";
-    }
-
-    def getLatencyBuckets(method: str, path: str) -> list {
-        m = getMetricBySuffix("_http_request_duration_seconds");
-        if not m or not m["values"] {
-            return [];
-        }
-        out = [];
-        for v in m["values"] {
-            if v["suffix"] != "_bucket" {
-                continue;
-            }
-            labels = v["labels"] or {};
-            vPath = str(labels["path"] or "");
-            vMethod = str(labels["method"] or "");
-            if path and vPath != path {
-                continue;
-            }
-            if method and vMethod != method {
-                continue;
-            }
-            if not path and not inScope(vPath) {
-                continue;
-            }
-            leRaw = str(labels["le"] or "");
-            if not leRaw {
-                continue;
-            }
-            leEdge = infEdge;
-            if leRaw != "+Inf" {
-                leEdge = float(leRaw);
-            }
-            hitIdx = -1;
-            idx = 0;
-            for b in out {
-                if b["le"] == leEdge {
-                    hitIdx = idx;
-                }
-                idx += 1;
-            }
-            if hitIdx < 0 {
-                out.append({"le": leEdge, "count": 0.0});
-                hitIdx = len(out) - 1;
-            }
-            out[hitIdx]["count"] = out[hitIdx]["count"] + (v["value"] or 0.0);
-        }
-        return sorted(out, key=lambda (x: any) { return x["le"]; });
-    }
-
-    def bucketTotal(buckets: list) -> float {
-        n = len(buckets);
-        if n == 0 {
-            return 0.0;
-        }
-        return buckets[n - 1]["count"] or 0.0;
-    }
-
-    def percentileFromBuckets(buckets: list, q: float) -> dict {
-        total = bucketTotal(buckets);
-        if total <= 0 {
-            return {"value": 0.0, "over": False, "known": False};
-        }
-        target = q * total;
-        lo = 0.0;
-        loEdge = 0.0;
-        for b in buckets {
-            if b["count"] >= target {
-                if b["le"] >= infEdge {
-                    return {"value": loEdge, "over": True, "known": True};
-                }
-                span = b["count"] - lo;
-                frac = 0.0;
-                if span > 0 {
-                    frac = (target - lo) / span;
-                }
-                return {
-                    "value": loEdge + frac * (b["le"] - loEdge),
-                    "over": False,
-                    "known": True
-                };
-            }
-            lo = b["count"];
-            loEdge = b["le"];
-        }
-        return {"value": loEdge, "over": True, "known": True};
+        return formatSpan(Date.now() / 1000 - startTimeVal);
     }
 
     def formatLatency(secs: float) -> str {
@@ -320,31 +182,6 @@ def:pub MetricsPage -> JsxElement {
             return "> " + formatLatency(p["value"]);
         }
         return formatLatency(p["value"]);
-    }
-
-    def cumAt(buckets: list, bound: float) -> float {
-        v = 0.0;
-        for b in buckets {
-            if b["le"] <= bound {
-                v = b["count"];
-            }
-        }
-        return v;
-    }
-
-    def bucketGroups(buckets: list) -> list {
-        total = bucketTotal(buckets);
-        c1 = cumAt(buckets, 0.025);
-        c2 = cumAt(buckets, 0.1);
-        c3 = cumAt(buckets, 0.5);
-        c4 = cumAt(buckets, 2.5);
-        return [
-            {"label": "under 25ms", "count": c1},
-            {"label": "25 - 100ms", "count": c2 - c1},
-            {"label": "100 - 500ms", "count": c3 - c2},
-            {"label": "500ms - 2.5s", "count": c4 - c3},
-            {"label": "over 2.5s", "count": total - c4}
-        ];
     }
 
     def niceCeil(v: float) -> float {
@@ -428,55 +265,16 @@ def:pub MetricsPage -> JsxElement {
     }
 
     def getEndpointRows -> list {
-        m = getMetricBySuffix("_http_requests_total");
-        if not m or not m["values"] {
-            return [];
-        }
         rows = [];
-        for v in m["values"] {
-            labels = v["labels"] or {};
-            path = str(labels["path"] or "?");
-            if not inScope(path) {
-                continue;
-            }
-            method = str(labels["method"] or "?");
-            status = str(labels["status_code"] or "");
-            count = int(v["value"] or 0);
-            hitIdx = -1;
-            idx = 0;
-            for r in rows {
-                if r["method"] == method and r["path"] == path {
-                    hitIdx = idx;
-                }
-                idx += 1;
-            }
-            if hitIdx < 0 {
-                rows.append(
-                    {
-                        "method": method,
-                        "path": path,
-                        "count": 0,
-                        "failed": 0,
-                        "kind": classifyPath(path)
-                    }
-                );
-                hitIdx = len(rows) - 1;
-            }
-            rows[hitIdx]["count"] = rows[hitIdx]["count"] + count;
-            if status.startswith("4") or status.startswith("5") {
-                rows[hitIdx]["failed"] = rows[hitIdx]["failed"] + count;
+        for r in (summary["endpoints"] or []) {
+            isApp = r["kind"] == "app";
+            if scope == "all"
+                or (scope == "app" and isApp)
+                or (scope == "other" and not isApp) {
+                rows.append(r);
             }
         }
-        for r in rows {
-            buckets = getLatencyBuckets(r["method"], r["path"]);
-            r["p50"] = percentileFromBuckets(buckets, 0.5);
-            r["p95"] = percentileFromBuckets(buckets, 0.95);
-            r["errRate"] = 0.0;
-            if r["count"] > 0 {
-                r["errRate"] = (r["failed"] / r["count"]) * 100;
-            }
-        }
-        return sorted(rows, key=lambda (x: any) { return -x["p95"]["value"]; });
+        return rows;
     }
 
     # Method chip: subtle weak-tinted token backgrounds, one per verb.
@@ -541,7 +339,6 @@ def:pub MetricsPage -> JsxElement {
 
     ratePoints = [];
     maxRate = 0.0;
-    windowFailed = 0;
     ptIdx = 0;
     for h in windowPoints {
         if ptIdx > 0 {
@@ -556,7 +353,6 @@ def:pub MetricsPage -> JsxElement {
                 if dErr < 0 {
                     dErr = 0;
                 }
-                windowFailed = windowFailed + dErr;
                 rate = dReq / dt;
                 ratePoints.append({"rate": rate, "errs": dErr});
                 if rate > maxRate {
@@ -595,6 +391,15 @@ def:pub MetricsPage -> JsxElement {
     chartLinePts = chartLine(ratePoints, chartMax);
     chartAreaPts = chartArea(ratePoints, chartMax);
     chartIsEmpty = len(ratePoints) == 0 or maxRate <= 0;
+    collecting = nWin < 2;
+    bufferAgeSecs = 0.0;
+    if len(history) > 0 {
+        bufferAgeSecs = (Date.now() - history[0]["time"]) / 1000.0;
+    }
+    spanLabel = windowLabel();
+    if bufferAgeSecs < windowSecs {
+        spanLabel = formatSpan(elapsedSecs);
+    }
 
     virtualMem = getMetricValue("process_virtual_memory_bytes");
     residentMem = getMetricValue("process_resident_memory_bytes");
@@ -640,11 +445,13 @@ def:pub MetricsPage -> JsxElement {
     }
 
     endpointRows = getEndpointRows();
-    scopeBuckets = getLatencyBuckets("", "");
-    scopeP50 = percentileFromBuckets(scopeBuckets, 0.5);
-    scopeP95 = percentileFromBuckets(scopeBuckets, 0.95);
-    scopeP99 = percentileFromBuckets(scopeBuckets, 0.99);
-    histGroups = bucketGroups(scopeBuckets);
+    allScopes = summary["scopes"] or {};
+    scopeStats = allScopes[scopeKey] or {};
+    unknownP = {"value": 0.0, "over": False, "known": False};
+    scopeP50 = scopeStats["p50"] or unknownP;
+    scopeP95 = scopeStats["p95"] or unknownP;
+    scopeP99 = scopeStats["p99"] or unknownP;
+    histGroups = scopeStats["distribution"] or [];
     maxGroupCount = 1.0;
     for g in histGroups {
         if g["count"] > maxGroupCount {
@@ -652,22 +459,21 @@ def:pub MetricsPage -> JsxElement {
         }
     }
 
-    scopeReqs = 0;
-    scopeFailed = 0;
+    scopeReqs = scopeStats["requests"] or 0;
+    scopeServerErrs = scopeStats["server_errors"] or 0;
+    scopeClientErrs = scopeStats["client_errors"] or 0;
+    scopeFailedCount = scopeServerErrs + scopeClientErrs;
     maxRowCount = 1;
     for r in endpointRows {
-        scopeReqs = scopeReqs + r["count"];
-        scopeFailed = scopeFailed + r["failed"];
         if r["count"] > maxRowCount {
             maxRowCount = r["count"];
         }
     }
     scopeErrRate = 0.0;
     if scopeReqs > 0 {
-        scopeErrRate = (scopeFailed / scopeReqs) * 100;
+        scopeErrRate = (scopeFailedCount / scopeReqs) * 100;
     }
     scopeErrDisplay = Math.round(scopeErrRate * 10) / 10;
-    scopeBucketTotal = int(bucketTotal(scopeBuckets));
 
     memUsagePercent = 0;
     if virtualMem > 0 {
@@ -675,9 +481,13 @@ def:pub MetricsPage -> JsxElement {
     }
 
     scopeOptions = [
-        {"key": "app", "label": "App"},
-        {"key": "other", "label": "Admin & health"},
-        {"key": "all", "label": "All"}
+        {"key": "app", "label": "App", "title": "Your app's routes"},
+        {
+            "key": "other",
+            "label": "Platform",
+            "title": "Admin portal, health probes, /metrics, /docs and /openapi.json"
+        },
+        {"key": "all", "label": "All", "title": "Everything this process served"}
     ];
     windowOptions = [
         {"secs": 60, "label": "60s"},
@@ -714,7 +524,9 @@ def:pub MetricsPage -> JsxElement {
                     <span className="text-base text-faint"> req/s</span>
                 </div>
                 <div className="text-xs text-faint mt-1">
-                    {str(windowReqs) + " in last " + windowLabel()}
+                    {"collecting first sample"
+                        if collecting
+                        else (str(windowReqs) + " in last " + spanLabel)}
                 </div>
             </div>
             <div className="bg-surface border border-line rounded-lg p-4 shadow-sm">
@@ -742,13 +554,19 @@ def:pub MetricsPage -> JsxElement {
                 </div>
                 <div
                     className={"text-2xl font-semibold mt-2 tabular-nums "
-                        + ("text-danger" if scopeFailed > 0 else "text-fg")}
+                        + ("text-danger" if scopeFailedCount > 0 else "text-fg")}
                 >
                     {scopeErrDisplay}
                     <span className="text-base text-faint">%</span>
                 </div>
                 <div className="text-xs text-faint mt-1">
-                    {str(scopeFailed) + " of " + str(scopeReqs) + " since restart"}
+                    {"5xx "
+                        + str(scopeServerErrs)
+                        + " · 4xx "
+                        + str(scopeClientErrs)
+                        + " of "
+                        + str(scopeReqs)
+                        + " since restart"}
                 </div>
             </div>
             <div className="bg-surface border border-line rounded-lg p-4 shadow-sm">
@@ -776,6 +594,7 @@ def:pub MetricsPage -> JsxElement {
                                 {[
                                     <button
                                         key={opt["key"]}
+                                        title={opt["title"]}
                                         onClick={lambda { scope = opt["key"]; }}
                                         className={"px-2 py-0.5 rounded text-[11px] border transition-colors "
                                             + (
@@ -812,7 +631,7 @@ def:pub MetricsPage -> JsxElement {
                         <span
                             className="text-[10px] uppercase tracking-wider text-faint"
                         >
-                            Throughput · req/s · last {windowLabel()}
+                            Throughput · req/s · last {spanLabel}
                         </span>
                         <span className="text-[11px] text-faint">
                             {str(activeReqs) + " in flight"}
@@ -823,10 +642,14 @@ def:pub MetricsPage -> JsxElement {
                             className="border border-dashed border-line rounded-lg px-4 py-6 text-center"
                         >
                             <div className="text-xs font-medium text-fg">
-                                No traffic in the last {windowLabel()}
+                                {"Collecting, first sample in a few seconds"
+                                    if collecting
+                                    else ("No traffic in the last " + spanLabel)}
                             </div>
                             <div className="text-[11px] text-faint mt-1">
-                                Counters are alive; this window is empty.
+                                {"A rate needs two samples."
+                                    if collecting
+                                    else "Counters are alive; this window is empty."}
                             </div>
                         </div>}
                     {not chartIsEmpty
@@ -878,7 +701,7 @@ def:pub MetricsPage -> JsxElement {
                                 0
                             </text>
                             <text x="44" y="112" fill="var(--faint)" fontSize="9">
-                                {"-" + windowLabel()}
+                                {"-" + spanLabel}
                             </text>
                             <text
                                 x="632"
@@ -939,7 +762,7 @@ def:pub MetricsPage -> JsxElement {
                                 Latency distribution · since restart
                             </span>
                             <span className="text-[11px] text-faint">
-                                {str(scopeBucketTotal) + " requests"}
+                                {str(scopeReqs) + " requests"}
                             </span>
                         </div>
                         <div className="space-y-1.5">
@@ -1024,7 +847,12 @@ def:pub MetricsPage -> JsxElement {
                                                     else "text-faint"
                                             )}
                                     >
-                                        {Math.round(req["errRate"] * 10) / 10}
+                                        {Math.round(
+                                            (req["failed"] / req["count"]) * 1000
+                                        )
+                                            / 10
+                                            if req["count"] > 0
+                                            else 0}
                                     </span>
                                     <span
                                         className="w-14 text-right font-mono text-muted tabular-nums"
