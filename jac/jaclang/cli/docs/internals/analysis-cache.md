@@ -202,11 +202,20 @@ Dependency rows exempt only modules inside the compiler digest roots
 (`is_compiler_tree_path`): every ENVKEY folds the compiler digest, so any
 edit there invalidates every JIR wholesale and a row would be redundant.
 Non-root jaclang modules (cli, server, scale, byllm and friends) are mutable
-within a generation and carry rows like any other dependency. A sealed
-image carries the analysis sections alongside bytecode (`precompile_unit`
-forwards them, with `SEC_DEPS` paths relocated through the package-root
-sentinel the way comptime deps already are), and the registry reads the
-module cache first and the sealed image second.
+within a generation and carry rows like any other dependency. The registry
+reads the module cache first and the sealed image second, but a sealed
+image carries no analysis sections yet: the seal must be a pure function of
+content, and sections copied from a module cache depend on that cache's
+history. Producing them deterministically at seal time, by running the
+analysis frontier per unit, is the precompiler's follow-up.
+
+A Jac method's interface carries its self parameter explicitly, the way a
+typeshed method does, so an unbound `Cls.method(self, ...)` call through a
+hydrated class binds like it does through a real tree. The writer also
+materializes the members the evaluator would only discover lazily (an
+`init` parameter or a `self.x` assignment first looked up on a miss), so an
+interface never depends on which attributes an earlier closure happened to
+touch.
 
 ## The codegen lane
 

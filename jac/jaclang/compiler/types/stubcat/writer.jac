@@ -4,10 +4,13 @@ import struct;
 import from jaclang.compiler.frontend.unitree {
     Ability,
     Archetype,
+    Assignment,
+    AtomTrailer,
     ElseIf,
     DictCompr,
     ElseStmt,
     Enum,
+    FuncSignature,
     HasVar,
     IfStmt,
     InnerCompr,
@@ -16,6 +19,8 @@ import from jaclang.compiler.frontend.unitree {
     KWPair,
     Module,
     ModulePath,
+    Name,
+    ParamVar,
     Symbol,
     UniScopeNode
 }
@@ -26,9 +31,13 @@ import from jaclang.compiler.types.types {
     ClassType,
     EnumMemberType,
     FunctionType,
+    FunctionTypeFlags,
     ModuleType,
     NeverType,
     OverloadedType,
+    ParamKind,
+    Parameter,
+    ParameterCategory,
     TypeBase,
     TypeVarType,
     UnionType,
@@ -544,12 +553,57 @@ obj CatalogWriter {
         }
     }
 
+    def _materialize_lazy_members(scope: UniScopeNode) -> None {
+        if not isinstance(scope, Archetype) {
+            return;
+        }
+        owner = scope.name_spec.sym;
+        if owner is None {
+            return;
+        }
+        cls_t: any = None;
+        try {
+            cls_t = self.evaluator.get_type_of_symbol(owner);
+        } except Exception {
+            return;
+        }
+        if not isinstance(cls_t, ClassType) {
+            return;
+        }
+        for method_name in ("init", "__post_init__") {
+            method_sym = scope.lookup(method_name, deep=False);
+            if method_sym is None or not isinstance(method_sym.decl.name_of, Ability) {
+                continue;
+            }
+            ability = method_sym.decl.name_of;
+            sig = ability.signature;
+            if isinstance(sig, FuncSignature) and sig.params {
+                for param in sig.params {
+                    if isinstance(param, ParamVar) and param.name.value != "self" {
+                        cls_t.lookup_member_symbol(param.name.value);
+                    }
+                }
+            }
+            for trailer in ability.get_all_sub_nodes(AtomTrailer) {
+                holder = trailer.parent;
+                if not isinstance(holder, Assignment)
+                    or trailer is not holder.target[0] {
+                    continue;
+                }
+                if isinstance(trailer.right, Name) {
+                    cls_t.lookup_member_symbol(trailer.right.value);
+                }
+            }
+        }
+    }
+
     def force_scope(scope: UniScopeNode) -> None {
         key = self._scope_ident(scope);
         if key in self.forced_scopes {
             return;
         }
         self.forced_scopes.add(key);
+        self._materialize_lazy_members(scope);
         members = collect_scope_members(scope);
         if isinstance(scope, Module) {
             for (name, sym) in star_import_members(scope, self.evaluator).items() {
@@ -575,7 +629,9 @@ obj CatalogWriter {
         }
         resolved: (TypeBase | None) = None;
         try {
-            resolved = self.evaluator.get_type_of_symbol(sym);
+            resolved = self._with_explicit_self(
+                sym, self.evaluator.get_type_of_symbol(sym)
+            );
             self.evaluated += 1;
         } except Exception as e {
             self.failures += 1;
@@ -599,6 +655,72 @@ obj CatalogWriter {
             and self.in_boundary(module_of(own_scope)) {
             self.force_scope(own_scope);
         }
+    }
+
+    def _jac_method_of(sym: Symbol) -> (Ability | None) {
+        decl = sym.decl;
+        node_ = decl.name_of if decl is not None else None;
+        if not isinstance(node_, Ability) or not node_.is_method {
+            return None;
+        }
+        if node_.is_static or node_.is_cls_method {
+            return None;
+        }
+        sig = node_.signature;
+        if isinstance(sig, FuncSignature) and sig.is_in_py_class {
+            return None;
+        }
+        for dec in (node_.decorators or ()) {
+            if isinstance(dec, Name)
+                and dec.sym_name in ("staticmethod", "classmethod") {
+                return None;
+            }
+        }
+        return node_;
+    }
+
+    def _prepend_self(fn: FunctionType) -> FunctionType {
+        params = list(fn.parameters or []);
+        if params and (params[0].is_self or params[0].is_cls) {
+            return fn;
+        }
+        if fn.function_flags
+            & (FunctionTypeFlags.StaticMethod | FunctionTypeFlags.ClassMethod) {
+            return fn;
+        }
+        me = Parameter(
+            name="self",
+            category=ParameterCategory.Positional,
+            param_type=None,
+            is_self=True,
+            param_kind=ParamKind.NORMAL
+        );
+        return FunctionType(
+            func_name=fn.func_name,
+            return_type=fn.return_type,
+            parameters=[me] + params,
+            function_flags=fn.function_flags,
+            type_params=fn.type_params,
+            is_async=fn.is_async,
+            type_guard=fn.type_guard
+        );
+    }
+
+    def _with_explicit_self(
+        sym: Symbol, resolved: (TypeBase | None)
+    ) -> (TypeBase | None) {
+        if self._jac_method_of(sym) is None {
+            return resolved;
+        }
+        if isinstance(resolved, FunctionType) {
+            return self._prepend_self(resolved);
+        }
+        if isinstance(resolved, OverloadedType) and resolved.overloads {
+            return OverloadedType(
+                overloads=[self._prepend_self(fn) for fn in resolved.overloads]
+            );
+        }
+        return resolved;
     }
 
     def property_facts(sym: Symbol) -> tuple[int, int, (TypeBase | None)] {

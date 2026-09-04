@@ -616,25 +616,6 @@ def _dep_row_path(stored: str, base_dir: str) -> str {
     return stored;
 }
 
-def rebase_deps_section(raw: bytes, base: str) -> bytes {
-    lines: list[str] = [];
-    for line in raw.decode("utf-8").split("\n") {
-        if "\t" not in line {
-            continue;
-        }
-        parts = line.split("\t");
-        stored = parts[0];
-        try {
-            if base and os.path.commonpath([stored, base]) == base {
-                rel = os.path.relpath(stored, base).replace(os.sep, "/");
-                stored = f"{PRECOMPILE_SENTINEL}/{rel}";
-            }
-        } except ValueError {}
-        lines.append("\t".join([stored] + parts[1:]));
-    }
-    return "\n".join(lines).encode("utf-8");
-}
-
 def read_dep_hashes(data: bytes, base_dir: str = "") -> list[tuple[str, str]] {
     out: list[tuple[str, str]] = [];
     for (path, digest, _flags) in read_dep_rows(data, base_dir) {

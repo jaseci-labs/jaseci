@@ -82,9 +82,15 @@ def _cold_rebuild -> tuple[int, dict, int] {
         f"the cold rebuild failed (rc={proc.returncode}):\n{proc.stderr[-3000:]}"
     );
     compiled = proc.stderr.count("  Compiling ");
+    if compiled == 0 and "jac dev mode" not in proc.stderr {
+        testskip(
+            "the checkout's compiler is not rerouted here (a bare checkout or a "
+            "sealed lane), so there is no cold rebuild to measure"
+        );
+    }
     assert compiled > 0 , (
-        "no rebuild happened: the probe ran on a warm compiler, so the checkout "
-        "was not rerouted or the cache was not isolated"
+        "no rebuild happened: the probe ran on a warm compiler with the checkout "
+        "rerouted, so the cache was not isolated"
     );
     payload: (dict[str, any] | None) = None;
     for line in proc.stdout.splitlines() {

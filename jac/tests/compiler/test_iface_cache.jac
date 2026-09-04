@@ -389,7 +389,7 @@ test "a compile acting on an inferred native verdict persists no interface" {
     );
     # The rule itself, on a machine whose native toolchain may not let the
     # verdict pass: an inferred verdict skips the interface, a declared one
-    # does not.
+    # reaches it through the analysis flavor; codegen never encodes.
     reg = gen.iface_registry();
     encodes = reg.prog.analysis.cache_events.get("iface_encode", 0);
     mod.decided_codespace = "native";
@@ -402,6 +402,11 @@ test "a compile acting on an inferred native verdict persists no interface" {
         == before , "an inferred verdict overwrote the persisted interface";
     mod.codespace_inferred = False;
     reg.persist_after_compile(dep, mod, CompileOptions(), 0, 0);
+    assert read_iface_hash(
+        read_section_bytes(get_module_cache_path(dep).read_bytes(), SEC_IFACE)
+    )
+        == before , "a codegen persist of a declared placement encoded an interface";
+    reg.persist_after_compile(dep, mod, _check_opts(), 0, 0);
     assert read_iface_hash(
         read_section_bytes(get_module_cache_path(dep).read_bytes(), SEC_IFACE)
     )

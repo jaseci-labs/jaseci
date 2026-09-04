@@ -699,6 +699,7 @@ walker TypeEvaluator {
     ) -> OverloadedType | None;
 
     def _create_dataclass_init_method(class_type: ClassType) -> FunctionType;
+    def _scope_has_fields(tab: any) -> bool;
     def _create_namedtuple_new_method(class_type: ClassType) -> FunctionType;
     def _create_special_builtin_type(name: str, base_class: ClassType) -> ClassType;
     def _validate_constructor_method(
