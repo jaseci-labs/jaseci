@@ -77,6 +77,31 @@ test "a range picks the newest published release that satisfies it" {
 }
 
 
+test "only a release whose tag names its own binary is a candidate" {
+    # jac#8960: the retired jaseci meta-package tags are numerically larger
+    # than every jac tag, so an open-ended range resolved to 2.3.28 and the
+    # deploy aborted on a release shipping no jac-2.3.28 binary. v2.3.27 is the
+    # trap: it ships a real jac binary, but of a version its tag does not name.
+    releases = json.dumps(
+        [
+            {"tag_name": "v0.37.3", "assets": [{"name": "jac-0.37.3-linux-x86_64"}]},
+            {"tag_name": "v2.3.28", "assets": [{"name": "jaseci-2.3.28.tar.gz"}]},
+            {"tag_name": "v2.3.27", "assets": [{"name": "jac-0.16.6-linux-x86_64"}]},
+            {"tag_name": "v0.38.0", "draft": True, "assets": []}
+        ]
+    ).encode(
+        "utf-8"
+    );
+    with unittest.mock.patch.object(
+        binary_mod, "_http_get_bytes", return_value=releases
+    ) {
+        assert binary_mod._list_release_versions(REPO) == ["0.37.3"];
+        assert _resolve_target_version(REPO, ">=0.37.3") == "0.37.3";
+        assert _resolve_target_version(REPO, ">=0.34") == "0.37.3";
+    }
+}
+
+
 test "a malformed spec resolves to '' (no target)" {
     with unittest.mock.patch.object(
         binary_mod, "_list_release_versions", return_value=["0.34.3"]

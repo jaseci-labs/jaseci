@@ -314,7 +314,8 @@ obj CatalogWriter {
         boundary: (Module | None) = None,
         failures: int = 0,
         evaluated: int = 0,
-        failure_log: list[str] = [];
+        failure_log: list[str] = [],
+        orphans: list[str] = [];
 
     def postinit {
         self.strings = {};
@@ -1324,11 +1325,20 @@ obj CatalogWriter {
         return bytes(out);
     }
 
+    def note_orphan(sh: ClassDetailsShared) {
+        key = sh.canonical_key();
+        site = f"{key[0]}:{key[1]}:{key[2]}" if key is not None else "<no site>";
+        self.orphans.append(f"{sh.class_name} @ {site}");
+    }
+
     def encode_shared(idx: int) -> bytes {
         sh = self.shareds[idx];
         out = bytearray();
         put_uvar(out, self.sid(sh.class_name or ""));
         home_mod = module_of(sh.symbol_table) if sh.symbol_table is not None else None;
+        if self.boundary is not None and home_mod is None {
+            self.note_orphan(sh);
+        }
         if (
             self.boundary is not None
             and home_mod is not None
@@ -1372,7 +1382,13 @@ obj CatalogWriter {
             bits |= SH_ENUM;
         }
         put_uvar(out, bits);
-        put_ref(out, self.ref_scope(sh.symbol_table));
+        scope_ref = self.ref_scope(sh.symbol_table);
+        if scope_ref < 0
+            and self.boundary is not None
+            and sh.symbol_table is not None {
+            self.note_orphan(sh);
+        }
+        put_ref(out, scope_ref);
         mro: list[TypeBase] = [];
         for cls in (sh.mro or []) {
             mro.append(cls);

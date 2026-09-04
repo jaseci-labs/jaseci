@@ -334,6 +334,7 @@ obj ConditionInfo {
 walker TypeEvaluator {
     can eval_expr with Expr entry;
     def _intern_shared(shared: ClassDetailsShared) -> ClassDetailsShared;
+    def _scope_is_current(scope: UniScopeNode) -> bool;
 
     has program: JacProgram,
         _shared_intern: dict[tuple, ClassDetailsShared] = {},
