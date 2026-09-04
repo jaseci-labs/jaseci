@@ -1,6 +1,5 @@
 import from c { def memcpy(dst: bytes, src: int, n: u64) -> int;  }
 import from c { def osp_adj_pairs(origin: int, dir: int) -> list[int];  }
-import from c { def osp_graph_wipe -> int;  }
 import from c { def PyType_GenericAlloc(t: int, n: int) -> int;  }
 import from c { def PyObject_SetAttr(o: int, k: int, v: int) -> int;  }
 import from c { def PyObject_GetAttr(o: int, k: int) -> int;  }
@@ -660,8 +659,4 @@ def:pub jc_mz_dispose -> int {
         _LAST.pop();
     }
     return 0;
-}
-
-def:pub jc_graph_wipe -> int {
-    return osp_graph_wipe();
 }

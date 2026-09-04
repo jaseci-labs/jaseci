@@ -13,7 +13,12 @@ import type from jaclang.compiler.backends.native.llvm.binding.executionengine {
 
 def _discover_config_from_file(filename: str) -> None {
     import from pathlib { Path }
-    import from jaclang.project.config { JacConfig, get_config, set_config }
+    import from jaclang.project.config {
+        JacConfig,
+        get_config,
+        project_scope_is_pinned,
+        set_config
+    }
     import from jaclang.project.pyvenv { add_venv_to_path }
     import from jaclang.runtime.runtime { JacRuntime as Jac }
 
@@ -21,6 +26,10 @@ def _discover_config_from_file(filename: str) -> None {
 
     Jac.set_full_target_path(str(file_path));
     file_dir = file_path.parent;
+
+    if project_scope_is_pinned() {
+        return;
+    }
 
     existing_config = get_config();
     active_profile = existing_config.active_profile if existing_config else None;
@@ -38,6 +47,122 @@ def _discover_config_from_file(filename: str) -> None {
             config.apply_profile_overlay(active_profile);
         }
         add_venv_to_path(config);
+    }
+}
+
+
+def _project_label(config: any) -> str {
+    name = config.project.name if config?.project else "";
+    proj_root = str(config.project_root) if config?.project_root else "?";
+    return f"'{name}' at {proj_root}" if name else proj_root;
+}
+
+
+def _project_serves(config: any) -> bool {
+    import from jaclang.project.kinds { kind_spec }
+    if not config?.project {
+        return False;
+    }
+    kind = str(config.project.kind or "").strip();
+    spec = kind_spec(kind) if kind else None;
+    return spec is not None and spec.action == "serve";
+}
+
+
+def _project_entry_path(config: any) -> str {
+    import from pathlib { Path }
+    import from jaclang.project.kinds { kind_entry }
+    proj_root = config.project_root if config?.project_root else None;
+    if proj_root is None {
+        return "";
+    }
+    declared = str(config.project.entry_point or "") if config?.project else "";
+    if not declared {
+        declared = kind_entry(
+            str(config.project.kind or "") if config?.project else ""
+        );
+    }
+    if not declared {
+        return "";
+    }
+    try {
+        return str((Path(proj_root) / declared).resolve());
+    } except OSError {
+        return "";
+    }
+}
+
+
+def _scope_notice(message: str) {
+    console.print(f"jac run: {message}", file=sys.stderr, style="muted");
+}
+
+
+def _pin_run_scope(filename: str, takeover: (bool | None)) -> None {
+    import from pathlib { Path }
+    import from jaclang.project.config { JacConfig, get_config, pin_project_scope }
+    import from jaclang.project.pyvenv { add_venv_to_path }
+    import from jaclang.runtime.runtime { JacRuntime as Jac }
+
+    file_path = Path(filename).resolve();
+    Jac.set_full_target_path(str(file_path));
+
+    existing_config = get_config();
+    active_profile = existing_config.active_profile if existing_config else None;
+
+    try {
+        owner = JacConfig.discover(start_path=file_path.parent);
+        ambient = JacConfig.discover(start_path=Path.cwd());
+    } except (OSError, KeyError, ValueError) as e {
+        console.warning(f"Failed to discover config from {file_path.parent}: {e}");
+        return;
+    }
+
+    chosen = owner;
+    notice = "";
+    if takeover is False {
+        chosen = None;
+        context = owner or ambient;
+        if context is not None {
+            notice = (
+                f"{file_path.name} runs standalone (--no-takeover); it will not "
+                f"touch the project {_project_label(context)}"
+            );
+        }
+    } elif owner is None {
+        if ambient is not None {
+            if takeover {
+                chosen = ambient;
+                notice = (
+                    f"takeover: {file_path.name} runs as the project "
+                    f"{_project_label(ambient)}, rewriting its client build"
+                );
+            } elif _project_serves(ambient) {
+                notice = (
+                    f"{file_path.name} is outside the project "
+                    f"{_project_label(ambient)}; running it standalone "
+                    "(--takeover runs it as this project)"
+                );
+            }
+        }
+    } elif takeover
+        or (_project_serves(owner) and str(file_path) != _project_entry_path(owner)) {
+        notice = (
+            f"takeover: {file_path.name} runs as the project "
+            f"{_project_label(owner)}, rewriting its client build "
+            "(--no-takeover runs it standalone)"
+        );
+    }
+    if notice {
+        _scope_notice(notice);
+    }
+
+    if chosen is not None and active_profile {
+        chosen.apply_profile_overlay(active_profile);
+    }
+    pin_project_scope(chosen);
+    if chosen is not None {
+        add_venv_to_path(chosen);
     }
 }
 
@@ -88,10 +213,10 @@ def _serve_flag_spelling -> dict {
         "api_port": "--api-port",
         "no_client": "--no-client",
         "faux": "--faux",
+        "ms": "--ms",
         "client": "--client",
         "host": "--host",
-        "platform": "--platform",
-        "takeover": "--takeover"
+        "platform": "--platform"
     };
 }
 
@@ -116,10 +241,10 @@ def _serve_overrides(
     api_port: (int | None),
     no_client: (bool | None),
     faux: (bool | None),
+    ms: (bool | None),
     client: (str | None),
     host: (str | None),
     platform: (str | None),
-    takeover: (bool | None),
     cfg: any
 ) -> dict {
     over: dict = {};
@@ -138,6 +263,9 @@ def _serve_overrides(
     if faux is not None {
         over["faux"] = faux;
     }
+    if ms is not None {
+        over["ms"] = ms;
+    }
     if client is not None {
         over["client"] = client;
     }
@@ -146,9 +274,6 @@ def _serve_overrides(
     }
     if platform is not None {
         over["platform"] = platform;
-    }
-    if takeover is not None {
-        over["takeover"] = takeover;
     }
     return over;
 }
@@ -188,7 +313,9 @@ def _kind_serve_flags(
     };
 }
 
-def _serve_with(entry_path: str, plan_flags: dict, over: dict, main: bool) -> int {
+def _serve_with(
+    entry_path: str, plan_flags: dict, over: dict, main: bool, takeover: bool = False
+) -> int {
     import from jaclang.project.providers { initialize_provider_registry }
 
     if not entry_path {
@@ -206,6 +333,7 @@ def _serve_with(entry_path: str, plan_flags: dict, over: dict, main: bool) -> in
         "api_port": 0,
         "no_client": False,
         "faux": False,
+        "ms": None,
         "client": "web",
         "host": "",
         "platform": "auto",
@@ -217,8 +345,12 @@ def _serve_with(entry_path: str, plan_flags: dict, over: dict, main: bool) -> in
         }
     }
     for (k, v) in over.items() {
+        if k not in kw {
+            raise ValueError(f"serve override {k!r} is not a serve argument");
+        }
         kw[k] = v;
     }
+    kw["takeover"] = takeover;
     return serve(filename=entry_path, main=main, **kw);
 }
 
@@ -459,6 +591,7 @@ impl run(
     api_port: (int | None) = None,
     no_client: (bool | None) = None,
     faux: (bool | None) = None,
+    ms: (bool | None) = None,
     client: (str | None) = None,
     host: (str | None) = None,
     platform: (str | None) = None,
@@ -484,13 +617,16 @@ impl run(
         return _run_jab(filename, port, args, serve_only=(serve_mode is True));
     }
 
+    if filename {
+        _pin_run_scope(filename, takeover);
+    }
     (plan, cfg, rc) = _resolve_plan(filename);
     if rc {
         return rc;
     }
 
     over = _serve_overrides(
-        port, dev, api_port, no_client, faux, client, host, platform, takeover, cfg
+        port, dev, api_port, no_client, faux, ms, client, host, platform, cfg
     );
     entry_flags = _entry_flags_used(entry_name, nd, root_id, debug_mode);
     kind_serves = plan is not None and plan.action == "serve";
@@ -535,7 +671,8 @@ impl run(
             filename or (plan.entry_path if plan is not None else ""),
             _kind_serve_flags(plan, kind_serves, serve_mode),
             over,
-            main
+            main,
+            takeover=takeover is True
         );
     }
     if plan is not None and plan.action == "build" and not filename {
@@ -695,6 +832,20 @@ def _exec_file(
     return 1 if (n_errors and diagnostics != "none") else 0;
 }
 
+def _client_display_path(path: Path, base: str) -> str {
+    import jaclang;
+    resolved = path.resolve();
+    roots = [Path(base).resolve(), Path(jaclang.__file__).resolve().parent.parent];
+    for parent in roots {
+        try {
+            return str(resolved.relative_to(parent));
+        } except ValueError {
+            continue;
+        }
+    }
+    return path.name;
+}
+
 impl serve(
     filename: str,
     port: int = 0,
@@ -703,6 +854,7 @@ impl serve(
     dev: bool = False,
     api_port: int = 0,
     no_client: bool = False,
+    ms: (bool | None) = None,
     client: str = "web",
     host: str = "",
     platform: str = "auto",
@@ -724,7 +876,9 @@ impl serve(
     }
 
     import from jaclang.scale.plugin { scale_local_serve }
-    scale_rc = scale_local_serve(filename, port=port);
+    scale_rc = scale_local_serve(
+        filename, port=port, ms=ms, dev=dev, no_client=no_client
+    );
     if scale_rc is not None {
         return scale_rc;
     }
@@ -873,9 +1027,32 @@ impl serve(
 
         if not no_client {
             try {
+                import time;
+                import from jaclang.compiler.driver.pass_driver { compile_progress }
                 compiler = server.introspector._bundle_builder._get_compiler();
-                compiler.compile(server.introspector._module, Path(filename));
-                console.print("  ✔ Initial client compilation completed");
+                compiled: list[str] = [];
+                started = time.perf_counter();
+                with console.status("Compiling client...") as status {
+                    def _on_module(file_path: str) {
+                        compiled.append(file_path);
+                        status.update(
+                            "Compiling client: "
+                                + _client_display_path(Path(file_path), base)
+                        );
+                    }
+                    with compile_progress.listen(_on_module) {
+                        compiler.compile(server.introspector._module, Path(filename));
+                    }
+                }
+                elapsed = time.perf_counter() - started;
+                detail = (
+                    f"{len(compiled)} modules compiled"
+                        if compiled
+                        else "all modules served from cache"
+                );
+                console.print(
+                    f"  ✔ Initial client compilation completed ({detail}, {elapsed:.1f}s)"
+                );
 
                 compiler._emit_na_wasm(Path(filename));
             } except Exception as e {
@@ -894,8 +1071,19 @@ impl serve(
             free_vite_port = _find_free_port(
                 vite_port, skip_port=actual_port, strict=port_pinned
             );
+            declared_paths: list = [];
+            claimed_paths: list = [];
+            try {
+                import from jaclang.client.vite_bundler { DEV_PROXY_PREFIXES }
+                declared_paths = server.introspector.declared_api_paths();
+                claimed_paths = server.introspector.client_claimed_paths(
+                    DEV_PROXY_PREFIXES
+                );
+            } except Exception as e {
+                console.warning(f"Could not read declared API paths: {e}");
+            }
             (started_vite, bound_port) = _start_vite_dev_server(
-                base, free_vite_port, actual_port
+                base, free_vite_port, actual_port, declared_paths, claimed_paths
             );
             if started_vite {
                 vite_holder.append(started_vite);
@@ -1094,7 +1282,13 @@ def _find_free_port(start: int, skip_port: int = 0, strict: bool = False) -> int
     }
 }
 
-def _start_vite_dev_server(base_path: str, vite_port: int, api_port: int) -> any {
+def _start_vite_dev_server(
+    base_path: str,
+    vite_port: int,
+    api_port: int,
+    api_paths: (list[str] | None) = None,
+    client_paths: (list[str] | None) = None
+) -> any {
     import from pathlib { Path }
 
     try {
@@ -1106,7 +1300,13 @@ def _start_vite_dev_server(base_path: str, vite_port: int, api_port: int) -> any
         client_dir = bundler._get_client_dir();
         entry_file = client_dir / 'build' / 'main.js';
 
-        bundler.create_vite_config(entry_file, is_dev=True, api_port=api_port);
+        bundler.create_vite_config(
+            entry_file,
+            is_dev=True,
+            api_port=api_port,
+            api_paths=api_paths,
+            client_paths=client_paths
+        );
 
         if not (client_dir / 'configs' / 'package.json').exists() {
             bundler.create_package_json();

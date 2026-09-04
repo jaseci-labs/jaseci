@@ -16,7 +16,8 @@ import from jaclang.scale.runtime.context.util {
     DEFAULT_CLIENT_DIST_DIR
 }
 
-glob logger = logging.getLogger(__name__);
+glob logger = logging.getLogger(__name__),
+     _BOOT_RECHECK_INTERVAL: float = 2.0;
 
 
 def _log_gateway_only_ready(host: str, bound: int) {
@@ -48,9 +49,12 @@ obj MicroserviceOrchestrator {
         registry = self._build_registry();
         logger.info(f"Registry: {len(registry.entries)} services");
 
-        deployer = LocalDeployer(registry=registry);
-        deployer.deploy_all();
+        deployer = LocalDeployer(registry=registry, dev_mode=self._dev_mode());
         pm = deployer._ensure_pm();
+        pm.app_boot_timeout = float(
+            self.ms_config.get("app_boot_timeout", pm.app_boot_timeout)
+        );
+        deployer.deploy_all();
 
         pm._boot_health_timeout = float(
             self.ms_config.get("boot_health_timeout", pm._boot_health_timeout)
@@ -58,13 +62,15 @@ obj MicroserviceOrchestrator {
         pm._health_monitor_interval = float(
             self.ms_config.get("health_monitor_interval", pm._health_monitor_interval)
         );
-        max_wait: int = int(self.ms_config.get("boot_max_wait", 90));
+        max_wait: int = int(
+            max(float(self.ms_config.get("boot_max_wait", 90)), pm._boot_health_timeout)
+        );
 
         atexit.register(deployer.destroy_all);
 
         self._wait_for_health(pm, registry, max_wait);
 
-        pm.start_health_monitor();
+        pm.start_health_monitor(interval=_BOOT_RECHECK_INTERVAL);
 
         gateway_port: int = int(
             self.ms_config.get("gateway_port", DEFAULT_GATEWAY_PORT)
@@ -130,18 +136,36 @@ obj MicroserviceOrchestrator {
         gateway.serve(on_ready=partial(_log_gateway_only_ready, gateway_host));
     }
 
+    def _dev_mode -> bool {
+        return bool(self.ms_config.get("dev", False));
+    }
+
+    def _app_serves_client -> bool {
+        return bool(self.ms_config.get("app_serves_client", False));
+    }
+
     def _build_registry -> ServiceRegistry {
+        import from jaclang.scale.runtime.routing { app_service_name }
         registry = ServiceRegistry();
         routes = self.ms_config.get("routes", {});
         service_files = dict(self.ms_config.get("service_files", {}) or {});
+        app_name: str = app_service_name(routes);
+        serves_client: bool = self._app_serves_client();
         for (route_name, prefix) in routes.items() {
             name_str: str = str(route_name);
             svc_file: str = str(service_files.get(name_str) or f"{name_str}.jac");
+            is_app: bool = name_str == app_name;
             svc_entry = ServiceEntry(
-                name=name_str, file=svc_file, prefix=str(prefix), port=0
+                name=name_str,
+                file=svc_file,
+                prefix=str(prefix),
+                port=0,
+                is_app=is_app,
+                serves_client=is_app and serves_client
             );
             registry.register(svc_entry);
-            logger.info(f"Registered route: {name_str} -> {svc_entry.prefix}");
+            role: str = " (app)" if is_app else "";
+            logger.info(f"Registered route: {name_str} -> {svc_entry.prefix}{role}");
         }
         return registry;
     }
@@ -243,7 +267,7 @@ obj MicroserviceOrchestrator {
 
     def _wait_for_health(
         pm: ServiceProcessManager, registry: ServiceRegistry, max_wait: int
-    ) {
+    ) -> bool {
         logger.info("Waiting for services to start...");
         start_time: float = time.time();
         all_healthy = False;
@@ -278,13 +302,21 @@ obj MicroserviceOrchestrator {
         }
 
         if not all_healthy {
-            for (name, `entry) in registry.entries.items() {
-                if `entry.status != ServiceStatus.HEALTHY {
-                    logger.warning(f"  {name}: NOT HEALTHY");
-                }
+            starting: list[str] = [
+                name
+                for (name, `entry) in registry.entries.items()
+                if `entry.status not in (ServiceStatus.HEALTHY, ServiceStatus.STOPPED)
+            ];
+            if starting {
+                logger.warning(
+                    f"still starting after {max_wait}s: {', '.join(starting)}. "
+                    "The gateway keeps polling them and picks up their routes "
+                    "as soon as they answer; until then their paths reach the "
+                    "app service."
+                );
             }
-            logger.warning("Proceeding with unhealthy services...");
         }
+        return all_healthy;
     }
 
     def _print_startup_banner(

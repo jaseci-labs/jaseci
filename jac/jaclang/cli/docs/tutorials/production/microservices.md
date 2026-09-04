@@ -338,7 +338,28 @@ For the full Kubernetes deployment story (image building, ingress, autoscaling),
 
 ### Microservice Mode + Gateway
 
-For projects with more than a handful of services, the built-in `scale` subsystem ships a microservice mode that puts a single API gateway in front of all of them. `jac setup microservice` writes the plumbing into `jac.toml` and `jac run` on the project root brings the whole stack up -- one public port, one unified `/docs`, one `/metrics` endpoint, one shared anchor store. The same source still runs as a monolith when microservice mode is disabled.
+For projects with more than a handful of services, the built-in `scale` subsystem ships a microservice mode that puts a single API gateway in front of all of them. `jac setup microservice` writes the plumbing into `jac.toml` and `jac run --serve` on the project root brings the whole stack up -- one public port, one unified `/docs`, one `/metrics` endpoint, one shared anchor store. The same source still runs as a monolith when microservice mode is disabled.
+
+#### Which topology a local run picks
+
+The routes table describes the cut you want when the project is *deployed*, so it does not by itself take your dev loop away:
+
+| Command | Topology |
+|---------|----------|
+| `jac run` on a web-app kind | One process: the vite dev server with HMR, exactly as if no routes were declared |
+| `jac run --serve` | Gateway + one subprocess per declared service |
+| `jac run --ms` | Gateway + subprocesses, dev client included (the entry module's service runs vite and HMR behind the gateway) |
+| `jac run --no-ms` | One process, whatever the kind |
+
+`[scale.microservices] enabled` is the same choice in `jac.toml`: `true` asks for the gateway even on a dev-client run, `false` keeps every local run single-process while the routes table still describes the deployed cut. A `--ms` / `--no-ms` flag overrides it. A deployed fleet pod ignores the key -- the deploy already realized the topology.
+
+In a **local** microservice run of a project that serves a client, the entry module's service is the *app service* and owns the project root: `/`, `[serve] base_route_app`, `/static/client.js` and any client-side route the fleet does not claim reach it through the gateway. Root ownership is that path only -- it requires a service that actually serves the client -- so a deployed gateway pod is unaffected and keeps serving the client bundle its image staged.
+
+`/cl/<page>` is not exclusive: it stays a discovery family, with the app service asked first (at its dev page server when it has one) and a page it does not serve still reaching the service that does.
+
+Because the app service compiles the client, it starts and finishes booting before the rest of the fleet -- a module another service analyzed first reaches the client backend with its calls unresolved. The others then start in parallel behind it; `app_boot_timeout` bounds that wait, and a headless fleet skips it entirely.
+
+A service still compiling never costs the fleet its routes either: the gateway keeps asking for its `/openapi.json` until it is healthy, and never caches what it said before then.
 
 The gateway exposes a standard error envelope (`{ok, error: {code, message, service?, trace_id}, meta}`) across every failure path (proxy, passthrough, aggregation). Drop-in observability: `X-Trace-Id` is minted if absent and threaded through every service RPC hop. The following knobs all live under `[scale.microservices]` and are emitted as commented reference blocks by `jac setup microservice`:
 
@@ -348,7 +369,8 @@ The gateway exposes a standard error envelope (`{ok, error: {code, message, serv
 | Per-service RPC timeout | `[...services.NAME] rpc_timeout = 120.0` | 10s |
 | Boot-time per-service /healthz wait | `boot_health_timeout = 60.0` | 60s |
 | Boot-time overall startup window | `boot_max_wait = 90` | 90s |
-| Background recovery health-check cadence | `health_monitor_interval = 10.0` | 10s |
+| Client-serving service's head start (it compiles the client, so it boots alone) | `app_boot_timeout = 900.0` | 900s, a stall budget: the clock resets while it is still writing to its log |
+| Background recovery health-check cadence | `health_monitor_interval = 10.0` | 10s (2s while anything is unhealthy) |
 | CORS | `[...cors] allow_origins = [...]` | open (`["*"]`); set to `[]` to disable |
 | Rate limiting | `[...rate_limit] enabled = true, per_ip_rpm = 600, per_user_rpm = 120` | disabled |
 | Centralised logs (Loki + Alloy) | `[...logs] enabled = true` | disabled -- see [Centralised Logs](../../reference/plugins/jac-scale-kubernetes.md#centralised-logs) for the deployed components, dashboard, and storage caveats |

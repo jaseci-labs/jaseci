@@ -1,11 +1,10 @@
 """A deployed fleet stamps JAC_SV_SIBLING/JAC_SV_ROUTES into its pods; the
-gateway pod must boot from that env even when the app's jac.toml carries the
-(deprecated) [scale.microservices] enabled = false. The opt-out governs
-whether THIS process realizes a fleet - a local `jac run --serve`/`jac scale` still
-honors it, and apps that declare routes but opt out keep serving
-single-process - never whether a member of an already-realized fleet may
-serve. These tests drive the real CLI the way a pod command does and pin that
-contract, plus the one-time deprecation warning on the key."""
+gateway pod must boot from that env even when the app's jac.toml carries
+[scale.microservices] enabled = false. The opt-out governs whether THIS
+process realizes a fleet - a local `jac run --serve`/`jac scale` still honors
+it, and apps that declare routes but opt out keep serving single-process -
+never whether a member of an already-realized fleet may serve. These tests
+drive the real CLI the way a pod command does and pin that contract."""
 
 import os;
 import shutil;
@@ -118,7 +117,7 @@ test "a fleet gateway pod boots despite the app's enabled = false opt-out" {
 }
 
 
-test "a local `jac scale gateway` still honors the opt-out, with a deprecation warning" {
+test "a local `jac scale gateway` still honors the opt-out" {
     port = get_free_port();
     project_dir = _optout_project(port);
     try {
@@ -137,9 +136,6 @@ test "a local `jac scale gateway` still honors the opt-out, with a deprecation w
     combined = result.stdout + result.stderr;
     assert result.returncode == 1;
     assert "Microservice mode is disabled" in combined;
-    assert "deprecated" in combined , (
-        f"no deprecation warning for the legacy key:\n{combined}"
-    );
 }
 
 

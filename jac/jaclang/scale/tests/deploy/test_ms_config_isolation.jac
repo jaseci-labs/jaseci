@@ -43,6 +43,20 @@ def _unload_host_config(project_dir: str) {
 }
 
 
+def _load_broken_config -> str {
+    # A jac.toml the loader cannot parse: an unterminated section header. The
+    # readers below must refuse rather than answer the same {} they answer for
+    # an app that configured no microservices at all.
+    project_dir = tempfile.mkdtemp(prefix="jac-broken-config-");
+    (Path(project_dir) / "jac.toml").write_text(
+        '[project]\nname = "broken-app"\n[scale.microservices\n'
+    );
+    reset_scale_config();
+    get_scale_config(project_dir=Path(project_dir));
+    return project_dir;
+}
+
+
 def _guest_builder(ms_config: (dict[str, any] | None)) -> ManifestBuilder {
     # A guest app that declares no [scale.microservices] of its own; the SDK
     # hands the builder the spec's config, which for such an app is empty.
@@ -180,4 +194,65 @@ test "k8s_safe_name rejects a name with nothing usable left" {
 
 test "the gateway keeps its reserved short name" {
     assert k8s_safe_name(GATEWAY_NAME) == "gateway";
+}
+
+
+test "an unreadable microservices config fails the deploy, not into a monolith" {
+    project_dir = _load_broken_config();
+    try {
+        builder = _guest_builder(None);
+        raised = "";
+        try {
+            builder._service_config("api");
+        } except Exception as e {
+            raised = str(e);
+        }
+        assert raised != "" , (
+            "an unreadable [scale.microservices] answered a default instead of "
+            "raising, so the deploy would have proceeded on a topology the user "
+            "never configured"
+        );
+        assert "jac.toml" in raised , (
+            f"the failure {raised!a} does not name the file it could not read"
+        );
+        assert "scale.microservices" in raised , (
+            f"the failure {raised!a} does not name the section"
+        );
+    } finally {
+        _unload_host_config(project_dir);
+    }
+}
+
+
+test "every microservices reader refuses a config it could not read" {
+    # Each of these used to wrap the load in its own except and return a
+    # default, so a config error was indistinguishable from an unconfigured app
+    # at every one of them.
+    project_dir = _load_broken_config();
+    try {
+        builder = _guest_builder(None);
+        answered: list[str] = [];
+        try {
+            builder._drain_timeout();
+            answered.append("_drain_timeout");
+        } except Exception {}
+        try {
+            builder._microservice_routes();
+            answered.append("_microservice_routes");
+        } except Exception {}
+        try {
+            builder._shared_volumes_config();
+            answered.append("_shared_volumes_config");
+        } except Exception {}
+        try {
+            builder._service_config("api");
+            answered.append("_service_config");
+        } except Exception {}
+        assert sorted(answered) == [] , (
+            f"{sorted(answered)} answered a default for a config that could not "
+            "be read"
+        );
+    } finally {
+        _unload_host_config(project_dir);
+    }
 }

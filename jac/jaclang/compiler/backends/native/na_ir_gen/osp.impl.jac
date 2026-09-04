@@ -532,6 +532,27 @@ impl NaIRGenOsp._emit_osp_setup -> None {
     );
     _ensure.linkage = "internal";
     self._osp_ensure_fn = _ensure;
+
+    _died_fn = self.func_symtab.get("osp_region_died");
+    if (_died_fn is not None) and ("__jac_region_died_hook" not in self.extern_funcs) {
+        _hook = ir.Function(
+            self.llvm_module,
+            ir.FunctionType(ir.VoidType(), [i64]),
+            name="__jac_region_died_hook"
+        );
+        _hook.linkage = "linkonce_odr";
+        _hook.args[0].name = "rgn";
+        _hb = ir.IRBuilder(_hook.append_basic_block("entry"));
+        _hb.call(_ensure, []);
+        _died_argty = _died_fn.function_type.args[0];
+        _died_arg: ir.Value = _hook.args[0];
+        if _died_argty != i64 {
+            _died_arg = _hb.bitcast(_hook.args[0], _died_argty, name="rgn.died.arg");
+        }
+        _hb.call(_died_fn, [_died_arg]);
+        _hb.ret_void();
+        self.extern_funcs["__jac_region_died_hook"] = _hook;
+    }
     _e_entry = _ensure.append_basic_block("entry");
     _e_krun = _ensure.append_basic_block("kernel_run");
     _e_setup_chk = _ensure.append_basic_block("setup_check");
@@ -572,42 +593,36 @@ impl NaIRGenOsp._osp_generic_edge -> (ir.Value | None) {
         return None;
     }
     i64 = ir.IntType(64);
-    if self.region_stack {
-        return self._region_alloc(ir.Constant(i64, 8), name="osp.gedge.rgn");
-    }
-    if self._dynamic_region_module() {
-        self._emit_arena_helpers();
-        _i8p_dy = ir.IntType(8).as_pointer();
-        _dedge = self.builder.call(
-            self.region_dyn_alloc_fn,
-            [
-                ir.Constant(i64, 8),
-                ir.Constant(_i8p_dy, None),
-                ir.Constant(_i8p_dy, None)
-            ],
-            name="osp.gedge.dyn"
-        );
-        self._osp_make_immortal(_dedge);
-        return _dedge;
-    }
-    if "here" in self.local_vars {
-        self._emit_arena_helpers();
-        _i8p_ge = ir.IntType(8).as_pointer();
-        _here_v = self.builder.load(self.local_vars["here"], name="gedge.here");
-        _here_i8 = self.builder.bitcast(_here_v, _i8p_ge, name="gedge.here.i8");
-        _gedge = self.builder.call(
-            self.osp_anchor_alloc_fn,
-            [_here_i8, ir.Constant(i64, 8), ir.Constant(_i8p_ge, None)],
-            name="osp.gedge.anch"
-        );
-        self._osp_make_immortal(_gedge);
-        return _gedge;
-    }
+    i8p = ir.IntType(8).as_pointer();
+    func = self.builder.function;
+    heap_bb = func.append_basic_block(name="gedge.heap");
+    rgn_bb = func.append_basic_block(name="gedge.region");
+    merge_bb = func.append_basic_block(name="gedge.merge");
+    _cur = self._region_current();
+    self.builder.cbranch(
+        self.builder.icmp_unsigned(
+            "==", _cur, ir.Constant(i8p, None), name="gedge.nocur"
+        ),
+        heap_bb,
+        rgn_bb
+    );
+    self.builder.position_at_end(heap_bb);
     _raw = self._rc_call_with_ctx(
         self.rc_alloc_fn, [ir.Constant(i64, 8)], op="osp", loc="", name="osp.gedge"
     );
     self._osp_make_immortal(_raw);
-    return _raw;
+    _raw = self._region_ptr(_raw, name="osp.gedge.i8");
+    heap_end = self.builder.block;
+    self.builder.branch(merge_bb);
+    self.builder.position_at_end(rgn_bb);
+    _rgn = self._region_alloc_object(_cur, ir.Constant(i64, 8), None);
+    rgn_end = self.builder.block;
+    self.builder.branch(merge_bb);
+    self.builder.position_at_end(merge_bb);
+    _edge = self.builder.phi(i8p, name="osp.gedge.obj");
+    _edge.add_incoming(_raw, heap_end);
+    _edge.add_incoming(_rgn, rgn_end);
+    return _edge;
 }
 
 impl NaIRGenOsp._codegen_connect(nd: uni.BinaryExpr) -> (ir.Value | None) {
@@ -679,23 +694,16 @@ impl NaIRGenOsp._codegen_connect(nd: uni.BinaryExpr) -> (ir.Value | None) {
     }
 
     self._osp_make_immortal(edge_obj);
-    self._emit_arena_helpers();
     _argtys = osp_conn_fn.function_type.args;
     _src_i64 = self._coerce_type(src, _argtys[0]);
     _tgt_i64 = self._coerce_type(tgt, _argtys[1]);
-    _rgn_src: ir.Value = ir.Constant(i64, 0);
-    _rgn_tgt: ir.Value = ir.Constant(i64, 0);
-    if self.region_handle_of_fn is not None {
-        _i8p_conn = ir.IntType(8).as_pointer();
-        _src_conn = self.builder.inttoptr(_src_i64, _i8p_conn, name="conn.src.p");
-        _rgn_src = self.builder.call(
-            self.region_handle_of_fn, [_src_conn], name="conn.rgn.src"
-        );
-        _tgt_conn = self.builder.inttoptr(_tgt_i64, _i8p_conn, name="conn.tgt.p");
-        _rgn_tgt = self.builder.call(
-            self.region_handle_of_fn, [_tgt_conn], name="conn.rgn.tgt"
-        );
-    }
+    _rgn_of_fn = self._region_kernel_fn("__jac_region_of");
+    _rgn_src: ir.Value = self.builder.call(
+        _rgn_of_fn, [self._coerce_type(_src_i64, i64)], name="conn.rgn.src"
+    );
+    _rgn_tgt: ir.Value = self.builder.call(
+        _rgn_of_fn, [self._coerce_type(_tgt_i64, i64)], name="conn.rgn.tgt"
+    );
     self.builder.call(
         osp_conn_fn,
         [

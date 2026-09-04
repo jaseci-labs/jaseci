@@ -43,27 +43,6 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
             'target_timeout_seconds': 30,
             'messages_per_second': 20
         },
-        'kubernetes': {
-            'namespace': 'default',
-            'container_port': 8000,
-            'database_mode': 'auto',
-            'database_url': '',
-            'database_namespace': '',
-            'ingress_node_port': 30080,
-            'ingress_limit_rps': 20,
-            'ingress_limit_burst_multiplier': 5,
-            'ingress_limit_connections': 20,
-            'ingress_session_affinity': True,
-            'cpu_request': None,
-            'cpu_limit': None,
-            'memory_request': None,
-            'memory_limit': None,
-            'readiness_initial_delay': 10,
-            'readiness_period': 20,
-            'liveness_initial_delay': 10,
-            'liveness_period': 20,
-            'liveness_failure_threshold': 80
-        },
         'secrets': {},
         'server': {
             'port': 8000,
@@ -257,6 +236,19 @@ impl JacScaleConfig.get_database_config(self: JacScaleConfig) -> dict[str, any] 
     resolved['url'] = os.environ.get('JAC_DB_URL') or resolved['url'];
     return resolved;
 }
+
+impl load_microservices_config -> dict[str, any] {
+    cfg = get_scale_config();
+    try {
+        return cfg.get_microservices_config();
+    } except Exception as e {
+        raise ValueError(
+            f"[scale.microservices] could not be read from {cfg.config_file}: {e}. "
+            "Deploying without it would silently pick a different topology."
+        ) from e;
+    }
+}
+
 
 impl JacScaleConfig.get_kubernetes_config(self: JacScaleConfig) -> dict[str, any] {
     config = self.load();
@@ -578,16 +570,6 @@ impl JacScaleConfig.get_microservices_config(self: JacScaleConfig) -> dict[str, 
 impl normalize_microservices_config(
     ms_config: dict[str, any], env_routes_fallback: bool = True
 ) -> dict[str, any] {
-    if 'enabled' in ms_config and not _ms_enabled_deprecation_warned {
-        _ms_enabled_deprecation_warned = True;
-        import logging;
-        logging.getLogger(__name__).warning(
-            "jac.toml [scale.microservices] `enabled` is deprecated: declaring "
-            "[scale.microservices.routes] is what turns microservice mode on, "
-            "and a deployed fleet pod ignores this key. Delete it (remove the "
-            "routes table to run single-process); a future release drops it."
-        );
-    }
     client_config = ms_config.get('client', {});
     cors_config = ms_config.get('cors', {});
     rl_config = ms_config.get('rate_limit', {});

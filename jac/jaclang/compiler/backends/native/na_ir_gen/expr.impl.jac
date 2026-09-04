@@ -393,12 +393,17 @@ impl NaIRGenExpr._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
     saved_func_symtab = dict(self.func_symtab);
     saved_cell_vars = self.closure_cell_vars;
     saved_cell_handles = self.closure_cell_handles;
+    saved_nogc_no_free = self.nogc_no_free_vars;
+    saved_nogc_owned_str = self.nogc_owned_str_vars;
+    saved_region_handles = self.region_handle_vars;
+    saved_region_opens = self.region_open_stack;
     entry_bb = anon_fn.append_basic_block("entry");
     self._builder = ir.IRBuilder(entry_bb);
     self.local_vars = {};
     self.nogc_no_free_vars = set();
     self.nogc_owned_str_vars = set();
     self.region_handle_vars = set();
+    self.region_open_stack = [];
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};
 
@@ -465,6 +470,10 @@ impl NaIRGenExpr._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
     self.func_symtab = saved_func_symtab;
     self.closure_cell_vars = saved_cell_vars;
     self.closure_cell_handles = saved_cell_handles;
+    self.nogc_no_free_vars = saved_nogc_no_free;
+    self.nogc_owned_str_vars = saved_nogc_owned_str;
+    self.region_handle_vars = saved_region_handles;
+    self.region_open_stack = saved_region_opens;
 
     if captures {
         _all_cells = True;
@@ -803,16 +812,45 @@ impl NaIRGenExpr._is_walker_arch(name: str) -> bool {
 }
 
 impl NaIRGenExpr._codegen_compare(nd: uni.CompareExpr) -> (ir.Value | None) {
-    left = self._codegen_expr(nd.left);
-    if left is None or not nd.rights or not nd.ops {
+    if not nd.rights or not nd.ops {
         return None;
     }
-    if len(nd.ops) > 1 and len(nd.rights) == len(nd.ops) {
-        return self._codegen_compare_chain(nd, left);
-    }
-    right = self._codegen_expr(nd.rights[0]);
-    if right is None {
-        return None;
+    _l_nd = nd.left.expr if isinstance(nd.left, uni.CfgExpr) else nd.left;
+    _left_is_empty_lit = (
+        isinstance(_l_nd, uni.ListVal) and not _l_nd.values and len(nd.rights) == 1
+    );
+    _cmp_peer_saved = self._peer_container_ty;
+    if _left_is_empty_lit {
+        right = self._codegen_expr(nd.rights[0]);
+        if right is None {
+            return None;
+        }
+        self._peer_container_ty = right.type;
+        try {
+            left = self._codegen_expr(nd.left);
+        } finally {
+            self._peer_container_ty = _cmp_peer_saved;
+        }
+        if left is None {
+            return None;
+        }
+    } else {
+        left = self._codegen_expr(nd.left);
+        if left is None {
+            return None;
+        }
+        if len(nd.ops) > 1 and len(nd.rights) == len(nd.ops) {
+            return self._codegen_compare_chain(nd, left);
+        }
+        self._peer_container_ty = left.type;
+        try {
+            right = self._codegen_expr(nd.rights[0]);
+        } finally {
+            self._peer_container_ty = _cmp_peer_saved;
+        }
+        if right is None {
+            return None;
+        }
     }
     op = nd.ops[0].name if isinstance(nd.ops[0], uni.Token) else str(nd.ops[0]);
     return self._codegen_compare_link(op, left, right, nd.left, nd.rights[0]);
@@ -1435,7 +1473,13 @@ impl NaIRGenExpr._codegen_compare_chain(
     result: (ir.Value | None) = None;
     cur = left;
     for (i, op_name) in enumerate(op_names) {
-        right = self._codegen_required(nd.rights[i]);
+        _chain_peer_saved = self._peer_container_ty;
+        self._peer_container_ty = cur.type;
+        try {
+            right = self._codegen_required(nd.rights[i]);
+        } finally {
+            self._peer_container_ty = _chain_peer_saved;
+        }
         if right is None {
             return None;
         }
