@@ -136,7 +136,7 @@ def walker_call(
         tc = sv_client._test_clients[module_name];
         resp = tc.post(f"/walker/{walker_name}", json=args);
         data = resp.json();
-        return _hydrate_walker_envelope(data, module_name, walker_name, stub_cls);
+        return sv_client.hydrate_walker_envelope(data, label, args, stub_cls);
     }
 
     if breaker_should_skip(module_name) {
@@ -179,7 +179,7 @@ def walker_call(
     }
 
     data = _rpc_with_retries(module_name, f"walker spawn '{label}'", send);
-    return _hydrate_walker_envelope(data, module_name, walker_name, stub_cls);
+    return sv_client.hydrate_walker_envelope(data, label, args, stub_cls);
 }
 
 
@@ -218,30 +218,5 @@ def _unwrap_sv_envelope(data: any, module_name: str, func_name: str) -> any {
     msg = err.get("message") if isinstance(err, dict) else str(err);
     raise RuntimeError(
         f"sv-to-sv RPC '{module_name}.{func_name}' failed: {msg or 'unknown error'}"
-    );
-}
-
-def _hydrate_walker_envelope(
-    data: any, module_name: str, walker_name: str, stub_cls: any
-) -> any {
-    if isinstance(data, dict) and data.get("ok") {
-        envelope = data.get("data") or {};
-        result_dict = envelope.get("result") if isinstance(envelope, dict) else None;
-        reports = envelope.get("reports") if isinstance(envelope, dict) else None;
-        instance = stub_cls._from_wire(result_dict)
-            if (stub_cls is not None and result_dict is not None)
-            else result_dict;
-        if instance is not None and reports is not None {
-            try {
-                instance.reports = reports;
-            } except Exception {}
-        }
-        return instance;
-    }
-    err = (data.get("error") if isinstance(data, dict) else None) or {};
-    msg = err.get("message") if isinstance(err, dict) else str(err);
-    raise RuntimeError(
-        f"sv-to-sv walker spawn '{module_name}.{walker_name}' failed: {msg
-            or 'unknown error'}"
     );
 }

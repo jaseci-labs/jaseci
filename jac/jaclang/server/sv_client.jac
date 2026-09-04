@@ -152,3 +152,20 @@ def ensure_all(module_names: list[str]) -> None {
         raise first_error;
     }
 }
+
+def hydrate_walker_envelope(data: any, label: str, args: dict, stub_cls: any) -> any {
+    if not (isinstance(data, dict) and data.get("ok")) {
+        err = (data.get("error") if isinstance(data, dict) else None) or {};
+        msg = err.get("message") if isinstance(err, dict) else str(err);
+        raise RuntimeError(
+            f"sv-to-sv walker spawn '{label}' failed: {msg or 'unknown error'}"
+        );
+    }
+    envelope = data.get("data") or {};
+    reports = envelope.get("reports") if isinstance(envelope, dict) else None;
+    fields = {name: None for name in stub_cls.__jac_fields__};
+    fields.update(args);
+    instance = stub_cls._from_wire(fields);
+    instance.reports = list(reports) if isinstance(reports, list) else [];
+    return instance;
+}

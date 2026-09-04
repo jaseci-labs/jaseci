@@ -192,7 +192,7 @@ Both error and success cases survive the boundary intact. The `_jac_type` metada
 
 ### Walker Imports
 
-`def:pub` is one of two shapes that can cross the service boundary; the other is `walker:pub`. A walker imported from a routes-table service becomes a remote spawn: the consumer-side stub class accepts the walker's `has` fields as keyword arguments, fires off a `POST /walker/<name>` over the wire, and returns the executed walker with its fields and `reports` populated -- the same shape you'd get from a local spawn.
+`def:pub` is one of two shapes that can cross the service boundary; the other is `walker:pub`. A walker imported from a routes-table service becomes a remote spawn: the consumer-side stub class accepts the walker's `has` fields as keyword arguments, fires off a `POST /walker/<name>` over the wire, and returns a walker instance that carries the fields you passed plus the `reports` the provider produced. Field state the provider's walk mutates stays on the provider; `report` is the only channel that crosses the wire.
 
 Add a walker to `math_service.jac`:
 
@@ -228,7 +228,7 @@ curl -X POST http://localhost:8002/walker/TriggerGreet \
 ```
 
 ```json
-{"ok":true,"type":"response","data":{"result":{"_jac_type":"TriggerGreet","_jac_id":"...","_jac_archetype":"walker","reports":[],"who":"world"},"reports":["hello, world"]},"error":null,"meta":{"extra":{"http_status":200}}}
+{"ok":true,"type":"response","data":{"result":{},"reports":["hello, world"]},"error":null,"meta":{"extra":{"http_status":200}}}
 ```
 
 The provider log shows the cross-service hop: `POST /walker/Greet 200`. The consumer's `Greet(name=self.who)` call site reads exactly like a local construction; the compiler swaps it for an HTTP spawn at compile time.
