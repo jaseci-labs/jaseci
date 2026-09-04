@@ -8,7 +8,11 @@ import from jaclang.scale.config.validation {
     known_deploy_targets,
     validate_scale_config
 }
+import from jaclang.comptime { fields }
 import from jaclang.scale.config.plugin_config { JacScalePluginConfig }
+import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
+    KubernetesConfig
+}
 import from jaclang.scale.config.config_loader {
     JacScaleConfig,
     get_scale_config,
@@ -120,6 +124,76 @@ test "schema defaults agree with runtime defaults" {
     );
     assert bad == [] , f"schema/defaults disagree: {bad}";
 }
+
+# get_default_config no longer restates the [scale.kubernetes] block, because
+# KubernetesConfig's own has-declaration is the single source of those
+# defaults. The test above therefore no longer reaches that section; these two
+# hold the same contract against the declaration instead. _LOADER_DERIVED are
+# the fields get_kubernetes_config assigns after loading, from
+# [scale.monitoring], [scale.admin] and the system plugin deps: declaring them
+# under [scale.kubernetes] would validate a value that is then overwritten.
+# app_name is exempt from the default comparison alone: the schema's None means
+# "derive a slug from [project].name", the declaration's 'jaseci' is the
+# fallback when no project name is usable.
+glob _LOADER_DERIVED: set[str] = {
+         "admin_username",
+         "monitoring_enabled",
+         "k8s_metrics_enabled",
+         "prometheus_admin_password",
+         "service_dependencies"
+     },
+     _DERIVED_DEFAULT: set[str] = {"app_name"};
+
+
+def _k8s_schema_options -> dict[str, any] {
+    return JacScalePluginConfig.get_config_schema()["options"]["kubernetes"]["nested"];
+}
+
+
+test "every [scale.kubernetes] field the loader reads is declared in the schema" {
+    opts = _k8s_schema_options();
+    undeclared: list[str] = [];
+    for f in fields(KubernetesConfig) {
+        if f.name in _LOADER_DERIVED {
+            continue;
+        }
+        if f.name not in opts {
+            undeclared.append(f.name);
+        }
+    }
+    assert sorted(undeclared) == [] , (
+        f"KubernetesConfig declares {sorted(undeclared)}, which [scale.kubernetes] "
+        "never names, so a user setting one is warned it is unknown while the "
+        "loader uses it"
+    );
+}
+
+
+test "the [scale.kubernetes] schema agrees with the declaration it documents" {
+    opts = _k8s_schema_options();
+    declared = KubernetesConfig();
+    drift: list[str] = [];
+    for f in fields(KubernetesConfig) {
+        if f.name in _LOADER_DERIVED or f.name in _DERIVED_DEFAULT {
+            continue;
+        }
+        spec = opts.get(f.name);
+        if not isinstance(spec, dict) {
+            continue;
+        }
+        if spec.get("default") != getattr(declared, f.name) {
+            drift.append(
+                f"{f.name}: schema={spec.get('default')!r} "
+                f"declaration={getattr(declared, f.name)!r}"
+            );
+        }
+    }
+    disagreed = sorted(drift);
+    assert disagreed == [] , (
+        f"the schema documents a default the declaration does not apply: {disagreed}"
+    );
+}
+
 
 test "reporting does not raise outside strict mode" {
     os.environ.pop(STRICT_ENV, None);

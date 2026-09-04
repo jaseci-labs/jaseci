@@ -2,6 +2,7 @@ import os;
 import shutil;
 import tempfile;
 import from pathlib { Path }
+import from jaclang.comptime { fields }
 import from jaclang.scale.config.config_loader {
     JacScaleConfig,
     get_scale_config,
@@ -247,5 +248,113 @@ test "get_scale_config raises on a different project_dir instead of silently reu
         reset_scale_config();
         shutil.rmtree(dir_a, ignore_errors=True);
         shutil.rmtree(dir_b, ignore_errors=True);
+    }
+}
+
+
+# KubernetesConfig's has-declaration is the only place a [scale.kubernetes]
+# default lives, so these drive a real jac.toml through the real loader rather
+# than asserting against a second copy of the defaults.
+
+test "an unwritten [scale.kubernetes] key resolves to the declaration" {
+    with tempfile.TemporaryDirectory() as project {
+        (Path(project) / "jac.toml").write_text(
+            '[project]\nname = "decl-app"\nversion = "0.0.1"\n'
+        );
+        resolved = JacScaleConfig(project_dir=Path(project)).get_kubernetes_config();
+        declared = KubernetesConfig();
+        for name in [
+            "min_replicas",
+            "max_replicas",
+            "cpu_utilization_target",
+            "memory_utilization_target",
+            "readiness_initial_delay",
+            "liveness_failure_threshold",
+            "container_port"
+        ] {
+            got = resolved[name];
+            want = getattr(declared, name);
+            assert got == want , f"{name} resolved to {got!r}, not the declared {want!r}";
+        }
+        assert resolved["app_name"] == "decl-app";
+    }
+}
+
+
+test "every [scale.kubernetes] key a user writes reaches the resolved config" {
+    # One sweep over every declared scalar field, so a key dropped between the
+    # toml and the resolved config fails by name instead of waiting for someone
+    # to notice their setting had no effect (#8401 was one such field).
+    declared = KubernetesConfig();
+    # Assigned by get_kubernetes_config after loading, from other sections, or
+    # coerced on the way in; a written value is not what comes back.
+    not_written: set[str] = {
+        "database_mode",
+        "database_url",
+        "database_namespace",
+        "admin_username",
+        "monitoring_enabled",
+        "k8s_metrics_enabled",
+        "prometheus_admin_password",
+        "service_dependencies"
+    };
+    written: dict[str, any] = {};
+    lines: list[str] = [];
+    for f in fields(KubernetesConfig) {
+        if f.name in not_written {
+            continue;
+        }
+        val = getattr(declared, f.name);
+        new_val: any = None;
+        if isinstance(val, bool) {
+            new_val = not val;
+            bool_txt = "true" if new_val else "false";
+            lines.append(f.name + " = " + bool_txt);
+        } elif isinstance(val, int) {
+            new_val = val + 7;
+            lines.append(f.name + " = " + str(new_val));
+        } elif isinstance(val, str) {
+            new_val = (val + "x") if val else "x";
+            lines.append(f.name + ' = "' + new_val + '"');
+        } else {
+            continue;
+        }
+        written[f.name] = new_val;
+    }
+    assert len(written) > 30 , (
+        f"only {len(written)} keys were probed; the sweep stopped covering the section"
+    );
+    with tempfile.TemporaryDirectory() as project {
+        (Path(project) / "jac.toml").write_text(
+            '[project]\nname = "sweep-app"\nversion = "0.0.1"\n\n'
+            '[scale.kubernetes]\n'
+                + "\n".join(lines)
+                + "\n"
+        );
+        resolved = JacScaleConfig(project_dir=Path(project)).get_kubernetes_config();
+        dropped: list[str] = [];
+        for (key, want) in written.items() {
+            if resolved.get(key) != want {
+                dropped.append(f"{key}: wrote {want!r}, got {resolved.get(key)!r}");
+            }
+        }
+        missing = sorted(dropped);
+        assert missing == [] , (
+            f"a written [scale.kubernetes] key never reached the resolved config: {missing}"
+        );
+    }
+}
+
+
+test "a value from another section reaches the kubernetes config" {
+    # admin_username is emitted by the loader from [scale.admin], not written
+    # under [scale.kubernetes], so it exercises the hand-off the sweep skips.
+    with tempfile.TemporaryDirectory() as project {
+        (Path(project) / "jac.toml").write_text(
+            '[project]\nname = "admin-app"\nversion = "0.0.1"\n\n'
+            '[scale.admin]\nusername = "metrics-admin"\n'
+        );
+        resolved = JacScaleConfig(project_dir=Path(project)).get_kubernetes_config();
+        assert resolved["admin_username"] == "metrics-admin";
     }
 }
