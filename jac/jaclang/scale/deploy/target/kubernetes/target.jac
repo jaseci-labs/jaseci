@@ -629,9 +629,16 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 for name in names {
                     try {
                         d = apps_v1.read_namespaced_deployment(name=name, namespace=ns);
-                        complete = deployment_rollout_complete(d)
-                            if require_full
-                            else (d.status.ready_replicas or 0) >= 1;
+                        # Measurement scaffolding standing in for #8723: an
+                        # autoscaler that parks a scale-to-zero service at 0
+                        # replicas is desired state, not a stuck rollout.
+                        parked = (d.spec.replicas or 0) == 0;
+                        complete = parked
+                        or (
+                            deployment_rollout_complete(d)
+                                if require_full
+                                else (d.status.ready_replicas or 0) >= 1
+                        );
                         if complete {
                             ready += 1;
                         }
