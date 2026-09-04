@@ -50,6 +50,14 @@ impl _emit_agent_telemetry(
         }
     }
 
+    tokens: dict = {"total": {}, "per_call": []};
+    try {
+        runtime: any = mt_run;
+        tokens = runtime.usage_summary();
+    } except Exception as e {
+        logger.debug(f"usage summary failed: {e}");
+    }
+
     record_mtir = mt_run?.mtir;
     record = {
         "invocation_id": getattr(mt_run, "_invocation_id"),
@@ -62,7 +70,8 @@ impl _emit_agent_telemetry(
         "model": model_name,
         "latency_ms": latency_ms,
         "status": status,
-        "error": str(error)[:1000] if error else None
+        "error": str(error)[:1000] if error else None,
+        "tokens": tokens
     };
 
     for callback in _agent_callbacks {

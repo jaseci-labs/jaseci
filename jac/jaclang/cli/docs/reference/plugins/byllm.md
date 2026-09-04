@@ -2218,6 +2218,7 @@ Each callback receives a dict with these fields:
 | `latency_ms` | `float` | Wall-clock time for the invocation in milliseconds |
 | `status` | `str` | `"success"` or `"error"` |
 | `error` | `str \| None` | Error message if status is `"error"` (truncated to 1000 chars) |
+| `tokens` | `dict` | `total` and `per_call` usage for every model call the invocation made, the same shape as the `usage` stream event. Present for every invocation shape, streaming or not |
 
 ### Combining with LiteLLM Per-Call Logging
 

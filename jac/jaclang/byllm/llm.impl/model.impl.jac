@@ -56,17 +56,8 @@ def _model_lacks_tool_role(model_name: str) -> bool {
 }
 
 impl Model.invoke(mt_run: MTRuntime) -> any {
-    import uuid;
-    import time;
     import types as _types_mod;
-
-    _parent = _current_invocation_id.get(None);
-    _invocation_id = str(uuid.uuid4());
-    setattr(mt_run, "_parent_invocation_id", _parent);
-    setattr(mt_run, "_invocation_id", _invocation_id);
-    _ctx_token = _current_invocation_id.set(_invocation_id);
-    _start = time.time();
-
+    (ctx_token, start) = _begin_invocation(mt_run);
     try {
         if self._mock_delegate {
             result = self._mock_delegate.invoke(mt_run);
@@ -75,29 +66,66 @@ impl Model.invoke(mt_run: MTRuntime) -> any {
         } else {
             result = super.invoke(mt_run);
         }
-
         if isinstance(result, _types_mod.GeneratorType) {
-            _current_invocation_id.reset(_ctx_token);
-            return _stream_with_telemetry(result, mt_run, self.model_name, _start);
+            _current_invocation_id.reset(ctx_token);
+            return _stream_with_telemetry(result, mt_run, self.model_name, start);
         }
-
-        _emit_agent_telemetry(
-            mt_run,
-            result,
-            self.model_name,
-            (time.time() - _start) * 1000,
-            "success",
-            None
-        );
-        _current_invocation_id.reset(_ctx_token);
+        _end_invocation(mt_run, result, self.model_name, start, ctx_token);
         return result;
     } except Exception as e {
-        _emit_agent_telemetry(
-            mt_run, None, self.model_name, (time.time() - _start) * 1000, "error", e
-        );
-        _current_invocation_id.reset(_ctx_token);
+        _fail_invocation(mt_run, e, self.model_name, start, ctx_token);
         raise;
     }
+}
+
+impl Model.ainvoke(mt_run: MTRuntime) -> any {
+    import types as _types_mod;
+    logging_stream = mt_run.stream and mt_run.call_params.get("logging", False);
+    if mt_run.tools or logging_stream {
+        return await super.ainvoke(mt_run);
+    }
+    (ctx_token, start) = _begin_invocation(mt_run);
+    try {
+        result = await super.ainvoke(mt_run);
+        if isinstance(result, _types_mod.AsyncGeneratorType) {
+            _current_invocation_id.reset(ctx_token);
+            return _astream_with_telemetry(result, mt_run, self.model_name, start);
+        }
+        _end_invocation(mt_run, result, self.model_name, start, ctx_token);
+        return result;
+    } except Exception as e {
+        _fail_invocation(mt_run, e, self.model_name, start, ctx_token);
+        raise;
+    }
+}
+
+def _begin_invocation(mt_run: MTRuntime) -> tuple {
+    import uuid;
+    import time;
+    invocation_id = str(uuid.uuid4());
+    setattr(mt_run, "_parent_invocation_id", _current_invocation_id.get(None));
+    setattr(mt_run, "_invocation_id", invocation_id);
+    return (_current_invocation_id.set(invocation_id), time.time());
+}
+
+def _end_invocation(
+    mt_run: MTRuntime, result: object, model_name: str, start: float, ctx_token: any
+) {
+    import time;
+    _emit_agent_telemetry(
+        mt_run, result, model_name, (time.time() - start) * 1000, "success", None
+    );
+    _current_invocation_id.reset(ctx_token);
+}
+
+def _fail_invocation(
+    mt_run: MTRuntime, error: Exception, model_name: str, start: float, ctx_token: any
+) {
+    import time;
+    _emit_agent_telemetry(
+        mt_run, None, model_name, (time.time() - start) * 1000, "error", error
+    );
+    _current_invocation_id.reset(ctx_token);
 }
 
 def _stream_with_telemetry(
@@ -106,12 +134,7 @@ def _stream_with_telemetry(
     import contextvars;
     import time;
 
-    invocation_id = mt?._invocation_id;
-    ctx = contextvars.copy_context();
-    if invocation_id is not None {
-        ctx.run(_current_invocation_id.set, invocation_id);
-    }
-
+    ctx = _invocation_context(mt);
     _completed = False;
     try {
         while True {
@@ -140,6 +163,53 @@ def _stream_with_telemetry(
             );
         }
     }
+}
+
+async def _astream_with_telemetry(
+    agen: any, mt: object, model_name: str, start: float
+) -> object {
+    import asyncio;
+    import time;
+
+    ctx = _invocation_context(mt);
+    _completed = False;
+    try {
+        while True {
+            try {
+                item = await asyncio.create_task(agen.__anext__(), context=ctx);
+            } except StopAsyncIteration {
+                _completed = True;
+                break;
+            }
+            yield item;
+        }
+    } except Exception as inner_e {
+        _emit_agent_telemetry(
+            mt, None, model_name, (time.time() - start) * 1000, "error", inner_e
+        );
+        raise;
+    } finally {
+        if _completed {
+            _emit_agent_telemetry(
+                mt,
+                "[streaming]",
+                model_name,
+                (time.time() - start) * 1000,
+                "success",
+                None
+            );
+        }
+    }
+}
+
+def _invocation_context(mt: object) -> any {
+    import contextvars;
+    ctx = contextvars.copy_context();
+    invocation_id = mt?._invocation_id;
+    if invocation_id is not None {
+        ctx.run(_current_invocation_id.set, invocation_id);
+    }
+    return ctx;
 }
 
 impl Model._raise_mapped_provider_error(e: Exception) -> None {

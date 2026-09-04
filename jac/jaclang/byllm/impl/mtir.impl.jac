@@ -357,3 +357,21 @@ impl MTRuntime.get_typed_output_schema -> dict | None {
 impl MTIR.runtime.getter -> MTRuntime {
     return MTRuntime.factory(self);
 }
+
+
+impl MTRuntime.usage_summary -> dict {
+    totals: dict = {};
+    per_call: list = [];
+    for u in self._usage_history {
+        u_dict = u
+            if isinstance(u, dict)
+            else (u.model_dump() if u?.model_dump else vars(u));
+        per_call.append(u_dict);
+        for (k, v) in u_dict.items() {
+            if isinstance(v, (int, float)) {
+                totals[k] = totals.get(k, 0) + v;
+            }
+        }
+    }
+    return {"total": totals, "per_call": per_call};
+}

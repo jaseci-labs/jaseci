@@ -39,7 +39,8 @@ obj MTRuntime {
         _final_output: object = None,
         _has_final_output: bool = False,
         _stream_reset_count: int = 0,
-        _tool_arg_deltas: list[dict] = [];
+        _tool_arg_deltas: list[dict] = [],
+        _usage_history: list = [];
 
     static def factory(mtir: MTIR) -> MTRuntime;
     def add_message(message: MessageType) -> None;
@@ -52,4 +53,5 @@ obj MTRuntime {
     def get_tool_list -> list[dict];
     def get_output_schema -> dict | None;
     def get_typed_output_schema -> dict | None;
+    def usage_summary -> dict;
 }
