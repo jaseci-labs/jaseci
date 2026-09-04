@@ -2531,7 +2531,13 @@ import from jaclang.server.bridge {
     BridgeUnavailable,
     bridge_error_from
 }
-import from jaclang.server.outbox { SqliteOutboxStore, cached_result, use_store }
+import from jaclang.compiler.frontend.constant { Constants as Con }
+import from jaclang.server.outbox {
+    SqliteOutboxStore,
+    cached_result,
+    scoped_idempotency_key,
+    use_store
+}
 import from jaclang.server.serving.client {
     ClientConnectionError,
     ClientReadTimeout,
@@ -2599,7 +2605,12 @@ test "sv_client: resolve_url appends the provider route to a gateway base" {
         assert sv_client.resolve_url("social") == "http://gateway:8000/api/social";
         sv_client._declare_consumer_provider("web", "scoring", "/api/scoring");
         sv_client.register("scoring", "http://gateway:8000");
-        assert sv_client.resolve_url("scoring") == "http://gateway:8000/api/scoring";
+        # A peer URL is used as given: the route a consumer declares is what
+        # the gateway and colocated mounts serve, and a direct member serves
+        # its endpoints at the root. Only a route registered with the URL is
+        # appended, which is how a consumer is pointed at a public gateway.
+        assert sv_client.resolve_url("scoring") == "http://gateway:8000";
+        assert sv_client.provider_route("scoring") == "/api/scoring";
         assert sv_client.get_consumer_providers("web") == ["scoring"];
     } finally {
         _reset_bridge_state();
@@ -2782,8 +2793,12 @@ test "serve: X-Jac-Idempotency-Key replays the first response for a repeated cal
                 "/function/greet", json={"name": "ada"}, headers=headers
             );
             assert first.ok , f"greet should be callable: {first.data}";
-            assert cached_result("outbox-entry-1") is not None , (
-                "a successful keyed call is remembered in the outbox seen-table"
+            scoped = scoped_idempotency_key(
+                "outbox-entry-1", Con.GUEST.value, "serve_api", "greet"
+            );
+            assert cached_result(scoped) is not None , (
+                "a successful keyed call is remembered in the outbox seen-table "
+                "under the caller, app and function it was made for"
             );
             second = client.post(
                 "/function/greet", json={"name": "bob"}, headers=headers

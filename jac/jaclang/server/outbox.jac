@@ -24,8 +24,10 @@ glob logger = logging.getLogger(__name__),
      BACKOFF_BASE_S = 1.0,
      BACKOFF_CAP_S = 300.0,
      DELIVER_BATCH = 100,
+     LEASE_S = 60.0,
      SEEN_LRU_SIZE = 4096,
      DEFAULT_SEEN_TTL_S = 86400,
+     DELIVERED_TTL_S = 86400,
      OUTBOX_DB_REL = os.path.join(".jac", "data", "outbox.sqlite"),
      __all__ = [
          'OutboxEntry',
@@ -35,13 +37,19 @@ glob logger = logging.getLogger(__name__),
          'SqliteOutboxStore',
          'enqueue',
          'deliver_pending',
+         'prune',
+         'purge_dead',
          'dead_letters',
          'start_worker',
+         'start_worker_if_bridging',
          'stop_worker',
          'worker_running',
          'seen_idempotency_key',
          'remember_idempotency_key',
          'cached_result',
+         'scoped_idempotency_key',
+         'replay_cached',
+         'remember_response',
          'default_idempotency_key',
          'canonical_kwargs',
          'backoff_seconds',
@@ -51,7 +59,9 @@ glob logger = logging.getLogger(__name__),
          'STATUS_DELIVERING',
          'STATUS_DELIVERED',
          'STATUS_DEAD',
-         'DEFAULT_MAX_ATTEMPTS'
+         'DEFAULT_MAX_ATTEMPTS',
+         'LEASE_S',
+         'DELIVERED_TTL_S'
      ];
 
 glob _SCHEMA_SQL = [
@@ -104,9 +114,11 @@ obj OutboxStore {
     def put(item: OutboxEntry) -> None abst;
     def get_by_key(key: str) -> (OutboxEntry | None) abst;
     def list_pending(now: float, limit: int = DELIVER_BATCH) -> list[OutboxEntry] abst;
-    def claim(id: str) -> bool abst;
+    def claim(id: str, now: float, lease_s: float = LEASE_S) -> bool abst;
     def update(item: OutboxEntry) -> None abst;
     def list_status(status: str) -> list[OutboxEntry] abst;
+    def prune_status(status: str, created_before: float) -> int abst;
+    def prune_seen(now: float) -> int abst;
     def recall_key(key: str, now: float) -> (str | None) abst;
     def remember_key(key: str, ttl_s: int, result: str, now: float) -> None abst;
     def close -> None abst;
@@ -115,12 +127,16 @@ obj OutboxStore {
 
 obj SqlOutboxStore(OutboxStore) {
     def _exec(sql: str, params: dict) -> list[tuple] abst;
+    def _exec_count(sql: str, params: dict) -> int abst;
     def ensure_tables -> None abst;
     def put(item: OutboxEntry) -> None;
     def get_by_key(key: str) -> (OutboxEntry | None);
     def list_pending(now: float, limit: int = DELIVER_BATCH) -> list[OutboxEntry];
+    def claim(id: str, now: float, lease_s: float = LEASE_S) -> bool;
     def update(item: OutboxEntry) -> None;
     def list_status(status: str) -> list[OutboxEntry];
+    def prune_status(status: str, created_before: float) -> int;
+    def prune_seen(now: float) -> int;
     def recall_key(key: str, now: float) -> (str | None);
     def remember_key(key: str, ttl_s: int, result: str, now: float) -> None;
 }
@@ -130,8 +146,8 @@ obj PgOutboxStore(SqlOutboxStore) {
     has store: PgStore;
 
     def _exec(sql: str, params: dict) -> list[tuple];
+    def _exec_count(sql: str, params: dict) -> int;
     def ensure_tables -> None;
-    def claim(id: str) -> bool;
     def close -> None;
 }
 
@@ -143,8 +159,8 @@ obj SqliteOutboxStore(SqlOutboxStore) {
 
     def postinit -> None;
     def _exec(sql: str, params: dict) -> list[tuple];
+    def _exec_count(sql: str, params: dict) -> int;
     def ensure_tables -> None;
-    def claim(id: str) -> bool;
     def close -> None;
 }
 
@@ -153,7 +169,7 @@ obj OutboxState {
     has explicit: (OutboxStore | None) = None,
         worker_store: (OutboxStore | None) = None,
         sqlite_store: (SqliteOutboxStore | None) = None,
-        schema_ready: set[int] = set(),
+        schema_ready: set[str] = set(),
         worker: (threading.Thread | None) = None,
         stop_event: (threading.Event | None) = None,
         lock: threading.RLock = threading.RLock(),
@@ -172,9 +188,12 @@ def use_store(store: (OutboxStore | None)) -> None;
 
 def enqueue(app: str, `walker: str, kwargs: dict, idempotency_key: str = "") -> str;
 def deliver_pending(max_attempts: int = DEFAULT_MAX_ATTEMPTS) -> int;
+def prune(delivered_ttl_s: float = DELIVERED_TTL_S) -> int;
+def purge_dead(older_than_s: float = 0.0) -> int;
 def dead_letters -> list[OutboxEntry];
 
 def start_worker(interval_s: float = 1.0) -> None;
+def start_worker_if_bridging(interval_s: float = 1.0) -> bool;
 def stop_worker(timeout_s: float = 5.0) -> None;
 def worker_running -> bool;
 
@@ -183,6 +202,10 @@ def cached_result(key: str) -> (str | None);
 def remember_idempotency_key(
     key: str, ttl_s: int = DEFAULT_SEEN_TTL_S, result: str = ""
 ) -> None;
+
+def scoped_idempotency_key(raw: str, username: str, app: str, target: str) -> str;
+def replay_cached(key: str) -> any;
+def remember_response(key: str, response: any) -> any;
 
 def _row_to_entry(row: tuple) -> OutboxEntry;
 def _current_memory -> any;
@@ -193,6 +216,7 @@ def _ensure_pg_schema(primary: PgStore) -> None;
 def _sqlite_store -> SqliteOutboxStore;
 def _store_for_request(writable: bool = True) -> OutboxStore;
 def _store_for_worker -> OutboxStore;
+def _store_for_seen -> OutboxStore;
 def _lru_get(key: str, now: float) -> (str | None);
 def _lru_put(key: str, expires_at: float, result: str) -> None;
 def _run_coro(coro: any) -> any;

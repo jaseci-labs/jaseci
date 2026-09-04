@@ -87,7 +87,7 @@ def _provider_url(app_name: str) -> str {
     if not base {
         return sv_client.resolve_url(app_name);
     }
-    route: str = sv_client.provider_route(app_name);
+    route: str = sv_client.registered_route(app_name);
     if route and not base.endswith(route) {
         return base + route;
     }

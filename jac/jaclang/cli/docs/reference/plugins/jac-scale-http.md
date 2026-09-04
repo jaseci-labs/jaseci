@@ -1735,11 +1735,13 @@ Walker spawns also cross the **client-to-server** boundary (`root spawn Greet(..
 
 ### Deferred delivery: the outbox
 
-An un-awaited cross-app walker spawn is a message, not a call. It is written to the **outbox** inside the caller's request -- in the same transaction where the store allows it -- and delivered to the owner app by a background worker that the server starts as soon as a bridging consumer is loaded:
+An un-awaited cross-app walker spawn is a message, not a call. It is written to the **outbox** inside the caller's request -- in the same transaction where the store allows it -- and delivered to the owner app by a background worker that the server (core or scale, colocated or a fleet member) starts as soon as a bridging consumer is loaded:
 
-- **Idempotency key.** Every entry carries one, sent on the wire as `X-Jac-Idempotency-Key`; the receiving app remembers recent keys (an in-memory LRU plus the store) and answers a duplicate with the original result, so delivery is **at-least-once with idempotent receipt**. The default key is a hash of the app, walker and canonical arguments; `outbox.enqueue(app, walker, kwargs, idempotency_key=...)` sets an explicit one when the arguments alone are not identity (e.g. a retryable "charge card" whose amount could legitimately repeat).
-- **Retries.** Exponential backoff per attempt, capped; after `DEFAULT_MAX_ATTEMPTS` (8) the entry is marked `dead`. `outbox.dead_letters()` lists them; `outbox.deliver_pending()` runs one delivery pass by hand (tests, cron).
-- **Storage.** The project's Postgres store when one is configured (table `jac_outbox`), else `.jac/data/outbox.sqlite`.
+- **Idempotency key.** Every entry carries one, sent on the wire as `X-Jac-Idempotency-Key` on every transport (in-process, plain HTTP and the scale RPC path alike); the receiving app remembers recent keys (an in-memory LRU plus the store) and answers a duplicate with the original result, so delivery is **at-least-once with idempotent receipt**. The default key is a hash of the app, walker and canonical arguments; `outbox.enqueue(app, walker, kwargs, idempotency_key=...)` sets an explicit one when the arguments alone are not identity (e.g. a retryable "charge card" whose amount could legitimately repeat).
+- **Dedupe window.** The key also dedupes the *sender*: within `DELIVERED_TTL_S` (24h) an identical un-awaited spawn -- same app, walker and arguments, hence the same default key -- is the same message and is dropped, whether the first copy is still pending or already delivered. To spawn twice on purpose, pass a distinct `idempotency_key=`. Delivered rows older than the TTL and expired receiver keys are pruned by every worker pass, after which the same spawn is a new message.
+- **Receiver scoping.** The receiving endpoint scopes a key by the authenticated caller, the provider app and the walker or function before it looks the key up or remembers it, so one client cannot replay another client's cached response by sending its key. The wire header is the raw key; scoping is internal.
+- **Retries and leases.** Exponential backoff per attempt, capped; after `DEFAULT_MAX_ATTEMPTS` (8) the entry is marked `dead`. A worker claims a row with a `LEASE_S` (60s) lease; if the process dies mid-delivery the lease expires and the row is retried, with `attempts` counting the lost try. `outbox.dead_letters()` lists dead rows, which are kept for inspection until `outbox.purge_dead(older_than_s=...)` removes them; `outbox.deliver_pending()` runs one delivery pass by hand (tests, cron) and `outbox.prune()` one pruning pass.
+- **Storage.** The project's Postgres store when one is configured (tables `jac_outbox`, `jac_outbox_seen`), else `.jac/data/outbox.sqlite`. Enqueue rides the caller's request transaction; the worker and the receiver's key bookkeeping use their own connection, committed on their own, so a remember that happens after the walker's scope has closed never leaves a request transaction open.
 
 ```jac
 import from jaclang.server { outbox }
@@ -1760,6 +1762,8 @@ Serving an app (`jac run <app>`) also brings up every service app it bridges to,
 
 - **Colocated** (default): each service app's entry module is loaded into the served app's process and registered with `sv_client.register_local(app, module)`. Bridged calls invoke the provider's function or spawn its walker in-process -- still awaited, no sockets. One process, the boundary still compiled as a cut.
 - **Fleet**: `jac run <app> --fleet`, or `[scale.gateway] colocate = false`, runs each service app as its own local process behind the served app's gateway (one public port, one `/docs`, one `/metrics`, `X-Trace-Id` threaded through every hop). Peers are wired with `JAC_APP_<APP>_URL`. `jac scale status` / `logs` / `restart` / `stop` manage the members.
+- **Peer URLs are used as given.** A fleet member (and a deployed pod) mounts its endpoints at its root -- `/walker/<name>`, `/function/<name>` -- and the gateway strips the app's public route (`/api/<app>`) before forwarding. A consumer therefore never appends the route it compiled against to a peer URL: `JAC_APP_<APP>_URL=http://127.0.0.1:8011` is called at `http://127.0.0.1:8011/walker/<name>`. Only a route registered *together with* a URL is appended -- `JAC_APP_<APP>_ROUTE`, or `sv_client.register(app, url, route)` -- which is how a consumer is pointed at a public gateway instead of a member.
+- **Service identity between members.** Set `JAC_BRIDGE_TOKEN` on every member: consumers send it as a bearer on bridged calls (when no end-user `Authorization` is being forwarded), and a provider whose own `JAC_BRIDGE_TOKEN` matches the presented bearer runs the walker or function as the fixed service user `__bridge__`, which satisfies `requires_auth` endpoints and owns its own root. A mismatching bearer is still a 401; a provider without the variable set never honors it.
 - **Deployed**: `jac scale deploy` is always a fleet; see [Service Apps in Kubernetes](jac-scale-kubernetes.md#service-apps-in-kubernetes).
 
 Startup is **fail-fast**: if any service app fails to come up (missing entry file, syntax error, port in use), the served app exits at startup with the underlying error.
@@ -1771,7 +1775,7 @@ For each provider app the consumer resolves it in this order. The first match wi
 1. **Local registration** -- the app is colocated (`sv_client.register_local`). Calls go in-process.
 2. **Test client** -- tests have wired up an in-process `JacTestClient` for the app. See [Testing](#testing).
 3. **Registered URL** -- a URL the consumer was handed programmatically (`sv_client.register`), e.g. by the fleet orchestrator or a custom one.
-4. **`JAC_APP_<APP>_URL` environment variable** -- the app name upper-cased, non-alphanumerics as `_` (`social_graph` → `JAC_APP_SOCIAL_GRAPH_URL`), plus an optional `JAC_APP_<APP>_ROUTE` for a non-default route prefix. This is the knob for a provider on another host.
+4. **`JAC_APP_<APP>_URL` environment variable** -- the app name upper-cased, non-alphanumerics as `_` (`social_graph` → `JAC_APP_SOCIAL_GRAPH_URL`). The URL is used as given (a member's root); add `JAC_APP_<APP>_ROUTE` only when the URL is a gateway that expects the app's public route prefix. This is the knob for a provider on another host.
 
 Nothing found is `BridgeUnavailable` at the first awaited call.
 
@@ -1852,10 +1856,11 @@ Always call `sv_client.clear_test_clients()` between tests to avoid bleed-over f
 |---|---|
 | `register_local(app: str, module)` | Serve a provider app from an already-loaded module in this process (what colocation does). |
 | `unregister_local(app: str)` / `is_local(app) -> bool` / `clear_local_providers()` | Manage local registrations. |
-| `register(app: str, url: str, route: str = "")` | Point a provider app at a URL programmatically. Takes precedence over the env var path. |
+| `register(app: str, url: str, route: str = "")` | Point a provider app at a URL programmatically. Takes precedence over the env var path. `route` is appended to the URL only when given here (a gateway base); the route a compiled consumer declared is never appended to a peer URL. |
 | `unregister(app: str)` | Remove a registration made via `register`. |
 | `register_test_client(app, client)` / `clear_test_clients()` | Route calls to a provider through an in-process `JacTestClient` (tests only). See [Testing](#testing). |
-| `resolve_url(app: str) -> str` | The URL the consumer would use for a provider (from `register` or `JAC_APP_<APP>_URL`, plus its route). Raises `BridgeUnavailable` if nothing is registered. |
+| `resolve_url(app: str) -> str` | The URL the consumer would use for a provider (from `register` or `JAC_APP_<APP>_URL`, plus a route registered with it). Raises `BridgeUnavailable` if nothing is registered. |
+| `provider_route(app: str) -> str` / `registered_route(app: str) -> str` | The route a compiled consumer declared for a provider (what the gateway and colocated mounts serve it under), and the route bound to an explicit registration (the only one `resolve_url` appends). |
 | `peer_url_env_key(app: str) -> str` | The `JAC_APP_<APP>_URL` name for an app. |
 | `async call(app, fn, kwargs)` / `async spawn_walker(app, walker, kwargs, cls)` | What the generated stubs call. |
 | `spawn_deferred(app, walker, kwargs, idempotency_key = "") -> str` | Enqueue a deferred spawn; returns the outbox entry id. |

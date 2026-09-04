@@ -428,3 +428,49 @@ test "sv boundary: unauthenticated cross-service call is rejected downstream" {
         done(tmp);
     }
 }
+
+test "sv-to-sv over the wire: a sibling peer's JAC_APP url is used as given" {
+    import from jaclang.server.serving.server { ServingServer }
+    tmp = setup_env();
+    url_key = __jac_sv.peer_url_env_key("notify_service");
+    route_key = __jac_sv.peer_route_env_key("notify_service");
+    saved_url = os.environ.get(url_key);
+    saved_route = os.environ.get(route_key);
+    os.environ.pop(route_key, None);
+    stop_provider: any = None;
+    try {
+        # The provider is a real HTTP server on a loopback port, mounted at its
+        # root the way a fleet member or a deployed pod is (JAC_SV_SIBLING).
+        (_prov_client, prov_srv) = build_service("notify_service", tmp);
+        __jac_sv._test_clients.pop("notify_service", None);
+        __jac_sv.unregister("notify_service");
+        provider_impl = prov_srv.server;
+        assert provider_impl is not None;
+        wire = ServingServer(app=provider_impl.app, host="127.0.0.1", port=0);
+        stop_provider = wire.serve_background();
+        base = f"http://127.0.0.1:{wire.bound_port}";
+        os.environ[url_key] = base;
+
+        cons = make_server("dispatcher_service", tmp);
+        # The compiled consumer declared the provider's public route; that route
+        # belongs to the gateway, not to the peer URL.
+        assert __jac_sv.provider_route("notify_service") == "/notify";
+        rpt = xd(cons.post("/walker/TriggerGreet", json={"who": "wire"}))["reports"][0];
+        assert rpt == "hello, wire";
+        assert __jac_sv.resolve_url("notify_service") == base;
+        assert __jac_sv.registered_route("notify_service") == "";
+    } finally {
+        if stop_provider is not None {
+            stop_provider();
+        }
+        __jac_sv.unregister("notify_service");
+        for (k, v) in [(url_key, saved_url), (route_key, saved_route)] {
+            if v is None {
+                os.environ.pop(k, None);
+            } else {
+                os.environ[k] = v;
+            }
+        }
+        done(tmp);
+    }
+}

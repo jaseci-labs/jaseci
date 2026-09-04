@@ -185,12 +185,14 @@ impl JacAPIServerCore.start(
     no_client: bool = False,
     on_ready: Callable[..., None] | None = None
 ) -> None {
+    import from jaclang.server.outbox { start_worker_if_bridging }
     self.introspector.load();
     self.introspector.dev_mode = dev;
     if self.introspector.has_client_route('/docs') {
         self.server.app.docs_url = None;
     }
     self._ensure_sv_siblings();
+    start_worker_if_bridging();
 
     if not dev and not no_client {
         client_exports = self.introspector._client_manifest.get('exports', []);

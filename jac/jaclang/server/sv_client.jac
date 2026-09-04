@@ -7,8 +7,11 @@ import from jaclang.server.bridge {
 }
 
 glob BRIDGE_TOKEN_ENV: str = "JAC_BRIDGE_TOKEN",
+     BRIDGE_USERNAME: str = "__bridge__",
+     IDEMPOTENCY_HEADER: str = "X-Jac-Idempotency-Key",
      _registry: dict[str, str] = {},
      _routes: dict[str, str] = {},
+     _base_routes: dict[str, str] = {},
      _test_clients: dict[str, any] = {},
      _local_providers: dict[str, any] = {},
      _consumer_providers: dict[str, list[str]] = {},
@@ -38,14 +41,21 @@ def app_start_args(
 
 def register(app: str, url: str, route: str = "") {
     _registry[app] = url.rstrip("/");
+    _base_routes.pop(app, None);
     if route {
         _routes[app] = route;
+        _base_routes[app] = route;
     }
 }
 
 def unregister(app: str) {
     _registry.pop(app, None);
+    _base_routes.pop(app, None);
     _routes.pop(app, None);
+}
+
+def registered_route(app: str) -> str {
+    return _base_routes.get(app, "");
 }
 
 def register_local(app: str, module: any) {
@@ -84,6 +94,20 @@ def bearer_token -> str {
         return _bearer_token[0];
     }
     return os.environ.get(BRIDGE_TOKEN_ENV, "").strip();
+}
+
+def bridge_identity(authorization: (str | None)) -> str {
+    import hmac;
+    secret = os.environ.get(BRIDGE_TOKEN_ENV, "").strip();
+    header = str(authorization or "");
+    if not secret or not header.startswith("Bearer ") {
+        return "";
+    }
+    presented = header[7:].strip();
+    if presented and hmac.compare_digest(presented, secret) {
+        return BRIDGE_USERNAME;
+    }
+    return "";
 }
 
 def set_consumer_app(name: str) {
@@ -152,7 +176,7 @@ def auth_headers -> dict[str, str] {
 def request_headers(idempotency_key: str = "") -> dict[str, str] {
     headers = auth_headers();
     if idempotency_key {
-        headers["X-Jac-Idempotency-Key"] = idempotency_key;
+        headers[IDEMPOTENCY_HEADER] = idempotency_key;
     }
     return headers;
 }
@@ -218,7 +242,7 @@ def resolve_url(app: str) -> str {
         register(app, env_url, os.environ.get(peer_route_env_key(app), "").strip());
         base = _registry[app];
     }
-    route = _routes.get(app, "");
+    route = _base_routes.get(app, "");
     if route and not base.endswith(route) {
         return base + route;
     }
@@ -255,11 +279,10 @@ def _unwrap_envelope(data: any, app: str, name: str) -> any {
     raise BridgeError(app=app, name=name, detail=str(msg or "unknown error"));
 }
 
-def _http_call(app: str, fn: str, kwargs: dict) -> any {
+def _http_call(app: str, fn: str, kwargs: dict, headers: dict[str, str]) -> any {
     import from jaclang.server.serving.client { post_stream_aware_sync }
     import from jaclang.server.serving.sse { consume_sse_events }
     label = f"{app}.{fn}";
-    headers = auth_headers();
     if app in _test_clients {
         client = _test_clients[app];
         resp = client.post(f"/function/{fn}", json=kwargs, headers=headers);
@@ -305,10 +328,9 @@ def _rehydrate_walker(envelope: any, stub_cls: any) -> any {
 }
 
 def _http_spawn(
-    app: str, walker_name: str, kwargs: dict, stub_cls: any, idempotency_key: str = ""
+    app: str, walker_name: str, kwargs: dict, stub_cls: any, headers: dict[str, str]
 ) -> any {
     import from jaclang.server.serving.client { request_sync }
-    headers = request_headers(idempotency_key);
     if app in _test_clients {
         client = _test_clients[app];
         data = client.post(
@@ -418,11 +440,12 @@ async def call(
             result = await _local_call(app, fn, kwargs);
         } else {
             _ensure_available(app, fn);
+            headers = request_headers();
             transport = _scale_transport();
             if transport is not None and app not in _test_clients {
-                result = transport.sv_service_call(app, fn, kwargs);
+                result = transport.sv_service_call(app, fn, kwargs, headers=headers);
             } else {
-                result = _http_call(app, fn, kwargs);
+                result = _http_call(app, fn, kwargs, headers);
             }
         }
     } except Exception as e {
@@ -443,11 +466,14 @@ async def spawn_walker(
             return await _local_spawn(app, walker_name, kwargs);
         }
         _ensure_available(app, walker_name);
+        headers = request_headers(idempotency_key);
         transport = _scale_transport();
         if transport is not None and app not in _test_clients {
-            return transport.sv_walker_call(app, walker_name, kwargs, stub_cls);
+            return transport.sv_walker_call(
+                app, walker_name, kwargs, stub_cls, headers=headers
+            );
         }
-        return _http_spawn(app, walker_name, kwargs, stub_cls, idempotency_key);
+        return _http_spawn(app, walker_name, kwargs, stub_cls, headers);
     } except Exception as e {
         raise bridge_error_from(e, app, walker_name);
     }

@@ -104,16 +104,44 @@ impl JacAPIServerEndpoints.create_walker_parameters(
     return parameters;
 }
 
+impl JacAPIServerEndpoints._request_caller(request: Request) -> (str | None) {
+    import from jaclang.server.sv_client { bridge_identity }
+    username: (str | None) = request.state?.username if request?.state else None;
+    if username {
+        return username;
+    }
+    ident = bridge_identity(request.headers.get('Authorization'));
+    if not ident {
+        return None;
+    }
+    if not self.user_manager.user_exists(ident) {
+        self.user_manager.create_user(ident, '__no_password__');
+    }
+    return ident;
+}
+
+impl JacAPIServerEndpoints._idempotency_key(
+    request: Request, username: str, app: str, target: str
+) -> str {
+    import from jaclang.server.outbox { scoped_idempotency_key }
+    import from jaclang.server.sv_client { IDEMPOTENCY_HEADER }
+    return scoped_idempotency_key(
+        str(request.headers.get(IDEMPOTENCY_HEADER) or ''), username, app, target
+    );
+}
+
 impl JacAPIServerEndpoints.create_walker_callback(
     walker_name: str, has_node_param: bool = False
-) -> Callable[..., (TransportResponse | StreamingResponse)] {
+) -> Callable[..., (TransportResponse | StreamingResponse | Response)] {
     import from jaclang.server.transport { TransportResponse, Meta }
     import from jaclang.server.serving.datatypes { Request }
+    import from jaclang.server.outbox { remember_response, replay_cached }
     requires_auth = self.introspector.is_auth_required_for_walker(walker_name);
+    app_name = self.module_name;
     async def callback(
         request: Request, nd: (str | None) = None, **kwargs: JsonValue
-    ) -> (TransportResponse | StreamingResponse) {
-        username: (str | None) = request.state?.username if request?.state else None;
+    ) -> (TransportResponse | StreamingResponse | Response) {
+        username = self._request_caller(request);
         if requires_auth and not username {
             return TransportResponse.fail(
                 code='UNAUTHORIZED',
@@ -124,8 +152,14 @@ impl JacAPIServerEndpoints.create_walker_callback(
         if nd {
             kwargs['_jac_spawn_node'] = nd;
         }
+        caller = username or Con.GUEST.value;
+        idem = self._idempotency_key(request, caller, app_name, walker_name);
+        replay = replay_cached(idem);
+        if replay is not None {
+            return replay;
+        }
         result = await self.execution_manager.spawn_walker(
-            self.get_walkers()[walker_name], kwargs, (username or Con.GUEST.value)
+            self.get_walkers()[walker_name], kwargs, caller
         );
         if (isgenerator(result) or isinstance(result, AsyncGenerator)) {
             import from jaclang.server.serving.sse { sse_frame_stream }
@@ -154,8 +188,11 @@ impl JacAPIServerEndpoints.create_walker_callback(
                 meta=Meta(extra={'http_status': int(result.get('http_status') or 500)})
             );
         }
-        return TransportResponse.success(
-            data=result, meta=Meta(extra={'http_status': 200})
+        return remember_response(
+            idem,
+            TransportResponse.success(
+                data=result, meta=Meta(extra={'http_status': 200})
+            )
         );
     }
     return callback;
@@ -165,8 +202,7 @@ impl JacAPIServerEndpoints.register_colocated_provider_endpoints -> None {
     import os;
     import from jaclang.server.server { ModuleIntrospector }
     import from jaclang.server.sv_client { _local_providers }
-    import from jaclang.server.bridge { replay_response, serialize_response }
-    import from jaclang.server.outbox { cached_result, remember_idempotency_key }
+    import from jaclang.server.outbox { remember_response, replay_cached }
     import from jaclang.server.transport { TransportResponse, Meta }
     import from jaclang.server.serving.datatypes { Request }
     import from jaclang.server.serving.endpoint { APIParameter, ParameterType }
@@ -187,10 +223,6 @@ impl JacAPIServerEndpoints.register_colocated_provider_endpoints -> None {
             return None;
         }
         return parsed if isinstance(parsed, dict) else {};
-    }
-
-    def _idem_key(request: Request) -> str {
-        return str(request.headers.get('X-Jac-Idempotency-Key') or '').strip();
     }
 
     def _outcome(result: any) -> TransportResponse {
@@ -215,14 +247,12 @@ impl JacAPIServerEndpoints.register_colocated_provider_endpoints -> None {
     }
 
     def _walker_callback(
-        walker_cls: any, requires_auth: bool
-    ) -> Callable[..., TransportResponse] {
+        provider_app: str, walker_name: str, walker_cls: any, requires_auth: bool
+    ) -> Callable[..., (TransportResponse | Response)] {
         async def callback(
             request: Request, nd: (str | None) = None, **kwargs: JsonValue
-        ) -> TransportResponse {
-            username: (str | None) = request.state?.username
-                if request?.state
-                else None;
+        ) -> (TransportResponse | Response) {
+            username = self._request_caller(request);
             if requires_auth and not username {
                 return TransportResponse.fail(
                     code='UNAUTHORIZED',
@@ -241,32 +271,27 @@ impl JacAPIServerEndpoints.register_colocated_provider_endpoints -> None {
             if nd {
                 fields['_jac_spawn_node'] = nd;
             }
-            key = _idem_key(request);
-            if key {
-                cached = cached_result(key);
-                if cached is not None {
-                    return replay_response(cached);
-                }
+            caller = username or Con.GUEST.value;
+            key = self._idempotency_key(request, caller, provider_app, walker_name);
+            replay = replay_cached(key);
+            if replay is not None {
+                return replay;
             }
             result = await self.execution_manager.spawn_walker(
-                walker_cls, fields, (username or Con.GUEST.value)
+                walker_cls, fields, caller
             );
-            outcome = _outcome(result);
-            if key and outcome.ok {
-                remember_idempotency_key(key, result=serialize_response(outcome));
-            }
-            return outcome;
+            return remember_response(key, _outcome(result));
         }
         return callback;
     }
 
     def _function_callback(
-        func_obj: any, requires_auth: bool
-    ) -> Callable[..., TransportResponse] {
-        async def callback(request: Request, **kwargs: JsonValue) -> TransportResponse {
-            username: (str | None) = request.state?.username
-                if request?.state
-                else None;
+        provider_app: str, func_name: str, func_obj: any, requires_auth: bool
+    ) -> Callable[..., (TransportResponse | Response)] {
+        async def callback(
+            request: Request, **kwargs: JsonValue
+        ) -> (TransportResponse | Response) {
+            username = self._request_caller(request);
             if requires_auth and not username {
                 return TransportResponse.fail(
                     code='UNAUTHORIZED',
@@ -282,10 +307,16 @@ impl JacAPIServerEndpoints.register_colocated_provider_endpoints -> None {
                     meta=Meta(extra={'http_status': 400})
                 );
             }
+            caller = username or Con.GUEST.value;
+            key = self._idempotency_key(request, caller, provider_app, func_name);
+            replay = replay_cached(key);
+            if replay is not None {
+                return replay;
+            }
             result = await self.execution_manager.execute_function(
-                func_obj, args, (username or Con.GUEST.value)
+                func_obj, args, caller
             );
-            return _outcome(result);
+            return remember_response(key, _outcome(result));
         }
         return callback;
     }
@@ -354,7 +385,7 @@ impl JacAPIServerEndpoints.register_colocated_provider_endpoints -> None {
         );
         for (walker_name, walker_cls) in walkers.items() {
             walker_auth = intro.is_auth_required_for_walker(walker_name);
-            cb = _walker_callback(walker_cls, walker_auth);
+            cb = _walker_callback(provider_app, walker_name, walker_cls, walker_auth);
             self.server.add_endpoint(
                 JEndPoint(
                     method=HTTPMethod.POST,
@@ -390,7 +421,9 @@ impl JacAPIServerEndpoints.register_colocated_provider_endpoints -> None {
                 JEndPoint(
                     method=HTTPMethod.POST,
                     path=f"{route}/function/{func_name}",
-                    callback=_function_callback(func_obj, func_auth),
+                    callback=_function_callback(
+                        provider_app, func_name, func_obj, func_auth
+                    ),
                     parameters=[],
                     response_model=None,
                     tags=['Colocated'],
@@ -508,10 +541,13 @@ impl JacAPIServerEndpoints.create_function_callback(
         if func_spec
         else 'text/plain';
 
+    import from jaclang.server.outbox { remember_response, replay_cached }
+    app_name = self.module_name;
+
     async def callback(
         request: Request, **kwargs: JsonValue
     ) -> (TransportResponse | StreamingResponse | Response) {
-        username: (str | None) = request.state?.username if request?.state else None;
+        username = self._request_caller(request);
         if requires_auth and not username {
             return TransportResponse.fail(
                 code='UNAUTHORIZED',
@@ -519,9 +555,15 @@ impl JacAPIServerEndpoints.create_function_callback(
                 meta=Meta(extra={'http_status': 401})
             );
         }
+        caller = username or Con.GUEST.value;
+        idem = self._idempotency_key(request, caller, app_name, func_name);
+        replay = replay_cached(idem);
+        if replay is not None {
+            return replay;
+        }
         console.print(f"Executing function '{func_name}' with params: {kwargs}");
         result = await self.execution_manager.execute_function(
-            self.get_functions()[func_name], kwargs, (username or Con.GUEST.value)
+            self.get_functions()[func_name], kwargs, caller
         );
 
         if (isgenerator(result) or isinstance(result, AsyncGenerator)) {
@@ -564,8 +606,11 @@ impl JacAPIServerEndpoints.create_function_callback(
             }
             return Response(content=body, media_type=raw_media_type);
         }
-        return TransportResponse.success(
-            data=result, meta=Meta(extra={'http_status': 200})
+        return remember_response(
+            idem,
+            TransportResponse.success(
+                data=result, meta=Meta(extra={'http_status': 200})
+            )
         );
     }
     return callback;

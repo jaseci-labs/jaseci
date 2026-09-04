@@ -1921,8 +1921,12 @@ def _sibling_app_names(config: any, base: str) -> list[str] {
 }
 
 impl JacAPIServer.build_app -> ServingApp {
-    import from jaclang.server.bridge { replay_response, serialize_response }
-    import from jaclang.server.outbox { cached_result, remember_idempotency_key }
+    import from jaclang.server { sv_client }
+    import from jaclang.server.outbox {
+        replay_cached,
+        remember_response,
+        scoped_idempotency_key
+    }
     server = self;
     config = get_config();
     cl_route_path = "/cl/";
@@ -1960,6 +1964,28 @@ impl JacAPIServer.build_app -> ServingApp {
     def _authenticate(request: Request) -> (str | None) {
         token = _bearer_token(request);
         return server.user_manager.validate_token(token) if token else None;
+    }
+
+    def _bridge_user(request: Request) -> (str | None) {
+        ident = sv_client.bridge_identity(request.headers.get('Authorization'));
+        if not ident {
+            return None;
+        }
+        if not server.user_manager.user_exists(ident) {
+            server.user_manager.create_user(ident, '__no_password__');
+        }
+        return ident;
+    }
+
+    def _caller(request: Request, auth_required: bool) -> (str | None) {
+        username = _bridge_user(request);
+        if username {
+            return username;
+        }
+        if auth_required {
+            return _authenticate(request);
+        }
+        return _auth_or_guest(request);
     }
 
     def _auth_or_guest(request: Request) -> str {
@@ -2354,69 +2380,54 @@ impl JacAPIServer.build_app -> ServingApp {
         );
     }
 
-    def _idempotency_key(request: Request) -> str {
-        return str(request.headers.get('X-Jac-Idempotency-Key') or '').strip();
-    }
-
-    def _idempotent_replay(key: str) -> any {
-        if not key {
-            return None;
-        }
-        cached = cached_result(key);
-        return replay_response(cached) if cached is not None else None;
-    }
-
-    def _idempotent_remember(key: str, result: any) -> any {
-        if key {
-            ok = result.ok if isinstance(result, TransportResponse) else True;
-            if ok {
-                remember_idempotency_key(key, result=serialize_response(result));
-            }
-        }
-        return result;
+    def _idempotency_key(
+        request: Request, username: str, app: str, target: str
+    ) -> str {
+        return scoped_idempotency_key(
+            str(request.headers.get(sv_client.IDEMPOTENCY_HEADER) or ''),
+            username,
+            app,
+            target
+        );
     }
 
     def _call_function(request: Request, name: str) -> any {
         server.introspector.load();
-        if server.introspector.is_auth_required_for_function(name) {
-            username = _authenticate(request);
-            if not username {
-                return JSONResponse(content={'error': 'Unauthorized'}, status_code=401);
-            }
-        } else {
-            username = _auth_or_guest(request);
+        username = _caller(
+            request, server.introspector.is_auth_required_for_function(name)
+        );
+        if not username {
+            return JSONResponse(content={'error': 'Unauthorized'}, status_code=401);
         }
         data = _read_data(request);
         if data is None {
             return JSONResponse(content={'error': 'Invalid JSON'}, status_code=400);
         }
-        idem = _idempotency_key(request);
-        replay = _idempotent_replay(idem);
+        idem = _idempotency_key(request, username, server.module_name, name);
+        replay = replay_cached(idem);
         if replay is not None {
             return replay;
         }
         called = asyncio.run(
             _acall_function(server.execution_handler, name, data, username)
         );
-        return _idempotent_remember(idem, called);
+        return remember_response(idem, called);
     }
 
     def _spawn_walker(request: Request, name: str, node_id: str = '') -> any {
         server.introspector.load();
-        if server.introspector.is_auth_required_for_walker(name) {
-            username = _authenticate(request);
-            if not username {
-                return JSONResponse(content={'error': 'Unauthorized'}, status_code=401);
-            }
-        } else {
-            username = _auth_or_guest(request);
+        username = _caller(
+            request, server.introspector.is_auth_required_for_walker(name)
+        );
+        if not username {
+            return JSONResponse(content={'error': 'Unauthorized'}, status_code=401);
         }
         data = _read_data(request);
         if data is None {
             return JSONResponse(content={'error': 'Invalid JSON'}, status_code=400);
         }
-        idem = _idempotency_key(request);
-        replay = _idempotent_replay(idem);
+        idem = _idempotency_key(request, username, server.module_name, name);
+        replay = replay_cached(idem);
         if replay is not None {
             return replay;
         }
@@ -2424,7 +2435,7 @@ impl JacAPIServer.build_app -> ServingApp {
         spawned = asyncio.run(
             _aspawn_walker(server.execution_handler, name, fields, username)
         );
-        return _idempotent_remember(idem, spawned);
+        return remember_response(idem, spawned);
     }
 
     def _client_error(request: Request) -> any {
@@ -2721,24 +2732,16 @@ impl JacAPIServer.build_app -> ServingApp {
         );
     }
     def _mount_provider(
+        provider_app: str,
         route: str,
         intro: ModuleIntrospector,
         handler: ExecutionHandler,
         listing: IntrospectionHandler
     ) {
-        def _provider_user(request: Request, auth_required: bool) -> (str | None) {
-            if auth_required {
-                return _authenticate(request);
-            }
-            return _auth_or_guest(request);
-        }
-
         def _mk_provider_walker(bound: str) -> Callable {
             def _spawn_provider(request: Request, node_id: str = '') -> any {
                 intro.load();
-                username = _provider_user(
-                    request, intro.is_auth_required_for_walker(bound)
-                );
+                username = _caller(request, intro.is_auth_required_for_walker(bound));
                 if not username {
                     return JSONResponse(
                         content={'error': 'Unauthorized'}, status_code=401
@@ -2750,13 +2753,13 @@ impl JacAPIServer.build_app -> ServingApp {
                         content={'error': 'Invalid JSON'}, status_code=400
                     );
                 }
-                idem = _idempotency_key(request);
-                replay = _idempotent_replay(idem);
+                idem = _idempotency_key(request, username, provider_app, bound);
+                replay = replay_cached(idem);
                 if replay is not None {
                     return replay;
                 }
                 fields = data | {'_jac_spawn_node': node_id};
-                return _idempotent_remember(
+                return remember_response(
                     idem, asyncio.run(_aspawn_walker(handler, bound, fields, username))
                 );
             }
@@ -2766,9 +2769,7 @@ impl JacAPIServer.build_app -> ServingApp {
         def _mk_provider_function(bound: str) -> Callable {
             def _call_provider(request: Request) -> any {
                 intro.load();
-                username = _provider_user(
-                    request, intro.is_auth_required_for_function(bound)
-                );
+                username = _caller(request, intro.is_auth_required_for_function(bound));
                 if not username {
                     return JSONResponse(
                         content={'error': 'Unauthorized'}, status_code=401
@@ -2780,7 +2781,14 @@ impl JacAPIServer.build_app -> ServingApp {
                         content={'error': 'Invalid JSON'}, status_code=400
                     );
                 }
-                return asyncio.run(_acall_function(handler, bound, data, username));
+                idem = _idempotency_key(request, username, provider_app, bound);
+                replay = replay_cached(idem);
+                if replay is not None {
+                    return replay;
+                }
+                return remember_response(
+                    idem, asyncio.run(_acall_function(handler, bound, data, username))
+                );
             }
             return _call_provider;
         }
@@ -2848,6 +2856,7 @@ impl JacAPIServer.build_app -> ServingApp {
             continue;
         }
         _mount_provider(
+            provider_app,
             route.rstrip('/'),
             intro,
             ExecutionHandler(
@@ -2939,13 +2948,10 @@ impl JacAPIServer.start(
     on_ready: Callable[[int], None] | None = None
 ) -> None {
     import from pathlib { Path }
-    import from jaclang.server { sv_client }
-    import from jaclang.server.outbox { start_worker, stop_worker }
+    import from jaclang.server.outbox { start_worker_if_bridging, stop_worker }
     self.introspector.load();
     self._ensure_sv_siblings();
-    if sv_client.has_consumers() {
-        start_worker();
-    }
+    start_worker_if_bridging();
 
     for (name, walker_cls) in self.introspector._walkers.items() {
         walker_spec = getattr(walker_cls, 'schedule_spec', '');

@@ -122,13 +122,40 @@ impl SqlOutboxStore.list_pending(
     rows = self._exec(
         f"""
         SELECT {_COLUMNS} FROM jac_outbox
-        WHERE status = :status AND next_attempt_at <= :now
+        WHERE status IN (:pending, :delivering) AND next_attempt_at <= :now
         ORDER BY next_attempt_at, created_at
         LIMIT :limit
         """,
-        {"status": STATUS_PENDING, "now": now, "limit": int(limit)}
+        {
+            "pending": STATUS_PENDING,
+            "delivering": STATUS_DELIVERING,
+            "now": now,
+            "limit": int(limit)
+        }
     );
     return [_row_to_entry(r) for r in rows];
+}
+
+
+impl SqlOutboxStore.claim(id: str, now: float, lease_s: float = LEASE_S) -> bool {
+    changed = self._exec_count(
+        """
+        UPDATE jac_outbox
+        SET status = :next, next_attempt_at = :lease_until
+        WHERE id = :id
+          AND status IN (:pending, :delivering)
+          AND next_attempt_at <= :now
+        """,
+        {
+            "next": STATUS_DELIVERING,
+            "lease_until": now + float(lease_s),
+            "id": id,
+            "pending": STATUS_PENDING,
+            "delivering": STATUS_DELIVERING,
+            "now": now
+        }
+    );
+    return changed == 1;
 }
 
 
@@ -159,6 +186,21 @@ impl SqlOutboxStore.list_status(status: str) -> list[OutboxEntry] {
         {"status": status}
     );
     return [_row_to_entry(r) for r in rows];
+}
+
+
+impl SqlOutboxStore.prune_status(status: str, created_before: float) -> int {
+    return self._exec_count(
+        "DELETE FROM jac_outbox WHERE status = :status AND created_at < :before",
+        {"status": status, "before": created_before}
+    );
+}
+
+
+impl SqlOutboxStore.prune_seen(now: float) -> int {
+    return self._exec_count(
+        "DELETE FROM jac_outbox_seen WHERE expires_at <= :now", {"now": now}
+    );
 }
 
 
@@ -195,21 +237,14 @@ impl PgOutboxStore._exec(sql: str, params: dict) -> list[tuple] {
 }
 
 
-impl PgOutboxStore.ensure_tables -> None {
-    self.store.ensure_schema_once(self.store.promotions);
+impl PgOutboxStore._exec_count(sql: str, params: dict) -> int {
+    return len(self.store.rows(sql + " RETURNING 1", params));
 }
 
 
-impl PgOutboxStore.claim(id: str) -> bool {
-    rows = self._exec(
-        """
-        UPDATE jac_outbox SET status = :next
-        WHERE id = :id AND status = :expected
-        RETURNING id
-        """,
-        {"next": STATUS_DELIVERING, "id": id, "expected": STATUS_PENDING}
-    );
-    return bool(rows);
+impl PgOutboxStore.ensure_tables -> None {
+    self.store.server_version();
+    self.store.ensure_schema_once(self.store.promotions);
 }
 
 
@@ -250,18 +285,15 @@ impl SqliteOutboxStore._exec(sql: str, params: dict) -> list[tuple] {
 }
 
 
-impl SqliteOutboxStore.claim(id: str) -> bool {
+impl SqliteOutboxStore._exec_count(sql: str, params: dict) -> int {
     with self._lock {
         conn = self._conn;
         if conn is None {
             raise RuntimeError(f"outbox store at {self.path} is closed");
         }
-        cur = conn.execute(
-            "UPDATE jac_outbox SET status = :next WHERE id = :id AND status = :expected",
-            {"next": STATUS_DELIVERING, "id": id, "expected": STATUS_PENDING}
-        );
+        cur = conn.execute(sql, params);
         try {
-            return cur.rowcount == 1;
+            return int(cur.rowcount);
         } finally {
             cur.close();
         }
@@ -306,7 +338,11 @@ impl _writable_txn(mem: any, store: Store) -> None {
 
 
 impl _derive_worker_store(primary: PgStore) -> PgOutboxStore {
-    side = PgStore(conninfo=primary.conninfo, ensure_cb=primary.ensure_cb);
+    side = PgStore(
+        conninfo=primary.conninfo,
+        ensure_cb=primary.ensure_cb,
+        promotions=dict(primary.promotions)
+    );
     derived = PgOutboxStore(store=side);
     derived.ensure_tables();
     return derived;
@@ -314,7 +350,7 @@ impl _derive_worker_store(primary: PgStore) -> PgOutboxStore {
 
 
 impl _ensure_pg_schema(primary: PgStore) -> None {
-    marker = id(primary);
+    marker = primary.conninfo.dsn();
     if marker in _state.schema_ready {
         return;
     }
@@ -365,18 +401,24 @@ impl _store_for_worker -> OutboxStore {
     if explicit is not None {
         return explicit;
     }
+    primary = _primary_pg_store();
+    if primary is not None {
+        _ensure_pg_schema(primary);
+    }
     with _state.lock {
         cached = _state.worker_store;
         if cached is not None {
             return cached;
         }
-        primary = _primary_pg_store();
-        resolved: OutboxStore = (
-            _derive_worker_store(primary) if primary is not None else _sqlite_store()
-        );
+        resolved: OutboxStore = _sqlite_store();
         _state.worker_store = resolved;
         return resolved;
     }
+}
+
+
+impl _store_for_seen -> OutboxStore {
+    return _store_for_worker();
 }
 
 
@@ -450,10 +492,11 @@ impl _deliver_one(item: OutboxEntry) -> any {
 
 impl deliver_pending(max_attempts: int = DEFAULT_MAX_ATTEMPTS) -> int {
     store = _store_for_worker();
-    due = store.list_pending(time.time(), DELIVER_BATCH);
+    now = time.time();
+    due = store.list_pending(now, DELIVER_BATCH);
     delivered = 0;
     for item in due {
-        if not store.claim(item.id) {
+        if not store.claim(item.id, now) {
             continue;
         }
         item.status = STATUS_DELIVERING;
@@ -484,6 +527,22 @@ impl deliver_pending(max_attempts: int = DEFAULT_MAX_ATTEMPTS) -> int {
 }
 
 
+impl prune(delivered_ttl_s: float = DELIVERED_TTL_S) -> int {
+    store = _store_for_worker();
+    now = time.time();
+    removed = store.prune_status(STATUS_DELIVERED, now - float(delivered_ttl_s));
+    store.prune_seen(now);
+    return removed;
+}
+
+
+impl purge_dead(older_than_s: float = 0.0) -> int {
+    return _store_for_worker().prune_status(
+        STATUS_DEAD, time.time() - float(older_than_s)
+    );
+}
+
+
 impl dead_letters -> list[OutboxEntry] {
     return _store_for_worker().list_status(STATUS_DEAD);
 }
@@ -493,6 +552,7 @@ impl _worker_loop(interval_s: float, stop: threading.Event) -> None {
     while not stop.is_set() {
         try {
             deliver_pending();
+            prune();
         } except Exception as e {
             logger.warning(f"outbox delivery pass failed: {type(e).__name__}: {e}");
         }
@@ -516,6 +576,16 @@ impl start_worker(interval_s: float = 1.0) -> None {
         _state.worker = thread;
         thread.start();
     }
+}
+
+
+impl start_worker_if_bridging(interval_s: float = 1.0) -> bool {
+    import jaclang.server.sv_client as sv_client;
+    if not sv_client.has_consumers() {
+        return False;
+    }
+    start_worker(interval_s);
+    return True;
 }
 
 
@@ -578,7 +648,7 @@ impl cached_result(key: str) -> (str | None) {
     if hit is not None {
         return hit;
     }
-    return _store_for_request(writable=False).recall_key(key, now);
+    return _store_for_seen().recall_key(key, now);
 }
 
 
@@ -594,6 +664,49 @@ impl remember_idempotency_key(
         return;
     }
     now = time.time();
-    _store_for_request(writable=True).remember_key(key, ttl_s, result, now);
+    _store_for_seen().remember_key(key, ttl_s, result, now);
     _lru_put(key, now + float(ttl_s), result);
+}
+
+
+impl scoped_idempotency_key(raw: str, username: str, app: str, target: str) -> str {
+    key = str(raw or "").strip();
+    if not key {
+        return "";
+    }
+    material = "\n".join([app, target, username]).encode("utf-8");
+    return hashlib.sha256(material).hexdigest()[:16] + ":" + key;
+}
+
+
+impl replay_cached(key: str) -> any {
+    if not key {
+        return None;
+    }
+    cached = cached_result(key);
+    if cached is None {
+        return None;
+    }
+    import from jaclang.server.bridge { replay_response }
+    return replay_response(cached);
+}
+
+
+impl remember_response(key: str, response: any) -> any {
+    if not key {
+        return response;
+    }
+    import from jaclang.server.bridge { serialize_response }
+    import from jaclang.server.serving.datatypes { JSONResponse }
+    import from jaclang.server.transport { TransportResponse }
+    ok = False;
+    if isinstance(response, TransportResponse) {
+        ok = bool(response.ok);
+    } elif isinstance(response, JSONResponse) {
+        ok = 200 <= int(response.status_code) < 300;
+    }
+    if ok {
+        remember_idempotency_key(key, result=serialize_response(response));
+    }
+    return response;
 }
