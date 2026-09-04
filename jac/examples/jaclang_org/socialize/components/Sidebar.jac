@@ -18,6 +18,7 @@ import from ...shared.ui.dropdown_menu {
     DropdownMenuItem
 }
 import from ...shared.utils { cn }
+import from ..identity { handle_of }
 
 def:pub Sidebar(
     activeTab: str,
@@ -126,7 +127,7 @@ def:pub Sidebar(
                             {displayUsername}
                         </div>
                         <div className="truncate text-xs text-muted-foreground">
-                            {"@" + displayUsername}
+                            {"@" + handle_of(profileUsername)}
                         </div>
                     </div>
                     <MoreHorizontal

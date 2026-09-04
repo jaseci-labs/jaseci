@@ -68,7 +68,7 @@ machine runs them, which is the tier boundary this language exists to erase.
 | `leaderboard/` | Submit, score, board: rubric, graph, shell, card |
 | `game/` | The rlgl shooter (`arena.jac`, owned/borrowed, zero-GC) and its WebGL host |
 | `source/` | The live source browser and its floating window |
-| `socialize/` | Jacyak embedded as a login-gated section: `social_graph.jac` is the whole backend (nodes, edges, walkers), `Socialize.jac` + `components/` the client |
+| `socialize/` | Jacyak embedded as a login-gated section: `social_graph.jac` is the whole backend (profiles with uploaded avatars, posts, follows, channels, and projects that every user adds as GitHub repos and the Ninja Scores scorer grades on the way in), `Socialize.jac` + `components/` the client |
 | `shared/` | Earned its way in: used by two or more features |
 | `shared/ui/` | jac-shadcn primitives -- **registry-managed, import only** |
 | `examples/` | Real compiled Jac samples, runnable with `jac run` |

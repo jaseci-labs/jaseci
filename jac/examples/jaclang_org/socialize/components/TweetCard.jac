@@ -21,10 +21,13 @@ import from ...shared.ui.alert_dialog {
 }
 import from ...shared.utils { cn }
 import from ..social_graph { Tweet }
+import from ..identity { handle_of, initial_of, avatar_of }
 
 def:pub TweetCard(
     tweet: Tweet,
     myUsername: str,
+    avatars: dict[str, str],
+    onViewProfile: Callable[[str], None],
     onLike: Callable[[str], None],
     onComment: Callable[[str, str], None],
     onDelete: Callable[[str], None],
@@ -37,11 +40,11 @@ def:pub TweetCard(
     is_liked = myUsername in tweet.likes;
     like_count = len(tweet.likes);
     comment_count = len(tweet.comments);
-    author_avatar = "https://i.pravatar.cc/150?u=fake@" + tweet.author_username;
+    author_avatar = avatar_of(avatars, tweet.author_username);
 
     raw_name = tweet.author_username or "unknown";
-    display_name = raw_name.split("@")[0] if "@" in raw_name else raw_name;
-    initial = display_name[0].upper() if display_name else "?";
+    display_name = handle_of(raw_name);
+    initial = initial_of(display_name);
 
     diff_ms = Date.now() - new(Date, tweet.created_at).getTime()
         if tweet.created_at
@@ -72,15 +75,25 @@ def:pub TweetCard(
     <article
         className="lx-fade-up flex gap-3 border-b border-border px-4 py-3 transition-colors hover:bg-muted/30"
     >
-        <Avatar className="size-10 shrink-0">
-            <AvatarImage src={author_avatar} alt={tweet.author_username}/>
-            <AvatarFallback>{initial}</AvatarFallback>
-        </Avatar>
+        <button
+            type="button"
+            className="shrink-0 self-start"
+            onClick={lambda { onViewProfile(tweet.author_username); }}
+        >
+            <Avatar className="size-10">
+                <AvatarImage src={author_avatar} alt={tweet.author_username}/>
+                <AvatarFallback>{initial}</AvatarFallback>
+            </Avatar>
+        </button>
         <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 text-sm">
-                <span className="font-display font-bold text-foreground truncate">
+                <button
+                    type="button"
+                    className="font-display font-bold text-foreground truncate hover:underline"
+                    onClick={lambda { onViewProfile(tweet.author_username); }}
+                >
                     {display_name}
-                </span>
+                </button>
                 <span className="text-muted-foreground truncate">
                     {"@" + display_name}
                 </span>
@@ -191,19 +204,18 @@ def:pub TweetCard(
                         <div className="flex gap-2" key={c["created_at"]}>
                             <Avatar className="size-7 shrink-0">
                                 <AvatarImage
-                                    src={"https://i.pravatar.cc/150?u=fake@"
-                                        + c["username"]}
+                                    src={avatar_of(avatars, c["username"])}
                                     alt={c["username"]}
                                 />
                                 <AvatarFallback className="text-[0.6rem]">
-                                    {c["username"][0].upper()}
+                                    {initial_of(handle_of(c["username"]))}
                                 </AvatarFallback>
                             </Avatar>
                             <div
                                 className="rounded-2xl rounded-tl-sm bg-muted px-3 py-1.5"
                             >
                                 <div className="text-xs font-semibold text-foreground">
-                                    {c["username"]}
+                                    {handle_of(c["username"])}
                                 </div>
                                 <div className="text-sm text-foreground/90">
                                     {c["content"]}
