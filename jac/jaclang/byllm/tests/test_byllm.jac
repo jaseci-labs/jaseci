@@ -1909,6 +1909,89 @@ test "acall_llm proxy is a coroutine function" {
     );
 }
 
+# --- jac#8932 -----------------------------------------------------------------
+# BaseLLM.adispatch_streaming awaits model_call_with_stream_async before
+# iterating it, so the base implementation must be a coroutine returning an
+# async iterator, not an async generator. Every BaseLLM subclass that does not
+# define its own inherits it; only Model used to be safe.
+
+obj _Stream8932Delta {
+    has content: str;
+}
+
+obj _Stream8932Choice {
+    has delta: _Stream8932Delta;
+}
+
+obj _Stream8932Chunk {
+    has choices: list[object],
+        usage: object = None;
+}
+
+
+"""Subclass that implements only the sync provider call, like LocalLLM and ModelPool."""
+obj _Stream8932LLM(_byllm_llm_mod.BaseLLM) {
+    override def model_call_with_stream(params: dict) -> object {
+        for word in ["hello ", "world"] {
+            yield _Stream8932Chunk(
+                choices=[_Stream8932Choice(delta=_Stream8932Delta(content=word))]
+            );
+        }
+    }
+}
+
+
+def _mt_8932(stream: bool = True) -> MTRuntime {
+    return MTRuntime(
+        messages=[
+            Message(role=MessageRole.SYSTEM, content="s"),
+            Message(role=MessageRole.USER, content="u")
+        ],
+        resp_type=str,
+        stream=stream,
+        tools=[],
+        call_params={},
+        mtir=None
+    );
+}
+
+
+async def _drain_8932(llm: _byllm_llm_mod.BaseLLM) -> list[object] {
+    stream: any = llm.adispatch_streaming(_mt_8932());
+    out: list[object] = [];
+    async for chunk in stream {
+        out.append(chunk);
+    }
+    return out;
+}
+
+
+test "BaseLLM.model_call_with_stream_async is a coroutine, not an async generator" {
+    fn = _byllm_llm_mod.BaseLLM.model_call_with_stream_async;
+    assert not inspect.isasyncgenfunction(fn) , (
+        "must not be an async generator: adispatch_streaming awaits it, and "
+        "awaiting an async_generator raises TypeError (jac#8932)"
+    );
+    assert inspect.iscoroutinefunction(fn) , (
+        "must be a coroutine returning an async iterator, matching Model"
+    );
+}
+
+
+test "async streaming works on a BaseLLM subclass that inherits the base method" {
+    llm = _Stream8932LLM(model_name="fake-8932");
+    assert asyncio.run(_drain_8932(llm)) == ["hello ", "world"];
+}
+
+
+test "async streaming works on MockLLM" {
+    llm = _byllm_llm_mod.MockLLM(
+        model_name="mockllm", config={"outputs": ["hello world"]}
+    );
+    assert "".join(asyncio.run(_drain_8932(llm))) == "hello world";
+}
+
+
 test "model_call_no_stream_async raises and logs AuthenticationError" {
     log_output = io.StringIO();
     _loguru_logger.remove();
