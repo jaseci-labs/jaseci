@@ -866,8 +866,8 @@ walker:priv DeleteWithChildren {
 |----------|-------------|
 | `jid(node)` | Get unique Jac ID of object |
 | `jobj(node)` | Get Jac object wrapper |
-| `grant(node, level=AccessLevel.READ)` | Open a node to every other user at a level of the ambient `AccessLevel` enum - `NO_ACCESS` / `READ` / `CONNECT` / `WRITE` (no import) |
-| `revoke(node)` | Remove a `grant` |
+| `grant(node, level=AccessLevel.READ)` | Open a node to every other user at a level of the ambient `AccessLevel` enum - `NO_ACCESS` / `READ` / `CONNECT` / `WRITE` (no import). Changing a node's grants is a write on the node: only a caller holding `WRITE` on it (its owner, the system root, or a root granted `WRITE`) may do so; anyone else gets a permission-denied diagnostic (a `PermissionError` under `JAC_STRICT_PERMISSIONS`) and nothing changes |
+| `revoke(node)` | Remove a `grant` (same `WRITE` requirement) |
 | `allroots()` | Get all root references |
 | `save(node)` | Persist node to storage |
 | `commit()` | Commit pending changes |

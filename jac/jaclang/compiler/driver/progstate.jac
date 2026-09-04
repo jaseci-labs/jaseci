@@ -2,11 +2,13 @@ import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.frontend.relations { ScopeChild }
 import from jaclang.compiler.passes.transform { Alert }
 import type from jaclang.compiler.driver.mtp { Info }
+import type from jaclang.compiler.frontend.codeinfo { ClientArtifact }
 
 obj ModuleHub {
     has mod: uni.ProgramModule,
         stamps: dict[str, float] = {},
-        artifacts: dict[str, any] = {};
+        artifacts: dict[str, any] = {},
+        client_artifacts: dict[str, ClientArtifact] = {};
 
     def stamp(resolved_path: str) {
         import time;
@@ -35,6 +37,16 @@ obj ModuleHub {
         }
     }
 
+    def install(resolved_path: str, mod: uni.Module) -> (uni.Module | None) {
+        prev = self.mod.hub.get(resolved_path);
+        self.mod.hub[resolved_path] = mod;
+        self.stamp(resolved_path);
+        if prev is None or prev is mod {
+            return None;
+        }
+        return prev;
+    }
+
     def evict(resolved_path: str) {
         if resolved_path in self.mod.hub {
             self.mod.hub.pop(resolved_path);
@@ -44,6 +56,9 @@ obj ModuleHub {
         }
         if resolved_path in self.artifacts {
             del self.artifacts[resolved_path];
+        }
+        if resolved_path in self.client_artifacts {
+            del self.client_artifacts[resolved_path];
         }
     }
 
@@ -82,6 +97,7 @@ obj ModuleHub {
         prog_root.hub.update(retained_mods);
         self.stamps.clear();
         self.stamps.update(retained_stamps);
+        self.client_artifacts.clear();
     }
 }
 

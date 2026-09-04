@@ -5,7 +5,6 @@ import from c { def Py_DecRef(o: int) -> int;  }
 import from jaclang.compiler.jc_materialize {
     hint_commentdata,
     hint_srcdiag,
-    jc_graph_wipe,
     jc_mz_dispose,
     jc_mz_obj,
     jc_mz_run,
@@ -126,14 +125,12 @@ def _run_in_region(src: str, path: str) -> int {
         if status == 0 {
             status = _materialize(r, mod, p_diags, comments, lex_diags);
         }
-        jc_graph_wipe();
     }
     return status;
 }
 
 def:pub jc_run(src: str, path: str) -> int {
     _clear_results();
-    jc_graph_wipe();
     status = _run_in_region(src, path);
     _clear_annexes();
     return status;

@@ -168,9 +168,10 @@ environment. `JAC_TEST_JOBS=0` still works and is what CI sets.
 CI runs five groups under `jac/jaclang/scale/tests/`, and they map to
 surfaces: `microservices/` for the gateway, registry, routing and local fleet,
 `server/` for serving and the admin API, `data/` for identity and persistence,
-`deploy/` for manifests and targets, `misc/` for the rest. The root-level
-`test_deploy_k8s.jac`, `test_k8s_utils.jac` and `test_pod_env.jac` run on a
-cluster-backed leg of their own. Per-file isolation is not decoration: several
+`deploy/` for manifests and targets, `misc/` for the rest. Every test file
+lives in one of those five directories. `deploy/test_deploy_k8s.jac` is the one
+that needs a cluster: it gates on `JAC_TEST_K8S` and runs on the cluster-backed
+leg, not in the `deploy` group. Per-file isolation is not decoration: several
 suites mutate process state.
 
 **Step 2, the real command.** Run the CLI the user runs, as a subprocess, and

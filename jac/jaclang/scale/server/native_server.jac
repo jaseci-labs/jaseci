@@ -177,12 +177,13 @@ obj NativeJServer {
                 return response;
             } finally {
                 try {
-                    JacRuntime.reset_request_context(req_token);
                     ctx.close();
                 } except Exception as e {
                     logger.warning(
-                        f"Failed to clear request context: {e}", exc_info=True
+                        f"Failed to close request context: {e}", exc_info=True
                     );
+                } finally {
+                    JacRuntime.reset_request_context(req_token);
                 }
                 try {
                     reset_current_auth(auth_token);

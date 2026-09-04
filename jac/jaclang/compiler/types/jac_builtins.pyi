@@ -43,6 +43,7 @@ __all__ = [
     "EdgeDir",
     "LLMModel",
     "Region",
+    "region_of",
     # Fixed-width numeric types
     "i8",
     "u8",
@@ -168,6 +169,10 @@ class Region:
     def partition(self) -> Region: ...
     @overload
     def partition(self, n: int) -> tuple[Region, ...]: ...
+
+# The region a value was allocated in (the growth anchor of a traversal),
+# or None for a managed value.
+def region_of(__x: object) -> Region | None: ...
 
 class EdgeDir:
     OUT: int

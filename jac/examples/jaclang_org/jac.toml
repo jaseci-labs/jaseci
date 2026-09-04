@@ -2,7 +2,7 @@
 name = "jaclang_org"
 entry-point = "main.jac"
 kind = "web-app"
-jac-version = "0.35.0"
+jac-version = "==0.37.3"
 
 # Makes this site scaffoldable as a template: `jac create <name> --awesome`
 # dumps it (the payload bundles this tree as awesome_template beside the
@@ -16,9 +16,6 @@ jaclang_source = "../.."
 
 [precommit]
 typecheck = true
-
-[test]
-directories = ["socialize", "leaderboard", "shared", "docs"]
 
 [check.lint]
 select = ["all", "strip-comments", "strip-docstrings"]
@@ -71,13 +68,6 @@ lib_imports = ["import tailwindcss from '@tailwindcss/vite'"]
 
 [serve]
 base_route_app = "app"
-
-# Keeps local `jac run` single-process (vite dev + HMR) while the routes table
-# below still declares the deployed service cut. The deprecation warning says
-# to delete this, but without it `jac run` enters local microservice mode,
-# which serves no web app (see _planning/site_qa_jac_issues.md).
-[scale.microservices]
-enabled = false
 
 [client.assets]
 custom_extensions = [

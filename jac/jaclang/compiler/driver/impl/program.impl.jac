@@ -30,6 +30,19 @@ impl JacProgram.hub_cache_stamp(self: JacProgram, resolved_path: str) -> None {
     self.hub.stamp(resolved_path);
 }
 
+impl JacProgram.install_module(
+    self: JacProgram, resolved_path: str, mod: uni.Module
+) -> None {
+    displaced = self.hub.install(resolved_path, mod);
+    if displaced is None {
+        return;
+    }
+    te = self.type_evaluator;
+    if te is not None {
+        te.forget_module(resolved_path);
+    }
+}
+
 impl JacProgram.is_hub_entry_fresh(self: JacProgram, resolved_path: str) -> bool {
     return self.hub.is_fresh(resolved_path);
 }
@@ -156,8 +169,7 @@ impl JacProgram.load_dependency_module(
             ).ir_out;
             mod.stub_only = True;
 
-            target_hub[resolved_path] = mod;
-            target_program.hub_cache_stamp(resolved_path);
+            target_program.install_module(resolved_path, mod);
             compiler.note_stub_tree_served(resolved_path, self);
             compiler.resolve_absorb_imports(mod, self);
             run_pass(SymTabBuildPass, mod, self);
@@ -176,8 +188,7 @@ impl JacProgram.load_dependency_module(
             );
         }
         if not hasattr(mod, "cat_kids") {
-            target_hub[resolved_path] = mod;
-            target_program.hub_cache_stamp(resolved_path);
+            target_program.install_module(resolved_path, mod);
         }
     }
 
@@ -384,6 +395,12 @@ impl JacProgram.get_bytecode(
     self: JacProgram, full_target: str
 ) -> (types.CodeType | None) {
     return self._get_compiler().get_bytecode(full_target, self);
+}
+
+impl JacProgram.get_client_artifact(
+    self: JacProgram, full_target: str
+) -> (ClientArtifact | None) {
+    return self._get_compiler().get_client_artifact(full_target, self);
 }
 
 impl JacProgram.parse_str(

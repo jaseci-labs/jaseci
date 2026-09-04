@@ -123,7 +123,7 @@ Execute a Jac file, a prebuilt `.jab` artifact, or (with no filename) run the cu
 **Note:** `jac <file>` is shorthand for `jac run <file>` - both work identically.
 
 ```bash
-jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [-e DIAGNOSTICS] [--profile PROFILE] [--entry ENTRY] [-n NODE] [-r ROOT] [--debug] [--serve | --no-serve] [-p PORT] [-d | --dev] [--api-port API_PORT] [--no-client] [-f | --faux] [--client {web,pwa,mobile,desktop}] [--host HOST] [--platform {auto,android,ios}] [--takeover] [filename] [args ...]
+jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [-e DIAGNOSTICS] [--profile PROFILE] [--entry ENTRY] [-n NODE] [-r ROOT] [--debug] [--serve | --no-serve] [-p PORT] [-d | --dev] [--api-port API_PORT] [--no-client] [-f | --faux] [--client {web,pwa,mobile,desktop}] [--host HOST] [--platform {auto,android,ios}] [--takeover | --no-takeover] [filename] [args ...]
 ```
 
 | Option | Description | Default |
@@ -158,7 +158,15 @@ Serving only -- rejected when the resolved action is *execute* or *build*:
 | `--client` | Client build target (`web`, `pwa`, `mobile`, `desktop`) | `web` |
 | `--host` | Mobile dev (`--client mobile --dev`) optional live-reload host/IP override | `""` |
 | `--platform` | Mobile platform selector for `--client mobile` (`auto`, `android`, `ios`) | `auto` |
-| `--takeover` | Evict any other session holding this project's database before serving | `False` |
+
+Project scope for a named file -- accepted whether the resolved action is *execute*, *serve* or *build*:
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--takeover` | Run the named file as the surrounding project even when the file lives outside it, and evict any other session holding this project's database before serving | (the file's own project decides) |
+| `--no-takeover` | Run the named file standalone, leaving the surrounding project's config, output tree and dev session untouched | (the file's own project decides) |
+
+A named file otherwise runs under the project that owns it: the nearest `jac.toml` at or above the file. A file that owns no project runs standalone, even from a working directory inside one, so a one-off script never commandeers a running dev server.
 
 Like Python, everything after the filename is passed to the script. Jac flags must come **before** the filename.
 

@@ -2,11 +2,12 @@
 
 A graph built from fresh node locals, connected only among themselves,
 and consumed by an expression-statement spawn is provably unrooted: the
-conservative may-reach-root scan stamps it, and codegen wraps the extent
-in an implicit anonymous region -- arena allocation for the nodes, graph
-rows retired via the region keyring, bulk free after the spawn. Any
-contact with root or an escape declines the inference. Output stays
-byte-identical across gc modes either way.
+conservative may-reach-root scan proves it, and RegionInferPass wraps the
+extent in a real `in Region() { }` open -- arena allocation for the nodes,
+graph rows retired at the handle's death, bulk free after the spawn, and
+the same drop hooks on the Python backend. Any contact with root or an
+escape declines the inference. Output stays byte-identical across gc modes
+either way.
 """
 
 import os;
@@ -16,6 +17,8 @@ import tempfile;
 import from tests.support { TESTS_DIR }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.passes.rc_facts_pass { loop_body_locals }
+import jaclang.compiler.frontend.unitree as uni;
 
 glob FIXDIR = os.path.join(
          TESTS_DIR, "compiler", "backends", "native", "fixtures"
@@ -46,21 +49,24 @@ def _compile_mod(fixture: str) -> any {
     }
 }
 
-test "unrooted spawn stamps one anonymous-region group" {
+test "unrooted spawn desugars to one anonymous open" {
     ir = _compile_mod("anon_region_spawn.jac");
-    assert len(ir.anon_region_open) == 1 , ir.anon_region_open;
-    assert len(ir.anon_region_close) == 1 , ir.anon_region_close;
-    assert list(ir.anon_region_locals.values()) == [["a", "b", "c"]] , ir.anon_region_locals;
+    opens = ir.get_all_sub_nodes(uni.OpenStmt);
+    assert len(opens) == 1 , opens;
+    assert isinstance(opens[0].target, uni.FuncCall) , opens[0].target;
+    assert loop_body_locals(opens[0].body) == ["a", "b", "c"] , loop_body_locals(
+        opens[0].body
+    );
 }
 
 test "root contact declines the inference" {
     ir = _compile_mod("anon_region_rooted.jac");
-    assert not ir.anon_region_open , ir.anon_region_open;
+    assert not ir.get_all_sub_nodes(uni.OpenStmt) , ir.get_all_sub_nodes(uni.OpenStmt);
 }
 
 test "escaping member declines the inference" {
     ir = _compile_mod("anon_region_escape.jac");
-    assert not ir.anon_region_open , ir.anon_region_open;
+    assert not ir.get_all_sub_nodes(uni.OpenStmt) , ir.get_all_sub_nodes(uni.OpenStmt);
 }
 
 test "inferred region drops LIFO at close in every gc mode" {

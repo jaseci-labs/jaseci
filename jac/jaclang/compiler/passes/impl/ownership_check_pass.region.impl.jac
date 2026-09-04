@@ -1,4 +1,7 @@
 import from jaclang.compiler.frontend.diagnostics { E1307, E1314, W1310 }
+import from jaclang.compiler.expr_keys { is_builtin_region_type }
+import from jaclang.compiler.symbol_utils { CallKind, classify_call }
+import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 
 impl OwnershipCheckPass._partition_sugar_reason(call: FuncCall) -> str {
     _params = [p for p in (call.params or [])];
@@ -52,13 +55,7 @@ impl OwnershipCheckPass._process_partition_sugar -> None {
             continue;
         }
         _psr_recv = _tr.target;
-        _psr_m = "";
-        try {
-            _psr_m = _psr_recv.type.mangle() if _psr_recv.type is not None else "";
-        } except Exception {
-            _psr_m = "";
-        }
-        if _psr_m != "Region" {
+        if not is_builtin_region_type(_psr_recv.type) {
             continue;
         }
         reason = self._partition_sugar_reason(call);
@@ -89,22 +86,7 @@ impl OwnershipCheckPass._process_partition_sugar -> None {
     }
 }
 
-glob _REGION_SCALARS: tuple = ("int", "float", "bool", "None", "NoneType"),
-     _REGION_SAFE_CALLEES: frozenset[str] = frozenset(
-         {
-             "print",
-             "len",
-             "repr",
-             "str",
-             "int",
-             "float",
-             "bool",
-             "isinstance",
-             "type",
-             "id",
-             "hash"
-         }
-     );
+glob _REGION_SCALARS: tuple = ("int", "float", "bool", "None", "NoneType");
 
 impl OwnershipCheckPass._has_region_blocks -> bool {
     return bool(self.ir_in.get_all_sub_nodes(OpenStmt));
@@ -357,8 +339,8 @@ impl OwnershipCheckPass._param_is_region_borrow(param: ParamVar) -> bool {
     while isinstance(_expr, AtomTrailer) {
         _expr = _expr.target;
     }
-    import from jaclang.compiler.expr_keys { is_builtin_region_name }
-    return is_builtin_region_name(_expr);
+    return isinstance(_expr, Expr)
+        and is_builtin_region_type(_expr.type, allow_class=True);
 }
 
 impl OwnershipCheckPass._region_handle_kind(region: OpenStmt) -> str {
@@ -508,19 +490,48 @@ impl OwnershipCheckPass._region_callee_is_safe(
         }
         return False;
     }
-    if isinstance(_callee, Name) {
-        if _callee.sym_name in _REGION_SAFE_CALLEES {
-            return True;
-        }
-
-        if _callee.sym is not None and _callee.sym.decl is not None {
-            _decl = _callee.sym.decl;
-            if isinstance(_decl.find_parent_of_type(Archetype), Archetype) {
-                return True;
-            }
-        }
+    _kind = classify_call(call);
+    if _kind == CallKind.INSTANTIATION {
+        return True;
+    }
+    if _kind == CallKind.BUILTIN and isinstance(_callee, Name) {
+        return JAC_TYPE_REGISTRY.is_non_retaining_builtin(_callee.sym_name);
     }
     return False;
+}
+
+impl OwnershipCheckPass._region_call_result_rooted(
+    expr: (Expr | None), region: OpenStmt, hsid: (SymId | None)
+) -> bool {
+    if not isinstance(expr, FuncCall) or expr.type is None {
+        return False;
+    }
+    if expr.find_parent_of_type(OpenStmt) is not region {
+        return False;
+    }
+    if self._region_expr_is_scalar(expr) or is_builtin_region_type(expr.type) {
+        return False;
+    }
+    if hsid is not None and self._call_borrows_handle(expr, hsid) {
+        return False;
+    }
+    if (
+        classify_call(expr) == CallKind.BUILTIN
+        and isinstance(expr.target, Name)
+        and JAC_TYPE_REGISTRY.is_non_retaining_builtin(expr.target.sym_name)
+    ) {
+        return False;
+    }
+    return True;
+}
+
+impl OwnershipCheckPass._emit_region_call_escape(call: Expr, region: OpenStmt) -> None {
+    self.emit(
+        E1307,
+        node_override=call,
+        name="call result",
+        related=[("escapes this region open", region)]
+    );
 }
 
 impl OwnershipCheckPass._emit_region_escape_diagnostics -> None {
@@ -588,6 +599,21 @@ impl OwnershipCheckPass._emit_region_escape_diagnostics -> None {
                 self._emit_region_escape(nm, region);
                 break;
             }
+            if isinstance(cexpr.target, FuncCall) {
+                for _cp in (cexpr.target.params or []) {
+                    _carg = _cp.value if isinstance(_cp, KWPair) else _cp;
+                    if not isinstance(_carg, Expr)
+                        or not self._region_call_result_rooted(_carg, region, _hsid) {
+                        continue;
+                    }
+                    key = (id(region), id(_carg));
+                    if key in seen {
+                        continue;
+                    }
+                    seen.add(key);
+                    self._emit_region_call_escape(_carg, region);
+                }
+            }
 
             if _hsid is None {
                 continue;
@@ -625,7 +651,8 @@ impl OwnershipCheckPass._emit_region_escape_diagnostics -> None {
                 continue;
             }
             escapees = self._region_escapee_roots(asn.value, region);
-            if not escapees {
+            _call_rooted = self._region_call_result_rooted(asn.value, region, _hsid);
+            if not escapees and not _call_rooted {
                 continue;
             }
             escapes = False;
@@ -658,6 +685,13 @@ impl OwnershipCheckPass._emit_region_escape_diagnostics -> None {
                 seen.add(key);
                 self._emit_region_escape(root_nm, region);
             }
+            if _call_rooted and isinstance(asn.value, FuncCall) {
+                key = (id(region), id(asn.value));
+                if key not in seen {
+                    seen.add(key);
+                    self._emit_region_call_escape(asn.value, region);
+                }
+            }
         }
 
         for call in region.get_all_sub_nodes(FuncCall) {
@@ -679,6 +713,13 @@ impl OwnershipCheckPass._emit_region_escape_diagnostics -> None {
                     }
                     seen.add(key);
                     self._emit_region_escape(root_nm, region);
+                }
+                if self._region_call_result_rooted(_arg, region, _hsid) {
+                    key = (id(region), id(_arg));
+                    if key not in seen {
+                        seen.add(key);
+                        self._emit_region_call_escape(_arg, region);
+                    }
                 }
             }
         }
