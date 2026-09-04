@@ -414,6 +414,11 @@ obj ManifestBuilder {
         }
         import from jaclang.scale.runtime.context.util { jac_executable }
         client_entry = self._client_entry();
+        if client_entry
+            and not self._declared_client_entry()
+            and not self._has_client_source() {
+            client_entry = "";
+        }
         if not client_entry {
             if self.client_entry is not None {
                 console.print(
@@ -793,14 +798,6 @@ obj ManifestBuilder {
         if self.client_entry is not None {
             return self.client_entry.strip();
         }
-        fleet = self.fleet;
-        if fleet is None {
-            return "";
-        }
-        root_member = fleet.root_member();
-        if root_member is not None and root_member.client {
-            return root_member.file;
-        }
         return "";
     }
 
@@ -821,11 +818,8 @@ obj ManifestBuilder {
             return entry_point or "main.jac";
         }
         root_member = self.fleet.root_member() if self.fleet is not None else None;
-        if root_member is not None {
-            if not self._has_client_source() {
-                return "";
-            }
-            return root_member.file or "main.jac";
+        if root_member is not None and root_member.file {
+            return root_member.file;
         }
         return "main.jac";
     }
