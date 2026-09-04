@@ -190,8 +190,13 @@ test "[dependencies.system] in jac.toml installs into the service container" {
         assert prefix.count("grep -q 'install ok installed'") == 2;
         assert prefix.index("ffmpeg") < prefix.index("git");
         assert "else export DEBIAN_FRONTEND=noninteractive && apt-get update" in prefix;
-        # Chains into app-start so a failed apt aborts the boot (no silent start).
-        assert prefix.endswith("fi && ");
+        # One complete statement. Chaining the next command onto this block
+        # with `&&` never aborted the boot: `set -e` exempts the left side of
+        # `&&`, so a failed install skipped that one command and carried on
+        # (jac#8935). A failed install is loud on its own instead.
+        assert prefix.endswith("fi; ");
+        assert "could not install system packages (ffmpeg git)" in prefix;
+        assert "&& " not in prefix.rsplit("fi; ", 1)[-1];
     }
 }
 
