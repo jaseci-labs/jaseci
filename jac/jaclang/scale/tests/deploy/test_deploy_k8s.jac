@@ -63,8 +63,7 @@ test "early exit" {
     namespace = "early-exit";
     app_name = namespace;
 
-    test_dir = os.path.dirname(os.path.abspath(__file__));
-    todo_app_path = os.path.join(test_dir, "fixtures/early-exit");
+    todo_app_path = str(Path(__file__).parents[1] / "fixtures" / "early-exit");
 
     scale_config = get_scale_config();
     target_config = scale_config.get_kubernetes_config();

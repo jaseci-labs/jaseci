@@ -82,8 +82,7 @@ test "stored hash with oversized parameters refuses to verify, with a warning" {
     # Forge a stored hash claiming n=2**20 (needs ~1 GB): must refuse cleanly.
     good = hash_password("pw");
     parts = good.split("$");
-    parts[1] = str(2 ** 20);
-    oversized = "$".join(parts);
+    oversized = "$".join([parts[0], str(2 ** 20)] + parts[2:]);
 
     def attempt {
         assert verify_password("pw", oversized) is False;
@@ -141,8 +140,10 @@ test "expire_legacy_credentials flags pre-scrypt accounts (bulk and per-user)" {
     expired = storage.expire_legacy_credentials();
     assert expired == [legacy_id] , f"expected only the legacy account, got {expired}";
     flagged = storage.get_user_by_id(legacy_id);
+    assert flagged is not None , f"legacy account {legacy_id} vanished";
     assert flagged.get('requires_password_reset') is True;
     untouched = storage.get_user_by_id(fresh['user_id']);
+    assert untouched is not None , f"fresh account {fresh['user_id']} vanished";
     assert not untouched.get('requires_password_reset');
 
     # Per-user targeting: idempotent on the already-flagged account.
