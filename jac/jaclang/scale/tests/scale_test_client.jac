@@ -8,6 +8,8 @@ import from pathlib { Path }
 # Hash throwaway fixture credentials at minimum scrypt cost so it does not dominate test time.
 with entry {
     os.environ.setdefault('JAC_SCALE_PASSWORD_HASH_COST', '10');
+    os.environ.setdefault('JAC_ADMIN_ENABLED', 'true');
+    os.environ.setdefault('JAC_ADMIN_PASSWORD', 'changeme');
 }
 
 def make_client(fixture_file: str = "test_api.jac") -> ScaleTestClient {

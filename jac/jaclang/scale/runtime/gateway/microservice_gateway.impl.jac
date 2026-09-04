@@ -204,6 +204,11 @@ impl MicroserviceGateway.serve_spa_fallback -> Response | None {
 }
 
 impl MicroserviceGateway.bootstrap_admin_ui -> None {
+    import from jaclang.scale.config.config_loader { get_scale_config }
+
+    if not get_scale_config().get_admin_config().get('enabled', False) {
+        return;
+    }
     if (Path(self.admin_dist_dir) / "index.html").is_file() {
         return;
     }
@@ -570,6 +575,11 @@ impl MicroserviceGateway.probe_services(
 }
 
 impl MicroserviceGateway.handle_admin(path: str) -> Response | None {
+    import from jaclang.scale.config.config_loader { get_scale_config }
+
+    if not get_scale_config().get_admin_config().get('enabled', False) {
+        return None;
+    }
     if path == "/admin" {
         import from jaclang.server.serving.datatypes { RedirectResponse }
         return RedirectResponse(url="/admin/", status_code=302);

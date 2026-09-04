@@ -37,12 +37,17 @@ impl JacAPIServerAdmin._require_user_manager -> JacScaleUserManager {
 
 impl JacAPIServerAdmin.register_admin_endpoints -> None {
     admin_config = get_scale_config().get_admin_config();
-    if not admin_config.get('enabled', True) {
-        logger.info("Admin portal is disabled");
+    if not admin_config.get('enabled', False) {
+        logger.info(
+            "Admin portal is disabled. Set [scale.admin] enabled = true in "
+            "jac.toml to serve it."
+        );
         return;
     }
 
-    self.bootstrap_admin();
+    if not self.bootstrap_admin() {
+        return;
+    }
 
     server = self.server;
     if server is None {
@@ -533,16 +538,21 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
     logger.info("Admin portal endpoints registered at /admin");
 }
 
-impl JacAPIServerAdmin.bootstrap_admin -> None {
+impl JacAPIServerAdmin.bootstrap_admin -> bool {
     result = self._require_user_manager().bootstrap_admin_user();
-    if 'error' not in result {
-        if 'created' in result.get('message', '').lower() {
-            logger.warning(
-                f"Admin user created with default credentials. "
-                "Please change the password immediately!"
-            );
-        }
+    if 'error' in result {
+        logger.error(
+            f"Admin portal not served: {result.get('error', 'bootstrap failed')}"
+        );
+        return False;
     }
+    if 'created' in result.get('message', '').lower() {
+        logger.warning(
+            "Admin user created with the configured bootstrap password. "
+            "It must be rotated on first login."
+        );
+    }
+    return True;
 }
 
 impl JacAPIServerAdmin.validate_admin_token(Authorization: str | None) -> (str | None) {
@@ -555,6 +565,9 @@ impl JacAPIServerAdmin.validate_admin_token(Authorization: str | None) -> (str |
         return None;
     }
     if not self._require_user_manager().is_admin(user_id) {
+        return None;
+    }
+    if self._require_user_manager().requires_password_reset(user_id) {
         return None;
     }
     return user_id;
@@ -671,8 +684,6 @@ impl JacAPIServerAdmin.reset_password(
             meta=Meta(extra={'http_status': 400})
         );
     }
-
-    self._require_user_manager().set_requires_password_reset(user_id, False);
 
     new_token = self._require_user_manager().create_jwt_token(user_id);
     return TransportResponse.success(

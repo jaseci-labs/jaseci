@@ -25,7 +25,7 @@ obj JacAPIServerAdmin {
 
     def _require_user_manager -> JacScaleUserManager;
     def register_admin_endpoints -> None;
-    def bootstrap_admin -> None;
+    def bootstrap_admin -> bool;
     def admin_login(username: str, password: str) -> TransportResponse;
     def validate_admin_token(Authorization: str | None) -> (str | None);
     def require_admin(Authorization: str | None) -> TransportResponse | None;

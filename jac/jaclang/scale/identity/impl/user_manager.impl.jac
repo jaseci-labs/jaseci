@@ -171,9 +171,13 @@ impl JacScaleUserManager.ensure_user_root(user_id: str) -> str | None {
 impl JacScaleUserManager.update_password(
     user_id: str, current_password: str, new_password: str
 ) -> dict[str, str] {
-    return self._identity_storage.update_password(
+    result = self._identity_storage.update_password(
         user_id, current_password, new_password
     );
+    if 'error' not in result {
+        self.set_requires_password_reset(user_id, False);
+    }
+    return result;
 }
 
 impl JacScaleUserManager.reset_password_by_user_id(
@@ -711,11 +715,11 @@ impl JacScaleUserManager.delete_user(user_id: str) -> dict[str, str] {
 
 impl JacScaleUserManager.bootstrap_admin_user -> dict[str, str] {
     admin_config = get_scale_config().get_admin_config();
-    if not admin_config.get('enabled', True) {
+    if not admin_config.get('enabled', False) {
         return {'message': 'Admin portal is disabled'};
     }
-    admin_username = admin_config.get('username', 'admin');
-    default_password = admin_config.get('default_password', 'changeme');
+    admin_username: str = admin_config.get('username', 'admin');
+    bootstrap_password: str = admin_config.get('default_password') or '';
 
     existing = self.find_user_by_identity(admin_username);
     if existing {
@@ -727,17 +731,38 @@ impl JacScaleUserManager.bootstrap_admin_user -> dict[str, str] {
         return {'message': 'Admin user already exists', 'username': admin_username};
     }
 
-    result = self.create_internal_user(admin_username, default_password);
+    if not bootstrap_password {
+        return {
+            'error': (
+                "[scale.admin] enabled is true but default_password is unset. "
+                f"Set [scale.admin] default_password to provision '{admin_username}'."
+            )
+        };
+    }
+
+    result = self.create_internal_user(admin_username, bootstrap_password);
     if 'error' in result {
         return result;
     }
     user_id = result.get('user_id', '');
     self.set_user_role(user_id, 'admin');
-    self.set_requires_password_reset(user_id, True);
 
-    logger.warning(
-        f"Admin user '{admin_username}' created with default password. Please change immediately!"
-    );
+    require_reset: bool = bool(admin_config.get('require_password_reset', True));
+    self.set_requires_password_reset(user_id, require_reset);
+
+    if require_reset {
+        logger.warning(
+            f"Admin user '{admin_username}' created with the configured bootstrap "
+            "password. It must be rotated on first login before the account can "
+            "use any admin endpoint."
+        );
+    } else {
+        logger.warning(
+            f"Admin user '{admin_username}' created with the configured bootstrap "
+            "password and [scale.admin] require_password_reset = false, so it is "
+            "usable immediately. Rotate it promptly."
+        );
+    }
     return {
         'message': 'Admin user created successfully',
         'username': admin_username,
