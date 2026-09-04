@@ -129,6 +129,32 @@ test "every dispatch path records its usage on the invocation, never on the mode
 }
 
 
+test "a reply the caller cannot parse is still counted" {
+    import dataclasses;
+    import from jaclang.byllm.exceptions { OutputConversionError }
+    person = dataclasses.make_dataclass("UsagePerson", [("name", str), ("age", int)]);
+    for (why, use_async) in [("sync", False), ("async", True)] {
+        llm = FakeLLM(replies=[say("not json at all", usage=TOKENS)]);
+        mt = mk_run(resp_type=person);
+        raised = False;
+        try {
+            if use_async {
+                coro: any = llm.adispatch_no_streaming(mt);
+                asyncio.run(coro);
+            } else {
+                llm.dispatch_no_streaming(mt);
+            }
+        } except OutputConversionError {
+            raised = True;
+        }
+        assert raised , f"{why}: expected the parse failure to surface";
+        assert len(mt._usage_history) == 1 , (
+            f"{why}: the model was paid for this call, so it must be recorded: {mt._usage_history}"
+        );
+    }
+}
+
+
 """Run `fn` with `cb` as the only telemetry callback; returns what it captured."""
 def _telemetry_of(fn: any) -> list {
     captured: list = [];

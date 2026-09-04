@@ -1415,12 +1415,12 @@ impl BaseLLM.dispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
     tool_calls_list: list = _tc_raw if isinstance(_tc_raw, list) else [];
     tool_calls = _parse_tool_calls(mt_run, tool_calls_list, truncated_ids, damaged_ids);
 
-    output_value = mt_run.parse_response(output_content)
-        if not tool_calls_list
-        else output_content;
     usage_data = response.get("usage", {});
     _attach_call_cost(usage_data, self.model_name, response);
     mt_run._usage_history.append(usage_data);
+    output_value = mt_run.parse_response(output_content)
+        if not tool_calls_list
+        else output_content;
     return CompletionResult(
         output=output_value, tool_calls=tool_calls, usage=usage_data
     );
@@ -1649,12 +1649,12 @@ impl BaseLLM.adispatch_no_streaming(mt_run: MTRuntime) -> CompletionResult {
     _tc_raw = (message or {}).get("tool_calls") or [];
     tool_calls_list: list = _tc_raw if isinstance(_tc_raw, list) else [];
     tool_calls = _parse_tool_calls(mt_run, tool_calls_list, truncated_ids, damaged_ids);
-    output_value = mt_run.parse_response(output_content)
-        if not tool_calls_list
-        else output_content;
     usage_data = response.get("usage", {});
     _attach_call_cost(usage_data, self.model_name, response);
     mt_run._usage_history.append(usage_data);
+    output_value = mt_run.parse_response(output_content)
+        if not tool_calls_list
+        else output_content;
     return CompletionResult(
         output=output_value, tool_calls=tool_calls, usage=usage_data
     );
