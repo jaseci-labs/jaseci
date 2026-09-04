@@ -1,8 +1,10 @@
 import from jaclang.scale.observability.metrics { NoOpMetricsCollector }
 import from jaclang.scale.observability.factory { UtilityFactory }
+import from jaclang.scale.observability { prometheus_metrics }
 import from jaclang.scale.observability.prometheus_metrics {
     PrometheusMetricsCollector
 }
+import from unittest.mock { patch, MagicMock }
 
 test "noop is disabled" {
     collector = NoOpMetricsCollector();
@@ -76,6 +78,24 @@ test "prometheus exposes jac version info" {
 
     assert jac_info is not None , "jac_info was not exposed";
     assert jac_info["values"][0]["labels"]["version"] == resolve_cli_version();
+}
+
+test "prometheus warns when the jac version is unresolved" {
+    import from jaclang.cli { manifest_route }
+
+    fake_logger = MagicMock();
+    unresolved = MagicMock(side_effect=RuntimeError("no dist metadata"));
+
+    with patch.object(manifest_route, "resolve_cli_version", unresolved) {
+        with patch.object(prometheus_metrics, "logger", fake_logger) {
+            collector = PrometheusMetricsCollector(config=ENABLED_CONFIG);
+        }
+    }
+
+    assert collector._jac_info is None;
+    assert "jac_info" not in collector.expose().decode("utf-8");
+    assert fake_logger.warning.call_count == 1;
+    assert "no dist metadata" in fake_logger.warning.call_args[0][0];
 }
 
 test "factory returns noop when disabled" {

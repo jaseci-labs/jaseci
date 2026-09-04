@@ -8,8 +8,10 @@ import from jaclang.scale._optdeps.prometheus {
     CollectorRegistry
 }
 import from jaclang.server.serving.datatypes { Response }
+import logging;
 
-glob DEFAULT_BUCKETS: tuple = (
+glob logger = logging.getLogger(__name__),
+     DEFAULT_BUCKETS: tuple = (
          0.005,
          0.01,
          0.025,
@@ -66,14 +68,17 @@ obj PrometheusMetricsCollector(MetricsCollector) {
 
         try {
             import from jaclang.cli.manifest_route { resolve_cli_version }
+            version = resolve_cli_version();
             self._jac_info = Gauge(
                 "jac_info",
                 "Jac runtime version information",
                 ["version"],
                 registry=self._registry
             );
-            self._jac_info.labels(version=resolve_cli_version()).set(1);
-        } except Exception {}
+            self._jac_info.labels(version=version).set(1);
+        } except Exception as e {
+            logger.warning(f"jac_info not registered; version unresolved: {e}");
+        }
 
         buckets = self.config.get("histogram_buckets");
         if buckets {
