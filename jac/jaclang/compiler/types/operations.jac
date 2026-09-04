@@ -139,9 +139,6 @@ glob NONE_UNSAFE_BINARY_OPERATORS: set[str] = (
      );
 
 def operand_carries_none(evaluator: TypeEvaluator, ty: TypeBase) -> bool {
-    if evaluator.is_none_type(evaluator._convert_to_instance(ty)) {
-        return True;
-    }
     if not isinstance(ty, UnionType) {
         return False;
     }

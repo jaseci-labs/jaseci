@@ -134,3 +134,19 @@ def ok_aug_after_narrowing(x: int | None) -> int {
     x += 1;
     return x;
 }
+
+# An attribute whose only visible assignment is None infers as bare NoneType,
+# not as a union. Callers set it dynamically, so the guard below is real and
+# the operand is not an un-narrowed optional. Only a union carrying None is.
+class DynamicAttr {
+    def init(self: DynamicAttr) {
+        self.align = None;
+    }
+
+    def ok_bare_none_attr_render(self: DynamicAttr) -> str {
+        if self.align is not None {
+            return "align %d" % self.align;
+        }
+        return "";
+    }
+}
