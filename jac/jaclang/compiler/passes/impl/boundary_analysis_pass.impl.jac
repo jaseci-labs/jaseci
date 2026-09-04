@@ -334,7 +334,7 @@ impl BoundaryAnalysisPass._register_sv_import(
         if ability_node is None and parsed_mod is not None {
             ability_node = self._find_ability(parsed_mod, sym_name);
         }
-        if ability_node is None {
+        if ability_node is None and cross_app {
             type_mod = (
                 provider_mod
                     if (provider_mod is not None and not provider_mod.stub_only)

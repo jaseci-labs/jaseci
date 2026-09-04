@@ -232,18 +232,6 @@ impl JacScaleConfig.get_database_config(self: JacScaleConfig) -> dict[str, any] 
     return resolved;
 }
 
-impl load_microservices_config -> dict[str, any] {
-    cfg = get_scale_config();
-    try {
-        return cfg.get_microservices_config();
-    } except Exception as e {
-        raise ValueError(
-            f"[scale.microservices] could not be read from {cfg.config_file}: {e}. "
-            "Deploying without it would silently pick a different topology."
-        ) from e;
-    }
-}
-
 
 impl JacScaleConfig.get_kubernetes_config(self: JacScaleConfig) -> dict[str, any] {
     config = self.load();
