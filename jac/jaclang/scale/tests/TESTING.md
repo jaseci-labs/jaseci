@@ -112,6 +112,10 @@ No `unittest.mock`, no monkeypatched collaborators, no fake gateway objects. A
 mock encodes the behaviour you assumed the collaborator has, which is the
 assumption the bug lives in.
 
+The remaining files that import `unittest.mock` are listed in
+`misc/test_mock_ratchet.jac`; a file not on that list that starts importing it
+fails the suite, and the list only shrinks.
+
 When a boundary must be stubbed, stub it with something real:
 
 - an in-process HTTP server instead of a fake transport,

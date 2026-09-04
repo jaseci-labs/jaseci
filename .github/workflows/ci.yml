@@ -443,6 +443,14 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: bash scripts/check-release-notes.sh
+      # TESTING.md section 4: a scale change says what it ran and what it did
+      # not. A warning until #8896 phase 5 flips it to a failure.
+      - name: Check Scale Validation Section
+        if: github.event_name == 'pull_request'
+        env:
+          CI: "true"
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: bash scripts/check-scale-validation.sh
 
   # Compiler suite, one chunk per runner; chunking parallelizes the suite.
   # The native-backend chunk and the na/sv equivalence pins are chunks here.
