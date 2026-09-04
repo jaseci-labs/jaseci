@@ -1004,7 +1004,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                             );
 
                             has_any_has_vars = any(
-                                len(cls.shared.symbol_table.get_has_vars()) > 0
+                                self._scope_has_fields(cls.shared.symbol_table)
                                 for cls in base_type.shared.mro
                                 if cls.shared.class_name != "object"
                             );

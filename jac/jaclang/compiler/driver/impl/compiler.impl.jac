@@ -1499,7 +1499,7 @@ impl JacCompiler._compile_once(
 
     _iface_reg: any = None;
     _iface_target = "";
-    if use_str is None and not self.selfhost.is_selfhost(actual_program) {
+    if use_str is None {
         _iface_target = os.path.realpath(str(file_path));
         _reg_probe = actual_program.iface_registry();
         if _reg_probe.eligible(self, _iface_target, options) {

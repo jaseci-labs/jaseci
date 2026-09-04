@@ -915,6 +915,41 @@ obj CtEvaluator {
         return path.endswith(".pyi");
     }
 
+    def _demand_tree(sym: Symbol) -> Symbol {
+        decl = sym.decl;
+        home = decl.find_parent_of_type(Module) if decl is not None else None;
+        if home is None or not hasattr(home, "cat_kids") {
+            return sym;
+        }
+        path = _norm_path(home.loc.mod_path if home.loc else "");
+        if not path.endswith(".jac") {
+            return sym;
+        }
+        chain: list[str] = [];
+        scope = sym.parent_tab;
+        while scope is not None and scope is not home {
+            chain.append(scope.scope_name);
+            scope = scope.parent_scope;
+        }
+        try {
+            real = self.evaluator.program.load_dependency_module(path, need_tree=True);
+        } except Exception {
+            return sym;
+        }
+        if real is None or hasattr(real, "cat_kids") {
+            return sym;
+        }
+        target: any = real;
+        for name in reversed(chain) {
+            target = target.find_scope(name);
+            if target is None {
+                return sym;
+            }
+        }
+        found = target.names_in_scope.get(sym.sym_name);
+        return found if found is not None else sym;
+    }
+
     def _eval_symbol(sym: Symbol, use: UniNode) -> any {
         skey = ("sym", id(sym));
         if skey in self._active {
@@ -925,6 +960,9 @@ obj CtEvaluator {
             sym = self._resolve_symbol_deep(sym);
         } finally {
             self._active.discard(skey);
+        }
+        if self.demand {
+            sym = self._demand_tree(sym);
         }
         decl = sym.decl;
         node_ = decl.name_of;
@@ -1616,7 +1654,17 @@ obj CtEvaluator {
             return None;
         }
         sym = self._resolve_symbol_deep(sym);
-        node_ = sym.decl.name_of;
+        decl = sym.decl;
+        if decl is None {
+            return None;
+        }
+        if (
+            sym.sym_name in CT_INTRINSICS
+            and _is_comptime_module(decl.find_parent_of_type(Module))
+        ) {
+            return sym.sym_name;
+        }
+        node_ = decl.name_of;
         if (
             isinstance(node_, Ability)
             and node_.name_ref is not None

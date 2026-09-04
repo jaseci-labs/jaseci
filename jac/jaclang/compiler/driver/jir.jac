@@ -590,7 +590,7 @@ def deps_section(rows: list[tuple[str, str, str]]) -> bytes {
     return "\n".join(lines).encode("utf-8");
 }
 
-def read_dep_rows(data: bytes) -> list[tuple[str, str, str]] {
+def read_dep_rows(data: bytes, base_dir: str = "") -> list[tuple[str, str, str]] {
     raw = _read_key_section(data, SEC_DEPS);
     out: list[tuple[str, str, str]] = [];
     if not raw {
@@ -603,14 +603,22 @@ def read_dep_rows(data: bytes) -> list[tuple[str, str, str]] {
         parts = line.split("\t");
         digest = parts[1] if len(parts) > 1 else "";
         flags = parts[2] if len(parts) > 2 else "";
-        out.append((parts[0], digest, flags, ));
+        out.append((_dep_row_path(parts[0], base_dir), digest, flags, ));
     }
     return out;
 }
 
-def read_dep_hashes(data: bytes) -> list[tuple[str, str]] {
+def _dep_row_path(stored: str, base_dir: str) -> str {
+    prefix = PRECOMPILE_SENTINEL + "/";
+    if base_dir and stored.startswith(prefix) {
+        return os.path.normpath(os.path.join(base_dir, stored[len(prefix):]));
+    }
+    return stored;
+}
+
+def read_dep_hashes(data: bytes, base_dir: str = "") -> list[tuple[str, str]] {
     out: list[tuple[str, str]] = [];
-    for (path, digest, _flags) in read_dep_rows(data) {
+    for (path, digest, _flags) in read_dep_rows(data, base_dir) {
         out.append((path, digest, ));
     }
     return out;

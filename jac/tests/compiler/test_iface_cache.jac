@@ -389,7 +389,7 @@ test "a compile acting on an inferred native verdict persists no interface" {
     );
     # The rule itself, on a machine whose native toolchain may not let the
     # verdict pass: an inferred verdict skips the interface, a declared one
-    # does not.
+    # reaches it through the analysis flavor; codegen never encodes.
     reg = gen.iface_registry();
     encodes = reg.prog.analysis.cache_events.get("iface_encode", 0);
     mod.decided_codespace = "native";
@@ -402,6 +402,11 @@ test "a compile acting on an inferred native verdict persists no interface" {
         == before , "an inferred verdict overwrote the persisted interface";
     mod.codespace_inferred = False;
     reg.persist_after_compile(dep, mod, CompileOptions(), 0, 0);
+    assert read_iface_hash(
+        read_section_bytes(get_module_cache_path(dep).read_bytes(), SEC_IFACE)
+    )
+        == before , "a codegen persist of a declared placement encoded an interface";
+    reg.persist_after_compile(dep, mod, _check_opts(), 0, 0);
     assert read_iface_hash(
         read_section_bytes(get_module_cache_path(dep).read_bytes(), SEC_IFACE)
     )
@@ -669,6 +674,13 @@ test "a class shared follows the tree the program holds for its module" {
     gc.collect();
     prog.compile(paths["provider"], options=CompileOptions());
     assert not prog.errors_had , [a.pretty_print() for a in prog.errors_had];
+    # Interfaces are written by analysis-driven closures, so the program that
+    # holds the intern encodes each module itself; a fresh check of the
+    # importer must then hydrate those interfaces and see every member.
+    for name in ("models", "env", "provider") {
+        prog.compile(paths[name], options=_check_opts());
+    }
+    assert not prog.errors_had , [a.pretty_print() for a in prog.errors_had];
     (warm, diags) = _check(paths["main"]);
     assert not warm.errors_had , f"the importer read a member-less class from the cache: {diags}";
     assert warm.analysis.cache_events.get("dep_hydrate", 0) > 0 , (
@@ -730,4 +742,26 @@ test "a cross-reference into a stub is answered by the catalog" {
     );
     shared = prog.iface_registry().resolve_shared(stub, "NoneType", "NoneType");
     assert shared is not None , "NoneType did not resolve to a class";
+}
+
+test "a codegen compile records dependency rows but encodes no interface" {
+    (main, dep) = _project();
+    prog = JacProgram();
+    prog.compile(main, options=CompileOptions(force_target_program=True));
+    data = get_module_cache_path(main).read_bytes();
+    assert read_section_bytes(data, SEC_DEPS) is not None , "no SEC_DEPS after codegen";
+    assert read_section_bytes(data, SEC_IFACE) is None , (
+        "a codegen compile encoded an interface; encoding belongs to the frontier"
+    );
+    assert prog.analysis.cache_events.get("iface_encode", 0) == 0 , (
+        f"codegen compile encoded (events: {prog.analysis.cache_events})"
+    );
+    _check(main);
+    data = get_module_cache_path(main).read_bytes();
+    assert read_section_bytes(data, SEC_IFACE) is not None , (
+        "the frontier compile did not add the interface to the merged JIR"
+    );
+    assert read_section_bytes(data, SEC_DEPS) is not None , (
+        "the frontier merge dropped the dependency rows"
+    );
 }

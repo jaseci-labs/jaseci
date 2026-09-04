@@ -10,7 +10,8 @@ import from jaclang.compiler.driver.progstate {
     BuildScratch,
     DepGraph,
     DiagLedger,
-    ModuleHub
+    ModuleHub,
+    unit_collect_budget
 }
 import type from jaclang.compiler.frontend.codeinfo { ClientArtifact }
 import type from jaclang.compiler.types.type_evaluator { TypeEvaluator }
