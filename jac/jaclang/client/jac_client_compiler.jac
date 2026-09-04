@@ -48,7 +48,6 @@ class JacClientCompiler {
 
     def _get_client_dir(self: JacClientCompiler) -> Path;
     def _collect_na_modules(self: JacClientCompiler, artifact: ClientArtifact) -> None;
-
     def _jac_path_to_js(self: JacClientCompiler, rel_str: str) -> str;
     def _native_variant(self: JacClientCompiler, path: Path) -> Path;
     def compile_runtime_utils(
