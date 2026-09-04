@@ -445,7 +445,6 @@ async def _run_function_with_occ(
     username: str,
     run_attempt: Callable,
     deserialize_args: bool = True,
-    include_traceback: bool = False,
     unit_key: (str | None) = None
 ) -> dict[str, JsonValue] | Generator | AsyncGenerator {
     resolved = await _abegin_user_request_context(mgr.user_manager, username);
@@ -510,11 +509,10 @@ async def _run_function_with_occ(
                 await ctx.aset_user_root(root_id);
             } except Exception as e {
                 ctx.mem.abort();
-                if include_traceback {
-                    import traceback;
-
-                    return {'error': str(e), 'traceback': traceback.format_exc()};
-                }
+                import logging;
+                logging.getLogger('jaclang.serve').exception(
+                    f"{unit_key or 'request'} raised {type(e).__name__}: {e}"
+                );
                 return {'error': str(e)};
             } finally {
                 ctx.call_state.reset(call_token);
@@ -624,7 +622,6 @@ impl ExecutionManager.spawn_walker_sync(
         username,
         run_attempt,
         deserialize_args=False,
-        include_traceback=True,
         unit_key=_unit_key_for(walker_cls)
     );
 }
@@ -662,7 +659,6 @@ impl ExecutionManager.spawn_walker_async(
         username,
         run_attempt,
         deserialize_args=False,
-        include_traceback=True,
         unit_key=_unit_key_for(walker_cls)
     );
 }
