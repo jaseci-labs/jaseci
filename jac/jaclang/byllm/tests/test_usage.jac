@@ -62,7 +62,8 @@ def _dispatch(llm: FakeLLM, path: str) -> tuple {
 
 def _usage_from(path: str, model: str = MODEL, usage: dict | None = None) -> any {
     tokens = dict(TOKENS) if usage is None else usage;
-    return _dispatch(FakeLLM(model_name=model, replies=[say("hi", usage=tokens)]), path)[0];
+    llm = FakeLLM(model_name=model, replies=[say("hi", usage=tokens)]);
+    return _dispatch(llm, path)[0];
 }
 
 
@@ -159,7 +160,12 @@ test "tokens reach the telemetry callback from every invocation shape" {
 
     # (why, scripted replies, run, model calls made)
     shapes = [
-        ("non-streaming, no tools", [say("ok", usage=TOKENS)], lambda { return plain("q"); }, 1),
+        (
+            "non-streaming, no tools",
+            [say("ok", usage=TOKENS)],
+            lambda { return plain("q"); },
+            1
+        ),
         (
             "non-streaming with tools",
             [call("lookup", {"q": "x"}, usage=TOKENS), say("ok", usage=TOKENS)],
@@ -185,7 +191,9 @@ test "tokens reach the telemetry callback from every invocation shape" {
             records = _telemetry_of(lambda { results.append(run()); });
             assert script.exhausted() , f"{why}: expected {calls_made} model calls";
         }
-        assert len(records) == 1 , f"{why}: expected one telemetry record, got {len(records)}";
+        assert len(records) == 1 , f"{why}: expected one telemetry record, got {len(
+            records
+        )}";
         tokens = records[0]["tokens"];
         assert len(tokens["per_call"]) == calls_made , (
             f"{why}: expected {calls_made} per-call records, got {tokens['per_call']}"

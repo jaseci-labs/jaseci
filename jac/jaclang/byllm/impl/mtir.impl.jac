@@ -359,7 +359,6 @@ impl MTIR.runtime.getter -> MTRuntime {
 }
 
 
-"""Totals and per-call records for every model call this invocation made."""
 impl MTRuntime.usage_summary -> dict {
     totals: dict = {};
     per_call: list = [];

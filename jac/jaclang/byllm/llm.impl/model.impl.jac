@@ -78,8 +78,6 @@ impl Model.invoke(mt_run: MTRuntime) -> any {
     }
 }
 
-# BaseLLM.ainvoke serves the no-tools shapes itself and hands every other
-# shape to invoke, which already reports; only the direct shapes need wrapping.
 impl Model.ainvoke(mt_run: MTRuntime) -> any {
     import types as _types_mod;
     logging_stream = mt_run.stream and mt_run.call_params.get("logging", False);
@@ -112,7 +110,7 @@ def _begin_invocation(mt_run: MTRuntime) -> tuple {
 
 def _end_invocation(
     mt_run: MTRuntime, result: object, model_name: str, start: float, ctx_token: any
-) -> None {
+) {
     import time;
     _emit_agent_telemetry(
         mt_run, result, model_name, (time.time() - start) * 1000, "success", None
@@ -121,12 +119,8 @@ def _end_invocation(
 }
 
 def _fail_invocation(
-    mt_run: MTRuntime,
-    error: Exception,
-    model_name: str,
-    start: float,
-    ctx_token: any
-) -> None {
+    mt_run: MTRuntime, error: Exception, model_name: str, start: float, ctx_token: any
+) {
     import time;
     _emit_agent_telemetry(
         mt_run, None, model_name, (time.time() - start) * 1000, "error", error
@@ -134,7 +128,6 @@ def _fail_invocation(
     _current_invocation_id.reset(ctx_token);
 }
 
-"""Iterate `gen` with the invocation id in scope and report once it finishes."""
 def _stream_with_telemetry(
     gen: object, mt: object, model_name: str, start: float
 ) -> object {
