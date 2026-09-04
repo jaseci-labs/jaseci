@@ -8,6 +8,11 @@ glob logger = logging.getLogger(__name__),
          'no [scale.database] url / JAC_DB_URL resolved, and no project '
          'directory to provision an embedded server for'
      ),
+     NO_DATABASE_IN_CLUSTER = (
+         'no [scale.database] url / JAC_DB_URL resolved in a cluster, where an '
+         'embedded server would be per-replica and lost on restart. point the '
+         'deploy at a database'
+     ),
      _DOCS_DDL = (
          'CREATE TABLE IF NOT EXISTS jac_docs ('
          'collection text NOT NULL, '
@@ -20,7 +25,8 @@ glob logger = logging.getLogger(__name__),
          'shared_store',
          'shared_store_failure',
          'open_docs_store',
-         'NO_DATABASE_RESOLVED'
+         'NO_DATABASE_RESOLVED',
+         'NO_DATABASE_IN_CLUSTER'
      ];
 
 
@@ -67,6 +73,11 @@ def _store_target(store: any) -> str {
 }
 
 
+def _in_cluster -> bool {
+    return bool(os.environ.get('KUBERNETES_SERVICE_HOST', '').strip());
+}
+
+
 def _fail(reason: str) {
     if _holder.get('failure') == reason {
         logger.debug(f"scale shared store still unavailable: {reason}");
@@ -87,7 +98,7 @@ def shared_store_failure -> (str | None) {
 
 def shared_store -> (any | None) {
     with _lock {
-        import from jaclang.jac0core.runtime { JacRuntime }
+        import from jaclang.runtime.runtime { JacRuntime }
         url = scale_db_url();
         key = url
             or (
@@ -101,20 +112,23 @@ def shared_store -> (any | None) {
         if old_store is not None {
             try {
                 old_store.close();
-            } except Exception { }
+            } except Exception {}
         }
         store: (any | None) = None;
         reset = False;
         stage = 'resolve';
         source = _url_source() if url else 'the embedded server';
         try {
-            import from jaclang.runtimelib.session { conninfo_from_url, promotions_for }
-            import from jaclang.runtimelib.store { PgStore }
+            import from jaclang.server.session { conninfo_from_url, promotions_for }
+            import from jaclang.data.store { PgStore }
             promotions = promotions_for(JacRuntime.get_base_path_dir());
             if url {
                 store = PgStore(conninfo=conninfo_from_url(url), promotions=promotions);
+            } elif _in_cluster() {
+                _fail(NO_DATABASE_IN_CLUSTER);
+                return None;
             } else {
-                import from jaclang.runtimelib.session { runtime_for_base }
+                import from jaclang.server.session { runtime_for_base }
                 base = JacRuntime.get_base_path_dir();
                 if base {
                     stage = 'provision';
@@ -142,7 +156,7 @@ def shared_store -> (any | None) {
             if store is not None {
                 try {
                     store.close();
-                } except Exception { }
+                } except Exception {}
             }
             _fail(_failure_reason(stage, source, store, e));
             return None;

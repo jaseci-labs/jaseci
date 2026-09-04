@@ -174,9 +174,7 @@ impl ConsoleRenderer.emit(spans: list[Span], stream: any = None) -> None {
     }
     try {
         out.flush();
-    } except (BrokenPipeError, OSError) {
-        ;
-    }
+    } except (BrokenPipeError, OSError) {}
 }
 
 impl ConsoleRenderer.emit_raw(
@@ -234,9 +232,7 @@ impl ConsoleRenderer.emit_raw(
     }
     try {
         out.flush();
-    } except (BrokenPipeError, OSError) {
-        ;
-    }
+    } except (BrokenPipeError, OSError) {}
 }
 
 impl ConsoleRenderer.header(title: str, version: str | None = None) -> None {
@@ -580,7 +576,7 @@ impl JacConsole.print_watching(pattern: str, count: int) -> None {
 
 impl _get_console -> JacConsole {
     if _console_instance is None {
-        import from jaclang.jac0core.runtime { JacRuntime as Jac }
+        import from jaclang.runtime.runtime { JacRuntime as Jac }
 
         _console_instance = Jac.get_console();
     }
@@ -598,7 +594,7 @@ impl use_line_buffered_output(streams: (list[any] | None) = None) -> int {
         try {
             reconfigure(line_buffering=True);
             switched += 1;
-        } except (OSError, ValueError) { }
+        } except (OSError, ValueError) {}
     }
     return switched;
 }

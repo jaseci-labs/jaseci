@@ -7,15 +7,178 @@ import from jaclang.cli.check_report {
     print_failed_summary,
     print_final_summary,
     print_native_coverage,
-    print_placement_report,
-    print_compile_stats
+    print_placement_report
 }
 
 def _maybe_malloc_trim {
+    import from jaclang.cli.workpool { maybe_malloc_trim }
+    maybe_malloc_trim();
+}
+
+glob _CHECK_STATE: dict[(str, any)] = {"prog": None, "coverage_on": False};
+
+def _wire_list(value: any) -> list {
+    return value if isinstance(value, list) else [];
+}
+
+def _wire_dict(value: any) -> dict {
+    return value if isinstance(value, dict) else {};
+}
+
+def _message_diag(text: str, path: str) -> dict[(str, any)] {
+    return {
+        'text': text,
+        'pretty': text,
+        'code': None,
+        'category': None,
+        'mod_path': path
+    };
+}
+
+def _diag_wire(alert: any) -> dict[(str, any)] {
+    info = alert.code;
+    return {
+        'text': str(alert),
+        'pretty': alert.pretty_print(),
+        'code': info.code if info is not None else None,
+        'category': info.category.value if info is not None else None,
+        'mod_path': alert.loc.mod_path if alert.loc else ''
+    };
+}
+
+def _check_rss_cap_mb -> int {
+    import from jaclang.cli.workpool { env_int }
+    return env_int("JAC_CHECK_RECYCLE_MB", 3072);
+}
+
+def _check_retire(served: int, rss_mb: int) -> bool {
+    import from jaclang.cli.workpool { env_int, should_retire }
+    return should_retire(
+        served, env_int("JAC_CHECK_RECYCLE", 0), rss_mb, _check_rss_cap_mb()
+    );
+}
+
+def _check_file_job(request: dict[(str, any)]) -> dict[(str, any)] {
+    import os;
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.driver.bccache { discover_base_file }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
+    opts = _wire_dict(request.get("opts"));
+    file_path = str(request["path"]);
+    result: dict[(str, any)] = {
+        'path': file_path,
+        'success': False,
+        'errors': [],
+        'warnings': [],
+        'placements': {},
+        'coverage': {}
+    };
+    if not Path(file_path).exists() {
+        result['errors'] = [
+            _message_diag(f"File '{file_path}' does not exist.", file_path)
+        ];
+        return result;
+    }
+    prog = _CHECK_STATE["prog"];
+    if prog is None {
+        prog = JacProgram();
+        _CHECK_STATE["prog"] = prog;
+    }
+    if opts.get("native_coverage") and not _CHECK_STATE["coverage_on"] {
+        import from jaclang.compiler.driver.na_coverage { na_coverage_begin }
+        na_coverage_begin();
+        _CHECK_STATE["coverage_on"] = True;
+    }
+    ignore_list = _wire_list(opts.get("ignore"));
+    annex_filter_path: (str | None) = None;
+    base_path = discover_base_file(file_path);
+    if base_path is not None {
+        annex_filter_path = os.path.realpath(file_path);
+        file_path = base_path;
+    }
     try {
-        import ctypes;
-        ctypes.CDLL("libc.so.6").malloc_trim(0);
-    } except (ImportError, OSError, AttributeError, ValueError) { }
+        (err_start, warn_start) = (len(prog.errors_had), len(prog.warnings_had));
+        if opts.get("parse_only") {
+            import from jaclang.compiler.frontend.parser.frontend {
+                parse_diags,
+                _replay_diags
+            }
+            import from jaclang.compiler.frontend.parser.lexer { Lexer }
+            import from jaclang.compiler.frontend.parser.parser {
+                Parser as _SyntaxParser
+            }
+            import from jaclang.compiler.frontend.unitree { Source as _Src }
+            import from jaclang.compiler.frontend.helpers {
+                read_file_with_encoding as _read_src
+            }
+            _src_txt = _read_src(file_path);
+            (_had, _pd, _ld) = parse_diags(_src_txt, file_path);
+            if _pd or _ld {
+                _dsrc = _Src(_src_txt, mod_path=file_path);
+                _replay_diags(_ld, Lexer, prog, _dsrc);
+                _replay_diags(_pd, _SyntaxParser, prog, _dsrc);
+            }
+        } else {
+            prog.compile(
+                file_path=file_path,
+                options=CompileOptions(
+                    no_cgen=not bool(opts.get("native_coverage")),
+                    native_parity=True,
+                    force_target_program=True,
+                    iface_ok=True,
+                    suppress_codes=list(opts.get("suppress_codes") or [])
+                )
+            );
+        }
+        if opts.get("placements") {
+            import from jaclang.compiler.placement.placement { collect_placement_rows }
+            result['placements'] = collect_placement_rows(prog);
+        }
+        if opts.get("native_coverage") {
+            import from jaclang.compiler.driver.na_coverage { _na_coverage }
+            result['coverage'] = dict(_na_coverage);
+        }
+        for m in prog.mod.hub.values() {
+            m.terminals = [];
+            m.src_terminals = [];
+        }
+        new_errors = prog.errors_had[err_start:];
+        new_warnings = prog.warnings_had[warn_start:];
+
+        def keep(issue: any) -> bool {
+            return bool(
+                issue.loc
+                    and issue.loc.mod_path
+                    and issue.loc.mod_path.endswith(".jac")
+                    and not _should_ignore(issue.loc.mod_path, ignore_list)
+                    and (
+                        annex_filter_path is None
+                        or issue.loc.mod_path == annex_filter_path
+                    )
+            );
+        }
+        result['errors'] = [
+            _diag_wire(e)
+            for e in new_errors
+            if keep(e)
+        ];
+        result['warnings'] = [
+            _diag_wire(w)
+            for w in new_warnings
+            if keep(w)
+        ];
+        result['success'] = len(result['errors']) == 0;
+        return result;
+    } except Exception as e {
+        result['errors'] = [
+            _message_diag(f"Error checking '{file_path}': {e}", file_path)
+        ];
+        result['success'] = False;
+        return result;
+    } finally {
+        prog.release_compile_closure(collect=bool(request.get("collect")));
+        _maybe_malloc_trim();
+    }
 }
 
 impl check(
@@ -29,13 +192,29 @@ impl check(
     fix: bool = False,
     native_coverage: bool = False,
     placements: bool = False,
-    compile_stats: bool = False
+    jobs: str = ""
 ) -> int {
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.diagnostic_utils { resolve_diagnostic_tokens }
+    import from jaclang.compiler.frontend.diagnostic_utils { resolve_diagnostic_tokens }
+    import from jaclang.cli.workpool {
+        WorkPool,
+        forced_serial,
+        jobs_setting,
+        pool_available,
+        resolve_jobs
+    }
+    import from jaclang.project.config { get_config }
     import from time { time }
     if lint_only {
         return lint(paths=paths, fix=fix, ignore=ignore);
+    }
+    import gc;
+    import os;
+    import from jaclang.compiler.driver.compiler { COMPILE_GC_THRESHOLDS }
+    if (
+        not os.environ.get('JAC_GC_NO_COMPILE_BOOST')
+        and gc.get_threshold()[0] < COMPILE_GC_THRESHOLDS[0]
+    ) {
+        gc.set_threshold(*COMPILE_GC_THRESHOLDS);
     }
     if isinstance(paths, str) {
         paths = [paths];
@@ -51,160 +230,124 @@ impl check(
                 + ", ".join(unknown_codes)
         );
     }
-    if native_coverage {
-        import from jaclang.jac0core.compiler { na_coverage_begin }
-        na_coverage_begin();
-    }
-    if compile_stats {
-        import from jaclang.jac0core.prefix_flip { prefix_outcomes_reset }
-        prefix_outcomes_reset();
-    }
 
-    total_files = failed_files=total_errors=total_warnings=0;
-
-    def process_file_result(file_path: str, idx: int, total: int) {
-        total_files += 1;
-        (success, errs, warns, errors_list, warnings_list) = check_single_file(
-            prog, file_path
-        );
-        total_errors += errs;
-        total_warnings += warns;
-
-        print_file_progress(file_path, success, idx, total);
-
-        if not success {
-            failed_files += 1;
-        }
-        if not success or (warns > 0 and not nowarn) {
-            failed_results.append(
-                {'path': file_path, 'errors': errors_list, 'warnings': warnings_list}
-            );
-        }
-    }
-
-    failed_results: list[dict] = [];
-    placement_report: dict = {};
-    def check_single_file(
-        prog: JacProgram, file_path: str
-    ) -> tuple[bool, int, int, list, list] {
-        import os;
-        import from jaclang.jac0core.bccache { discover_base_file }
-        path_obj = Path(file_path);
-        if not path_obj.exists() {
-            console.error(f"File '{file_path}' does not exist.");
-            return (False, 1, 0, [], []);
-        }
-
-        annex_filter_path: (str | None) = None;
-        base_path = discover_base_file(file_path);
-        if base_path is not None {
-            annex_filter_path = os.path.realpath(file_path);
-            file_path = base_path;
-        }
-        try {
-            import from jaclang.jac0core.compile_options { CompileOptions }
-            console.print(f"  Checking {file_path}...");
-            (err_start, warn_start) = (len(prog.errors_had), len(prog.warnings_had));
-            if parse_only {
-                import from jaclang.jac0core.parser.frontend {
-                    parse_diags,
-                    _replay_diags
-                }
-                import from jaclang.jac0core.parser.lexer { Lexer }
-                import from jaclang.jac0core.parser.parser { Parser as _SyntaxParser }
-                import from jaclang.jac0core.unitree { Source as _Src }
-                import from jaclang.jac0core.helpers {
-                    read_file_with_encoding as _read_src
-                }
-                _src_txt = _read_src(file_path);
-                (_had, _pd, _ld) = parse_diags(_src_txt, file_path);
-                if _pd or _ld {
-                    _dsrc = _Src(_src_txt, mod_path=file_path);
-                    _replay_diags(_ld, Lexer, prog, _dsrc);
-                    _replay_diags(_pd, _SyntaxParser, prog, _dsrc);
-                }
-            } else {
-                prog.compile(
-                    file_path=file_path,
-                    options=CompileOptions(
-                        no_cgen=not native_coverage,
-                        native_parity=True,
-                        force_target_program=True,
-                        suppress_codes=suppressed_codes
-                    )
-                );
-            }
-
-            if placements {
-                import from jaclang.jac0core.placement { collect_placement_rows }
-                placement_report.update(collect_placement_rows(prog));
-            }
-            for m in prog.mod.hub.values() {
-                m.terminals = [];
-                m.src_terminals = [];
-            }
-            new_errors = prog.errors_had[err_start:];
-            new_warnings = prog.warnings_had[warn_start:];
-
-            def filter_issues(issues: list) -> list {
-                return [
-                    i
-                    for i in issues
-                    if i.loc
-                        and i.loc.mod_path
-                        and i.loc.mod_path.endswith(".jac")
-                        and not _should_ignore(i.loc.mod_path, ignore_list)
-                ];
-            }
-            filtered_errors = filter_issues(new_errors);
-            filtered_warnings = filter_issues(new_warnings);
-
-            if annex_filter_path is not None {
-                filtered_errors = [
-                    e
-                    for e in filtered_errors
-                    if e.loc and e.loc.mod_path == annex_filter_path
-                ];
-                filtered_warnings = [
-                    w
-                    for w in filtered_warnings
-                    if w.loc and w.loc.mod_path == annex_filter_path
-                ];
-            }
-            err_count = len(filtered_errors);
-            warn_count = len(filtered_warnings);
-
-            return (
-                err_count == 0,
-                err_count,
-                warn_count,
-                filtered_errors,
-                filtered_warnings
-            );
-        } except Exception as e {
-            console.error(f"Error checking '{file_path}': {e}");
-            return (False, 1, 0, [], []);
-        } finally {
-            prog.release_compile_closure(keep_stubs=True);
-        }
-    }
-    prog = JacProgram();
     (all_files, had_path_errors) = _iter_jac_files(
         paths, ignore_list, include_annex=False
     );
     total_to_check = len(all_files);
-    for (idx, jac_file_path) in enumerate(all_files, 1) {
-        process_file_result(jac_file_path, idx, total_to_check);
+    cfg = get_config();
+    raw_jobs = jobs_setting("check", jobs, cfg.dev if cfg else None);
 
-        _maybe_malloc_trim();
+    workers = resolve_jobs(
+        raw_jobs,
+        env_var="JAC_CHECK_JOBS",
+        worker_bytes=_check_rss_cap_mb() * 1024 * 1024
+    );
+    use_pool = (
+        pool_available()
+        and not forced_serial(raw_jobs)
+        and workers > 1
+        and total_to_check > 1
+    );
+    opts: dict[(str, any)] = {
+        'parse_only': parse_only,
+        'native_coverage': native_coverage,
+        'placements': placements,
+        'suppress_codes': list(suppressed_codes),
+        'ignore': list(ignore_list)
+    };
+
+    total_files = failed_files=total_errors=total_warnings=0;
+    results_by_idx: dict[(int, dict)] = {};
+    placement_report: dict = {};
+    coverage_report: dict = {};
+
+    def request_extra(idx: int, path: str) -> dict[(str, any)] {
+        return {'opts': opts, 'collect': (not use_pool) and (idx < total_to_check - 1)};
     }
 
+    def on_dispatch(idx: int, path: str) {
+        console.print(f"  Checking {path}...");
+    }
+
+    def on_record(idx: int, record: dict[(str, any)]) {
+        path = all_files[idx];
+        res = _wire_dict(record.get('result'));
+        if not res {
+            detail = record.get('crash') or record.get('error') or 'no result';
+            res = {
+                'path': path,
+                'success': False,
+                'errors': [_message_diag(f"Error checking '{path}': {detail}", path)],
+                'warnings': [],
+                'placements': {},
+                'coverage': {}
+            };
+        }
+        results_by_idx[idx] = res;
+        total_files += 1;
+        errs = len(_wire_list(res.get('errors')));
+        warns = len(_wire_list(res.get('warnings')));
+        total_errors += errs;
+        total_warnings += warns;
+        success = bool(res.get('success'));
+        print_file_progress(path, success, total_files, total_to_check);
+        if not success {
+            failed_files += 1;
+        }
+        if placements {
+            placement_report.update(_wire_dict(res.get('placements')));
+        }
+        if native_coverage {
+            coverage_report.update(_wire_dict(res.get('coverage')));
+        }
+    }
+
+    pool = WorkPool(
+        items=list(all_files),
+        job=_check_file_job,
+        on_record=on_record,
+        jobs=min(workers, max(1, total_to_check)),
+        request_extra=request_extra,
+        retire=_check_retire,
+        on_dispatch=on_dispatch,
+        rss_log_env="JAC_CHECK_RSS_LOG",
+        crash_prefix="jac-check-crash-"
+    );
+    if use_pool {
+        import from jaclang.runtime.runtime { JacRuntime }
+        try {
+            JacRuntime.get_compiler().ensure_stub_catalog();
+        } except Exception {}
+        pool.run();
+    } else {
+        pool.run_inline();
+    }
     if native_coverage {
-        import from jaclang.jac0core.compiler { na_coverage_end }
-        print_native_coverage(na_coverage_end());
+        import from jaclang.compiler.driver.na_coverage { na_coverage_end }
+        coverage_report.update(na_coverage_end());
+        _CHECK_STATE["coverage_on"] = False;
     }
-    if compile_stats {
-        print_compile_stats();
+
+    failed_results: list[dict] = [];
+    for idx in range(total_to_check) {
+        res = results_by_idx.get(idx);
+        if res is None {
+            continue;
+        }
+        warnings = _wire_list(res.get('warnings'));
+        if not res.get('success') or (len(warnings) > 0 and not nowarn) {
+            failed_results.append(
+                {
+                    'path': res.get('path'),
+                    'errors': _wire_list(res.get('errors')),
+                    'warnings': warnings
+                }
+            );
+        }
+    }
+    if native_coverage {
+        print_native_coverage(coverage_report);
     }
     if placements {
         print_placement_report(placement_report);
@@ -222,7 +365,7 @@ impl check(
 }
 
 impl lint(paths: list, fix: bool = False, ignore: (list | None) = None) -> int {
-    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.driver.program { JacProgram }
     if isinstance(paths, str) {
         paths = [paths];
     }
@@ -302,7 +445,7 @@ impl lint(paths: list, fix: bool = False, ignore: (list | None) = None) -> int {
                 }
             }
 
-            import from jaclang.jac0core.bccache { discover_annex_files }
+            import from jaclang.compiler.driver.bccache { discover_annex_files }
             import os;
             annex_paths = (
                 discover_annex_files(str(path_obj), '.impl.jac')
@@ -395,8 +538,8 @@ def _format_single_file_worker(
     logical_path: str = ""
 ) -> dict {
     import os;
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.helpers { read_file_with_encoding }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
     path_obj = Path(file_path);
 
     effective_logical = logical_path or file_path;
@@ -429,7 +572,7 @@ def _format_single_file_worker(
     annex_formatted_map: dict[str, str] = {};
     annex_logical_map: dict[str, str] = {};
     if lintfix {
-        import from jaclang.jac0core.bccache { discover_annex_files }
+        import from jaclang.compiler.driver.bccache { discover_annex_files }
 
         annex_paths = (
             discover_annex_files(file_path, '.impl.jac')
@@ -649,9 +792,7 @@ def _format_single_file_worker(
                         );
                     }
                 }
-            } except (OSError, ValueError, TypeError, AttributeError) {
-                ;
-            }
+            } except (OSError, ValueError, TypeError, AttributeError) {}
         }
 
         return result;
@@ -669,10 +810,18 @@ impl format(
     cache: bool = False,
     cache_anchor: str = "",
     path_map: dict | None = None,
-    cache_stats: dict | None = None
+    cache_stats: dict | None = None,
+    jobs: str = ""
 ) -> int {
-    import from concurrent.futures { ProcessPoolExecutor, as_completed }
     import os;
+    import from jaclang.cli.workpool {
+        WorkPool,
+        forced_serial,
+        jobs_setting,
+        pool_available,
+        resolve_jobs
+    }
+    import from jaclang.project.config { get_config }
     if isinstance(paths, str) {
         paths = [paths];
     }
@@ -706,82 +855,91 @@ impl format(
     remap = path_map if path_map is not None else {};
     covered: set[str] = {os.path.realpath(f) for f in all_files};
 
-    use_parallel = total_files > 1 and not to_screen;
-    max_workers = min(os.cpu_count() or 4, total_files, 8);
+    cfg = get_config();
+    raw_jobs = jobs_setting("fmt", jobs, cfg.dev if cfg else None);
+    workers = resolve_jobs(raw_jobs, env_var="JAC_FMT_JOBS");
+    use_pool = (
+        pool_available()
+        and not to_screen
+        and not forced_serial(raw_jobs)
+        and workers > 1
+        and total_files > 1
+    );
 
-    results: list[dict] = [];
+    results_by_idx: dict[(int, dict)] = {};
 
-    if use_parallel {
-        try {
-            import multiprocessing as mp;
-            ctx = mp.get_context("fork") if os.name != "nt" else None;
-            pool: ProcessPoolExecutor = ProcessPoolExecutor(
-                max_workers=max_workers, mp_context=ctx
+    progress: dict[(str, any)] = {"pooled": use_pool, "done": 0};
+
+    def fmt_job(request: dict[(str, any)]) -> dict {
+        fp = str(request["path"]);
+        return _format_single_file_worker(
+            fp, lintfix, check, covered, cache_stamp, cache_anchor, remap.get(fp, "")
+        );
+    }
+
+    def on_dispatch(idx: int, path: str) {
+        if not progress["pooled"] {
+            console.print(f"Formatting {path}");
+        }
+    }
+
+    def on_record(idx: int, record: dict[(str, any)]) -> None {
+        if progress["pooled"] {
+            progress["done"] += 1;
+            console.print(
+                f"Formatting [{progress['done']}/{total_files}] completed..."
             );
-            with pool {
-                futures = {
-                    pool.submit(
-                        _format_single_file_worker,
-                        fp,
-                        lintfix,
-                        check,
-                        covered,
-                        cache_stamp,
-                        cache_anchor,
-                        remap.get(fp, "")
-                    ): fp for fp in all_files
-                };
-                completed = 0;
-                for future in as_completed(futures) {
-                    completed += 1;
-                    fp = futures[future];
-                    console.print(
-                        f"Formatting [{completed}/{total_files}] completed..."
-                    );
-                    try {
-                        results.append(future.result());
-                    } except Exception as e {
-                        results.append(
-                            {
-                                'path': fp,
-                                'success': False,
-                                'changed': False,
-                                'errors': 0,
-                                'syntax_errors': [f"Worker error: {e}"],
-                                'warnings_strs': [],
-                                'errors_strs': [],
-                                'formatted_code': None,
-                                'impl_results': [],
-                                'cache_status': 'off'
-                            }
-                        );
-                    }
-                }
-            }
+        }
+        res = _wire_dict(record.get('result'));
+        if res {
+            results_by_idx[idx] = res;
+            return;
+        }
+        detail = record.get('crash') or record.get('error') or 'no result';
+        results_by_idx[idx] = {
+            'path': all_files[idx],
+            'success': False,
+            'changed': False,
+            'errors': 0,
+            'syntax_errors': [f"Worker error: {detail}"],
+            'warnings_strs': [],
+            'errors_strs': [],
+            'formatted_code': None,
+            'impl_results': [],
+            'cache_status': 'off'
+        };
+    }
+
+    pool = WorkPool(
+        items=list(all_files),
+        job=fmt_job,
+        on_record=on_record,
+        jobs=min(workers, total_files),
+        on_dispatch=on_dispatch,
+        rss_log_env="JAC_FMT_RSS_LOG",
+        crash_prefix="jac-fmt-crash-"
+    );
+    if use_pool {
+        try {
+            pool.run();
         } except Exception as e {
             console.print(
                 f"Parallel formatting unavailable ({type(e).__name__}: {e}); "
                 "falling back to serial."
             );
-            results = [];
-            use_parallel = False;
+            results_by_idx.clear();
+            progress["pooled"] = False;
+            pool.run_inline();
         }
+    } else {
+        pool.run_inline();
     }
-    if not use_parallel {
-        for fp in all_files {
-            console.print(f"Formatting {fp}");
-            results.append(
-                _format_single_file_worker(
-                    fp,
-                    lintfix,
-                    check,
-                    covered,
-                    cache_stamp,
-                    cache_anchor,
-                    remap.get(fp, "")
-                )
-            );
+    results: list[dict] = [];
+    for idx in range(total_files) {
+        if idx not in results_by_idx {
+            on_record(idx, {'error': 'no result'});
         }
+        results.append(results_by_idx[idx]);
     }
 
     if cache_stamp {
@@ -995,7 +1153,7 @@ impl precommit(
             try {
                 checkout_paths = list(rel_targets);
                 try {
-                    import from jaclang.jac0core.bccache { discover_annex_files }
+                    import from jaclang.compiler.driver.bccache { discover_annex_files }
                     rel_set = {r for r in rel_targets};
                     annex_rel: list[str] = [];
                     for rel in rel_targets {
@@ -1029,7 +1187,7 @@ impl precommit(
                             }
                         }
                     }
-                } except Exception { }
+                } except Exception {}
                 subprocess.run(
                     [
                         "git",
@@ -1225,30 +1383,27 @@ impl `test(
     xit: bool = False,
     maxfail: int = None,
     directory: str = "",
+    collect_only: bool = False,
+    pct_range: str = "",
+    resume: bool = False,
     verbose: bool = False,
-    ignore: (list | None) = None
+    ignore: (list | None) = None,
+    jobs: str = ""
 ) -> int {
     import os;
-    import from jaclang.runtimelib.test_runner { run_tests }
+    import from jaclang.project.config { get_config }
+    import from jaclang.testing.test_runner { run_tests }
+    import from jaclang.cli.workpool { jobs_setting }
     if isinstance(paths, str) {
         paths = [paths];
     }
-    if (not paths and not directory) {
-        import from jaclang.project.config { get_config }
-        cfg = get_config();
-        if (cfg and cfg.`test.directory) {
-            directory = cfg.`test.directory;
-            if (cfg.project_root and not os.path.isabs(directory)) {
-                directory = os.path.join(str(cfg.project_root), directory);
-            }
-            if not Path(directory).is_dir() {
-                console.error(
-                    f"Error: [test] directory '{cfg.`test.directory}' "
-                    f"(resolved to '{directory}') does not exist."
-                );
-                return 1;
-            }
+    cfg = get_config();
+    cfg_root = str(cfg.project_root) if (cfg and cfg.project_root) else "";
+    def _rooted(raw: str) -> str {
+        if cfg_root and not os.path.isabs(raw) {
+            return os.path.join(cfg_root, raw);
         }
+        return raw;
     }
     if (test_name and not paths) {
         console.error(
@@ -1258,6 +1413,34 @@ impl `test(
         );
         return 1;
     }
+
+    roots: (str | list[str]) = directory;
+    if (not paths and not directory) {
+        cfg_dirs: list[str] = [];
+        if cfg {
+            cfg_dirs = cfg.`test.directories
+                or ([cfg.`test.directory] if cfg.`test.directory else []);
+        }
+        resolved: list[str] = [];
+        for raw in cfg_dirs {
+            rt = _rooted(raw);
+            if not Path(rt).is_dir() {
+                console.error(
+                    f"Error: [test] directory '{raw}' "
+                    f"(resolved to '{rt}') does not exist."
+                );
+                return 1;
+            }
+            resolved.append(rt);
+        }
+        if resolved {
+            roots = resolved;
+        } else {
+            paths = [cfg_root or os.getcwd()];
+        }
+    }
+    iso_pats = [_rooted(p) for p in (cfg.`test.isolate if cfg else [])];
+    ser_pats = [_rooted(p) for p in (cfg.`test.serial if cfg else [])];
     for fp in paths {
         if not Path(fp).exists() {
             console.error(
@@ -1268,28 +1451,28 @@ impl `test(
             return 1;
         }
     }
-    jobs = os.environ.get('JAC_TEST_JOBS', '');
-    if not jobs {
-        import from jaclang.project.config { get_config }
-        jobs_cfg = get_config();
-        jobs = jobs_cfg.dev.test_jobs if jobs_cfg else '';
-    }
+    jobs = jobs_setting("test", jobs, cfg.dev if cfg else None);
     rc = 0;
     try {
         rc = run_tests(
             paths=paths,
-            directory=directory,
+            directory=roots,
             test_name=test_name,
             filter=filter,
             xit=xit,
             maxfail=maxfail,
+            collect_only=collect_only,
+            pct_range=pct_range,
+            resume=resume,
             verbose=verbose,
             ignore=[
                 p
                 for p in (ignore or [])
                 if p
             ],
-            jobs=jobs
+            jobs=jobs,
+            isolate=iso_pats,
+            serial=ser_pats
         );
     } except (ValueError, FileNotFoundError) as exc {
         console.error(f"Error: {exc}");
@@ -1311,11 +1494,15 @@ impl gen_parser -> int {
 }
 
 impl grammar(output: str = "", strict: bool = False) -> int {
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.compiler.passes.tool.grammar_extract_pass { GrammarExtractPass }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.tools.grammar_extract_pass { GrammarExtractPass }
     import jaclang;
     parser_path = str(
-        Path(jaclang.__file__).parent / "jac0core" / "parser" / "parser.jac"
+        Path(jaclang.__file__).parent
+            / "compiler"
+            / "frontend"
+            / "parser"
+            / "parser.jac"
     );
     prog = JacProgram();
     mod = prog.compile(parser_path, no_cgen=True);
@@ -1326,7 +1513,7 @@ impl grammar(output: str = "", strict: bool = False) -> int {
         }
         return 1;
     }
-    import from jaclang.jac0core.compiler { run_pass }
+    import from jaclang.compiler.driver.pass_driver { run_pass }
     pass_ = run_pass(GrammarExtractPass, mod, prog);
     if len(pass_.rules) == 0 {
         console.error("No grammar rules extracted.");
@@ -1334,7 +1521,13 @@ impl grammar(output: str = "", strict: bool = False) -> int {
     }
     text = pass_.emit_ebnf();
     if output {
+        banner = (
+            "# Auto-generated EBNF snapshot of the Jac grammar.\n"
+            + "# DO NOT EDIT MANUALLY - regenerate with"
+            + " `jac tool grammar -o <path>`.\n\n"
+        );
         with open(output, "w", encoding="utf-8") as f {
+            f.write(banner);
             f.write(text);
             f.write("\n");
         }
@@ -1364,13 +1557,19 @@ def _iter_jac_files(
                 explicit.add(os.path.realpath(path));
             }
         } elif path_obj.is_dir() {
+            walked: list[str] = [];
             for jac_file in path_obj.`glob('**/*.jac') {
                 if not jac_file.is_file() {
                     continue;
                 }
                 if not _should_ignore(str(jac_file), ignore_list) {
-                    result.append(str(jac_file));
+                    walked.append(str(jac_file));
                 }
+            }
+            if _drop_git_ignored([str(path_obj)]) {
+                result.extend(_drop_git_ignored(walked));
+            } else {
+                result.extend(walked);
             }
         } else {
             console.error(f"'{path}' is not a .jac file or directory.");
@@ -1385,7 +1584,7 @@ def _iter_jac_files(
 
 def _drop_covered_annexes(files: list[str], explicit: set[str]) -> list[str] {
     import os;
-    import from jaclang.jac0core.bccache { discover_base_file }
+    import from jaclang.compiler.driver.bccache { discover_base_file }
     import from jaclang.jac0core.ext_registry { is_annex }
     modules = {
         os.path.realpath(f)
@@ -1406,11 +1605,47 @@ def _drop_covered_annexes(files: list[str], explicit: set[str]) -> list[str] {
 }
 
 def _normalize_ignore_patterns(ignore: list) -> list {
-    import from jaclang.jac0core.helpers { normalize_exclude_patterns }
+    import from jaclang.compiler.frontend.helpers { normalize_exclude_patterns }
     return normalize_exclude_patterns(ignore);
 }
 
+def _drop_git_ignored(paths: list[str]) -> list[str] {
+    import subprocess;
+    if not paths {
+        return paths;
+    }
+    try {
+        proc = subprocess.run(
+            ['git', 'check-ignore', '--stdin'],
+            input="\n".join(paths),
+            capture_output=True,
+            text=True,
+            check=False
+        );
+    } except (OSError, ValueError) {
+        return paths;
+    }
+
+    if proc.returncode not in (0, 1) {
+        return paths;
+    }
+    ignored = {
+        line
+        for line in proc.stdout.splitlines()
+        if line
+    };
+    if not ignored {
+        return paths;
+    }
+    return [
+        p
+        for p in paths
+        if p not in ignored
+    ];
+}
+
+
 def _should_ignore(file_path: str, ignore_patterns: list) -> bool {
-    import from jaclang.jac0core.helpers { path_matches_exclude }
+    import from jaclang.compiler.frontend.helpers { path_matches_exclude }
     return path_matches_exclude(file_path, ignore_patterns);
 }

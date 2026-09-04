@@ -53,7 +53,7 @@ What you get:
 - **~5x less code than a modern full-stack setup** -- the difference is glue the compiler now generates: API endpoints, route tables, ORM models, validation, serializers, and migrations you never write, review, or debug
 - **AI is a typed function call, not a framework** -- the compiler builds the prompt from your function signature and enforces the return type as the output schema
 - **Persistence built in** -- Objects just persist: no database, no ORM, no migrations
-- **Laptop to Kubernetes without changing a line** -- `jac start --scale` builds the images and provisions the cluster: you write no Dockerfile and no YAML. The compiler runtime spools out multipod deployments with spliced out microservices.
+- **Laptop to Kubernetes without changing a line** -- `jac scale deploy` builds the images and provisions the cluster: you write no Dockerfile and no YAML. The compiler runtime spools out multipod deployments with spliced out microservices.
 
 It's time to show and stop telling. See all of those features running in one single codebase next.
 
@@ -65,16 +65,15 @@ Install the self-contained `jac` binary. No Python, pip, Node, or C toolchain re
 curl -fsSL https://raw.githubusercontent.com/jaseci-labs/jaseci/main/scripts/install.sh | bash
 ```
 
-Then clone and run [**jac_site**](https://github.com/jaseci-labs/jac_site) -- the official jaclang.org website, built end to end in Jac (naturally):
+Then scaffold and run the official **jaclang.org website** -- the site is a full technology demonstration and it ships inside the binary, built end to end in Jac (naturally):
 
 ```bash
-git clone https://github.com/jaseci-labs/jac_site
-cd jac_site
-jac install   # first run: pulls npm deps
-jac start     # builds the frontend + wasm, serves on http://localhost:8000
+jac create mysite --awesome   # dumps the whole site as your project, pulls npm deps
+cd mysite
+jac run                       # builds the frontend + wasm, serves on http://localhost:8000
 ```
 
-One language spans all three codespaces in this single codebase: the pages and components compile to JavaScript, the endpoints compile to Python and serve over RPC, and the arcade game in `game/arena.jac` compiles through LLVM to in-browser WebAssembly -- fully borrow-checked, with zero reference counting in the artifact. The docs reader serves the language corpus straight from a real graph, the Ninja Leaderboard persists scores through walkers with no database, and the whole thing is one typechecked, contiguous, synechic codebase.
+One language spans all three codespaces in this single codebase: the pages and components compile to JavaScript, the endpoints compile to Python and serve over RPC, and the arcade game in `game/arena.jac` compiles through LLVM to in-browser WebAssembly -- fully borrow-checked, with zero reference counting in the artifact. The docs reader serves the language corpus straight from a real graph, the Ninja Leaderboard persists scores through walkers with no database, and the whole thing is one typechecked, contiguous, synechic codebase. The same tree is the site's source of truth at [jac/examples/jaclang_org](jac/examples/jaclang_org), and it is what CI runs as its full-stack smoke test.
 
 > Prebuilt binaries ship for **macOS and Linux**; on Windows, use WSL (a native PowerShell installer is coming soon). See the [installation guide](https://www.jaclang.org/docs/latest/quick-guide/install) for versions, upgrading, and IDE setup.
 
@@ -266,7 +265,7 @@ Here is the actual anatomy. The `jac` you download is a small native **launcher 
 |---|---|---|
 | **Launcher stub** | The `jac` file itself: native machine code linked against libc only. Everything below rides in the appended payload | -- |
 | **CPython 3.14** | A private [python-build-standalone](https://github.com/astral-sh/python-build-standalone) build (PGO+LTO, stripped), `dlopen`ed by the launcher at startup: your system Python is never consulted | Python, pyenv, conda |
-| **Jac compiler + runtime** | Precompiled to JIR in the payload's private site: the REST server (`jac start`), client framework, K8s deployer (`--scale`), and byLLM (`by llm()`). Their optional third-party deps (litellm, pymongo, ...) resolve per-project via `jac install` | Flask, FastAPI, Express · Docker, kubectl, Helm · LangChain |
+| **Jac compiler + runtime** | Precompiled to JIR in the payload's private site: the REST server (`jac run`), client framework, K8s deployer (`jac scale deploy`), and byLLM (`by llm()`). Their optional third-party deps (litellm, pymongo, ...) resolve per-project via `jac install` | Flask, FastAPI, Express · Docker, kubectl, Helm · LangChain |
 | **Bun** | The real Bun executable, carried inside the payload and invoked by absolute path, never on your `PATH` | Node.js, npm, npx, yarn |
 | **LLVM 22** | Statically linked into a single `jacllvm` shared library behind the llvmlite ABI | gcc, clang |
 | **Linker + C floor** | Jac's own linker emits ELF / Mach-O / PE / wasm directly. Static libc + crt archives, a musl runtime (Linux), and wasm32 libc bitcode are vendored in the payload | ld, lld, make, cmake, emscripten |
@@ -293,8 +292,8 @@ The commands you'll use every day:
 | Command | What it does |
 | :--- | :--- |
 | `jac run main.jac` | Run a program (like `python3`, but for anything) |
-| `jac dev` | Live dev loop with hot reload |
-| `jac start` | Serve your program: REST API, auth, Swagger docs, frontend |
+| `jac run --dev` | Live dev loop with hot reload |
+| `jac run` | Serve your program: REST API, auth, Swagger docs, frontend |
 | `jac build` | Type-check the whole project and emit a sealed app bundle |
 | `jac build --as native` | Compile to a standalone, zero-dependency executable |
 | `jac install` / `jac x` | Manage PyPI + npm deps / run any installed CLI tool |
@@ -311,9 +310,9 @@ One language and one skill set produce every kind of software. Each row is one c
 | Zero-dependency native executable | `jac build --as native` | [CLI & native](https://www.jaclang.org/docs/latest/build/cli-and-native) |
 | Single-file app bundle (`.jab`) | `jac build` | [CLI reference](https://www.jaclang.org/docs/latest/reference/cli/#jac-build) |
 | Self-contained app executable | `jac build --as binary` | [CLI reference](https://www.jaclang.org/docs/latest/reference/cli/#jac-build) |
-| REST API (+ Swagger, auth, persistence) | `jac start api.jac` | [Backend APIs](https://www.jaclang.org/docs/latest/build/backend-apis) |
-| Microservices | `sv import` + `jac start` | [Backend APIs](https://www.jaclang.org/docs/latest/build/backend-apis) |
-| Full-stack web app | `jac start` | [Full-stack web](https://www.jaclang.org/docs/latest/build/fullstack-web) |
+| REST API (+ Swagger, auth, persistence) | `jac run api.jac` | [Backend APIs](https://www.jaclang.org/docs/latest/build/backend-apis) |
+| Microservices | `sv import` + `jac run` | [Backend APIs](https://www.jaclang.org/docs/latest/build/backend-apis) |
+| Full-stack web app | `jac run` | [Full-stack web](https://www.jaclang.org/docs/latest/build/fullstack-web) |
 | Desktop app (native webview) | `jac build --client desktop` | [Desktop & mobile](https://www.jaclang.org/docs/latest/build/desktop-mobile) |
 | Mobile app (Android / iOS) | `jac build --client mobile` | [Desktop & mobile](https://www.jaclang.org/docs/latest/build/desktop-mobile) |
 | AI agents & LLM apps | `by llm()` | [AI agents](https://www.jaclang.org/docs/latest/build/ai-agents) |
@@ -321,9 +320,9 @@ One language and one skill set produce every kind of software. Each row is one c
 | npm package | `jac build --as npm` | [Libraries](https://www.jaclang.org/docs/latest/build/libraries) |
 | C-ABI shared library (`.so`/`.dylib`/`.dll`) | `jac nacompile lib.na.jac --shared` | [Libraries](https://www.jaclang.org/docs/latest/build/libraries) |
 | WebAssembly in the browser | `jac build` in a `web-static` project | [Native pathway](https://www.jaclang.org/docs/latest/reference/language/native-pathway) |
-| Kubernetes deployment | `jac start --scale` | [Deploy & scale](https://www.jaclang.org/docs/latest/reference/plugins/jac-scale) |
+| Kubernetes deployment | `jac scale deploy` | [Deploy & scale](https://www.jaclang.org/docs/latest/reference/plugins/jac-scale) |
 
-Three working examples carry the claim: a [playable chess engine](https://www.jaclang.org/docs/latest/tutorials/native/chess) compiled to a standalone binary, a [raylib game running as WebAssembly](jac/examples/raylib_shooter/web) in the browser, and [littleX](jac/examples/littleX), a full Twitter-style social app. littleX's entire backend (4 node types, 4 edge types, and 20 walkers that serve as business logic, REST endpoints, persistence, and authorization at once) is **2 files and 475 lines**. The whole app, frontend included, is 37 Jac files with exactly one 65-line config file and **zero glue artifacts**: no route tables, no ORM models, no migrations, no serializers, no auth middleware. A `wc -l` over the tree confirms the counts.
+Three working examples carry the claim: a [playable chess engine](https://www.jaclang.org/docs/latest/tutorials/native/chess) compiled to a standalone binary, a [raylib game running as WebAssembly](jac/examples/raylib_shooter/web) in the browser, and [Socialize](jac/examples/jaclang_org/socialize), a full Twitter-style social app that ships as a login-gated section of the jaclang.org site ([jac/examples/jaclang_org](jac/examples/jaclang_org), the site's own source). Socialize's entire backend (3 node types, 4 edge types, and 19 walkers that serve as business logic, REST endpoints, persistence, and authorization at once) is **1 file and 466 lines**. The whole section, frontend included, is 14 Jac files with **zero glue artifacts**: no route tables, no ORM models, no migrations, no serializers, no auth middleware. A `wc -l` over the tree confirms the counts.
 
 ## And build it better
 
@@ -389,10 +388,10 @@ walker:pub list_tasks {
 ```
 
 ```bash
-jac start api.jac --no-client   # POST /walker/add_task · /walker/list_tasks
+jac run --no-client api.jac     # POST /walker/add_task · /walker/list_tasks
 ```
 
-Model your domain as nodes and edges, and send **walkers** (mobile computation, dispatched by arrival) to traverse it: this is **Object-Spatial Programming**. Mark a walker `:pub` and `jac start` serves it as a REST endpoint: request bodies map onto its fields, `report` becomes the JSON response, Swagger docs are served at `/docs`, and every user gets their own isolated, persistent graph. Whatever is reachable from `root` persists. No ORM, no schema migrations, no session plumbing. [Object-Spatial Programming →](https://www.jaclang.org/docs/latest/tutorials/language/osp)
+Model your domain as nodes and edges, and send **walkers** (mobile computation, dispatched by arrival) to traverse it: this is **Object-Spatial Programming**. Mark a walker `:pub` and `jac run` serves it as a REST endpoint: request bodies map onto its fields, `report` becomes the JSON response, Swagger docs are served at `/docs`, and every user gets their own isolated, persistent graph. Whatever is reachable from `root` persists. No ORM, no schema migrations, no session plumbing. [Object-Spatial Programming →](https://www.jaclang.org/docs/latest/tutorials/language/osp)
 
 ### Frontend and backend in one file
 
@@ -430,18 +429,18 @@ cl def:pub app -> JsxElement {
 }
 ```
 
-Code in `cl` (the client **codespace**) compiles to a React/JSX bundle for the browser. Everything else compiles to Python for the server. That `await add_todo(...)` in the click handler is a real RPC: the compiler generates the HTTP call, serialization, and shared types across the boundary. `jac start` serves it, and `jac start --dev` adds hot reload. [Full-stack tutorial →](https://www.jaclang.org/docs/latest/build/fullstack-web)
+Code in `cl` (the client **codespace**) compiles to a React/JSX bundle for the browser. Everything else compiles to Python for the server. That `await add_todo(...)` in the click handler is a real RPC: the compiler generates the HTTP call, serialization, and shared types across the boundary. `jac run` serves it, and `jac run --dev` adds hot reload. [Full-stack tutorial →](https://www.jaclang.org/docs/latest/build/fullstack-web)
 
 For all three ideas in one file (an AI categorizer, a native-compiled scoring function, a persistent graph, and a React UI), see [`jac/examples/mini_todo`](jac/examples/mini_todo).
 
 ## Laptop to Kubernetes without changing your code
 
 ```bash
-jac start main.jac           # local: REST API + auth + Swagger + persistence
-jac start main.jac --scale   # cloud: Kubernetes with Redis, MongoDB, load balancing
+jac run main.jac             # local: REST API + auth + Swagger + persistence
+jac scale deploy main.jac    # cloud: Kubernetes with Redis, MongoDB, load balancing
 ```
 
-Your program text does not change with the shape of its deployment: this is **scale invariance**, and the `scale` subsystem that delivers it ships inside the binary. `--scale` builds the images, provisions Redis and MongoDB, and deploys to Kubernetes with health checks. You write no Dockerfile and no YAML, and what stays in your code is only the physics: latency, failure, and cost surface as typed semantics. [Deploy & scale →](https://www.jaclang.org/docs/latest/reference/plugins/jac-scale)
+Your program text does not change with the shape of its deployment: this is **scale invariance**, and the `scale` subsystem that delivers it ships inside the binary. `jac scale deploy` builds the images, provisions Redis and MongoDB, and deploys to Kubernetes with health checks. You write no Dockerfile and no YAML, and what stays in your code is only the physics: latency, failure, and cost surface as typed semantics. [Deploy & scale →](https://www.jaclang.org/docs/latest/reference/plugins/jac-scale)
 
 ## What's in this repo
 

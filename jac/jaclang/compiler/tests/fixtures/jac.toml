@@ -1,4 +1,8 @@
 [placement.pins]
+"bundled_stdlib_defaults.adler32_default_seed" = "native"
+"bundled_stdlib_defaults.import:secrets" = "native"
+"bundled_stdlib_defaults.import:zlib" = "native"
+"bundled_stdlib_defaults.token_hex_default_len" = "native"
 "bundled_stdlib_sig.dumps_kw_len" = "native"
 "bundled_stdlib_sig.dumps_pos_len" = "native"
 "bundled_stdlib_sig.import:json" = "native"
@@ -7,6 +11,8 @@
 "fw_conformance.fw_cl" = "client"
 "fw_conformance.fw_json_cl" = "client"
 "fw_conformance.fw_na" = "native"
+"fw_narrow.narrow_cl" = "client"
+"fw_narrow.narrow_na" = "native"
 "native_any_alias_retain.alias_retain_cl" = "client"
 "native_any_alias_retain.alias_retain_na" = "native"
 "native_any_alias_retain.len_probe_na" = "native"

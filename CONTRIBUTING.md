@@ -147,9 +147,13 @@ Every PR that changes package code must include a release note fragment file:
 
 1. Create a file at `release_notes/unreleased/<package>/<PR#>.<category>.md`
    - **Packages**: `jaclang`, `byllm`
-   - **Note**: The Jac client and desktop runtimes, the `scale` deployment subsystem, and the MCP server are now part of `jaclang` core (under `jac/jaclang/runtimelib/client/`, `jac/jaclang/scale/`, and `jac/jaclang/cli/mcp/`); changes to them use the `jaclang` package fragment.
-   - **Categories**: `feature`, `bugfix`, `breaking`, `refactor`, or `docs`
+   - **Note**: The Jac client and desktop runtimes, the `scale` deployment subsystem, and the MCP server are now part of `jaclang` core (under `jac/jaclang/client/`, `jac/jaclang/scale/`, and `jac/jaclang/cli/mcp/`); changes to them use the `jaclang` package fragment.
+   - **Categories**: `feature`, `bugfix`, or `breaking`
    - **Example**: `release_notes/unreleased/jaclang/1234.bugfix.md`
+   - `refactor` and `docs` fragments are rejected by CI: release notes
+     carry user-facing changes only. A PR that is a pure internal
+     refactor or a docs-only edit files no fragment and takes the
+     `skip-release-notes-check` label instead.
 
 2. Add one or more bullet points:
 
@@ -186,6 +190,32 @@ Write type-safe code. Avoid stringly-typed interfaces:
 Before submitting, use an AI assistant to audit your diff for unnecessary code. A good prompt:
 
 > "Can you look at the local changes to see if there is any bloat or inefficient implementation given what these changes are achieving."
+
+**The jaclang Tree (charters and layering)**
+
+Every top-level package under `jac/jaclang/` has one charter; a module that does not fit its package's charter is in the wrong place:
+
+- `compiler/` builds programs: `frontend/` (parser, unitree, constants, code info, diagnostics), `driver/` (JacProgram + progstate organs, JacCompiler, the self-host cache, schedules, module resolution, JIR and caches), `passes/` (pass bases + analysis passes), `types/` (the type system), `backends/` (`py/`, `es/`, `native/`, kernel units), `placement/` (codespace planning), `tools/` (formatter, linter, unparse, doc IR, treeprinter, grammar extract, lang tools).
+- `runtime/` runs programs: JacRuntime, archetypes, OSP kernels, execution context, builtin surface, na_stdlib.
+- `lib/` is the public jaclib surface. `client/` is the browser runtime plus the build toolchain. `server/` serves (serving/, session, transport, scheduler, hmr). `data/` persists (store, pg wire/embed, serializer, storage). `testing/` is the test runner and test clients. `dist/` distributes (payload, publish, sealer, fused, jab). `cli/`, `lsp/` (`protocol/` + `server/`), `project/`, `byllm/`, and `scale/` keep their own concerns.
+- `jac0core/` is only the frozen launcher boot seam (pure-Python `sealed`/`cache_paths`/`ext_registry`/`cli_boot`): built binaries bake these import paths, so they never move. Which `.jac` files compile under the jac0 seed transpiler is declared in `jaclang/bootstrap_manifest.py`, never by directory, and `scripts/check_seed_manifest.py` gates it in CI (a seed module may import the full compiler only inside function bodies).
+
+Layering: `frontend` never imports `driver`; `runtime`/`lib` never import compiler internals at module scope; `tools` and `backends` sit on `frontend`+`driver`; `server`/`client`/`data`/`testing` sit on `runtime`.
+
+**Impl Annex Placement**
+
+A module's `impl` blocks live in the shared `impl/` directory beside the module by default: `foo.jac` pairs with `impl/foo.impl.jac`. Use a per-module annex directory (`foo.impl/` holding several `*.impl.jac` files) only when the implementation genuinely needs a multi-file split (for example a generated annex beside hand-written ones, or a very large implementation split by concern). Inline `impl` blocks in the module file itself are for small modules where an annex would be ceremony. Do not mix placements for one module, and prefer the shared `impl/` directory when in doubt.
+
+**Generated Files**
+
+Every generated file that is tracked in git must carry the standard marker as its first lines, naming the regeneration command:
+
+```
+# Auto-generated <what this is>.
+# DO NOT EDIT MANUALLY - regenerate with `<command>`.
+```
+
+Generated artifacts that are not meant to be tracked must be written to a cache or build-output directory (or be reliably cleaned up), never left in the source tree. If CI can cheaply verify the file is in sync, wire that up; otherwise guard it with a snapshot test. Better still, derive the table at compile time with `comptime` so there is no generated file to keep in sync at all, as the CLI manifest does.
 
 **Issue Assignment**
 
@@ -230,10 +260,13 @@ After the release PR is merged, the **Release** workflow triggers automatically:
    - Go to **GitHub Actions** -> find the running **Release** workflow
    - Click the paused job, then **Review deployments**, select `release-approval`, and **Approve and deploy**
 2. The workflow then handles everything automatically:
-   - Tags `v<version>` at the merge commit and creates/updates the GitHub Release
+   - Tags `v<version>` at the release PR's merge commit, and builds that exact commit (the build is pinned to the sha, not to the tag), then creates/updates the GitHub Release
    - Builds the native `jac` binary per platform (Linux x86_64 + aarch64 at a pinned glibc 2.17 floor, macOS arm64), smoke-tests each on real hardware, verifies the Linux glibc floors, and attaches the binaries + checksums to the Release
+   - The Intel-Mac binary (macos-x86_64) is not part of the release matrix; it is a manual lane, see the troubleshooting table below
 
-Every step is idempotent: re-running a partial release converges instead of erroring (existing tags are left in place, the release is updated in place, and asset uploads clobber).
+Every step is idempotent: re-running a partial release converges instead of erroring (a tag already on the release commit is left in place, the release is updated in place, and asset uploads clobber).
+
+A tag that points at a *different* commit is a refusal, not a re-run. The tag is never moved (a published release's assets and notes describe the commit it was cut from), and the release stops rather than quietly rebuilding the old tree. See the troubleshooting table below for the two ways out.
 
 ### Troubleshooting
 
@@ -244,3 +277,5 @@ Every step is idempotent: re-running a partial release converges instead of erro
 | Publish workflow didn't trigger | Ensure the PR branch started with `release/` |
 | Binaries missing from the release | Re-run **Build jac native binaries** via `workflow_dispatch` with the release tag (e.g. `v0.30.4`); it rebuilds and re-attaches idempotently. An empty tag builds artifacts only (a dry run that attaches nothing) |
 | Need to re-run after the release PR is merged | Manually trigger **Release** with `action: publish`; the version is re-read from the root `jac.toml` |
+| `Refusing to release vX.Y.Z: the tag already exists and points at a different commit` | The version was cut once already, from a commit that is not the one you are releasing now (a reverted release, say). Either bump the version and release that instead, or, **only if `vX.Y.Z` was never published** (its Release is still a draft with no assets), retire the stale tag and draft with `gh release delete vX.Y.Z --cleanup-tag --yes` and re-run. Never move a tag whose release was published: its assets and notes describe the old commit, and users who installed it keep that build |
+| Need an Intel-Mac (macos-x86_64) binary for a release | The leg is manual: it is off the release matrix (broken since #8805, and it sat on every release's critical path on the slowest runners while shipping nothing). Dispatch **Build jac native binaries** with `only: macos-x86_64` and `tag: vX.Y.Z`; it builds that one leg and attaches the asset to the already-published release. `plan` refuses `only` + `tag` for any blocking leg, so this lane can never publish a partial release. A weekly probe in nightly.yml (`intel-mac-probe`) builds the leg with no tag so it keeps a signal |

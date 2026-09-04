@@ -81,8 +81,8 @@ description = "Jac client application: myapp"
 entry-point = "main.jac"
 
 [dependencies.npm]
-react = "^18.2.0"
-react-dom = "^18.2.0"
+react = "^19.2.0"
+react-dom = "^19.2.0"
 react-router-dom = "^6.22.0"
 react-error-boundary = "^5.0.0"
 zod = "^4.3.6"
@@ -91,8 +91,8 @@ zod = "^4.3.6"
 vite = "^6.4.1"
 "@vitejs/plugin-react" = "^4.2.1"
 typescript = "^5.3.3"
-"@types/react" = "^18.2.0"
-"@types/react-dom" = "^18.2.0"
+"@types/react" = "^19.2.0"
+"@types/react-dom" = "^19.2.0"
 
 [dev-dependencies]
 watchdog = ">=3.0.0"
@@ -110,7 +110,7 @@ base_route_app = "app"
 ### Development Mode (with Hot Reload)
 
 ```bash
-jac start --dev
+jac run --dev
 ```
 
 This starts:
@@ -124,7 +124,7 @@ Open http://localhost:8000/cl/app
 ### Production Mode
 
 ```bash
-jac start
+jac run
 ```
 
 Open http://localhost:8000/cl/app
@@ -246,7 +246,7 @@ axios = "^1.6.0"
 Then use in frontend:
 
 !!! note "npm imports and `jac check`"
-    `jac check` reads installed npm `.d.ts` files for client imports when available; packages or constructs without declarations still type as foreign `any`. The code below runs as written under `jac start`.
+    `jac check` reads installed npm `.d.ts` files for client imports when available; packages or constructs without declarations still type as foreign `any`. The code below runs as written under `jac run`.
 
 ```jac
 import lodash;
@@ -305,7 +305,7 @@ def:pub app() -> JsxElement {
     }
 ```
 
-Run `jac start --dev` and open http://localhost:8000/cl/app
+Run `jac run --dev` and open http://localhost:8000/cl/app
 
 Click the button - the count should increase!
 

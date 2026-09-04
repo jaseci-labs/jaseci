@@ -17,35 +17,29 @@ import shutil;
 import subprocess;
 import from pathlib { Path }
 
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { run_pass }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
-import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
-import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
-import from jaclang.runtimelib.client_surface { with_runtime_globals }
-import from jaclang.runtimelib.runtime_source { resolve_client_runtime_cl_path }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.pass_driver { run_pass }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.backends.es { EsastGenPass }
+import from jaclang.compiler.backends.es.es_unparse { es_to_js }
+import from jaclang.compiler.backends.es.backends.react { ReactBackend }
+import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
+import from jaclang.client.client_surface { with_runtime_globals }
+import from jaclang.client.npm_provider { CORE_RUNTIME_DEPS, OPTIONAL_RUNTIME_DEPS }
+import from jaclang.client.runtime_source { resolve_client_runtime_cl_path }
 
-# Mirrors `_default_client_deps("react")` runtime deps; jsdom is test-only.
+# The react deps the client pipeline itself pins, so a version bump reaches
+# these suites without a second edit here; jsdom is test-only.
 glob REACT_JSDOM_DEPS: dict[str, str] = {
          "jsdom": "^24.0.0",
-         "react": "^18.2.0",
-         "react-dom": "^18.2.0",
-         "react-router-dom": "^6.22.0",
-         "react-error-boundary": "^5.0.0",
-         "@tanstack/react-form": "^1.33.0",
-         "zod": "^4.3.6"
+         ** CORE_RUNTIME_DEPS,
+         ** OPTIONAL_RUNTIME_DEPS
      };
 
-"""Skip unless the client toolchain integration flag is set."""
+"""Skip unless the client toolchain is present (JAC_TEST_STRICT escalates)."""
 def require_client_integration(suite: str) {
-    if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        testskip(
-            f"{suite} jsdom test does a real bun install; "
-            "set JAC_CLIENT_INTEGRATION=1 to run"
-        );
-    }
+    import from jaclang.testing.requires { require_tool }
+    require_tool("bun");
 }
 
 """Compile a `.jac` to JS with the React backend; type errors are non-fatal.
@@ -101,15 +95,19 @@ def write_runtime(work: Path) {
     );
 }
 
-"""`bun install` the shared dep set into `work`."""
-def bun_install(bun: str, work: Path, name: str) {
+"""`bun install` a dep set into `work`; defaults to the shared one.
+
+`deps` lets a suite install exactly the versions the client pipeline pins
+(plus its own extras) instead of the shared mirror, so a pin drift shows up
+as that suite failing rather than as a silently stale harness."""
+def bun_install(bun: str, work: Path, name: str, deps: (dict[str, str] | None) = None) {
     (work / "package.json").write_text(
         json.dumps(
             {
                 "name": name,
                 "private": True,
                 "type": "module",
-                "dependencies": REACT_JSDOM_DEPS
+                "dependencies": REACT_JSDOM_DEPS if deps is None else deps
             }
         ),
         encoding="utf-8"

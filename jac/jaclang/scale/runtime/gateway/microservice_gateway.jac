@@ -1,13 +1,9 @@
 import logging;
 import mimetypes;
 import from pathlib { Path }
-import from jaclang.runtimelib.serving.app { ServingApp }
-import from jaclang.runtimelib.serving.datatypes { Request }
-import from jaclang.runtimelib.serving.datatypes {
-    HTMLResponse,
-    JSONResponse,
-    Response
-}
+import from jaclang.server.serving.app { ServingApp }
+import from jaclang.server.serving.datatypes { Request }
+import from jaclang.server.serving.datatypes { HTMLResponse, JSONResponse, Response }
 import from jaclang.scale.runtime.gateway.service_registry {
     ServiceRegistry,
     ServiceEntry,
@@ -56,7 +52,8 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
         _metrics: any = None,
         base_path: str = ".",
         route_table: ServiceRouteTable = ServiceRouteTable(),
-        _routes_refreshed_at: float = 0.0;
+        _spec_crawl: any = None,
+        port_pinned: bool = False;
 
     def setup -> ServingApp;
     def resolve_target_url(service_entry: ServiceEntry, path: str, query: str) -> str;
@@ -67,6 +64,20 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
     async def handle_builtin_passthrough(
         request: Request, path: str
     ) -> Response | None;
+
+    def eligible_services -> list[tuple[str, ServiceEntry]];
+    def app_service -> ServiceEntry | None;
+    async def forward_to_app(request: Request, path: str) -> Response | None;
+    async def forward_static_to_app(request: Request, path: str) -> Response | None;
+    async def resolve_learned_owner(path: str) -> ServiceEntry | None;
+    async def forward_root_path(
+        request: Request, service_entry: ServiceEntry, path: str, base_url: str = ""
+    ) -> Response | None;
+
+    async def deliver_once(request: Request, path: str) -> Response | None;
+    async def probe_services(
+        request: Request, path: str, candidates: list[tuple[str, ServiceEntry]]
+    ) -> Response;
 
     def handle_admin(path: str) -> Response | None;
     async def handle_proxy(request: Request, path: str) -> Response | None;
@@ -82,6 +93,7 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
     def handle_metrics -> Response;
     async def handle_openapi -> Response;
     def handle_docs -> Response;
+    def has_client_bundle -> bool;
     def build_forward_headers(request: Request) -> dict[str, str];
     def serve_static(file_path: str) -> Response | None;
     def serve_extra_static(local_dir: str, file_path: str) -> Response | None;
@@ -90,5 +102,5 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
     def bootstrap_admin_ui -> None;
     def _install_admin_api -> None;
     def serve_admin_asset(asset_path: str) -> Response | None;
-    def start -> None;
+    def start(on_ready: any = None) -> None;
 }

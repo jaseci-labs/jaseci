@@ -1,8 +1,12 @@
+import json;
 import re;
 import from pathlib { Path }
 
 glob _CODE_GUIDE_MAP: dict[str, str] = {
          "E0077": "jac-impl-files",
+         "E0033": "jac-comptime",
+         "E0108": "jac-comptime",
+         "E0109": "jac-comptime",
          "W0060": "jac-core-cheatsheet",
          "W0061": "jac-sv-persistence",
          "E1050": "jac-walker-patterns",
@@ -53,6 +57,7 @@ glob GUIDE_GROUP_ORDER: list[str] = [
          "jac-project-kinds": "Start here",
          "jac-core-cheatsheet": "Start here",
          "jac-types": "Language",
+         "jac-comptime": "Language",
          "jac-has-fields": "Language",
          "jac-impl-files": "Language",
          "jac-python-interop": "Language",
@@ -312,6 +317,46 @@ impl doc_corpora -> list[tuple[str, list[Guide]]] {
 
 impl corpus_blurb(ns: str) -> str {
     return _DOC_CORPUS_BLURBS.get(ns, "");
+}
+
+impl nav_manifest -> dict {
+    path = docs_dir() / "nav.json";
+    if not path.is_file() {
+        return {};
+    }
+    try {
+        loaded = json.loads(path.read_text(encoding="utf-8"));
+    } except (OSError, ValueError) {
+        return {};
+    }
+    return loaded if isinstance(loaded, dict) else {};
+}
+
+impl nav_pages -> list[NavPage] {
+    pages: list[NavPage] = [];
+
+    def walk(items: list, trail: list[str]) {
+        for item in items {
+            if not isinstance(item, dict) {
+                continue;
+            }
+            title = str(item.get("title", "")).strip();
+            if "page" in item {
+                pages.append(
+                    NavPage(
+                        page=str(item["page"]),
+                        title=title,
+                        order=len(pages),
+                        section=trail
+                    )
+                );
+            } elif "items" in item {
+                walk(item["items"] as list, trail + [title]);
+            }
+        }
+    }
+    walk(nav_manifest().get("nav", []) as list, []);
+    return pages;
 }
 
 def _resolve_by_suffix(clean: str) -> Guide | None {

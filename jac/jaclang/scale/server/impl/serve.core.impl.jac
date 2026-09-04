@@ -10,29 +10,6 @@ def _validate_events_url(url: (str | None)) {
     }
 }
 
-impl _find_available_port(start_port: int, max_retries: int = PORT_RETRY_LIMIT) -> int {
-    current_port = start_port;
-    for _ in range(max_retries) {
-        try {
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s {
-                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
-                s.bind(('0.0.0.0', current_port));
-            }
-            return current_port;
-        } except OSError as e {
-            if e.errno in (ERRNO_ADDR_IN_USE_LINUX, ERRNO_ADDR_IN_USE_WINDOWS)
-                or "Address already in use" in str(e) {
-                current_port += 1;
-            } else {
-                raise;
-            }
-        }
-    }
-    raise OSError(
-        f"Could not find an available port after trying {start_port}-{current_port}"
-    );
-}
-
 impl _get_network_ips -> list[str] {
     ips: list[str] = [];
     try {
@@ -46,7 +23,7 @@ impl _get_network_ips -> list[str] {
                 }
             }
         }
-    } except Exception { }
+    } except Exception {}
     return ips;
 }
 
@@ -56,6 +33,7 @@ impl JacAPIServerCore._make_user_manager -> CoreUserManager {
 }
 
 impl JacAPIServerCore.postinit -> None {
+    get_scale_config().get_jwt_config();
     super.postinit();
 
     if self.server is None {
@@ -94,6 +72,10 @@ impl JacAPIServerCore.postinit -> None {
     import from jaclang.scale.observability.factory { UtilityFactory }
     metrics_config = get_scale_config().get_monitoring_config();
     self._metrics = UtilityFactory.create_metrics('prometheus', metrics_config);
+    mgr = self?.execution_manager;
+    if mgr is not None {
+        mgr.metrics = self._metrics;
+    }
     if self._metrics.is_enabled() {
         metrics_collector = self._metrics;
         metrics_endpoint = metrics_config.get('endpoint', '/metrics');
@@ -204,6 +186,7 @@ impl JacAPIServerCore.start(
     on_ready: Callable[..., None] | None = None
 ) -> None {
     self.introspector.load();
+    self.introspector.dev_mode = dev;
     if self.introspector.has_client_route('/docs') {
         self.server.app.docs_url = None;
     }
@@ -232,12 +215,13 @@ impl JacAPIServerCore.start(
                         f"  ✔ Client bundle ready ({elapsed:.1f}s)", style="success"
                     );
                 } except Exception as e {
+                    import from jaclang.client.client_diagnostics {
+                        format_build_diagnostics
+                    }
                     error_output = str(e);
                     project_dir = config.project_root if config else Path.cwd();
-                    formatted_error = Jac.format_build_error(
-                        error_output=error_output,
-                        project_dir=project_dir,
-                        config=config
+                    formatted_error = format_build_diagnostics(
+                        str(project_dir), error_output, config
                     );
                     console.warning("Failed to build client bundle");
                     console.print(file=sys.stderr);
@@ -288,7 +272,7 @@ impl JacAPIServerCore.start(
     self._setup_events();
 
     original_port = self.port;
-    self.port = _find_available_port(self.port);
+    self.port = find_available_port(self.port, strict=self.strict_port);
     if self.port != original_port {
         console.print(
             f"  Port {original_port} is in use, using port {self.port} instead",
@@ -301,7 +285,9 @@ impl JacAPIServerCore.start(
     if on_ready {
         on_ready(self.port);
     }
-    self.server.run_server(port=self.port);
+    self.server.run_server(
+        port=self.port, max_retries=0 if self.strict_port else PORT_RETRY_LIMIT
+    );
 }
 
 impl JacAPIServerCore._print_startup_banner(dev: bool, no_client: bool) -> None {
@@ -360,7 +346,7 @@ impl JacAPIServerCore._configure_openapi_security -> None {
 }
 
 impl JacAPIServerCore.register_health_endpoint -> None {
-    import from jaclang.runtimelib.serving.datatypes { JSONResponse }
+    import from jaclang.server.serving.datatypes { JSONResponse }
     import from jaclang.scale.runtime.lifecycle.drain { is_draining }
 
     async def health_live -> dict {
@@ -426,7 +412,7 @@ impl JacAPIServerCore.register_health_endpoint -> None {
 
 impl JacAPIServerCore.register_build_status_endpoint -> None {
     async def build_status -> dict {
-        import from jaclang.runtimelib.hmr { get_build_status }
+        import from jaclang.server.hmr { get_build_status }
         return get_build_status();
     }
 
@@ -441,16 +427,17 @@ impl JacAPIServerCore.register_build_status_endpoint -> None {
             summary='Dev build health',
             description=(
                 'Hot-reload build status: "ok", "compiling", or "error" '
-                '(with the failing file and message); "unavailable" when '
-                'not running in dev mode.'
+                '(with a "diagnostics" list, each entry carrying a Jac '
+                'file/line/column, code, message, help and rendered text); '
+                '"unavailable" when not running in dev mode.'
             )
         )
     );
 }
 
 impl JacAPIServerCore._register_client_error_endpoint -> None {
-    import from jaclang.runtimelib.serving.datatypes { Request }
-    import from jaclang.runtimelib.serving.datatypes { JSONResponse }
+    import from jaclang.server.serving.datatypes { Request }
+    import from jaclang.server.serving.datatypes { JSONResponse }
     async def client_error_handler(request: Request) -> JSONResponse {
         try {
             data = await request.json();
@@ -464,11 +451,8 @@ impl JacAPIServerCore._register_client_error_endpoint -> None {
             );
         }
 
-        import from jaclang.runtimelib.source_mapping {
-            _error_rate_limiter,
-            resolve_client_error_stacks,
-            format_client_error_log
-        }
+        import from jaclang.client.source_mapping { _error_rate_limiter }
+        import from jaclang.client.client_diagnostics { log_client_error }
         import from jaclang.project.config { get_config }
 
         if not _error_rate_limiter.should_log(message) {
@@ -478,29 +462,16 @@ impl JacAPIServerCore._register_client_error_endpoint -> None {
         }
         cfg = get_config();
         verbose = cfg.client_errors.verbose if cfg else False;
-        (stack, component_stack) = resolve_client_error_stacks(
-            self.base_path,
-            data.get('stack', ''),
-            data.get('componentStack', ''),
-            verbose=verbose
-        );
-        log_parts = format_client_error_log(
-            message,
-            stack=stack,
-            component_stack=component_stack,
-            url=data.get('url', ''),
-            source=data.get('source', '')
-        );
-        logger.error('\n'.join(log_parts));
-        console.error(f"[Client] {message}");
-        if stack {
-            for line in stack.split('\n') {
+        diag = log_client_error(self.base_path or '', data, verbose);
+        console.error(diag.render());
+        if diag.resolved_stack {
+            for line in diag.resolved_stack.split('\n') {
                 console.print(f"    {line}");
             }
         }
-        if component_stack {
+        if diag.resolved_component_stack {
             console.print(f"  Component stack:");
-            for line in component_stack.split('\n') {
+            for line in diag.resolved_component_stack.split('\n') {
                 console.print(f"    {line}");
             }
         }
@@ -581,7 +552,7 @@ impl JacAPIServerCore._setup_scheduler -> None {
             scheduler_cfg.get('system_user_password', '__no_login__'),
             role='system'
         );
-    } except Exception { }
+    } except Exception {}
     system_user = self.user_manager.get_user('__system__');
     if system_user is None {
         logger.error("Scheduler: __system__ user not found; using sentinel id");
@@ -624,8 +595,8 @@ impl JacAPIServerCore._setup_scheduler -> None {
 impl JacAPIServerCore._create_admin_metrics_handler(
     original_handler: Callable[..., any]
 ) -> Callable[..., any] {
-    import from jaclang.runtimelib.serving.datatypes { JSONResponse, Request, Response }
-    import from jaclang.runtimelib.transport { TransportResponse, Meta }
+    import from jaclang.server.serving.datatypes { JSONResponse, Request, Response }
+    import from jaclang.server.transport { TransportResponse, Meta }
     import dataclasses;
     import base64;
 

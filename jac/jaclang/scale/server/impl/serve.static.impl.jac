@@ -1,18 +1,14 @@
 import mimetypes;
 import from pathlib { Path }
-import from jaclang.runtimelib.serving.datatypes {
-    HTMLResponse,
-    JSONResponse,
-    Response
-}
-import from jaclang.runtimelib.serving.endpoint {
+import from jaclang.server.serving.datatypes { HTMLResponse, JSONResponse, Response }
+import from jaclang.server.serving.endpoint {
     APIParameter,
     HTTPMethod,
     JEndPoint,
     ParameterType
 }
-import from jaclang.jac0core.runtime { JacRuntime as Jac }
-import from jaclang.runtimelib.server { JsonValue }
+import from jaclang.runtime.runtime { JacRuntime as Jac }
+import from jaclang.server.server { JsonValue }
 import from jaclang.cli.console { console }
 
 impl JacAPIServerStatic.serve_static_file(file_path: str) -> Response {
@@ -132,8 +128,20 @@ impl JacAPIServerStatic.register_client_js_endpoint -> None {
     );
 }
 
+def _dev_client_elsewhere -> Response {
+    return Response(
+        content='Not found: in dev the client is served by the dev server on the web port',
+        status_code=404,
+        media_type='text/plain'
+    );
+}
+
+
 impl JacAPIServerStatic.serve_client_js_callback -> Callable[..., Response] {
     def callback -> Response {
+        if self.introspector.dev_mode {
+            return _dev_client_elsewhere();
+        }
         try {
             return Response(
                 content=Jac.get_client_js(self.introspector),
@@ -193,6 +201,9 @@ impl JacAPIServerStatic.register_page_endpoint -> None {
 
 impl JacAPIServerStatic.render_page_callback -> Callable[..., HTMLResponse] {
     def callback(page_name: str, **kwargs: JsonValue) -> HTMLResponse {
+        if self.introspector.dev_mode {
+            return HTMLResponse(content='Not found', status_code=404);
+        }
         try {
             render_payload = self.introspector.render_page(
                 page_name, kwargs, Con.GUEST.value
@@ -214,6 +225,9 @@ impl JacAPIServerStatic.render_base_route_callback(
     app_name: str
 ) -> Callable[..., HTMLResponse] {
     def callback(**kwargs: JsonValue) -> HTMLResponse {
+        if self.introspector.dev_mode {
+            return HTMLResponse(content='Not found', status_code=404);
+        }
         try {
             render_payload = self.introspector.render_page(
                 app_name, kwargs, Con.GUEST.value
@@ -268,7 +282,10 @@ impl JacAPIServerStatic.serve_root_asset(file_path: str) -> Response {
         configured_root = config.serve.base_route_app if config else "";
         base_route_app = self.introspector.resolve_root_app(configured_root);
         if (
-            not file_ext and base_route_app and not file_path.startswith(api_prefixes)
+            not file_ext
+            and base_route_app
+            and not self.introspector.dev_mode
+            and not file_path.startswith(api_prefixes)
         ) {
             try {
                 render_payload = self.introspector.render_page(
@@ -411,7 +428,7 @@ impl JacAPIServerStatic.serve_graph_page -> HTMLResponse {
 
 
 impl JacAPIServerStatic.graph_data(Authorization: (str | None) = None) -> JSONResponse {
-    import from jaclang.runtimelib.utils { collect_node_connections }
+    import from jaclang.runtime.graph_utils { collect_node_connections }
 
     token: (str | None) = None;
     if (

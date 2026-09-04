@@ -1,19 +1,19 @@
 import os;
 import pathlib;
 import threading;
-import from jaclang.cli.registry { get_registry }
-import from jaclang.cli.command { Arg, ArgKind }
+import from jaclang.comptime { name as ct_name }
+import from jaclang.cli.command { Arg, ArgKind, CommandSpec }
 import from jaclang.cli.console { console }
-import from jaclang.runtimelib.context { ExecutionContext }
-import from jaclang.runtimelib.server { JacAPIServer as JacServer }
+import from jaclang.runtime.context { ExecutionContext }
+import from jaclang.server.server { JacAPIServer as JacServer }
 import from .config.config_loader { get_scale_config }
 import from .config.project_env { load_project_env }
 import from .events.streams.postgres { PgEventStream }
 
 import from .persistence.pg { shared_store as _pg_anchor }
 import from .state.pg_state_backend { PgStateBackend as _state_anchor }
-import from jaclang.runtimelib.server { UserManager }
-import from jaclang.runtimelib.storage { Storage }
+import from jaclang.server.server { UserManager }
+import from jaclang.data.storage { Storage }
 import from .observability.factory { UtilityFactory }
 import from .deploy.target.factory { DeploymentTargetFactory }
 
@@ -41,7 +41,7 @@ def _print_local_ms_banner(routes: dict[str, str]) {
     }
 }
 
-def _scale_runtime_active -> bool {
+def scale_runtime_configured -> bool {
     if (
         os.environ.get("JAC_SCALE_RUNTIME") == "1"
         or os.environ.get("JAC_SV_SIBLING") == "1"
@@ -54,84 +54,125 @@ def _scale_runtime_active -> bool {
     );
 }
 
-def scale_start(
+def _app_serves_client(no_client: bool) -> bool {
+    if no_client {
+        return False;
+    }
+    try {
+        import from jaclang.project.config { get_config }
+        cfg = get_config();
+        if cfg is None {
+            return False;
+        }
+        kind: str = str(cfg.project.kind or "");
+        if kind {
+            return kind in ("web-app", "web-static");
+        }
+        if "jac-client" in cfg.dependencies or "client" in cfg.plugins {
+            return True;
+        }
+        raw = getattr(cfg, "_raw_data", {});
+        return isinstance(raw, dict) and bool(raw.get("client"));
+    } except Exception {
+        return False;
+    }
+}
+
+def scale_local_serve(
     filename: str,
-    scale: bool,
-    target: str,
-    enable_tls: bool,
-    dry_run: bool,
-    show_yaml: bool,
-    port: int = 8000
+    port: int = 8000,
+    ms: bool | None = None,
+    dev: bool = False,
+    no_client: bool = False
 ) -> int | None {
     os.environ["JAC_SCALE_RUNTIME"] = "1";
     scale_config = get_scale_config();
     ms_config = scale_config.get_microservices_config();
-    if port and port != 8000 {
+    if port {
         ms_config["gateway_port"] = port;
     }
-    is_sv_sibling = os.environ.get("JAC_SV_SIBLING") == "1";
-
-    enabled = ms_config.get("enabled", None);
-    if (not is_sv_sibling) and (not scale) and (enabled is not False) {
-        realizer = None;
-        should_serve_ms = False;
-        try {
-            import from jaclang.scale.runtime.routing {
-                resolve_routes,
-                resolve_service_files
-            }
-            ms_config["routes"] = resolve_routes(ms_config);
-            ms_config["service_files"] = resolve_service_files(
-                ms_config, ms_config["routes"]
-            );
-            if ms_config["routes"] {
-                import from jaclang.scale.runtime.routing { ensure_main_service }
-                ensure_main_service(
-                    ms_config["routes"],
-                    ms_config["service_files"],
-                    os.path.basename(filename)
-                );
-            }
-
-            import from jaclang.scale.runtime.realizer.local_realizer { LocalRealizer }
-            realizer = LocalRealizer(ms_config=ms_config);
-            should_serve_ms = realizer.should_serve(enabled);
-        } except ValueError as e {
-            console.error(f"Microservice configuration invalid: {e}", emoji=False);
-            return 1;
-        } except Exception as e {
-            console.error(
-                f"Microservice mode unavailable "
-                f"({type(e).__name__}: {e}); starting as a monolith.",
-                emoji=False
-            );
-            realizer = None;
-            should_serve_ms = False;
-        }
-        if should_serve_ms and realizer is not None {
-            if enabled is None {
-                _print_local_ms_banner(ms_config.get("routes", {}));
-            }
-            realizer.serve();
-            return 0;
-        }
+    if os.environ.get("JAC_SV_SIBLING") == "1" {
+        return None;
     }
 
-    if scale {
-        try {
-            import from jaclang.scale.runtime.realizer.kubernetes_realizer {
-                KubernetesRealizer
-            }
-            return KubernetesRealizer(ms_config=ms_config).realize(
-                filename, target, enable_tls, dry_run, show_yaml
-            );
-        } except Exception as e {
-            console.error(f"Deploy failed: {e}", emoji=False);
-            return 1;
+    enabled = ms_config.get("enabled", None);
+    asked_for_ms: bool = ms is True or (ms is None and enabled is True);
+    if asked_for_ms and not ms_config.get("routes") {
+        how: str = "--ms" if ms is True else "[scale.microservices] enabled = true";
+        console.error(
+            f"{how} has nothing to run: no services are declared.\n"
+            "  Declare them in [scale.microservices.routes] "
+            "(`jac scale split <module>` adds one).",
+            emoji=False
+        );
+        return 1;
+    }
+    dev_client: bool = dev and (not no_client);
+    realizer = None;
+    should_serve_ms = False;
+    try {
+        import from jaclang.scale.runtime.routing {
+            resolve_routes,
+            resolve_service_files
         }
+        ms_config["routes"] = resolve_routes(ms_config);
+        ms_config["service_files"] = resolve_service_files(
+            ms_config, ms_config["routes"]
+        );
+        if ms_config["routes"] {
+            import from jaclang.scale.runtime.routing { ensure_main_service }
+            ensure_main_service(
+                ms_config["routes"],
+                ms_config["service_files"],
+                os.path.basename(filename)
+            );
+        }
+
+        import from jaclang.scale.runtime.realizer.local_realizer { LocalRealizer }
+        realizer = LocalRealizer(ms_config=ms_config);
+        should_serve_ms = realizer.should_serve(enabled, ms, dev_client);
+    } except ValueError as e {
+        console.error(f"Microservice configuration invalid: {e}", emoji=False);
+        return 1;
+    } except Exception as e {
+        console.error(
+            f"Microservice mode unavailable "
+            f"({type(e).__name__}: {e}); starting as a monolith.",
+            emoji=False
+        );
+        realizer = None;
+        should_serve_ms = False;
+    }
+    if should_serve_ms and realizer is not None {
+        ms_config["gateway_port_pinned"] = bool(port);
+        ms_config["dev"] = dev_client;
+        ms_config["app_serves_client"] = _app_serves_client(no_client);
+        if not asked_for_ms {
+            _print_local_ms_banner(ms_config.get("routes", {}));
+        }
+        realizer.serve();
+        return 0;
     }
 
     return None;
+}
+
+def scale_deploy(
+    filename: str, target: str, enable_tls: bool, dry_run: bool, show_yaml: bool
+) -> int {
+    os.environ["JAC_SCALE_RUNTIME"] = "1";
+    ms_config = get_scale_config().get_microservices_config();
+    try {
+        import from jaclang.scale.runtime.realizer.kubernetes_realizer {
+            KubernetesRealizer
+        }
+        return KubernetesRealizer(ms_config=ms_config).realize(
+            filename, target, enable_tls, dry_run, show_yaml
+        );
+    } except Exception as e {
+        console.error(f"Deploy failed: {e}", emoji=False);
+        return 1;
+    }
 }
 
 def _print_deployment_status(status_data: dict) -> None {
@@ -205,8 +246,7 @@ def _print_deployment_status(status_data: dict) -> None {
     }
 }
 
-glob registry = get_registry(),
-     _sv_sibling_procs: dict[str, any] = {},
+glob _sv_sibling_procs: dict[str, any] = {},
      _sv_spawn_locks: dict[str, threading.Lock] = {},
      _sv_spawn_guard = threading.Lock();
 
@@ -336,7 +376,7 @@ def deploy_status(file_path: str, target: str = "kubernetes") -> int {
 
 def _scale_split(module_name: str) -> int {
     import tomllib;
-    import from jaclang.jac0core.modresolver { find_jac_project_root }
+    import from jaclang.compiler.driver.modresolver { find_jac_project_root }
     import from .runtime.routing { derive_route_prefix, guard_route_name }
 
     if not module_name {
@@ -405,68 +445,129 @@ def _scale_split(module_name: str) -> int {
 }
 
 
-@registry.command(
-    name="scale",
-    help="Manage scale deployments: local microservices (status/stop/restart/logs) and platform deployments (status/destroy on a .jac app)",
-    args=[
-        Arg.create(
-            "action",
-            kind=ArgKind.POSITIONAL,
-            help="Action: status, stop, restart, logs, destroy, split"
-        ),
-        Arg.create(
-            "service_name",
-            kind=ArgKind.POSITIONAL,
-            `default="",
-            help="Service name (stop/restart/logs), module to declare as a service (split), or a .jac app file for platform status/destroy"
-        ),
-        Arg.create(
-            "lines",
-            typ=int,
-            `default=50,
-            help="Number of log lines to show (for 'logs' action)"
-        ),
-        Arg.create(
-            "target",
-            typ=str,
-            `default="kubernetes",
-            help="Platform target for .jac app status/destroy (kubernetes, aws, gcp, etc.)"
-        ),
-        Arg.create(
-            "component",
-            typ=str,
-            `default="",
-            help="Platform destroy: component to remove (application, database, monitoring; default: entire deployment)"
-        ),
+comptime SPEC_SCALE_CMD: CommandSpec = CommandSpec(
+         name="scale",
+         help="Manage scale deployments: local microservices (status/stop/restart/logs) and platform deployments (deploy/status/destroy on a .jac app)",
+         args=[
+             Arg.create(
+                 "action",
+                 kind=ArgKind.POSITIONAL,
+                 help="Action: deploy, status, stop, restart, logs, destroy, split"
+             ),
+             Arg.create(
+                 "service_name",
+                 kind=ArgKind.POSITIONAL,
+                 `default="",
+                 help="Service name (stop/restart/logs), module to declare as a service (split), or a .jac app file for platform deploy/status/destroy"
+             ),
+             Arg.create(
+                 "lines",
+                 typ=int,
+                 `default=50,
+                 help="Number of log lines to show (for 'logs' action)"
+             ),
+             Arg.create(
+                 "target",
+                 typ=str,
+                 `default="kubernetes",
+                 help="Platform target for .jac app status/destroy (kubernetes, aws, gcp, etc.)"
+             ),
+             Arg.create(
+                 "component",
+                 typ=str,
+                 `default="",
+                 help="Platform destroy: component to remove (application, database, monitoring; default: entire deployment)"
+             ),
+             Arg.create(
+                 "enable-tls",
+                 typ=bool,
+                 `default=False,
+                 help="Platform deploy: enable HTTPS via Let's Encrypt (run after pointing your domain CNAME to the NLB)",
+                 short=""
+             ),
+             Arg.create(
+                 "dry-run",
+                 typ=bool,
+                 `default=False,
+                 help="Platform deploy: print the manifests that would be applied; touch nothing (no cluster contact, no downloads, no client build, no DB provisioning, no TLS issuance, no deploy tooling installed)",
+                 short=""
+             ),
+             Arg.create(
+                 "show-yaml",
+                 typ=bool,
+                 `default=False,
+                 help="Platform deploy, with --dry-run: dump the raw YAML stream",
+                 short=""
+             ),
 
-    ],
-    examples=[
-        ("jac scale status", "Show status of all microservices"),
-        (
-            "jac scale split orders",
-            "Declare the orders module as a service in [scale.microservices.routes]"
-        ),
-        ("jac scale stop orders", "Stop the orders service"),
-        ("jac scale restart cart", "Restart the cart service"),
-        ("jac scale logs products", "Show logs for products service"),
-        ("jac scale destroy", "Stop all services"),
-        ("jac scale status app.jac", "Show platform deployment status of app"),
-        ("jac scale destroy app.jac", "Remove app's platform deployment"),
-        (
-            "jac scale destroy app.jac --component database",
-            "Remove only the database from the deployment"
-        ),
+         ],
+         examples=[
+             (
+                 "jac scale deploy",
+                 "Deploy this project's entry-point to the default target"
+             ),
+             ("jac scale deploy app.jac", "Deploy a specific app file"),
+             (
+                 "jac scale deploy app.jac --target aws",
+                 "Deploy the app to a specific platform target"
+             ),
+             (
+                 "jac scale deploy app.jac --dry-run --show-yaml",
+                 "Print the manifests that would be applied, touching nothing"
+             ),
+             ("jac scale status", "Show status of all microservices"),
+             (
+                 "jac scale split orders",
+                 "Declare the orders module as a service in [scale.microservices.routes]"
+             ),
+             ("jac scale stop orders", "Stop the orders service"),
+             ("jac scale restart cart", "Restart the cart service"),
+             ("jac scale logs products", "Show logs for products service"),
+             ("jac scale destroy", "Stop all services"),
+             ("jac scale status app.jac", "Show platform deployment status of app"),
+             ("jac scale destroy app.jac", "Remove app's platform deployment"),
+             (
+                 "jac scale destroy app.jac --component database",
+                 "Remove only the database from the deployment"
+             ),
 
-    ],
-    group="microservices"
-)
+         ],
+         group="microservices",
+         handler_name=ct_name(scale_cmd)
+     );
+
 def scale_cmd(
     action: str,
     service_name: str = "",
     lines: int = 50,
     target: str = "kubernetes",
-    component: str = ""
+    component: str = "",
+    enable_tls: bool = False,
+    dry_run: bool = False,
+    show_yaml: bool = False
 ) -> int {
+    if action == "deploy" {
+        app_file = service_name;
+        if not app_file {
+            import from pathlib { Path }
+            import from jaclang.project.config { get_config }
+            import from jaclang.project.kinds { resolve_entry }
+            cfg = get_config(start_path=Path.cwd(), force_discover=True);
+            app_file = resolve_entry(cfg, str(cfg.project_root))
+                if cfg is not None and cfg.project_root is not None
+                else "";
+        }
+        if not app_file.endswith(".jac") {
+            console.error(
+                "jac scale deploy needs the app's .jac file.\n"
+                "  Usage: jac scale deploy [app.jac] [--target kubernetes]\n"
+                "  With no file, [project] entry-point in jac.toml is deployed.",
+                emoji=False
+            );
+            return 1;
+        }
+        return scale_deploy(app_file, target, enable_tls, dry_run, show_yaml);
+    }
     if action in ("status", "destroy") and service_name.endswith(".jac") {
         if action == "status" {
             return deploy_status(service_name, target);
@@ -595,7 +696,7 @@ class JacScalePlugin {
         base_path_dir: (str | None) = None,
         full_target_path: (str | None) = None
     ) -> ExecutionContext | None {
-        if not _scale_runtime_active() {
+        if not scale_runtime_configured() {
             return None;
         }
         import from .memory.context { JScaleExecutionContext }
@@ -611,27 +712,37 @@ class JacScalePlugin {
     }
 
     static def get_api_server_class -> type | None {
+        import from jaclang.server.identity_owner {
+            SCALE_IDENTITY,
+            identity_owner,
+            scale_stack_unavailable
+        }
+        import from jaclang.runtime.runtime { JacRuntime }
+        served = JacRuntime.get_full_target_path() or JacRuntime.get_base_path_dir();
+        if identity_owner(served) != SCALE_IDENTITY {
+            return None;
+        }
         try {
             import from .server.serve { JacAPIServer }
         } except ImportError as e {
-            import logging;
-            logging.getLogger(__name__).debug(
-                "scale API server unavailable, falling back to core server: "
-                f"missing module '{e?.name or ''}' ({e})"
-            );
-            return None;
+            raise scale_stack_unavailable('jaclang.scale.server.serve', e);
         }
         return JacAPIServer;
     }
 
     static def get_user_manager(base_path: str) -> UserManager | None {
-        if not _scale_runtime_active() {
+        import from jaclang.server.identity_owner {
+            SCALE_IDENTITY,
+            identity_owner,
+            scale_stack_unavailable
+        }
+        if identity_owner(base_path) != SCALE_IDENTITY {
             return None;
         }
         try {
             import from .identity.user_manager { JacScaleUserManager }
-        } except ImportError {
-            return None;
+        } except ImportError as e {
+            raise scale_stack_unavailable('jaclang.scale.identity.user_manager', e);
         }
         return JacScaleUserManager(base_path=base_path);
     }
@@ -647,7 +758,7 @@ class JacScalePlugin {
         import os;
         import atexit;
         import subprocess;
-        import from jaclang.runtimelib { sv_client }
+        import from jaclang.server { sv_client }
         import from pathlib { Path }
         import from jaclang.scale.runtime.context.util {
             pick_free_port,
@@ -680,9 +791,7 @@ class JacScalePlugin {
                 );
                 sv_client.register(module_name, dns_url);
                 return;
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
 
         base_dir = Path(base_path);
@@ -764,7 +873,7 @@ class JacScalePlugin {
 
     static def get_sv_registry -> dict[str, str] {
         import os;
-        import from jaclang.runtimelib { sv_client }
+        import from jaclang.server { sv_client }
 
         if "KUBERNETES_SERVICE_HOST" not in os.environ {
             return dict(sv_client._registry);

@@ -10,7 +10,7 @@ This tutorial covers declaring reactive state, handling user input, sharing stat
 > - Time: ~30 minutes
 
 !!! note "Reactive state, hooks, and `jac check`"
-    Some blocks below mix reactive `has` state with React-flavored helpers (`createContext`, `useContext`, async effect blocks). Jac's bundler wires all of this up at build time, but the static checker has not yet shipped typed stubs for every React import, so isolated `jac check` runs flag the corresponding accesses as Unknown. The patterns work as written under `jac start`.
+    Some blocks below mix reactive `has` state with React-flavored helpers (`createContext`, `useContext`, async effect blocks). Jac's bundler wires all of this up at build time, but the static checker has not yet shipped typed stubs for every React import, so isolated `jac check` runs flag the corresponding accesses as Unknown. The patterns work as written under `jac run`.
 
 ---
 
@@ -269,15 +269,32 @@ The field must be constructed (`= Ref()` / `= Ref(initial)`); a bare `has r: Ref
 
 ### Forwarding a ref into your component
 
-The example above uses a ref *inside* a component. The other direction -- letting a **parent** attach a ref to a component *you* wrote -- requires the component to **forward** that ref to a real DOM node. A component opts in by declaring a trailing parameter typed `Ref`, a 1:1 match with React's `forwardRef((props, ref) => ...)` render signature:
+The example above uses a ref *inside* a component. The other direction -- letting a **parent** attach a ref to a component *you* wrote -- comes down to one rule: **`ref` is an ordinary prop.** The client runtime is React 19, where a function component receives `ref` in its props like any other prop.
+
+The compiler never threads it onto an element for you. A ref reaches a DOM node only where **you** write `ref=`, or where you spread a props bundle that still carries it. Which shape that takes depends on how the component declares its props.
+
+**A props-bundle component already receives it.** `props["ref"]` is set, so any spread of the bundle -- or of a rest copy that does not exclude `ref` -- lands it on the host element:
 
 ```jac
-def:pub FancyInput(props: any, ref: Ref[HTMLInputElement]) -> JsxElement {
-    <input ref={ref} className="fancy" {**props} />
+# jac:ignore[W5015]
+def:pub FancyInput(props: any) -> JsxElement {
+    <input className="fancy" {**props} />
 }
 ```
 
-This lowers to `const FancyInput = forwardRef(function FancyInput(props, ref) { ... })`, so a parent can point its own ref at the component and reach the underlying `<input>`:
+That is the whole mechanism behind every installed `components/ui/` primitive, and it is why they work as radix `asChild` anchors with no ref plumbing of their own.
+
+A props bundle costs per-attribute call-site validation, so [components](components.md#forwarding-the-props-bundle-advanced) tells you to default to named parameters and the compiler emits **W5015** on every single-`props` definition. Being a ref target is precisely the intentional forwarding that warning leaves room for: keep the bundle here and silence it with `# jac:ignore[W5015]`, and keep named parameters everywhere else.
+
+**A named-param component does not**, because named params destructure only what they declare and `ref` is not among them. Declare a trailing parameter typed `Ref` to receive it; that lowers to React's `forwardRef((props, ref) => ...)` render signature:
+
+```jac
+def:pub FancyLabel(text: str, ref: Ref[HTMLElement]) -> JsxElement {
+    <span ref={ref} className="fancy">{text}</span>
+}
+```
+
+Either way, a parent points its own ref at the component and reaches the underlying host node:
 
 ```jac
 def:pub ParentForm() -> JsxElement {
@@ -286,11 +303,10 @@ def:pub ParentForm() -> JsxElement {
 }
 ```
 
-- Only the **last** parameter qualifies, and it must be typed `Ref` (or `Ref[T]`). Named props before it destructure as usual; `ref` stays the trailing positional argument and is never folded into the props bundle.
-- `forwardRef` is auto-imported from React; you do not import it yourself.
-- A component that declares no `ref` parameter compiles exactly as before -- this is opt-in and zero-cost.
+- For the trailing-param form, only the **last** parameter qualifies, and it must be typed `Ref` (or `Ref[T]`). Named props before it destructure as usual; `ref` stays the trailing positional argument and is never folded into the props bundle. `forwardRef` is auto-imported from React; you do not import it yourself.
+- A component that neither spreads its props onto a host node nor declares a `ref` parameter simply drops the ref. Nothing warns about it, so if a popover will not position, that is the first thing to check.
 
-Forwarding is what makes a component usable as a [radix](npm-and-libraries.md) `asChild` trigger -- `DropdownMenuTrigger`, `Tooltip.Trigger`, `Popover.Trigger`, and friends attach a ref to their child to use as a positioning anchor, so a component that cannot forward a ref leaves that anchor null and the menu/popover silently never opens.
+This is what makes a component usable as a [radix](npm-and-libraries.md) `asChild` trigger -- `DropdownMenuTrigger`, `Tooltip.Trigger`, `Popover.Trigger`, and friends attach a ref to their child to use as a positioning anchor. A child that never lands the ref on an element leaves that anchor null, and the popper positions at the viewport origin instead of at the trigger.
 
 ---
 

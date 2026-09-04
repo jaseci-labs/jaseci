@@ -71,15 +71,16 @@ about heap objects:
   value with no ownership state.
 - Flow-sensitivity is per-function CFG dataflow over those symbol ids (the
   `in_consumed` / live-borrow sets), solved on the compiler's shared worklist
-  framework (`passes/main/dataflow.jac`). Branches merge conservatively:
+  framework (`passes/dataflow.jac`). Branches merge conservatively:
   consumed on *some* path means consumed at the join.
 
 **3. Facts once, consumed everywhere.** The analysis is computed exactly once
 per module by the core pass; diagnostics emission and backend policy are both
 thin consumers of the same facts. Whether diagnostics are *displayed* is a
-property of the compile request (`CompileOptions.emit_diagnostics` /
-`type_check`), and can never change what is generated -- display-neutrality is
-enforced by construction, not by prohibition.
+property of the compile request (`CompileOptions.emit_diagnostics`), and can
+never change what is generated -- display-neutrality is enforced by
+construction, not by prohibition. The analysis itself always runs: the
+analysis schedule is unconditional on every compile.
 
 ## Per-code guarantees (the fact schema's soundness contracts)
 
@@ -95,7 +96,7 @@ always within the symbol-level, intraprocedural bounds above.
 | `E1304` | No borrow outlives its owner's scope: if a borrow binding declared in an outer scope points at an owner declared in an inner one, the owner's scope end is flagged. |
 | `E1305` | Every `linear` binding is consumed (moved to a final owner, passed on, or sealed into managed storage) at least once before its scope ends. Consuming it *twice* is `E1301`, so a clean function uses each `linear` binding exactly once. Plain `own` is affine -- never consuming it is *not* an error, and E1305 is only ever emitted for `linear`. |
 | `E1306` | No `&`/`&mut` value escapes the scope that created it: not returned (except the single-passthrough-parameter case), not stored into a field or subscript slot. Borrows are second-class; there are no lifetimes to solve because escape is banned outright. |
-| `E1307` | No reference rooted in an `in <handle> {}` region open outlives the handle: not returned (except via single-region elision on a lone `&Region` parameter), not stored where it outlives the handle (legal outward flows become shared borrows of the handle), not handed to an opaque callee (calls that also receive the handle, safe builtins, methods on region-rooted receivers, and constructors under the open are exempt), not sent across a concurrency boundary while borrows of the handle exist, and not wired into managed topology -- with one carve-out: a *directed* connect from a managed anchor into a region-local node, under an open on an owned named handle, is the **seal** (it consumes the handle via the operator-move dataflow and promotes the subgraph; the open admits no archetype instantiation or connect after it, and reuse of the handle is `E1301`). The non-seal shapes (region edge out to managed, undirected wiring, anonymous opens, borrowed `&Region` handles) keep the rejection. Scalar values and `own` reboxes of scalars/strings copy out freely. The bulk free at the handle's drop point therefore cannot create a dangling reference to a region-rooted binding. |
+| `E1307` | No reference rooted in an `in <handle> {}` region open outlives the handle: not returned (except via single-region elision on a lone `&Region` parameter), not stored where it outlives the handle (legal outward flows become shared borrows of the handle), not handed to an opaque callee (calls that also receive the handle, non-retaining builtins per `JAC_TYPE_REGISTRY`, methods on region-rooted receivers, and constructors under the open are exempt), not sent across a concurrency boundary while borrows of the handle exist, and not wired into managed topology. Extent is dynamic, so the heap-typed result of a call made under the open is region-rooted by the same rules unless the call receives the handle -- with one carve-out: a *directed* connect from a managed anchor into a region-local node, under an open on an owned named handle, is the **seal** (it consumes the handle via the operator-move dataflow and promotes the subgraph; the open admits no archetype instantiation or connect after it, and reuse of the handle is `E1301`). The non-seal shapes (region edge out to managed, undirected wiring, anonymous opens, borrowed `&Region` handles) keep the rejection. Scalar values and `own` reboxes of scalars/strings copy out freely. The bulk free at the handle's drop point therefore cannot create a dangling reference to a region-rooted binding. |
 | `E1308` | Every value crossing a `flow`/`thread_run` send boundary is statically race-free at the binding level: a deep-immutable scalar (`int`/`float`/`bool`/`str`/`bytes`, sendable by value), a deep-immutable `imm`, an `own`/`linear` moved into the boundary, or a join-bounded lend -- an inline `&`/`&mut` of an owner whose flow handle is bound and `wait`-ed in the same statement block before any other use of the owner (the join is the borrow's extent). Live borrows outside that shape and unconsumed `linear` bindings do not cross. `wait` is a receive, not a send: the payload crossed at `flow` time, so reading a handle in `wait` is not a boundary crossing. |
 | `E1309` | An `imm` binding is never mutated *through that binding*: no reassignment, no field/subscript write through it, no `&mut` of it. (It is the binding that is deep-immutable; the checker cannot see writes through a separately-obtained managed alias.) |
 | `E1311` | Every expression-position `imm x` operand is statically unique: an `own` binding (consumed by the operator) or a fresh expression. Uniqueness is the proof that no other handle can ever write the frozen value, which is what lets the operator erase to its operand on every backend. |
@@ -127,20 +128,21 @@ The analysis stamps documented facts; consumers read them:
   a LOCAL binding in its own function. The native backend's container
   element preparation consumes it: a grow argument in the set moves in
   (no copy) and its slot is nulled so the binding's release is a no-op.
-- **`Module.gen.anon_region_open` / `anon_region_close` / `anon_region_locals`**:
-  stamped by `RcFactsPass._stamp_anon_regions`; the conservative may-reach-root
-  scan over connect operations. Within one code block, fresh node-archetype
-  locals connected only among themselves and consumed by expression-statement
-  spawns form an unrooted component; any contact with `root`/`here`, any use
-  outside the block or outside the connect/spawn forms, any unblessed archetype
+- **Inferred anonymous opens**: `RegionInferPass` (first in the analysis
+  schedule, before `TypeCheckPass`) runs the conservative may-reach-root scan
+  over connect operations. Within one code block, fresh node-archetype locals
+  connected only among themselves and consumed by expression-statement spawns
+  form an unrooted component; any contact with `root`/`here`, any use outside
+  the block or outside the connect/spawn forms, any unblessed archetype
   instantiation in the extent, or any control-flow exit through it poisons the
-  component. Survivors stamp an open anchor (first constructor statement id),
-  a close anchor (last member-use statement id), and the member names. The
-  native backend consumes them in `_codegen_body`: it wraps the extent in an
-  implicit anonymous region (same machinery as an explicit `in Region() { }`
-  open), so the graph is arena-allocated, drop hooks fire LIFO from the dtor
-  log at the close anchor, and teardown is a bulk free -- identically in every
-  gc mode. The Python backend erases the facts.
+  component. Survivors are rewritten in the tree: the extent becomes a real
+  `OpenStmt` whose target is `Region()`, linked as a kid scope of the enclosing
+  scope. Every later consumer sees one node kind -- the ownership checker
+  (`W1310`, `E1307`), the Python lowering (`try`/`finally` around
+  `_jac_region_open`/`_jac_region_close`), and native codegen -- so the graph
+  is arena-allocated, drop hooks fire LIFO at the close, and teardown is a bulk
+  free, identically in every gc mode and on the Python backend. An `E1307` on
+  an inferred open is a bug in the inference, now caught instead of silent.
   `RcFactsPass._stamp_escapes`; the backend stack-allocates an eligible
   instantiation when the target symbol has `na_stack_ok`. For unannotated
   locals any use under a call or return disqualifies. For `own`-annotated
@@ -176,9 +178,9 @@ backend.
 
 ## Scheduling
 
-The pass runs in the required check schedule (it needs symbols resolved),
-after symbol resolution, inference, and CFG construction, on every
-`type_check` compile *and* on every native-module compile. `RcFactsPass` runs
+The pass runs in the unconditional analysis schedule (it needs symbols
+resolved), after symbol resolution, inference, and CFG construction, on
+every compile -- native-module compiles included. `RcFactsPass` runs
 in the native codegen schedule immediately before IR generation, so its
 stamps are always freshly computed in-process for the module being lowered.
 The checker's cost is proportional to the number of *annotated* symbols;

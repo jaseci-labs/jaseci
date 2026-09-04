@@ -3,10 +3,11 @@ import threading;
 import time;
 import uuid;
 import from collections { OrderedDict }
-import from jaclang.runtimelib.serving.datatypes { Request }
-import from jaclang.runtimelib.serving.datatypes { JSONResponse }
-import from jaclang.runtimelib.transport { TransportResponse, Meta }
-import from jaclang.runtimelib.serving.endpoint {
+import from jaclang.server.serving.datatypes { Request }
+import from jaclang.server.serving.datatypes { JSONResponse }
+import from jaclang.server.transport { TransportResponse, Meta }
+import from jaclang.server.server { JsonValue }
+import from jaclang.server.serving.endpoint {
     HTTPMethod,
     JEndPoint,
     APIParameter,
@@ -67,23 +68,23 @@ obj Trace {
     has invocation_id: str = "",
         parent_invocation_id: str | None = None,
         caller_name: str = "unknown",
-        caller_args: dict = {},
+        caller_args: dict[str, JsonValue] = {},
         model: str = "unknown",
         user_prompt: str = "",
         agent_response: str = "",
-        conversation_history: list = [],
+        conversation_history: list[JsonValue] = [],
         total_latency_ms: float = 0,
         total_tokens: int = 0,
         total_cost: float = 0.0,
         llm_call_count: int = 0,
-        llm_calls: list = [],
+        llm_calls: list[LLMCallRecord] = [],
         status: str = "in_progress",
         error: str | None = None,
         completed: bool = False,
         timestamp: float = 0;
 
-    def to_dict(include_detail: bool = False) -> dict[str, any] {
-        result = {
+    def to_dict(include_detail: bool = False) -> dict[str, JsonValue] {
+        result: dict[str, JsonValue] = {
             "invocation_id": self.invocation_id,
             "parent_invocation_id": self.parent_invocation_id,
             "caller_name": self.caller_name,
@@ -105,7 +106,7 @@ obj Trace {
             "timestamp": self.timestamp
         };
         if include_detail {
-            safe_history: (list | str) = self.conversation_history;
+            safe_history: (list[JsonValue] | str) = self.conversation_history;
             try {
                 json_module.dumps(safe_history);
             } except (TypeError, ValueError) {

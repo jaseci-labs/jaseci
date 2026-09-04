@@ -43,27 +43,6 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
             'target_timeout_seconds': 30,
             'messages_per_second': 20
         },
-        'kubernetes': {
-            'namespace': 'default',
-            'container_port': 8000,
-            'database_mode': 'auto',
-            'database_url': '',
-            'database_namespace': '',
-            'ingress_node_port': 30080,
-            'ingress_limit_rps': 20,
-            'ingress_limit_burst_multiplier': 5,
-            'ingress_limit_connections': 20,
-            'ingress_session_affinity': True,
-            'cpu_request': None,
-            'cpu_limit': None,
-            'memory_request': None,
-            'memory_limit': None,
-            'readiness_initial_delay': 10,
-            'readiness_period': 20,
-            'liveness_initial_delay': 10,
-            'liveness_period': 20,
-            'liveness_failure_threshold': 80
-        },
         'secrets': {},
         'server': {
             'port': 8000,
@@ -151,11 +130,59 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
     };
 }
 
+impl _warn_placeholder_jwt_secret -> None {
+    if _placeholder_jwt_secret_warned {
+        return;
+    }
+    _placeholder_jwt_secret_warned = True;
+    import logging;
+    logging.getLogger(__name__).warning(
+        'No [scale.jwt] secret is configured, and a per-project dev secret '
+        'would be per-replica in a cluster. Signing tokens with the shipped '
+        'placeholder, which is public: anyone can mint a token for any user. '
+        'Set [scale.jwt] secret to a real value for this deployment.'
+    );
+}
+
+impl _announce_minted_jwt_secret(path: str) -> None {
+    if _minted_jwt_secret_announced {
+        return;
+    }
+    _minted_jwt_secret_announced = True;
+    import logging;
+    logging.getLogger(__name__).info(
+        f"No [scale.jwt] secret is configured; signing with the one kept at "
+        f"{path}. Processes that serve this project from the same directory "
+        'share it, so sessions survive a restart. Replicas that do not share '
+        'that directory each mint their own and reject one another tokens: a '
+        'deployment must set [scale.jwt] secret.'
+    );
+}
+
 impl JacScaleConfig.get_jwt_config(self: JacScaleConfig) -> dict[str, any] {
+    import from jaclang.server.serving.authcrypt {
+        DEV_SECRET_FILENAME,
+        PLACEHOLDER_JWT_SECRET,
+        project_data_dir,
+        project_signing_secret
+    }
     config = self.load();
     jwt_config = config.get('jwt', {});
+    secret = str(jwt_config.get('secret', '') or '');
+    if not secret or secret == PLACEHOLDER_JWT_SECRET {
+        if os.environ.get('KUBERNETES_SERVICE_HOST', '').strip() {
+            _warn_placeholder_jwt_secret();
+            secret = PLACEHOLDER_JWT_SECRET;
+        } else {
+            base = str(self.project_dir) if self.project_dir is not None else '.';
+            secret = project_signing_secret(base);
+            _announce_minted_jwt_secret(
+                os.path.join(project_data_dir(base), DEV_SECRET_FILENAME)
+            );
+        }
+    }
     return {
-        'secret': jwt_config.get('secret', 'supersecretkey_for_testing_only!'),
+        'secret': secret,
         'algorithm': jwt_config.get('algorithm', 'HS256'),
         'exp_delta_days': int(jwt_config.get('exp_delta_days', 7))
     };
@@ -209,6 +236,19 @@ impl JacScaleConfig.get_database_config(self: JacScaleConfig) -> dict[str, any] 
     resolved['url'] = os.environ.get('JAC_DB_URL') or resolved['url'];
     return resolved;
 }
+
+impl load_microservices_config -> dict[str, any] {
+    cfg = get_scale_config();
+    try {
+        return cfg.get_microservices_config();
+    } except Exception as e {
+        raise ValueError(
+            f"[scale.microservices] could not be read from {cfg.config_file}: {e}. "
+            "Deploying without it would silently pick a different topology."
+        ) from e;
+    }
+}
+
 
 impl JacScaleConfig.get_kubernetes_config(self: JacScaleConfig) -> dict[str, any] {
     config = self.load();
@@ -530,16 +570,6 @@ impl JacScaleConfig.get_microservices_config(self: JacScaleConfig) -> dict[str, 
 impl normalize_microservices_config(
     ms_config: dict[str, any], env_routes_fallback: bool = True
 ) -> dict[str, any] {
-    if 'enabled' in ms_config and not _ms_enabled_deprecation_warned {
-        _ms_enabled_deprecation_warned = True;
-        import logging;
-        logging.getLogger(__name__).warning(
-            "jac.toml [scale.microservices] `enabled` is deprecated: declaring "
-            "[scale.microservices.routes] is what turns microservice mode on, "
-            "and a deployed fleet pod ignores this key. Delete it (remove the "
-            "routes table to run single-process); a future release drops it."
-        );
-    }
     client_config = ms_config.get('client', {});
     cors_config = ms_config.get('cors', {});
     rl_config = ms_config.get('rate_limit', {});
@@ -601,7 +631,10 @@ impl normalize_microservices_config(
             'burst_multiplier': float(rl_config.get('burst_multiplier', 2.0)),
             'exempt_paths': list(
                 rl_config.get('exempt_paths', ["/health", "/healthz", "/metrics"])
-            )
+            ),
+            'trusted_proxies': [
+                str(p) for p in (rl_config.get('trusted_proxies', []) or [])
+            ]
         },
         'cors': {
             'allow_origins': list(cors_config.get('allow_origins', ["*"])),

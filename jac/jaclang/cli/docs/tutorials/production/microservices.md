@@ -18,7 +18,7 @@ This tutorial walks through splitting a tiny app into two services, running the 
 
 Two services, one HTTP boundary between them. The consumer imports the provider with a regular import, but because the provider is in the routes table, every call out to it is a `POST /function/<name>` over the wire. The consumer never loads the provider's code into its own memory.
 
-The default single-host deployment runs the whole app from one `jac start` command: the consumer brings the provider up automatically before serving the first request.
+The default single-host deployment runs the whole app from one `jac run` command: the consumer brings the provider up automatically before serving the first request.
 
 ```mermaid
 graph LR
@@ -32,7 +32,7 @@ graph LR
 
 ## 1. Set Up the Project
 
-Create a working directory with a `jac.toml` so `jac start` recognizes it as a project, and declare the provider in `[scale.microservices.routes]` -- that entry is what makes `math_service` a separate service. The two services live side by side in the same directory.
+Create a working directory with a `jac.toml` so `jac run` recognizes it as a project, and declare the provider in `[scale.microservices.routes]` -- that entry is what makes `math_service` a separate service. The two services live side by side in the same directory.
 
 ```bash
 mkdir microservices-demo && cd microservices-demo
@@ -48,7 +48,7 @@ EOF
 
 (`jac scale split math_service` writes the routes entry for you; `""` derives the route prefix from the module name.)
 
-> **Why `jac.toml`?** `jac start <relative-path>` requires a `jac.toml` in the current directory. Without one, you get `Error: No jac.toml found`. The routes table also lives here -- it is the single authoritative declaration of which modules run as their own services. And the services need to live in the same directory so the consumer can find and auto-start the provider at runtime, so a shared project layout is the simplest path.
+> **Why `jac.toml`?** `jac run <relative-path>` requires a `jac.toml` in the current directory. Without one, you get `Error: No jac.toml found`. The routes table also lives here -- it is the single authoritative declaration of which modules run as their own services. And the services need to live in the same directory so the consumer can find and auto-start the provider at runtime, so a shared project layout is the simplest path.
 
 ---
 
@@ -121,7 +121,7 @@ Read this file as if `add`, `multiply`, and `divide` were local functions. The c
 From the `microservices-demo` directory, start the consumer:
 
 ```bash
-jac start calculator_service.jac --port 8002
+jac run --port 8002 calculator_service.jac
 ```
 
 That is all. The consumer finds every routes-table service it imports (`math_service`, in this case) and brings them up automatically inside the same process before serving the first request. Transitive dependencies come along for free: if `math_service` itself imported another service in the cut, that provider would also be auto-started. One command, whole cluster.
@@ -244,12 +244,12 @@ A few things to know:
 
 ## 6. Test the Boundary In-Process
 
-When you write tests for the consumer, you do not want them to hit a real provider over HTTP. Instead, register an in-process `TestClient` for each provider, and the consumer's calls route through it directly -- no sockets, no port allocation, no background threads.
+When you write tests for the consumer, you do not want them to hit a real provider over HTTP. Instead, register an in-process test client (a `JacTestClient`) for each provider, and the consumer's calls route through it directly -- no sockets, no port allocation, no background threads.
 
 The core pattern is three lines:
 
 ```jac
-import from jaclang.runtimelib { sv_client }
+import from jaclang.server { sv_client }
 
 with entry {
     sv_client.clear_test_clients();
@@ -260,7 +260,7 @@ with entry {
 
 Always call `sv_client.clear_test_clients()` between tests to avoid bleed-over from a previous test's registrations.
 
-The pieces left unshown here -- building a `TestClient` over a consumer and provider from the same source tree -- require hands-on use of scale's server-construction APIs and are currently more verbose than the tutorial should be. The sv-to-sv test suite in the scale source tree (`jac/jaclang/scale/`) has a worked example that copies fixtures into a temp directory and stands both sides up end-to-end. Start there if you need a ready-to-run harness.
+The pieces left unshown here -- building a `JacTestClient` over a consumer and provider from the same source tree -- require hands-on use of scale's server-construction APIs and are currently more verbose than the tutorial should be. The sv-to-sv test suite in the scale source tree (`jac/jaclang/scale/`) has a worked example that copies fixtures into a temp directory and stands both sides up end-to-end. Start there if you need a ready-to-run harness.
 
 ---
 
@@ -270,21 +270,21 @@ Single-command mode is great for a single host, but once your services live on *
 
 ### Local Multi-Process
 
-Before jumping to containers, you can test the multi-process flow on your own machine by running each service as its own `jac start` and wiring the consumer with an env var.
+Before jumping to containers, you can test the multi-process flow on your own machine by running each service as its own `jac run` and wiring the consumer with an env var.
 
 Open two terminals, both in the `microservices-demo` directory.
 
 **Terminal 1 -- start the provider:**
 
 ```bash
-jac start math_service.jac --port 8001
+jac run --port 8001 math_service.jac
 ```
 
 **Terminal 2 -- start the consumer pointed at the provider URL:**
 
 ```bash
 JAC_SV_MATH_SERVICE_URL=http://localhost:8001 \
-    jac start calculator_service.jac --port 8002
+    jac run --port 8002 calculator_service.jac
 ```
 
 Hitting `/function/sum_list` on port 8002 now produces the same round-trip as single-command mode, except the provider logs appear in Terminal 1 instead of being interleaved with the consumer's output. This is the stepping stone to a real multi-host deployment: the env var is the only thing pointing the consumer at the provider, and swapping `localhost` for a cluster DNS name or public hostname is the only change you make when you deploy.
@@ -338,7 +338,28 @@ For the full Kubernetes deployment story (image building, ingress, autoscaling),
 
 ### Microservice Mode + Gateway
 
-For projects with more than a handful of services, the built-in `scale` subsystem ships a microservice mode that puts a single API gateway in front of all of them. `jac setup microservice` writes the plumbing into `jac.toml` and `jac start` on the project root brings the whole stack up -- one public port, one unified `/docs`, one `/metrics` endpoint, one shared anchor store. The same source still runs as a monolith when microservice mode is disabled.
+For projects with more than a handful of services, the built-in `scale` subsystem ships a microservice mode that puts a single API gateway in front of all of them. `jac setup microservice` writes the plumbing into `jac.toml` and `jac run --serve` on the project root brings the whole stack up -- one public port, one unified `/docs`, one `/metrics` endpoint, one shared anchor store. The same source still runs as a monolith when microservice mode is disabled.
+
+#### Which topology a local run picks
+
+The routes table describes the cut you want when the project is *deployed*, so it does not by itself take your dev loop away:
+
+| Command | Topology |
+|---------|----------|
+| `jac run` on a web-app kind | One process: the vite dev server with HMR, exactly as if no routes were declared |
+| `jac run --serve` | Gateway + one subprocess per declared service |
+| `jac run --ms` | Gateway + subprocesses, dev client included (the entry module's service runs vite and HMR behind the gateway) |
+| `jac run --no-ms` | One process, whatever the kind |
+
+`[scale.microservices] enabled` is the same choice in `jac.toml`: `true` asks for the gateway even on a dev-client run, `false` keeps every local run single-process while the routes table still describes the deployed cut. A `--ms` / `--no-ms` flag overrides it. A deployed fleet pod ignores the key -- the deploy already realized the topology.
+
+In a **local** microservice run of a project that serves a client, the entry module's service is the *app service* and owns the project root: `/`, `[serve] base_route_app`, `/static/client.js` and any client-side route the fleet does not claim reach it through the gateway. Root ownership is that path only -- it requires a service that actually serves the client -- so a deployed gateway pod is unaffected and keeps serving the client bundle its image staged.
+
+`/cl/<page>` is not exclusive: it stays a discovery family, with the app service asked first (at its dev page server when it has one) and a page it does not serve still reaching the service that does.
+
+Because the app service compiles the client, it starts and finishes booting before the rest of the fleet -- a module another service analyzed first reaches the client backend with its calls unresolved. The others then start in parallel behind it; `app_boot_timeout` bounds that wait, and a headless fleet skips it entirely.
+
+A service still compiling never costs the fleet its routes either: the gateway keeps asking for its `/openapi.json` until it is healthy, and never caches what it said before then.
 
 The gateway exposes a standard error envelope (`{ok, error: {code, message, service?, trace_id}, meta}`) across every failure path (proxy, passthrough, aggregation). Drop-in observability: `X-Trace-Id` is minted if absent and threaded through every service RPC hop. The following knobs all live under `[scale.microservices]` and are emitted as commented reference blocks by `jac setup microservice`:
 
@@ -348,18 +369,19 @@ The gateway exposes a standard error envelope (`{ok, error: {code, message, serv
 | Per-service RPC timeout | `[...services.NAME] rpc_timeout = 120.0` | 10s |
 | Boot-time per-service /healthz wait | `boot_health_timeout = 60.0` | 60s |
 | Boot-time overall startup window | `boot_max_wait = 90` | 90s |
-| Background recovery health-check cadence | `health_monitor_interval = 10.0` | 10s |
+| Client-serving service's head start (it compiles the client, so it boots alone) | `app_boot_timeout = 900.0` | 900s, a stall budget: the clock resets while it is still writing to its log |
+| Background recovery health-check cadence | `health_monitor_interval = 10.0` | 10s (2s while anything is unhealthy) |
 | CORS | `[...cors] allow_origins = [...]` | open (`["*"]`); set to `[]` to disable |
 | Rate limiting | `[...rate_limit] enabled = true, per_ip_rpm = 600, per_user_rpm = 120` | disabled |
 | Centralised logs (Loki + Alloy) | `[...logs] enabled = true` | disabled -- see [Centralised Logs](../../reference/plugins/jac-scale-kubernetes.md#centralised-logs) for the deployed components, dashboard, and storage caveats |
 
-WebSockets (`/ws/*`) and SSE / chunked responses flow through the gateway transparently -- no config. On `SIGTERM` (or `jac scale stop`), each service flips a drain flag (new requests get `503` with `Retry-After: 2`) and uvicorn waits up to `drain_timeout_seconds` for in-flight requests to complete before exiting. Mirrors K8s `terminationGracePeriodSeconds`.
+WebSockets (`/ws/*`) and SSE / chunked responses flow through the gateway transparently -- no config. On `SIGTERM` (or `jac scale stop`), each service flips a drain flag (new requests get `503` with `Retry-After: 2`) and the server waits up to `drain_timeout_seconds` for in-flight requests to complete before exiting. Mirrors K8s `terminationGracePeriodSeconds`.
 
-The gateway implementation lives under [`jac/jaclang/scale/microservices/`](https://github.com/Jaseci-Labs/jaseci/tree/main/jac/jaclang/scale/microservices) in the scale source tree.
+The gateway implementation lives under [`jac/jaclang/scale/runtime/gateway/`](https://github.com/Jaseci-Labs/jaseci/tree/main/jac/jaclang/scale/runtime/gateway) in the scale source tree.
 
 ### Kubernetes (microservice mode)
 
-When `[scale.microservices].enabled = true`, `jac start --scale` deploys every service as its own Kubernetes Deployment, fronted by the gateway. Each service gets its own pod template, HPA, and PodDisruptionBudget; peer URLs and routing are derived from `[scale.microservices.routes]`. You do not write any of those manifests by hand and you do not set the peer URLs by hand either -- in `--scale` K8s mode the consumer's `JAC_SV_<MODULE>_URL` for every peer is auto-injected on every pod, pointing at the in-cluster Service DNS:
+When `[scale.microservices].enabled = true`, `jac scale deploy` deploys every service as its own Kubernetes Deployment, fronted by the gateway. Each service gets its own pod template, HPA, and PodDisruptionBudget; peer URLs and routing are derived from `[scale.microservices.routes]`. You do not write any of those manifests by hand and you do not set the peer URLs by hand either -- in deployed K8s mode the consumer's `JAC_SV_<MODULE>_URL` for every peer is auto-injected on every pod, pointing at the in-cluster Service DNS:
 
 ```text
 JAC_SV_INVENTORY_SERVICE_URL=http://inventory-service.<namespace>.svc.cluster.local:<port>
@@ -373,12 +395,12 @@ For the full deploy pipeline (image building, ingress, autoscaling, secrets, sha
 
 ### Previewing a deploy with `--dry-run`
 
-`jac start --scale` builds an image, pushes it to a registry, and applies manifests to your cluster. That is 5-10 minutes of work and several side effects (registry tags, rolling pod restarts, namespace state). If your config is wrong, you find out at the end.
+`jac scale deploy` builds an image, pushes it to a registry, and applies manifests to your cluster. That is 5-10 minutes of work and several side effects (registry tags, rolling pod restarts, namespace state). If your config is wrong, you find out at the end.
 
-`jac start --scale --dry-run` does the same planning step in under a second, lints the config, and prints a per-service summary of what would be applied. Nothing is built, pushed, or applied.
+`jac scale deploy --dry-run` does the same planning step in under a second, lints the config, and prints a per-service summary of what would be applied. Nothing is built, pushed, or applied.
 
 ```bash
-jac start main.jac --scale --dry-run
+jac scale deploy main.jac --dry-run
 ```
 
 Output (default, card view):
@@ -437,7 +459,7 @@ Errors and warnings appear inline on the service card they belong to, so you don
 For the raw YAML stream (e.g. to pipe into `kubectl diff`), add `--show-yaml`:
 
 ```bash
-jac start main.jac --scale --dry-run --show-yaml | sed -n '/^---$/,$p' > planned.yaml
+jac scale deploy main.jac --dry-run --show-yaml | sed -n '/^---$/,$p' > planned.yaml
 diff <(kubectl get -n my-app deployment,service,hpa,pdb,ingress -o yaml) planned.yaml
 ```
 
@@ -446,16 +468,16 @@ diff <(kubectl get -n my-app deployment,service,hpa,pdb,ingress -o yaml) planned
 ## Common Pitfalls
 
 - **`{"detail":"Invalid anchor id ..."}` 500s.** Stale anchor data persisted from a previous run with a different schema. Stop the server, `rm -rf .jac/data/`, and restart. Not specific to sv-to-sv; any `def:pub` call can hit this after a schema change.
-- **Consumer crashes at startup with `ModuleNotFoundError: No module named '<provider>'`.** Automatic startup could not find the provider source in the directory you ran `jac start` from. Either move all services into the same project directory and run `jac start` from there, or set `JAC_SV_<MODULE>_URL` to point at a provider already running elsewhere.
+- **Consumer crashes at startup with `ModuleNotFoundError: No module named '<provider>'`.** Automatic startup could not find the provider source in the directory you ran `jac run` from. Either move all services into the same project directory and run `jac run` from there, or set `JAC_SV_<MODULE>_URL` to point at a provider already running elsewhere.
 - **Cross-service call returns 404.** The provider function is not declared `def:pub`, or the walker is not declared `walker:pub`. Only public symbols are exposed at the HTTP boundary.
-- **`Error: No jac.toml found`.** `jac start <relative-path>` requires a `jac.toml` in the current directory. Run `jac create` (or just create an empty one), or pass an absolute path.
+- **`Error: No jac.toml found`.** `jac run <relative-path>` requires a `jac.toml` in the current directory. Run `jac create` (or just create an empty one), or pass an absolute path.
 - **Cross-service errors raise an exception.** Network failures, missing services, and error responses from the provider all surface at the call site as an exception. Function-call failures use the message `sv-to-sv RPC '<module>.<func>' failed: <reason>`; walker-spawn failures use `sv-to-sv walker spawn '<module>.<walker>' failed: <reason>`. Catch at the boundaries where you want graceful degradation.
 
 ---
 
 ## What You Built
 
-Two services that read like a single program. The split happens at deploy time, not source time -- the same `calculator_service.jac` runs unchanged whether `math_service` is a module in the same process, a sibling thread, a separate `jac start`, or a Kubernetes Deployment two clusters away.
+Two services that read like a single program. The split happens at deploy time, not source time -- the same `calculator_service.jac` runs unchanged whether `math_service` is a module in the same process, a sibling thread, a separate `jac run`, or a Kubernetes Deployment two clusters away.
 
 ## Next Steps
 

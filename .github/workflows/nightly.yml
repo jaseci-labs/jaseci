@@ -7,6 +7,7 @@ on:
   schedule:
     - cron: '0 3 * * *'   # notes-app CEF smoke
     - cron: '17 8 * * *'  # installer against the LIVE latest release
+    - cron: '41 9 * * 1'  # Intel-Mac probe (the manual release leg)
   workflow_dispatch:
 
 permissions:
@@ -90,54 +91,23 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.schedule == '0 3 * * *' }}
     uses: ./.github/workflows/_macos-native.yml
 
-  # PR CI runs the suite chunked across runners; this is the unchunked
-  # single-process full-suite run (materializer-leak watchdog) against a
-  # cold sealed build.
-  sealed-suite:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.schedule == '0 3 * * *' }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    env:
-      JAC_NO_DEV_SOURCE: "1"
-    steps:
-    - uses: actions/checkout@v5
-      with:
-        submodules: true
-
-    - name: Set up jac (sealed binary)
-      uses: ./.github/actions/setup-jac
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: "20"
-
-    - name: Set up Bun
-      uses: oven-sh/setup-bun@v2
-
-    - name: Set up Zig 0.16.0 (vendor static-musl runtime)
-      uses: mlugg/setup-zig@v2
-      with:
-        version: 0.16.0
-        use-cache: false
-
-    - name: Vendor static-musl runtime
-      working-directory: jac
-      run: zig build vendor-musl --summary all
-
-    - name: Full suite against the sealed binary
-      working-directory: jac
-      run: |
-        set -uxo pipefail
-        WORK="$(mktemp -d)"
-        HOME="$WORK" JAC_TEST_JOBS=auto jac test tests/ | tee /tmp/sealed.log
-        rc=${PIPESTATUS[0]}
-        {
-          echo "## sealed full-suite result"
-          echo '```'
-          grep -E '^(FAILED|ERROR)|passed|failed' /tmp/sealed.log | tail -40 || true
-          echo '```'
-        } >> "$GITHUB_STEP_SUMMARY"
-        exit "$rc"
+  # The Intel-Mac leg left the release matrix: it is `manual` in
+  # build-binaries.yml (broken since #8805, ~25 min of critical path on the
+  # slowest runners, shipping nothing). This weekly artifact-only build is the
+  # leg's signal: the day #8805 is fixed shows up here, and a regression in
+  # the from-source LLVM slice or the 12.0 floor pin cannot sit unnoticed for
+  # weeks the way it once did inside the matrix. No tag, so nothing is
+  # uploaded and the post-build jobs stay skipped.
+  intel-mac-probe:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.schedule == '41 9 * * 1' }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build-binaries.yml
+    with:
+      # Empty tag = build and smoke the artifact, attach it nowhere.
+      tag: ""
+      channel: release
+      only: macos-x86_64
 
   # Real-app microservice e2e on kind. Two pod-base legs: `slim` = the plain
   # python default; `official-image` = an image built from this checkout's

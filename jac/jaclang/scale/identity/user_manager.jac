@@ -1,4 +1,4 @@
-import from jaclang.runtimelib.serving.authcrypt {
+import from jaclang.server.serving.authcrypt {
     JWTError,
     JWTExpiredError,
     jwt_decode,
@@ -6,10 +6,10 @@ import from jaclang.runtimelib.serving.authcrypt {
 }
 import logging;
 import from datetime { UTC, datetime, timedelta }
-import from jaclang.runtimelib.serving.datatypes { Request, Response }
+import from jaclang.server.serving.datatypes { Request, Response }
 import from contextvars { ContextVar }
-import from jaclang.runtimelib.server { UserManager }
-import from jaclang.runtimelib.transport { TransportResponse, Meta }
+import from jaclang.server.server { UserManager }
+import from jaclang.server.transport { TransportResponse, Meta }
 import from jaclang.scale.shared.enums { Platforms, Operations }
 import from jaclang.scale.shared.utils {
     generate_random_password,
@@ -22,18 +22,17 @@ import from jaclang.scale.identity.identity_storage {
     IdentityStorage,
     PgIdentityStorage
 }
-import from jaclang.jac0core.constant { Constants as Con }
+import from jaclang.compiler.frontend.constant { Constants as Con }
 
-glob _jwt_config = get_scale_config().get_jwt_config(),
-     _sso_config = get_scale_config().get_sso_config(),
-     JWT_SECRET = _jwt_config['secret'],
-     JWT_ALGORITHM = _jwt_config['algorithm'],
-     JWT_EXP_DELTA_DAYS = _jwt_config['exp_delta_days'],
-     SSO_HOST = _sso_config['host'],
-     logger = logging.getLogger(__name__),
+glob logger = logging.getLogger(__name__),
      _root_id_request_cache: ContextVar[dict[str, str] | None] = ContextVar(
          '_jaclang_scale_root_id_cache', `default=None
      );
+
+def jwt_secret -> str;
+def jwt_algorithm -> str;
+def jwt_exp_delta_days -> int;
+def sso_host -> str;
 
 enum UserRole { ADMIN = 'admin', SYSTEM = 'system', USER = 'user', }
 

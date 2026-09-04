@@ -1,6 +1,6 @@
 import from pathlib { Path }
 import from jaclang.project.template_registry { ProjectTemplate }
-import from jaclang.jac0core.tomlio { read_toml_with_encoding }
+import from jaclang.project.tomlio { read_toml_with_encoding }
 import json;
 import importlib;
 import base64;
@@ -69,7 +69,7 @@ impl load_template_from_directory(
                     }
                 }
             }
-        } except Exception { }
+        } except Exception {}
     }
     if ".jac/" not in root_gitignore_entries {
         root_gitignore_entries = root_gitignore_entries + [".jac/"];

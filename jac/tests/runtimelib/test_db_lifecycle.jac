@@ -16,7 +16,7 @@ import subprocess;
 import sys;
 import tempfile;
 import from pathlib { Path }
-import from jaclang.runtimelib.pgembed { PgRuntime }
+import from jaclang.data.pgembed { PgRuntime }
 
 glob APP = "node Item {\n"
      "    has name: str;\n"
@@ -75,13 +75,13 @@ def _start_cluster -> Cluster {
 def _stop_cluster(cluster: Cluster) {
     try {
         cluster.rt.stop();
-    } except Exception { }
+    } except Exception {}
     shutil.rmtree(cluster.cache_home, ignore_errors=True);
 }
 
 
 def _admin(cluster: Cluster) -> any {
-    import from jaclang.vendor.pgload { connect }
+    import from jaclang.data.pgload { connect }
     info = cluster.rt.conninfo();
     return connect(
         info.user,
@@ -114,7 +114,7 @@ def _exec(cluster: Cluster, sql: str) {
 
 
 def _exec_in(cluster: Cluster, database: str, sql: str) {
-    import from jaclang.vendor.pgload { connect }
+    import from jaclang.data.pgload { connect }
     info = cluster.rt.conninfo();
     conn: any = connect(
         info.user,
@@ -247,8 +247,8 @@ test "marked scratch bases share one database that dies with the process" {
     cluster = _start_cluster();
     script = (
         "import tempfile;"
-        "from jaclang.runtimelib.session import mark_scratch_base;"
-        "from jaclang.runtimelib.context import ExecutionContext;"
+        "from jaclang.server.session import mark_scratch_base;"
+        "from jaclang.runtime.context import ExecutionContext;"
         "b1 = tempfile.mkdtemp(); b2 = tempfile.mkdtemp();"
         "mark_scratch_base(b1); mark_scratch_base(b2);"
         "c1 = ExecutionContext(base_path_dir=b1);"
@@ -295,7 +295,7 @@ test "marked scratch bases share one database that dies with the process" {
 
 
 test "opening a scratch store reaps scratch databases of dead processes" {
-    import from jaclang.runtimelib.dbcatalog { DbKind, REGISTRY_TABLE }
+    import from jaclang.data.dbcatalog { DbKind, REGISTRY_TABLE }
     cluster = _start_cluster();
     scratch_proj = _seed_project("selfheal");
     dead = subprocess.Popen([sys.executable, "-c", "pass"]);
@@ -330,8 +330,8 @@ test "a new scratch base starts empty in every table, not just the core ones" {
     # database only matches that if the wipe covers the whole schema.
     script = (
         "import tempfile;"
-        "from jaclang.runtimelib.session import mark_scratch_base;"
-        "from jaclang.runtimelib.context import ExecutionContext;"
+        "from jaclang.server.session import mark_scratch_base;"
+        "from jaclang.runtime.context import ExecutionContext;"
         "b1 = tempfile.mkdtemp(); b2 = tempfile.mkdtemp();"
         "mark_scratch_base(b1); mark_scratch_base(b2);"
         "c1 = ExecutionContext(base_path_dir=b1);"
@@ -363,7 +363,7 @@ test "a new scratch base starts empty in every table, not just the core ones" {
 
 
 test "a created database records its owning absolute path" {
-    import from jaclang.runtimelib.dbcatalog { REGISTRY_TABLE }
+    import from jaclang.data.dbcatalog { REGISTRY_TABLE }
     cluster = _start_cluster();
     try {
         (proj, db_name) = _project_database(cluster, "owned");
@@ -447,7 +447,7 @@ test "db prune drops orphaned databases only, and only when told to" {
 
 test "db prune reaps a scratch database whose process is gone" {
     import from jaclang.cli.commands { db }
-    import from jaclang.runtimelib.dbcatalog { DbKind, REGISTRY_TABLE }
+    import from jaclang.data.dbcatalog { DbKind, REGISTRY_TABLE }
     cluster = _start_cluster();
     dead = subprocess.Popen([sys.executable, "-c", "pass"]);
     dead.`wait();
@@ -476,7 +476,7 @@ test "db prune reaps a scratch database whose process is gone" {
 
 test "db prune --empty reclaims pre-tracking databases that hold no data" {
     import from jaclang.cli.commands { db }
-    import from jaclang.runtimelib.dbcatalog { REGISTRY_TABLE }
+    import from jaclang.data.dbcatalog { REGISTRY_TABLE }
     cluster = _start_cluster();
     try {
         (with_data, data_db) = _project_database(cluster, "legacydata");
@@ -557,7 +557,7 @@ test "db drop refuses without intent and drops with it" {
 
 
 test "the retention sweep is off by default and sweeps when configured" {
-    import from jaclang.runtimelib.dbcatalog { REGISTRY_TABLE }
+    import from jaclang.data.dbcatalog { REGISTRY_TABLE }
     cluster = _start_cluster();
     try {
         (proj, db_name) = _project_database(cluster, "stale");
@@ -600,7 +600,7 @@ def _scratch_record(
     has_sessions: bool = False,
     condemned_age: int = -1
 ) -> any {
-    import from jaclang.runtimelib.dbcatalog { DbKind, DbRecord }
+    import from jaclang.data.dbcatalog { DbKind, DbRecord }
     return DbRecord(
         database="jac_scratch_4242_abc",
         recorded=True,
@@ -615,7 +615,7 @@ def _scratch_record(
 
 
 test "a scratch record from a host that never comes back is still reapable" {
-    import from jaclang.runtimelib.dbcatalog {
+    import from jaclang.data.dbcatalog {
         LIVE_PID_GRACE_SECONDS,
         SCRATCH_CONDEMN_SEPARATION_SECONDS,
         UNREACHABLE_HOST_GRACE_SECONDS,
@@ -691,7 +691,7 @@ test "a scratch record from a host that never comes back is still reapable" {
 
 
 test "one silent window never condemns a live owner behind a partition" {
-    import from jaclang.runtimelib.dbcatalog {
+    import from jaclang.data.dbcatalog {
         SCRATCH_CONDEMN_SEPARATION_SECONDS,
         UNREACHABLE_HOST_GRACE_SECONDS
     }
@@ -746,11 +746,7 @@ test "one silent window never condemns a live owner behind a partition" {
 
 
 test "silence is only ever read as abandonment on a scratch record" {
-    import from jaclang.runtimelib.dbcatalog {
-        DbKind,
-        DbRecord,
-        LIVE_PID_GRACE_SECONDS
-    }
+    import from jaclang.data.dbcatalog { DbKind, DbRecord, LIVE_PID_GRACE_SECONDS }
     # Only scratch stores heartbeat, so a project database is silent by
     # construction between runs. Nothing may read that as abandonment: it would
     # condemn every project database in the cluster on the first prune.
@@ -783,7 +779,7 @@ test "silence is only ever read as abandonment on a scratch record" {
 
 """Register *name* as a scratch database owned by a host this machine is not."""
 def _seed_scratch(cluster: Cluster, name: str, silent_for: str = "") {
-    import from jaclang.runtimelib.dbcatalog { DbKind, REGISTRY_TABLE }
+    import from jaclang.data.dbcatalog { DbKind, REGISTRY_TABLE }
     _exec(cluster, f'CREATE DATABASE "{name}"');
     _exec(
         cluster,
@@ -809,7 +805,7 @@ def _prune(cluster: Cluster) -> tuple[int, str] {
 
 
 test "db prune reaps a silent scratch database only after a second pass" {
-    import from jaclang.runtimelib.dbcatalog { REGISTRY_TABLE }
+    import from jaclang.data.dbcatalog { REGISTRY_TABLE }
     cluster = _start_cluster();
     stale = "jac_scratch_4242_stale";
     live = "jac_scratch_4243_live";
@@ -854,8 +850,8 @@ test "db prune reaps a silent scratch database only after a second pass" {
 
 
 test "an owner that reconnects before the drop keeps its database" {
-    import from jaclang.runtimelib.dbcatalog { REGISTRY_TABLE }
-    import from jaclang.vendor.pgload { connect }
+    import from jaclang.data.dbcatalog { REGISTRY_TABLE }
+    import from jaclang.data.pgload { connect }
     cluster = _start_cluster();
     reconnected = "jac_scratch_4244_back";
     try {
@@ -897,8 +893,8 @@ test "an owner that reconnects before the drop keeps its database" {
 
 test "an open scratch database keeps its own registry heartbeat fresh" {
     import time;
-    import from jaclang.runtimelib { dbcatalog as catalog }
-    import from jaclang.runtimelib.dbcatalog {
+    import from jaclang.data { dbcatalog as catalog }
+    import from jaclang.data.dbcatalog {
         DbKind,
         REGISTRY_TABLE,
         start_heartbeat,
@@ -952,7 +948,7 @@ test "an open scratch database keeps its own registry heartbeat fresh" {
 
 
 test "retention days come from [database] retention_days, off by default" {
-    import from jaclang.runtimelib.session { retention_days_for }
+    import from jaclang.server.session { retention_days_for }
     base = tempfile.mkdtemp(prefix="jac-retention-");
     try {
         assert retention_days_for(base) == 0 , "retention must default to off";

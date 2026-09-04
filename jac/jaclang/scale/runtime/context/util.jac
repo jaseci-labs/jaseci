@@ -2,10 +2,17 @@ import os;
 import socket;
 import shutil;
 
-def pick_free_port(name: str, base: int = 18000, retries: int = 100) -> int {
+def pick_free_port(
+    name: str, base: int = 18000, retries: int = 100, avoid: set[int] | None = None
+) -> int {
+    blocked: set[int] = set(avoid) if avoid else set();
     start: int = base + (hash(name) % 1000);
     port: int = start;
     for _ in range(retries) {
+        if port in blocked {
+            port = port + 1;
+            continue;
+        }
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
         try {
@@ -69,9 +76,7 @@ def http_forward_timeout(service_name: str | None = None) -> float {
         if "http_forward_timeout" in ms_cfg {
             return float(ms_cfg["http_forward_timeout"]);
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return _DEFAULT_HTTP_FORWARD_TIMEOUT;
 }
 
@@ -83,9 +88,7 @@ def route_refresh_seconds -> float {
         if "route_refresh_seconds" in ms_cfg {
             return float(ms_cfg["route_refresh_seconds"]);
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return _DEFAULT_ROUTE_REFRESH_SECONDS;
 }
 
@@ -97,9 +100,7 @@ def boot_health_timeout -> float {
         if "boot_health_timeout" in ms_cfg {
             return float(ms_cfg["boot_health_timeout"]);
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return _DEFAULT_BOOT_HEALTH_TIMEOUT;
 }
 

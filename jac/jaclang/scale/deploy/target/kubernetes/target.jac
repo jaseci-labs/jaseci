@@ -1,4 +1,5 @@
 import logging;
+import time;
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_target {
     KubernetesTargetBase
 }
@@ -10,7 +11,10 @@ import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     ensure_namespace_exists,
     create_k8s_secret,
     delete_if_exists,
+    delete_k8s_secret,
+    delete_namespace,
     get_cluster_provider,
+    namespace_is_owned,
     privileged_pss_labels,
     PSS_ENFORCE_LABEL,
     _resolve_current_rs_hashes,
@@ -24,7 +28,8 @@ import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
     CONFIG_REVISION_ANNOTATION,
     ManifestBuilder,
     GATEWAY_NAME,
-    k8s_safe_name
+    k8s_safe_name,
+    ScalingMode
 }
 import from jaclang.scale.deploy.target.kubernetes.database_provisioner {
     DatabaseProvisioner
@@ -33,13 +38,19 @@ import from jaclang.scale.deploy.autoscale.factory { AutoscalerFactory }
 import from jaclang.scale.deploy.autoscale.autoscaler {
     AutoscalerSpec,
     Trigger,
-    TriggerAuth,
-    DEFAULT_CPU_UTILIZATION_TARGET,
-    DEFAULT_MEMORY_UTILIZATION_TARGET
+    TriggerAuth
+}
+import from jaclang.scale.deploy.autoscale.keda_autoscaler { KEDAAutoscaler }
+import from jaclang.scale.deploy.autoscale.http_activation_config {
+    apply_http_activation_for_target,
+    destroy_http_activation_for_target
 }
 import from jaclang.scale.deploy.target.kubernetes.monitoring { MonitoringDeployer }
 import from jaclang.scale.config.config_loader { get_scale_config }
-import from jaclang.scale.injector.pvc_injector { bundle_keys_from_pod_spec }
+import from jaclang.scale.injector.pvc_injector {
+    bundle_keys_from_pod_spec,
+    bundle_pvc_name
+}
 
 glob logger = logging.getLogger(__name__),
      REVISION_ANNOTATION: str = "deployment.kubernetes.io/revision",
@@ -167,6 +178,43 @@ def restorable_pod_template(template: dict[str, any]) -> dict[str, any] {
     return cleaned;
 }
 
+def apply_http_activations_for_bundle(
+    bundle: dict[str, any], namespace: str, keda: KEDAAutoscaler
+) {
+    scaling: dict[str, any] = bundle.get("scaling", {});
+    for svc_name in scaling.keys() {
+        plan: dict[str, any] = dict(scaling.get(svc_name, {}));
+        if plan.get("mode") != ScalingMode.HTTP_ACTIVATION {
+            continue;
+        }
+        apply_http_activation_for_target(
+            dict(plan.get("http_activation", {})),
+            str(plan.get("scale_target_name", "")),
+            namespace,
+            str(plan.get("service_name", "")),
+            keda
+        );
+    }
+}
+
+
+def reap_stale_scaling_resources_for_bundle(
+    bundle: dict[str, any], namespace: str, autoscaler: any, keda: KEDAAutoscaler
+) {
+    scaling: dict[str, any] = bundle.get("scaling", {});
+    for svc_name in scaling.keys() {
+        plan: dict[str, any] = dict(scaling.get(svc_name, {}));
+        mode = plan.get("mode");
+        scale_target_name = str(plan.get("scale_target_name", ""));
+        if mode != ScalingMode.METRIC {
+            autoscaler.destroy(k8s_safe_name(svc_name), namespace);
+        }
+        if mode != ScalingMode.HTTP_ACTIVATION {
+            destroy_http_activation_for_target(scale_target_name, namespace, keda);
+        }
+    }
+}
+
 
 obj KubernetesTarget(KubernetesTargetBase) {
     has _deploy_context: DeployContext = DeployContext(),
@@ -176,12 +224,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
         if self.microservices_config is not None {
             return self.microservices_config;
         }
-        try {
-            import from jaclang.scale.config.config_loader { get_scale_config }
-            return get_scale_config().get_microservices_config();
-        } except Exception {
-            return {};
-        }
+        import from jaclang.scale.config.config_loader { load_microservices_config }
+        return load_microservices_config();
     }
 
     def deploy(app_config: AppConfig) -> DeploymentResult {
@@ -192,6 +236,11 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 message="shared_ingress=True requires a domain: set 'domain' "
                 "under [scale.kubernetes] in jac.toml."
             );
+        }
+        import from jaclang.scale.injector.binary { deploy_generation_refusal }
+        refusal = deploy_generation_refusal(app_config.code_folder);
+        if refusal {
+            return DeploymentResult(success=False, message=refusal);
         }
         if self.logger {
             self.logger.info(
@@ -311,7 +360,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 f"{success_msg} "
                 f"NOTE: observability stack deploy failed - "
                 f"`{observability_err}`. The app is running but pod logs "
-                f"are not being shipped to Loki. Re-run `jac start --scale` "
+                f"are not being shipped to Loki. Re-run `jac scale deploy <file.jac>` "
                 f"once the underlying issue is fixed."
             );
         }
@@ -506,24 +555,52 @@ obj KubernetesTarget(KubernetesTargetBase) {
         import sys;
         import from kubernetes { client }
         import from jaclang.cli.console { console }
+
+        scaling: dict[str, any] = bundle.get("scaling", {});
+        http_activation_svc_names: set = {
+            str(svc_name)
+            for svc_name in scaling.keys()
+            if dict(scaling.get(svc_name, {})).get("mode")
+                == ScalingMode.HTTP_ACTIVATION
+        };
         names: list[str] = [];
         app_labels: list[str] = [];
-        for dep in bundle.get("deployments", {}).values() {
-            names.append(dep["metadata"]["name"]);
+        for (svc_name, dep) in bundle.get("deployments", {}).items() {
             app: str = "";
             try {
                 app = str(dep["spec"]["selector"]["matchLabels"]["app"]);
-            } except Exception { }
+            } except Exception {}
             if not app {
                 try {
                     app = str((dep["metadata"].get("labels") or {}).get("app") or "");
-                } except Exception { }
+                } except Exception {}
             }
             if app {
                 app_labels.append(app);
             }
+            if svc_name not in http_activation_svc_names {
+                names.append(str(dep["metadata"]["name"]));
+            }
         }
         if not names {
+            self._load_cluster_config();
+            core_v1 = client.CoreV1Api();
+            ns = self.k8s_config.namespace;
+            crash = self._scan_for_crash_loop(core_v1, ns, set(), set(app_labels))[
+                "crash"
+            ];
+            if crash {
+                raise Exception(
+                    "Deployment failed: application pods are restarting "
+                    "(crash loop / bad image); not marking the fleet ready."
+                );
+            }
+            if self.logger {
+                self.logger.info(
+                    "Fleet ready: all services use HTTP activation "
+                    "(scale to zero until first request); pods healthy."
+                );
+            }
             return;
         }
         self._load_cluster_config();
@@ -872,33 +949,11 @@ obj KubernetesTarget(KubernetesTargetBase) {
     }
 
     def _read_microservices_logs_config -> dict[str, any] {
-        try {
-            ms_cfg = self._ms_cfg();
-            return dict(ms_cfg.get("logs", {}));
-        } except Exception as e {
-            if self.logger {
-                self.logger.warn(
-                    f"Could not read [scale.microservices.logs] - "
-                    f"observability stack will not be deployed: {e}"
-                );
-            }
-            return {};
-        }
+        return dict(self._ms_cfg().get("logs", {}));
     }
 
     def _read_microservices_tracing_config -> dict[str, any] {
-        try {
-            ms_cfg = self._ms_cfg();
-            return dict(ms_cfg.get("tracing", {}));
-        } except Exception as e {
-            if self.logger {
-                self.logger.warn(
-                    f"Could not read [scale.microservices.tracing] - "
-                    f"tracing stack will not be deployed: {e}"
-                );
-            }
-            return {};
-        }
+        return dict(self._ms_cfg().get("tracing", {}));
     }
 
     def generate_manifests(app_config: AppConfig) -> dict[str, any] {
@@ -948,7 +1003,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
                     type="cpu",
                     metadata={
                         "averageUtilization": str(
-                            cfg.get("cpu_target", DEFAULT_CPU_UTILIZATION_TARGET)
+                            cfg.get(
+                                "cpu_target", self.k8s_config.cpu_utilization_target
+                            )
                         )
                     }
                 )
@@ -960,7 +1017,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
                         metadata={
                             "averageUtilization": str(
                                 cfg.get(
-                                    "memory_target", DEFAULT_MEMORY_UTILIZATION_TARGET
+                                    "memory_target",
+                                    self.k8s_config.memory_utilization_target
                                 )
                             )
                         }
@@ -996,16 +1054,23 @@ obj KubernetesTarget(KubernetesTargetBase) {
     }
 
     def _autoscaler_spec(
-        svc_name: str, cfg: dict[str, any], autoscaler: any, namespace: str
+        svc_name: str, plan: dict[str, any], autoscaler: any, namespace: str
     ) -> AutoscalerSpec {
+        """Build the AutoscalerSpec for a METRIC-mode service from its already-
+        resolved scaling plan, so the scale target here is the same Deployment
+        name apply_manifests actually applied -- never re-derived from svc_name,
+        which is exactly the drift that caused apply_http_activation to 404 on
+        a real cluster before _resolve_scaling existed.
+        """;
         k8s_name = k8s_safe_name(svc_name);
+        cfg: dict[str, any] = dict(plan.get("autoscaler", {}));
         return AutoscalerSpec(
-            scale_target_name=f"{k8s_name}-deployment",
+            scale_target_name=str(plan.get("scale_target_name", "")),
             autoscaler_name=autoscaler.resource_name_for(k8s_name),
             app_name=k8s_name,
             namespace=namespace,
-            min_replicas=int(cfg.get("min", 1)),
-            max_replicas=int(cfg.get("max", 3)),
+            min_replicas=int(cfg.get("min", self.k8s_config.min_replicas)),
+            max_replicas=int(cfg.get("max", self.k8s_config.max_replicas)),
             idle_replicas=self.k8s_config.idle_replicas,
             polling_interval=self.k8s_config.autoscaler_polling_interval,
             cooldown_period=self.k8s_config.autoscaler_cooldown,
@@ -1019,19 +1084,22 @@ obj KubernetesTarget(KubernetesTargetBase) {
 
     def render_autoscaler_manifests(bundle: dict[str, any]) -> list[dict[str, any]] {
         out: list[dict[str, any]] = [];
-        autoscalers: dict[str, any] = bundle.get("autoscalers", {}) or {};
-        for (svc_name, cfg_raw) in autoscalers.items() {
-            cfg = dict(cfg_raw or {});
+        scaling: dict[str, any] = bundle.get("scaling", {});
+        for svc_name in scaling.keys() {
+            plan: dict[str, any] = dict(scaling.get(svc_name, {}));
+            if plan.get("mode") != ScalingMode.METRIC {
+                continue;
+            }
             autoscaler = AutoscalerFactory.create(
                 self.k8s_config.autoscaler_engine, self.k8s_config.to_dict(), None
             );
-            built = autoscaler._build_manifests(
-                self._autoscaler_spec(
-                    svc_name, cfg, autoscaler, self.k8s_config.namespace
+            out.extend(
+                autoscaler._build_manifests(
+                    self._autoscaler_spec(
+                        svc_name, plan, autoscaler, self.k8s_config.namespace
+                    )
                 )
             );
-
-            out.append(built["body"] if "body" in built else built);
         }
         return out;
     }
@@ -1057,7 +1125,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
             );
         }
 
-        ensure_namespace_exists(namespace);
+        ensure_namespace_exists(namespace, k8s_safe_name(self.k8s_config.app_name));
         self.ensure_alb_readiness_gates(core_v1, namespace);
 
         ops_rbac = bundle.get("ops_rbac");
@@ -1132,16 +1200,29 @@ obj KubernetesTarget(KubernetesTargetBase) {
             }
         }
 
+        scaling: dict[str, any] = bundle.get("scaling", {});
+
         deployments: dict[str, dict[str, any]] = bundle["deployments"];
         for (svc_name, raw_manifest) in deployments.items() {
             dep_manifest = with_config_revision(raw_manifest, config_revision);
+            patch_body = None;
+            if dict(scaling.get(svc_name, {})).get("mode")
+                == ScalingMode.HTTP_ACTIVATION {
+                patch_body = dict(dep_manifest);
+                patch_body["spec"] = {
+                    k: v
+                    for (k, v) in dep_manifest["spec"].items()
+                    if k != "replicas"
+                };
+            }
             self._apply_or_replace(
                 apps_v1,
                 "read_namespaced_deployment",
                 "patch_namespaced_deployment",
                 "create_namespaced_deployment",
                 namespace,
-                dep_manifest
+                dep_manifest,
+                patch_body
             );
             if self.logger {
                 self.logger.info(
@@ -1153,14 +1234,28 @@ obj KubernetesTarget(KubernetesTargetBase) {
 
         self.reap_superseded_deployments(apps_v1, namespace, bundle);
 
-        for svc_name in bundle.get("autoscalers", {}).keys() {
-            cfg = dict(bundle.get("autoscalers", {}).get(svc_name, {}));
+        reap_stale_scaling_resources_for_bundle(
+            bundle,
+            namespace,
+            AutoscalerFactory.create(
+                self.k8s_config.autoscaler_engine,
+                self.k8s_config.to_dict(),
+                self.logger
+            ),
+            KEDAAutoscaler(logger=self.logger)
+        );
+
+        for svc_name in scaling.keys() {
+            plan: dict[str, any] = dict(scaling.get(svc_name, {}));
+            if plan.get("mode") != ScalingMode.METRIC {
+                continue;
+            }
             autoscaler = AutoscalerFactory.create(
                 self.k8s_config.autoscaler_engine,
                 self.k8s_config.to_dict(),
                 self.logger
             );
-            spec = self._autoscaler_spec(svc_name, cfg, autoscaler, namespace);
+            spec = self._autoscaler_spec(svc_name, plan, autoscaler, namespace);
             autoscaler_applied = autoscaler.apply(spec);
 
             if self.logger and autoscaler_applied {
@@ -1170,6 +1265,10 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 );
             }
         }
+
+        apply_http_activations_for_bundle(
+            bundle, namespace, KEDAAutoscaler(logger=self.logger)
+        );
 
         pdbs: dict[str, dict[str, any]] = bundle.get("pdbs", {}) or {};
         for (svc_name, pdb_manifest) in pdbs.items() {
@@ -1608,12 +1707,24 @@ obj KubernetesTarget(KubernetesTargetBase) {
         update: str,
         create: str,
         namespace: str,
-        manifest: dict[str, any]
+        manifest: dict[str, any],
+        patch_body: (dict[str, any] | None) = None
     ) {
+        """patch_body, when given, is sent to `update` instead of `manifest` --
+        e.g. a copy with `spec.replicas` stripped so a strategic-merge PATCH
+        leaves an externally-scaled field (KEDA's ScaledObject) alone, while a
+        fresh `create` still gets the full manifest including that field.
+        HTTP activation relies on exactly this: KEDA owns `replicas` once a
+        Deployment scales via HTTP_ACTIVATION, and the strategic-merge PATCH
+        this omission produces is what keeps this apply from resetting the
+        live value KEDA set.
+        """;
         name: str = manifest["metadata"]["name"];
         try {
             getattr(api, read)(name=name, namespace=namespace);
-            getattr(api, update)(name=name, namespace=namespace, body=manifest);
+            getattr(api, update)(
+                name=name, namespace=namespace, body=patch_body or manifest
+            );
         } except ApiException as e {
             if e.status == 404 {
                 getattr(api, create)(namespace=namespace, body=manifest);
@@ -1633,7 +1744,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 self.logger.info(
                     f"PVC '{name}' already exists; skipping patch. To apply "
                     f"size/storage-class changes, delete the PVC manually or "
-                    f"run `jac start --scale --destroy`."
+                    f"run `jac scale destroy <file.jac>`."
                 );
             }
         } except ApiException as e {
@@ -1647,28 +1758,14 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
     }
 
-    def destroy(app_name: str, component: str = "") {
-        if self.logger {
-            self.logger.info(
-                f"Destroying microservice topology in namespace "
-                f"'{self.k8s_config.namespace}'",
-                {"app_name": app_name}
-            );
-        }
-
-        self._load_cluster_config();
-        apps_v1 = client.AppsV1Api();
-        core_v1 = client.CoreV1Api();
-        policy_v1 = client.PolicyV1Api();
-        networking_v1 = client.NetworkingV1Api();
-        namespace: str = self.k8s_config.namespace;
-
-        selector: str = FLEET_SELECTOR;
+    def _destroy_fleet_workloads(
+        namespace: str, apps_v1: any, core_v1: any, policy_v1: any, networking_v1: any
+    ) {
         ms_selector: str = "managed=jac-scale";
 
         try {
             apps_v1.delete_collection_namespaced_deployment(
-                namespace=namespace, label_selector=selector
+                namespace=namespace, label_selector=FLEET_SELECTOR
             );
         } except ApiException as e {
             if e.status != 404 {
@@ -1687,6 +1784,18 @@ obj KubernetesTarget(KubernetesTargetBase) {
         } except ApiException as e {
             if e.status != 404 {
                 raise;
+            }
+        }
+
+        if self.k8s_config.autoscaler_engine != "keda" {
+            try {
+                KEDAAutoscaler(logger=self.logger).destroy_collection(
+                    namespace, ms_selector, best_effort=True
+                );
+            } except ApiException as e {
+                if e.status != 404 {
+                    raise;
+                }
             }
         }
 
@@ -1742,17 +1851,389 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 raise;
             }
         }
+    }
 
+    def _destroy_monitoring(
+        app_name: str, namespace: str, apps_v1: any, core_v1: any, strict: bool = False
+    ) -> bool {
         try {
             monitoring = MonitoringDeployer(self.k8s_config, self.logger);
             monitoring.destroy(app_name, namespace, apps_v1, core_v1);
+            return True;
         } except Exception as e {
+            if strict {
+                raise;
+            }
             if self.logger {
-                self.logger.info(
-                    f"Observability stack destroy reported a non-fatal error: {e}",
+                self.logger.warning(
+                    f"Observability stack destroy failed, leaving its "
+                    f"cluster-scoped RBAC in place: {e}",
                     {"app_name": app_name}
                 );
             }
+            return False;
+        }
+    }
+
+    def _postgres_pvc_name(app_name: str) -> str {
+        """Name the PVC the postgres volumeClaimTemplates entry creates.""";
+        pg_name: str = f"{app_name}-postgres";
+        return f"{pg_name}-data-{pg_name}-0";
+    }
+
+    def _app_pvc_names(app_name: str) -> list[str] {
+        return [
+            bundle_pvc_name(k8s_safe_name(app_name)),
+            self._postgres_pvc_name(app_name)
+        ];
+    }
+
+    def _destroy_pvcs(pvc_names: list[str], namespace: str, core_v1: any) {
+        for pvc_name in pvc_names {
+            delete_if_exists(
+                core_v1.delete_namespaced_persistent_volume_claim,
+                pvc_name,
+                namespace,
+                'PersistentVolumeClaim'
+            );
+        }
+    }
+
+    def _destroy_app_pvcs(app_name: str, namespace: str, core_v1: any) {
+        self._destroy_pvcs(self._app_pvc_names(app_name), namespace, core_v1);
+    }
+
+    def _report_unowned_shared_volumes(namespace: str, core_v1: any) {
+        if not self.logger {
+            return;
+        }
+        try {
+            pvcs = core_v1.list_namespaced_persistent_volume_claim(
+                namespace=namespace,
+                label_selector="managed=jac-scale,jac-scale.role=shared-volume,"
+                "!jac-scale.owner"
+            );
+        } except ApiException {
+            return;
+        }
+        names: list[str] = [pvc.metadata.name for pvc in pvcs.items];
+        if names {
+            self.logger.warning(
+                f"Kept shared volumes that name no app: {', '.join(names)}. They "
+                f"predate volume ownership, so another app in this namespace may "
+                f"own them. Label one with 'jac-scale.owner' or delete it by hand.",
+                {"namespace": namespace}
+            );
+        }
+    }
+
+    def _destroy_shared_volume_pvcs(
+        app_name: str, namespace: str, core_v1: any, sole_tenant: bool
+    ) {
+        shared: str = "managed=jac-scale,jac-scale.role=shared-volume";
+        selectors: list[str] = [f"{shared},jac-scale.owner={k8s_safe_name(app_name)}"];
+        if sole_tenant {
+            selectors.append(f"{shared},!jac-scale.owner");
+        } else {
+            self._report_unowned_shared_volumes(namespace, core_v1);
+        }
+        for selector in selectors {
+            try {
+                core_v1.delete_collection_namespaced_persistent_volume_claim(
+                    namespace=namespace, label_selector=selector
+                );
+            } except ApiException as e {
+                if e.status != 404 {
+                    raise;
+                }
+            }
+        }
+    }
+
+    def _list_managed(lister: any, namespace: str, selector: str) -> list[any] {
+        """List the objects a lister returns, tolerating a kind the cluster lacks.""";
+        try {
+            return lister(namespace=namespace, label_selector=selector).items;
+        } except ApiException as e {
+            if e.status == 404 {
+                return [];
+            }
+            raise;
+        }
+    }
+
+    def _foreign_app_resources(
+        app_name: str, namespace: str, apps_v1: any, core_v1: any
+    ) -> list[str] {
+        """Name the jac-scale resources in this namespace another app owns.""";
+        owner: str = k8s_safe_name(app_name);
+        our_bundle: str = bundle_pvc_name(owner);
+        our_postgres: str = f"{app_name}-postgres";
+        managed: str = "managed=jac-scale";
+        found: list[str] = [];
+        for pvc in self._list_managed(
+            core_v1.list_namespaced_persistent_volume_claim, namespace, managed
+        ) {
+            labels: dict[str, str] = pvc.metadata.labels or {};
+            role: str = labels.get("jac-scale.role", "");
+            volume_owner: str = labels.get("jac-scale.owner", "");
+            foreign_bundle: bool = (
+                role == "bundle-store" and pvc.metadata.name != our_bundle
+            );
+            foreign_volume: bool = (
+                role == "shared-volume" and bool(volume_owner) and volume_owner != owner
+            );
+            if foreign_bundle or foreign_volume {
+                found.append(f"PersistentVolumeClaim/{pvc.metadata.name}");
+            }
+        }
+        for sts in self._list_managed(
+            apps_v1.list_namespaced_stateful_set, namespace, managed
+        ) {
+            if sts.metadata.name != our_postgres {
+                found.append(f"StatefulSet/{sts.metadata.name}");
+            }
+        }
+        return found;
+    }
+
+    def _co_tenants_best_effort(
+        app_name: str, namespace: str, apps_v1: any, core_v1: any
+    ) -> list[str] {
+        try {
+            return self._foreign_app_resources(app_name, namespace, apps_v1, core_v1);
+        } except ApiException {
+            return [];
+        }
+    }
+
+    def _warn_co_tenant_workloads_removed(
+        app_name: str, namespace: str, apps_v1: any, core_v1: any
+    ) {
+        if not self.logger {
+            return;
+        }
+        co_tenants: list[str] = self._co_tenants_best_effort(
+            app_name, namespace, apps_v1, core_v1
+        );
+        if not co_tenants {
+            return;
+        }
+        self.logger.warning(
+            f"Another app has resources in '{namespace}': "
+            f"{', '.join(co_tenants)}. Its data was kept, but this removed its "
+            f"deployments, autoscalers and disruption budgets along with this "
+            f"app's, so redeploy it to restore service.",
+            {"app_name": app_name}
+        );
+    }
+
+    def _destroy_ops_rbac(app_name: str, namespace: str) {
+        rbac_v1 = client.RbacAuthorizationV1Api();
+        ms_selector: str = f"managed=jac-scale,app={app_name}";
+        for delete_collection in [
+            rbac_v1.delete_collection_namespaced_role_binding,
+            rbac_v1.delete_collection_namespaced_role
+        ] {
+            try {
+                delete_collection(namespace=namespace, label_selector=ms_selector);
+            } except ApiException as e {
+                if e.status != 404 {
+                    raise;
+                }
+            }
+        }
+    }
+
+    def _wait_for_namespace_deletion(
+        namespace: str, core_v1: any, timeout: int = 300
+    ) -> bool {
+        elapsed = 0.0;
+        poll = 2.0;
+        while elapsed < timeout {
+            try {
+                core_v1.read_namespace(name=namespace);
+            } except ApiException as e {
+                if e.status == 404 {
+                    return True;
+                }
+                raise;
+            }
+            time.sleep(poll);
+            elapsed = elapsed + poll;
+        }
+        return False;
+    }
+
+    def _reclaim_namespace(namespace: str, core_v1: any) -> bool {
+        try {
+            delete_namespace(namespace);
+        } except ApiException as e {
+            if e.status != 403 {
+                raise;
+            }
+            return False;
+        }
+        if self._wait_for_namespace_deletion(namespace, core_v1) {
+            if self.logger {
+                self.logger.info(f"Namespace '{namespace}' deleted");
+            }
+        } elif self.logger {
+            self.logger.warning(
+                f"Timed out waiting for namespace '{namespace}' to be deleted"
+            );
+        }
+        return True;
+    }
+
+    def _destroy_app_database(
+        app_name: str, namespace: str, apps_v1: any, core_v1: any
+    ) {
+        pg_name: str = f"{app_name}-postgres";
+        delete_if_exists(
+            apps_v1.delete_namespaced_stateful_set, pg_name, namespace, 'StatefulSet'
+        );
+        delete_if_exists(
+            core_v1.delete_namespaced_service,
+            f"{pg_name}-service",
+            namespace,
+            'Service'
+        );
+        delete_k8s_secret(core_v1, namespace, f"{pg_name}-secret");
+        delete_k8s_secret(core_v1, namespace, f"{app_name}-external-db");
+        delete_if_exists(
+            core_v1.delete_namespaced_service_account,
+            f"{pg_name}-sa",
+            namespace,
+            'ServiceAccount'
+        );
+    }
+
+    def _destroy_in_shared_namespace(
+        app_name: str, namespace: str, apps_v1: any, core_v1: any, sole_tenant: bool
+    ) {
+        self._destroy_app_database(app_name, namespace, apps_v1, core_v1);
+        self._destroy_app_pvcs(app_name, namespace, core_v1);
+        self._destroy_shared_volume_pvcs(app_name, namespace, core_v1, sole_tenant);
+        self._destroy_ops_rbac(app_name, namespace);
+        delete_k8s_secret(core_v1, namespace, f"{app_name}-secrets");
+    }
+
+    def destroy(app_name: str, component: str = "") {
+        if self.logger {
+            self.logger.info(
+                f"Destroying microservice topology in namespace "
+                f"'{self.k8s_config.namespace}'",
+                {"app_name": app_name}
+            );
+        }
+
+        self._load_cluster_config();
+        apps_v1 = client.AppsV1Api();
+        core_v1 = client.CoreV1Api();
+        policy_v1 = client.PolicyV1Api();
+        networking_v1 = client.NetworkingV1Api();
+        namespace: str = self.k8s_config.namespace;
+
+        if component {
+            self._destroy_named_component(
+                app_name,
+                namespace,
+                component,
+                apps_v1,
+                core_v1,
+                policy_v1,
+                networking_v1
+            );
+            return;
+        }
+
+        self._destroy_fleet_workloads(
+            namespace, apps_v1, core_v1, policy_v1, networking_v1
+        );
+
+        monitoring_reclaimed = self._destroy_monitoring(
+            app_name, namespace, apps_v1, core_v1
+        );
+        owner: str = k8s_safe_name(app_name);
+
+        created_namespace: bool = namespace_is_owned(core_v1, namespace, owner);
+        co_tenants: list[str] = (
+            self._foreign_app_resources(app_name, namespace, apps_v1, core_v1)
+                if created_namespace
+                else []
+        );
+        sole_tenant: bool = created_namespace and not co_tenants;
+
+        if sole_tenant {
+            if monitoring_reclaimed {
+                if self._reclaim_namespace(namespace, core_v1) {
+                    return;
+                }
+                if self.logger {
+                    self.logger.warning(
+                        f"Not permitted to delete namespace '{namespace}', so "
+                        f"this app's resources inside it are removed instead",
+                        {"app_name": app_name}
+                    );
+                }
+            } elif self.logger {
+                self.logger.warning(
+                    f"Keeping namespace '{namespace}': its monitoring RBAC is "
+                    f"cluster-scoped and is named after this namespace, so "
+                    f"deleting it now would orphan roles nothing can attribute",
+                    {"app_name": app_name}
+                );
+            }
+        } elif co_tenants and self.logger {
+            self.logger.warning(
+                f"Keeping namespace '{namespace}': this app created it, but "
+                f"{', '.join(co_tenants)} in it belongs to another app. That "
+                f"app's database and volumes are kept, but workloads in this "
+                f"namespace were removed, so redeploy it to restore service.",
+                {"app_name": app_name}
+            );
+        } elif not created_namespace {
+            self._warn_co_tenant_workloads_removed(
+                app_name, namespace, apps_v1, core_v1
+            );
+        }
+        self._destroy_in_shared_namespace(
+            app_name, namespace, apps_v1, core_v1, sole_tenant
+        );
+    }
+
+    def _destroy_named_component(
+        app_name: str,
+        namespace: str,
+        component: str,
+        apps_v1: any,
+        core_v1: any,
+        policy_v1: any,
+        networking_v1: any
+    ) {
+        if component == 'application' {
+            self._destroy_fleet_workloads(
+                namespace, apps_v1, core_v1, policy_v1, networking_v1
+            );
+            self._warn_co_tenant_workloads_removed(
+                app_name, namespace, apps_v1, core_v1
+            );
+        } elif component == 'database' {
+            self._destroy_app_database(app_name, namespace, apps_v1, core_v1);
+            self._destroy_pvcs([self._postgres_pvc_name(app_name)], namespace, core_v1);
+        } elif component == 'monitoring' {
+            self._destroy_monitoring(
+                app_name, namespace, apps_v1, core_v1, strict=True
+            );
+        } else {
+            raise ValueError(
+                f"Unknown component: '{component}'. Valid choices: application, "
+                f"database, monitoring"
+            );
+        }
+        if self.logger {
+            self.logger.info(f"Component '{component}' of '{app_name}' destroyed");
         }
     }
 }

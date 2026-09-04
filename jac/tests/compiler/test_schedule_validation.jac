@@ -10,20 +10,24 @@ fragments, so validation is the whole story: every REQUIRES is satisfied by an
 earlier pass in the single list, and nothing is derived or dropped at runtime.
 The analysis stage is unconditional, so a pass whose declared inputs are
 missing is a construction error rather than a silently omitted analysis.
+
+Dependency tags are the relation-edge class names the analyses materialize
+(CfgSucc/CfgTrue/CfgFalse from CFG build, TypeOf from type checking, SymOf
+from symbol-table build), not the old free-form 'cfg'/'inference' labels.
 """
 
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.compiler {
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.schedules {
     get_analysis_sched,
     get_compile_sched,
     providers_of,
     validate_schedule
 }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
-import from jaclang.compiler.passes.main.ownership_check_pass { OwnershipCheckPass }
-import from jaclang.compiler.passes.main.static_analysis_pass { StaticAnalysisPass }
-import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.passes.cfg_build_pass { CFGBuildPass }
+import from jaclang.compiler.passes.ownership_check_pass { OwnershipCheckPass }
+import from jaclang.compiler.passes.static_analysis_pass { StaticAnalysisPass }
+import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
 
 
 test "schedule omitting a declared dependency fails fast at construction" {
@@ -34,26 +38,26 @@ test "schedule omitting a declared dependency fails fast at construction" {
         err = str(e);
     }
     assert 'OwnershipCheckPass' in err;
-    assert "'cfg'" in err;
+    assert "'CfgSucc'" in err;
     assert 'scheduling error' in err;
 }
 
-test "validation names the first missing analysis with cfg preprovided" {
+test "validation names the first missing analysis with CfgSucc preprovided" {
     err = '';
     try {
         validate_schedule(
-            [OwnershipCheckPass], preprovided={'cfg'}, origin='test schedule'
+            [OwnershipCheckPass], preprovided={'CfgSucc'}, origin='test schedule'
         );
     } except RuntimeError as e {
         err = str(e);
     }
     assert 'OwnershipCheckPass' in err;
-    assert "'inference'" in err;
+    assert "'TypeOf'" in err;
 }
 
 test "validation accepts a schedule whose dependencies are preprovided" {
     sched = validate_schedule(
-        [OwnershipCheckPass], preprovided={'cfg', 'inference'}, origin='test schedule'
+        [OwnershipCheckPass], preprovided={'CfgSucc', 'TypeOf'}, origin='test schedule'
     );
     assert sched == [OwnershipCheckPass];
 }
@@ -96,8 +100,8 @@ test "every declared requirement is satisfied within the one pipeline" {
 }
 
 test "providers_of reports the tags a schedule segment supplies" {
-    assert 'cfg' in providers_of([CFGBuildPass]);
-    assert 'inference' in providers_of([TypeCheckPass]);
+    assert 'CfgSucc' in providers_of([CFGBuildPass]);
+    assert 'TypeOf' in providers_of([TypeCheckPass]);
     assert providers_of([]) == set();
 }
 
@@ -111,6 +115,6 @@ test "run_schedule rejects an incoherent schedule before running any pass" {
         err = str(e);
     }
     assert 'OwnershipCheckPass' in err;
-    assert "'cfg'" in err;
+    assert "'CfgSucc'" in err;
     assert 'scheduling error' in err;
 }

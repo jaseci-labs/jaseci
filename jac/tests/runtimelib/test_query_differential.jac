@@ -7,9 +7,9 @@ unrepresentable rather than merely fixed."""
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from uuid { UUID }
-import from jaclang.jac0core.archetype { EdgeAnchor, NodeAnchor, Root }
-import from jaclang.jac0core.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
+import from jaclang.runtime.archetype { EdgeAnchor, NodeAnchor, Root }
+import from jaclang.runtime.runtime { JacRuntime }
+import from jaclang.runtime.context { ExecutionContext }
 
 def _as_any(v: any) -> any {
     return v;
@@ -64,7 +64,7 @@ def _seed(ctx: ExecutionContext) -> UUID {
     leaf.edges.append(e2);
     ctx.mem.put(leaf);
     ctx.mem.put(e2);
-    return ranch.id;
+    return ranch.ensure_id();
 }
 
 
@@ -144,9 +144,17 @@ test "cost invariant through real syntax: fetches == |result|" {
             assert ranch is not None;
             origin = ranch.archetype;
             ctx2.mem.reset_fetch_count();
+            assert len([origin-->[?:DA, val==2]]) == 1;
+            counted = ctx2.mem.get_fetch_count();
+            assert counted == 0 , (
+                f"a count over a traversal read on the spot has a SQL "
+                f"equivalent and must deserialize nothing; got {counted}"
+            );
+            ctx2.mem.reset_fetch_count();
             winners = [origin-->[?:DA, val==2]];
-            assert len(winners) == 1;
+            consumed = [w for w in winners];
             fetches = ctx2.mem.get_fetch_count();
+            assert len(consumed) == 1;
             assert fetches == 1 , (
                 f"a fully-pushable query must deserialize exactly its result "
                 f"set; got {fetches} fetches for 1 winner"
@@ -155,11 +163,11 @@ test "cost invariant through real syntax: fetches == |result|" {
             # A more selective query never reads more than a less selective
             # one (the #7790 P3 anomaly, inverted into an invariant).
             ctx2.mem.reset_fetch_count();
-            all_da = [origin-->[?:DA]];
+            all_da = [w for w in [origin-->[?:DA]]];
             broad = ctx2.mem.get_fetch_count();
             assert len(all_da) == 3;
             ctx2.mem.reset_fetch_count();
-            narrow_hits = [origin-->[?:DA, val==3]];
+            narrow_hits = [w for w in [origin-->[?:DA, val==3]]];
             narrow = ctx2.mem.get_fetch_count();
             assert narrow <= broad , (
                 f"selective query read more than broad one: {narrow} > {broad}"

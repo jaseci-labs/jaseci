@@ -68,6 +68,9 @@ obj BuildConfig {
 
 obj TestConfig {
     has directory: str = "",
+        directories: list[str] = [],
+        isolate: list[str] = [],
+        serial: list[str] = [],
         filter: str = "",
         verbose: bool = False,
         fail_fast: bool = False,
@@ -80,6 +83,7 @@ obj ServeConfig {
         main: bool = True,
         cl_route_prefix: str = "cl",
         base_route_app: str = "",
+        identity: str = "auto",
         on_conflict: str = "retry",
         conflict_max_attempts: int = 5,
         conflict_backoff_ms: int = 0;
@@ -144,7 +148,10 @@ obj ClientConfig {
 
 obj DevConfig {
     has jaclang_source: str = "",
-        test_jobs: str = "auto";
+        jobs: str = "",
+        test_jobs: str = "",
+        check_jobs: str = "",
+        fmt_jobs: str = "";
 }
 
 def interpolate_env_vars(value: str) -> str;
@@ -260,6 +267,10 @@ def get_config(
 ) -> JacConfig | None;
 
 def set_config(config: JacConfig | None) -> None;
+
+def pin_project_scope(config: JacConfig | None) -> None;
+
+def project_scope_is_pinned -> bool;
 
 def get_explicit_config -> JacConfig | None;
 

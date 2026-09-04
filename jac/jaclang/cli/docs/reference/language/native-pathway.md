@@ -395,7 +395,7 @@ Static strings have one constructor: a single helper builds the `{ i64 sentinel,
 
 ### Type Identity and Layout Authority
 
-The single authority for native type identity and layout is the layout registry (`LayoutRegistry` in `jaclang/compiler/passes/main/layout_pass.jac`), keyed by defining module + symbol. Archetype field order, inheritance topology, vtable shape, enum identity, and enum member value tables all resolve through it: native lowering asks the authority which module defines a type and reads that module's registry, so the order in which the native pass walks imported modules never changes the answer. A walk-order fuzz gate compiles the cross-module fixtures under forward, reversed, and shuffled module walk orders and requires identical IR.
+The single authority for native type identity and layout is the layout registry (`LayoutRegistry` in `jaclang/compiler/passes/layout_pass.jac`), keyed by defining module + symbol. Archetype field order, inheritance topology, vtable shape, enum identity, and enum member value tables all resolve through it: native lowering asks the authority which module defines a type and reads that module's registry, so the order in which the native pass walks imported modules never changes the answer. A walk-order fuzz gate compiles the cross-module fixtures under forward, reversed, and shuffled module walk orders and requires identical IR.
 
 Enum classes lower to their backing `i64` through one path: the authority predicate (`is_enum_class_type`) plus a defining-module lookup (`enum_decl_of`) that materializes the member value tables on demand. The native pass's `type_map` is a static primitive-name table seeded once from the type registry at pass construction; nothing registers into it during module walks, and a source-scan test enforces this.
 
@@ -748,7 +748,7 @@ with entry {
 }
 ```
 
-Fixed-width types (`f64`, `i32`, `c_void`, etc.) are only needed inside the `import from` declaration to match the C function's ABI signature. Everywhere else -- your own functions, variables, call sites -- you use standard Jac types (`int`, `float`, `str`, etc.) and the compiler handles coercion automatically.
+Inside the `import from` declaration, the fixed-width types (`f64`, `i32`, `c_void`, etc.) describe the C function's ABI signature. They are not interop-only vocabulary, though: the sized scalars are ordinary Jac types on every lane, usable in your own functions, variables, and call sites alongside `int`, `float`, and `str`. Conversions are explicit -- value-preserving widenings like `float -> f64` happen implicitly (which is why the `float`-typed code above can call `sqrt(x: f64)` directly), but a lossy conversion is a checked cast `T(x)`, never a silent coercion (`E1127`). See [Types and Values](types-and-values.md#fixed-width-semantics) for the full contract.
 
 ### Platform-neutral library names
 
@@ -828,7 +828,7 @@ Native Jac manages heap values (objects, strings, lists, dicts, sets) with **aut
 
 Under the managed modes (`cycles`, `rc`) a heap value carries a reference count that is incremented on copy and decremented when a reference goes out of scope; the value is freed when its count reaches zero, and its destructor releases field and element references in turn. A [`def drop` hook](ownership-borrowing.md#the-drop-hook) is invoked from the reference-count destructor -- for a uniquely-owned value at the same last-use point a zero-RC build drops at, so program output is identical across gc modes. Setting `JAC_NO_GC` in the environment disables reclamation in a managed-mode binary at runtime (memory is then never freed; useful for isolating memory-management bugs).
 
-There is a third allocation lane alongside reference counting and headerless owned codegen: objects, nodes, and edges constructed under an [`in <handle> { }` region open](ownership-borrowing.md#regions-first-class-region-handles-and-in-opens) bump-allocate into the handle's arena and are reclaimed wholesale -- one LIFO dtor-log walk plus a single bulk free -- at the handle's drop point. Arena-allocated values carry sentinel-stamped headers that make the managed modes' retain/release call sites inert on them, so regions and reference counting compose safely in the same module.
+There is a third allocation lane alongside reference counting and headerless owned codegen: objects, nodes, and edges constructed while an [`in <handle> { }` region open](ownership-borrowing.md#regions-first-class-region-handles-and-in-opens) is active on the current thread bump-allocate into the handle's arena and are reclaimed wholesale -- one LIFO dtor-log walk plus a single bulk free -- at the handle's drop point. Every heap construction reads the thread's current region (one thread-local load) and takes the arena arm when one is open; `managed(T(...))` skips that read. The arena itself is a Jac kernel unit, `runtime/region_native.jac`, linked into the module like the OSP kernel. Arena-allocated values carry sentinel-stamped headers that make the managed modes' retain/release call sites inert on them, so regions and reference counting compose safely in the same module.
 
 ### Zero-RC ownership compilation
 
@@ -845,7 +845,7 @@ jac nacompile service.jac --gc none --enforce-nogc --assert-no-rc
 Notes on the enforced world:
 
 - **The `managed()` membrane.** In an enforced module compiled under a managed gc mode, a heap value may cross out to unenforced (reference-counted) code only through the explicit `managed(x)` builtin at the boundary -- an implicit crossing is `E1403`, and sealing an owned value into managed storage is `E1402`. Under `--gc none` the artifact has no reference-counted side to cross into, so `managed()` of a heap value is itself rejected (`E1406`). Scalars and `imm` values cross freely everywhere, and on the Python backend `managed()` is the identity function.
-- **Region opens compile headerless.** An [`in <handle> { }` region open](ownership-borrowing.md#regions-first-class-region-handles-and-in-opens) is legal inside a nogc-enforced module: arena interiors compile without object headers, teardown at the handle's drop point is the same LIFO dtor-log walk plus one bulk free the managed modes observe, and the artifact stays `--assert-no-rc`-clean.
+- **Region opens are legal under enforcement.** An [`in <handle> { }` region open](ownership-borrowing.md#regions-first-class-region-handles-and-in-opens) is legal inside a nogc-enforced module: arena-resident values keep the arena header (which is how a statically placed `__drop_<T>` recognises a region-owned value and leaves it to the region), teardown at the handle's drop point is the same LIFO dtor-log walk plus one bulk free the managed modes observe, and the artifact stays `--assert-no-rc`-clean because the region kernel uses no reference counts.
 - **Unhandled exceptions abort.** In a nogc-enforced module, a `raise` with no local handler prints a diagnostic line and calls `abort()` rather than unwinding -- unwinding would require the managed runtime.
 - **Grandfathering.** `[gc.enforce] grandfathered` patterns exempt matching modules from enforcement so a codebase can adopt the contract incrementally.
 
@@ -871,7 +871,7 @@ These hooks exist only in native code. On the Python backend they have no runtim
 
 A move assignment `b = a` would normally emit a defensive `__rc_retain` on the source so that both slots can be released independently. When the move is the *last* use of `a`, that retain is pure overhead: the reference can simply be handed to `b` and the source slot nulled, so `a`'s later cleanup release loads null and is a no-op and the object is freed exactly once.
 
-The elision is proven by the core `RcFactsPass` (`passes/main/rc_facts_pass.jac`), a small intraprocedural pass scheduled unconditionally in the native codegen path -- *before* `NaIRGenPass`. It runs a backward-liveness proof on the compiler's shared dataflow framework and stamps `Assignment.na_move_lowerable`, which the backend's reference-count lowering consumes. The proof reads the AST and the core CFG and serves annotated and unannotated code alike; because it always runs on the native path, the elision is identical whether or not ownership diagnostics were displayed.
+The elision is proven by the core `RcFactsPass` (`passes/rc_facts_pass.jac`), a small intraprocedural pass scheduled unconditionally in the native codegen path -- *before* `NaIRGenPass`. It runs a backward-liveness proof on the compiler's shared dataflow framework and stamps `Assignment.na_move_lowerable`, which the backend's reference-count lowering consumes. The proof reads the AST and the core CFG and serves annotated and unannotated code alike; because it always runs on the native path, the elision is identical whether or not ownership diagnostics were displayed.
 
 It is deliberately conservative -- it proves only the safe case and retains everywhere else. An assignment `b = a` is elided only when:
 
@@ -917,7 +917,7 @@ Assert messages in native tests are limited to string literals: `assert cond, "m
 
 ## Build Options and Artifact Identity
 
-The single authority for codegen-affecting build options is the compile-options object (`CompileOptions` in `jaclang/jac0core/compile_options.jac`). It is constructed once at the CLI/program boundary and threaded to every compiler pass through the program; each option resolves as explicit argument, then environment override, then `jac.toml`, then built-in default. No compiler pass reads the environment directly; a source-scan test over `jaclang/compiler/passes/` enforces this.
+The single authority for codegen-affecting build options is the compile-options object (`CompileOptions` in `jaclang/compiler/driver/compile_options.jac`). It is constructed once at the CLI/program boundary and threaded to every compiler pass through the program; each option resolves as explicit argument, then environment override, then `jac.toml`, then built-in default. No compiler pass reads the environment directly; a source-scan test over `jaclang/compiler/passes/` enforces this.
 
 The codegen options carry a canonical identity string and a short hash of it, the codegen fingerprint. The fingerprint participates in artifact identity: it is folded into the JIR module cache key and into the native import IR cache key, so flipping any codegen option re-keys the artifact and a stale build is never served. Each native import artifact is stamped with the fingerprint of the options that built it; a cached module whose stamp disagrees with the current build is rejected with `E5027` instead of being linked into a mixed-options binary.
 
@@ -940,23 +940,21 @@ The codegen options carry a canonical identity string and a short hash of it, th
 | `JAC_DEBUG_IR` | (none) | Saves each module's generated IR as `<stem>.ll` in the native cache dir. |
 | `JAC_RC_STATS` | (none) | Prints the per-module rc-stats line to stderr. |
 | `JAC_NOGC_DEBUG` | (none) | Verbose ownership-enforcement logging to stderr. |
-| `JAC_NA_DEBUG` | (none) | Explains every native demotion: `NA_DEBUG demote <Type>.<method>` followed by the full diagnostics that made the method un-lowerable, and `NA_DEBUG raise <Type>.<method>` plus a Python traceback when the emitter raised. Forces the "native seam" warning on regardless of `[check] warn_native_seams`, and prints the traceback behind a failed seal canary. |
+| `JAC_NA_DEBUG` | (none) | Explains every native demotion: `NA_DEBUG demote <Type>.<method>` followed by the full diagnostics that made the method un-lowerable, and `NA_DEBUG raise <Type>.<method>` plus a Python traceback when the emitter raised. Forces the "native seam" warning on regardless of `[check] warn_native_seams`. |
 | `JAC_SYMMAP` | (none) | Writes a `<binary>.symmap` symbol map beside a linked ELF executable. |
 
-### Sealed compiler artifacts (no switches)
+### The native scope (no switches)
 
-There is deliberately **no environment switch** over the sealed tier:
-sealed means served (#8139). A jaclang image records the native roots it
-sealed in its manifest, and `load_image` refuses any image that cannot
-serve them on this host -- a missing, corrupt, or wrong-platform artifact
-is a named startup error, never a silent downgrade to bytecode. The
-bytecode tier exists only where no image exists (a dev source tree, which
-is the build stage itself) or where the platform has no native backend
-(Windows, recorded in the manifest as `skip_reason`). The historical
-`JAC_NO_SEAL` / `JAC_SEAL_NO_NATIVE` overrides are gone; setting either
-against a sealed image is itself a startup error. The payload build runs
-unsealed by construction: it removes any seeded manifest before the staged
-jaclang can probe for it and regenerates the manifest as its final act.
+The compiler modules served from `libjac_compiler` are listed explicitly in
+`jaclang/compiler/native_scope.jac` (`NATIVE_SCOPE`). A module is added when
+the full suite is green with it in and its equivalence fixture exists; the
+built image's manifest must agree with the file exactly
+(`tests/compiler/test_native_scope.jac`), and an empty scope is an image
+with no `native` record. Everything outside the scope runs as bytecode from
+the JIR image. There is no environment switch over the scope and no
+build-time gate: a demotion inside a scoped module is routing, reported,
+never a refusal. The historical `JAC_NO_SEAL` override is gone; setting it
+against a sealed image is itself a startup error.
 
 Toolchain location variables are read through the same boundary module, never inside passes: `JAC_LLVM_SHIM`, `JAC_LLVM_TYPED_POINTERS` (with `LLVMLITE_ENABLE_IR_LAYER_TYPED_POINTERS` honored as a fallback), `JAC_NATIVE_WASM_LIBC_DIR`, `JAC_NATIVE_MUSL_DIR`, `JAC_NATIVE_FLOOR_DIR`, `JAC_NATIVE_CA_BUNDLE`.
 
@@ -978,37 +976,13 @@ This produces a human-readable `.ll` file that can be inspected with any text ed
 
 ### Explaining a demotion
 
-A method the backend cannot lower is *demoted*: it falls back to its Python implementation while the rest of its class stays native. The build prints a one-line `warning: native seam -- demoting ...` for each. `JAC_NA_DEBUG=1` turns that line into the full story:
+A method the backend cannot lower is *demoted*: it falls back to its Python implementation while the rest of its class stays native. The build prints a one-line `⚠ native seam -- demoting ...` warning for each. `JAC_NA_DEBUG=1` turns that line into the full story:
 
 ```bash
 JAC_NA_DEBUG=1 jac nacompile program.jac
 ```
 
-Each demotion emits `NA_DEBUG demote <Type>.<method>` followed by every diagnostic that made the method un-lowerable, with source context. When the emitter raised outright rather than reporting a diagnostic, the line is `NA_DEBUG raise <Type>.<method>` followed by the Python traceback pointing at the codegen site. The flag also forces the seam warning on when `[check] warn_native_seams = false` would otherwise silence it, and prints the traceback behind a failed seal canary.
-
-### Sealed artifacts and demotion
-
-A demotion is only a speed cost while Python is still there to catch it. In a sealed AOT artifact it is not: the demoted method is emitted as an `abort()` stub, so the first call kills the process with no diagnostic. `seal_native_artifacts` therefore refuses to seal a module whose closure demoted anything, naming each offending method and the reason it could not lower. A demotion that is genuinely unreachable in the sealed build can be waived, but only by naming the method:
-
-```jac
-glob NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {
-    "jac0core/parser/parser.jac": ("jac0core/unitree.jac::UniNode.gen.__get__", )
-};
-```
-
-The key is the sealed module; each entry is `<module>::<Type>.<method>`, where the module is the one that actually demoted, given relative to the package root. The module half is required rather than cosmetic: a demotion one hop out in the closure can share a `Type.method` name with one in another module, and a bare name would waive both. The refusal diagnostic prints the exact string to paste in.
-
-Each waived method is announced on every seal, and a waiver that no longer matches a real demotion is reported as stale.
-
-The verdict must not depend on how warm the build cache is, so the gate is layered:
-
-- The seal compiles its closure with the native IR cache disabled. Transitive native imports are otherwise served straight from `<cache>/native/*.ir_cache`, which skips codegen for that module entirely, so its demotions would be recorded nowhere.
-- Independently of that, the seal scans the LLVM IR it is about to hand to the linker for the demotion stub signature (a function whose entire body is `call void @abort()` then `unreachable`) and refuses any it finds. This reads what actually ships, so it holds for every route into the artifact, not just the one the coverage report knows about.
-- A seal that refuses for any reason purges the native IR cache entries for its closure, so a failed build never leaves state that a later build could inherit. The cached IR itself is a faithful record of that compile, so it is not suppressed at write time -- a demoted method genuinely lowers to an abort stub in any native link, and skipping the cache write would silently disable caching for every module containing one.
-
-Before an artifact is written into `MANIFEST.json` it must also pass a load canary: the seal `dlopen`s the freshly linked library, checks that every export the layout advertises is really in it, runs `__jac_shared_init`, and calls a known-good runtime export. An artifact that cannot be loaded and called is deleted and the seal fails. The canary proves the artifact loads; it cannot prove the artifact is free of abort stubs, because an `abort()`-bodied function still resolves through `dlsym` and is never called. That is the scan's job.
-
-The canary's probe string is deliberately **not** released. `jac_release` reaches `__rc_release_simple`, which drops the refcount and, at zero, runs the type-tagged destructor and removes the object from the cycle collector's live list. Under the `cycles` GC mode the seal builds with, that machinery is set up for the module's own execution, not for a foreign `ctypes` caller that has only run `__jac_shared_init`: calling it on the sealed lexer segfaults at address 0 inside the artifact. One probe allocation per artifact, in a build step that exits moments later, is the cheaper of the two.
+Each demotion emits `NA_DEBUG demote <Type>.<method>` followed by every diagnostic that made the method un-lowerable, with source context. When the emitter raised outright rather than reporting a diagnostic, the line is `NA_DEBUG raise <Type>.<method>` followed by the Python traceback pointing at the codegen site. The flag also forces the seam warning on when `[check] warn_native_seams = false` would otherwise silence it.
 
 ### Bytecode Cache
 

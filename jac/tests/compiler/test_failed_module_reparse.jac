@@ -13,7 +13,7 @@ reloads) is covered in tests/runtimelib/test_hmr.jac.
 import tempfile;
 import jaclang;
 import from pathlib { Path }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob BROKEN_SRC = 'def broken_repro( -> {{{ SYNTAX ERROR\n',
      FIXED_SRC = 'def:pub broken_repro -> int {\n    return 7;\n}\n',
@@ -42,9 +42,7 @@ def _errors_for(target: str) -> int {
         prog = JacProgram();
         try {
             prog.compile(str(proj / target));
-        } except Exception {
-            ;
-        }
+        } except Exception {}
         return len(prog.errors_had);
     }
 }
@@ -63,17 +61,13 @@ test "a recompile still reports its errors to a positional slice reader" {
         prog = JacProgram();
         try {
             prog.compile(broken);
-        } except Exception {
-            ;
-        }
+        } except Exception {}
         # Callers like the client bundle mark the length, compile, then read
         # errors_had[mark:]. Evicting inside a compile empties that slice.
         mark = len(prog.errors_had);
         try {
             prog.compile(broken);
-        } except Exception {
-            ;
-        }
+        } except Exception {}
         assert len(prog.errors_had[mark:]) > 0 , "a failed recompile must still surface errors to a mark-and-slice caller";
     }
 }
@@ -85,9 +79,7 @@ test "a corrected module recompiles on a long-lived program" {
         prog = JacProgram();
         try {
             prog.compile(str(proj / "card.jac"));
-        } except Exception {
-            ;
-        }
+        } except Exception {}
         assert len(prog.errors_had) > 0;
         # No mtime spacing needed: invalidate_module drops the _hub_cache_times
         # stamp, and the on-disk JIR key hashes content rather than mtime.
@@ -109,9 +101,7 @@ test "a clean re-parse clears the failure flag" {
         prog = JacProgram();
         try {
             prog.compile(str(broken));
-        } except Exception {
-            ;
-        }
+        } except Exception {}
         assert prog.has_failed_parse(str(broken)) , "a failed parse must be recorded";
         broken.write_text(FIXED_SRC);
         prog.compile(str(broken));
@@ -134,9 +124,7 @@ test "dropping a module's alerts spares dotted-name neighbors" {
         for name in ("foo.jac", "foo.bar.jac") {
             try {
                 prog.compile(str(proj / name));
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
         import os;
         neighbor = os.path.realpath(str(proj / "foo.bar.jac"));
@@ -155,16 +143,14 @@ test "a failed parse is never written to the on-disk module cache" {
     # A cache hit replays no alerts, so serving a failed module's bytecode
     # from disk would report the import as clean. The write seam gates on
     # parse_failed, so the cache entry must simply never exist.
-    import from jaclang.jac0core.jir { get_module_cache_path }
+    import from jaclang.compiler.driver.jir { get_module_cache_path }
     with tempfile.TemporaryDirectory() as tmp {
         proj = _write_project(tmp);
         broken = str((proj / "broken.jac").resolve());
         prog = JacProgram();
         try {
             prog.compile(broken);
-        } except Exception {
-            ;
-        }
+        } except Exception {}
         mod = prog.mod.hub.get(JacProgram.hub_key(broken));
         assert mod is not None and mod.parse_failed , "fixture must produce a recorded failed parse";
         assert not get_module_cache_path(broken).exists() , "a parse_failed module must never reach the module cache";

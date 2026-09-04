@@ -12,14 +12,14 @@ import json;
 import from typing { get_type_hints }
 
 # ── identity ─────────────────────────────────────────────────────
-test "a sized value is an instance of its own class and of int or float" {
+test "a sized value is a plain int or float and carries no wrapper class" {
     x: i8 = 5;
-    assert type(x) is i8;
+    assert type(x) is int;
     assert isinstance(x, int);
-    assert type(i8(5)) is i8;
-    assert type(u64(7)) is u64;
+    assert type(i8(5)) is int;
+    assert type(u64(7)) is int;
     f: f32 = 1.5;
-    assert type(f) is f32;
+    assert type(f) is float;
     assert isinstance(f, float);
     assert i8.__name__ == "i8";
     assert str(i8(5)) == "5" and repr(u16(9)) == "9";
@@ -34,7 +34,7 @@ test "MIN and MAX are the inclusive bounds" {
     assert i32.MIN == -2147483648 and i32.MAX == 2147483647;
     assert u64.MAX == 18446744073709551615;
     assert i64.MIN == -9223372036854775808;
-    assert type(i8.MIN) is i8;
+    assert type(i8.MIN) is int;
 }
 
 # ── casts and wrap ───────────────────────────────────────────────
@@ -71,7 +71,7 @@ test "T.wrap(x) is two's-complement truncation and never traps" {
     assert u8.wrap(-1) == 255;
     assert i32.wrap(2147483648) == -2147483648;
     assert u64.wrap(-1) == 18446744073709551615;
-    assert type(u8.wrap(300)) is u8;
+    assert type(u8.wrap(300)) is int;
     assert i8.wrap(5.9) == 5;
 }
 
@@ -80,14 +80,14 @@ test "f32 rounds to binary32 on construction and after every operation" {
     assert float(f) == 0.10000000149011612;
     assert str(f) == "0.10000000149011612";
     assert float(f32(0.1) + f32(0.2)) == 0.30000001192092896;
-    assert type(f32(0.1) + f32(0.2)) is f32;
+    assert type(f32(0.1) + f32(0.2)) is float;
     d: f64 = 0.1;
     assert float(d) == 0.1;
     assert float(f64(0.1) + f64(0.2)) == 0.30000000000000004;
     assert f32(3e38) * f32(10.0) == float("inf");
     big: f64 = f32(1e30);
     assert float(big) == float(f32(1e30));
-    assert type(-f32(1.5)) is f32 and -f32(1.5) == -1.5;
+    assert type(-f32(1.5)) is float and -f32(1.5) == -1.5;
     assert abs(f32(-2.5)) == 2.5;
 }
 
@@ -115,7 +115,7 @@ test "sized arithmetic traps with OverflowError('integer overflow')" {
     }
     assert w == i32.MAX;
     assert i8(100) + i8(27) == 127;
-    assert type(i8(1) + i8(2)) is i8;
+    assert type(i8(1) + i8(2)) is int;
 }
 
 test "floor division, modulo and negation trap only at the signed edge" {
@@ -141,20 +141,20 @@ test "floor division, modulo and negation trap only at the signed edge" {
     with testraises(ZeroDivisionError) {
         _ = u8(1) / u8(0);
     }
-    assert -i8(5) == -5 and type(-i8(5)) is i8;
+    assert -i8(5) == -5 and type(-i8(5)) is int;
     assert abs(i8(-5)) == 5;
 }
 
 test "true division yields float for int-kinds and the sized float otherwise" {
     q = u32(7) / u32(2);
     assert q == 3.5 and type(q) is float;
-    assert type(f32(1.0) / f32(4.0)) is f32;
+    assert type(f32(1.0) / f32(4.0)) is float;
     assert f32(1.0) / f32(4.0) == 0.25;
 }
 
 test "power keeps the type for a non-negative int exponent and traps on overflow" {
     assert u8(2) ** 7 == 128;
-    assert type(u8(2) ** 7) is u8;
+    assert type(u8(2) ** 7) is int;
     with testraises(OverflowError) {
         _ = u8(2) ** 8;
     }
@@ -162,14 +162,14 @@ test "power keeps the type for a non-negative int exponent and traps on overflow
         _ = i64(3) ** 1000000;
     }
     assert i8(2) ** -1 == 0.5;
-    assert type(f32(2.0) ** f32(0.5)) is f32;
+    assert type(f32(2.0) ** f32(0.5)) is float;
 }
 
 test "shifts: arithmetic for signed, logical for unsigned, counts range-checked" {
     assert u8(255) >> 1 == 127;
     assert i8(-2) >> 1 == -1;
     assert u8(1) << 7 == 128;
-    assert type(u8(1) << 7) is u8;
+    assert type(u8(1) << 7) is int;
     with testraises(OverflowError, `match="integer overflow") {
         _ = u8(128) << 1;
     }
@@ -184,7 +184,7 @@ test "shifts: arithmetic for signed, logical for unsigned, counts range-checked"
     }
     n: int = 3;
     assert u8(1) << n == 8;
-    assert type(u8(1) << n) is u8;
+    assert type(u8(1) << n) is int;
     big_count: int = 8;
     with testraises(OverflowError, `match="shift count") {
         _ = u8(1) << big_count;
@@ -196,11 +196,11 @@ test "bitwise operators keep the width and ~ is the width mask on unsigned" {
     assert ~u8(0) == 255;
     assert ~u8(255) == 0;
     assert ~i8(0) == -1;
-    assert type(~u8(0)) is u8;
+    assert type(~u8(0)) is int;
     assert u8(240) & u8(15) == 0;
     assert u8(240) | u8(15) == 255;
     assert u8(255) ^ u8(15) == 240;
-    assert type(u8(240) & u8(15)) is u8;
+    assert type(u8(240) & u8(15)) is int;
     assert i8(-1) & i8(127) == 127;
 }
 
@@ -214,7 +214,7 @@ test "unsigned values compare as unsigned above the signed range" {
 # ── modular family ───────────────────────────────────────────────
 test "wrapping_* never trap and keep the operand type" {
     assert wrapping_add(i8(100), i8(100)) == -56;
-    assert type(wrapping_add(i8(100), i8(100))) is i8;
+    assert type(wrapping_add(i8(100), i8(100))) is int;
     assert wrapping_sub(u8(5), u8(6)) == 255;
     assert wrapping_mul(u8(16), u8(16)) == 0;
     assert wrapping_neg(i8.MIN) == i8.MIN;
@@ -241,8 +241,8 @@ test "a sized operand against a plain one yields the plain type and never traps"
     assert x + y == 300 and type(x + y) is int;
     assert x * 1000 == 100000;
     b: bool = True;
-    assert type(b + a) is i8 and b + a == 101;
-    assert type(a + b) is i8;
+    assert type(b + a) is int and b + a == 101;
+    assert type(a + b) is int;
     f: float = 1.5;
     g: f32 = 0.5;
     assert f + g == 2.0 and type(f + g) is float;
@@ -255,33 +255,33 @@ test "a sized operand against a plain one yields the plain type and never traps"
 test "a lattice widening produces a value of the wider type" {
     a: i8 = -5;
     w: i64 = a;
-    assert type(w) is i64 and w == -5;
+    assert type(w) is int and w == -5;
     u: u8 = 200;
     s: i16 = u;
-    assert type(s) is i16 and s == 200;
+    assert type(s) is int and s == 200;
     f: f32 = 1.5;
     d: f64 = f;
-    assert type(d) is f64 and d == 1.5;
+    assert type(d) is float and d == 1.5;
     p: float = f;
     assert type(p) is float;
     n: int = u;
     assert type(n) is int;
     mixed = a + w;
-    assert type(mixed) is i64 and mixed == -10;
+    assert type(mixed) is int and mixed == -10;
     half = u + 1;
-    assert type(half) is u8 and half == 201;
+    assert type(half) is int and half == 201;
 }
 
 test "literal adoption makes the literal the sized type" {
     x: i8 = 1;
-    assert type(x) is i8;
+    assert type(x) is int;
     y: u16 = 65535;
-    assert type(y) is u16;
+    assert type(y) is int;
     z: f32 = 0.1;
-    assert type(z) is f32;
-    assert type(x + 1) is i8;
-    assert type(1 + x) is i8;
-    assert type(x << 1) is i8;
+    assert type(z) is float;
+    assert type(x + 1) is int;
+    assert type(1 + x) is int;
+    assert type(x << 1) is int;
 }
 
 def takes_i64(v: i64) -> i64 {
@@ -299,11 +299,11 @@ def pixel_default(v: u8 = 9) -> u8 {
 test "call, return and default boundaries carry the target type" {
     a: i8 = 3;
     r = takes_i64(a);
-    assert type(r) is i64 and r == 3;
+    assert type(r) is int and r == 3;
     g = gives_u8();
-    assert type(g) is u8 and g == 7;
-    assert type(pixel_default()) is u8;
-    assert type(pixel_default(u8(1))) is u8;
+    assert type(g) is int and g == 7;
+    assert type(pixel_default()) is int;
+    assert type(pixel_default(u8(1))) is int;
 }
 
 # ── archetypes and serialization ─────────────────────────────────
@@ -315,7 +315,7 @@ obj Pixel {
 
 test "has fields with sized types resolve hints, serialize, and keep their class" {
     p = Pixel();
-    assert type(p.r) is u8 and type(p.g) is u8 and type(p.scale) is f32;
+    assert type(p.r) is int and type(p.g) is int and type(p.scale) is float;
     hints = get_type_hints(Pixel);
     assert hints["r"] is u8 and hints["scale"] is f32;
     assert json.dumps({"r": p.r, "g": p.g, "s": p.scale})
@@ -325,4 +325,35 @@ test "has fields with sized types resolve hints, serialize, and keep their class
         p.r = p.r + p.g;
     }
     assert p.r == 200;
+}
+
+test "augmented assignment is checked on names, fields and subscripts" {
+    obj Cell {
+        has v: i32 = 0;
+    }
+    w: i32 = i32.MAX;
+    with testraises(OverflowError) {
+        w += 1;
+    }
+    c = Cell(v=i32.MAX);
+    with testraises(OverflowError) {
+        c.v += 1;
+    }
+    lst: list[i32] = [i32.MAX];
+    with testraises(OverflowError) {
+        lst[0] += 1;
+    }
+    ok: i32 = i32(5);
+    ok += 3;
+    ok *= 2;
+    ok -= 1;
+    ok <<= 1;
+    assert ok == 30 and type(ok) is int;
+    fl: f32 = f32(0.1);
+    fl += f32(0.2);
+    assert fl == 0.30000001192092896;
+    u: u8 = u8(1);
+    with testraises(OverflowError) {
+        u -= 2;
+    }
 }

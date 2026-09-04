@@ -5,9 +5,9 @@ import glob;
 import tempfile;
 import from pathlib { Path }
 import from jaclang { JacRuntime as Jac }
-import from jaclang.jac0core.constant { Constants as Con }
-import from jaclang.runtimelib { sv_client as __jac_sv }
-import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
+import from jaclang.compiler.frontend.constant { Constants as Con }
+import from jaclang.server { sv_client as __jac_sv }
+import from jaclang.testing.testkit { ServingTestClient as TestClient }
 import from jaclang.scale.server.serve { JacAPIServer }
 
 glob FIXTURES: Path = Path(__file__).parent.parent / "fixtures" / "microservice";
@@ -368,9 +368,7 @@ test "peer url: a blank env value is never registered" {
 
         try {
             __jac_sv._ensure_available(_PROBE);
-        } except Exception {
-            ;
-        }
+        } except Exception {}
 
         assert _PROBE not in __jac_sv._registry , (
             "a blank override was cached as a registration"

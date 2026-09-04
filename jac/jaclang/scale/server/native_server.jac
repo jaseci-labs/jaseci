@@ -1,7 +1,7 @@
 import logging;
-import from jaclang.runtimelib.serving.app { ServingApp }
-import from jaclang.runtimelib.serving.endpoint { JEndPoint, WSEndPoint }
-import from jaclang.runtimelib.serving.server { ACCESS_LOGGER_NAME, ServingServer }
+import from jaclang.server.serving.app { ServingApp }
+import from jaclang.server.serving.endpoint { JEndPoint, WSEndPoint }
+import from jaclang.server.serving.server { ACCESS_LOGGER_NAME, ServingServer }
 
 
 glob logger: logging.Logger = logging.getLogger(__name__),
@@ -57,7 +57,7 @@ obj NativeJServer {
         _prebound_listen_socket: any = None;
 
     def postinit {
-        import from jaclang.jac0core.runtime { JacRuntime }
+        import from jaclang.runtime.runtime { JacRuntime }
         import from jaclang.scale.runtime.lifecycle.drain { build_drain_middleware }
         server = self;
 
@@ -142,19 +142,32 @@ obj NativeJServer {
                 {"http.method": request.method, "http.target": request.url.path}
             );
             user_id = request.state?.user_root_id if request?.state else None;
+            root_bind_error: any = None;
             if user_id {
                 root_ref: any = user_id;
+                ctx.mem.read_scope_enter();
                 try {
                     await ctx.aset_user_root(root_ref);
-                } except ValueError {
-                    logger.warning(
-                        f"Invalid user_root_id: {user_id}, using system root"
-                    );
+                } except (ValueError, RuntimeError) as bind_err {
+                    root_bind_error = bind_err;
+                } finally {
+                    ctx.mem.read_scope_exit();
                 }
             }
             try {
-                next_fn: any = call_next;
-                response = await next_fn(request);
+                if root_bind_error is not None {
+                    import from jaclang.scale.runtime.context.errors {
+                        identity_unresolvable
+                    }
+                    logger.error(
+                        f"refusing request for user_root_id {user_id}: "
+                        f"{type(root_bind_error).__name__}: {root_bind_error}"
+                    );
+                    response = identity_unresolvable(str(root_bind_error));
+                } else {
+                    next_fn: any = call_next;
+                    response = await next_fn(request);
+                }
                 if trace_id {
                     response.headers["X-Trace-Id"] = trace_id;
                 }
@@ -210,8 +223,8 @@ obj NativeJServer {
         self.app.add_ws_endpoint(WSEndPoint(path=path, handler=handler));
     }
 
-    def execute { }
-    def create_server { }
+    def execute {}
+    def create_server {}
     def run_server(
         host: str = '0.0.0.0',
         port: int = 8000,

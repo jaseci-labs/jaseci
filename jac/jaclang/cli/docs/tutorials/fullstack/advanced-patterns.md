@@ -10,7 +10,7 @@ These patterns are drawn from [JacBuilder](https://github.com/jaseci-labs/jacBui
 > - Time: ~30 minutes
 
 !!! note "Browser globals and `jac check`"
-    Most snippets on this page reference browser globals (`Reflect`, `WebSocket`, `console`, `JSON`, `URL`, `String`, `Date`, `window`, `document`, `setTimeout`, `requestAnimationFrame`, `Promise`, etc.). These are provided by the JS runtime when the file is bundled with `jac start`, but the static checker does not yet ship typed stubs for them, so isolated `jac check` runs flag those names as Unknown. The patterns work as written at runtime; typed stubs land with the browser-globals story tracked as a separate type-checker improvement.
+    Most snippets on this page reference browser globals (`Reflect`, `WebSocket`, `console`, `JSON`, `URL`, `String`, `Date`, `window`, `document`, `setTimeout`, `requestAnimationFrame`, `Promise`, etc.). These are provided by the JS runtime when the file is bundled with `jac run`, but the static checker does not yet ship typed stubs for them, so isolated `jac check` runs flag those names as Unknown. The patterns work as written at runtime; typed stubs land with the browser-globals story tracked as a separate type-checker improvement.
 
 ---
 
@@ -444,13 +444,14 @@ def:pub useSafeSubmit() -> any {
 
 ### Build Error Diagnostics
 
-When client builds fail, Jac provides structured error messages:
+When client builds fail, Jac classifies the bundler output and renders each error at its Jac location, using the same codes and renderer as the dev loop:
 
 | Code | Issue | Fix |
 |------|-------|-----|
-| `JAC_CLIENT_001` | Missing npm dependency | `jac install --npm <package>` |
-| `JAC_CLIENT_003` | Syntax error in client code | Check the source snippet in the error |
-| `JAC_CLIENT_004` | Unresolved import | Verify import path and package name |
+| `E7001` | Module has no such export | Import it with `import type`, or check the export name |
+| `E7002` | Unresolved import | Verify the import path, or declare the package and run `jac install` |
+| `E7004` | Vite rejected a module | Read the location the diagnostic names |
+| `E7005` | The build could not produce a loadable module | Run `jac check` on the file it names |
 
 Enable debug mode for raw Vite output:
 
@@ -463,7 +464,7 @@ debug = true
 Or via environment variable:
 
 ```bash
-JAC_DEBUG=1 jac start
+JAC_DEBUG=1 jac run
 ```
 
 ### Inspecting Generated JavaScript
@@ -506,7 +507,7 @@ myapp/
     └── utils.jac
 ```
 
-Within a feature the cross-codespace import is a sibling: `import from .posts { list_posts }`. Across packages, server modules should use the no-dot absolute form (`import from shared.utils { cn }`) - a `..` that climbs out of a feature folder works under `jac start` but fails `jac test <file>` with `attempted relative import beyond top-level package`.
+Within a feature the cross-codespace import is a sibling: `import from .posts { list_posts }`. Across packages, server modules should use the no-dot absolute form (`import from shared.utils { cn }`) - a `..` that climbs out of a feature folder works under `jac run` but fails `jac test <file>` with `attempted relative import beyond top-level package`.
 
 For a small app none of this applies: keep the files flat and skip the folders entirely.
 

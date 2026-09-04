@@ -115,7 +115,7 @@ def:pub use() -> str {
 
 Constructs outside the supported subset (generics, conditional/mapped types, `export *`, and similar) degrade to a declared foreign `any` at that boundary rather than failing the whole module. Imports with no declarations at all carry foreign `any` and surface **`W1102`** once; set **`[check] untyped-external = "error"`** in `jac.toml` to escalate those to **`E1120`**. Synthesized interface values use their declared structure: field access and matching interface annotations are checked precisely; whole-object assignment into an unrelated Jac type is rejected. Individual `any` fields on an interface still flow gradually, like other foreign sources. Assignments *into* an imported interface annotation remain strict.
 
-This is a type-checker feature only; bundling under `jac start` / `jac build` is unchanged.
+This is a type-checker feature only; bundling under `jac run` / `jac build` is unchanged.
 
 ### Include Statements
 
@@ -137,7 +137,7 @@ def:pub api_function -> None { }
 # Private to module
 def:priv internal_helper -> None { }
 
-# Public walker (becomes API endpoint with jac start)
+# Public walker (becomes API endpoint with jac run)
 walker:pub GetUsers { }
 
 # Private walker
@@ -163,7 +163,7 @@ node SecretData { has value: str; }
 
 > **Note on imports between two server modules.** When both the importer and the importee are server modules running as separate microservices (the importee is listed in `[scale.microservices.routes]`), the import generates HTTP client stubs instead of pulling the provider into the consumer's process. The same source also works as a monolith. See [Microservice Interop (sv-to-sv)](jac-scale-http.md#microservice-interop-sv-to-sv) in the Scale reference for details.
 
-### REST API with jac start
+### REST API with jac run
 
 Public walkers automatically become REST endpoints:
 
@@ -181,10 +181,10 @@ walker:pub GetUsers {
 Start the server:
 
 !!! note
-    `main.jac` is the default entry point. All `jac start` commands below omit the filename. If your entry point differs (e.g., `app.jac`), pass it explicitly: `jac start app.jac`.
+    `main.jac` is the default entry point. All `jac run` commands below omit the filename. If your entry point differs (e.g., `app.jac`), pass it explicitly: `jac run app.jac`.
 
 ```bash
-jac start --port 8000
+jac run --port 8000
 ```
 
 ### Typed Object Passing
@@ -1368,7 +1368,7 @@ _authToken = "${NODE_AUTH_TOKEN}"
 
 The `${NODE_AUTH_TOKEN}` syntax is resolved via the existing jac.toml environment variable interpolation. If the variable is not set at config load time, it passes through as a literal `${NODE_AUTH_TOKEN}` in the generated `.npmrc`, which npm and bun also resolve natively.
 
-The generated `.npmrc` is placed in `.jac/client/configs/` and is automatically applied when Jac installs dependencies (e.g., via `jac install --npm`, `jac start`, or `jac build`).
+The generated `.npmrc` is placed in `.jac/client/configs/` and is automatically applied when Jac installs dependencies (e.g., via `jac install --npm`, `jac run`, or `jac build`).
 
 ### Import Path Aliases
 
@@ -1528,7 +1528,7 @@ menuColor = "default"     # Menu color scheme
 
 | Key | Description | Examples |
 |-----|-------------|---------|
-| `style` | Component style variant -- read by `jac install --shadcn` to resolve bundled components | `"nova"`, `"vega"`, `"maia"`, `"lyra"`, `"mira"` |
+| `style` | Component style variant -- read by `jac install --shadcn` to resolve bundled components | `"nova"`, `"vega"`, `"maia"`, `"lyra"`, `"mira"`, `"luma"`, `"rhea"`, `"sera"` |
 | `baseColor` | Base neutral color palette | `"neutral"`, `"stone"`, `"zinc"`, `"gray"` |
 | `theme` | Accent/primary color | `"amber"`, `"blue"`, `"green"`, `"red"` |
 | `font` | Typography font family | `"figtree"` (default), `"inter"`, `"geist"`, `"outfit"` |
@@ -1611,7 +1611,7 @@ a stray space or quote cannot forge extra attributes, and a literal `</script>`
 in an inline body is escaped so it cannot close the tag early.
 
 Scripts are emitted after the title, meta, and link tags, in `jac build` output,
-`jac start`, and `jac start --dev` alike.
+`jac run`, and `jac run --dev` alike.
 
 ### API Base URL
 
@@ -1633,7 +1633,7 @@ Control minification in production builds:
 minify = true
 ```
 
-Defaults to `true` for `jac build` and `false` for `jac start --dev`.
+Defaults to `true` for `jac build` and `false` for `jac run --dev`.
 
 ### Base Path
 
@@ -1655,12 +1655,12 @@ Defaults to `"/"`. Can also be set to `"./"` for relative path resolution if nee
 | Command | Description |
 |---------|-------------|
 | `jac create myapp --kind web-static` | Create new full-stack project |
-| `jac start` | Start dev server |
-| `jac start --dev` | Dev server with HMR |
-| `jac start --client pwa` | Start PWA (builds then serves) |
-| `jac start --client desktop` | Start desktop app (see [jac-desktop](jac-desktop.md)) |
-| `jac start --client mobile` | Start mobile app on device/simulator |
-| `jac start --client react-native --dev` | Start React Native app with Fast Refresh |
+| `jac run` | Start dev server |
+| `jac run --dev` | Dev server with HMR |
+| `jac run --client pwa` | Start PWA (builds then serves) |
+| `jac run --client desktop` | Start desktop app (see [jac-desktop](jac-desktop.md)) |
+| `jac run --client mobile` | Start mobile app on device/simulator |
+| `jac run --client react-native --dev` | Start React Native app with Fast Refresh |
 | `jac build` | Build for production (web) |
 | `jac build --client desktop` | Build desktop app (see [jac-desktop](jac-desktop.md)) |
 | `jac build --client mobile` | Build mobile app (Android/iOS) |
@@ -1668,7 +1668,7 @@ Defaults to `"/"`. Can also be set to `"./"` for relative path resolution if nee
 | `jac setup react-native` | One-time React Native scaffold (`.jac/mobile-rn/`) |
 | `jac build --client pwa` | Build PWA with offline support |
 | `jac build --client static` | Build client-only app as a portable, self-contained page (opens from `file://`) |
-| `jac start --client static` | Serve a client-only app with a minimal static server |
+| `jac run --client static` | Serve a client-only app with a minimal static server |
 | `jac setup pwa` | One-time PWA setup (icons directory) |
 | `jac install --npm <pkg>` | Add npm package |
 | `jac install --npm --dev <pkg>` | Add npm dev dependency |
@@ -1683,7 +1683,7 @@ lodash = "^4.17.21"
 axios = "^1.6.0"
 ```
 
-**Core Dependencies**: The `jac-client-node` and `@jac-client/dev-deps` packages are required for all jac-client projects. If missing or outdated in `jac.toml`, they are automatically added or updated when the config is loaded (e.g., during `jac start`).
+**Core Dependencies**: The `jac-client-node` and `@jac-client/dev-deps` packages are required for all jac-client projects. If missing or outdated in `jac.toml`, they are automatically added or updated when the config is loaded (e.g., during `jac run`).
 
 For private packages from custom registries, see [NPM Registry Configuration](#npm-registry-configuration) above.
 
@@ -1746,7 +1746,7 @@ kind = "web-static"
 [client]
 ```
 
-With `kind = "web-static"` set, `jac build` and `jac start` auto-detect the
+With `kind = "web-static"` set, `jac build` and `jac run` auto-detect the
 client-only project and take the portable path -- no `--client static` flag
 required. An explicit non-web `--client <target>` (e.g. `--client pwa`)
 overrides the auto-detection.
@@ -1767,13 +1767,13 @@ blank page when double-clicked. The inlined `index.html` carries the bundle in
 the document itself, so it runs straight off disk -- e.g. attach it to an email
 or drop it on a USB stick.
 
-**`jac start` serves it with a minimal static server.** Because there is no
+**`jac run` serves it with a minimal static server.** Because there is no
 backend, the `static` target skips the full API server (no walkers, auth,
 database, or scheduler) and serves the dist with a tiny stdlib HTTP server:
 
 ```bash
-jac start                      # builds, then serves on http://localhost:8000/
-jac start -p 3000              # choose the port
+jac run                        # builds, then serves on http://localhost:8000/
+jac run -p 3000                # choose the port
 ```
 
 The static server also maps the conventional `/static/<name>.wasm` mount onto
@@ -1783,11 +1783,11 @@ runtime) is served correctly.
 !!! note "file:// vs. served"
     A pure client app opens straight from disk. An app that fetches a resource at
     runtime -- e.g. a native->wasm module at `/static/main.wasm` -- must be
-    *served* (`jac start` or any static host), because the browser cannot fetch
+    *served* (`jac run` or any static host), because the browser cannot fetch
     that resource over `file://`. `jac build` warns when code-splitting leaves
     chunks that the inlined page would need to fetch.
 
-For dev work, `jac start --dev` runs the Vite dev server with HMR exactly as for
+For dev work, `jac run --dev` runs the Vite dev server with HMR exactly as for
 the web target (no API server).
 
 ### jac setup
@@ -1827,7 +1827,7 @@ jac-client extends several core commands:
 |---------|-------------|-------------|
 | `jac create` | `--kind web-static` | Create full-stack project template |
 | `jac create` | `--skip` | Skip npm package installation |
-| `jac start` | `--client <target>` | Client build target for dev server |
+| `jac run` | `--client <target>` | Client build target for dev server |
 | `jac install` | `--npm` | Add npm (client-side) dependency |
 | `jac install` | `--npm --dev` | Add npm dev dependency |
 | `jac remove` | `--npm` | Remove npm (client-side) dependency |
@@ -1853,7 +1853,7 @@ Standard browser deployment using Vite:
 
 ```bash
 jac build                    # Build for web
-jac start --dev              # Dev server with HMR
+jac run --dev                # Dev server with HMR
 ```
 
 **Output:** `.jac/client/dist/` with `index.html`, bundled JS, and CSS.
@@ -1864,10 +1864,10 @@ The desktop targets ship with `jaclang` core (documented in the **[jac-desktop R
 
 ```bash
 jac build --client desktop
-jac start --client desktop
+jac run --client desktop
 
 jac build --client cef
-jac start --client cef
+jac run --client cef
 ```
 
 Use `desktop` for the OS-native webview. Use `cef` for a bundled
@@ -1905,8 +1905,8 @@ jac setup mobile --platform ios     # macOS only
 jac setup mobile --platform all     # both on macOS
 
 # 2. Development: build and launch on device/simulator
-jac start main.jac --client mobile                    # Android (default)
-jac start main.jac --client mobile --platform ios
+jac run --client mobile main.jac                      # Android (default)
+jac run --client mobile --platform ios main.jac
 
 # 3. Build for Android
 jac build --client mobile --platform android
@@ -1928,7 +1928,7 @@ app_name = "My App"
 app_id = "com.example.myapp"
 release = false          # true for release builds
 bundle = false           # true to produce AAB instead of APK (Android)
-default_platform = "android"  # default for jac start --client mobile
+default_platform = "android"  # default for jac run --client mobile
 ios_sdk = "iphonesimulator"   # or "iphoneos" for device builds
 ios_destination = "platform=iOS Simulator,name=iPhone 16,OS=latest"
 ```
@@ -1963,7 +1963,7 @@ A React Native app is a **mobUI** project: one source tree that compiles to both
 jac setup react-native
 
 # 2. Development: Fast Refresh on device/emulator
-jac start main.jac --client react-native --dev
+jac run --client react-native --dev main.jac
 # Metro serves both platforms; pick the device in the Expo CLI
 # (press `a` for Android, `i` for iOS simulator) or scan the QR in Expo Go.
 
@@ -1980,7 +1980,7 @@ jac build --client react-native --platform ios
 
 - Android: APK via `gradlew assembleDebug` (or EAS Build with `android_builder = "eas"`)
 - iOS: simulator `.app` bundle via `xcodebuild` on macOS -- `jac build` prints the
-  `xcrun simctl install booted <app>` command, and `jac start --client react-native`
+  `xcrun simctl install booted <app>` command, and `jac run --client react-native`
   builds, installs, and launches it for you; a distributable `.ipa` comes from the
   EAS Build path (`ios_builder = "eas"`)
 
@@ -1990,7 +1990,7 @@ jac build --client react-native --platform ios
 [client.react_native]
 project_dir = ".jac/mobile-rn"   # Expo project location (under the .jac build root; override to relocate)
 release = false                  # true for release variants
-default_platform = "android"     # platform used by plain `jac start --client react-native`
+default_platform = "android"     # platform used by plain `jac run --client react-native`
 android_builder = "gradle"       # "gradle" (local) or "eas" (EAS Build)
 ios_builder = "xcodebuild"       # "xcodebuild" (local, macOS) or "eas" (EAS Build)
 eas_profile = ""                 # "" -> "production" (release) / "preview" (debug)
@@ -2166,10 +2166,10 @@ jac setup pwa
 jac build --client pwa
 
 # Development (service worker disabled for better DX)
-jac start --client pwa --dev
+jac run --client pwa --dev
 
 # Production (builds PWA then serves)
-jac start --client pwa
+jac run --client pwa
 ```
 
 **Output:** Web bundle + `manifest.json` + `sw.js` (service worker)
@@ -2263,7 +2263,7 @@ This means spawning the same walker twice in quick succession only makes one API
 
 jac-client uses `BrowserRouter` for client-side routing, producing clean URLs like `/about` and `/users/123` instead of hash-based URLs like `#/about`.
 
-For this to work in production, your server must return the SPA HTML for all non-API routes. When using `jac start`, this is handled automatically -- the server's catch-all route serves the SPA HTML for extensionless paths, excluding API prefixes (`cl/`, `walker/`, `function/`, `user/`, `static/`).
+For this to work in production, your server must return the SPA HTML for all non-API routes. When using `jac run`, this is handled automatically -- the server's catch-all route serves the SPA HTML for extensionless paths, excluding API prefixes (`cl/`, `walker/`, `function/`, `user/`, `static/`).
 
 The Vite dev server is configured with `appType: 'spa'` for history API fallback during development.
 
@@ -2271,21 +2271,106 @@ The Vite dev server is configured with `appType: 'spa'` for history API fallback
 
 ## Build Error Diagnostics
 
-When client builds fail, jac-client displays structured error diagnostics instead of raw Vite/Rollup output. Errors include:
+When the client bundle fails to build at server startup, Jac classifies the raw Vite/Rollup output with the same engine the dev loop uses and renders each error with the `jac check` renderer. Errors include:
 
-- **Error codes** (`JAC_CLIENT_001`, `JAC_CLIENT_003`, etc.)
-- **Source snippets** pointing to the original `.jac` file location
-- **Actionable hints** and quick fix commands
+- **Error codes** from the `E7xxx` runtime catalog, the same ones the dev loop reports
+- **A Jac location** -- the `.jac` line the compiled artifact was lowered from -- or a note saying why one could not be derived
+- **The registry's help text**, including the `[dependencies.npm]` guidance for an undeclared package
 
 | Code | Issue | Example Fix |
 |------|-------|-------------|
-| `JAC_CLIENT_001` | Missing npm dependency | `jac install --npm <package>` |
-| `JAC_CLIENT_003` | Syntax error in client code | Check source snippet |
-| `JAC_CLIENT_004` | Unresolved import | Verify import path |
+| `E7001` | Module has no such export | Import it with `import type`, or check the export name |
+| `E7002` | Unresolved import | Verify the path, or declare the package and run `jac install` |
+| `E7004` | Vite rejected a module | Read the location the diagnostic names |
+| `E7005` | The build could not produce a loadable module | Run `jac check` on the file it names |
+
+Run `jac guide reference/diagnostics` for the full catalog.
 
 To see raw error output alongside formatted diagnostics, set `debug = true` under `[client]` in `jac.toml` or set the `JAC_DEBUG=1` environment variable.
 
 > **Note:** Debug mode is enabled by default for a better development experience. For production deployments, set `debug = false` in `jac.toml`.
+
+### Dev Loop Diagnostics
+
+Once the dev server is up, every failure the loop can see -- a Jac compile
+error, a Vite resolve failure, a module-link error in the browser, an uncaught
+exception with a stack -- is resolved back to a Jac location and reported as one
+diagnostic value. The terminal line uses the same renderer as `jac check`:
+
+```text
+error[E7001]: The module 'mermaid' has no export named 'Mermaid'
+  --> docs/MermaidDiagram.jac:1:44
+    1 | import from "mermaid" { default as mermaid, Mermaid }
+      |                                             ^
+help: ... import it with 'import type' ...
+```
+
+The Vite plugins forward raw payloads only, over the channel the jac process
+already reads: the dev server's stdout. Each event is one tagged JSON line --
+
+```text
+@@jac-client-event {"slot": "vite", "payload": { ... }}
+```
+
+-- in slot `vite`, `client` (a module-load failure), `runtime` (anything thrown
+after the app came up) or `ready` (the browser's clean-load beacon). A `null`
+payload clears its slot, and `ready` clears both browser slots. The jac process
+consumes those lines (they are never echoed to the terminal), classifies each
+one on arrival, renders it, and keeps the result in memory. The only file
+involved is the status document it writes:
+
+| File | Written by | Contents |
+|------|-----------|----------|
+| `.jac/client/.jac-status.json` | the jac dev server | the status document (below); absent when the build is healthy |
+
+A `runtime` event is reported to the terminal but does not mark the build
+broken, so it does not appear in the status document.
+
+The status document is also what `GET /__build_status` returns, on both the core
+server and the scale gateway:
+
+```json
+{
+  "status": "ok" | "compiling" | "error" | "unavailable",
+  "diagnostics": [
+    {
+      "code": "E7001",
+      "severity": "error",
+      "category": "runtime",
+      "message": "The module 'mermaid' has no export named 'Mermaid'",
+      "help": "...",
+      "file": "docs/MermaidDiagram.jac",
+      "line": 1,
+      "column": 44,
+      "channel": "browser",
+      "raw_location": "/.vite/deps/mermaid.js?v=0926aa4f",
+      "unmapped_reason": "",
+      "related": [{"label": "...", "file": "jac.toml", "line": 6, "column": 1}],
+      "stack": "",
+      "component_stack": "",
+      "resolved_stack": "",
+      "resolved_component_stack": "",
+      "rendered": "error[E7001]: ...\n  --> docs/MermaidDiagram.jac:1:44\n..."
+    }
+  ]
+}
+```
+
+`file` is relative to the project root and is never empty: when nothing on disk
+claims the reported location, it names the best-known Jac owner and
+`unmapped_reason` says why the mapping failed. `channel` is `jac`, `vite`,
+`browser` or `server`, and `raw_location` keeps the compiled/Vite/browser
+location the diagnostic was mapped from. A stack-bearing error carries both the
+browser's raw `stack` and the `resolved_stack` whose frames were mapped onto
+`.jac` files (and the same pair for React's component stack). The browser overlay renders the same
+value, and the `/cl/__error__` endpoint logs it through the same renderer in
+production. See [Errors and Warnings](../diagnostics.md#dev-loop-and-client-runtime-errors-e7xxx)
+for the code catalog.
+
+Locations come from the per-file source maps the client compiler writes beside
+each `compiled/*.js`. They are segment-level -- generated line *and* column,
+with a `names` array -- so a stack frame or an import specifier resolves to an
+exact `.jac` column, not merely to a line.
 
 ---
 
@@ -2320,16 +2405,16 @@ jac-client uses [Bun](https://bun.sh/) for package management and JavaScript bun
 
 ```bash
 # Basic
-jac start
+jac run
 
 # With hot module replacement
-jac start --dev
+jac run --dev
 
 # HMR without client bundling (API only)
-jac start --dev --no-client
+jac run --dev --no-client
 
 # Dev server for desktop target
-jac start --client desktop
+jac run --client desktop
 ```
 
 ### API Proxy
@@ -2641,7 +2726,7 @@ For more patterns, see the [Advanced Patterns & JS Interop tutorial](../../tutor
 
 ```bash
 # Enable with --dev flag
-jac start --dev
+jac run --dev
 ```
 
 Changes to `.jac` files automatically reload without restart.

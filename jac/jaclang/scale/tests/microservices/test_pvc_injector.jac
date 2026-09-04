@@ -5,6 +5,7 @@ import tempfile;
 import tomllib;
 import from pathlib { Path }
 import from jaclang.scale.injector.bundle { sanitized_jac_toml, pack_jab }
+import from jaclang.scale.tests.support { pod_binary, require_pod_binary }
 import from jaclang.scale.injector.pvc_injector {
     PvcInjector,
     build_bundle_pvc,
@@ -17,7 +18,7 @@ import from jaclang.scale.injector.pvc_injector {
 }
 
 
-glob _JAC_BIN: Path = Path(__file__).parents[4] / "zig-out" / "bin" / "jac";
+glob _JAC_BIN: Path = pod_binary();
 
 
 def _make_project(project: str, toml: str) {
@@ -38,9 +39,7 @@ def _sanitized_toml(project: str) -> dict {
 
 
 test "secrets are stripped and secret-bearing files excluded from the sealed .jab" {
-    if not _JAC_BIN.is_file() {
-        return;
-    }
+    require_pod_binary();
     with tempfile.TemporaryDirectory() as project {
         with open(os.path.join(project, "app.jac"), "w") as handle {
             handle.write("with entry { print(\"ok\"); }");
@@ -56,9 +55,8 @@ test "secrets are stripped and secret-bearing files excluded from the sealed .ja
                 "plugins.scale.secrets.jwt = \"topsecret\"\n"
                     + "[project]\nname = \"x\"\n"
                     + "[plugins.scale.database]\nurl = \"env:JAC_DB_URL\"\n"
-                    + "[plugins.scale]\n# nested creds annotation\nsecrets.token = \"nestedshh\"\n"
-                    + "[plugins.scale.secrets]\ndb_password = \"p@ssw0rd\"\n"
                     + "# s3 access creds\n[scale.secrets]\napi_key = \"shhhh\"\n"
+                    + "db_password = \"p@ssw0rd\"\ntoken = \"nestedshh\"\n"
             );
         }
         raw = pack_jab(project, _JAC_BIN.read_bytes());
@@ -81,6 +79,24 @@ test "secrets are stripped and secret-bearing files excluded from the sealed .ja
         assert "p@ssw0rd" not in toml_text;
         assert "shhhh" not in toml_text;
         assert "nestedshh" not in toml_text;
+    }
+}
+
+
+test "a dotted secret key inside a plugin table is stripped with its annotation" {
+    with tempfile.TemporaryDirectory() as project {
+        _make_project(
+            project,
+            "[project]\nname = \"x\"\n"
+                + "[plugins.scale]\n# nested creds annotation\nsecrets.token = \"nestedshh\"\n"
+                + "[plugins.scale.database]\nurl = \"env:JAC_DB_URL\"\n"
+        );
+        text = sanitized_jac_toml(Path(project)) or "";
+        assert "nestedshh" not in text , text;
+        assert "nested creds annotation" not in text , text;
+        data = tomllib.loads(text);
+        assert "secrets" not in data["plugins"]["scale"] , data;
+        assert data["plugins"]["scale"]["database"]["url"] == "env:JAC_DB_URL";
     }
 }
 

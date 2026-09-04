@@ -7,9 +7,9 @@ Python, uv, or pip** at install or runtime. Both halves are Jac:
 | Piece | Where | Tier |
 |---|---|---|
 | Launcher stub (`launcher.jac`) | this directory | native (`jac build --as native` / `nacompile`) |
-| Fused-runtime library | `jaclang/runtimelib/fused/` | native, shipped in the payload |
-| Payload tool (fetch, stage, precompile, pack) | `jaclang/payload/` | Python tier, run on the pbs CPython |
-| Bootstrap seed (`fetch_pbs.zig`), `pins.json` | `bootstrap/` | Zig + the pin file |
+| Fused-runtime library | `jaclang/dist/fused/` | native, shipped in the payload |
+| Payload tool (fetch, stage, precompile, pack) | `jaclang/dist/payload/` | Python tier, run on the pbs CPython |
+| Bootstrap seeds (`fetch_pbs.zig`, `fetch_typeshed.zig`), `pins.json` | `bootstrap/` | Zig + the pin files |
 | `build.zig` | `jac/` | the one-command entry; also the C/C++ cross-compiler for the LLVM shim and the vendored runtimes |
 
 Instead of statically linking CPython, the launcher **`dlopen`s the bundled
@@ -17,11 +17,11 @@ Instead of statically linking CPython, the launcher **`dlopen`s the bundled
 only libc (and `libdl` on Linux, so it also runs on glibc < 2.34); nothing
 Python is linked at build time.
 
-## The fused-runtime library (`jaclang/runtimelib/fused/`)
+## The fused-runtime library (`jaclang/dist/fused/`)
 
 | Module | Role |
 |---|---|
-| `trailer.jac` | The ONE definition of the on-disk trailer format (`JACBIN01` / `JABOVL01`, 80 bytes) and the `rt/<hash16>-<pathhash>` cache key. Pure Jac, so the same source binds on the native pathway (the stub) and the Python pathway (`jaclang.runtimelib.fused_binary`: `jac build --as binary`, the desktop graft, the payload tool's `pack`). |
+| `trailer.jac` | The ONE definition of the on-disk trailer format (`JACBIN01` / `JABOVL01`, 80 bytes) and the `rt/<hash16>-<pathhash>` cache key. Pure Jac, so the same source binds on the native pathway (the stub) and the Python pathway (`jaclang.dist.fused_binary`: `jac build --as binary`, the desktop graft, the payload tool's `pack`). |
 | `materialize.jac` | Find the trailer at the end of the running executable (stepping over a `.jab` overlay), resolve the cache dir (`$XDG_CACHE_HOME` / `$HOME/.cache` / per-uid tmp), and on first run verify (sha256) + extract the payload: `ZstdFile(io.BytesIO(payload))` into `tarfile.open(..., mode="r|").extractall()` -- the bundled native `compression.zstd` / `tarfile` / `io` modules, exactly what CPython would run. Per-pid temp dir, `.ok` marker, atomic rename, GC of this binary's older trees. |
 | `embed.jac` | dlopen the bundled libpython (`RTLD_NOW\|RTLD_GLOBAL`), bind the C-API the hosts use (`PyApi`: function-pointer fields filled by `dlsym`), and initialize through the PEP 741 init-config API: home, module search paths and program name go to CPython directly, never through the environment (#7047). Worker mode (`parse_argv`) and print-and-exit flags (`-V`, `-h`) are honoured. |
 | `bringup.jac` | `open_runtime(exe)` = materialize + dlopen; `engine_boot()` = the desktop host's bring-up (materialize, dlopen, init with no argv). |
@@ -31,7 +31,7 @@ Python is linked at build time.
 The OS-specific pieces are bundled native stdlib floors with per-OS variants
 (`na_stdlib/_dl_native.{linux,darwin}.jac`, `_exec_native.{linux,darwin}.jac`).
 
-The desktop host (`jaclang/runtimelib/client/targets/desktop`) imports the same
+The desktop host (`jaclang/client/targets/desktop`) imports the same
 library: the builder stages `fused/` beside the generated host so `import from
 fused.bringup { engine_boot }` resolves, and grafts the running jac's
 `[ payload ][ trailer ]` onto the host binary. There is no longer a
@@ -84,10 +84,16 @@ zig build -Dpayload=/tmp/p.tar.zst   # pack a prebuilt payload (skip fetch+assem
 zig build -Ddev                      # editable dev binary: link the compiler from this tree
 ```
 
-`zig build` first runs the Zig seed (`bootstrap/fetch_pbs.zig`: download, verify
-and extract the pinned python-build-standalone tree -- the one step that runs
-before any Python exists). Every other step runs the in-checkout compiler on that
-interpreter through the small boot program in `build.zig` (`JACBOOT_SRC`):
+`zig build` first runs the two Zig seeds: `bootstrap/fetch_pbs.zig` (download,
+verify and extract the pinned python-build-standalone tree) and
+`bootstrap/fetch_typeshed.zig` (the pinned typeshed stdlib stubs into
+`jaclang/vendor/typeshed/`). Those are the steps that run before any Jac does:
+the tooling needs the interpreter to run ON and the stubs to type-check
+AGAINST, so neither can be fetched by a Jac tool without the bootstrap eating
+its own tail (#8785). `JacTool.run` in `build.zig` depends on both, so the
+ordering holds for every tool invocation the build adds. Every other step runs
+the in-checkout compiler on that interpreter through the small boot program in
+`build.zig` (`JACBOOT_SRC`):
 `payload <subcommand>` for the Jac payload tool and `jac <args>` for the CLI,
 which is how the stub itself is built (`jac nacompile --strict launcher/launcher.jac`). No prior jac binary is needed; jaclang
 has no third-party runtime dependencies. The pins (pbs release, LLVM slices) live
@@ -101,7 +107,7 @@ Build-time host deps: `zig` + network (plus an optional, best-effort `strip`).
   the stub's closure would be demoted to Python-only; the stub must lower in
   full (a demoted function cannot run before CPython exists).
 * To boot a freshly built stub against an existing payload:
-  `jac run` a script that calls `jaclang.runtimelib.fused_binary.graft_runtime(<installed jac>, <stub copy>)`,
+  `jac run` a script that calls `jaclang.dist.fused_binary.graft_runtime(<installed jac>, <stub copy>)`,
   then run the copy with a fresh `HOME`.
 * `jac test jac/tests/payload/` covers the trailer codec, deterministic staging,
   frame routing and the payload CLI; the bundled `compression.zstd` / `tarfile`

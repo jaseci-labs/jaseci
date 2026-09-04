@@ -118,12 +118,13 @@
             { "title": "Comprehensions & Filters", "page": "reference/language/advanced.md" },
             { "title": "Walker Patterns", "page": "reference/language/walker-responses.md" },
             { "title": "Gradual Borrow Checking", "page": "reference/language/ownership-borrowing.md" },
+            { "title": "Compile-Time Evaluation", "page": "reference/language/comptime.md" },
             { "title": "Syntax Cheatsheet", "page": "reference/language/syntax-cheatsheet.md" }
           ]
         },
         { "title": "Native Compilation", "page": "reference/language/native-pathway.md" },
         {
-          "title": "Capabilities & Plugins",
+          "title": "Capabilities",
           "items": [
             { "title": "byLLM (Meaning Types, built-in)", "page": "reference/plugins/byllm.md" },
             {
@@ -132,11 +133,12 @@
                 { "title": "Overview", "page": "reference/plugins/jac-scale.md" },
                 { "title": "HTTP API & Walkers", "page": "reference/plugins/jac-scale-http.md" },
                 { "title": "Data & Storage", "page": "reference/plugins/jac-scale-persistence.md" },
+                { "title": "Scheduler & Background Jobs", "page": "reference/plugins/jac-scale-scheduler.md" },
                 { "title": "Kubernetes & Operations", "page": "reference/plugins/jac-scale-kubernetes.md" }
               ]
             },
-            { "title": "jac-client (Full-Stack)", "page": "reference/plugins/jac-client.md" },
-            { "title": "jac-desktop", "page": "reference/plugins/jac-desktop.md" }
+            { "title": "Client (Full-Stack, built-in)", "page": "reference/plugins/jac-client.md" },
+            { "title": "Desktop (built-in)", "page": "reference/plugins/jac-desktop.md" }
           ]
         },
         {
@@ -188,6 +190,7 @@
         { "title": "Ownership Checker Specification", "page": "internals/ownership-checker-spec.md" },
         { "title": "Import Patterns", "page": "internals/jac_import_patterns.md" },
         { "title": "Compiler Architecture", "page": "internals/compiler_architecture.md" },
+        { "title": "The Analysis Cache", "page": "internals/analysis-cache.md" },
         { "title": "Cross-Codespace Interop", "page": "internals/interop.md" },
         { "title": "Region-Granular Persistence Design", "page": "internals/region-persistence-design.md" },
         { "title": "Compact Codegen IR", "page": "internals/codegen-ir.md" }

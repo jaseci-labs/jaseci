@@ -1,4 +1,4 @@
-"""A microservice config error must stop `jac start`, not silently start the
+"""A microservice config error must stop `jac run --serve`, not silently start the
 app as a monolith. The route-name guard raises ValueError for a route that
 collides with a gateway builtin; before the fix, scale_start swallowed every
 exception from route resolution and fell through to single-process serving
@@ -42,7 +42,7 @@ test "a reserved route name stops startup loudly instead of serving a monolith" 
     project_dir = _bad_route_project();
     try {
         result = subprocess.run(
-            [jac_executable(), "start", "main.jac"],
+            [jac_executable(), "run", "--serve", "main.jac"],
             capture_output=True,
             text=True,
             cwd=str(project_dir),

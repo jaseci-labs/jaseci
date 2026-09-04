@@ -130,7 +130,7 @@ impl WebSocket.recv -> (str | bytes) {
 impl WebSocket.close{
     try {
         self.send(bytes(), opcode=OP_CLOSE);
-    } except OSError { }
+    } except OSError {}
     self.sock.close();
 }
 
@@ -355,7 +355,7 @@ impl _calibrate_viewport(port: int, w: int, h: int) {
             }
         );
         bcdp.close();
-    } except Exception { }
+    } except Exception {}
 }
 
 impl launch(session: str = "default", viewport: str = "1280x720") -> dict {
@@ -364,7 +364,7 @@ impl launch(session: str = "default", viewport: str = "1280x720") -> dict {
         try {
             _http_json(st["port"], "/json/version");
             return st;
-        } except OSError { }
+        } except OSError {}
     }
     cache = get_cache_dir();
     cache.mkdir(parents=True, exist_ok=True);
@@ -883,7 +883,7 @@ impl cmd_sessions(session: str) -> str {
             lines.append(
                 f"{marker} {st.get('session')}  pid={st['pid']} port={st['port']} [{status}]"
             );
-        } except Exception { }
+        } except Exception {}
     }
     return "\n".join(lines) if lines else "(no sessions)";
 }
@@ -893,7 +893,7 @@ impl cmd_close(session: str) -> str {
     if st and _pid_alive(st["pid"]) {
         try {
             os.kill(st["pid"], 15);
-        } except OSError { }
+        } except OSError {}
     }
     _state_path(session).unlink(missing_ok=True);
     _refs_path(session).unlink(missing_ok=True);

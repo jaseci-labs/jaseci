@@ -1,5 +1,5 @@
 import from jaclang.scale.shared.utils { authenticate_or_fail }
-import from jaclang.runtimelib.pgwire { PgWireError }
+import from jaclang.data.pgwire { PgWireError }
 
 def _err_response(e: Exception) -> TransportResponse {
     if isinstance(e, (PgWireError, OSError)) {

@@ -29,7 +29,9 @@ impl interpolate_env_vars(value: str) -> str {
 }
 
 impl find_project_root(start: Path | None = None) -> tuple[Path, Path] | None {
-    import from jaclang.jac0core.modresolver { find_project_root as _find_project_root }
+    import from jaclang.compiler.driver.modresolver {
+        find_project_root as _find_project_root
+    }
     return _find_project_root(start);
 }
 
@@ -82,7 +84,7 @@ impl JacConfig.discover(
 }
 
 impl JacConfig.load(toml_path: Path) -> JacConfig {
-    import from jaclang.jac0core.tomlio { read_toml_with_encoding }
+    import from jaclang.project.tomlio { read_toml_with_encoding }
     if not toml_path.exists() {
         raise FileNotFoundError(f"Configuration file not found: {toml_path}");
     }
@@ -264,7 +266,7 @@ impl JacConfig.apply_profile_overlay(profile_name: str | None = None) -> None {
 }
 
 impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
-    import from jaclang.jac0core.tomlio { read_toml_with_encoding }
+    import from jaclang.project.tomlio { read_toml_with_encoding }
     if not toml_path.exists() {
         return;
     }
@@ -481,8 +483,8 @@ impl JacConfig.save -> None {
     old_doc: dict[str, any] = {};
     if self.toml_path.exists() {
         import tomllib;
-        import from jaclang.jac0core.helpers { read_file_with_encoding }
-        import from jaclang.jac0core.tomlio { MalformedJacTomlError }
+        import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
+        import from jaclang.project.tomlio { MalformedJacTomlError }
         text = read_file_with_encoding(str(self.toml_path));
         try {
             old_doc = tomllib.loads(text);
@@ -1221,6 +1223,9 @@ impl _parse_toml_data(
         test_data = data["test"];
         config.`test = TestConfig(
             directory=test_data.get("directory", ""),
+            directories=[str(_d) for _d in test_data.get("directories", [])],
+            isolate=[str(_p) for _p in test_data.get("isolate", [])],
+            serial=[str(_p) for _p in test_data.get("serial", [])],
             filter=test_data.get("filter", ""),
             verbose=test_data.get("verbose", False),
             fail_fast=test_data.get("fail_fast", False),
@@ -1245,6 +1250,7 @@ impl _parse_toml_data(
             main=serve_data.get("main", True),
             cl_route_prefix=serve_data.get("cl_route_prefix", "cl"),
             base_route_app=serve_data.get("base_route_app", ""),
+            identity=str(serve_data.get("identity", "auto")),
             on_conflict=on_conflict,
             conflict_max_attempts=serve_data.get("conflict_max_attempts", 5),
             conflict_backoff_ms=serve_data.get("conflict_backoff_ms", 0)
@@ -1316,7 +1322,10 @@ impl _parse_toml_data(
 
         config.dev = DevConfig(
             jaclang_source=str(dev_data.get("jaclang_source", "")),
-            test_jobs=str(dev_data.get("test_jobs", "auto"))
+            jobs=str(dev_data.get("jobs", "")),
+            test_jobs=str(dev_data.get("test_jobs", "")),
+            check_jobs=str(dev_data.get("check_jobs", "")),
+            fmt_jobs=str(dev_data.get("fmt_jobs", ""))
         );
     }
     _warn_legacy_plugins_table(data);
@@ -1372,7 +1381,7 @@ impl _interpolate_recursive(`obj: any) -> any {
 impl get_config(
     start_path: Path | None = None, force_discover: bool = False
 ) -> JacConfig | None {
-    if _config is None or force_discover {
+    if (_config is None and not _config_explicit) or force_discover {
         _config = JacConfig.discover(start_path=start_path);
 
         _config_explicit = False;
@@ -1382,6 +1391,18 @@ impl get_config(
         }
     }
     return _config;
+}
+
+impl pin_project_scope(config: JacConfig | None) -> None {
+    _config = config;
+
+    _config_explicit = True;
+
+    _config_by_root = {};
+}
+
+impl project_scope_is_pinned -> bool {
+    return _config_explicit;
 }
 
 impl set_config(config: JacConfig | None) -> None {

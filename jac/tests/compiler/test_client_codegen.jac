@@ -6,10 +6,10 @@ import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import from tempfile { NamedTemporaryFile, TemporaryDirectory }
 import jaclang;
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURE_DIR = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "ecmascript", "fixtures"
+         JAC_ROOT, "tests", "compiler", "backends", "es", "fixtures"
      ),
      _test_tmp_dir: str = tempfile.mkdtemp(prefix="jac_test_codegen_"),
      _client_tmp_dir: str = os.path.join(_test_tmp_dir, "client");
@@ -172,7 +172,7 @@ test "jac call function sends params directly" {
     # shared core runtime; the per-framework shim re-exports it.
     runtime_path = (
         Path(jaclang.__file__).resolve().parent
-        / "runtimelib"
+        / "client"
         / "impl"
         / "client_runtime_core.impl.jac"
     );
@@ -344,9 +344,7 @@ def slow_op() -> int {
     prog = JacProgram();
     try {
         compile_inline(code, prog=prog, client=True);
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     msgs = " ".join([str(e) for e in prog.errors_had]);
     assert "Client pathway does not yet support flow/wait concurrency" in msgs , f"client-placed flow/wait must be diagnosed, got: {msgs[0:600]}";
 }

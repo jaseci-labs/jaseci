@@ -33,7 +33,7 @@ def _serve_spec(payload: dict, delay: float = 0.0) -> tuple {
         handler_self.wfile.write(body);
     }
 
-    def _log_quiet(handler_self: any, fmt: str, *args: any) { }
+    def _log_quiet(handler_self: any, fmt: str, *args: any) {}
 
     handler_cls = type(
         "_SpecHandler",

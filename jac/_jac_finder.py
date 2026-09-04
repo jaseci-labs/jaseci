@@ -22,7 +22,7 @@ def _find_project_toml() -> str | None:
     """Walk up from the cwd to the nearest ``jac.toml``; return its path or None.
 
     Deliberate plain-Python MIRROR of the single canonical resolver
-    ``jaclang.jac0core.helpers.find_project_root``. It cannot import that one
+    ``jaclang.compiler.frontend.helpers.find_project_root``. It cannot import that one
     because this module runs during ``sitecustomize``/launcher boot, BEFORE
     ``import jaclang`` is possible -- it is what sets jaclang up. Keep the walk
     semantics (nearest jac.toml, cwd-anchored at boot) in lockstep with the
@@ -46,7 +46,7 @@ def _baked_source_dir() -> str | None:
 
     ``zig build -Ddev`` / ``-Djaclang-dir=PATH`` ships a payload WITHOUT a
     bundled ``jaclang`` and writes the absolute compiler path into a
-    ``jac_linked_source`` file beside this module (see ``jaclang.payload``
+    ``jac_linked_source`` file beside this module (see ``jaclang.dist.payload``
     ``mkPayload``). Reading it here makes such a binary reroute to live source
     from ANY directory, with no ``[dev]`` ``jac.toml`` stanza in scope. The file
     is one line of plain text; absent on a normal (self-contained) binary.
@@ -102,6 +102,29 @@ def _inherited_dev_source() -> str | None:
     return None
 
 
+def _is_bare_checkout(src_dir: str) -> bool:
+    """Whether ``src_dir`` holds the compiler's source but not its typeshed stubs.
+
+    A git checkout carries ``jaclang/`` but not ``jaclang/vendor/typeshed/stdlib``:
+    the stdlib stubs are gitignored and materialized by ``zig build
+    fetch-typeshed`` (part of a plain ``zig build``). The type checker loads
+    ``builtins.pyi`` / ``typing.pyi`` from that directory for every compile, so
+    rerouting into a tree that never ran the build step breaks the first
+    compile with ``Stub file not found``. That tree is a fresh clone met with a
+    released binary -- how a quickstart reader arrives at a repo whose
+    ``jac.toml`` ships a ``[dev]`` stanza for its contributors -- and the loop
+    must refuse it rather than crash. A directory with no ``jaclang/`` at all is
+    not "bare"; the caller already skips those silently.
+    """
+    if not os.path.isdir(os.path.join(src_dir, "jaclang")):
+        return False
+    return not os.path.isfile(
+        os.path.join(
+            src_dir, "jaclang", "vendor", "typeshed", "stdlib", "builtins.pyi"
+        )
+    )
+
+
 def apply_dev_source_override() -> None:
     """Reroute ``import jaclang`` to an in-repo source tree -- an editable dev loop.
 
@@ -141,6 +164,11 @@ def apply_dev_source_override() -> None:
     scope -- used by CI jobs that must exercise the shipped binary's bundled +
     precompiled jaclang rather than the checked-out source tree.
 
+    A jac.toml or inherited source is applied only when its tree is
+    materialized (see ``_is_bare_checkout``); a bare clone is refused with a
+    note and the bundled compiler serves. A baked link is never refused: a
+    linked binary has no bundled compiler to fall back on.
+
     Caches: sets ``JAC_NO_PRECOMPILE=1`` so the shipped, version-keyed
     ``_precompiled`` JIR bundle is skipped. The per-module ``.jir`` cache is
     content-keyed (``compute_module_key`` folds the source sha256), so source
@@ -161,6 +189,14 @@ def apply_dev_source_override() -> None:
         toml_src: str | None = None
         if not os.environ.get("JAC_NO_DEV_SOURCE"):
             toml_src = _dev_source_from_toml() or _inherited_dev_source()
+            if toml_src is not None and _is_bare_checkout(toml_src):
+                sys.stderr.write(
+                    f"jac: ignoring [dev] jaclang_source {toml_src}: the tree has "
+                    "no typeshed stdlib stubs (run `zig build fetch-typeshed` in "
+                    "that checkout to use its compiler); the bundled compiler "
+                    "serves this run.\n"
+                )
+                toml_src = None
         src_dir = toml_src or _baked_source_dir()
         if src_dir is None:
             return

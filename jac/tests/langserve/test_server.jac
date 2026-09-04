@@ -6,21 +6,21 @@ import sys;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from tests.support { JAC_ROOT }
-import from tests.compiler.passes.main.checker_npm_harness { make_npm_client_project }
+import from tests.compiler.passes.checker_npm_harness { make_npm_client_project }
 
-import jaclang.lsp.types as lspt;
+import jaclang.lsp.protocol.types as lspt;
 
 import jaclang;
-import from jaclang.langserve.engine { JacLangServer }
-import from jaclang.lsp { uris }
-import from jaclang.lsp.server { Workspace }
+import from jaclang.lsp.server.engine { JacLangServer }
+import from jaclang.lsp.protocol { uris }
+import from jaclang.lsp.protocol.server { Workspace }
 
 glob FIXTURE_DIR = os.path.join(
          os.path.dirname(os.path.abspath(__file__)), "fixtures"
      ),
      EXAMPLES_DIR = os.path.join(JAC_ROOT, "examples"),
      PASSES_FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"
+         JAC_ROOT, "tests", "compiler", "passes", "fixtures"
      ),
      _active_servers: list = [];
 
@@ -54,7 +54,7 @@ def teardown_test {
         with contextlib.suppress(Exception) as _s {
             server.shutdown();
         }
-        server.clear_type_system(clear_hub=True);
+        server.program.clear_type_system(clear_hub=True);
     }
     _active_servers.clear();
     _clear_jac_modules();
@@ -270,22 +270,22 @@ test "test_go_to_definition_md_path" {
             (6, 17, "concurrent/__init__.pyi:0:0-0:0"),
             (6, 28, "concurrent/futures/__init__.pyi:0:0-0:0"),
             (7, 17, "typing.pyi:0:0-0:0"),
-            (9, 18, "jaclang/jac0core/__init__.py:0:0-0:0"),
-            (9, 25, "jaclang/jac0core/unitree.jac:0:0-0:0"),
+            (9, 18, "jaclang/compiler/__init__.py:0:0-0:0"),
+            (9, 34, "jaclang/compiler/frontend/unitree.jac:0:0-0:0"),
             # jaclang/__init__.py now exposes JacRuntimeInterface lazily via
             # PEP 562 __getattr__ (no static import binding), so go-to-def
             # resolves to the module file at 0:0-0:0 instead of a line.
             (10, 34, "jaclang/__init__.py:"),
-            (11, 35, "jaclang/jac0core/constant.jac:0:0-0:0"),
-            (11, 47, "jaclang/jac0core/constant.jac:2:5-2:15"),
-            (13, 47, "jaclang/compiler/type_system/type_utils.jac:0:0-0:0"),
-            (14, 34, "jaclang/compiler/type_system/__init__.py:0:0-0:0"),
-            (18, 5, "compiler/type_system/types.jac:37:4-37:12"),
-            (20, 34, "jaclang/jac0core/unitree.jac:0:0-0:0"),
+            (11, 40, "jaclang/compiler/frontend/constant.jac:0:0-0:0"),
+            (11, 51, "jaclang/compiler/frontend/constant.jac:2:5-2:15"),
+            (13, 40, "jaclang/compiler/types/type_utils.jac:0:0-0:0"),
+            (14, 34, "jaclang/compiler/types/__init__.py:0:0-0:0"),
+            (18, 5, "compiler/types/types.jac:59:5-59:13"),
+            (20, 40, "jaclang/compiler/frontend/unitree.jac:0:0-0:0"),
             (22, 22, "tests/langserve/fixtures/circle.jac:7:5-7:8"),
-            (23, 28, "jaclang/lsp/uris.jac:0:0-0:0"),
-            (24, 40, "jaclang/lsp/server.jac:93:4-93:18"),
-            (26, 31, "jaclang/lsp/types.jac:0:0-0:0"),
+            (23, 37, "jaclang/lsp/protocol/uris.jac:0:0-0:0"),
+            (24, 44, "jaclang/lsp/protocol/server.jac:93:4-93:18"),
+            (26, 31, "jaclang/lsp/protocol/types.jac:0:0-0:0"),
 
         ];
 
@@ -437,7 +437,7 @@ test "test_missing_mod_warning" {
             "fixtures/md_path.jac, line 27, col 8: Module not found",
 
         ];
-        warnings_str = [str(w) for w in lsp.warnings_had];
+        warnings_str = [str(w) for w in lsp.program.warnings_had];
         for expected in expected_warnings {
             assert any(expected in w for w in warnings_str) , f"Expected warning '{expected}' not found in {warnings_str}";
         }
@@ -1399,7 +1399,7 @@ test "test_jir_cache_invalidated_on_version_mismatch" {
     import struct;
     import tempfile;
     import shutil;
-    import from jaclang.jac0core.jir {
+    import from jaclang.compiler.driver.jir {
         get_module_cache_path,
         is_module_cache_valid,
         HEADER_FMT,
@@ -1410,8 +1410,8 @@ test "test_jir_cache_invalidated_on_version_mismatch" {
     try {
         # A full compile writes the bytecode module cache; dependency loads
         # derive trees per process and persist nothing (#8190).
-        import from jaclang.jac0core.compiler { JacCompiler }
-        import from jaclang.jac0core.program { JacProgram }
+        import from jaclang.compiler.driver.compiler { JacCompiler }
+        import from jaclang.compiler.driver.program { JacProgram }
         dep_src = fixture_path("cross_module_func.jac");
         JacCompiler().get_bytecode(dep_src, JacProgram());
         cache_path = get_module_cache_path(dep_src);
@@ -1436,7 +1436,7 @@ test "test_jir_cache_invalidated_on_version_mismatch" {
 }
 
 test "test_cross_module_imported_func_sem_token" {
-    import from jaclang.jac0core.constant { JacSemTokenType }
+    import from jaclang.compiler.frontend.constant { JacSemTokenType }
     setup_test();
     try {
         lsp = create_server();
@@ -1480,6 +1480,23 @@ test "test_format_document_lintfix" {
         expected = open(fixture_path("format_lintfix_expected.jac")).read();
         assert lintfixed == expected , (
             f"Lintfix output does not match expected.\nGOT:\n{lintfixed}\nEXPECTED:\n{expected}"
+        );
+    } finally {
+        teardown_test();
+    }
+}
+
+test "an embedded server leaves the process's root logger level alone" {
+    import logging;
+    root_logger = logging.getLogger();
+    before = root_logger.level;
+    setup_test();
+    try {
+        create_server(FIXTURE_DIR);
+        assert root_logger.level == before , (
+            f"JacLangServer() moved the root logger level from {before} to "
+            f"{root_logger.level}; quieting the process belongs to the stdio "
+            "entry point, not the engine"
         );
     } finally {
         teardown_test();

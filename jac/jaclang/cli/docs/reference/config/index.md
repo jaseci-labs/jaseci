@@ -58,7 +58,7 @@ You typically don't need to modify this file until you add dependencies or custo
 
 ### [project]
 
-Project metadata. `entry-point` drives `jac run`. `jac-version` pins the Jac toolchain the project targets: `jac create` stamps it automatically, and `jac start --scale` uses it to select the pod runtime (see [jac-version](#jac-version) below). Publishing fields (`license`, `readme`, `keywords`, `requires-python`, `authors`, `maintainers`, and `[project.include]`) are used by `jac build --as wheel` when building a distributable wheel. All publishing fields are optional -- a project that is never published only needs `name`.
+Project metadata. `entry-point` drives `jac run`. `jac-version` pins the Jac toolchain the project targets: `jac create` stamps it automatically, and `jac scale deploy` uses it to select the pod runtime (see [jac-version](#jac-version) below). Publishing fields (`license`, `readme`, `keywords`, `requires-python`, `authors`, `maintainers`, and `[project.include]`) are used by `jac build --as wheel` when building a distributable wheel. All publishing fields are optional -- a project that is never published only needs `name`.
 
 ```toml
 [project]
@@ -89,7 +89,7 @@ repository = "https://github.com/user/repo"
 | `description` | string | One-line summary (also shown on PyPI) |
 | `entry-point` | string | Main file for `jac run` (default: `main.jac`) |
 | `kind` | string | Project kind that drives `jac run` dispatch (execute / serve / build). Empty = inferred from the entry-point codespace. One of: `cli`, `cli-native`, `native-binary`, `native-lib`, `service`, `service-mesh`, `py-package`, `js-package`, `web-app`, `web-static`, `desktop`, `mobile` |
-| `jac-version` | string | Jac toolchain version the project targets, as a PEP 440-style specifier. `jac create` stamps `==<current>`; at `jac start --scale` the pod runtime binary, admin console, and base image are all taken from the release that satisfies it, and the deploy aborts if none does. See [jac-version](#jac-version). |
+| `jac-version` | string | Jac toolchain version the project targets, as a PEP 440-style specifier. `jac create` stamps `==<current>`; at `jac scale deploy` the pod runtime binary, admin console, and base image are all taken from the release that satisfies it, and the deploy aborts if none does. See [jac-version](#jac-version). |
 | `license` | string | SPDX license identifier (e.g. `"MIT"`) |
 | `readme` | string | Path to README file (default: `README.md`) |
 | `requires-python` | string | Minimum Python version (e.g. `">=3.14"`) -- the wheel carries bytecode precompiled for the CPython the `jac` binary bundles, so a lower floor than that cannot load it |
@@ -110,7 +110,7 @@ jac-version = "==0.34.3"
 
 You can widen or move it by editing the value -- `>=0.34.3`, `<=0.34.3`, `>=0.34,<0.35`, `~=0.34.3`, or a bare `0.34.3` (same as `==`).
 
-At deploy time (`jac start --scale`), the pin selects the **pod runtime**: the deployer downloads the released `jac` binary, admin console, and base image from the release that satisfies `jac-version` and ships them to the pods, so the app runs on the toolchain it was built against -- not on whatever `latest` happens to be. Resolution rules:
+At deploy time (`jac scale deploy`), the pin selects the **pod runtime**: the deployer downloads the released `jac` binary, admin console, and base image from the release that satisfies `jac-version` and ships them to the pods, so the app runs on the toolchain it was built against -- not on whatever `latest` happens to be. Resolution rules:
 
 - **Unset** -> the latest published release.
 - **Exact pin** (`==X` / `X`) -> the `vX` release.
@@ -163,8 +163,8 @@ Optional dependency groups that users can install on demand with `jac install --
 
 ```toml
 [optional-dependencies.data]
-pymongo = ">=4.0,<5.0"
-redis = ">=7.0,<8.0"
+pandas = ">=2.0,<3.0"
+pyarrow = ">=17.0,<19.0"
 
 [optional-dependencies.monitoring]
 prometheus-client = ">=0.21.0,<1.0.0"
@@ -216,7 +216,7 @@ The CLI flag `-e` / `--diagnostics` overrides this setting.
 
 ### [serve]
 
-Defaults for `jac start`:
+Defaults for `jac run`:
 
 ```toml
 [serve]
@@ -226,6 +226,19 @@ main = true              # Run as main module
 cl_route_prefix = "cl"   # URL prefix for client apps
 base_route_app = ""      # Client app to serve at /
 
+# Which identity stack owns /user/* -- register, login, tokens, and the
+# credential store behind them. "auto" is the scale (Postgres) identity when
+# the scale stack is configured for the project, and the core identity
+# (sqlite .jac/data/main.db) when it is not. Serving is itself one of the
+# things that configures it: `jac run --serve` turns the scale runtime on, so
+# under "auto" a served project always gets the scale identity, whether or not
+# it names a database. Set identity = "core" to serve from the core store
+# instead. The setting is resolved for the project being served rather than
+# the current directory, and a scale stack that will not import fails the boot
+# instead of quietly serving the other store, which holds none of the same
+# accounts. JAC_IDENTITY_BACKEND overrides it for one run.
+identity = "auto"        # "auto" | "core" | "scale"
+
 # Optimistic-concurrency policy for concurrent check-then-create races
 # (see Persistence -> Concurrent writes).
 on_conflict = "retry"        # "retry": abort + replay so the loser converges
@@ -233,6 +246,19 @@ on_conflict = "retry"        # "retry": abort + replay so the loser converges
 conflict_max_attempts = 5    # max walker/function attempts under "retry"
 conflict_backoff_ms = 0      # linear backoff between replay attempts (0 = none)
 ```
+
+`identity` decides which stack owns `/user/*`, and with it which database the
+credentials live in: the scale identity keeps them in Postgres as `scrypt$`
+hashes, the core identity in sqlite at `.jac/data/main.db`. The two never share
+rows, so moving between them strands every account that already exists -- which
+is why an unrecognized value, an unreadable `jac.toml`, and a scale stack that
+will not import are all refused rather than resolved to something. Under `auto`
+the answer depends on whether the scale runtime is on for the project, and
+serving turns it on: a served project gets the scale identity even with no
+`[scale.database]` url. The same project asked outside a serving process (a
+direct `identity_owner()` or `Jac.get_user_manager` call, which nothing in the
+tree does today) answers `core`, because nothing has turned the scale runtime
+on there. Pin `identity` explicitly if a project needs the same answer in both.
 
 `on_conflict` controls what happens when two concurrent requests race a "look it up, create it if missing" against the same node and the loser's commit is rejected. `retry` (default) re-runs the request against the now-current graph so it converges on the winner's node; `fail` surfaces a typed `409 write_conflict` for the client to handle. See [Persistence -> Concurrent writes: check-then-create](../persistence.md#concurrent-writes-check-then-create-and-convergence) for the full model.
 
@@ -403,8 +429,8 @@ select = ["combine-has", "remove-empty-parens"]
 | `simplify-ternary` | `W3008` | Simplify `x if x else default` to `x or default` | default |
 | `remove-future-annotations` | `W3009` | Remove `import from __future__ { annotations }` (not needed in Jac) | default |
 | `fix-impl-signature` | `W3010` | Fix signature mismatches between declarations and implementations | default |
-| `remove-import-semi` | `W3011` | Remove trailing semicolons from `import from X { ... }` | default |
 | `no-print` | `E3012` | Error on bare `print()` calls (use console abstraction instead) | all |
+| `remove-redundant-semi` | `W3013` | Remove standalone no-op semicolons from any body (`{;}` → `{}`, `x = 1;;` → `x = 1;`); `remove-import-semi` is an accepted alias for this rule | default |
 | `strip-comments` | `W3050` | Remove **all** comments | opt-in |
 | `strip-docstrings` | `W3051` | Remove **all** docstrings | opt-in |
 
@@ -789,7 +815,7 @@ jac run --no-cache main.jac
 jac test --verbose -x
 
 # Override serve settings
-jac start --port 3000
+jac run --port 3000
 ```
 
 ---
@@ -859,7 +885,7 @@ test_fixtures/
 
 Each line is a filename or pattern that should be skipped during Jac compilation passes (type checking, formatting, etc.). Blank lines and `#` comments are ignored; a pattern containing `/` is matched against the path relative to the project root, a bare pattern against any path component.
 
-A `--scale` deploy reads the same file when it stages the app bundle, so a parked tree is not copied to the pods and is never compiled there. Because `.jacignore` itself ships in the bundle, editing it changes the bundle's content address and the next deploy re-ships.
+A `jac scale deploy` reads the same file when it stages the app bundle, so a parked tree is not copied to the pods and is never compiled there. Because `.jacignore` itself ships in the bundle, editing it changes the bundle's content address and the next deploy re-ships.
 
 ---
 
@@ -873,7 +899,9 @@ A `--scale` deploy reads the same file when it stages the app bundle, so a parke
 | `NO_EMOJI` | Disable emoji in terminal output |
 | `JAC_PROFILE` | Activate a configuration profile (e.g., `production`) |
 | `JAC_BASE_PATH` | Override base directory for data/storage |
-| `JAC_DATA_PATH` | Override the base directory for application data (graph storage, user db) |
+| `JAC_DATA_PATH` | Override the base directory for application data (graph storage, user db, dev signing secret) |
+| `JAC_IDENTITY_BACKEND` | Which stack owns `/user/*` for one run: `auto` (default), `core`, or `scale`. Overrides `[serve] identity` |
+| `JAC_SCALE_RUNTIME` | Set to `1` by the serving path; under `auto` it is what makes a served project use the scale identity |
 | `JACPATH` | Colon-separated extra search path for Jac module resolution (like `PYTHONPATH`) |
 | `JAC_SCHEMA_REPAIR` | Schema-drift handling on load: `repair` (default) or `strict` |
 | `JAC_STRICT_PERMISSIONS` | Enable strict permission checking for security-sensitive operations (`1`/`true`) |
@@ -894,10 +922,9 @@ A `--scale` deploy reads the same file when it stages the app bundle, so a parke
 | `JAC_CACHE_HOME` | Root of the machine-wide jac cache; the shared embedded Postgres cluster lives in `<JAC_CACHE_HOME>/pg/main` (default `~/.cache/jac`) |
 | `JAC_DB_RETENTION_DAYS` | Drop databases unused for this many days when the embedded cluster starts; overrides `[database] retention_days`, unset means never |
 | `JAC_DB_SCRATCH` | `1` makes this process open one throwaway database that is dropped when it exits, instead of a per-project one (used by the test runner and deploy staging) |
-| `FIRESTORE_PROJECT_ID` | Firestore / Firebase project ID |
-| `FIREBASE_PROJECT_ID` | Shared Firebase project ID fallback for Auth SSO, Firestore, Storage |
+| `FIREBASE_PROJECT_ID` | Shared Firebase project ID fallback for Auth SSO and Storage |
 
-Project ID vars (`FIREBASE_AUTH_PROJECT_ID`, `FIRESTORE_PROJECT_ID`, `JAC_STORAGE_FIREBASE_PROJECT_ID`, `JAC_STORAGE_GCS_PROJECT_ID`) override `FIREBASE_PROJECT_ID` when set.
+Project ID vars (`FIREBASE_AUTH_PROJECT_ID`, `JAC_STORAGE_FIREBASE_PROJECT_ID`, `JAC_STORAGE_GCS_PROJECT_ID`) override `FIREBASE_PROJECT_ID` when set.
 
 ### Scale: Authentication
 

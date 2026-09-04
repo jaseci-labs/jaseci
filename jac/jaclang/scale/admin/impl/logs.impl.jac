@@ -3,10 +3,10 @@ import json as json_module;
 import logging;
 import time;
 import re;
-import from jaclang.runtimelib.serving.datatypes { Request }
-import from jaclang.runtimelib.serving.datatypes { JSONResponse }
-import from jaclang.runtimelib.transport { TransportResponse }
-import from jaclang.runtimelib.serving.endpoint {
+import from jaclang.server.serving.datatypes { Request }
+import from jaclang.server.serving.datatypes { JSONResponse }
+import from jaclang.server.transport { TransportResponse }
+import from jaclang.server.serving.endpoint {
     HTTPMethod,
     JEndPoint,
     APIParameter,
@@ -178,7 +178,7 @@ def _build_logql(
 
 
 async def _loki_request(path: str, params: dict) -> dict {
-    import from jaclang.runtimelib.serving.client { ClientConnectionError, arequest }
+    import from jaclang.server.serving.client { ClientConnectionError, arequest }
     base = _loki_base_url();
     url = f"{base}{path}";
     try {
