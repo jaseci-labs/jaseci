@@ -375,6 +375,11 @@ impl NaIRGenExceptions._codegen_try(nd: uni.TryStmt) -> None {
         else self.builder.alloca(exc_state_type, name="exc.state");
 
     self.builder.call(self._exc_push_fn, [exc_state]);
+    _i64_rd = ir.IntType(64);
+    _rgn_depth_slot = self._stack_entry_alloca(_i64_rd, "rgn.depth.slot")
+        if _in_gen
+        else self.builder.alloca(_i64_rd, name="rgn.depth.slot");
+    self.builder.store(self._region_depth(), _rgn_depth_slot);
 
     env_ptr = self.builder.gep(
         exc_state, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="env.ptr"
@@ -422,6 +427,7 @@ impl NaIRGenExceptions._codegen_try(nd: uni.TryStmt) -> None {
     }
 
     self.builder.position_at_end(dispatch_bb);
+    self._region_unwind(self.builder.load(_rgn_depth_slot, name="rgn.depth"));
 
     exc_type_ptr = self.builder.gep(
         exc_state, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="exc.type.ptr"

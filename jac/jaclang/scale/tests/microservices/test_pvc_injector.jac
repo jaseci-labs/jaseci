@@ -5,7 +5,7 @@ import tempfile;
 import tomllib;
 import from pathlib { Path }
 import from jaclang.scale.injector.bundle { sanitized_jac_toml, pack_jab }
-import from jaclang.scale.tests.support { pod_binary }
+import from jaclang.scale.tests.support { pod_binary, require_pod_binary }
 import from jaclang.scale.injector.pvc_injector {
     PvcInjector,
     build_bundle_pvc,
@@ -39,9 +39,7 @@ def _sanitized_toml(project: str) -> dict {
 
 
 test "secrets are stripped and secret-bearing files excluded from the sealed .jab" {
-    if not _JAC_BIN.is_file() {
-        return;
-    }
+    require_pod_binary();
     with tempfile.TemporaryDirectory() as project {
         with open(os.path.join(project, "app.jac"), "w") as handle {
             handle.write("with entry { print(\"ok\"); }");

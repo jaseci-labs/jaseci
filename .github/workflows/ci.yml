@@ -936,25 +936,56 @@ jobs:
             "requests>=2.32.0,<3.0.0" \
             --global
 
-      # Fullstack smoke on the in-tree jaclang.org site
-      # (jac/examples/jaclang_org). JAC_NO_DEV_SOURCE=1 (job env) so the
-      # site's [dev] stanza is ignored and the sealed kit binary is what gets
-      # validated, not a live-source reroute.
-      - name: Install site deps (first run pulls npm deps)
-        working-directory: jac/examples/jaclang_org
-        run: jac install
+      # Fullstack smoke on the jaclang.org site, scaffolded the way the README
+      # quickstart tells a user to. `jac create <name> --awesome` dumps the copy
+      # of jac/examples/jaclang_org that the payload bundles beside the jaclang
+      # package (awesome_template) and pulls its npm deps. Running the
+      # scaffolded copy instead of the checkout is what exercises the bundling
+      # step and the template resolver (the [dev] stanza is dropped, the
+      # project is renamed); nothing else in CI runs that path. Because the
+      # template ships inside the binary, the binary and the site it serves are
+      # version-matched by construction, which is why the old happy-path lane
+      # (released binary against main's clone) no longer had a quickstart to
+      # validate. JAC_NO_DEV_SOURCE=1 (job env) so the sealed kit binary is
+      # what gets validated, not a live-source reroute.
+      - name: Scaffold the site (jac create --awesome; pulls npm deps)
+        run: jac create site --awesome
+
+      # `jac create` reports a failed dependency install as a next step, not a
+      # non-zero exit, so check the scaffold before serving it: the failure
+      # should name the quickstart step, not a missing module at bundle time.
+      - name: Verify the scaffold came from the bundled template
+        run: |
+          test -f site/main.jac && test -f site/game/arena.jac \
+            || { echo "::error::scaffold is missing the site's entry or the wasm game"; exit 1; }
+          # Client npm deps live under the project's build dir (.jac/client),
+          # not a top-level node_modules; that is where the vite bundler looks.
+          test -d site/.jac/client/node_modules/vite \
+            || { echo "::error::jac create did not pull the site's npm deps (no vite under site/.jac/client/node_modules)"; exit 1; }
+          if grep -q '^\[dev\]' site/jac.toml; then
+            echo "::error::the [dev] live-source stanza leaked into the scaffold"; exit 1
+          fi
+          grep -q '^name = "site"' site/jac.toml \
+            || { echo "::error::the scaffold was not renamed to the project name"; exit 1; }
+          cmp jac/examples/jaclang_org/assets/og-card.png site/assets/og-card.png \
+            || { echo "::error::a binary asset did not survive the template round trip"; exit 1; }
+          echo "scaffold matches the README quickstart"
 
       - name: Type check the site
-        working-directory: jac/examples/jaclang_org
+        working-directory: site
         run: jac check main.jac
 
       # The docs section reads the corpus bundled with the jac binary under
       # test in-process (jaclang.cli.guide_store), so the docs journey stop is
       # hermetic with no extra setup.
+      # The site declares [scale.microservices.routes] for the cut it wants
+      # when deployed, so a bare `jac run --serve` there is the gateway
+      # topology. This lane smokes the single-process serving stack; the
+      # gateway topology gets its own pass over the same journey below.
       - name: Start site server in background
-        working-directory: jac/examples/jaclang_org
+        working-directory: site
         run: |
-          timeout 1200 jac run --serve main.jac > /tmp/site-server.log 2>&1 &
+          timeout 1200 jac run --serve --no-ms main.jac > /tmp/site-server.log 2>&1 &
           SERVER_PID=$!
           echo "SITE_PID=$SERVER_PID" >> $GITHUB_ENV
           echo "site server starting with PID $SERVER_PID..."
@@ -1033,7 +1064,7 @@ jobs:
         if: failure()
         run: |
           pip install py-spy >/dev/null 2>&1 || true
-          for p in $(pgrep -f "jac run --serve main.jac"); do
+          for p in $(pgrep -f "jac run --serve"); do
             echo "=== py-spy dump pid $p ==="
             sudo env "PATH=$PATH" py-spy dump --pid "$p" --nonblocking || true
           done
@@ -1062,6 +1093,83 @@ jobs:
             sleep 3
             kill -9 ${{ env.SITE_PID }} 2>/dev/null || true
           fi
+
+      # The other topology for the same site: `jac run --ms` puts the gateway
+      # in front of one subprocess per declared service, with the entry
+      # module's service owning the project root. The journey below is the
+      # same one the single-process lane just ran, so the two lanes assert the
+      # same site, including the closing console-error sweep.
+      - name: Start the site behind the microservice gateway
+        working-directory: jac/examples/jaclang_org
+        env:
+          JAC_DOCS_LOCAL: ${{ github.workspace }}
+        run: |
+          timeout 1800 jac run --serve --ms --port 8000 main.jac \
+            > /tmp/site-ms.log 2>&1 &
+          MS_PID=$!
+          echo "MS_PID=$MS_PID" >> $GITHUB_ENV
+          echo "gateway starting with PID $MS_PID..."
+          sleep 10
+          if ! kill -0 $MS_PID 2>/dev/null; then
+            echo "Gateway process died during startup"
+            cat /tmp/site-ms.log
+            exit 1
+          fi
+
+      - name: Wait for the gateway to be ready
+        run: |
+          for i in $(seq 1 90); do
+            if ! kill -0 ${{ env.MS_PID }} 2>/dev/null; then
+              echo "Gateway exited unexpectedly"
+              tail -100 /tmp/site-ms.log
+              exit 1
+            fi
+            if curl -sf --max-time 10 http://localhost:8000/health -o /dev/null; then
+              echo "gateway is ready (attempt $i)"
+              exit 0
+            fi
+            echo "Attempt $i/90: gateway not ready, waiting 15s..."
+            sleep 15
+          done
+          echo "Gateway failed to answer after 90 attempts"
+          tail -200 /tmp/site-ms.log
+          exit 1
+
+      - name: Browse the site through the gateway (full journey)
+        timeout-minutes: 20
+        env:
+          SITE_JOURNEY_ARTIFACTS: /tmp
+        run: bash scripts/site-browse-journey.sh http://localhost:8000
+
+      - name: Dump gateway and service thread stacks on failure
+        if: failure()
+        run: |
+          pip install py-spy >/dev/null 2>&1 || true
+          for p in $(pgrep -f "jac run --serve"); do
+            echo "=== py-spy dump pid $p ==="
+            sudo env "PATH=$PATH" py-spy dump --pid "$p" --nonblocking || true
+          done
+
+      - name: Gateway and service logs
+        if: always()
+        run: |
+          echo "=== gateway ==="
+          tail -200 /tmp/site-ms.log || true
+          for f in jac/examples/jaclang_org/.jac/logs/*.log; do
+            echo "=== $f ==="
+            tail -80 "$f" || true
+          done
+
+      - name: Stop the microservice gateway
+        if: always()
+        run: |
+          jac browse close 2>/dev/null || true
+          if [ -n "${{ env.MS_PID }}" ]; then
+            kill ${{ env.MS_PID }} 2>/dev/null || true
+            sleep 5
+            kill -9 ${{ env.MS_PID }} 2>/dev/null || true
+          fi
+          pkill -f "jac run --serve --port 1" 2>/dev/null || true
 
       - name: Create fullstack project and eject it
         run: |

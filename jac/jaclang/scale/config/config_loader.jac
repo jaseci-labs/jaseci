@@ -36,7 +36,6 @@ def normalize_microservices_config(
 ) -> dict[str, any];
 
 glob _scale_config_instance: JacScaleConfig | None = None,
-     _ms_enabled_deprecation_warned: bool = False,
      _placeholder_jwt_secret_warned: bool = False,
      _minted_jwt_secret_announced: bool = False;
 
