@@ -361,11 +361,7 @@ impl ReactNativeTarget._compile_native_jac_modules(
         );
     }
     compiled_dir.mkdir(parents=True, exist_ok=True);
-    (_, mod, _) = jac_compiler.jac_compiler.compile_module(entry_file);
-    if not mod {
-        raise RuntimeError(f"Failed to compile client entry module: {entry_file}");
-    }
-    jac_compiler.compile(mod, entry_file, target_name="react-native");
+    jac_compiler.compile(None, entry_file, target_name="react-native");
     console.print("  ✔ Jac modules compiled with native runtime", style="success");
     return (jac_compiler, compiled_dir);
 }

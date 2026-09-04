@@ -431,9 +431,7 @@ test "nested client entry stages deps at project-relative paths, not flat" {
     with tempfile.TemporaryDirectory() as tmp {
         proj = Path(str(tmp)).resolve();
         (compiler, `entry) = _nested_entry_project(proj);
-        (_, mod, _) = compiler.jac_compiler.compile_module(`entry);
-        assert mod is not None;
-        compiler.compile(mod, `entry, target_name="web");
+        compiler.compile(None, `entry, target_name="web");
         out = proj / "out";
         assert (out / "apps" / "mobile" / "main.js").exists() , (
             "nested entry must compile to its project-relative path"
@@ -473,9 +471,7 @@ test "entry outside the project dir stages relative to its own folder" {
         compiler.compiled_dir = proj / "out";
         # project_dir deliberately does not contain the entry.
         compiler.project_dir = proj / "unrelated";
-        (_, mod, _) = compiler.jac_compiler.compile_module(`entry);
-        assert mod is not None;
-        compiler.compile(mod, `entry, target_name="web");
+        compiler.compile(None, `entry, target_name="web");
         out = proj / "out";
         assert (out / "main.js").exists() , (
             "entry must still stage relative to its own folder"
@@ -1370,9 +1366,9 @@ test "compiler resolves .native.jac when target is react-native" {
         jac_compiler = vite_compiler.jac_client_compiler;
         compiled_dir = jac_compiler.compiled_dir;
         compiled_dir.mkdir(parents=True, exist_ok=True);
-        (_, mod, _) = jac_compiler.jac_compiler.compile_module(entry_file);
-        if mod {
-            jac_compiler.compile(mod, entry_file, target_name="react-native");
+        artifact = jac_compiler.jac_compiler.compile_module(entry_file);
+        if artifact.js {
+            jac_compiler.compile(None, entry_file, target_name="react-native");
 
             # The native variant should have been picked. Verify by checking
             # the compiled header.js for native-only content.
@@ -1398,9 +1394,9 @@ test "compiler resolves .native.jac when target is react-native" {
             }
             compiled_dir.mkdir(parents=True, exist_ok=True);
 
-            (_, mod2, _) = jac_compiler.jac_compiler.compile_module(entry_file);
-            if mod2 {
-                jac_compiler.compile(mod2, entry_file, target_name="web");
+            artifact2 = jac_compiler.jac_compiler.compile_module(entry_file);
+            if artifact2.js {
+                jac_compiler.compile(None, entry_file, target_name="web");
 
                 header_js_web = compiled_dir / "src" / "header.js";
                 if header_js_web.exists() {

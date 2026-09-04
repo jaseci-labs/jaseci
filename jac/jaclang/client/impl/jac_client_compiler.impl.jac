@@ -64,16 +64,16 @@ impl JacClientCompiler._native_variant(self: JacClientCompiler, path: Path) -> P
 
 impl JacClientCompiler.compile(
     self: JacClientCompiler,
-    module: ModuleType,
+    module: (ModuleType | None),
     module_path: Path,
     target_name: str = "web"
 ) -> tuple[list[str], list[str]] {
-    (module_js, mod, module_manifest) = self.jac_compiler.compile_module(module_path);
-    self._collect_na_modules(mod);
+    artifact = self.jac_compiler.compile_module(module_path);
+    self._collect_na_modules(artifact);
     collected_exports: set[str] = set(
-        self.jac_compiler.extract_exports(module_manifest)
+        self.jac_compiler.extract_exports(artifact.manifest)
     );
-    client_globals_map = self.jac_compiler.extract_globals(module_manifest, module);
+    client_globals_map = self.jac_compiler.extract_globals(artifact.manifest, module);
     collected_globals: dict[(str, any)] = dict(client_globals_map);
     visited: set[Path] = set();
     project_root = self.project_dir.resolve();
@@ -225,18 +225,17 @@ impl JacClientCompiler.compile_dependencies_recursively(
     } else {
         source_root = source_root.resolve();
     }
-    (module_js, mod, manifest) = self.jac_compiler.compile_module(module_path);
-    self._collect_na_modules(mod);
+    artifact = self.jac_compiler.compile_module(module_path);
+    self._collect_na_modules(artifact);
+    manifest = artifact.manifest;
     exports_list = self.jac_compiler.extract_exports(manifest);
     collected_exports.update(exports_list);
     non_root_globals: dict[(str, any)] = {};
-    if manifest {
-        for name in manifest.globals {
-            non_root_globals[name] = manifest.globals_values.get(name);
-        }
+    for name in manifest.globals {
+        non_root_globals[name] = manifest.globals_values.get(name);
     }
     collected_globals.update(non_root_globals);
-    combined_js = self.jac_compiler.add_runtime_imports(module_js);
+    combined_js = self.jac_compiler.add_runtime_imports(artifact.js);
     try {
         relative_path = module_path.relative_to(source_root);
         rel_str = self._jac_path_to_js(str(relative_path));
@@ -249,9 +248,9 @@ impl JacClientCompiler.compile_dependencies_recursively(
     source_header = f"/* Source: {module_path} */\n";
     _atomic_write_text(output_path, source_header + combined_js);
     self._write_source_map(
-        mod, str(module_path), output_path, source_header + combined_js
+        artifact, str(module_path), output_path, source_header + combined_js
     );
-    if (not manifest or not manifest.imports) {
+    if not manifest.imports {
         return;
     }
     for (_name, import_path) in manifest.imports.items() {
@@ -419,17 +418,15 @@ impl JacClientCompiler.compile_runtime_utils(
             'Expected a platform runtime beside client_react_core.jac.'
         );
     }
-    (core_js, _core_mod, core_manifest) = self.jac_compiler.compile_module(core_path);
-    (platform_js, mod, runtimeutils_manifest) = self.jac_compiler.compile_module(
-        runtime_utils_path
-    );
-    core_exports = self.jac_compiler.extract_exports(core_manifest);
-    platform_exports = self.jac_compiler.extract_exports(runtimeutils_manifest);
-    glob_names = list(runtimeutils_manifest.globals) if runtimeutils_manifest else [];
+    core = self.jac_compiler.compile_module(core_path);
+    platform = self.jac_compiler.compile_module(runtime_utils_path);
+    core_exports = self.jac_compiler.extract_exports(core.manifest);
+    platform_exports = self.jac_compiler.extract_exports(platform.manifest);
+    glob_names = list(platform.manifest.globals);
     all_exports = sorted(
         set(core_exports + platform_exports + self.ROUTER_EXPORTS + glob_names)
     );
-    runtimeutils_js = _bundle_runtime_js(core_js, platform_js, all_exports);
+    runtimeutils_js = _bundle_runtime_js(core.js, platform.js, all_exports);
     self.compiled_dir.mkdir(parents=True, exist_ok=True);
     (self.compiled_dir / 'client_runtime.js').write_text(
         runtimeutils_js, encoding='utf-8'
@@ -482,36 +479,31 @@ impl JacClientCompiler.compile_pwa_runtime(
     if not pwa_runtime_path.exists() {
         return ('', []);
     }
-    (pwa_js, mod, pwa_manifest) = self.jac_compiler.compile_module(pwa_runtime_path);
-    pwa_exports_list = self.jac_compiler.extract_exports(pwa_manifest);
-    glob_names = list(pwa_manifest.globals) if pwa_manifest else [];
+    pwa = self.jac_compiler.compile_module(pwa_runtime_path);
+    pwa_exports_list = self.jac_compiler.extract_exports(pwa.manifest);
+    glob_names = list(pwa.manifest.globals);
     all_exports = sorted(set(pwa_exports_list + glob_names));
     self.compiled_dir.mkdir(parents=True, exist_ok=True);
     pwa_out = self.compiled_dir / 'pwa_runtime.js';
-    pwa_out.write_text(pwa_js, encoding='utf-8');
-    self._write_source_map(mod, str(pwa_runtime_path), pwa_out, pwa_js);
-    return (pwa_js, all_exports);
+    pwa_out.write_text(pwa.js, encoding='utf-8');
+    self._write_source_map(pwa, str(pwa_runtime_path), pwa_out, pwa.js);
+    return (pwa.js, all_exports);
 }
 
 impl JacClientCompiler._write_source_map(
     self: JacClientCompiler,
-    mod: any,
+    artifact: ClientArtifact,
     source_file: str,
     output_path: Path,
     full_output: str
 ) -> None {
-    if (not mod or not mod.gen.es_ast) {
+    segments = artifact.source_map;
+    if not segments {
         return;
     }
     try {
-        import from jaclang.compiler.backends.es.es_unparse { es_to_js_with_map }
         import from jaclang.client.source_mapping { generate_source_map_json }
-        (_, segments) = es_to_js_with_map(mod.gen.es_ast);
-        if not segments {
-            return;
-        }
-
-        raw_js = mod.gen.js or '';
+        raw_js = artifact.js;
         raw_start = full_output.find(raw_js) if raw_js else -1;
         if raw_start < 0 {
             return;
@@ -544,8 +536,9 @@ impl JacClientCompiler.compile_mobui_utils(
     if not ui_path.exists() {
         return ('', []);
     }
-    (ui_js, _mod, ui_manifest) = self.jac_compiler.compile_module(ui_path);
-    glob_names = list(ui_manifest.globals) if ui_manifest else [];
+    ui = self.jac_compiler.compile_module(ui_path);
+    ui_js = ui.js;
+    glob_names = list(ui.manifest.globals);
 
     shims_path = plugin_dir / 'client_mobui.shims.js';
     if shims_path.exists() {
@@ -703,9 +696,10 @@ impl JacClientCompiler.init(
     self: JacClientCompiler,
     project_dir: Path,
     runtime_path: (Path | None),
-    compile_to_js_func: Callable[([Path], tuple[(str, (ModuleType | None))])],
-    extract_exports_func: Callable[([any], list[str])],
-    extract_globals_func: Callable[([any, ModuleType], dict[(str, any)])],
+    compile_to_js_func: Callable[[Path], ClientArtifact],
+    extract_exports_func: Callable[[ClientManifest | None], list[str]],
+    extract_globals_func:
+        Callable[[ClientManifest | None, ModuleType | None], dict[str, any]],
     compiled_dir: (Path | None) = None
 ) {
     self.project_dir = project_dir;
@@ -724,15 +718,10 @@ impl JacClientCompiler.init(
     self.routes_manifest_changed = False;
 }
 
-impl JacClientCompiler._collect_na_modules(self: JacClientCompiler, mod: any) -> None {
-    import from jaclang.compiler.frontend.codeinfo { InteropManifest }
-    manifest = mod?.gen?.interop_manifest;
-    if not isinstance(manifest, InteropManifest) {
-        return;
-    }
-    for binding in manifest.client_native_imports {
-        if binding.source_module {
-            self.na_wasm_modules.add(str(binding.source_module));
-        }
+impl JacClientCompiler._collect_na_modules(
+    self: JacClientCompiler, artifact: ClientArtifact
+) -> None {
+    for source in artifact.native_import_sources {
+        self.na_wasm_modules.add(source);
     }
 }
