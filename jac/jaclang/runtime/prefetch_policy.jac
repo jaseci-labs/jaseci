@@ -11,6 +11,7 @@ import from jaclang.runtime.prefetch_policy_types {
 import from jaclang.runtime.prefetch_policy_none { none_policy_plan }
 import from jaclang.runtime.prefetch_policy_ttg { ttg_policy_plan }
 import from jaclang.runtime.prefetch_policy_oracle { oracle_policy_plan }
+import from jaclang.runtime.prefetch_policy_capre { capre_policy_plan }
 import from jaclang.runtime.prefetch_policy_markov { markov_policy_plan }
 import from jaclang.runtime.prefetch_policy_coaccess { coaccess_policy_plan }
 import from jaclang.runtime.prefetch_policy_history {
@@ -62,6 +63,9 @@ def get_prefetch_plan(
     }
     if policy == "oracle" {
         return oracle_policy_plan(request);
+    }
+    if policy == "capre" {
+        return capre_policy_plan(request);
     }
     if policy == "markov" {
         return markov_policy_plan(request);

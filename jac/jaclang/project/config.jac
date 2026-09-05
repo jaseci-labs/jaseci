@@ -53,7 +53,15 @@ obj RunConfig {
         prefetch_coaccess_record_topology_file: str = "",
         prefetch_limit: int = 200,
         async_prefetch: str = "",
-        prefetch_workers: int = 1;
+        prefetch_workers: int = 1,
+        capre_enabled: bool = True,
+        capre_max_concurrent: int = 4,
+        capre_max_depth: int = 0,
+        capre_max_objects: int = 0,
+        capre_trace_file: str = "",
+        capre_metrics_file: str = "",
+        capre_drain_at_exit: bool = True,
+        capre_shutdown_timeout_s: float = 30.0;
 }
 
 obj NativeBuildConfig {

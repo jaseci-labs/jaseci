@@ -397,6 +397,26 @@ def _observe_session_access(id: UUID) -> None {
 }
 
 
+def _capre_record_demand_access(mem: any, id: UUID, tier: str) -> None {
+    try {
+        import from jaclang.runtime.prefetch_policy_capre_runtime {
+            capre_record_demand_access
+        }
+        capre_record_demand_access(mem, id, tier);
+    } except Exception { }
+}
+
+
+def _capre_record_demand_l3_request(mem: any, ids: list[UUID]) -> None {
+    try {
+        import from jaclang.runtime.prefetch_policy_capre_runtime {
+            capre_record_demand_l3_request
+        }
+        capre_record_demand_l3_request(mem, ids);
+    } except Exception { }
+}
+
+
 impl Session.postinit -> None {
     import threading;
     self._lock = threading.RLock();
@@ -479,11 +499,13 @@ impl Session.get(id: UUID) -> (Anchor | None) {
     if (hit := self.__mem__.get(id)) is not None {
         _tiered_access_log(id, "L1", hit);
         _observe_session_access(id);
+        _capre_record_demand_access(self, id, "L1");
         return hit;
     }
     if (raw_hit := self.promote_raw(id)) is not None {
         _tiered_access_log(id, "L1", raw_hit);
         _observe_session_access(id);
+        _capre_record_demand_access(self, id, "L1");
         return raw_hit;
     }
     if self.store is None {
@@ -634,10 +656,12 @@ impl Session.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {
             out[i] = hit;
             _tiered_access_log(i, "L1", hit);
             _observe_session_access(i);
+            _capre_record_demand_access(self, i, "L1");
         } elif (raw_hit := self.promote_raw(i)) is not None {
             out[i] = raw_hit;
             _tiered_access_log(i, "L1", raw_hit);
             _observe_session_access(i);
+            _capre_record_demand_access(self, i, "L1");
         } elif i not in seen_missing {
             seen_missing.add(i);
             missing.append(i);
@@ -669,6 +693,7 @@ impl Session.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {
                 out[i] = raw_hit;
                 _tiered_access_log(i, "L1", raw_hit);
                 _observe_session_access(i);
+                _capre_record_demand_access(self, i, "L1");
             } else {
                 still_missing.append(i);
             }
@@ -679,6 +704,7 @@ impl Session.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {
         for attempt in range(2) {
             try {
                 self.read_barrier();
+                _capre_record_demand_l3_request(self, missing);
                 loaded = self.store.load_full(missing);
                 for (rid, row) in loaded.items() {
                     anchor = self._materialize(row, edge_ids=row.adjacency);
@@ -687,6 +713,7 @@ impl Session.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {
                         out[rid] = anchor;
                         _tiered_access_log(rid, "L3", anchor);
                         _observe_session_access(rid);
+                        _capre_record_demand_access(self, rid, "L3");
                     }
                 }
                 break;

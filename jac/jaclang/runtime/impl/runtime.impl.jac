@@ -264,6 +264,7 @@ impl JacWalker.spawn_call(
     ctx_prefetch = None;
     ctx_observe = None;
     history_observe_enabled = False;
+    capre_metrics: dict = {};
     try {
         import from jaclang.runtime.prefetch { prefetch_worker_times_reset }
         prefetch_worker_times_reset();
@@ -311,6 +312,18 @@ impl JacWalker.spawn_call(
                 ;
             }
         }
+        if ctx_prefetch is not None {
+            try {
+                import from jaclang.runtime.prefetch_policy_capre_runtime {
+                    finish_capre_prefetch,
+                    capre_metrics_snapshot
+                }
+                finish_capre_prefetch(ctx_prefetch, cfg);
+                capre_metrics = capre_metrics_snapshot(ctx_prefetch.mem);
+            } except Exception {
+                ;
+            }
+        }
     }
     if ctx_prefetch is not None {
         import from jaclang.runtime.prefetch_policy_oracle {
@@ -337,7 +350,24 @@ impl JacWalker.spawn_call(
                         "ttg_ms",
                         "prefetch_ms",
                         "walker_ms",
-                        "resolve_total_ms"
+                        "resolve_total_ms",
+                        "capre_prefetch_l3_requests",
+                        "capre_prefetch_l3_objects",
+                        "capre_demand_l3_requests",
+                        "capre_demand_l3_objects",
+                        "capre_total_l3_requests",
+                        "capre_useful_prefetches",
+                        "capre_late_prefetches",
+                        "capre_unused_prefetches",
+                        "capre_duplicate_prefetches_suppressed",
+                        "capre_peak_inflight",
+                        "capre_avg_inflight",
+                        "capre_app_db_round_trips",
+                        "capre_limit_dropped",
+                        "capre_depth_dropped",
+                        "capre_drain_ms",
+                        "capre_trace_file",
+                        "capre_metrics_file"
                     ]
                 );
             }
@@ -352,6 +382,11 @@ impl JacWalker.spawn_call(
                 }
                 pf_worker_ms = prefetch_worker_times_snapshot();
                 prefetch_wall_ms = max(pf_worker_ms) if pf_worker_ms else 0.0;
+                if capre_metrics {
+                    prefetch_wall_ms = float(
+                        capre_metrics.get("prefetch_wall_ms", prefetch_wall_ms)
+                    );
+                }
                 prefetch_worker_times_reset();
             } except Exception {
                 prefetch_wall_ms = 0.0;
@@ -367,7 +402,24 @@ impl JacWalker.spawn_call(
                     f"{ttg_time_ms:.3f}",
                     f"{prefetch_wall_ms:.3f}",
                     f"{walker_time_ms:.3f}",
-                    f"{resolve_total_ms:.3f}"
+                    f"{resolve_total_ms:.3f}",
+                    str(capre_metrics.get("prefetch_l3_requests", "")),
+                    str(capre_metrics.get("prefetch_l3_objects", "")),
+                    str(capre_metrics.get("demand_l3_requests", "")),
+                    str(capre_metrics.get("demand_l3_objects", "")),
+                    str(capre_metrics.get("total_l3_requests", "")),
+                    str(capre_metrics.get("useful_prefetches", "")),
+                    str(capre_metrics.get("late_prefetches", "")),
+                    str(capre_metrics.get("unused_prefetches", "")),
+                    str(capre_metrics.get("duplicate_prefetches_suppressed", "")),
+                    str(capre_metrics.get("peak_inflight", "")),
+                    str(capre_metrics.get("avg_inflight", "")),
+                    str(capre_metrics.get("app_db_round_trips", "")),
+                    str(capre_metrics.get("limit_dropped", "")),
+                    str(capre_metrics.get("depth_dropped", "")),
+                    str(capre_metrics.get("drain_ms", "")),
+                    str(capre_metrics.get("trace_file", "")),
+                    str(capre_metrics.get("metrics_file", ""))
                 ]
             );
         }
@@ -423,6 +475,16 @@ impl JacWalker.async_spawn_call(
                 run_cfg = cfg?.run if cfg is not None else None;
                 hist_limit: int = int(getattr(run_cfg, "prefetch_limit", 200) or 200);
                 finish_history_observation(ctx_observe, warch, hist_limit);
+            } except Exception {
+                ;
+            }
+        }
+        if ctx_prefetch is not None {
+            try {
+                import from jaclang.runtime.prefetch_policy_capre_runtime {
+                    finish_capre_prefetch
+                }
+                finish_capre_prefetch(ctx_prefetch, cfg);
             } except Exception {
                 ;
             }

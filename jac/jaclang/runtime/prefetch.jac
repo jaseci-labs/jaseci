@@ -165,8 +165,29 @@ def run_prefetch_policy(ctx: any, cfg: any, warch: any, nd: NodeAnchor) -> tuple
     if not policy_name or policy in ("none", "off", "false", "0") {
         return (0.0, 0.0, 0.0, 0.0);
     }
-    if limit <= 0 and policy != "oracle" {
+    if limit <= 0 and policy not in ("oracle", "capre") {
         return (0.0, 0.0, 0.0, 0.0);
+    }
+    if policy == "capre" {
+        import from jaclang.runtime.prefetch_policy_capre_runtime {
+            start_capre_prefetch
+        }
+        prefetch_start = _time.perf_counter();
+        capre_plan = start_capre_prefetch(ctx, cfg, warch, nd, limit);
+        dispatch_ms = (_time.perf_counter() - prefetch_start) * 1000;
+        logger.info(
+            f"[PREFETCH-POLICY] policy={policy} ids=0 "
+            f"topology_ms={float(capre_plan.get('topology_ms', 0.0)):.3f} "
+            f"plan_ms={float(capre_plan.get('plan_ms', 0.0)):.3f} "
+            f"capre_specs={int(capre_plan.get('specs', 0) or 0)} "
+            f"dispatch_ms={dispatch_ms:.3f}"
+        );
+        return (
+            float(capre_plan.get("topology_ms", 0.0)),
+            float(capre_plan.get("plan_ms", 0.0)),
+            dispatch_ms,
+            float(capre_plan.get("resolve_ms", 0.0))
+        );
     }
     plan = get_prefetch_plan(
         policy_name, warch, nd, mem=ctx.mem, max_length=limit, config=cfg

@@ -1149,7 +1149,15 @@ impl _parse_toml_data(
             prefetch_coaccess_record_topology_file=run_data.get("prefetch_coaccess_record_topology_file", ""),
             prefetch_limit=run_data.get("prefetch_limit", 200),
             async_prefetch=run_data.get("async_prefetch", ""),
-            prefetch_workers=run_data.get("prefetch_workers", 1)
+            prefetch_workers=run_data.get("prefetch_workers", 1),
+            capre_enabled=run_data.get("capre_enabled", True),
+            capre_max_concurrent=run_data.get("capre_max_concurrent", 4),
+            capre_max_depth=run_data.get("capre_max_depth", 0),
+            capre_max_objects=run_data.get("capre_max_objects", 0),
+            capre_trace_file=run_data.get("capre_trace_file", ""),
+            capre_metrics_file=run_data.get("capre_metrics_file", ""),
+            capre_drain_at_exit=run_data.get("capre_drain_at_exit", True),
+            capre_shutdown_timeout_s=run_data.get("capre_shutdown_timeout_s", 30.0)
         );
     }
     if "build" in data {
