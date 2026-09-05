@@ -75,7 +75,7 @@ impl NaIRGenStmt._emit_last_use_releases(stmt: uni.UniNode) -> None {
         if not _lu_ptr
             and (
                 self._opt_ptr_payload_of(slot_ty) is None
-                or not self._nogc_opt_slots_owned()
+                or not self._nogc_owned_world()
             ) {
             continue;
         }
