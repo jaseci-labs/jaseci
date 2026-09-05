@@ -39,18 +39,25 @@ obj _Spinner {
         try {
             self.stream.write("\r\033[K");
             self.stream.flush();
-        } except (BrokenPipeError, OSError) {
-            ;
-        }
+        } except (BrokenPipeError, OSError) {}
     }
 
     def _run {
         idx = 0;
         while not self._stop.is_set() {
             frame = self.frames[idx % len(self.frames)];
+            text = self.text;
+            try {
+                width = os.get_terminal_size().columns;
+            } except OSError {
+                width = 0;
+            }
+            if width > 8 and len(text) > width - 3 {
+                text = text[:width - 6] + "...";
+            }
             try {
                 self.stream.write(
-                    f"\r{self.style_prefix}{frame}{self.reset} {self.text}"
+                    f"\r{self.style_prefix}{frame}{self.reset} {text}\033[K"
                 );
                 self.stream.flush();
             } except (BrokenPipeError, OSError) {

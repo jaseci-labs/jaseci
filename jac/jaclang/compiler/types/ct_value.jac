@@ -192,5 +192,6 @@ def ct_mangle(v: any) -> str {
     if isinstance(v, (list, tuple)) {
         return "L" + "_".join([ct_mangle(x) for x in v]) + "_";
     }
-    return "x" + str(abs(hash(repr(v))));
+    import hashlib;
+    return "x" + hashlib.sha256(repr(v).encode("utf-8")).hexdigest()[:16];
 }

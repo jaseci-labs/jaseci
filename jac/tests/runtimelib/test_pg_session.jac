@@ -15,6 +15,8 @@ import from jaclang.runtime.graph_query { GraphQuery, QHop }
 import from jaclang.runtime.runtime { JacRuntime }
 import from jaclang.runtime.context { ExecutionContext }
 import from jaclang.data.query_planner { resolve_query }
+import from jaclang.server.session { Session }
+import from typing { cast }
 
 def _as_any(v: any) -> any {
     return v;
@@ -60,7 +62,7 @@ def _root(ctx: ExecutionContext) -> NodeAnchor {
 
 def _out_items(ctx: ExecutionContext, ranch: NodeAnchor) -> list {
     q = GraphQuery(ranch.archetype, hops=[QHop(dir=2, nd=SItem)]);
-    return resolve_query(ctx.mem, q);
+    return resolve_query(cast(Session, ctx.mem), q);
 }
 
 

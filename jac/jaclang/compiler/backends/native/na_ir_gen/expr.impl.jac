@@ -101,7 +101,7 @@ impl NaIRGenExpr._codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None) {
         or isinstance(nd, uni.KWPair)
         or isinstance(nd, uni.InnerCompr)
         or isinstance(nd, uni.FormattedValue)
-    ) { } else {
+    ) {} else {
         self.emit(E5092, node_override=nd, kind="expression", name=type(nd).__name__);
     }
 
@@ -393,12 +393,17 @@ impl NaIRGenExpr._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
     saved_func_symtab = dict(self.func_symtab);
     saved_cell_vars = self.closure_cell_vars;
     saved_cell_handles = self.closure_cell_handles;
+    saved_nogc_no_free = self.nogc_no_free_vars;
+    saved_nogc_owned_str = self.nogc_owned_str_vars;
+    saved_region_handles = self.region_handle_vars;
+    saved_region_opens = self.region_open_stack;
     entry_bb = anon_fn.append_basic_block("entry");
     self._builder = ir.IRBuilder(entry_bb);
     self.local_vars = {};
     self.nogc_no_free_vars = set();
     self.nogc_owned_str_vars = set();
     self.region_handle_vars = set();
+    self.region_open_stack = [];
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};
 
@@ -465,6 +470,10 @@ impl NaIRGenExpr._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
     self.func_symtab = saved_func_symtab;
     self.closure_cell_vars = saved_cell_vars;
     self.closure_cell_handles = saved_cell_handles;
+    self.nogc_no_free_vars = saved_nogc_no_free;
+    self.nogc_owned_str_vars = saved_nogc_owned_str;
+    self.region_handle_vars = saved_region_handles;
+    self.region_open_stack = saved_region_opens;
 
     if captures {
         _all_cells = True;
@@ -803,16 +812,45 @@ impl NaIRGenExpr._is_walker_arch(name: str) -> bool {
 }
 
 impl NaIRGenExpr._codegen_compare(nd: uni.CompareExpr) -> (ir.Value | None) {
-    left = self._codegen_expr(nd.left);
-    if left is None or not nd.rights or not nd.ops {
+    if not nd.rights or not nd.ops {
         return None;
     }
-    if len(nd.ops) > 1 and len(nd.rights) == len(nd.ops) {
-        return self._codegen_compare_chain(nd, left);
-    }
-    right = self._codegen_expr(nd.rights[0]);
-    if right is None {
-        return None;
+    _l_nd = nd.left.expr if isinstance(nd.left, uni.CfgExpr) else nd.left;
+    _left_is_empty_lit = (
+        isinstance(_l_nd, uni.ListVal) and not _l_nd.values and len(nd.rights) == 1
+    );
+    _cmp_peer_saved = self._peer_container_ty;
+    if _left_is_empty_lit {
+        right = self._codegen_expr(nd.rights[0]);
+        if right is None {
+            return None;
+        }
+        self._peer_container_ty = right.type;
+        try {
+            left = self._codegen_expr(nd.left);
+        } finally {
+            self._peer_container_ty = _cmp_peer_saved;
+        }
+        if left is None {
+            return None;
+        }
+    } else {
+        left = self._codegen_expr(nd.left);
+        if left is None {
+            return None;
+        }
+        if len(nd.ops) > 1 and len(nd.rights) == len(nd.ops) {
+            return self._codegen_compare_chain(nd, left);
+        }
+        self._peer_container_ty = left.type;
+        try {
+            right = self._codegen_expr(nd.rights[0]);
+        } finally {
+            self._peer_container_ty = _cmp_peer_saved;
+        }
+        if right is None {
+            return None;
+        }
     }
     op = nd.ops[0].name if isinstance(nd.ops[0], uni.Token) else str(nd.ops[0]);
     return self._codegen_compare_link(op, left, right, nd.left, nd.rights[0]);
@@ -1435,7 +1473,13 @@ impl NaIRGenExpr._codegen_compare_chain(
     result: (ir.Value | None) = None;
     cur = left;
     for (i, op_name) in enumerate(op_names) {
-        right = self._codegen_required(nd.rights[i]);
+        _chain_peer_saved = self._peer_container_ty;
+        self._peer_container_ty = cur.type;
+        try {
+            right = self._codegen_required(nd.rights[i]);
+        } finally {
+            self._peer_container_ty = _chain_peer_saved;
+        }
         if right is None {
             return None;
         }
@@ -1600,16 +1644,20 @@ impl NaIRGenExpr._codegen_bool_expr(nd: uni.BoolExpr) -> (ir.Value | None) {
     for i in range(1, len(nd.values)) {
         cond = self._to_bool(result);
         func = self.builder.function;
-        entry_bb = self.builder.block;
         rhs_bb = func.append_basic_block(name=f"bool.rhs.{i}");
+        take_bb = func.append_basic_block(name=f"bool.take.{i}");
         merge_bb = func.append_basic_block(name=f"bool.merge.{i}");
         if is_and {
-            self.builder.cbranch(cond, rhs_bb, merge_bb);
+            self.builder.cbranch(cond, rhs_bb, take_bb);
         } else {
-            self.builder.cbranch(cond, merge_bb, rhs_bb);
+            self.builder.cbranch(cond, take_bb, rhs_bb);
         }
 
         self.builder.position_at_end(rhs_bb);
+        _l_owned = isinstance(result.type, ir.PointerType) and self._is_owned(result);
+        if _l_owned {
+            self._emit_rc_release_simple(result, op="bool_drop", loc="");
+        }
         _bool_peer_saved = self._peer_container_ty;
         self._peer_container_ty = self._opt_ptr_payload_of(result.type);
         rhs_val = self._str_norm(self._codegen_expr(nd.values[i]));
@@ -1630,25 +1678,39 @@ impl NaIRGenExpr._codegen_bool_expr(nd: uni.BoolExpr) -> (ir.Value | None) {
                 rhs_val = self._coerce_type(rhs_val, target_t);
             }
         }
+        _managed = isinstance(target_t, ir.PointerType);
+        _r_owned = _managed and self._is_owned(rhs_val);
+        _own = _managed and (_l_owned or _r_owned);
+        if _own and not _r_owned and not self.builder.block.is_terminated {
+            self._emit_rc_retain(rhs_val, op="bool_keep", loc="");
+        }
         rhs_end_bb = self.builder.block;
         if not self.builder.block.is_terminated {
             self.builder.branch(merge_bb);
         }
 
+        self.builder.position_at_end(take_bb);
         if result.type != target_t {
-            _entry_term = entry_bb.instructions[-1];
-            self.builder.position_before(_entry_term);
             if self._opt_ptr_payload_of(result.type) == target_t {
                 result = self.builder.extract_value(result, 1, name="bool.opt.lpv");
             } else {
                 result = self._coerce_type(result, target_t);
             }
         }
+        if _own and not _l_owned {
+            self._emit_rc_retain(result, op="bool_keep", loc="");
+        }
+        take_end_bb = self.builder.block;
+        self.builder.branch(merge_bb);
+
         self.builder.position_at_end(merge_bb);
         phi = self.builder.phi(target_t, name="bool.result");
-        phi.add_incoming(result, entry_bb);
+        phi.add_incoming(result, take_end_bb);
         phi.add_incoming(rhs_val, rhs_end_bb);
         result = phi;
+        if _own {
+            self._mark_owned(result);
+        }
     }
     return result;
 }

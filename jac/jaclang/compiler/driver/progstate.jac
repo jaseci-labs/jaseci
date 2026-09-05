@@ -1,16 +1,28 @@
+import os;
+import sys;
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.frontend.relations { ScopeChild }
 import from jaclang.compiler.passes.transform { Alert }
 import type from jaclang.compiler.driver.mtp { Info }
+import type from jaclang.compiler.frontend.codeinfo { ClientArtifact }
 
 obj ModuleHub {
     has mod: uni.ProgramModule,
         stamps: dict[str, float] = {},
-        artifacts: dict[str, any] = {};
+        artifacts: dict[str, any] = {},
+        client_artifacts: dict[str, ClientArtifact] = {};
 
     def stamp(resolved_path: str) {
         import time;
-        self.stamps[resolved_path] = time.time();
+        import from jaclang.compiler.driver.bccache { discover_annex_files }
+        seen = time.time();
+        try {
+            seen = max(seen, os.path.getmtime(resolved_path));
+            for related in discover_annex_files(resolved_path) {
+                seen = max(seen, os.path.getmtime(related));
+            }
+        } except OSError {}
+        self.stamps[resolved_path] = seen;
     }
 
     def is_fresh(resolved_path: str) -> bool {
@@ -35,6 +47,16 @@ obj ModuleHub {
         }
     }
 
+    def install(resolved_path: str, mod: uni.Module) -> (uni.Module | None) {
+        prev = self.mod.hub.get(resolved_path);
+        self.mod.hub[resolved_path] = mod;
+        self.stamp(resolved_path);
+        if prev is None or prev is mod {
+            return None;
+        }
+        return prev;
+    }
+
     def evict(resolved_path: str) {
         if resolved_path in self.mod.hub {
             self.mod.hub.pop(resolved_path);
@@ -44,6 +66,9 @@ obj ModuleHub {
         }
         if resolved_path in self.artifacts {
             del self.artifacts[resolved_path];
+        }
+        if resolved_path in self.client_artifacts {
+            del self.client_artifacts[resolved_path];
         }
     }
 
@@ -82,6 +107,7 @@ obj ModuleHub {
         prog_root.hub.update(retained_mods);
         self.stamps.clear();
         self.stamps.update(retained_stamps);
+        self.client_artifacts.clear();
     }
 }
 
@@ -223,16 +249,125 @@ obj BuildScratch {
     }
 }
 
+class AnalysisLedger {
+    has _tags: dict[int, set[str]],
+        _owners: dict[int, any];
+
+    def init(self: AnalysisLedger) {
+        self._tags: dict[int, set[str]] = {};
+        self._owners: dict[int, any] = {};
+    }
+
+    def _drop(self: AnalysisLedger, key: int) {
+        try {
+            self._tags.pop(key, None);
+            self._owners.pop(key, None);
+        } except Exception {}
+    }
+
+    def provided(self: AnalysisLedger, mod: any) -> set[str] {
+        import weakref;
+        key = id(mod);
+        owner = self._owners.get(key);
+        if owner is not None and owner() is mod {
+            return self._tags[key];
+        }
+        tags: set[str] = set();
+        self._tags[key] = tags;
+        self._owners[key] = weakref.ref(mod, lambda (_ref: any) { self._drop(key); });
+        return tags;
+    }
+
+    def provides(self: AnalysisLedger, mod: any, tag: str) -> bool {
+        owner = self._owners.get(id(mod));
+        return owner is not None and owner() is mod and tag in self._tags[id(mod)];
+    }
+
+    def mark(self: AnalysisLedger, mod: any, tags: set[str]) {
+        live = self.provided(mod);
+        live.clear();
+        live.update(tags);
+    }
+
+    def clear(self: AnalysisLedger) {
+        self._tags.clear();
+        self._owners.clear();
+    }
+
+    def __len__(self: AnalysisLedger) -> int {
+        return len(self._tags);
+    }
+}
+
 class AnalysisCaches {
     has placement_summaries: dict[str, any],
         placement_state: dict[str, any],
-        analyses_run: dict[int, set[str]],
-        mtir_map: dict[(str, Info)];
+        analyses_run: AnalysisLedger,
+        mtir_map: dict[(str, Info)],
+        pass_runs: dict[str, int],
+        pass_time: dict[str, float],
+        cache_events: dict[str, int];
 
     def init(self: AnalysisCaches) {
         self.placement_summaries: dict[str, any] = {};
         self.placement_state: dict[str, any] = {};
-        self.analyses_run: dict[int, set[str]] = {};
+        self.analyses_run: AnalysisLedger = AnalysisLedger();
         self.mtir_map: dict[(str, Info)] = {};
+        self.pass_runs: dict[str, int] = {};
+        self.pass_time: dict[str, float] = {};
+        self.cache_events: dict[str, int] = {};
     }
 }
+
+glob UNIT_COLLECT_EVERY: int = 16,
+     UNIT_COLLECT_GROWTH_MB: int = 512;
+
+def _env_int(name: str, fallback: int) -> int {
+    raw = os.environ.get(name, "").strip();
+    if not raw {
+        return fallback;
+    }
+    try {
+        return int(raw);
+    } except ValueError {
+        return fallback;
+    }
+}
+
+def _peak_rss_mb -> int {
+    try {
+        import resource;
+    } except ImportError {
+        return 0;
+    }
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss;
+    if sys.platform == "darwin" {
+        return int(peak // (1024 * 1024));
+    }
+    return int(peak // 1024);
+}
+
+obj UnitCollectBudget {
+    has releases: int = 0,
+        last_peak_mb: int = 0;
+
+    def due -> bool {
+        self.releases += 1;
+        every = _env_int("JAC_UNIT_COLLECT_EVERY", UNIT_COLLECT_EVERY);
+        growth = _env_int("JAC_UNIT_COLLECT_GROWTH_MB", UNIT_COLLECT_GROWTH_MB);
+        peak = _peak_rss_mb();
+        if self.last_peak_mb == 0 {
+            self.last_peak_mb = peak;
+        }
+        by_count = every > 0 and self.releases >= every;
+        by_growth = growth > 0 and (peak - self.last_peak_mb) >= growth;
+        if not (by_count or by_growth) {
+            return False;
+        }
+        self.releases = 0;
+        self.last_peak_mb = peak;
+        return True;
+    }
+}
+
+glob unit_collect_budget: UnitCollectBudget = UnitCollectBudget();

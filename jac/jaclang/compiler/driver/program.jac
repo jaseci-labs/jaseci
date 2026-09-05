@@ -10,8 +10,10 @@ import from jaclang.compiler.driver.progstate {
     BuildScratch,
     DepGraph,
     DiagLedger,
-    ModuleHub
+    ModuleHub,
+    unit_collect_budget
 }
+import type from jaclang.compiler.frontend.codeinfo { ClientArtifact }
 import type from jaclang.compiler.types.type_evaluator { TypeEvaluator }
 import type from jaclang.compiler.driver.compiler { JacCompiler }
 import type from jaclang.compiler.driver.mtp { Info }
@@ -35,10 +37,12 @@ class JacProgram {
         warnings_had: list[Alert],
         mtir_map: dict[(str, Info)],
         type_evaluator: TypeEvaluator | None,
-        _compiler: JacCompiler | None;
+        _compiler: JacCompiler | None,
+        _iface: any;
 
     def init(self: JacProgram, main_mod: (uni.ProgramModule | None) = None) -> None;
     def _get_compiler(self: JacProgram) -> JacCompiler;
+    def iface_registry(self: JacProgram) -> any;
     def get_type_evaluator(self: JacProgram) -> TypeEvaluator;
     def stub_catalog(self: JacProgram) -> any;
     def clear_type_system(self: JacProgram, clear_hub: bool = False) -> None;
@@ -46,6 +50,7 @@ class JacProgram {
     def release_native_dep_units(self: JacProgram) -> None;
     def release_check_caches(self: JacProgram) -> None;
     def hub_cache_stamp(self: JacProgram, resolved_path: str) -> None;
+    def install_module(self: JacProgram, resolved_path: str, mod: uni.Module) -> None;
     def is_hub_entry_fresh(self: JacProgram, resolved_path: str) -> bool;
     def record_dependency(
         self: JacProgram, importer_path: str, target_path: str
@@ -58,7 +63,8 @@ class JacProgram {
         self: JacProgram,
         source_path: str,
         importer_path: (str | None) = None,
-        use_str: (str | None) = None
+        use_str: (str | None) = None,
+        need_tree: bool = False
     ) -> uni.Module;
 
     def drop_module_alerts(self: JacProgram, resolved_path: str) -> None;
@@ -68,6 +74,10 @@ class JacProgram {
     def _search_hubs(self: JacProgram) -> list[dict[(str, uni.Module)]];
     def find_module(self: JacProgram, path: str) -> (uni.Module | None);
     def get_bytecode(self: JacProgram, full_target: str) -> (types.CodeType | None);
+    def get_client_artifact(
+        self: JacProgram, full_target: str
+    ) -> (ClientArtifact | None);
+
     def parse_str(
         self: JacProgram,
         source_str: str,

@@ -472,6 +472,13 @@ impl DocIRGenPass.exit_impl_def with uni.ImplDef exit {
             parts.append(self.space());
             parts.append(i.gen.doc_ir);
             parts.append(self.space());
+        } elif (
+            isinstance(i, uni.Token)
+            and (i.name == Tok.LBRACE)
+            and isinstance(here.body, Sequence)
+            and not here.body
+        ) {
+            parts.append(i.gen.doc_ir);
         } else {
             parts.append(i.gen.doc_ir);
             parts.append(self.space());
@@ -776,8 +783,6 @@ impl DocIRGenPass.exit_test with uni.Test exit {
             parts.append(self.indent(self.concat(body_parts), ast_node=here));
             if (len(body_parts) > 0) {
                 parts.append(self.hard_line());
-            } else {
-                parts.append(self.space());
             }
             parts.append(i.gen.doc_ir);
             parts.append(self.space());
@@ -938,8 +943,6 @@ impl DocIRGenPass.exit_module_code with uni.ModuleCode exit {
             parts.append(self.indent(self.concat(body_parts), ast_node=here));
             if len(body_parts) {
                 parts.append(self.hard_line());
-            } else {
-                parts.append(self.line());
             }
             parts.append(i.gen.doc_ir);
             parts.append(self.space());
@@ -1149,6 +1152,10 @@ impl DocIRGenPass.exit_lambda_expr with uni.LambdaExpr exit {
                 parts.append(self.space());
             }
             parts.append(i.gen.doc_ir);
+        } elif (
+            isinstance(i, uni.Token) and (i.name == Tok.LBRACE) and not body_stmts
+        ) {
+            parts.append(i.gen.doc_ir);
         } elif isinstance(i, uni.Token) {
             parts.append(i.gen.doc_ir);
             parts.append(self.space());
@@ -1302,6 +1309,10 @@ impl DocIRGenPass.exit_with_stmt with uni.WithStmt exit {
             }
             body_parts.append(i.gen.doc_ir);
             body_parts.append(self.hard_line());
+        } elif (
+            isinstance(i, uni.Token) and (i.name == Tok.LBRACE) and not here.body
+        ) {
+            parts.append(i.gen.doc_ir);
         } elif (isinstance(i, uni.Token) and (i.name == Tok.COMMA)) {
             parts.pop();
             parts.append(i.gen.doc_ir);
@@ -1382,6 +1393,10 @@ impl DocIRGenPass.exit_except with uni.Except exit {
 }
 
 impl DocIRGenPass.exit_try_stmt with uni.TryStmt exit {
+    here.gen.doc_ir = self.format_simple_stmt_with_body(here, here.body);
+}
+
+impl DocIRGenPass.exit_awaiting_clause with uni.AwaitingClause exit {
     here.gen.doc_ir = self.format_simple_stmt_with_body(here, here.body);
 }
 
@@ -1760,6 +1775,10 @@ impl DocIRGenPass.exit_if_stmt with uni.IfStmt exit {
             }
             self.add_body_stmt_with_spacing(body_parts, i, prev_body_item);
             prev_body_item = i;
+        } elif (
+            isinstance(i, uni.Token) and (i.name == Tok.LBRACE) and not here.body
+        ) {
+            parts.append(i.gen.doc_ir);
         } elif (isinstance(i, uni.Token) and (i.name == Tok.SEMI)) {
             parts.pop();
             parts.append(i.gen.doc_ir);
@@ -1918,8 +1937,6 @@ impl DocIRGenPass.exit_ability with uni.Ability exit {
             parts.append(self.indent(self.concat(body_parts), ast_node=here));
             if (len(body_parts) > 0) {
                 parts.append(self.hard_line());
-            } else {
-                parts.append(self.space());
             }
             parts.append(i.gen.doc_ir);
             parts.append(self.space());
@@ -2413,6 +2430,8 @@ impl DocIRGenPass.format_simple_stmt_with_body(
             }
             self.add_body_stmt_with_spacing(body_parts, i, prev_body_item);
             prev_body_item = i;
+        } elif (isinstance(i, uni.Token) and (i.name == Tok.LBRACE) and not body) {
+            parts.append(i.gen.doc_ir);
         } else {
             parts.append(i.gen.doc_ir);
             if space_between_parts {
@@ -2518,6 +2537,8 @@ impl DocIRGenPass._assign_else_doc_ir(
             }
             body_parts.append(i.gen.doc_ir);
             body_parts.append(self.hard_line());
+        } elif (isinstance(i, uni.Token) and (i.name == Tok.LBRACE) and not body) {
+            parts.append(i.gen.doc_ir);
         } elif (isinstance(i, uni.Token) and (i.name == Tok.SEMI)) {
             parts.pop();
             parts.append(i.gen.doc_ir);
@@ -2550,8 +2571,6 @@ impl DocIRGenPass._emit_keyword_block(nd: uni.UniNode, kw: Tok) -> None {
             parts.append(self.indent(self.concat(body_parts), ast_node=nd));
             if len(body_parts) {
                 parts.append(self.hard_line());
-            } else {
-                parts.append(self.line());
             }
             parts.append(i.gen.doc_ir);
             parts.append(self.space());
@@ -2648,6 +2667,12 @@ impl DocIRGenPass.line_suffix(contents: doc.DocType) -> doc.LineSuffix {
 
 impl DocIRGenPass.break_parent -> doc.BreakParent {
     return doc.BreakParent();
+}
+
+impl DocIRGenPass.doc_ir_default_exit with uni.UniNode exit {
+    if (here.gen._doc_ir is None) and here.kid {
+        self._assign_space_group(here);
+    }
 }
 
 impl DocIRGenPass.finish_doc_comments with uni.UniNode exit {

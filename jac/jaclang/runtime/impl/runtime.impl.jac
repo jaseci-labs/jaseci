@@ -42,9 +42,7 @@ impl JacAccessValidation._check_access(
             try {
                 ctx = JacRuntimeInterface.get_context();
                 ctx.diagnostics.append(diag);
-            } except Exception {
-                ;
-            }
+            } except Exception {}
             if JacRuntime.strict_permissions {
                 raise PermissionError(diag.message());
             }
@@ -52,6 +50,11 @@ impl JacAccessValidation._check_access(
         }
     }
     return granted;
+}
+
+impl JacAccessValidation._is_shared_root(to: Anchor) -> bool {
+    shared_id = _shared_root_resolver[1];
+    return isinstance(shared_id, UUID) and to.id == shared_id;
 }
 
 impl JacAccessValidation.allow_root(
@@ -62,6 +65,9 @@ impl JacAccessValidation.allow_root(
     }
     level = access_level_cast(level);
     (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
+    if not JacAccessValidation.check_write_access(anchor, op_hint="acl_write") {
+        return;
+    }
     access = anchor.own_access().roots;
     _root_id = str(root_id);
     if (level != access.anchors.get(_root_id, AccessLevel.NO_ACCESS)) {
@@ -78,6 +84,9 @@ impl JacAccessValidation.allow_group(
     }
     level = access_level_cast(level);
     (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
+    if not JacAccessValidation.check_write_access(anchor, op_hint="acl_write") {
+        return;
+    }
     access = anchor.own_access().groups;
     _group_id = str(group_id);
     if (level != access.anchors.get(_group_id, AccessLevel.NO_ACCESS)) {
@@ -88,6 +97,9 @@ impl JacAccessValidation.allow_group(
 
 impl JacAccessValidation.disallow_group(archetype: Archetype, group_id: UUID) -> None {
     (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
+    if not JacAccessValidation.check_write_access(anchor, op_hint="acl_write") {
+        return;
+    }
     anchor.own_access().groups.anchors.pop(str(group_id), None);
     jctx.mem.put(anchor);
 }
@@ -100,6 +112,9 @@ impl JacAccessValidation.disallow_root(
     }
     level = access_level_cast(level);
     (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
+    if not JacAccessValidation.check_write_access(anchor, op_hint="acl_write") {
+        return;
+    }
     access = anchor.own_access().roots;
     access.anchors.pop(str(root_id), None);
     jctx.mem.put(anchor);
@@ -113,6 +128,9 @@ impl JacAccessValidation.perm_grant(
     }
     level = access_level_cast(level);
     (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
+    if not JacAccessValidation.check_write_access(anchor, op_hint="acl_write") {
+        return;
+    }
     if (level != _all_grant(anchor)) {
         anchor.own_access().all = level;
         jctx.mem.put(anchor);
@@ -121,6 +139,9 @@ impl JacAccessValidation.perm_grant(
 
 impl JacAccessValidation.perm_revoke(archetype: Archetype) -> None {
     (anchor, jctx) = JacAccessValidation._resolve_anchor(archetype);
+    if not JacAccessValidation.check_write_access(anchor, op_hint="acl_write") {
+        return;
+    }
     if (_all_grant(anchor).value > AccessLevel.NO_ACCESS.value) {
         anchor.own_access().all = AccessLevel.NO_ACCESS;
         jctx.mem.put(anchor);
@@ -168,6 +189,8 @@ impl JacAccessValidation.check_access_level(
     to_access = to.access;
     if to_access is not None and to_access.all.value > AccessLevel.NO_ACCESS.value {
         access_level = to_access.all;
+    } elif JacAccessValidation._is_shared_root(to) {
+        access_level = AccessLevel.CONNECT;
     }
     if (to.root and isinstance((to_root := jctx.mem.get(to.root)), Anchor)) {
         root_access = to_root.access;
@@ -462,17 +485,20 @@ impl JacBuiltin.printgraph(
 
 
 impl JacContext.get_context -> ExecutionContext {
-    ctx = _request_context.get();
-    if ctx is not None {
-        return ctx;
-    }
-
-    ctx = JacRuntime.exec_ctx;
+    ctx = JacRuntimeInterface.peek_context();
     if ctx is None {
         ctx = JacRuntimeInterface.create_j_context(user_root=None);
         JacRuntime.exec_ctx = ctx;
     }
     return ctx;
+}
+
+impl JacContext.peek_context -> (ExecutionContext | None) {
+    ctx = _request_context.get();
+    if ctx is not None {
+        return ctx;
+    }
+    return JacRuntime.exec_ctx;
 }
 
 impl JacPersistence.commit(anchor: Anchor | Archetype | None = None) -> None {
@@ -698,9 +724,7 @@ impl JacModule.impl_patch_filename(
                 code.co_cellvars
             );
             func.__code__ = new_code;
-        } except AttributeError {
-            ;
-        }
+        } except AttributeError {}
         return func;
     }
     return decorator;
@@ -1020,6 +1044,7 @@ impl JacGraph.refs(
 ) -> list[NodeArchetype] | list[EdgeArchetype] | list[(NodeArchetype | EdgeArchetype)] {
     import from jaclang.runtime.graph_walk {
         access_gated,
+        has_persistent_origin,
         needs_store,
         origin_anchors,
         walk_edges,
@@ -1031,8 +1056,11 @@ impl JacGraph.refs(
     if slc is not None and path.slc is None {
         path.slc = slc;
     }
-    ctx = JacRuntimeInterface.get_context();
     origins = origin_anchors(path);
+    ctx = JacRuntimeInterface.peek_context();
+    if ctx is None and has_persistent_origin(origins) {
+        ctx = JacRuntimeInterface.get_context();
+    }
 
     def _archetypes(planned: list) -> list {
         out: list[(NodeArchetype | EdgeArchetype)] = [];
@@ -1045,7 +1073,7 @@ impl JacGraph.refs(
         return out;
     }
 
-    if not needs_store(ctx.mem, origins) {
+    if ctx is None or not needs_store(ctx.mem, origins) {
         gated = access_gated();
         return _archetypes(
             walk_edges(origins, path, gated)
@@ -1053,18 +1081,21 @@ impl JacGraph.refs(
                 else walk_nodes(origins, path, gated)
         );
     }
+    import from typing { cast }
     import from jaclang.data.query_planner {
         LazyRefs,
         resolve_query,
         resolve_query_edges
     }
+    import from jaclang.server.session { Session }
     ctx.note_traversal_reads([nd.__jac__ for nd in path.origin]);
+    store_mem = cast(Session, ctx.mem);
 
     def _run(q: GraphQuery) -> list {
         return _archetypes(
-            resolve_query_edges(ctx.mem, q)
+            resolve_query_edges(store_mem, q)
                 if q.edges_only
-                else resolve_query(ctx.mem, q)
+                else resolve_query(store_mem, q)
         );
     }
     if lazy and path.slc is None {
@@ -1073,9 +1104,7 @@ impl JacGraph.refs(
     return _run(path);
 }
 
-impl JacGraph.arefs(path: GraphQuery | NodeArchetype | list[NodeArchetype]) -> None {
-    ;
-}
+impl JacGraph.arefs(path: GraphQuery | NodeArchetype | list[NodeArchetype]) -> None {}
 
 
 impl JacGraph.filter_on(
@@ -1548,22 +1577,45 @@ impl JacBuiltin.get_console -> ConsoleImpl {
 }
 
 impl JacServe.get_api_server_class -> type {
-    _sp = _scale_provider();
-    if _sp is not None {
-        _scaled = _sp.get_api_server_class();
-        if _scaled is not None {
-            return _scaled;
-        }
+    import from jaclang.server.identity_owner {
+        SCALE_IDENTITY,
+        identity_owner,
+        scale_stack_unavailable
     }
-    import from jaclang.server.server { JacAPIServer }
-    return JacAPIServer;
+    _served = JacRuntime.get_full_target_path() or JacRuntime.get_base_path_dir();
+    if identity_owner(_served) != SCALE_IDENTITY {
+        import from jaclang.server.server { JacAPIServer }
+        return JacAPIServer;
+    }
+    _sp = _scale_provider();
+    if _sp is None {
+        raise scale_stack_unavailable('jaclang.scale.plugin', scale_provider_error());
+    }
+    _scaled = _sp.get_api_server_class();
+    if _scaled is None {
+        raise RuntimeError(
+            'the scale plugin returned no API server class while the scale '
+            'identity owns /user/* for this project. Nothing falls back to the '
+            'core store from here: the two stacks keep credentials in '
+            'different databases, so serving the other one would answer for '
+            'accounts this project does not have.'
+        );
+    }
+    return _scaled;
 }
 
 impl JacServe.ensure_sv_service(module_name: str, base_path: str) -> None {
+    import from jaclang.server.identity_owner {
+        scale_stack_installed,
+        scale_stack_unavailable
+    }
     _sp = _scale_provider();
     if _sp is not None {
         _sp.ensure_sv_service(module_name, base_path);
         return;
+    }
+    if scale_stack_installed() {
+        raise scale_stack_unavailable('jaclang.scale.plugin', scale_provider_error());
     }
     import os;
     import time;
@@ -1693,9 +1745,7 @@ impl JacServe.sv_walker_call(
         if instance is not None and reports is not None {
             try {
                 instance.reports = reports;
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
         return instance;
     }
@@ -2103,9 +2153,7 @@ impl JacContext.thread_wait(future: any) -> None {
     return future.result();
 }
 
-impl JacConfig.on_config_loaded(config: dict[(str, any)]) -> None {
-    ;
-}
+impl JacConfig.on_config_loaded(config: dict[(str, any)]) -> None {}
 
 impl JacConfig.validate_config(config: dict[(str, any)]) -> list[str] {
     return [];
@@ -2205,32 +2253,41 @@ impl JacRuntime.get_selfhost(cls: any) -> SelfHostCache {
     return cls.selfhost;
 }
 
-impl JacRuntime.get_shared_root -> Root {
+impl JacRuntime.shared_root_id -> (UUID | None) {
     resolver = _shared_root_resolver[0];
     if resolver is None {
+        return None;
+    }
+    cached = _shared_root_resolver[1];
+    if isinstance(cached, UUID) {
+        return cached;
+    }
+    resolved = resolver();
+    if not isinstance(resolved, str) {
+        return None;
+    }
+    root_id = UUID(resolved);
+    _shared_root_resolver[1] = root_id;
+    return root_id;
+}
+
+impl JacRuntime.get_shared_root -> Root {
+    if _shared_root_resolver[0] is None {
         return JacRuntimeInterface.get_context().get_root();
     }
-    root_id = _shared_root_resolver[1];
-    if not isinstance(root_id, str) {
-        root_id = resolver();
-        if not isinstance(root_id, str) {
-            raise RuntimeError(
-                "Shared root unavailable: the registered shared-root resolver "
-                "returned no root id."
-            );
-        }
-        _shared_root_resolver[1] = root_id;
+    root_id = JacRuntime.shared_root_id();
+    if root_id is None {
+        raise RuntimeError(
+            "Shared root unavailable: the registered shared-root resolver "
+            "returned no root id."
+        );
     }
-    shared_anchor = JacRuntimeInterface.get_context().mem.get(UUID(root_id));
+    shared_anchor = JacRuntimeInterface.get_context().mem.get(root_id);
     shared = shared_anchor.archetype if shared_anchor else None;
     if not isinstance(shared, Root) {
         raise RuntimeError(
             f"Shared root unavailable: id {root_id} did not resolve to a Root node."
         );
-    }
-
-    if _all_grant(shared.__jac__) == AccessLevel.NO_ACCESS {
-        JacRuntimeInterface.perm_grant(shared, AccessLevel.CONNECT);
     }
     return shared;
 }

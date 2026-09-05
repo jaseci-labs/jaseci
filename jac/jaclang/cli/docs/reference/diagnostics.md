@@ -486,8 +486,8 @@ Emitted by `jac check --lint`. Rules can be configured in [`jac.toml`](config/in
 | `W3008` | `simplify-ternary` | Ternary can be simplified | default |
 | `W3009` | `remove-future-annotations` | 'from \_\_future\_\_ import annotations' is unnecessary | default |
 | `W3010` | `fix-impl-signature` | Implementation signature does not match declaration | default |
-| `W3011` | `remove-import-semi` | Unnecessary semicolon after import | default |
 | `E3012` | `no-print` | Calling print() is disallowed by rule | all |
+| `W3013` | `remove-redundant-semi` | Unnecessary semicolon | default |
 | `W3020` | `unnecessary-pass` | Unnecessary 'pass' in non-empty body | default |
 | `W3021` | `unnecessary-else-after-return` | Unnecessary 'else' after 'return' | default |
 | `W3022` | `nested-if-to-elif` | Nested 'if' in 'else' can be 'elif' | default |

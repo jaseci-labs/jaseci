@@ -33,6 +33,18 @@ obj ClientManifest {
         layout_export: (str | None) = None;
 }
 
+obj ClientArtifact {
+    has js: str,
+        manifest: ClientManifest,
+        native_import_sources: list[str] = field(default_factory=`list),
+        source_map: list[tuple[int, int, int, int, str]] = field(default_factory=`list),
+        dep_digests: dict[str, str] = field(default_factory=`dict),
+        framework: str = "";
+
+    def to_bytes -> bytes;
+    static def from_bytes(raw: bytes) -> (ClientArtifact | None);
+}
+
 enum InteropContext { SERVER = 'server', NATIVE = 'native', CLIENT = 'client' }
 
 obj NativeFunctionInfo {
@@ -127,7 +139,7 @@ def native_test_symbol(name: str, line: int) -> str {
 }
 
 def native_safe_sym(src: str) -> str {
-    if src in ("osp_kernel", "fmt_kernel") {
+    if src in ("osp_kernel", "fmt_kernel", "region_kernel") {
         return src;
     }
     safe = '';
@@ -480,6 +492,22 @@ def resolve_native_module(
         }
     }
 
+    if clean.startswith('jaclang.') {
+        import from jaclang.compiler.native_scope {
+            in_native_scope_path,
+            scope_lowering_active
+        }
+        if scope_lowering_active() {
+            import jaclang as _jl;
+            _pkg = os.path.dirname(os.path.abspath(_jl.__file__));
+            _parts = clean.split('.')[1:];
+            _cand = os.path.join(_pkg, *_parts) + '.jac';
+            if in_native_scope_path(_cand) and os.path.isfile(_cand) {
+                return (path_name, _cand);
+            }
+        }
+    }
+
     bundled_root = native_stdlib_root();
     if bundled_root is not None {
         bundled = _native_variant_path(os.path.join(bundled_root, path_name));
@@ -655,11 +683,13 @@ obj CodeGenTarget {
         llvm_ir: (ModuleRef | None) = None,
         native_engine: (ExecutionEngine | None) = None,
         native_bitcode: (bytes | None) = None,
+        native_linked_ir: (str | None) = None,
         _interop_manifest: (InteropManifest | None) = None,
         interop_py_funcs: dict[(str, any)] = field(default_factory=`dict),
         _interop_callbacks: list[any] = field(default_factory=`list),
         native_layout: (NativeModuleLayout | None) = None,
         osp_model: (OspModel | None) = None,
+        jc_layout: (str | None) = None,
         has_root_access: (bool | None) = None,
         nogc_enforced: bool = False,
         nogc_provenance: str = '',

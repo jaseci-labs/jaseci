@@ -235,3 +235,21 @@ test "retheme restyles hyphenated and stem-mismatch components" {
 test "retheme fails gracefully without a project" {
     assert retheme_project(MockConfig(), {}) == False;
 }
+
+
+# `theme_handler` reads the shipped registry module and falls back to
+# `_UTILS_CONTENT` only when the registry is missing from the payload -- a
+# sealed binary can be built without it. The fallback is therefore a second
+# copy of one source of truth, and this test is what keeps the two honest.
+test "the utils fallback matches the registry module it stands in for" {
+    import from jaclang.cli.shadcn.theme_handler { _UTILS_CONTENT, _registry_dir }
+    shipped = _registry_dir() / "lib" / "utils.jac";
+    assert shipped.is_file() , (
+        f"the registry no longer ships the module the templates import: {shipped}"
+    );
+    assert shipped.read_text() == _UTILS_CONTENT , (
+        "theme_handler._UTILS_CONTENT has drifted from"
+        f" {shipped}; the fallback would write a different module than"
+        " `jac shadcn add` resolves against"
+    );
+}

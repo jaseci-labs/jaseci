@@ -179,8 +179,20 @@ def _list_release_versions(repo: str) -> list[str] {
     out: list[str] = [];
     for rel in arr {
         tag = str(rel.get("tag_name", ""));
-        if tag.startswith("v") and not rel.get("prerelease", False) {
-            out.append(tag[1:]);
+        if (
+            not tag.startswith("v")
+            or rel.get("prerelease", False)
+            or rel.get("draft", False)
+        ) {
+            continue;
+        }
+        version = tag[1:];
+        prefix = f"jac-{version}-";
+        for asset in rel.get("assets", []) {
+            if str(asset.get("name", "")).startswith(prefix) {
+                out.append(version);
+                break;
+            }
         }
     }
     return out;
@@ -492,9 +504,7 @@ def _fetch_verified_asset(
             cached_bytes: bytes | None = None;
             try {
                 cached_bytes = cache_file.read_bytes();
-            } except OSError {
-                ;
-            }
+            } except OSError {}
             if cached_bytes is not None
                 and hashlib.sha256(cached_bytes).hexdigest() == want {
                 logger.info(f"Using the cached {what} (checksum match).");

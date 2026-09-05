@@ -103,6 +103,7 @@ def get_ir_gen_sched(
     _tok = _ir_sched_loading.set(True);
     try {
         import jaclang.compiler.types.type_evaluator;
+        import jaclang.compiler.types.stubcat.modiface;
         import jaclang.compiler.backends.es.framework_backend;
         import jaclang.compiler.passes.pyast_load_pass;
         import from jaclang.compiler.passes.cfg_build_pass { CFGBuildPass }
@@ -208,9 +209,11 @@ def get_analysis_sched -> list[type[Transform]] {
             PortabilityWarnPass
         }
         import from jaclang.compiler.passes.ownership_check_pass { OwnershipCheckPass }
+        import from jaclang.compiler.passes.region_infer_pass { RegionInferPass }
         import from jaclang.compiler.tools.jac_auto_lint_pass { JacLintCheckPass }
         return validate_schedule(
             [
+                RegionInferPass,
                 TypeCheckPass,
                 StaticAnalysisPass,
                 AccessCheckPass,

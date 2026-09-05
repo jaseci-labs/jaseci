@@ -673,6 +673,8 @@ wait_image = "busybox:1.36"
 
 OS (apt) packages your app needs at runtime, e.g. `git` for an app that shells out to it. Declare them at the top level under `[dependencies.system]`; keys are apt package names (version specs are ignored on Debian). They are `apt-get install`ed into the **service container** at startup, so the binaries are present where your app actually runs.
 
+The install is best effort. When every package is already present the step is skipped; when `apt-get` fails the pod reports `could not install system packages (...)` on stderr and starts without them. The official image runs as the unprivileged `jac` user, which cannot install packages, so on that image a declared package that the image does not already carry is never installed: bake it into a custom `python_image` instead.
+
 **Default:** `[]` (none)
 
 **To add in `jac.toml`:**
@@ -1134,7 +1136,9 @@ Each entry is an [array of tables](https://toml.io/en/v1.0.0#array-of-tables) (n
 
 PVC mode and hostPath mode are mutually exclusive per entry. K-track applies PVCs before Deployments so pods do not crash-loop on "PVC not found".
 
-> **EFS gotcha.** AWS EFS CSI access points enforce a POSIX UID on every file. When the EFS UID differs from the pod's running UID, in-pod `git` commands against the shared volume trip CVE-2022-24765 dubious-ownership checks. Work around it with `git config --system --add safe.directory '*'` in your pod (e.g. via a custom `python_image`), or set a matching `securityContext` on the pod (`runAsUser` / `fsGroup` -- not yet exposed in `[scale.kubernetes]`, on the roadmap).
+A freshly provisioned volume usually arrives root-owned, and the service container runs as the image's unprivileged `jac` user (uid/gid 1000). Every pod that mounts a shared volume therefore runs a `jac-volume-perms` init container first: a hardened root step that hands the mount root (the `sub_path` directory when one is set) to uid/gid 1000 without touching the data below it, and the pod carries `fsGroup: 1000` with `fsGroupChangePolicy: OnRootMismatch` for the storage backends that honor it. A backend that refuses `chown` (a root-squash NFS export, for example) logs `jac-volume-perms: chown/chmod ... not permitted` in the init container and the pod starts with the permissions as provisioned; make the export writable by uid/gid 1000 in that case.
+
+> **EFS gotcha.** AWS EFS CSI access points enforce a POSIX UID on every file. When the EFS UID differs from the pod's running UID, in-pod `git` commands against the shared volume trip CVE-2022-24765 dubious-ownership checks. Work around it with `git config --system --add safe.directory '*'` in your pod (e.g. via a custom `python_image`), or give the access point uid/gid 1000 to match the pod (`runAsUser` is not yet exposed in `[scale.kubernetes]`).
 
 ---
 
@@ -1152,7 +1156,7 @@ JAC_SV_<PEER_MODULE>_URL=http://<peer>-service.<namespace>.svc.cluster.local:<co
 
 The env-var key uses the raw module name (the peer's key in `[scale.microservices.routes]`) upper-cased and joined with `JAC_SV_..._URL`. The URL host uses the Kubernetes Service name with DNS-1123 normalization (so `jac_coder_sv` becomes `jac-coder-sv-service`). Self is skipped (no service points env at itself).
 
-Alongside the peer URLs, every pod also receives `JAC_SV_ROUTES` (the full routes map as JSON), `K8S_APP_NAME`, and `K8S_NAMESPACE`. Every pod's entrypoint (gateway included) also exports `JAC_SV_SIBLING=1` -- a shell export in the container command, not a PodSpec `env:` entry. (Sibling-only scoping of that variable exists only in local multi-process mode.)
+Alongside the peer URLs, every pod (gateway included) also receives `JAC_SV_ROUTES` (the full routes map as JSON), `JAC_SV_SIBLING=1`, `K8S_APP_NAME`, and `K8S_NAMESPACE` as PodSpec `env:` entries. `JAC_SV_SIBLING` tells the runtime it is one pod of a fleet, so it serves its own module instead of entering local microservice mode; it is part of the pod's identity, not something the boot script sets. (Sibling-only scoping of that variable exists only in local multi-process mode.)
 
 You do not write these env vars by hand in deployed K8s mode; K-track derives them from `[scale.microservices.routes]` and the configured namespace.
 
@@ -1352,6 +1356,11 @@ kubectl get pvc                     # the bundle PVC must be Bound
   persists when the backend also rejects root `chown` -- for example a
   root-squash NFS export. Make the export writable by uid/gid 1000 or disable
   root squash.
+- `Permission denied` from the app on a `shared_volumes` mount means the
+  `jac-volume-perms` init container could not hand the mount root to uid/gid
+  1000; read its log (`kubectl logs <pod-name> -c jac-volume-perms`) and make
+  the backend accept root `chown` or provision the volume writable by that
+  identity.
 - `ImagePullBackOff` on the base image means the cluster cannot reach
   `jaseci/jaclang`; set `python_image` to a base it can pull.
 

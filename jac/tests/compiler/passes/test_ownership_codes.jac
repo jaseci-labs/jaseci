@@ -421,6 +421,12 @@ glob OWNERSHIP_CASES: list[tuple] = [
          ),
          (
              "ownership_region",
+             "E1307: a heap-typed call result under an open handed to an opaque callee escapes",
+             "region_call_result_escape.jac",
+             ["E1307"]
+         ),
+         (
+             "ownership_region",
              "E1307: a region-local handed to a `flow` boundary escapes the arena",
              "region_escape_flow.jac",
              ["E1307"]

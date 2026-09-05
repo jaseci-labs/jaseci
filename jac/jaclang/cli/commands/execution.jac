@@ -128,6 +128,17 @@ comptime SPEC_RUN: CommandSpec = CommandSpec(
                  short="f"
              ),
              Arg.create(
+                 "ms",
+                 typ=bool,
+                 `default=None,
+                 help=(
+                     "Run the declared [scale.microservices.routes] as local "
+                     "subprocesses behind a gateway, instead of one process "
+                     "(serving only; --no-ms forces one process)"
+                 ),
+                 short=""
+             ),
+             Arg.create(
                  "client",
                  typ=str,
                  `default=None,
@@ -164,8 +175,10 @@ comptime SPEC_RUN: CommandSpec = CommandSpec(
                  typ=bool,
                  `default=None,
                  help=(
-                     "Evict any other session holding this project's database "
-                     "before serving (use when a previous jac process is stuck)"
+                     "Run a named file as the surrounding project even when the "
+                     "file lives outside it (--no-takeover runs it standalone), "
+                     "and evict any other session holding this project's "
+                     "database before serving"
                  ),
                  short=""
              ),
@@ -207,6 +220,14 @@ comptime SPEC_RUN: CommandSpec = CommandSpec(
                  "jac run --takeover",
                  "Evict a stuck session holding this project's database"
              ),
+             (
+                 "jac run --no-takeover tool.jac",
+                 "Run a project file standalone, leaving the project untouched"
+             ),
+             (
+                 "jac run --ms",
+                 "Run the declared services as local subprocesses behind a gateway"
+             ),
 
          ],
          group="execution",
@@ -229,6 +250,7 @@ def run(
     api_port: int | None = None,
     no_client: bool | None = None,
     faux: bool | None = None,
+    ms: bool | None = None,
     client: str | None = None,
     host: str | None = None,
     platform: str | None = None,
@@ -244,6 +266,7 @@ def serve(
     dev: bool = False,
     api_port: int = 0,
     no_client: bool = False,
+    ms: bool | None = None,
     client: str = "web",
     host: str = "",
     platform: str = "auto",

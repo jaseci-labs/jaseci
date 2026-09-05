@@ -1250,6 +1250,7 @@ impl _parse_toml_data(
             main=serve_data.get("main", True),
             cl_route_prefix=serve_data.get("cl_route_prefix", "cl"),
             base_route_app=serve_data.get("base_route_app", ""),
+            identity=str(serve_data.get("identity", "auto")),
             on_conflict=on_conflict,
             conflict_max_attempts=serve_data.get("conflict_max_attempts", 5),
             conflict_backoff_ms=serve_data.get("conflict_backoff_ms", 0)
@@ -1380,7 +1381,7 @@ impl _interpolate_recursive(`obj: any) -> any {
 impl get_config(
     start_path: Path | None = None, force_discover: bool = False
 ) -> JacConfig | None {
-    if _config is None or force_discover {
+    if (_config is None and not _config_explicit) or force_discover {
         _config = JacConfig.discover(start_path=start_path);
 
         _config_explicit = False;
@@ -1390,6 +1391,18 @@ impl get_config(
         }
     }
     return _config;
+}
+
+impl pin_project_scope(config: JacConfig | None) -> None {
+    _config = config;
+
+    _config_explicit = True;
+
+    _config_by_root = {};
+}
+
+impl project_scope_is_pinned -> bool {
+    return _config_explicit;
 }
 
 impl set_config(config: JacConfig | None) -> None {

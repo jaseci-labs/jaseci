@@ -318,13 +318,26 @@ def collect_assigned_symbols(nd: UniNode) -> set[str] {
     return symbols;
 }
 
-def is_builtin_region_name(nm: (UniNode | None)) -> bool {
-    if not isinstance(nm, Name) or nm.sym_name != "Region" {
+def is_builtin_region_type(t: (object | None), allow_class: bool = False) -> bool {
+    import from jaclang.compiler.types.types { ClassType }
+    import from jaclang.compiler.frontend.unitree { Archetype }
+    if not isinstance(t, ClassType) or t.shared is None {
         return False;
     }
-    if nm.sym is None or nm.sym.decl is None {
-        return True;
+    if t.shared.class_name != "Region" {
+        return False;
     }
-    _loc = nm.sym.decl.loc;
-    return _loc is not None and _loc.mod_path.endswith(".pyi");
+    if not allow_class and t.is_instantiable() and not t.is_instance() {
+        return False;
+    }
+    owner = t.shared.symbol_table;
+    if isinstance(owner, Archetype) {
+        _loc = owner.loc;
+        return _loc is not None and str(_loc.mod_path).endswith(".pyi");
+    }
+    return True;
+}
+
+def expr_is_builtin_region(expr: (UniNode | None)) -> bool {
+    return isinstance(expr, Expr) and is_builtin_region_type(expr.type);
 }

@@ -80,7 +80,7 @@ obj _SchemaFailingStore {
         );
     }
 
-    def close { }
+    def close {}
 }
 
 

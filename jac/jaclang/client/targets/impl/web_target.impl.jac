@@ -17,7 +17,7 @@ def _parse_entry_file(entry_file: Path) -> tuple[str, str] {
     return (base, mod);
 }
 
-impl WebTarget.setup(project_dir: Path) -> None { }
+impl WebTarget.setup(project_dir: Path) -> None {}
 
 impl WebTarget.dev(
     entry_file: Path, project_dir: Path, port: int = 8000, api_port: int = 0
@@ -25,6 +25,7 @@ impl WebTarget.dev(
     import from jaclang.cli.console { console }
     import from jaclang.client.targets.client_dev_common {
         _ClientHmrHandler,
+        dev_proxy_paths,
         ensure_watchdog_common,
         prepare_vite_dev_compilation,
         stop_dev_watcher,
@@ -36,7 +37,14 @@ impl WebTarget.dev(
     hot_watcher: any = None;
     (prepared, compiler) = prepare_vite_dev_compilation(project_dir, entry_file);
     bundler = cast(ViteBundler, prepared);
-    bundler.create_vite_config(entry_file, is_dev=True, api_port=api_p);
+    (dev_api_paths, dev_client_paths) = dev_proxy_paths(project_dir, entry_file);
+    bundler.create_vite_config(
+        entry_file,
+        is_dev=True,
+        api_port=api_p,
+        api_paths=dev_api_paths,
+        client_paths=dev_client_paths
+    );
 
     try {
         if ensure_watchdog_common("the browser") {

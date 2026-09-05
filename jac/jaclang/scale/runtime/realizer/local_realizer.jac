@@ -17,8 +17,14 @@ obj LocalRealizer {
         return len(routes);
     }
 
-    def should_serve(enabled: (bool | None)) -> bool {
-        return should_enter_local_ms(enabled, False, False, self._service_count() > 0);
+    def should_serve(
+        enabled: (bool | None),
+        ms_requested: (bool | None) = None,
+        dev_client: bool = False
+    ) -> bool {
+        return should_enter_local_ms(
+            enabled, False, False, self._service_count() > 0, ms_requested, dev_client
+        );
     }
 
     def serve {

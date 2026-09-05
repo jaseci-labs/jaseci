@@ -18,10 +18,15 @@ import from jaclang.compiler.driver.jir {
     HEADER_SIZE,
     SECTIONS_MAGIC,
     SEC_BYTECODE,
+    SEC_CTDEPS,
     SEC_DEBUG_SRC,
     FORMAT_VERSION,
     compute_precompile_module_key,
+    get_module_cache_path,
+    is_module_cache_valid,
     precompiled_jir_matches_source,
+    read_section_bytes,
+    rebase_ct_deps_section,
     running_compiler_digest,
     PRECOMPILE_SENTINEL
 }
@@ -259,12 +264,58 @@ def _emit_unit_diagnostics(jac_path: str, programs: list) {
 
 glob _unit_program: list = [];
 
+def _ct_deps_extra(jac_path: str, pkg_root: str) -> dict[int, bytes] {
+    try {
+        cache_path = get_module_cache_path(jac_path);
+        if not cache_path.exists() {
+            return {};
+        }
+        raw = read_section_bytes(cache_path.read_bytes(), SEC_CTDEPS);
+        if not raw {
+            return {};
+        }
+        return {
+            int(SEC_CTDEPS): rebase_ct_deps_section(raw, os.path.normpath(pkg_root))
+        };
+    } except Exception {
+        return {};
+    }
+}
+
+def _unit_extra(jac_path: str, pkg_root: str, embed_src: bool) -> dict[int, bytes] {
+    extra: dict[int, bytes] = _ct_deps_extra(jac_path, pkg_root);
+    if embed_src {
+        extra[int(SEC_DEBUG_SRC)] = zlib.compress(Path(jac_path).read_bytes(), 9);
+    }
+    return extra;
+}
+
 def precompile_unit(
     jac_path: str, pkg_root: str, embed_src: bool = False, collect: bool = True
 ) -> bytes | None {
     import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from jaclang.compiler.driver.program { JacProgram }
     import from jaclang.cli.workpool { maybe_malloc_trim }
+
+    try {
+        import from jaclang.compiler.driver.jir { cache_mode }
+        (rebuild_units, _np) = cache_mode();
+        cache_path = get_module_cache_path(jac_path);
+        if (not rebuild_units) and is_module_cache_valid(jac_path, cache_path) {
+            cached_bc = read_section_bytes(cache_path.read_bytes(), SEC_BYTECODE);
+            if cached_bc is not None {
+                rewrapped = patch_co_filenames_bytes(
+                    cached_bc, pkg_root, PRECOMPILE_SENTINEL
+                );
+                return write_precompiled_jir(
+                    rewrapped,
+                    compute_precompile_module_key(jac_path),
+                    FLAG_PRECOMPILED,
+                    _unit_extra(jac_path, pkg_root, embed_src)
+                );
+            }
+        }
+    } except Exception {}
 
     compiler = Jac.get_compiler();
 
@@ -286,12 +337,11 @@ def precompile_unit(
     patched = patch_co_filenames_bytes(
         marshal.dumps(code), pkg_root, PRECOMPILE_SENTINEL
     );
-    extra: dict[int, bytes] | None = None;
-    if embed_src {
-        extra = {int(SEC_DEBUG_SRC): zlib.compress(Path(jac_path).read_bytes(), 9)};
-    }
     return write_precompiled_jir(
-        patched, compute_precompile_module_key(jac_path), FLAG_PRECOMPILED, extra
+        patched,
+        compute_precompile_module_key(jac_path),
+        FLAG_PRECOMPILED,
+        _unit_extra(jac_path, pkg_root, embed_src)
     );
 }
 
@@ -304,7 +354,7 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
     if pkg_dir.name != "jaclang" {
         return failed;
     }
-    import from jaclang.bootstrap_manifest { seed_abs_entries }
+    import from jaclang.bootstrap_manifest { seed_abs_entries, is_native_only_seed }
     (seed_dirs, seed_files) = seed_abs_entries(str(pkg_dir));
     seed_sources: list[Path] = [
         Path(p)
@@ -321,6 +371,11 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
         if any(
             part.startswith(".") or part == "__pycache__"
             for part in jac_file.relative_to(pkg_dir).parts
+        ) {
+            continue;
+        }
+        if is_native_only_seed(
+            str(jac_file.relative_to(pkg_dir)).replace(os.sep, "/")
         ) {
             continue;
         }
@@ -625,6 +680,13 @@ def write_manifest(
     if app_meta {
         manifest.update(app_meta);
     }
+    if pkg_name == "jaclang" {
+        import from jaclang.compiler.native_scope { NATIVE_SCOPE }
+        scope_mods = sorted([e.module for e in NATIVE_SCOPE]);
+        if scope_mods {
+            manifest["native"] = {"modules": scope_mods};
+        }
+    }
     (precompiled_dir / MANIFEST_NAME).write_text(
         json.dumps(manifest, sort_keys=True, indent=1) + "\n", encoding="utf-8"
     );
@@ -652,7 +714,6 @@ def main {
     seal_compile = "--seal-compile" in args;
     finalize_only = "--seal-finalize" in args;
     embed_src = "--debug-src" in args;
-    exclude_seed = seal or seal_compile;
     jobs_arg = "";
     for a in args {
         if a.startswith("--jobs=") {
@@ -666,11 +727,11 @@ def main {
     ];
     if not args {
         console.print(
-            "Usage: jac run dist/precompile_bytecode.jac<package-source-dir> [--seal|--seal-finalize] [--debug-src]"
+            "Usage: jac precompile <package-source-dir> [--seal|--seal-finalize] [--debug-src]"
         );
         console.print("\nExamples:");
-        console.print("  jac run dist/precompile_bytecode.jac./jac");
-        console.print("  jac run dist/precompile_bytecode.jac./jac/jaclang/scale");
+        console.print("  jac precompile ./jac");
+        console.print("  jac precompile ./jac/jaclang/scale");
         console.print("\n--seal: precompile, freeze the bootstrap seed tier, and emit");
         console.print("        MANIFEST.json (JIR-authoritative image; .jac sources");
         console.print(
@@ -698,8 +759,25 @@ def main {
         );
         sys.`exit(1);
     }
+    run_precompile(
+        args[0],
+        seal=seal,
+        seal_compile=seal_compile,
+        finalize_only=finalize_only,
+        embed_src=embed_src,
+        jobs_arg=jobs_arg
+    );
+}
 
-    source_dir = args[0];
+def run_precompile(
+    source_dir: str,
+    seal: bool = False,
+    seal_compile: bool = False,
+    finalize_only: bool = False,
+    embed_src: bool = False,
+    jobs_arg: str = ""
+) {
+    exclude_seed = seal or seal_compile;
     package_dir = find_package_dir(source_dir);
     if package_dir is None {
         console.error(f"Could not find a Python package in {source_dir}");

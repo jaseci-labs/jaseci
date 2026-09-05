@@ -15,6 +15,8 @@ import from jaclang.compiler.frontend.unitree {
     UniScopeNode
 }
 import from jaclang.compiler.frontend.constant {
+    BindingKind,
+    OwnershipKind,
     SymbolAccess,
     SymbolType,
     Tokens as Tok
@@ -47,6 +49,7 @@ import from jaclang.compiler.types.stubcat.format {
     LIT_BOOL,
     LIT_INT,
     LIT_STR,
+    MOD_EXTERNAL,
     PM_CLS,
     PM_COMPTIME,
     PM_HAS_DEFAULT,
@@ -59,6 +62,11 @@ import from jaclang.compiler.types.stubcat.format {
     SH_ROOT,
     SH_STDLIB,
     SH_TYPEDDICT,
+    SH_XREF,
+    SYMF_NA_ESCAPES,
+    SYMF_NA_REGION_HANDLE,
+    SYMF_NA_STACK_OK,
+    SYMF_PARAM_REBOUND,
     TV_CLASS_PARAM,
     TV_CONTRAVARIANT,
     TV_COVARIANT,
@@ -85,6 +93,7 @@ obj CatProvider {
         prop_kind: int,
         write_kind: int,
         write_type_id: int,
+        symbits: int = 0,
         memo: (TypeBase | None) = None,
         memo_set: bool = False;
 
@@ -97,9 +106,7 @@ obj CatProvider {
             self.memo_set = True;
             try {
                 symbol.decl.type = resolved;
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
         found = self.memo;
         if found is None {
@@ -261,13 +268,17 @@ obj SymbolRec {
         alias_name: str = "",
         prop_kind: int = 0,
         write_kind: int = 0,
-        write_type: int = -1;
+        write_type: int = -1,
+        ownership: int = 0,
+        binding: int = 0,
+        symbits: int = 0;
 }
 
 obj StubCatalog {
     has buf: any,
         pkg_dir: str,
         keepalive: any = None,
+        resolver: any = None,
         hdr: Header postinit,
         _str_memo: dict[int, str] postinit,
         _mod_memo: dict[int, Module] postinit,
@@ -278,7 +289,7 @@ obj StubCatalog {
         _sources: dict[int, Source] postinit,
         _mod_names: dict[str, int] postinit,
         _mod_rel: dict[str, int] postinit,
-        _mod_recs: list[tuple[str, str, int, int]] postinit,
+        _mod_recs: list[tuple[str, str, int, int, str]] postinit,
         _base_dir: str postinit;
 
     def postinit {
@@ -304,9 +315,10 @@ obj StubCatalog {
             rel = self.string(c.u());
             flags = c.u();
             scope = c.ref();
+            decided = self.string(c.u());
             self._mod_names[name] = i;
             self._mod_rel[rel] = i;
-            self._mod_recs.append((name, rel, flags, scope));
+            self._mod_recs.append((name, rel, flags, scope, decided));
         }
     }
 
@@ -352,6 +364,9 @@ obj StubCatalog {
     def abs_path(rel: str) -> str {
         if not rel {
             return "";
+        }
+        if os.path.isabs(rel) {
+            return rel;
         }
         return os.path.join(self._base_dir, *rel.split("/"));
     }
@@ -440,12 +455,33 @@ obj StubCatalog {
         if found is not None {
             return found;
         }
-        (name, rel, flags, scope_id) = self._mod_recs[mid];
+        (name, rel, flags, scope_id, decided) = self._mod_recs[mid];
+        if (flags & MOD_EXTERNAL) != 0 or scope_id < 0 {
+            ext: (Module | None) = None;
+            if self.resolver is not None {
+                try {
+                    ext = self.resolver.resolve_module(self.abs_path(rel));
+                } except Exception {
+                    ext = None;
+                }
+            }
+            if ext is None {
+                tok = self._token(mid, name, 1, 0, 1, 0);
+                ext = CatModule(cat=self, cat_id=mid, name=name, kids={}, tok=tok);
+            }
+            self._mod_memo[mid] = ext;
+            return ext;
+        }
         rec = self._read_scope(scope_id);
         tok = self._token(mid, name, 1, 0, 1, 0);
         mod = CatModule(cat=self, cat_id=mid, name=name, kids=rec.kids, tok=tok);
         self._mod_memo[mid] = mod;
         self._scope_memo[scope_id] = mod;
+        if decided {
+            try {
+                mod.decided_codespace = decided;
+            } except Exception {}
+        }
         if name != "builtins" {
             builtins = self.module("builtins");
             if builtins is not None {
@@ -576,6 +612,9 @@ obj StubCatalog {
         rec.prop_kind = c.u();
         rec.write_kind = c.u();
         rec.write_type = c.ref();
+        rec.ownership = c.u();
+        rec.binding = c.u();
+        rec.symbits = c.u();
         return rec;
     }
 
@@ -632,8 +671,25 @@ obj StubCatalog {
             alias_name=rec.alias_name,
             prop_kind=rec.prop_kind,
             write_kind=rec.write_kind,
-            write_type_id=rec.write_type
+            write_type_id=rec.write_type,
+            symbits=rec.symbits
         );
+        if rec.ownership {
+            try {
+                sym.ownership = OwnershipKind(rec.ownership);
+            } except ValueError {}
+        }
+        if rec.binding == 1 {
+            sym._binding_kind = BindingKind.VALUE;
+        } elif rec.binding == 2 {
+            sym._binding_kind = BindingKind.TYPE;
+        } elif rec.binding == 3 {
+            sym._binding_kind = BindingKind.BOTH;
+        }
+        sym.param_rebound = (rec.symbits & SYMF_PARAM_REBOUND) != 0;
+        sym.na_escapes = (rec.symbits & SYMF_NA_ESCAPES) != 0;
+        sym.na_region_handle = (rec.symbits & SYMF_NA_REGION_HANDLE) != 0;
+        sym.na_stack_ok = (rec.symbits & SYMF_NA_STACK_OK) != 0;
         self._sym_memo[sid] = sym;
         return sym;
     }
@@ -886,6 +942,41 @@ obj StubCatalog {
         c = self._rec(self.hdr.off_sharedtab, shid);
         name = self.string(c.u());
         bits = c.u();
+        if (bits & SH_XREF) != 0 {
+            xmid = c.ref();
+            dotted = self.string(c.u());
+            ident_rel = self.string(c.u());
+            ident_line = c.u();
+            ident_col = c.u();
+            resolved: (ClassDetailsShared | None) = None;
+            if self.resolver is not None and xmid >= 0 {
+                try {
+                    resolved = self.resolver.resolve_shared(
+                        self.abs_path(self._mod_recs[xmid][1]), dotted, name
+                    );
+                } except Exception {
+                    resolved = None;
+                }
+            }
+            if resolved is None {
+                resolved = ClassDetailsShared(
+                    class_name=name,
+                    symbol_table=self._orphan_scope(name),
+                    mro=None,
+                    type_params=None,
+                    base_classes=None,
+                    _identity_key=(
+                        self.abs_path(ident_rel),
+                        ident_line,
+                        ident_col,
+                        name
+                    )
+                );
+                resolved.mro = [];
+            }
+            self._shared_memo[shid] = resolved;
+            return resolved;
+        }
         scope_id = c.ref();
         mro = c.refs();
         type_params = c.refs();
