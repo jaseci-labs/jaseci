@@ -128,7 +128,7 @@ test "static and schema endpoints" {
 
         srv = client._server;
         assert srv is not None , "server must be running";
-        openapi_spec = srv.server.app.openapi();
+        openapi_spec = srv.app.openapi();
         paths = openapi_spec.get("paths", {});
 
         assert "/user/refresh-token" in paths;

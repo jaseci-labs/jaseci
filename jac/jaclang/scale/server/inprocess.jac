@@ -67,10 +67,12 @@ def prepare_inprocess_runtime(
         );
     }
 
+    import from jaclang.scale.plugin { mark_scale_runtime }
     (base, _) = os.path.split(jac_file);
     base = base or "./";
     mod = base_stem(jac_file);
     os.makedirs(base_path, exist_ok=True);
+    mark_scale_runtime();
     Jac.set_base_path(base_path);
 
     prior_ctx = Jac.exec_ctx;

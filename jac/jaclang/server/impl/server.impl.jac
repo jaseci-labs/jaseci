@@ -1319,26 +1319,26 @@ impl ModuleIntrospector.client_claimed_paths(candidates: list[str]) -> list[str]
 }
 
 
-impl ModuleIntrospector.walker_protocol(walker_name: str) -> str {
+impl ModuleIntrospector.walker_protocol(walker_name: str) -> APIProtocol {
     walkers = self.get_walkers();
     if walker_name not in walkers {
         return APIProtocol.HTTP;
     }
     restspec: any = target_restspec(walkers[walker_name]);
     if restspec?.protocol {
-        return str(restspec.protocol);
+        return APIProtocol(restspec.protocol);
     }
     return APIProtocol.HTTP;
 }
 
-impl ModuleIntrospector.function_protocol(func_name: str) -> str {
+impl ModuleIntrospector.function_protocol(func_name: str) -> APIProtocol {
     functions = self.get_functions();
     if func_name not in functions {
         return APIProtocol.HTTP;
     }
     restspec: any = target_restspec(functions[func_name]);
     if restspec?.protocol {
-        return str(restspec.protocol);
+        return APIProtocol(restspec.protocol);
     }
     return APIProtocol.HTTP;
 }

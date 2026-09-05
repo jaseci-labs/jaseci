@@ -155,8 +155,8 @@ obj ModuleIntrospector {
     def restspec_routes -> list[tuple[str, str, any]];
     def declared_api_paths -> list[str];
     def client_claimed_paths(candidates: list[str]) -> list[str];
-    def walker_protocol(walker_name: str) -> str;
-    def function_protocol(func_name: str) -> str;
+    def walker_protocol(walker_name: str) -> APIProtocol;
+    def function_protocol(func_name: str) -> APIProtocol;
 }
 
 obj JacAPIServer(EndpointHost) {

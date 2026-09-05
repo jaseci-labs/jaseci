@@ -22,6 +22,10 @@ def register_health_endpoints(
         return JSONResponse(content={'status': 'alive'});
     }
 
+    async def health_legacy -> JSONResponse {
+        return JSONResponse(content={'status': 'ok'});
+    }
+
     async def health_ready -> JSONResponse {
         if drain.draining {
             resp = JSONResponse(
@@ -67,7 +71,12 @@ def register_health_endpoints(
             'while it drains for shutdown or a readiness check fails. Drives '
             'the Kubernetes readinessProbe.'
         ),
-        ('/healthz', health_live, 'Liveness check (legacy)', 'Alias of /healthz/live.')
+        (
+            '/healthz',
+            health_legacy,
+            'Liveness check (legacy)',
+            'Back-compat alias of /healthz/live; answers {"status": "ok"}.'
+        )
     ] {
         app.add_endpoint(
             JEndPoint(

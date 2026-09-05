@@ -23,9 +23,7 @@ import from jaclang.scale.websocket.protocol { ws_handle_control, ws_heartbeat_l
 
 
 def _ws_client -> any {
-    client = make_client("test_api.jac");
-    client.server.register_websocket_endpoints();
-    return client;
+    return make_client("test_api.jac");
 }
 
 

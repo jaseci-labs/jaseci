@@ -3,7 +3,7 @@ import time;
 import from jaclang.runtime.runtime { JacRuntime }
 import from jaclang.server.identity.user_manager { UserManager }
 import from jaclang.server.serving.datatypes { JSONResponse, Request, Response }
-import from jaclang.server.serving.drain { HEALTH_PATHS }
+import from jaclang.server.serving.drain { LIVENESS_PATHS }
 import from jaclang.server.transport { Meta, TransportResponse }
 
 glob logger: logging.Logger = logging.getLogger('jaclang.serve');
@@ -54,7 +54,7 @@ def _service_unavailable(detail: str) -> JSONResponse {
 def request_context_middleware -> Callable[..., any] {
     async def _middleware(request: Request, call_next: any) -> Response {
         next_fn: any = call_next;
-        if request.url.path in HEALTH_PATHS {
+        if request.url.path in LIVENESS_PATHS {
             return await next_fn(request);
         }
         try {

@@ -3,7 +3,8 @@ import time;
 import from jaclang.server.serving.datatypes { JSONResponse, Request, Response }
 
 glob logger: logging.Logger = logging.getLogger(__name__),
-     HEALTH_PATHS: set[str] = {'/healthz', '/healthz/live', '/healthz/ready'};
+     HEALTH_PATHS: set[str] = {'/healthz', '/healthz/live', '/healthz/ready'},
+     LIVENESS_PATHS: set[str] = {'/healthz', '/healthz/live'};
 
 
 obj DrainState {
