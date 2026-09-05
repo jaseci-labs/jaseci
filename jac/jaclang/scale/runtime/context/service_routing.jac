@@ -32,9 +32,9 @@ def resolve_http_activation_config(
     svc_name: str
 ) -> dict[str, any] | None {
     """Merge [scale.microservices.services.<svc_name>.http_activation] over
-    [scale.kubernetes.http_activation], the same precedence
-    ManifestBuilder._get_http_activation_config uses. Returns None when the
-    merged config isn't enabled.""";
+    [scale.kubernetes.http_activation]. The single implementation of this
+    precedence; ManifestBuilder._get_http_activation_config delegates here.
+    Returns None when the merged config isn't enabled.""";
     per_service: dict[str, any] = dict(
         microservices_cfg.get("services", {}).get(svc_name, {}).get(
             "http_activation", {}
