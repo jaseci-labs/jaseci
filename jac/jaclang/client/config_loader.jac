@@ -2,7 +2,6 @@ import from jaclang.project.config { JacConfig }
 import from pathlib { Path }
 import from jaclang.project.plugin_config { PluginConfigBase }
 
-def _app_effective_config(jac_config: JacConfig) -> JacConfig;
 
 class JacClientConfig(PluginConfigBase) {
     override def get_plugin_name(self: JacClientConfig) -> str;
