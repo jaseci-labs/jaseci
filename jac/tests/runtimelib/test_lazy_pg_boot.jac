@@ -66,7 +66,7 @@ test "a stateless program never boots the embedded postgres" {
     orig_base = Jac.get_base_path_dir();
     try {
         Jac.set_base_path(FIXTURES);
-        rc = execution.run(filename=os.path.join(FIXTURES, "stateless_hello.jac"));
+        rc = execution.run(target=os.path.join(FIXTURES, "stateless_hello.jac"));
         assert rc == 0 , f"stateless_hello.jac exited {rc}";
         assert probe.calls == [] , (
             f"a program that touches no graph state booted embedded postgres "

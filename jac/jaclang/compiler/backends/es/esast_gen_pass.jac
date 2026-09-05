@@ -332,6 +332,7 @@ walker EsastGenPass(BaseAstGenPass[es.Statement]) {
         nd: uni.BinaryExpr, left_expr: es.Expression, right_expr: es.Expression
     ) -> (SpawnCallParts | None);
 
+    def _import_item_named(name: str) -> (uni.ModuleItem | None);
     def _build_spawn_runtime_call(
         nd: uni.BinaryExpr, parts: SpawnCallParts
     ) -> es.AwaitExpression;
@@ -414,6 +415,8 @@ walker EsastGenPass(BaseAstGenPass[es.Statement]) {
     ) -> None;
 
     def _sv_import_item_is_type(nd: uni.Import, item: uni.ModuleItem) -> bool;
+    def _is_service_bridge_import(nd: uni.Import) -> bool;
+    def _sv_provider_options(nd: uni.Import) -> (es.Expression | None);
     def _record_sv_backend(nd: uni.Import) -> None;
     def _generate_na_import_binding(nd: uni.Import) -> None;
     def _is_client_native_import(nd: uni.Import) -> bool;

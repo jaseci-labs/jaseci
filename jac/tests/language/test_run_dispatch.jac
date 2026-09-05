@@ -1,9 +1,10 @@
-"""Tests for project-kind-aware `jac run` dispatch.
+"""Tests for kind-aware `jac run` dispatch.
 
-`jac run` with no explicit file resolves the project kind from jac.toml (or
-infers it from the entry-point codespace) and dispatches to execute / serve /
-build. These tests cover the planner (`plan_project_run`) for every project
-kind, kind inference, entry-point resolution, error paths, and real execution
+`jac run` with no explicit file resolves the app (the implicit single app of a
+plain jac.toml here), its kind (explicit `[project] kind` or inferred from the
+entry-point codespace) and dispatches to execute / serve / build. These tests
+cover the planner (`plan_app_run`) for every kind, kind inference
+(`resolve_app_kind`), entry-point resolution, error paths, and real execution
 of the two cheap runnable kinds (cli, cli-native)."""
 
 import io;
@@ -14,9 +15,11 @@ import tempfile;
 import from pathlib { Path }
 import from jaclang.cli.commands { execution }
 import from jaclang.project.config { JacConfig, set_config }
+import from jaclang.project.apps { AppConfig }
 import from jaclang.project.kinds {
-    plan_project_run,
-    resolve_project_kind,
+    plan_app_run,
+    plan_workspace,
+    resolve_app_kind,
     resolve_entry,
     is_valid_kind,
     kind_entry,
@@ -47,7 +50,7 @@ def _mk_project(
     return d;
 }
 
-"""Build the RunPlan for a freshly-created project."""
+"""Build the RunPlan for a freshly-created project (its implicit single app)."""
 def _plan(
     toml_extra: str,
     entry_name: str = "",
@@ -56,7 +59,7 @@ def _plan(
     d = _mk_project(toml_extra, entry_name, entry_body);
     cfg = JacConfig.discover(start_path=Path(d));
     assert cfg is not None , "expected a discovered config";
-    plan = plan_project_run(cfg, d);
+    plan = plan_app_run(cfg, d, cfg.resolve_app(""));
     assert plan is not None , "expected a run plan";
     return plan;
 }
@@ -150,8 +153,9 @@ test "kind web-app -> serve dev (client framework is core)" {
     assert p.action == "serve";
     assert p.verb == "run";
     assert p.flags.get("dev") == True;
-    # A web-app serves the default web client, so it carries no --client flag.
+    # The kind decides the client; no plan carries a client flag.
     assert "client" not in p.flags;
+    assert p.spec.ui == "dom";
 }
 
 test "kind web-static -> serve (client framework is core)" {
@@ -159,6 +163,7 @@ test "kind web-static -> serve (client framework is core)" {
     assert p.action == "serve";
     assert p.verb == "run";
     assert "client" not in p.flags;
+    assert p.spec.ui == "dom";
 }
 
 test "kind desktop -> serve the desktop client target (core)" {
@@ -166,19 +171,42 @@ test "kind desktop -> serve the desktop client target (core)" {
     assert p.action == "serve";
     assert p.verb == "run";
     # The desktop target is a core client target -- it must reach the serve
-    # path, not be turned away as a missing plugin.
-    assert p.flags.get("client") == "desktop";
-    assert "--client desktop" in p.command_line();
+    # path, not be turned away as a missing plugin. The kind alone selects
+    # it: there is no --client flag on the plan or the command line.
+    assert "client" not in p.flags;
+    assert p.spec.ui == "dom";
+    assert p.flags == {};
+    assert p.command_line() == "jac run app.jac";
 }
 
 test "kind mobile -> build the mobile client shell (core)" {
     p = _plan("kind = \"mobile\"\nentry-point = \"app.jac\"\n", "app.jac");
     assert p.action == "build";
     assert p.verb == "build";
-    # Must build the mobile shell, not fall through to a default .jab build.
-    assert p.flags.get("client") == "mobile";
+    # Must build the mobile shell, not fall through to a default .jab build:
+    # the kind's ui says mobUI and there is no `as` projection.
+    assert "client" not in p.flags;
+    assert p.spec.ui == "mobui";
     assert "as" not in p.flags;
-    assert "--client mobile" in p.command_line();
+    assert p.command_line() == "jac build app.jac";
+}
+
+test "kind mobile with a platform carries it on the plan" {
+    p = _plan("kind = \"mobile\"\nentry-point = \"app.jac\"\n", "app.jac");
+    assert "platform" not in p.flags , "no platform unless the app names one";
+    # A workspace app names its platform in its own table.
+    d = _mk_project(
+        "\n[apps.phone]\nkind = \"mobile\"\npath = \"phone\"\nplatform = \"ios\"\n"
+    );
+    os.makedirs(os.path.join(d, "phone"), exist_ok=True);
+    with open(os.path.join(d, "phone", "main.jac"), "w") as f {
+        f.write("with entry { print(\"ok\"); }");
+    }
+    cfg = JacConfig.discover(start_path=Path(d));
+    assert cfg is not None;
+    plan = plan_app_run(cfg, d, cfg.resolve_app(""));
+    assert plan.flags == {"platform": "ios"};
+    assert plan.command_line() == "jac build phone --platform ios";
 }
 
 # ---------------------------------------------------------------------------
@@ -226,11 +254,55 @@ test "stale entry-point resolves by stem to the real language file" {
     assert p.entry_path.endswith("main.py");
 }
 
-test "missing entry yields no plan for runnable kinds" {
+test "missing entry is a planning error for runnable kinds" {
     d = _mk_project("kind = \"cli\"\nentry-point = \"nope.jac\"\n", "");
     cfg = JacConfig.discover(start_path=Path(d));
     assert cfg is not None;
-    assert plan_project_run(cfg, d) is None;
+    raised = "";
+    try {
+        plan_app_run(cfg, d, cfg.resolve_app(""));
+    } except ValueError as e {
+        raised = str(e);
+    }
+    assert "no entry file" in raised , raised;
+    assert "nope.jac" in raised , raised;
+}
+
+# ---------------------------------------------------------------------------
+# Kind resolution (resolve_app_kind)
+# ---------------------------------------------------------------------------
+test "resolve_app_kind: an explicit kind wins for any app" {
+    d = _mk_project("kind = \"service\"\nentry-point = \"main.jac\"\n", "main.jac");
+    cfg = JacConfig.discover(start_path=Path(d));
+    assert cfg is not None;
+    app = cfg.resolve_app("");
+    assert app.implicit;
+    assert resolve_app_kind(cfg, app, resolve_entry(cfg, d, app)) == "service";
+    named = AppConfig(name="tool", kind="native-binary", path="tool");
+    assert resolve_app_kind(cfg, named, "") == "native-binary";
+}
+
+test "resolve_app_kind: only the implicit app infers; an [apps] entry is cli" {
+    d = _mk_project(
+        "entry-point = \"main.jac\"\n\n[dependencies]\njac-client = \"*\"\n", "main.jac"
+    );
+    cfg = JacConfig.discover(start_path=Path(d));
+    assert cfg is not None;
+    implicit = cfg.resolve_app("");
+    assert resolve_app_kind(cfg, implicit, resolve_entry(cfg, d, implicit))
+        == "web-app";
+    explicit = AppConfig(name="web", kind="", path="web");
+    assert resolve_app_kind(cfg, explicit, "") == "cli";
+}
+
+test "plan_workspace on a plain project yields the implicit app's plan" {
+    d = _mk_project("kind = \"cli\"\nentry-point = \"main.jac\"\n", "main.jac");
+    cfg = JacConfig.discover(start_path=Path(d));
+    assert cfg is not None;
+    plans = plan_workspace(cfg, d);
+    assert len(plans) == 1;
+    assert plans[0].kind == "cli" and plans[0].app == "";
+    assert plans[0].command_line() == "jac run main.jac";
 }
 
 # ---------------------------------------------------------------------------
@@ -288,15 +360,17 @@ test "jac run --show prints the plan without executing" {
     captured = io.StringIO();
     sys.stdout = captured;
     try {
-        rc = execution.run(filename="", show=True);
+        rc = execution.run(target="", show=True);
     } finally {
         sys.stdout = sys.__stdout__;
         os.chdir(old);
     }
     out = captured.getvalue();
     assert rc == 0;
-    assert "project kind : cli" in out;
+    assert "kind         : cli" in out;
     assert "action       : execute" in out;
+    # A plain project is its own implicit app: no app row is printed.
+    assert "app          :" not in out;
     assert "SHOULD_NOT_RUN" not in out;
 }
 
@@ -309,7 +383,7 @@ test "jac run with no file executes a cli project from cwd" {
     captured = io.StringIO();
     sys.stdout = captured;
     try {
-        rc = execution.run(filename="");
+        rc = execution.run(target="");
     } finally {
         sys.stdout = sys.__stdout__;
         os.chdir(old);
@@ -333,7 +407,7 @@ test "jac run with no file executes a cli-native project from cwd" {
     saved_fd = os.dup(1);
     os.dup2(cap.fileno(), 1);
     try {
-        rc = execution.run(filename="");
+        rc = execution.run(target="");
     } finally {
         sys.stdout.flush();
         os.dup2(saved_fd, 1);
@@ -360,7 +434,7 @@ test "jac run builds a native-binary project into dist/" {
     devnull = os.open(os.devnull, os.O_WRONLY);
     os.dup2(devnull, 1);
     try {
-        rc = execution.run(filename="");
+        rc = execution.run(target="");
     } finally {
         sys.stdout.flush();
         os.dup2(saved_fd, 1);
@@ -384,14 +458,14 @@ test "unknown explicit kind is reported by jac run" {
     captured = io.StringIO();
     sys.stderr = captured;
     try {
-        rc = execution.run(filename="");
+        rc = execution.run(target="");
     } finally {
         sys.stderr = sys.__stderr__;
         os.chdir(old);
     }
     err = captured.getvalue();
-    assert rc == 1;
-    assert "Unknown" in err and "banana" in err;
+    assert rc == 2 , f"rc={rc}, err={err}";
+    assert "unknown kind" in err and "banana" in err , err;
     _cleanup();
 }
 
@@ -406,7 +480,9 @@ test "an explicitly named file resolves the project kind, not a bare execute" {
     );
     cfg = JacConfig.discover(start_path=Path(d));
     assert cfg is not None;
-    plan = plan_project_run(cfg, d, entry_override=os.path.join(d, "main.jac"));
+    plan = plan_app_run(
+        cfg, d, cfg.resolve_app(""), entry_override=os.path.join(d, "main.jac")
+    );
     assert plan is not None;
     # `jac run main.jac` in a service project serves, exactly as bare `jac run`
     # does -- the pre-merge asymmetry (file => execute) is gone.
@@ -425,7 +501,7 @@ test "a named file executes in a build kind; only a bare run builds" {
         os.chdir(d);
         # A bare `jac run` builds the mobile app shell; naming the file runs it.
         # Without this split, `jac run main.jac` would shell out to gradle.
-        rc = execution.run(filename="main.jac", show=True);
+        rc = execution.run(target="main.jac", show=True);
     } finally {
         os.chdir(saved);
     }
@@ -437,36 +513,40 @@ test "entry_override keeps a named file for kinds that plan without one" {
     d = _mk_project("kind = \"py-package\"\n", "lib.jac");
     cfg = JacConfig.discover(start_path=Path(d));
     assert cfg is not None;
-    bare = plan_project_run(cfg, d);
+    app = cfg.resolve_app("");
+    bare = plan_app_run(cfg, d, app);
     assert bare is not None and bare.entry_path == "";
-    named = plan_project_run(cfg, d, entry_override=os.path.join(d, "lib.jac"));
+    named = plan_app_run(cfg, d, app, entry_override=os.path.join(d, "lib.jac"));
     assert named is not None;
     assert named.entry_path == os.path.join(d, "lib.jac");
 }
 
 test "serve flags are recognised only when they were actually typed" {
+    # (port, dev, api_port, no_client, faux, host, platform, fleet, cfg): the
+    # old `client` slot is gone with the --client flag.
     over = execution._serve_overrides(
-        None, None, None, None, None, None, None, None, None, None
+        None, None, None, None, None, None, None, False, None
     );
     assert over == {};
     over = execution._serve_overrides(
-        None, True, None, None, None, None, None, None, None, None
+        None, True, None, None, None, None, None, False, None
     );
     assert over == {"dev": True};
     # --no-client is a real choice, not an absence: False must survive.
     over = execution._serve_overrides(
-        None, None, None, False, None, None, None, None, None, None
+        None, None, None, False, None, None, None, False, None
     );
     assert over == {"no_client": False};
-    # Same for --ms/--no-ms: both spellings are a topology the user asked for.
+    # --platform is the only client-side choice that survives.
     over = execution._serve_overrides(
-        None, None, None, None, None, True, None, None, None, None
+        None, None, None, None, None, None, "ios", False, None
     );
-    assert over == {"ms": True};
+    assert over == {"platform": "ios"};
+    # --fleet is a plain switch: only True is an override.
     over = execution._serve_overrides(
-        None, None, None, None, None, False, None, None, None, None
+        None, None, None, None, None, None, None, True, None
     );
-    assert over == {"ms": False};
+    assert over == {"fleet": True};
 }
 
 test "a [serve] port from jac.toml is not mistaken for a typed --port" {
@@ -497,7 +577,7 @@ test "--port on a cli-kind project is a hard error, not a silent no-op" {
     saved = os.getcwd();
     try {
         os.chdir(d);
-        rc = execution.run(filename="main.jac", show=True, port=3000);
+        rc = execution.run(target="main.jac", show=True, port=3000);
     } finally {
         os.chdir(saved);
     }
@@ -509,7 +589,7 @@ test "--serve overrides a non-serving kind instead of erroring" {
     saved = os.getcwd();
     try {
         os.chdir(d);
-        rc = execution.run(filename="main.jac", show=True, serve_mode=True, port=3000);
+        rc = execution.run(target="main.jac", show=True, serve_mode=True, port=3000);
     } finally {
         os.chdir(saved);
     }
@@ -521,7 +601,7 @@ test "--entry against a serving kind is a hard error" {
     saved = os.getcwd();
     try {
         os.chdir(d);
-        rc = execution.run(filename="main.jac", show=True, entry_name="walk");
+        rc = execution.run(target="main.jac", show=True, entry_name="walk");
     } finally {
         os.chdir(saved);
     }
@@ -533,7 +613,7 @@ test "--no-serve forces execution of a serving kind" {
     saved = os.getcwd();
     try {
         os.chdir(d);
-        rc = execution.run(filename="main.jac", show=True, serve_mode=False);
+        rc = execution.run(target="main.jac", show=True, serve_mode=False);
     } finally {
         os.chdir(saved);
     }
@@ -552,7 +632,7 @@ test "a client build kind still accepts serve flags (mobile dev server)" {
         os.chdir(d);
         # `mobile` plans as a *build*, but its client target has a dev server:
         # --dev must reach it rather than be refused as a serve-only flag.
-        rc = execution.run(filename="main.jac", show=True, dev=True);
+        rc = execution.run(target="main.jac", show=True, dev=True);
     } finally {
         os.chdir(saved);
     }
@@ -565,7 +645,7 @@ test "a library build kind refuses serve flags" {
     saved = os.getcwd();
     try {
         os.chdir(d);
-        rc = execution.run(filename="lib.jac", show=True, port=3000);
+        rc = execution.run(target="lib.jac", show=True, port=3000);
     } finally {
         os.chdir(saved);
     }
@@ -577,7 +657,7 @@ test "--serve is a plain serve: the kind's dev default does not ride along" {
     d = _mk_project("kind = \"web-app\"\nentry-point = \"main.jac\"\n", "main.jac");
     cfg = JacConfig.discover(start_path=Path(d));
     assert cfg is not None;
-    plan = plan_project_run(cfg, d);
+    plan = plan_app_run(cfg, d, cfg.resolve_app(""));
     assert plan is not None and plan.flags.get("dev") == True;
     # Bare `jac run` takes the kind's default (the dev loop)...
     assert execution._kind_serve_flags(plan, True, None).get("dev") == True;

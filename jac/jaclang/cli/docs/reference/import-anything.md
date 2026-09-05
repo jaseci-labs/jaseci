@@ -227,7 +227,7 @@ import from "libgeometry.so" {
 
 ## Crossing codespaces
 
-A single file can mix all three codespaces, and imports can reach *across* the boundary. Placement is inferred: importing a server walker or `def:pub` function into client code is just a plain import, and the compiler rewrites each call into an HTTP request automatically. A server-to-server microservice boundary is declared in config instead -- list the provider module in `[scale.microservices.routes]` and imports of it lower to service RPC stubs.
+A single file can mix all three codespaces, and imports can reach *across* the boundary. Placement is inferred: importing a server walker or `def:pub` function into client code is just a plain import, and the compiler rewrites each call into an HTTP request automatically. Between two server-side apps the same rule holds: import a walker or `def:pub` function that another app owns and the import lowers to a typed-async bridge stub -- `await` it -- with no import form and no routes table. Which app owns what is declared in `jac.toml` under `[apps]` (see [Workspaces & Apps](apps.md)).
 
 ```jac
 # Import a server walker into client code -- calls become HTTP requests.

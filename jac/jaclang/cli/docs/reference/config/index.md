@@ -40,17 +40,17 @@ name = "myapp"
 version = "1.0.0"
 description = "Jac client application: myapp"
 entry-point = "main.jac"
+kind = "web-static"
 
 [dependencies.npm]
 jac-client-node = "1.0.7"
-
-[serve]
-base_route_app = "app"
 
 [client]
 ```
 
 You typically don't need to modify this file until you add dependencies or customize settings.
+
+A project can also hold several **apps** -- a web app, a mobile app, a CLI and a couple of services over one shared `core/` -- each declared as an `[apps.<name>]` table. That is a *workspace*; see [`[apps]`](#apps) below and the full [Workspaces & Apps](../apps.md) reference. `jac create --app <name> --kind <kind>` adds an app to an existing project.
 
 ---
 
@@ -58,7 +58,7 @@ You typically don't need to modify this file until you add dependencies or custo
 
 ### [project]
 
-Project metadata. `entry-point` drives `jac run`. `jac-version` pins the Jac toolchain the project targets: `jac create` stamps it automatically, and `jac scale deploy` uses it to select the pod runtime (see [jac-version](#jac-version) below). Publishing fields (`license`, `readme`, `keywords`, `requires-python`, `authors`, `maintainers`, and `[project.include]`) are used by `jac build --as wheel` when building a distributable wheel. All publishing fields are optional -- a project that is never published only needs `name`.
+Project metadata. `entry-point` and `kind` describe the project's single app (in a workspace they move onto the `[apps.<name>]` tables and `default-app` picks the app a bare `jac run` targets). `jac-version` pins the Jac toolchain the project targets: `jac create` stamps it automatically, and `jac scale deploy` uses it to select the pod runtime (see [jac-version](#jac-version) below). Publishing fields (`license`, `readme`, `keywords`, `requires-python`, `authors`, `maintainers`, and `[project.include]`) are used by `jac build --as wheel` when building a distributable wheel. All publishing fields are optional -- a project that is never published only needs `name`.
 
 ```toml
 [project]
@@ -66,8 +66,9 @@ name = "myapp"
 version = "1.0.0"
 description = "My Jac application"
 entry-point = "main.jac"
-kind = "service"   # drives `jac run` (omit to infer from the entry-point)
+kind = "service"   # drives `jac run` (omit to infer from the entry-point); not allowed alongside [apps]
 jac-version = "==0.34.3"   # stamped by `jac create`; widen to `>=`, `<=`, or a range
+# default-app = "web"      # workspaces only: the app a bare `jac run` / `jac build` / `jac test` targets
 
 # Publishing metadata -- only needed to run `jac build --as wheel`
 license = "MIT"
@@ -87,8 +88,9 @@ repository = "https://github.com/user/repo"
 | `name` | string | Project / PyPI package name (required) |
 | `version` | string | Semantic version (default: `0.1.0`) |
 | `description` | string | One-line summary (also shown on PyPI) |
-| `entry-point` | string | Main file for `jac run` (default: `main.jac`) |
-| `kind` | string | Project kind that drives `jac run` dispatch (execute / serve / build). Empty = inferred from the entry-point codespace. One of: `cli`, `cli-native`, `native-binary`, `native-lib`, `service`, `service-mesh`, `py-package`, `js-package`, `web-app`, `web-static`, `desktop`, `mobile` |
+| `entry-point` | string | Main file for `jac run` (default: `main.jac`). Single-app projects only -- in a workspace each app declares its own under `[apps.<name>]`, and setting it here is a hard error |
+| `kind` | string | Project kind that drives `jac run` dispatch (execute / serve / build). Empty = inferred from the entry-point codespace. One of: `cli`, `cli-native`, `native-binary`, `native-lib`, `service`, `service-mesh`, `py-package`, `js-package`, `web-app`, `web-static`, `desktop`, `mobile`. Single-app projects only; a workspace sets `kind` per app |
+| `default-app` | string | Workspaces only. The app that a bare `jac run`, `jac build`, `jac test` or `jac setup` targets. Must name a key of `[apps]`. With one app it is implied; with several and no default, the bare form errors and lists the apps |
 | `jac-version` | string | Jac toolchain version the project targets, as a PEP 440-style specifier. `jac create` stamps `==<current>`; at `jac scale deploy` the pod runtime binary, admin console, and base image are all taken from the release that satisfies it, and the deploy aborts if none does. See [jac-version](#jac-version). |
 | `license` | string | SPDX license identifier (e.g. `"MIT"`) |
 | `readme` | string | Path to README file (default: `README.md`) |
@@ -118,6 +120,57 @@ At deploy time (`jac scale deploy`), the pin selects the **pod runtime**: the de
 - **No published release satisfies the pin** (or the matching release lacks the pod's CPU arch or a `jac-*` asset) -> the deploy **aborts** with an error naming the pin; a pinned deploy never silently ships a different version. Fix or remove `jac-version` to proceed.
 
 The pin is honored only on the default (stable) channel; the `[dev]`, `[experimental]`, and `JAC_SCALE_BINARY_PATH` (local) channels select the pod binary by their own rules and ignore it.
+
+---
+
+### [apps]
+
+One table per app turns the project into a **workspace**. Each app has a kind, an optional directory root, and an optional entry file; modules under no app root are shared code. The full model -- membership, ownership, the app dependency graph, per-app effective config, routes, and the consistency rules across apps -- is in [Workspaces & Apps](../apps.md).
+
+```toml
+[project]
+name = "acme"
+default-app = "web"
+
+[apps.web]
+kind = "web-app"                 # required: any project kind
+path = "web"                     # dir root, relative to the project root
+entry-point = "main.jac"         # relative to path; default = the kind's entry
+platform = ""                    # default platform (mobile: android | ios | web; desktop: windows | macos | linux)
+route = "/api/web"               # default "/api/<name>"; serving kinds only
+
+[apps.social_graph]              # file-rooted: no path, the entry file is the whole app
+kind = "service"
+entry-point = "core/social_graph.jac"
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `kind` | string | **Required.** The app's project kind (same values as `[project] kind`). The kind decides the client too: `web-app`, `web-static`, `desktop` and `js-package` render React DOM; `mobile` renders native views through `@jac/mobui` (its modules are under the `E1105` host-tag guard) |
+| `path` | string | Directory root of the app, relative to the project root; omit for a file-rooted app |
+| `entry-point` | string | Entry file, relative to `path` (or to the project root without one); default = the kind's entry |
+| `platform` | string | Default platform: `android`, `ios` or `web` for a `mobile` app; `windows`, `macos` or `linux` for a `desktop` app. `--platform` overrides it for one command |
+| `route` | string | Public route prefix for apps with a server; must start with `/`; default `/api/<name>`. Two serving apps claiming one prefix is a config error |
+
+`[project] kind` and `[project] entry-point` cannot be set alongside `[apps]` (hard error). Without `[apps]` the project is one implicit app named after `[project] name`, and nothing else changes.
+
+**Per-app overlays.** Any recognized section can be nested under an app and is deep-merged over the base table for that app only:
+
+```toml
+[apps.web.serve]
+port = 3000
+
+[apps.mobile.dependencies.npm]
+lucide-react-native = "^0.4"
+
+[apps.social_graph.scale]        # per-app scale settings: replicas, resources, http_activation, ...
+http_activation = true
+
+[apps.web.placement.pins]        # merged over the base [placement.pins]
+"core.docs.*" = "server"
+```
+
+The effective config an app sees is: base `jac.toml` → its `[apps.<name>.*]` overlays → the active profile (`jac.<profile>.toml` and/or `[environments.<profile>]`) → `jac.local.toml`. `${VAR}` interpolation applies uniformly to every string in every layer.
 
 ---
 
@@ -223,8 +276,6 @@ Defaults for `jac run`:
 port = 8000              # Server port
 session = ""             # Session name
 main = true              # Run as main module
-cl_route_prefix = "cl"   # URL prefix for client apps
-base_route_app = ""      # Client app to serve at /
 
 # Which identity stack owns /user/* -- register, login, tokens, and the
 # credential store behind them. "auto" is the scale (Postgres) identity when
@@ -246,6 +297,8 @@ on_conflict = "retry"        # "retry": abort + replay so the loser converges
 conflict_max_attempts = 5    # max walker/function attempts under "retry"
 conflict_backoff_ms = 0      # linear backoff between replay attempts (0 = none)
 ```
+
+The served app's client is at `/`. Other client-capable apps in the workspace whose bundle exists (`jac build --all` writes `dist/<app>/`) are served at `/cl/<app-name>/` -- a fixed prefix with no config key. Serving apps answer under their `route` (default `/api/<name>`, see [`[apps]`](#apps)).
 
 `identity` decides which stack owns `/user/*`, and with it which database the
 credentials live in: the scale identity keeps them in Postgres as `scrypt$`
@@ -311,12 +364,13 @@ callable with auth, boundary types collected). Pins are part of the program:
 changing them invalidates the compilation cache, and
 `jac check --placements` reports them in each element's evidence chain.
 
-Note that declaring a module as its own **service** is a different fact with
-a different home: the `[scale.microservices.routes]` table is the service
-cut -- each key in it runs as its own service process behind the gateway, and
-imports of it lower to RPC stubs (`jac scale split <module>` writes an
-entry). See
-[Microservice Interop](../plugins/jac-scale-http.md#microservice-interop-sv-to-sv).
+Pins can also be overlaid per app -- `[apps.<name>.placement.pins]` merges
+over this table for that app's modules -- and a pin is one way to name the
+**owner** of a server-placed shared module when several apps serve
+(`E5107`). Declaring that a module runs as its own **service** is a different
+fact with a different home: an `[apps.<name>]` table with `kind = "service"`
+(see [Workspaces & Apps](../apps.md)); imports of what that app owns lower to
+typed-async bridge stubs automatically.
 
 ---
 
@@ -568,6 +622,28 @@ signature_header = "X-Webhook-Signature"
 verify_signature = true
 api_key_expiry_days = 365
 ```
+
+**Gateway and fleet topology (scale):**
+
+```toml
+[scale.gateway]
+colocate = true                  # false: `jac run <app>` runs service apps as separate local processes
+gateway_port = 8000
+gateway_host = "0.0.0.0"
+drain_timeout_seconds = 10
+http_forward_timeout = 10.0
+boot_health_timeout = 60.0
+boot_max_wait = 90
+health_monitor_interval = 10.0
+
+[scale.gateway.cors]
+allow_origins = ["*"]
+
+[scale.gateway.rate_limit]
+enabled = false
+```
+
+`[scale.gateway]` holds everything about the process that fronts a workspace's service apps: ports, boot and drain timeouts, `cors`, `rate_limit`, `identity`, `ingress`, `logs`, `tracing`, `shared_volumes`, and `colocate`. Which apps form the fleet is not configured here -- it is every app whose kind has a server -- and per-app settings (`replicas`, resources, `rpc_timeout`, `http_activation`, `env`, ...) live in the app's own `[apps.<name>.scale]` overlay. `jac run <app> --fleet` overrides `colocate` for one run; `jac scale deploy` always deploys a fleet. See [Service apps](../plugins/jac-scale-http.md#service-apps-cross-app-bridging).
 
 **Prometheus Metrics (scale):**
 
@@ -842,7 +918,6 @@ cache = true
 
 [serve]
 port = 8000
-cl_route_prefix = "cl"
 
 [test]
 directory = "tests"
@@ -938,19 +1013,19 @@ Project ID vars (`FIREBASE_AUTH_PROJECT_ID`, `JAC_STORAGE_FIREBASE_PROJECT_ID`, 
 | `SSO_GOOGLE_CLIENT_SECRET` | Google OAuth client secret | None |
 | `EMAILER_SMTP_PASSWORD` | SMTP password for the built-in email sender | None |
 
-### Scale: Microservices
+### Scale: Service apps
 
 | Variable | Description |
 |----------|-------------|
-| `JAC_SV_ROUTES` | JSON object mapping service module names to URL route prefixes |
-| `JAC_SV_<MODULE>_URL` | Point service RPC calls into `<MODULE>` (a `[scale.microservices.routes]` key) at a remote provider URL |
+| `JAC_APP_<APP>_URL` | Point bridged calls into app `<APP>` (an `[apps]` key, upper-cased, non-alphanumerics as `_`) at a provider running elsewhere. Set by hand for a multi-host fleet; injected automatically by `jac scale deploy` and by `--fleet` |
+| `JAC_APP_<APP>_ROUTE` | The provider's route prefix when it differs from the default `/api/<app>` |
 
 ### Client
 
 | Variable | Description |
 |----------|-------------|
 | `JAC_CLIENT_SKIP_NPM_INSTALL` | Skip `npm install` during client build setup |
-| `JAC_MOBILE_PLATFORM` | Mobile platform selection for dev/build (`auto`, `android`, `ios`) |
+| `JAC_MOBILE_PLATFORM` | Set by `jac run --platform <android\|ios> <mobile-app>`; overrides `[client.react_native] default_platform` for that run |
 
 ### Scale: Webhooks
 

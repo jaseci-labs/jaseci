@@ -83,7 +83,7 @@ bucket = "my-app-uploads"      # region, prefix, endpoint_url (non-AWS), public_
 
 - `/health`, `/ready` - built-in probe endpoints; `/healthz` variants also exist.
 - **Prometheus**: `[scale.monitoring] enabled = true` registers `/metrics` - **admin-token-gated** (403 otherwise); `walker_metrics = true` adds per-walker timing. Visual dashboard in the admin portal.
-- **CORS**: single-process `jac run` hardwires `allow_origins=['*']` - no knob. Only the microservice gateway has configurable CORS (`[scale.microservices.cors]`). Don't ship a `:pub`-heavy API assuming you can lock origins down in single-process mode.
+- **CORS**: single-process `jac run` hardwires `allow_origins=['*']` - no knob. Only the fleet gateway (`--fleet` / deploy of a workspace with service apps) has configurable CORS (`[scale.gateway.cors]`). Don't ship a `:pub`-heavy API assuming you can lock origins down in single-process mode.
 
 ## Pitfalls
 

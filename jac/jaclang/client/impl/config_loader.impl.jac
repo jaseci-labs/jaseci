@@ -1,3 +1,4 @@
+import from jaclang.project.config { JacConfig }
 import shutil;
 import os;
 import from jaclang.cli.console { console }
@@ -8,8 +9,7 @@ import from jaclang.client.npm_provider {
     CORE_RUNTIME_DEPS,
     LEGACY_META_PACKAGES,
     OPTIONAL_RUNTIME_DEPS,
-    resolve_client_target_name,
-    target_scoped_npm_deps
+    app_npm_deps
 }
 
 def _inject_missing(deps: dict, required: dict[str, str]) -> dict {
@@ -77,6 +77,20 @@ def _clear_node_modules(client_dir: Path | None) {
     }
 }
 
+impl _app_effective_config(jac_config: JacConfig) -> JacConfig {
+    import from jaclang.client.targets.registry { client_workspace_app }
+    app = client_workspace_app(jac_config);
+    if app is None {
+        return jac_config;
+    }
+    try {
+        return jac_config.effective_for_app(app.name);
+    } except ValueError {
+        return jac_config;
+    }
+}
+
+
 impl JacClientConfig.get_plugin_name(self: JacClientConfig) -> str {
     return "client";
 }
@@ -116,11 +130,18 @@ impl JacClientConfig.load(self: JacClientConfig) -> dict[str, any] {
     default_config = self.get_default_config();
     jac_config = self.get_jac_config();
 
-    client_config = jac_config.get_plugin_config('client');
-    target_name = resolve_client_target_name(jac_config);
+    client_config = _app_effective_config(jac_config).get_plugin_config('client');
 
     npm_deps = jac_config.get_plugin_deps('npm');
-    target_scoped_deps = target_scoped_npm_deps(jac_config, target_name);
+    target_scoped_deps: dict[str, str] = {};
+    app_dev_deps: dict[str, str] = {};
+    for (dep_name, dep_version, _origin, dep_is_dev) in app_npm_deps(jac_config) {
+        if dep_is_dev {
+            app_dev_deps[dep_name] = dep_version;
+        } else {
+            target_scoped_deps[dep_name] = dep_version;
+        }
+    }
 
     npm_plugin_deps: dict = dict(jac_config.plugin_dependencies.get('npm', {}));
     dev_section = npm_plugin_deps.get('dev', {});
@@ -139,6 +160,7 @@ impl JacClientConfig.load(self: JacClientConfig) -> dict[str, any] {
         npm_deps, {** CORE_RUNTIME_DEPS, ** OPTIONAL_RUNTIME_DEPS}
     );
     npm_dev_deps = _inject_missing(npm_dev_deps, CORE_DEV_DEPS);
+    npm_dev_deps = {** npm_dev_deps, ** app_dev_deps};
     merged_npm_deps = {** npm_deps, ** target_scoped_deps};
 
     user_config: dict[str, any] = {
@@ -237,12 +259,6 @@ impl JacClientConfig.is_pwa_enabled(self: JacClientConfig) -> bool {
     pwa_config = self.get_pwa_config();
 
     return len(pwa_config) > 0;
-}
-
-impl JacClientConfig.get_mobile_config(self: JacClientConfig) -> dict[str, any] {
-    client_config = self.get_jac_config().get_plugin_config("client");
-    section = client_config.get("mobile", {});
-    return section if isinstance(section, dict) else {};
 }
 
 impl JacClientConfig.get_react_native_config(self: JacClientConfig) -> dict[str, any] {

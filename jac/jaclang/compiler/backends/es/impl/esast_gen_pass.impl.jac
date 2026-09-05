@@ -1045,6 +1045,11 @@ impl EsastGenPass._resolve_source_module(nd: uni.Import) -> (uni.Module | None) 
 
 impl EsastGenPass._record_sv_backend(nd: uni.Import) -> None {
     import from pathlib { Path }
+    import from jaclang.compiler.driver.boundary_classify {
+        import_crosses_apps,
+        import_provider_app,
+        import_provider_route
+    }
     if not nd.from_loc {
         return;
     }
@@ -1053,11 +1058,61 @@ impl EsastGenPass._record_sv_backend(nd: uni.Import) -> None {
         return;
     }
     abs_path = str(Path(resolved_path).resolve());
-    if abs_path.endswith(".jac")
-        and Path(abs_path).exists()
-        and (abs_path not in self.client_manifest.server_imports) {
-        self.client_manifest.server_imports.append(abs_path);
+    if abs_path.endswith(".jac") and Path(abs_path).exists() {
+        if abs_path not in self.client_manifest.server_imports {
+            self.client_manifest.server_imports.append(abs_path);
+        }
+        if import_crosses_apps(nd) {
+            self.client_manifest.server_import_routes[abs_path] = {
+                "app": import_provider_app(nd) or '',
+                "route": import_provider_route(nd)
+            };
+        }
     }
+}
+
+impl EsastGenPass._is_service_bridge_import(nd: uni.Import) -> bool {
+    import from jaclang.compiler.driver.boundary_classify {
+        CrossAppKind,
+        classify_cross_app_import
+    }
+    return (
+        classify_cross_app_import(nd, self.ir_in.gen.interop_manifest)
+        == CrossAppKind.SERVICE_BRIDGE
+    );
+}
+
+impl EsastGenPass._sv_provider_options(nd: uni.Import) -> (es.Expression | None) {
+    import from jaclang.compiler.driver.boundary_classify {
+        import_crosses_apps,
+        import_provider_app,
+        import_provider_route
+    }
+    if not import_crosses_apps(nd) {
+        return None;
+    }
+    provider_app = import_provider_app(nd) or '';
+    provider_route = import_provider_route(nd);
+    if not provider_app {
+        return None;
+    }
+    props: list[es.Property | es.SpreadElement] = [];
+    for (key, value) in [("app", provider_app), ("route", provider_route)] {
+        props.append(
+            self.sync_loc(
+                es.Property(
+                    key=self.sync_loc(es.Literal(value=key), jac_node=nd),
+                    value=self.sync_loc(es.Literal(value=value), jac_node=nd),
+                    kind='init',
+                    method=False,
+                    shorthand=False,
+                    computed=False
+                ),
+                jac_node=nd
+            )
+        );
+    }
+    return self.sync_loc(es.ObjectExpression(properties=props), jac_node=nd);
 }
 
 impl EsastGenPass._resolve_call_ability(nd: uni.FuncCall) -> (uni.Ability | None) {
@@ -6881,7 +6936,7 @@ impl EsastGenPass.exit_import with uni.Import exit {
         return;
     }
 
-    if here.is_service_import {
+    if self._is_service_bridge_import(here) {
         if (here.from_loc and here.items) {
             self._generate_sv_import_stubs(here);
             self._record_sv_backend(here);
@@ -6920,7 +6975,9 @@ impl EsastGenPass.exit_import with uni.Import exit {
         if resolved_path.endswith('.jac')
             and not import_path.startswith('.')
             and not is_jac_runtime {
-            js_import_path = relative_js_specifier(resolved_path, here.loc.mod_path);
+            js_import_path = relative_js_specifier(
+                resolved_path, self.ir_in.loc.mod_path or here.loc.mod_path
+            );
         } else {
             js_import_path = convert_to_js_import_path(import_path);
         }
@@ -6944,7 +7001,9 @@ impl EsastGenPass.exit_import with uni.Import exit {
         self.client_manifest.imports[import_key] = resolved_path;
         import_path = import_key;
         if resolved_path.endswith('.jac') and not import_path.startswith('.') {
-            js_import_path = relative_js_specifier(resolved_path, here.loc.mod_path);
+            js_import_path = relative_js_specifier(
+                resolved_path, self.ir_in.loc.mod_path or here.loc.mod_path
+            );
         } else {
             js_import_path = convert_to_js_import_path(import_path);
         }
@@ -7025,7 +7084,9 @@ impl EsastGenPass._partition_client_import_items(
     if not is_client_boundary_import(nd) {
         return None;
     }
+    import from jaclang.compiler.driver.boundary_classify { import_crosses_apps }
     pinned_server = import_target_pinned_server(nd);
+    cross_app = import_crosses_apps(nd);
     source_mod = self._resolve_source_module(nd);
     if source_mod is None {
         return ([], list(nd.items)) if pinned_server else None;
@@ -7047,7 +7108,9 @@ impl EsastGenPass._partition_client_import_items(
         if verdict == ClientImportVerdict.BRIDGED {
             bridged.append(item);
         } elif verdict == ClientImportVerdict.DEAD {
-            report_dead_client_import(self, nd, item);
+            if not cross_app {
+                report_dead_client_import(self, nd, item);
+            }
         } else {
             kept.append(item);
         }
@@ -7133,15 +7196,20 @@ impl EsastGenPass._generate_sv_import_stubs(
         }
         args_obj = self.sync_loc(es.ObjectExpression(properties=props), jac_node=nd);
 
+        call_args: list[es.Expression] = [
+            self.sync_loc(es.Literal(value=func_name), jac_node=nd),
+            args_obj
+        ];
+        provider_opts = self._sv_provider_options(nd);
+        if provider_opts is not None {
+            call_args.append(provider_opts);
+        }
         call_expr = self.sync_loc(
             es.CallExpression(
                 callee=self.sync_loc(
                     es.Identifier(name='__jacCallFunction'), jac_node=nd
                 ),
-                arguments=[
-                    self.sync_loc(es.Literal(value=func_name), jac_node=nd),
-                    args_obj
-                ]
+                arguments=call_args
             ),
             jac_node=nd
         );
@@ -8254,20 +8322,57 @@ impl EsastGenPass._collect_stmt_body(
     return statements;
 }
 
+impl EsastGenPass._import_item_named(name: str) -> (uni.ModuleItem | None) {
+    for imp in self.ir_in.get_all_sub_nodes(uni.Import) {
+        if imp.from_loc is None {
+            continue;
+        }
+        for item in imp.items {
+            if not isinstance(item, uni.ModuleItem) {
+                continue;
+            }
+            local = item.alias.value if item.alias is not None else item.name.value;
+            if local == name {
+                return item;
+            }
+        }
+    }
+    return None;
+}
+
 impl EsastGenPass._build_spawn_runtime_call(
     nd: uni.BinaryExpr, parts: SpawnCallParts
 ) -> es.AwaitExpression {
     walker_literal = self.sync_loc(
         es.Literal(value=parts.`walker.walker_name), jac_node=parts.`walker.call_node
     );
+    spawn_args: list[es.Expression | es.SpreadElement] = [
+        walker_literal,
+        parts.target.expression,
+        parts.`walker.fields_object
+    ];
+    call_target = parts.`walker.call_node.target;
+    walker_sym = call_target.sym if isinstance(call_target, uni.AtomExpr) else None;
+    item: (uni.ModuleItem | None) = None;
+    if walker_sym is not None and walker_sym.defn {
+        candidate = walker_sym.defn[0].parent;
+        if isinstance(candidate, uni.ModuleItem) {
+            item = candidate;
+        }
+    }
+    if item is None {
+        item = self._import_item_named(parts.`walker.walker_name);
+    }
+    if item is not None {
+        provider_opts = self._sv_provider_options(item.from_parent);
+        if provider_opts is not None {
+            spawn_args.append(provider_opts);
+        }
+    }
     spawn_call = self.sync_loc(
         es.CallExpression(
             callee=self.sync_loc(es.Identifier(name='__jacSpawn'), jac_node=nd),
-            arguments=[
-                walker_literal,
-                parts.target.expression,
-                parts.`walker.fields_object
-            ]
+            arguments=spawn_args
         ),
         jac_node=nd
     );
@@ -8678,7 +8783,8 @@ impl EsastGenPass.exit_walk with uni.UniNode exit {
         and here.code_context != CodeContext.CLIENT
         and ((here.parent is None) or isinstance(here.parent, uni.Module))
     ) {
-        is_sv_import = isinstance(here, uni.Import) and here.is_service_import;
+        is_sv_import = isinstance(here, uni.Import)
+            and self._is_service_bridge_import(here);
 
         is_native_edge = isinstance(here, uni.Import)
             and self._is_client_native_import(here);
@@ -8853,7 +8959,8 @@ impl EsastGenPass.enter_walk with uni.UniNode entry {
         and here.code_context != CodeContext.CLIENT
         and ((here.parent is None) or isinstance(here.parent, uni.Module))
     ) {
-        is_sv_import = isinstance(here, uni.Import) and here.is_service_import;
+        is_sv_import = isinstance(here, uni.Import)
+            and self._is_service_bridge_import(here);
 
         is_shared_arch = (
             isinstance(here, uni.Archetype)
