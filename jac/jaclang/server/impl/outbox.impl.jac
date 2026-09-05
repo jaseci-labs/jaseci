@@ -243,7 +243,6 @@ impl PgOutboxStore._exec_count(sql: str, params: dict) -> int {
 
 
 impl PgOutboxStore.ensure_tables -> None {
-    self.store.server_version();
     self.store.ensure_schema_once(self.store.promotions);
 }
 

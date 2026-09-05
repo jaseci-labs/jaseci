@@ -178,6 +178,20 @@ test "missing await on a SERVICE_BRIDGE stub is E1042" {
     );
 }
 
+test "a generator-returning SERVICE_BRIDGE stub is a coroutine until awaited" {
+    # The bridge stub is `async def` whatever the provider returns, so a
+    # streaming provider is reached as `await narrate(...)`; iterating the
+    # un-awaited call is a type error, not a runtime TypeError.
+    (prog, mod) = compile_fixture(fixture("web", "stream_no_await.jac"));
+    msgs = [str(e) for e in prog.errors_had];
+    assert any("Coroutine" in m and "not iterable" in m for m in msgs) , (
+        f"iterating an un-awaited bridge stub checked clean: {msgs}"
+    );
+    (prog, mod) = compile_fixture(fixture("web", "stream_awaited.jac"), cgen=True);
+    assert not prog.errors_had , [str(e) for e in prog.errors_had];
+    assert "await __jac_sv_client.call('social', 'narrate'" in mod.gen.py , mod.gen.py;
+}
+
 test "a bridged obj imported alone mirrors as a boundary type, not an RPC stub" {
     (prog, mod) = compile_fixture(fixture("web", "only_profile.jac"), cgen=True);
     assert not prog.errors_had , [str(e) for e in prog.errors_had];

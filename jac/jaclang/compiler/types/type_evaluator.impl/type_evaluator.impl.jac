@@ -3828,7 +3828,11 @@ impl TypeEvaluator._make_coroutine_type(inner: TypeBase) -> TypeBase {
     if self.prefetch.coroutine_class is None {
         return inner;
     }
-    if is_generator_family_type(inner) {
+
+    if isinstance(inner, ClassType)
+        and inner.is_builtin(
+            ["AsyncGenerator", "AsyncIterator", "AsyncIterable", "AwaitableGenerator"]
+        ) {
         return inner;
     }
     coro = self.prefetch.coroutine_class.clone_as_instance();
@@ -4639,6 +4643,8 @@ impl TypeEvaluator._get_type_from_flow_node(
                     and not isinstance(assigned_type, UnknownType)
                 ) {
                     declared_type = target.declared_type;
+
+                    assigned_type = self._widen_literal_for_declaration(assigned_type);
 
                     _decl_extern = (
                         isinstance(declared_type, ClassType)

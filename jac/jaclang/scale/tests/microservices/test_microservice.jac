@@ -474,3 +474,50 @@ test "sv-to-sv over the wire: a sibling peer's JAC_APP url is used as given" {
         done(tmp);
     }
 }
+
+
+test "sv-to-sv: a bridged streaming call is awaited and forwarded frame by frame" {
+    # #8982 follow-up to the jac-sv-streaming skill: the bridge stub for a
+    # generator-returning def:pub is a coroutine; awaiting it yields the live
+    # generator, and the consumer's own stream re-yields it as SSE.
+    tmp = setup_env();
+    try {
+        prov = make_server("narrator_service", tmp);
+        assert "text/event-stream"
+            in prov.post("/function/narrate", json={"n": 2}).headers.get(
+                "Content-Type", ""
+            );
+        cons = make_server("story_service", tmp);
+        resp = cons.post("/function/story", json={"n": 3});
+        assert resp.status_code == 200 , f"status {resp.status_code}: {resp.text}";
+        assert "text/event-stream" in resp.headers.get("Content-Type", "") , resp.text;
+        for i in range(3) {
+            assert f'data: "CHUNK {i}"' in resp.text , resp.text;
+        }
+        assert "event: end" in resp.text;
+    } finally {
+        done(tmp);
+    }
+}
+
+
+test "sv-to-sv: a colocated streaming provider streams exactly like a remote one" {
+    tmp = setup_env();
+    try {
+        make_server("narrator_service", tmp);
+        provider_mod = sys.modules["narrator_service"];
+        __jac_sv.clear_test_clients();
+        __jac_sv.register_local("narrator_service", provider_mod);
+        try {
+            cons = make_server("story_service", tmp);
+            resp = cons.post("/function/story", json={"n": 2});
+            assert resp.status_code == 200 , f"status {resp.status_code}: {resp.text}";
+            assert "text/event-stream" in resp.headers.get("Content-Type", "") , resp.text;
+            assert 'data: "CHUNK 0"' in resp.text and 'data: "CHUNK 1"' in resp.text , resp.text;
+        } finally {
+            __jac_sv.unregister_local("narrator_service");
+        }
+    } finally {
+        done(tmp);
+    }
+}

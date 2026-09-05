@@ -51,3 +51,13 @@ route = "/level-b"
 kind = "service"
 entry-point = "level_c.jac"
 route = "/level-c"
+
+[apps.narrator_service]
+kind = "service"
+entry-point = "narrator_service.jac"
+route = "/narrator"
+
+[apps.story_service]
+kind = "service"
+entry-point = "story_service.jac"
+route = "/story"
