@@ -226,6 +226,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         _mono_mangle_map: (dict | None) = None,
         _ct_bindings: dict = {},
         _gen_ctx: (dict | None) = None,
+        _tailcall_on: (object | None) = None,
         _gen_try_stack: list = [],
         decorated_fns: dict[str, tuple] = {},
         closure_cell_vars: set[str] = set(),
@@ -833,6 +834,19 @@ obj NaIRGenState(ModuleCodegenPass) {
     ) -> (ir.Value | None) abst;
 
     def _codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) abst;
+    def _try_emit_musttail_return(nd: uni.ReturnStmt) -> bool abst;
+    def _try_emit_musttail_expr(
+        nd: uni.ReturnStmt, expr: (uni.UniNode | None)
+    ) -> bool abst;
+
+    def _try_emit_musttail_ternary(
+        nd: uni.ReturnStmt, e: (uni.UniNode | None)
+    ) -> bool abst;
+
+    def _emit_return_value(
+        nd: uni.ReturnStmt, expr: (uni.UniNode | None)
+    ) -> None abst;
+
     def _emit_obj_str(val: ir.Value) -> (ir.Value | None) abst;
     def _emit_default_obj_repr(val: ir.Value, type_name: str) -> ir.Value abst;
     def _codegen_field_access(

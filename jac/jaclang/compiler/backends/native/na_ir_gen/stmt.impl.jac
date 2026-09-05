@@ -342,9 +342,23 @@ impl NaIRGenStmt._codegen_return(nd: uni.ReturnStmt) -> None {
         self.builder.ret(ir.Constant(ir.IntType(1), 0));
         return;
     }
+
+    if self._try_emit_musttail_return(nd) {
+        return;
+    }
+
+    if self._try_emit_musttail_ternary(nd, nd.expr) {
+        return;
+    }
+    self._emit_return_value(nd, nd.expr);
+}
+
+impl NaIRGenStmt._emit_return_value(
+    nd: uni.ReturnStmt, expr: (uni.UniNode | None)
+) -> None {
     func_ret_type = self.builder.function.return_value.type;
-    if nd.expr is not None and isinstance(func_ret_type, ir.VoidType) {
-        self._codegen_expr(nd.expr);
+    if expr is not None and isinstance(func_ret_type, ir.VoidType) {
+        self._codegen_expr(expr);
         self._emit_scope_cleanup(
             skip_var=None,
             loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
@@ -354,14 +368,14 @@ impl NaIRGenStmt._codegen_return(nd: uni.ReturnStmt) -> None {
         self.builder.ret_void();
         return;
     }
-    if nd.expr is not None {
-        val = self._codegen_required(nd.expr);
+    if expr is not None {
+        val = self._codegen_required(expr);
         if val is not None {
             val = self._coerce_type(val, func_ret_type);
             _ret_root_local = False;
-            if isinstance(nd.expr, uni.AtomTrailer)
-                and isinstance(nd.expr.right, uni.IndexSlice) {
-                _rr = nd.expr.target;
+            if isinstance(expr, uni.AtomTrailer)
+                and isinstance(expr.right, uni.IndexSlice) {
+                _rr = expr.target;
                 while isinstance(_rr, uni.AtomTrailer) {
                     _rr = _rr.target;
                 }
@@ -383,13 +397,13 @@ impl NaIRGenStmt._codegen_return(nd: uni.ReturnStmt) -> None {
             }
 
             skip_var: (str | None) = None;
-            if isinstance(nd.expr, uni.Name)
-                and nd.expr.sym_name in self.local_vars
-                and nd.expr.sym_name not in self.param_vars
-                and nd.expr.sym_name not in self.closure_cell_handles {
-                skip_var = nd.expr.sym_name;
-            } elif isinstance(nd.expr, uni.TupleVal) {
-                tup_elems = nd.expr.values or [];
+            if isinstance(expr, uni.Name)
+                and expr.sym_name in self.local_vars
+                and expr.sym_name not in self.param_vars
+                and expr.sym_name not in self.closure_cell_handles {
+                skip_var = expr.sym_name;
+            } elif isinstance(expr, uni.TupleVal) {
+                tup_elems = expr.values or [];
                 for tup_elem in tup_elems {
                     elem_name: (str | None) = None;
                     if isinstance(tup_elem, uni.Name) {
@@ -442,7 +456,7 @@ impl NaIRGenStmt._codegen_return(nd: uni.ReturnStmt) -> None {
                 and self._opt_ptr_payload_of(val.type) is not None
                 and not self._nogc_headerless()
                 and self._gc_mode() != "none"
-                and not self._opt_result_owned(val, nd.expr)
+                and not self._opt_result_owned(val, expr)
             ) {
                 self._emit_rc_retain(
                     self.builder.extract_value(val, 1, name="ret.opt.pv"),

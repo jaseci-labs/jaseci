@@ -131,7 +131,7 @@ glob FORBIDDEN: dict[str, str] = {
              "stamped Expr.ct_value"
          ),
          ("native/na_ir_gen/calls.impl.jac", "symbol_utils"): (
-             2,
+             3,
              "classify_call as the shadowing-aware builtin test for the "
              "`type(None)` isinstance argument form (#6957) - consuming the "
              "central classification instead of re-implementing name "
@@ -150,7 +150,13 @@ glob FORBIDDEN: dict[str, str] = {
              "symbol_utils, whose own imports reach compiler/driver/compiler.jac, so "
              "sealing wave 3 hoisted it to the leaf expr_keys.jac. The "
              "backend stopped reaching into the analysis module for it rather "
-             "than merely renaming the reach"
+             "than merely renaming the reach. The third read (#8837) is the "
+             "guaranteed-tail-call fast path importing the SAME "
+             "erased_identity_call_arg / is_erased_field_marker pair at its "
+             "own site: `return f(...)` must refuse musttail when the call "
+             "is an erasure marker that _codegen_call would lower to its "
+             "argument rather than a real call, and the answer lives on the "
+             "same declaration-surface terms sanctioned above"
          ),
          ("native/na_ir_gen/objects.impl.jac", "symbol_utils"): (
              1,
