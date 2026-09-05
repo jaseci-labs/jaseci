@@ -46,10 +46,23 @@ def resolve_static_base(base_path: str) -> Path {
     return base_path_dir;
 }
 
-def static_roots(base_path: str) -> tuple[list[Path], list[Path]] {
+def client_dist_index(client_dist: str) -> (Path | None) {
+    if not client_dist {
+        return None;
+    }
+    index = Path(client_dist) / 'index.html';
+    return index if index.is_file() else None;
+}
+
+def static_roots(
+    base_path: str, client_dist: str = ''
+) -> tuple[list[Path], list[Path]] {
     base = resolve_static_base(base_path);
     roots: list[Path] = [];
     dists: list[Path] = [];
+    if client_dist {
+        dists.append(Path(client_dist));
+    }
     cfg = get_config_for_dir(str(base));
     if cfg is not None {
         app_root = Path(client_app_root(cfg, base));
@@ -66,8 +79,10 @@ def static_roots(base_path: str) -> tuple[list[Path], list[Path]] {
     return (roots, dists);
 }
 
-def find_static_candidate(base_path: str, relative_path: str) -> (Path | None) {
-    (roots, dists) = static_roots(base_path);
+def find_static_candidate(
+    base_path: str, relative_path: str, client_dist: str = ''
+) -> (Path | None) {
+    (roots, dists) = static_roots(base_path, client_dist);
     rel = relative_path.lstrip('/');
     file_name = Path(rel).name;
     candidates: list[tuple[Path, Path]] = [];
@@ -97,12 +112,14 @@ glob ROOT_ASSET_EXTENSIONS: set[str] = DEFAULT_ASSET_EXTENSIONS
          | {'.pdf', '.txt', '.xml'};
 
 
-def find_root_asset(base_path: str, relative_path: str) -> (Path | None) {
+def find_root_asset(
+    base_path: str, relative_path: str, client_dist: str = ''
+) -> (Path | None) {
     rel = relative_path.lstrip('/');
     if not rel or Path(rel).suffix.lower() not in ROOT_ASSET_EXTENSIONS {
         return None;
     }
-    (project_roots, dists) = static_roots(base_path);
+    (project_roots, dists) = static_roots(base_path, client_dist);
     file_name = Path(rel).name;
     roots: list[Path] = list(dists);
     for root_dir in project_roots {
