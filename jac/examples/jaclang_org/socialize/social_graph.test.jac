@@ -304,3 +304,178 @@ test "users only see their own profile via get_profile" {
 
     client.close();
 }
+
+glob PNG_1PX: str = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+
+def make_offline_client -> JacTestClient {
+    os.environ["JAC_SV_SCORING_SERVICE_URL"] = "http://127.0.0.1:9";
+    return make_client();
+}
+
+test "update_profile validates and stores standard fields" {
+    client = make_client();
+    login_as(client, "alice", "secret123");
+    client.post("/walker/setup_profile", json={"username": "alice"});
+
+    saved = first_report(
+        client.post(
+            "/walker/update_profile",
+            json={
+                "display_name": "  Alice Ninja ",
+                "bio": "building in jac",
+                "location": "Ann Arbor",
+                "website": "alice.dev",
+                "github": "https://github.com/alice-ninja"
+            }
+        )
+    );
+    assert saved["ok"] == True , saved;
+    profile = saved["bundle"]["profile"];
+    assert profile["display_name"] == "Alice Ninja";
+    assert profile["website"] == "https://alice.dev";
+    assert profile["github"] == "alice-ninja";
+    assert profile["location"] == "Ann Arbor";
+
+    bad_handle = first_report(
+        client.post("/walker/update_profile", json={"github": "not a handle!"})
+    );
+    assert bad_handle["ok"] == False;
+    assert "GitHub" in bad_handle["error"];
+
+    bad_site = first_report(
+        client.post("/walker/update_profile", json={"website": "http://"})
+    );
+    assert bad_site["ok"] == False;
+
+    cleared = first_report(
+        client.post("/walker/update_profile", json={"display_name": "Alice"})
+    );
+    assert cleared["ok"] == True;
+    assert cleared["bundle"]["profile"]["location"] == "";
+    assert cleared["bundle"]["profile"]["github"] == "";
+
+    client.close();
+}
+
+test "avatar upload round-trips and is visible to other users" {
+    client = make_client();
+    client.register_user("alice", "secret123");
+    client.register_user("bob", "secret123");
+    client.login("alice", "secret123");
+    client.post("/walker/setup_profile", json={"username": "alice"});
+
+    rejected = first_report(
+        client.post(
+            "/walker/set_avatar", json={"data_url": "data:text/plain;base64,aGVsbG8="}
+        )
+    );
+    assert rejected["ok"] == False;
+
+    forged = first_report(
+        client.post(
+            "/walker/set_avatar", json={"data_url": "data:image/jpeg;base64,aGVsbG8="}
+        )
+    );
+    assert forged["ok"] == False;
+
+    stored = first_report(
+        client.post("/walker/set_avatar", json={"data_url": PNG_1PX})
+    );
+    assert stored["ok"] == True , stored;
+    assert stored["avatar_url"] == PNG_1PX;
+    assert stored["avatar_v"] != "";
+
+    me = first_report(client.post("/walker/get_profile", json={}));
+    assert me["profile"]["avatar_v"] == stored["avatar_v"];
+
+    client.login("bob", "secret123");
+    client.post("/walker/setup_profile", json={"username": "bob"});
+    seen = first_report(
+        client.post(
+            "/walker/get_avatars", json={"usernames": ["alice", "bob", "nobody"]}
+        )
+    );
+    assert seen["alice"] == PNG_1PX;
+    assert "bob" not in seen;
+
+    client.login("alice", "secret123");
+    gone = first_report(client.post("/walker/clear_avatar", json={}));
+    assert gone["ok"] == True;
+    me_again = first_report(client.post("/walker/get_profile", json={}));
+    assert me_again["profile"]["avatar_v"] == "";
+
+    client.close();
+}
+
+test "projects must be github repos and stay associated with their owner" {
+    client = make_offline_client();
+    client.register_user("alice", "secret123");
+    client.register_user("bob", "secret123");
+    client.login("alice", "secret123");
+    client.post("/walker/setup_profile", json={"username": "alice"});
+
+    bad = first_report(
+        client.post("/walker/add_project", json={"url": "https://gitlab.com/a/b"})
+    );
+    assert bad["ok"] == False;
+    assert bad["error"] == "bad_url";
+
+    added = first_report(
+        client.post("/walker/add_project", json={"url": "github.com/jaseci-labs/jac"})
+    );
+    assert added["ok"] == False , added;
+    assert added["project"] is not None , added;
+    project = added["project"];
+    assert project["full"] == "jaseci-labs/jac";
+    assert project["owner_username"] == "alice";
+    assert project["status"] == "error";
+    assert project["error"] in ["internal", "fetch_failed"];
+    project_id = jid_of(project);
+
+    dup = first_report(
+        client.post(
+            "/walker/add_project",
+            json={"url": "https://github.com/jaseci-labs/jac.git"}
+        )
+    );
+    assert dup["error"] == "duplicate";
+
+    mine = first_report(client.post("/walker/get_profile", json={}));
+    assert [p["full"] for p in mine["projects"]] == ["jaseci-labs/jac"];
+
+    client.login("bob", "secret123");
+    client.post("/walker/setup_profile", json={"username": "bob"});
+    explore = first_report(client.post("/walker/get_all_projects", json={}));
+    assert [p["full"] for p in explore] == ["jaseci-labs/jac"];
+    assert explore[0]["owner_username"] == "alice";
+
+    alice_view = first_report(
+        client.post("/walker/get_user_profile", json={"username": "ALICE"})
+    );
+    assert alice_view["ok"] == True;
+    assert alice_view["bundle"]["profile"]["username"] == "alice";
+    assert len(list(alice_view["bundle"]["projects"])) == 1;
+
+    missing = first_report(
+        client.post("/walker/get_user_profile", json={"username": "carol"})
+    );
+    assert missing["ok"] == False;
+
+    forbidden = first_report(
+        client.post("/walker/remove_project", json={"project_id": project_id})
+    );
+    assert forbidden["ok"] == False;
+    assert forbidden["error"] == "forbidden";
+
+    client.login("alice", "secret123");
+    removed = first_report(
+        client.post("/walker/remove_project", json={"project_id": project_id})
+    );
+    assert removed["ok"] == True;
+    after = first_report(client.post("/walker/get_profile", json={}));
+    assert after["projects"] == [];
+    explore_after = first_report(client.post("/walker/get_all_projects", json={}));
+    assert explore_after == [];
+
+    client.close();
+}

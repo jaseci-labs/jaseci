@@ -22,6 +22,8 @@ def:pub FeedTab(
     onPost: Callable[[], None],
     feedLoading: bool,
     tweets: list[Tweet],
+    avatars: dict[str, str],
+    onViewProfile: Callable[[str], None],
     onLike: Callable[[str], None],
     onComment: Callable[[str, str], None],
     onDelete: Callable[[str], None],
@@ -74,6 +76,8 @@ def:pub FeedTab(
                 key={jid(tweet)}
                 {tweet}
                 myUsername={profileUsername}
+                {avatars}
+                {onViewProfile}
                 {onLike}
                 {onComment}
                 {onDelete}

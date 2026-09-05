@@ -21,7 +21,7 @@ def:pub AuthForm(
     onSubmit: Callable[[FormEvent], None],
     onToggleMode: Callable[[], None],
 ) -> JsxElement {
-    <div className="flex min-h-screen w-full bg-background text-foreground">
+    <div className="flex min-h-[calc(100vh-4rem)] w-full bg-background text-foreground">
         <div
             className="relative hidden flex-1 items-center justify-center overflow-hidden bg-gradient-to-br from-primary/20 via-background to-background lg:flex"
         >
@@ -32,15 +32,15 @@ def:pub AuthForm(
                 className="relative flex flex-col items-center gap-6 px-12 text-center"
             >
                 <img
-                    src="/static/assets/littlex-logo.svg"
+                    src="/static/assets/jacyak-logo.svg"
                     className="size-28 drop-shadow-[0_0_40px_var(--primary)]"
-                    alt="little-x"
+                    alt="Jacyak"
                 />
                 <div>
                     <div
                         className="font-display text-5xl font-black tracking-tight text-foreground"
                     >
-                        LITTLE-X
+                        JACYAK
                     </div>
                     <p className="mt-3 max-w-sm text-balance text-muted-foreground">
                         A decentralized social platform built with Jac. Share thoughts, follow people, join the conversation.
@@ -52,17 +52,17 @@ def:pub AuthForm(
             <Card className="w-full max-w-sm border-border/60 shadow-xl">
                 <CardHeader className="items-center text-center">
                     <img
-                        src="/static/assets/littlex-logo.svg"
+                        src="/static/assets/jacyak-logo.svg"
                         className="mb-2 size-12 lg:hidden"
-                        alt="little-x"
+                        alt="Jacyak"
                     />
                     <CardTitle className="font-display text-2xl font-extrabold">
                         {"Create your account" if isSignup else "Welcome back"}
                     </CardTitle>
                     <CardDescription>
-                        {"Join the conversation on Little-X"
+                        {"Join the conversation on Jacyak"
                             if isSignup
-                            else "Sign in to your Little-X account"}
+                            else "Sign in to your Jacyak account"}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -115,7 +115,7 @@ def:pub AuthForm(
                         {(
                             "Already have an account? "
                                 if isSignup
-                                else "New to Little-X? "
+                                else "New to Jacyak? "
                         )}
                         <button
                             type="button"
