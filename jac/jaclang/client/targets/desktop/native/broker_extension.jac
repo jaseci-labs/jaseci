@@ -95,8 +95,11 @@ def event_stream(host: any, q: queue.Queue, keepalive_s: float = 15.0) -> any {
 async def _pull(gen: any) -> any {
     loop = asyncio.get_running_loop();
     done = object();
+    def step(source: any) -> any {
+        return next(source, done);
+    }
     while True {
-        item = await loop.run_in_executor(None, next, gen, done);
+        item = await loop.run_in_executor(None, step, gen);
         if item is done {
             break;
         }
@@ -261,14 +264,17 @@ obj DesktopBrokerExtension(ServerExtension) {
         }
 
         def add(
-            method: HTTPMethod, path: str, cb: any, params: list[APIParameter] = []
+            method: HTTPMethod,
+            path: str,
+            cb: any,
+            params: (list[APIParameter] | None) = None
         ) {
             server.add_endpoint(
                 JEndPoint(
                     method=method,
                     path=path,
                     callback=cb,
-                    parameters=params,
+                    parameters=params if params is not None else [],
                     tags=["Desktop"],
                     summary=path,
                     include_in_schema=False,
