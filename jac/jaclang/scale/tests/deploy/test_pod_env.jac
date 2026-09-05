@@ -28,7 +28,7 @@ import from jaclang.scale.runtime.gateway.service_registry {
 import from jaclang.server.sv_client { peer_url_env_key }
 
 
-glob _K8S_E2E_FIXTURE: Path = Path(__file__).parent / "fixtures" / "k8s_e2e",
+glob _K8S_E2E_FIXTURE: Path = Path(__file__).parents[1] / "fixtures" / "k8s_e2e",
      _DISCOVERED_ROUTES: dict[str, str] = {
          "cart_app": "/cart",
          "orders_app": "/orders",
@@ -254,10 +254,15 @@ test "no client entry means no client build in the gateway entrypoint" {
 }
 
 
-def _entrypoint_run(project: str, env: dict[str, str]) -> tuple[int, str, str] {
+def _entrypoint_run(
+    project: str,
+    env: dict[str, str],
+    cfg: (KubernetesConfig | None) = None,
+    failing_tools: (list[str] | None) = None
+) -> tuple[int, str, str] {
     import subprocess;
     import from jaclang.scale.injector.bundle { APP_MOUNT_PATH }
-    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    cfg = cfg or KubernetesConfig(app_name="jac-shop", namespace="ns");
     script: str = ManifestBuilder(k8s_config=cfg)._pod_entrypoint()["args"][0];
     mount = f"cd {APP_MOUNT_PATH}; ";
     assert mount in script , script;
@@ -268,6 +273,11 @@ def _entrypoint_run(project: str, env: dict[str, str]) -> tuple[int, str, str] {
     stub = bin_dir / "jac";
     stub.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$@\" > \"{record}\"\n");
     stub.chmod(0o755);
+    for tool in (failing_tools or []) {
+        broken = bin_dir / tool;
+        broken.write_text("#!/bin/sh\nexit 1\n");
+        broken.chmod(0o755);
+    }
     run_env = dict(os.environ);
     run_env["PATH"] = f"{bin_dir}{os.pathsep}{run_env.get('PATH', '')}";
     run_env.pop("JAC_SV_FILE", None);
@@ -277,6 +287,115 @@ def _entrypoint_run(project: str, env: dict[str, str]) -> tuple[int, str, str] {
     );
     argv = record.read_text() if record.is_file() else "";
     return (proc.returncode, argv, proc.stderr);
+}
+
+
+test "a failed system package install neither stops the boot nor drops the sibling flag" {
+    # `fi && export JAC_SV_SIBLING=1` chained the export onto the apt block,
+    # and `set -e` exempts the left side of `&&`: on any non-root image that
+    # lacked the packages the install failed, the export was skipped, and the
+    # pod entered local microservice mode with the whole fleet inside it
+    # (jac#8935). The apt step is one best-effort statement now, and the flag
+    # travels in the pod env, where a boot script cannot lose it.
+    import tempfile;
+    cfg = KubernetesConfig(
+        app_name="jac-shop", namespace="ns", service_dependencies=["git", "curl"]
+    );
+    with tempfile.TemporaryDirectory() as project {
+        (Path(project) / "svc.jac").write_text("");
+        (rc, argv, err) = _entrypoint_run(
+            project,
+            {"JAC_SV_NAME": "svc", "JAC_SV_FILE": "svc.jac"},
+            cfg=cfg,
+            failing_tools=["dpkg-query", "apt-get"]
+        );
+        assert rc == 0 , err;
+        assert argv.split() == ["run", "--serve", "svc.jac"] , argv;
+        assert "could not install system packages (curl git)" in err , err;
+    }
+    script = ManifestBuilder(k8s_config=cfg)._pod_entrypoint()["args"][0];
+    assert "fi && " not in script , script;
+    assert "JAC_SV_SIBLING" not in script , (
+        "the sibling flag is a property of the pod, not a boot-script side effect"
+    );
+}
+
+
+test "every service pod carries the sibling flag in its env, and no override drops it" {
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    builder = ManifestBuilder(
+        k8s_config=cfg,
+        project_dir=str(_K8S_E2E_FIXTURE),
+        microservices_config={"routes": {"orders_app": "/orders"}}
+    );
+    app_cfg = AppConfig(code_folder=str(_K8S_E2E_FIXTURE), app_name="jac-shop");
+    specs = builder.generate_service_pod_specs(app_cfg, "img");
+    assert set(specs.keys()) == {"orders_app", "main", GATEWAY_NAME};
+    for (name, spec) in specs.items() {
+        env = {e["name"]: e["value"] for e in spec["containers"][0]["env"]};
+        assert env.get("JAC_SV_SIBLING") == "1" , f"{name}: {env}";
+    }
+    overridden = builder._build_env("orders_app", {"env": {"JAC_SV_SIBLING": "0"}});
+    values = [
+        e["value"]
+        for e in overridden
+        if e["name"] == "JAC_SV_SIBLING"
+    ];
+    assert values == ["1"] , overridden;
+}
+
+
+test "a shared volume is handed to the runtime identity before the service starts" {
+    # A PVC from [scale.microservices] shared_volumes arrives root-owned
+    # from most provisioners, the service container runs as the image's
+    # `jac` user, and nothing adjusted the mount: the first write into the
+    # volume the app declared failed with EACCES (jac#8949). The bundle
+    # volume already solved this with a root init container that chowns the
+    # mount root; a shared volume gets the same container, plus fsGroup for
+    # the backends that honor it.
+    import from jaclang.scale.injector.pvc_injector {
+        RUNTIME_UID,
+        RUNTIME_GID,
+        VOLUME_PERMS_NAME
+    }
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    declared = {
+        "routes": {"orders_app": "/orders", "cart_app": "/cart"},
+        "shared_volumes": [
+            {
+                "name": "workspace",
+                "mount_path": "/app/.jachome/.jac-ide",
+                "services": ["orders_app"],
+                "size": "1Gi",
+                "access_mode": "ReadWriteMany",
+                "storage_class": "standard"
+            }
+        ]
+    };
+    builder = ManifestBuilder(
+        k8s_config=cfg, project_dir=str(_K8S_E2E_FIXTURE), microservices_config=declared
+    );
+    app_cfg = AppConfig(code_folder=str(_K8S_E2E_FIXTURE), app_name="jac-shop");
+    specs = builder.generate_service_pod_specs(app_cfg, "img");
+
+    orders = specs["orders_app"];
+    inits = orders["initContainers"];
+    assert inits[0]["name"] == VOLUME_PERMS_NAME , [c["name"] for c in inits];
+    perms = inits[0];
+    assert perms["volumeMounts"]
+        == [{"name": "workspace", "mountPath": "/app/.jachome/.jac-ide"}];
+    script = perms["command"][-1];
+    assert f'chown {RUNTIME_UID}:{RUNTIME_GID} "/app/.jachome/.jac-ide"'
+        in script , script;
+    assert "-R" not in script , "application data is never re-owned recursively";
+    assert perms["securityContext"]["runAsUser"] == 0;
+    assert perms["image"] == orders["containers"][0]["image"];
+    assert orders["securityContext"]["fsGroup"] == RUNTIME_GID;
+    assert orders["securityContext"]["fsGroupChangePolicy"] == "OnRootMismatch";
+
+    cart = specs["cart_app"];
+    assert VOLUME_PERMS_NAME not in [c["name"] for c in cart["initContainers"]];
+    assert "securityContext" not in cart , "a pod without a shared volume is left as it was";
 }
 
 

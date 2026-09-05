@@ -272,7 +272,7 @@ jobs:
             "firebase-admin>=6.0.0,<8.0.0" "requests>=2.32.0,<3.0.0" \
             --global
           jac install \
-            "litellm>=1.70.0,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
+            "litellm>=1.75.2,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
             "httpx>=0.27.0" "loguru>=0.7.2,<0.8.0" \
             --global
 
@@ -575,7 +575,7 @@ jobs:
             requests "moto[s3]>=5.0.0" \
             --global
           jac install \
-            "litellm>=1.70.0,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
+            "litellm>=1.75.2,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
             "httpx>=0.27.0" "loguru>=0.7.2,<0.8.0" \
             --global
       # Run from a copy OUTSIDE the checkout. The resolver's self-tree rule
@@ -657,7 +657,7 @@ jobs:
       - name: Install byllm deps + test deps
         run: |
           jac install \
-            "litellm>=1.70.0,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
+            "litellm>=1.75.2,<=1.82.6" "pillow>=12.0.0,<13.0.0" \
             "httpx>=0.27.0" "loguru>=0.7.2,<0.8.0" \
             --global
       # test_mtir_integration.jac runs in test-in-package-sealed (see there).
@@ -684,7 +684,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [server, data, microservices, deploy, misc, root]
+        group: [server, data, microservices, deploy, misc]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -708,29 +708,21 @@ jobs:
             requests "moto[s3]>=5.0.0" \
             --global
       - name: Install scale firebase deps
-        if: matrix.group == 'root'
+        if: matrix.group == 'data' || matrix.group == 'server'
         run: jac install "google-cloud-firestore>=2.21.0,<3.0.0" "google-cloud-storage>=2.19.0,<3.0.0" "firebase-admin>=6.0.0,<8.0.0" --global
       # One process per file comes from the [test] isolate marks in the root
       # jac.toml (the shelf-db sharers are marked serial there); JOBS=1 keeps
       # files sequential the way the old shell loop ran them. The HMR test in
-      # server/test_serve.jac runs in test-in-package-sealed. The root group
-      # is the directory's own top-level files -- including the ones the old
-      # per-group globs never reached; test_deploy_k8s asks for JAC_TEST_K8S
-      # and skips itself here.
+      # server/test_serve.jac runs in test-in-package-sealed. Every test file
+      # lives in one of the five group directories; deploy/test_deploy_k8s.jac
+      # asks for JAC_TEST_K8S and skips itself here, the cluster leg runs it.
       - name: Run ${{ matrix.group }} tests
         env:
           JAC_TEST_JOBS: "1"
           JAC_TEST_STRICT: "1"
         run: |
           set -euo pipefail
-          if [ "${{ matrix.group }}" = "root" ]; then
-            jac test jac/jaclang/scale/tests \
-              --ignore jac/jaclang/scale/tests/server \
-                jac/jaclang/scale/tests/data \
-                jac/jaclang/scale/tests/microservices \
-                jac/jaclang/scale/tests/deploy \
-                jac/jaclang/scale/tests/misc
-          elif [ "${{ matrix.group }}" = "server" ]; then
+          if [ "${{ matrix.group }}" = "server" ]; then
             jac test jac/jaclang/scale/tests/server -f "not hmr"
           else
             jac test jac/jaclang/scale/tests/${{ matrix.group }}
@@ -794,9 +786,7 @@ jobs:
         env:
           JAC_TEST_JOBS: "0"
         run: |
-          jac test jac/jaclang/scale/tests/test_pod_env.jac -x
-          jac test jac/jaclang/scale/tests/test_k8s_utils.jac -x
-          jac test jac/jaclang/scale/tests/test_deploy_k8s.jac -x -f "not (early and exit)"
+          jac test jac/jaclang/scale/tests/deploy/test_deploy_k8s.jac -x -f "not (early and exit)"
       - name: Run KEDA HTTP-activation e2e
         env:
           # Ship the jac built from this checkout to the pods (channel LOCAL),
@@ -815,7 +805,7 @@ jobs:
           # Ship the jac built from this checkout to the pods (channel LOCAL).
           JAC_SCALE_BINARY_PATH: ${{ github.workspace }}/jac/zig-out/bin/jac
         run: |
-          jac test jac/jaclang/scale/tests/test_deploy_k8s.jac -x --test_name "early exit"
+          jac test jac/jaclang/scale/tests/deploy/test_deploy_k8s.jac -x --test_name "early exit"
 
       # Destroy deletes namespaces and volumes, so what it reclaims and what it
       # spares is only decidable by an API server. Runs on every scale PR.

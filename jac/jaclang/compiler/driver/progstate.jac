@@ -1,3 +1,5 @@
+import os;
+import sys;
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.frontend.relations { ScopeChild }
 import from jaclang.compiler.passes.transform { Alert }
@@ -12,7 +14,15 @@ obj ModuleHub {
 
     def stamp(resolved_path: str) {
         import time;
-        self.stamps[resolved_path] = time.time();
+        import from jaclang.compiler.driver.bccache { discover_annex_files }
+        seen = time.time();
+        try {
+            seen = max(seen, os.path.getmtime(resolved_path));
+            for related in discover_annex_files(resolved_path) {
+                seen = max(seen, os.path.getmtime(related));
+            }
+        } except OSError {}
+        self.stamps[resolved_path] = seen;
     }
 
     def is_fresh(resolved_path: str) -> bool {
@@ -35,6 +45,16 @@ obj ModuleHub {
         } except OSError {
             return False;
         }
+    }
+
+    def install(resolved_path: str, mod: uni.Module) -> (uni.Module | None) {
+        prev = self.mod.hub.get(resolved_path);
+        self.mod.hub[resolved_path] = mod;
+        self.stamp(resolved_path);
+        if prev is None or prev is mod {
+            return None;
+        }
+        return prev;
     }
 
     def evict(resolved_path: str) {
@@ -298,3 +318,56 @@ class AnalysisCaches {
         self.cache_events: dict[str, int] = {};
     }
 }
+
+glob UNIT_COLLECT_EVERY: int = 16,
+     UNIT_COLLECT_GROWTH_MB: int = 512;
+
+def _env_int(name: str, fallback: int) -> int {
+    raw = os.environ.get(name, "").strip();
+    if not raw {
+        return fallback;
+    }
+    try {
+        return int(raw);
+    } except ValueError {
+        return fallback;
+    }
+}
+
+def _peak_rss_mb -> int {
+    try {
+        import resource;
+    } except ImportError {
+        return 0;
+    }
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss;
+    if sys.platform == "darwin" {
+        return int(peak // (1024 * 1024));
+    }
+    return int(peak // 1024);
+}
+
+obj UnitCollectBudget {
+    has releases: int = 0,
+        last_peak_mb: int = 0;
+
+    def due -> bool {
+        self.releases += 1;
+        every = _env_int("JAC_UNIT_COLLECT_EVERY", UNIT_COLLECT_EVERY);
+        growth = _env_int("JAC_UNIT_COLLECT_GROWTH_MB", UNIT_COLLECT_GROWTH_MB);
+        peak = _peak_rss_mb();
+        if self.last_peak_mb == 0 {
+            self.last_peak_mb = peak;
+        }
+        by_count = every > 0 and self.releases >= every;
+        by_growth = growth > 0 and (peak - self.last_peak_mb) >= growth;
+        if not (by_count or by_growth) {
+            return False;
+        }
+        self.releases = 0;
+        self.last_peak_mb = peak;
+        return True;
+    }
+}
+
+glob unit_collect_budget: UnitCollectBudget = UnitCollectBudget();

@@ -1,7 +1,7 @@
 # jaclang.org -- the official Jac website
 
 The marketing site, docs reader, Ninja Leaderboard, and Socialize (a full
-Twitter-style social app, littleX, living at `/socialize`) for the Jac
+Twitter-style social app, Jacyak, living at `/socialize`) for the Jac
 programming language, built end to end in Jac (naturally). One language spans all three
 codespaces here: the pages and components compile to JavaScript, the
 endpoints compile to Python and serve over RPC, and the game in
@@ -68,7 +68,7 @@ machine runs them, which is the tier boundary this language exists to erase.
 | `leaderboard/` | Submit, score, board: rubric, graph, shell, card |
 | `game/` | The rlgl shooter (`arena.jac`, owned/borrowed, zero-GC) and its WebGL host |
 | `source/` | The live source browser and its floating window |
-| `socialize/` | littleX embedded as a login-gated section: `social_graph.jac` is the whole backend (nodes, edges, walkers), `Socialize.jac` + `components/` the client |
+| `socialize/` | Jacyak embedded as a login-gated section: `social_graph.jac` is the whole backend (profiles with uploaded avatars, posts, follows, channels, and projects that every user adds as GitHub repos and the Ninja Scores scorer grades on the way in), `Socialize.jac` + `components/` the client |
 | `shared/` | Earned its way in: used by two or more features |
 | `shared/ui/` | jac-shadcn primitives -- **registry-managed, import only** |
 | `examples/` | Real compiled Jac samples, runnable with `jac run` |
