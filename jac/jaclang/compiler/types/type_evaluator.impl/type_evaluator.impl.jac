@@ -3936,11 +3936,14 @@ impl TypeEvaluator._is_sv_async_call(expr: FuncCall) -> bool {
                 sym_kind = item.name.sym.sym_type;
                 if sym_kind != SymbolType.ABILITY {
                     facts = imp.boundary_facts;
-                    is_bridged_walker = (
-                        is_service
-                        and facts is not None
-                        and item.name.value in facts.sv_walkers
-                    );
+                    is_bridged_walker = is_service
+                        and (
+                            sym_kind == SymbolType.WALKER_ARCH
+                            or (
+                                facts is not None
+                                and item.name.value in facts.sv_walkers
+                            )
+                        );
                     if not is_bridged_walker and is_service {
                         decl = resolved_decl_of(item.name.sym);
                         owner = decl.name_of if decl is not None else None;

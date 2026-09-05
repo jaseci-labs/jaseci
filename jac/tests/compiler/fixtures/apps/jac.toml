@@ -21,3 +21,7 @@ entry-point = "cycle_a.jac"
 [apps.cycle_b]
 kind = "service"
 entry-point = "cycle_b.jac"
+
+[apps.cli_spawn]
+kind = "cli"
+entry-point = "cli_spawn.jac"
