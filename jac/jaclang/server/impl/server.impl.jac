@@ -653,13 +653,13 @@ impl ModuleIntrospector._register_sealed_bindings(
                 }
             }
         }
-        target = os.path.basename(src_path);
-        if target.endswith('.jac') {
-            target = target.removesuffix('.jac');
+        rel = os.path.relpath(src_path, img_root).replace(os.sep, '/');
+        if rel.endswith('.jac') {
+            rel = rel.removesuffix('.jac');
         }
         try {
             imported = Jac.jac_import(
-                target=target, base_path=os.path.dirname(src_path), lng='jac'
+                target=rel.replace('/', '.'), base_path=img_root, lng='jac'
             );
             if imported {
                 return getattr(imported[0], name, None);
@@ -710,7 +710,7 @@ impl ModuleIntrospector._register_sealed_bindings(
 }
 
 impl ModuleIntrospector._collect_cross_boundary_endpoints -> None {
-    if not (self._module and Jac.get_program().mod) {
+    if not (self.discover_endpoints and self._module and Jac.get_program().mod) {
         return;
     }
     import from jaclang.compiler.frontend.constant { Tokens as Tok }
@@ -1389,7 +1389,10 @@ impl JacAPIServer.postinit -> None {
     }
     Jac.set_shared_root_resolver(_shared_root_id);
     self.introspector = ModuleIntrospector(
-        self.module_name, self.base_path, module_file=self.module_file
+        self.module_name,
+        self.base_path,
+        module_file=self.module_file,
+        discover_endpoints=not self.settings.static_only
     );
     self.execution_manager = ExecutionManager(
         base_path=self.base_path, user_manager=self.user_manager

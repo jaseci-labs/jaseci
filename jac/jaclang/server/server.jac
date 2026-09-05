@@ -121,6 +121,7 @@ obj ModuleIntrospector {
         _function_access: dict[(str, bool)] = {},
         _walker_access: dict[(str, bool)] = {},
         _spa_routes_loaded: bool = False,
+        discover_endpoints: bool = True,
         _spa_route_patterns: (list[str] | None) = None,
         dev_mode: bool = False;
 
