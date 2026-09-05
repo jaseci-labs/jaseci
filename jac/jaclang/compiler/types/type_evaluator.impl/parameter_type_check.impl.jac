@@ -1154,9 +1154,10 @@ impl TypeEvaluator._overload_accepts_receiver(
     if receiver is None or self.is_any_type(receiver) {
         return True;
     }
-    return self.assign_type(
-        self._convert_to_instance(receiver), self._convert_to_instance(declared)
-    );
+    if not isinstance(receiver, ClassType) or not receiver.is_instance() {
+        return True;
+    }
+    return self.assign_type(receiver, self._convert_to_instance(declared));
 }
 
 
