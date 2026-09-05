@@ -102,13 +102,15 @@ def _declares_body(ep: JEndPoint) -> bool {
     return False;
 }
 
-def _parse_request_body(request: Request, ep: JEndPoint) -> any {
+def _parse_request_body(request: Request, ep: JEndPoint, spool_bytes: int) -> any {
     content_type = (request.headers.get('Content-Type') or '').lower();
-    if not request.body {
+    if 'multipart/form-data' in content_type {
+        if request.body or request.body_file is not None {
+            parse_multipart(request, spool_bytes);
+        }
         return None;
     }
-    if 'multipart/form-data' in content_type {
-        parse_multipart(request);
+    if not request.body {
         return None;
     }
     if 'application/x-www-form-urlencoded' in content_type {
@@ -146,7 +148,8 @@ obj ServingApp {
         openapi_url: (str | None) = '/openapi.json',
         openapi_security: dict[str, any] = {},
         openapi_cache: (dict | None) = None,
-        state: dict[str, any] = {};
+        state: dict[str, any] = {},
+        multipart_spool_bytes: int = 1048576;
 
     def add_endpoint(ep: JEndPoint) {
         self.router.add(ep);
@@ -249,7 +252,7 @@ obj ServingApp {
         }
         request.path_params = path_params;
         spec = get_callback_spec(ep);
-        body_json = _parse_request_body(request, ep);
+        body_json = _parse_request_body(request, ep, self.multipart_spool_bytes);
         kwargs = bind_parameters(ep, request, body_json);
         if ep.request_model is not None {
             body_name = body_param_name(spec, kwargs);

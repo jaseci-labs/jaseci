@@ -114,6 +114,8 @@ obj Store {
     def kv_put(key: str, value: str) -> None abst;
     def kv_put_ttl(key: str, value: str, ttl_seconds: int) -> None abst;
     def kv_delete(key: str) -> None abst;
+    def kv_acquire_lease(key: str, ttl_seconds: int, owner: str) -> bool abst;
+    def kv_release_lease(key: str, owner: str) -> bool abst;
     def quarantine(
         missing_id: UUID, referrer_id: (UUID | None), kind: str
     ) -> None abst;
@@ -167,6 +169,8 @@ obj PgStore(Store) {
     def kv_put(key: str, value: str) -> None;
     def kv_put_ttl(key: str, value: str, ttl_seconds: int) -> None;
     def kv_delete(key: str) -> None;
+    def kv_acquire_lease(key: str, ttl_seconds: int, owner: str) -> bool;
+    def kv_release_lease(key: str, owner: str) -> bool;
     def quarantine(missing_id: UUID, referrer_id: (UUID | None), kind: str) -> None;
     def notify(channel: str, payload: str) -> None;
     def listen(channel: str, callback: any) -> None;

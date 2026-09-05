@@ -257,7 +257,7 @@ test "in dev the API port never builds a production client bundle" {
         try {
             introspector = client.server.introspector;
             setattr(introspector._bundle_builder, "build", spy);
-            client.server.dev_mode = True;
+            client.server.resolved_settings().dev = True;
             introspector.dev_mode = True;
             root_app = introspector.resolve_root_app();
             raised = "";

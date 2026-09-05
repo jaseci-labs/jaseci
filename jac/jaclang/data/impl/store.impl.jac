@@ -1092,6 +1092,46 @@ impl PgStore.kv_delete(key: str) -> None {
 }
 
 
+impl PgStore.kv_acquire_lease(key: str, ttl_seconds: int, owner: str) -> bool {
+    with self._lock {
+        conn: any = self._side();
+        rows = conn.run(
+            """
+            INSERT INTO kv_state (key, value, expires_at, updated_at)
+            VALUES (
+                :k, :o, now() + make_interval(secs => CAST(:ttl AS int)), now()
+            )
+            ON CONFLICT (key) DO UPDATE SET
+                value = EXCLUDED.value,
+                expires_at = EXCLUDED.expires_at,
+                updated_at = now()
+            WHERE kv_state.value = :o
+                  OR kv_state.expires_at IS NULL
+                  OR kv_state.expires_at <= now()
+            RETURNING key
+            """,
+            k=f"lease:{key}",
+            o=owner,
+            ttl=ttl_seconds
+        );
+    }
+    return bool(rows);
+}
+
+
+impl PgStore.kv_release_lease(key: str, owner: str) -> bool {
+    with self._lock {
+        conn: any = self._side();
+        rows = conn.run(
+            'DELETE FROM kv_state WHERE key = :k AND value = :o RETURNING key',
+            k=f"lease:{key}",
+            o=owner
+        );
+    }
+    return bool(rows);
+}
+
+
 impl PgStore.quarantine(
     missing_id: UUID, referrer_id: (UUID | None), kind: str
 ) -> None {
