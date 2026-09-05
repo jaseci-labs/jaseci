@@ -1577,45 +1577,24 @@ impl JacBuiltin.get_console -> ConsoleImpl {
 }
 
 impl JacServe.get_api_server_class -> type {
-    import from jaclang.server.identity_owner {
-        SCALE_IDENTITY,
-        identity_owner,
-        scale_stack_unavailable
-    }
-    _served = JacRuntime.get_full_target_path() or JacRuntime.get_base_path_dir();
-    if identity_owner(_served) != SCALE_IDENTITY {
-        import from jaclang.server.server { JacAPIServer }
-        return JacAPIServer;
-    }
+    import from jaclang.server.server { JacAPIServer }
+    return JacAPIServer;
+}
+
+"""Feature extensions the scale package registers onto the one assembly."""
+impl JacServe.get_server_extensions -> list[ServerExtension] {
     _sp = _scale_provider();
     if _sp is None {
-        raise scale_stack_unavailable('jaclang.scale.plugin', scale_provider_error());
+        return [];
     }
-    _scaled = _sp.get_api_server_class();
-    if _scaled is None {
-        raise RuntimeError(
-            'the scale plugin returned no API server class while the scale '
-            'identity owns /user/* for this project. Nothing falls back to the '
-            'core store from here: the two stacks keep credentials in '
-            'different databases, so serving the other one would answer for '
-            'accounts this project does not have.'
-        );
-    }
-    return _scaled;
+    return list(_sp.get_server_extensions());
 }
 
 impl JacServe.ensure_sv_service(module_name: str, base_path: str) -> None {
-    import from jaclang.server.identity_owner {
-        scale_stack_installed,
-        scale_stack_unavailable
-    }
     _sp = _scale_provider();
     if _sp is not None {
         _sp.ensure_sv_service(module_name, base_path);
         return;
-    }
-    if scale_stack_installed() {
-        raise scale_stack_unavailable('jaclang.scale.plugin', scale_provider_error());
     }
     import os;
     import time;
@@ -2160,14 +2139,7 @@ impl JacConfig.validate_config(config: dict[(str, any)]) -> list[str] {
 }
 
 impl JacPersistence.get_user_manager(base_path: str) -> UserManager {
-    _sp = _scale_provider();
-    if _sp is not None {
-        _scaled = _sp.get_user_manager(base_path);
-        if _scaled is not None {
-            return _scaled;
-        }
-    }
-    import from jaclang.server.server { UserManager }
+    import from jaclang.server.identity.user_manager { UserManager }
     return UserManager(base_path=base_path);
 }
 
@@ -2331,4 +2303,35 @@ impl JacRuntime.push_request_context(context: ExecutionContext) -> any {
 
 impl JacRuntime.reset_request_context(token: any) -> None {
     _request_context.reset(token);
+}
+
+"""Forget every process-bound handle a forked worker inherited.
+
+The parent keeps its own session, store connection and thread pool; the child
+must not close them (the sockets are shared) and must not reuse them (two
+processes on one Postgres connection interleave messages). The child gets a
+fresh context, a fresh pool and re-resolves the shared root on first use."""
+impl JacRuntime.after_fork_in_child -> None {
+    import from concurrent.futures { ThreadPoolExecutor }
+    import from jaclang.data.pgpool { detach }
+    ctx = JacRuntime.exec_ctx;
+    JacRuntime.exec_ctx = None;
+    if ctx is not None {
+        store = getattr(ctx.mem, 'store', None);
+        if store is not None {
+            for attr in ('_conn', '_side_conn') {
+                detach(getattr(store, attr, None));
+                try {
+                    setattr(store, attr, None);
+                } except Exception {}
+            }
+            try {
+                store._listen_thread = None;
+                store._listen_stop = None;
+                store._side_listened = False;
+            } except Exception {}
+        }
+    }
+    _shared_root_resolver[1] = None;
+    JacRuntime.pool = ThreadPoolExecutor();
 }

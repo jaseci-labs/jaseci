@@ -143,28 +143,6 @@ class JacScalePluginConfig {
         return {
             "section": "scale",
             "options": {
-                "jwt": {
-                    "type": "dict",
-                    "default": {},
-                    "description": "JWT authentication configuration",
-                    "nested": {
-                        "secret": {
-                            "type": "string",
-                            "default": "supersecretkey_for_testing_only!",
-                            "description": "Secret key for JWT signing. Left unset, a dev server mints one per project into .jac/data/jwt_secret; a deployment must set it so every replica signs alike"
-                        },
-                        "algorithm": {
-                            "type": "string",
-                            "default": "HS256",
-                            "description": "JWT encoding algorithm"
-                        },
-                        "exp_delta_days": {
-                            "type": "int",
-                            "default": 7,
-                            "description": "JWT token expiration in days"
-                        }
-                    }
-                },
                 "sso": {
                     "type": "dict",
                     "default": {},
@@ -598,28 +576,8 @@ class JacScalePluginConfig {
                 "server": {
                     "type": "dict",
                     "default": {},
-                    "description": "Server configuration",
+                    "description": "Serving-process logging. Listener, worker, limit and timeout settings live in [serve]",
                     "nested": {
-                        "port": {
-                            "type": "int",
-                            "default": 8000,
-                            "description": "Server port"
-                        },
-                        "host": {
-                            "type": "string",
-                            "default": "0.0.0.0",
-                            "description": "Server host"
-                        },
-                        "docs_enabled": {
-                            "type": "bool",
-                            "default": True,
-                            "description": "Serve the interactive API docs at /docs"
-                        },
-                        "suppress_health_check_logs": {
-                            "type": "bool",
-                            "default": False,
-                            "description": "Suppress health-check endpoint access log entries (/docs, /, /openapi.json, /health, /healthz, /healthz/ready, /healthz/live) from CLI output and Kubernetes pod logs. Off by default."
-                        },
                         "structured_logs": {
                             "type": "bool",
                             "default": True,
@@ -646,11 +604,6 @@ class JacScalePluginConfig {
                             "type": "string",
                             "default": "0.0.0.0",
                             "description": "Gateway host"
-                        },
-                        "drain_timeout_seconds": {
-                            "type": "float",
-                            "default": 10.0,
-                            "description": "Graceful shutdown window (seconds). On SIGTERM, gateway + services flip a drain flag (503s on new requests) and wait up to this many seconds for in-flight requests to finish before the server force-closes; the serving core mirrors K8s `terminationGracePeriodSeconds`."
                         },
                         "http_forward_timeout": {
                             "type": "float",
@@ -755,6 +708,16 @@ class JacScalePluginConfig {
                                     "type": "string",
                                     "default": None,
                                     "description": "K8s container CPU limit, e.g. '2000m'"
+                                },
+                                "workers": {
+                                    "type": "string",
+                                    "default": None,
+                                    "description": "Worker processes for this service's pods (overrides [serve.workers] count). 'auto' sizes from the pod's CPU quota. A CPU-bound service on a 2-core limit wants 2; an I/O-bound one is fine at 1."
+                                },
+                                "threads": {
+                                    "type": "string",
+                                    "default": None,
+                                    "description": "Sync-handler threads per worker for this service's pods (overrides [serve.workers] threads)."
                                 },
                                 "memory_request": {
                                     "type": "string",
@@ -878,10 +841,10 @@ class JacScalePluginConfig {
                                     "default": ["/health", "/healthz", "/metrics"],
                                     "description": "Paths that bypass rate limiting entirely (monitoring + probes)."
                                 },
-                                "trusted_proxies": {
-                                    "type": "list",
-                                    "default": [],
-                                    "description": "IPs/CIDRs of proxies fronting the gateway (e.g. the k8s Ingress pods or a load balancer). X-Forwarded-For is honored only when the TCP peer is in this list, and the per-IP key is the rightmost forwarded entry not itself listed here, so clients cannot mint buckets by forging the header. Empty (default) means the header is never trusted and the per-IP key is the TCP peer address; set this when the gateway runs behind an ingress, or all traffic will share the ingress address's bucket."
+                                "shared": {
+                                    "type": "bool",
+                                    "default": True,
+                                    "description": "Keep buckets in the project database so the limit is enforced once across every gateway process and replica. false keeps buckets in process memory, which only makes sense for a single local gateway. The client address behind a proxy comes from [serve.proxy] trusted."
                                 }
                             }
                         },
@@ -1004,11 +967,6 @@ class JacScalePluginConfig {
                             "type": "string",
                             "default": None,
                             "description": "Broadcast backplane: 'memory' (single-pod, in-process fan-out) or 'pg' (cross-pod fan-out over Postgres LISTEN/NOTIFY). Unset auto-selects 'pg' when a scale database resolves, else 'memory'."
-                        },
-                        "allowed_origins": {
-                            "type": "list",
-                            "default": [],
-                            "description": "Origins allowed to open cross-origin WebSocket upgrades. Default [] refuses cross-origin browsers (same-origin and non-browser clients always pass); list origins explicitly or use [\"*\"] to allow any."
                         },
                         "max_message_bytes": {
                             "type": "int",
@@ -1373,11 +1331,6 @@ class JacScalePluginConfig {
                             "type": "string",
                             "default": "auth_tokens",
                             "description": "Collection name where auth tokens are persisted"
-                        },
-                        "password_hash_cost": {
-                            "type": "int",
-                            "default": 14,
-                            "description": "bcrypt cost factor, clamped to 10..17 (JAC_SCALE_PASSWORD_HASH_COST env overrides)"
                         },
                         "forgot_password_rate_per_hour": {
                             "type": "int",

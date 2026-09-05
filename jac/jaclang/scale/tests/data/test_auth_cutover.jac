@@ -110,7 +110,7 @@ test "expire_legacy_credentials flags pre-scrypt accounts (bulk and per-user)" {
     import from tempfile { mkdtemp }
     import from jaclang.data.pgembed { PgRuntime }
     import from jaclang.data.store { PgStore }
-    import from jaclang.scale.identity.identity_storage { PgIdentityStorage }
+    import from jaclang.server.identity.identity_storage { PgIdentityStorage }
 
     store = None;
     try {

@@ -12,10 +12,10 @@ import uuid;
 import from datetime { UTC, datetime, timedelta }
 import from jaclang.server.serving.authcrypt { jwt_encode }
 import from jaclang.scale.config.config_loader { normalize_microservices_config }
-import from jaclang.scale.identity.user_manager {
+import from jaclang.server.identity.user_manager {
     jwt_algorithm,
     jwt_secret,
-    JacScaleUserManager
+    UserManager
 }
 
 glob _SV_ENV: str = "JAC_SV_NAME";
@@ -31,7 +31,7 @@ def _gateway_token(user_id: str) -> str {
 
 
 """A manager built as the given process type, or None if Postgres is absent."""
-def _manager(sv_name: str) -> (JacScaleUserManager | None) {
+def _manager(sv_name: str) -> (UserManager | None) {
     previous = os.environ.get(_SV_ENV);
     if sv_name {
         os.environ[_SV_ENV] = sv_name;
@@ -39,7 +39,7 @@ def _manager(sv_name: str) -> (JacScaleUserManager | None) {
         del os.environ[_SV_ENV];
     }
     try {
-        return JacScaleUserManager(base_path=".");
+        return UserManager(base_path=".");
     } except Exception as e {
         print(f"[skip] embedded postgres unavailable: {e}");
         return None;

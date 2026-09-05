@@ -155,8 +155,21 @@ comptime SPEC_RUN: CommandSpec = CommandSpec(
                  `default=None,
                  short="",
                  help=(
-                     "Mobile dev (--client mobile --dev): optional host/IP override for "
-                     "Capacitor live-reload. When omitted, jac auto-selects a host."
+                     "Interface to bind (serving only; default [serve] host, 0.0.0.0). "
+                     "Use 127.0.0.1 to keep a dev server off the network. For mobile "
+                     "dev (--client mobile --dev) this is also the Capacitor "
+                     "live-reload host."
+                 )
+             ),
+             Arg.create(
+                 "workers",
+                 typ=str,
+                 `default=None,
+                 short="w",
+                 help=(
+                     "Worker processes to serve with (serving only; default [serve.workers] "
+                     "count, 1). 'auto' sizes from the CPU quota. Each worker is a full "
+                     "process with its own thread pool; the parent only supervises."
                  )
              ),
              Arg.create(
@@ -255,6 +268,7 @@ def run(
     host: str | None = None,
     platform: str | None = None,
     takeover: bool | None = None,
+    workers: str | None = None,
     args: list[str] = []
 ) -> int;
 
@@ -270,7 +284,8 @@ def serve(
     client: str = "web",
     host: str = "",
     platform: str = "auto",
-    takeover: bool = False
+    takeover: bool = False,
+    workers: str = ""
 ) -> int;
 
 def debug(filename: str, main: bool = True, cache: bool = False) -> int;

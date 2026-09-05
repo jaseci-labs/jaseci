@@ -398,7 +398,7 @@ This produces a `TriggerAuthentication` named `my-queue-trigger-auth` in the sam
 
 Every Deployment gets `RollingUpdate { maxSurge: 1, maxUnavailable: 0 }`,
 readinessProbe on `/healthz/ready`, `terminationGracePeriodSeconds =
-drain_timeout_seconds + 5`, and `preStop: sleep 5`. Together with the
+[serve.timeouts] drain + 5`, and `preStop: sleep 5`. Together with the
 drain middleware (`P13`), `kubectl rollout restart deployment/<svc>-deployment`
 completes with zero non-2xx responses.
 
@@ -491,14 +491,16 @@ and tune per deployment.
 ### Graceful shutdown on SIGTERM
 
 ```toml
-[scale.microservices]
-drain_timeout_seconds = 10
+[serve.timeouts]
+drain = 10.0
 ```
 
 On SIGTERM (or `jac scale stop`), gateway + services flip a drain flag
-(new requests get `503 SERVICE_UNAVAILABLE` with `Retry-After: 2`) and
-then uvicorn waits up to `drain_timeout_seconds` for in-flight requests
-to complete. Mirrors K8s `terminationGracePeriodSeconds`.
+(`/healthz/ready` answers 503, new requests get `503 SERVICE_UNAVAILABLE`
+with `Retry-After: 1`) and the transport waits up to `[serve.timeouts]
+drain` for in-flight requests to complete. Under `[serve.workers] count > 1`
+the supervisor fans SIGTERM out and every worker drains on the same budget.
+Mirrors K8s `terminationGracePeriodSeconds`.
 
 ### Per-service RPC timeout
 

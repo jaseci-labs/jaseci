@@ -13,7 +13,7 @@ import from jaclang.server.serving.authcrypt {
     jwt_decode as _jwt_decode,
     jwt_encode as _jwt_encode
 }
-import from jaclang.scale.identity.user_manager { jwt_secret }
+import from jaclang.server.identity.user_manager { jwt_secret }
 import from datetime { UTC, datetime, timedelta }
 import from pathlib { Path }
 import from jaclang.scale.tests.scale_test_client {

@@ -216,6 +216,7 @@ def _serve_flag_spelling -> dict {
         "ms": "--ms",
         "client": "--client",
         "host": "--host",
+        "workers": "--workers",
         "platform": "--platform"
     };
 }
@@ -245,7 +246,8 @@ def _serve_overrides(
     client: (str | None),
     host: (str | None),
     platform: (str | None),
-    cfg: any
+    cfg: any,
+    workers: (str | None) = None
 ) -> dict {
     over: dict = {};
     if _port_is_explicit(port, cfg) {
@@ -274,6 +276,9 @@ def _serve_overrides(
     }
     if platform is not None {
         over["platform"] = platform;
+    }
+    if workers is not None {
+        over["workers"] = workers;
     }
     return over;
 }
@@ -337,7 +342,8 @@ def _serve_with(
         "client": "web",
         "host": "",
         "platform": "auto",
-        "takeover": False
+        "takeover": False,
+        "workers": ""
     };
     for (k, v) in plan_flags.items() {
         if k in kw {
@@ -596,6 +602,7 @@ impl run(
     host: (str | None) = None,
     platform: (str | None) = None,
     takeover: (bool | None) = None,
+    workers: (str | None) = None,
     args: list = []
 ) -> int {
     use_line_buffered_output();
@@ -626,7 +633,7 @@ impl run(
     }
 
     over = _serve_overrides(
-        port, dev, api_port, no_client, faux, ms, client, host, platform, cfg
+        port, dev, api_port, no_client, faux, ms, client, host, platform, cfg, workers
     );
     entry_flags = _entry_flags_used(entry_name, nd, root_id, debug_mode);
     kind_serves = plan is not None and plan.action == "serve";
@@ -858,7 +865,8 @@ impl serve(
     client: str = "web",
     host: str = "",
     platform: str = "auto",
-    takeover: bool = False
+    takeover: bool = False,
+    workers: str = ""
 ) -> int {
     import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from pathlib { Path }
@@ -954,13 +962,28 @@ impl serve(
         api_port_pinned = port_pinned;
     }
 
+    import from jaclang.server.settings { ServeConfigError, ServeSettings }
+    overrides: dict[str, any] = {
+        'port': actual_api_port,
+        'strict_port': api_port_pinned,
+        'dev': dev,
+        'no_client': no_client
+    };
+    if host {
+        overrides['host'] = host;
+    }
+    if workers {
+        overrides['workers'] = workers;
+    }
+    try {
+        settings = ServeSettings.load(base, overrides);
+    } except ServeConfigError as e {
+        console.error(f"cannot start the server:\n{e}");
+        mach.close();
+        return 1;
+    }
     ServerClass = Jac.get_api_server_class();
-    server = ServerClass(
-        module_name=mod,
-        port=actual_api_port,
-        base_path=base,
-        strict_port=api_port_pinned
-    );
+    server = ServerClass(module_name=mod, base_path=base, settings=settings);
     if faux {
         try {
             server.print_endpoint_docs();
@@ -970,11 +993,6 @@ impl serve(
             console.error(dump_traceback(e));
             mach.close();
             return 1;
-        } finally {
-            svr = server.server;
-            if svr and hasattr(svr, 'server_close') {
-                svr.server_close();
-            }
         }
         mach.close();
         return 0;
@@ -1099,8 +1117,14 @@ impl serve(
         );
     }
     try {
-        server.start(dev=dev, no_client=no_client, on_ready=_announce_ready);
-        return 0;
+        return int(server.start(dev=dev, no_client=no_client, on_ready=_announce_ready));
+    } except ServeConfigError as e {
+        console.error(str(e));
+        if hot_reloader is not None {
+            hot_reloader.stop();
+        }
+        mach.close();
+        return 1;
     } except KeyboardInterrupt {
         console.print('\nShutting down');
         if hot_reloader is not None {

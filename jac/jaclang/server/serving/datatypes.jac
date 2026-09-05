@@ -143,17 +143,34 @@ obj URL {
     }
 }
 
+"""A form part. Small parts stay in memory; large ones spool to disk.
+
+`body` is the whole payload as bytes for handlers that want it that way;
+`file` is a seekable binary handle for handlers that stream it onward."""
 obj UploadFile {
     has filename: str = '',
         content_type: str = 'application/octet-stream',
-        body: bytes = b'',
-        _stream: any = None;
+        _file: any = None,
+        _size: int = 0;
 
     has size: int { getter; }
     has file: any { getter; }
+    has body: bytes { getter; }
 
-    async def read -> bytes {
-        return self.body;
+    static def from_bytes(
+        filename: str, content_type: str, data: bytes
+    ) -> UploadFile {
+        import io;
+        return UploadFile(
+            filename=filename,
+            content_type=content_type,
+            _file=io.BytesIO(data),
+            _size=len(data)
+        );
+    }
+
+    async def read(size: int = -1) -> bytes {
+        return self.file.read(size);
     }
 
     async def seek(offset: int) {
@@ -166,15 +183,28 @@ obj UploadFile {
 }
 
 impl UploadFile.size.getter -> int {
-    return len(self.body);
+    return self._size;
 }
 
 impl UploadFile.file.getter -> any {
-    if self._stream is None {
+    if self._file is None {
         import io;
-        self._stream = io.BytesIO(self.body);
+        self._file = io.BytesIO(b'');
     }
-    return self._stream;
+    return self._file;
+}
+
+impl UploadFile.body.getter -> bytes {
+    handle = self.file;
+    try {
+        here = handle.tell();
+    } except Exception {
+        here = 0;
+    }
+    handle.seek(0);
+    data = handle.read();
+    handle.seek(here);
+    return data;
 }
 
 obj Request {
@@ -184,8 +214,11 @@ obj Request {
         query_params: QueryParams = QueryParams(),
         path_params: dict[(str, str)] = {},
         body: bytes = b'',
+        body_file: any = None,
         state: State = State(),
         client_host: str = '',
+        http_version: str = 'HTTP/1.1',
+        request_id: str = '',
         form_fields: dict[(str, list[str])] = {},
         upload_files: dict[(str, list[UploadFile])] = {};
 

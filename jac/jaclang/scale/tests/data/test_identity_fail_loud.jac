@@ -11,7 +11,7 @@ import os;
 import unittest.mock;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.scale.identity.user_manager { JacScaleUserManager }
+import from jaclang.server.identity.user_manager { UserManager }
 import from jaclang.scale.server.inprocess { prepare_inprocess_runtime }
 
 
@@ -44,10 +44,10 @@ def _pinned_project(project_dir: str, owner: str) -> str {
 
 test "user manager refuses to start without a reachable database" {
     with unittest.mock.patch(
-        "jaclang.scale.persistence.pg.shared_store", return_value=None
+        "jaclang.server.shared_store.shared_store", return_value=None
     ) {
         with testraises(RuntimeError) as exc {
-            JacScaleUserManager(base_path=".");
+            UserManager(base_path=".");
         }
         assert "Postgres" in str(exc.value);
         assert "credential store" in str(exc.value);
@@ -56,7 +56,7 @@ test "user manager refuses to start without a reachable database" {
 
 
 test "sqlite identity fallback is gone" {
-    import jaclang.scale.identity.identity_storage as storage_mod;
+    import jaclang.server.identity.identity_storage as storage_mod;
     assert not hasattr(storage_mod, "SqliteIdentityStorage");
 }
 

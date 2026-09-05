@@ -177,7 +177,7 @@ store does this correctly (raw value shown once, only the sha256 persisted,
 server-side expiry, atomic single-winner consume) and is exposed for app flows:
 
 ```jac
-import from jaclang.scale.identity.app_tokens {
+import from jaclang.server.identity.app_tokens {
     token_create, token_peek, token_consume, token_revoke
 }
 

@@ -67,6 +67,45 @@ def find_static_candidate(base_path: str, relative_path: str) -> (Path | None) {
     return None;
 }
 
+glob ROOT_ASSET_EXTENSIONS: set[str] = DEFAULT_ASSET_EXTENSIONS
+         | {'.pdf', '.txt', '.xml'};
+
+
+"""A file under one of the project's public asset roots, or None.
+
+Every candidate is resolved and must stay inside the project root, so a
+request path can never walk out of the directories the server is meant to
+publish. The project root itself is not a root: `jac.toml`, source and data
+files are not assets."""
+def find_root_asset(base_path: str, relative_path: str) -> (Path | None) {
+    rel = relative_path.lstrip('/');
+    if not rel or Path(rel).suffix.lower() not in ROOT_ASSET_EXTENSIONS {
+        return None;
+    }
+    base = resolve_static_base(base_path);
+    file_name = Path(rel).name;
+    roots = [
+        base / '.jac' / 'client' / 'dist',
+        base / 'dist',
+        base / 'assets',
+        base / 'public',
+        base / 'src'
+    ];
+    for root in roots {
+        for candidate in (root / rel, root / file_name) {
+            if not (candidate.exists() and candidate.is_file()) {
+                continue;
+            }
+            resolved = candidate.resolve();
+            if root.resolve() not in resolved.parents {
+                continue;
+            }
+            return candidate;
+        }
+    }
+    return None;
+}
+
 def is_asset_request(
     path: str, cl_route_path: str, reserved_prefixes: (list[str] | None) = None
 ) -> bool {

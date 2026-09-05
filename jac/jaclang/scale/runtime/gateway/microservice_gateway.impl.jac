@@ -12,12 +12,11 @@ import from jaclang.scale.runtime.routing {
 
 def _install_ws_catchall(gw: MicroserviceGateway) {
     import from jaclang.scale.runtime.middleware.ws_forward { websocket_forward }
-    import from jaclang.scale.runtime.lifecycle.drain { is_draining }
     import from jaclang.scale.runtime.gateway.service_registry { ServiceStatus }
 
     async def ws_proxy(websocket: WebSocket) -> None {
         ws_path: str = websocket.path_params.get('ws_path', '');
-        if is_draining() {
+        if gw.drain.draining {
             await websocket.close(code=1012);
             return;
         }
@@ -300,8 +299,7 @@ impl MicroserviceGateway.handle_health_live -> Response {
 
 
 impl MicroserviceGateway.handle_health_ready -> Response {
-    import from jaclang.scale.runtime.lifecycle.drain { is_draining }
-    if is_draining() {
+    if self.drain.draining {
         return JSONResponse(
             status_code=503, content={"status": "draining", "ready": False}
         );
@@ -979,9 +977,9 @@ impl MicroserviceGateway.setup -> ServingApp {
     }
     registry = MiddlewareRegistry();
 
-    import from jaclang.scale.runtime.lifecycle.drain { build_drain_middleware }
+    import from jaclang.server.serving.drain { drain_middleware }
     registry.register(
-        Middleware(name="drain", priority=20, fn=build_drain_middleware("__gateway__"))
+        Middleware(name="drain", priority=20, fn=drain_middleware(self.drain, "__gateway__"))
     );
 
     import from jaclang.scale.config.config_loader { get_scale_config }
@@ -1022,20 +1020,19 @@ def _log_gateway_ready(host: str, bound: int) {
 
 
 impl MicroserviceGateway.start(on_ready: any = None) -> None {
-    import from jaclang.scale.runtime.lifecycle.drain { install_signal_drain }
-    import from jaclang.scale.config.config_loader { get_scale_config }
+    import from jaclang.server.net { PORT_RETRY_LIMIT }
+    import from jaclang.server.serving.server { ServingServer }
+    import from jaclang.server.settings { ServeSettings }
 
     if self.app is None {
         self.setup();
     }
-    ms_cfg = get_scale_config().get_microservices_config();
-    drain_timeout: float = float(ms_cfg.get("drain_timeout_seconds", 10));
-
-    import from jaclang.server.serving.server { ServingServer, PORT_RETRY_LIMIT }
-    serving = ServingServer(
-        app=self.app, host=self.host, port=self.port, drain_timeout=drain_timeout
+    settings = ServeSettings.load(
+        self.base_path,
+        {'host': self.host, 'port': self.port, 'strict_port': self.port_pinned}
     );
-    install_signal_drain(serving, timeout_s=drain_timeout);
+    self.drain.timeout = settings.timeouts.drain;
+    serving = ServingServer(app=self.app, settings=settings, drain=self.drain);
     import from functools { partial }
     ready: any = on_ready;
     if ready is None {
@@ -1047,14 +1044,29 @@ impl MicroserviceGateway.start(on_ready: any = None) -> None {
 }
 
 
+impl MicroserviceGateway.add_endpoint(ep: JEndPoint) -> None {
+    self.app.add_endpoint(ep);
+}
+
+impl MicroserviceGateway.identity -> UserManager {
+    if self.user_manager is None {
+        self.user_manager = UserManager(base_path=self.base_path);
+    }
+    return self.user_manager;
+}
+
+
 impl MicroserviceGateway._install_admin_api -> None {
-    import from jaclang.scale.server.native_server { NativeJServer }
-    import from jaclang.scale.identity.user_manager { JacScaleUserManager }
+    import from jaclang.server.endpoints.auth { register_auth_endpoints }
+    import from jaclang.server.middleware { jwt_middleware }
+    import from jaclang.server.identity.config { configure_identity }
+    import from jaclang.server.settings { ServeSettings }
 
-    self.server = NativeJServer(app=self.app, install_drain=False);
-
-    self.user_manager = JacScaleUserManager(base_path=self.base_path);
-    self.server.set_user_manager(self.user_manager);
+    settings = ServeSettings.load(self.base_path);
+    configure_identity(settings.auth, self.base_path);
+    self.server = self;
+    self.user_manager = self.identity();
+    self.app.add_middleware(jwt_middleware(self.user_manager));
 
     self.register_admin_endpoints();
     self.register_logs_endpoints();
@@ -1067,12 +1079,7 @@ impl MicroserviceGateway._install_admin_api -> None {
     self.register_network_endpoints();
     self.register_podenv_endpoints();
 
-    self.register_register_endpoint();
-    self.register_login_endpoint();
-    self.register_refresh_token_endpoint();
-    self.register_update_password_endpoint();
-    self.register_me_endpoint();
-    self.register_update_me_endpoint();
+    register_auth_endpoints(self);
 
     logger.info(
         "Admin JSON API installed on gateway "

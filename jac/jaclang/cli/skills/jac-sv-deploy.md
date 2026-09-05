@@ -10,10 +10,19 @@ Production serving is the built-in `scale` subsystem's job. Scale ships inside `
 `jac run [app.jac]` (default entry `main.jac`; needs a `jac.toml` in the cwd). Boolean flags are **hyphenated**: `--no-client` (API only, skip client bundling), `--port/-p` (auto-falls back if taken), `--faux` (print the generated API surface without starting - cheap endpoint preview), `--profile prod` (config profile), `--dev` (HMR). `jac run` exits when stdin closes - any backgrounded/daemonized server must be launched with `< /dev/null` (systemd/containers do this for you; shell scripts and CI must do it explicitly). For prod, kill Swagger:
 
 ```toml
-[scale.server]
-docs_enabled = false          # disables /docs, /redoc, /openapi.json
-suppress_health_check_logs = true
+[serve]
+docs_enabled = false          # disables /docs, /openapi.json
+graph_enabled = false         # disables /graph, /graph/data
+
+[serve.workers]
+count = "auto"                # one worker per core of the CPU quota; "1" for I/O-bound apps
+
+[serve.access_log]
+format = "json"
+suppress_health_checks = true
 ```
+
+Every `[serve]` key has a `JAC_SERVE_*` mirror (`JAC_SERVE_WORKERS`, `JAC_SERVE_AUTH_SECRET`, `JAC_SERVE_PROXY_TRUSTED`, ...), and `jac scale deploy` sets them on every pod. `jac run --workers N` overrides the count for one run.
 
 **Backend:** Postgres, always. An embedded per-project server provisions automatically (zero setup); set `JAC_DB_URL` (or `[scale.database] url`) to use an external server - k8s deploys provision a Postgres StatefulSet and inject `JAC_DB_URL` into every pod. Config precedence everywhere: **env var > jac.toml > default**.
 

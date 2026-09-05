@@ -9,9 +9,50 @@ class PortInUseError(OSError) {
 
 
 glob PORT_RETRY_LIMIT: int = 10,
-     ERRNO_ADDR_IN_USE_LINUX: int = 98,
-     ERRNO_ADDR_IN_USE_MACOS: int = 48,
-     ERRNO_ADDR_IN_USE_WINDOWS: int = 10048;
+     ERRNO_ADDR_IN_USE: tuple[int, int, int] = (98, 48, 10048);
+
+
+def _address_in_use(e: OSError) -> bool {
+    return e.errno in ERRNO_ADDR_IN_USE or "Address already in use" in str(e);
+}
+
+
+"""Bind one listening socket, moving up the port range only when allowed.
+
+The socket is what a server (or a pre-fork supervisor, whose workers inherit
+it) accepts on; it is created non-inheritable-by-default and left blocking so
+`asyncio.start_server(sock=...)` can take it over. A pinned port never moves:
+it is a contract with whatever sits in front of the process."""
+def bind_listener(
+    host: str, port: int, backlog: int = 2048, port_retries: int = PORT_RETRY_LIMIT
+) -> socket.socket {
+    family = socket.AF_INET6 if ':' in host else socket.AF_INET;
+    candidate = port;
+    attempt = 0;
+    while True {
+        sock = socket.socket(family, socket.SOCK_STREAM);
+        try {
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
+            if family == socket.AF_INET6 and hasattr(socket, 'IPV6_V6ONLY') {
+                sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0);
+            }
+            sock.bind((host, candidate));
+            sock.listen(backlog);
+            sock.setblocking(False);
+            return sock;
+        } except OSError as e {
+            sock.close();
+            if not _address_in_use(e) {
+                raise;
+            }
+            if attempt >= port_retries {
+                raise PortInUseError(candidate) from None;
+            }
+            attempt += 1;
+            candidate += 1;
+        }
+    }
+}
 
 
 def find_available_port(
@@ -36,14 +77,7 @@ def find_available_port(
             }
             return candidate;
         } except OSError as e {
-            in_use = e.errno
-                in (
-                    ERRNO_ADDR_IN_USE_LINUX,
-                    ERRNO_ADDR_IN_USE_MACOS,
-                    ERRNO_ADDR_IN_USE_WINDOWS
-                )
-                or "Address already in use" in str(e);
-            if not in_use {
+            if not _address_in_use(e) {
                 raise;
             }
             if strict {

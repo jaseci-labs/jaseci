@@ -25,7 +25,8 @@ description: The jac.toml control plane - every section ([project], [dependencie
 | `[scripts]` | named command shortcuts run via `jac x <name>` |
 | `[environments]` / `[environment]` | per-profile overrides (below) |
 | `[byllm]` / `[byllm.model]` / `[byllm.call_params]` | AI settings: model identity, API keys, call params (see `jac-by-llm`) |
-| `[scale.*]` | serving/deployment settings: `[scale.server]`, `[scale.database]`, `[scale.kubernetes]`, ... (see `jac-sv-deploy`) |
+| `[serve]` | the server process: host, port, workers, TLS, proxy, limits, timeouts, access log, compression, auth (every key has a `JAC_SERVE_*` mirror) |
+| `[scale.*]` | deployment and scale features: `[scale.database]`, `[scale.kubernetes]`, `[scale.microservices]`, ... (see `jac-sv-deploy`) |
 | `[client]` | `framework` = `"react"` (default) / `"preact"` / `"solid"` (experimental) - which JS framework the client target emits; `[client.routing] auth_redirect = "/path"` for unauthenticated redirects |
 | `[client.app_meta_data]` | served page's head/SEO config: `title`, `description`, `keywords`, `author`, `theme_color`, `icon` |
 | `[desktop]` / `[desktop.plugins]` | desktop app identity + window geometry; per-capability OS-plugin gates (`fs`/`clipboard`/`shell` allow-lists) - see `jac-desktop-app` |

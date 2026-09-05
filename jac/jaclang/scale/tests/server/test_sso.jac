@@ -18,7 +18,7 @@ import from jaclang.scale.sso.apple { AppleSSOProvider }
 import from jaclang.scale.sso.github { GithubSSOProvider }
 import from jaclang.scale.server.serve { JacAPIServer }
 import from jaclang.scale.shared.enums { Platforms, Operations }
-import from jaclang.scale.identity.user_manager { JacScaleUserManager }
+import from jaclang.server.identity.user_manager { UserManager }
 import from jaclang.server.transport { TransportResponse }
 
 def _as_any(v: any) -> any {
@@ -324,14 +324,14 @@ def _get_response_body(result: JSONResponse | TransportResponse) -> str {
     }
 }
 
-def _setup_user_manager -> tuple[str, JacScaleUserManager] {
+def _setup_user_manager -> tuple[str, UserManager] {
     test_dir = mkdtemp();
     reset_scale_config();
     mock_config = MockScaleConfig(mock_sso_config_with_credentials());
     with unittest.mock.patch(
-        "jaclang.scale.identity.user_manager.get_scale_config", return_value=mock_config
+        "jaclang.server.identity.user_manager.get_scale_config", return_value=mock_config
     ) {
-        user_manager = JacScaleUserManager(base_path=test_dir);
+        user_manager = UserManager(base_path=test_dir);
     }
     return (test_dir, user_manager);
 }
@@ -340,7 +340,7 @@ def _parse_body(result: JSONResponse | TransportResponse) -> dict {
     return json.loads(_get_response_body(result));
 }
 
-def _create_existing_user(user_manager: JacScaleUserManager, email: str) -> str {
+def _create_existing_user(user_manager: UserManager, email: str) -> str {
     result = user_manager.create_user_with_identities(
         identities=[{'type': 'email', 'value': email, 'verified': True}],
         credential={'type': 'password', 'password': 'existing_pass'}
@@ -387,10 +387,10 @@ test "get sso with unconfigured platform" {
         reset_scale_config();
         mock_config = MockScaleConfig(mock_sso_config_without_credentials());
         with unittest.mock.patch(
-            "jaclang.scale.identity.user_manager.get_scale_config",
+            "jaclang.server.identity.user_manager.get_scale_config",
             return_value=mock_config
         ) {
-            um = JacScaleUserManager(base_path="");
+            um = UserManager(base_path="");
             sso = um.get_sso(Platforms.GOOGLE.value);
             assert sso is None;
         }
@@ -759,9 +759,9 @@ test "supported platforms initialization with jac toml credentials" {
         }
     );
     with unittest.mock.patch(
-        "jaclang.scale.identity.user_manager.get_scale_config", return_value=mock_config
+        "jaclang.server.identity.user_manager.get_scale_config", return_value=mock_config
     ) {
-        user_manager = JacScaleUserManager(base_path="");
+        user_manager = UserManager(base_path="");
         assert "google" in user_manager.SUPPORTED_PLATFORMS;
         assert user_manager.SUPPORTED_PLATFORMS["google"]["client_id"]
             == "toml_test_id";
@@ -772,14 +772,14 @@ test "supported platforms initialization without jac toml credentials" {
     reset_scale_config();
     mock_config = MockScaleConfig(mock_sso_config_without_credentials());
     with unittest.mock.patch(
-        "jaclang.scale.identity.user_manager.get_scale_config", return_value=mock_config
+        "jaclang.server.identity.user_manager.get_scale_config", return_value=mock_config
     ) {
-        user_manager = JacScaleUserManager(base_path="");
+        user_manager = UserManager(base_path="");
         assert "google" not in user_manager.SUPPORTED_PLATFORMS;
     }
 }
 
-def _setup_real_user_manager -> tuple[str, JacScaleUserManager] {
+def _setup_real_user_manager -> tuple[str, UserManager] {
     return _setup_user_manager();
 }
 
@@ -1217,9 +1217,9 @@ test "supported platforms initialization with apple credentials" {
         }
     );
     with unittest.mock.patch(
-        "jaclang.scale.identity.user_manager.get_scale_config", return_value=mock_config
+        "jaclang.server.identity.user_manager.get_scale_config", return_value=mock_config
     ) {
-        user_manager = JacScaleUserManager(base_path="");
+        user_manager = UserManager(base_path="");
         assert "google" in user_manager.SUPPORTED_PLATFORMS;
         assert "apple" in user_manager.SUPPORTED_PLATFORMS;
         assert user_manager.SUPPORTED_PLATFORMS["apple"]["client_id"] == "apple_id";
@@ -1236,9 +1236,9 @@ test "supported platforms initialization without apple credentials" {
         }
     );
     with unittest.mock.patch(
-        "jaclang.scale.identity.user_manager.get_scale_config", return_value=mock_config
+        "jaclang.server.identity.user_manager.get_scale_config", return_value=mock_config
     ) {
-        user_manager = JacScaleUserManager(base_path="");
+        user_manager = UserManager(base_path="");
         assert "google" in user_manager.SUPPORTED_PLATFORMS;
         assert "apple" not in user_manager.SUPPORTED_PLATFORMS;
     }
@@ -1408,9 +1408,9 @@ test "supported platforms initialization with github credentials" {
         }
     );
     with unittest.mock.patch(
-        "jaclang.scale.identity.user_manager.get_scale_config", return_value=mock_config
+        "jaclang.server.identity.user_manager.get_scale_config", return_value=mock_config
     ) {
-        user_manager = JacScaleUserManager(base_path="");
+        user_manager = UserManager(base_path="");
         assert "github" in user_manager.SUPPORTED_PLATFORMS;
         assert user_manager.SUPPORTED_PLATFORMS["github"]["client_id"] == "github_id";
     }
@@ -1426,9 +1426,9 @@ test "supported platforms initialization without github credentials" {
         }
     );
     with unittest.mock.patch(
-        "jaclang.scale.identity.user_manager.get_scale_config", return_value=mock_config
+        "jaclang.server.identity.user_manager.get_scale_config", return_value=mock_config
     ) {
-        user_manager = JacScaleUserManager(base_path="");
+        user_manager = UserManager(base_path="");
         assert "google" in user_manager.SUPPORTED_PLATFORMS;
         assert "github" not in user_manager.SUPPORTED_PLATFORMS;
     }
@@ -1438,9 +1438,9 @@ test "supported platforms initialization with all providers" {
     reset_scale_config();
     mock_config = MockScaleConfig(mock_sso_config_with_credentials());
     with unittest.mock.patch(
-        "jaclang.scale.identity.user_manager.get_scale_config", return_value=mock_config
+        "jaclang.server.identity.user_manager.get_scale_config", return_value=mock_config
     ) {
-        user_manager = JacScaleUserManager(base_path="");
+        user_manager = UserManager(base_path="");
         assert "google" in user_manager.SUPPORTED_PLATFORMS;
         assert "apple" in user_manager.SUPPORTED_PLATFORMS;
         assert "github" in user_manager.SUPPORTED_PLATFORMS;

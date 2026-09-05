@@ -10,9 +10,9 @@ import from .config.config_loader { get_scale_config }
 import from .config.project_env { load_project_env }
 import from .events.streams.postgres { PgEventStream }
 
-import from .persistence.pg { shared_store as _pg_anchor }
+import from jaclang.server.shared_store { shared_store as _pg_anchor }
 import from .state.pg_state_backend { PgStateBackend as _state_anchor }
-import from jaclang.server.server { UserManager }
+import from jaclang.server.server { ServerExtension }
 import from jaclang.data.storage { Storage }
 import from .observability.factory { UtilityFactory }
 import from .deploy.target.factory { DeploymentTargetFactory }
@@ -711,40 +711,10 @@ class JacScalePlugin {
         return None;
     }
 
-    static def get_api_server_class -> type | None {
-        import from jaclang.server.identity_owner {
-            SCALE_IDENTITY,
-            identity_owner,
-            scale_stack_unavailable
-        }
-        import from jaclang.runtime.runtime { JacRuntime }
-        served = JacRuntime.get_full_target_path() or JacRuntime.get_base_path_dir();
-        if identity_owner(served) != SCALE_IDENTITY {
-            return None;
-        }
-        try {
-            import from .server.serve { JacAPIServer }
-        } except ImportError as e {
-            raise scale_stack_unavailable('jaclang.scale.server.serve', e);
-        }
-        return JacAPIServer;
-    }
-
-    static def get_user_manager(base_path: str) -> UserManager | None {
-        import from jaclang.server.identity_owner {
-            SCALE_IDENTITY,
-            identity_owner,
-            scale_stack_unavailable
-        }
-        if identity_owner(base_path) != SCALE_IDENTITY {
-            return None;
-        }
-        try {
-            import from .identity.user_manager { JacScaleUserManager }
-        } except ImportError as e {
-            raise scale_stack_unavailable('jaclang.scale.identity.user_manager', e);
-        }
-        return JacScaleUserManager(base_path=base_path);
+    """Every feature the scale package layers onto the one server assembly."""
+    static def get_server_extensions -> list[ServerExtension] {
+        import from .server.extensions { scale_extensions }
+        return scale_extensions();
     }
 
     static def store(

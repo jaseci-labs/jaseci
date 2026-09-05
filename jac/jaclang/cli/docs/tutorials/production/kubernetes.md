@@ -189,8 +189,8 @@ If the URL host is a bare Kubernetes service name and the app deploys into a dif
 
 | Key | Description | Default |
 |----------|-------------|---------|
-| `[scale.jwt]` `secret` | JWT signing key | Testing-only default; set your own in production |
-| `[scale.jwt]` `exp_delta_days` | Token expiration (days) | `7` |
+| `[serve.auth]` `secret` | JWT signing key | Required in a cluster; `jac scale deploy` mints one into the app Secret when unset |
+| `[serve.auth]` `token_ttl_days` | Token expiration (days) | `7` |
 | `[scale.sso.google]` `client_id` | Google OAuth client ID | - |
 | `[scale.sso.google]` `client_secret` | Google OAuth secret | - |
 

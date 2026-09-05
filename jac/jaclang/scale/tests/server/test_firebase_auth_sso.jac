@@ -8,7 +8,7 @@ import from jaclang.server.serving.datatypes { Request }
 
 import from jaclang.scale.config.config_loader { reset_scale_config }
 import from jaclang.scale.shared.enums { Platforms, Operations }
-import from jaclang.scale.identity.user_manager { JacScaleUserManager }
+import from jaclang.server.identity.user_manager { UserManager }
 import from jaclang.scale.sso.provider { SSOUserInfo }
 import from jaclang.scale.server.serve { JacAPIServer }
 import from jaclang.scale._optdeps.firebase_auth {
@@ -66,14 +66,14 @@ obj MockScaleConfig {
 }
 
 
-def _setup_user_manager(sso_config: dict) -> tuple[str, JacScaleUserManager] {
+def _setup_user_manager(sso_config: dict) -> tuple[str, UserManager] {
     test_dir = mkdtemp();
     reset_scale_config();
     mock_config = MockScaleConfig(sso_config);
     with unittest.mock.patch(
-        'jaclang.scale.identity.user_manager.get_scale_config', return_value=mock_config
+        'jaclang.server.identity.user_manager.get_scale_config', return_value=mock_config
     ) {
-        user_manager = JacScaleUserManager(base_path=test_dir);
+        user_manager = UserManager(base_path=test_dir);
     }
     return (test_dir, user_manager);
 }
@@ -91,7 +91,7 @@ obj MockFirebaseSSO {
 }
 
 
-def _create_existing_user(user_manager: JacScaleUserManager, email: str) -> str {
+def _create_existing_user(user_manager: UserManager, email: str) -> str {
     result = user_manager.create_user_with_identities(
         identities=[{'type': 'email', 'value': email, 'verified': True}],
         credential={'type': 'password', 'password': 'existing_pass'}
@@ -131,9 +131,9 @@ test 'supported platforms includes firebase when configured' {
     reset_scale_config();
     mock_config = MockScaleConfig(mock_sso_config_with_firebase());
     with unittest.mock.patch(
-        'jaclang.scale.identity.user_manager.get_scale_config', return_value=mock_config
+        'jaclang.server.identity.user_manager.get_scale_config', return_value=mock_config
     ) {
-        user_manager = JacScaleUserManager(base_path='');
+        user_manager = UserManager(base_path='');
         assert 'firebase' in user_manager.SUPPORTED_PLATFORMS;
         assert user_manager.SUPPORTED_PLATFORMS['firebase']['project_id']
             == 'test-firebase-project';
@@ -145,9 +145,9 @@ test 'supported platforms excludes firebase when not configured' {
     reset_scale_config();
     mock_config = MockScaleConfig(mock_sso_config_without_firebase());
     with unittest.mock.patch(
-        'jaclang.scale.identity.user_manager.get_scale_config', return_value=mock_config
+        'jaclang.server.identity.user_manager.get_scale_config', return_value=mock_config
     ) {
-        user_manager = JacScaleUserManager(base_path='');
+        user_manager = UserManager(base_path='');
         assert 'firebase' not in user_manager.SUPPORTED_PLATFORMS;
     }
 }

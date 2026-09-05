@@ -365,7 +365,7 @@ The gateway exposes a standard error envelope (`{ok, error: {code, message, serv
 
 | Concern | Config | Default |
 |---------|--------|---------|
-| Graceful shutdown | `drain_timeout_seconds = 10` | 10s |
+| Graceful shutdown | `[serve.timeouts] drain = 10.0` | 10s |
 | Per-service RPC timeout | `[...services.NAME] rpc_timeout = 120.0` | 10s |
 | Boot-time per-service /healthz wait | `boot_health_timeout = 60.0` | 60s |
 | Boot-time overall startup window | `boot_max_wait = 90` | 90s |
@@ -375,7 +375,7 @@ The gateway exposes a standard error envelope (`{ok, error: {code, message, serv
 | Rate limiting | `[...rate_limit] enabled = true, per_ip_rpm = 600, per_user_rpm = 120` | disabled |
 | Centralised logs (Loki + Alloy) | `[...logs] enabled = true` | disabled -- see [Centralised Logs](../../reference/plugins/jac-scale-kubernetes.md#centralised-logs) for the deployed components, dashboard, and storage caveats |
 
-WebSockets (`/ws/*`) and SSE / chunked responses flow through the gateway transparently -- no config. On `SIGTERM` (or `jac scale stop`), each service flips a drain flag (new requests get `503` with `Retry-After: 2`) and the server waits up to `drain_timeout_seconds` for in-flight requests to complete before exiting. Mirrors K8s `terminationGracePeriodSeconds`.
+WebSockets (`/ws/*`) and SSE / chunked responses flow through the gateway transparently -- no config. On `SIGTERM` (or `jac scale stop`), each service flips a drain flag (new requests get `503` with `Retry-After: 2`) and the server waits up to `[serve.timeouts] drain` for in-flight requests to complete before exiting. Mirrors K8s `terminationGracePeriodSeconds`.
 
 The gateway implementation lives under [`jac/jaclang/scale/runtime/gateway/`](https://github.com/Jaseci-Labs/jaseci/tree/main/jac/jaclang/scale/runtime/gateway) in the scale source tree.
 

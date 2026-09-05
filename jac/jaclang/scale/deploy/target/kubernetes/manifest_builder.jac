@@ -1,4 +1,5 @@
 import from jaclang.server { sv_client }
+import from jaclang.server.settings { ServeSettings }
 import from jaclang.scale.config.app_config { AppConfig }
 import from jaclang.scale.config.config_loader {
     get_scale_config,
@@ -17,7 +18,7 @@ import from enum { StrEnum }
 
 glob GATEWAY_NAME: str = "__gateway__",
      CONFIG_REVISION_ANNOTATION: str = "jac-scale.config-revision",
-     _UVICORN_EXIT_CUSHION_S: int = 5,
+     _EXIT_CUSHION_S: int = 5,
      _RFC1123_MAX_LEN: int = 253,
      _CLIENT_BUILD_ATTEMPTS: int = 3,
      _CLIENT_BUILD_RETRY_PAUSE_S: int = 3,
@@ -280,7 +281,9 @@ obj ManifestBuilder {
         _toolchain_object_key: str = "",
         microservices_config: (dict[str, any] | None) = None,
         dry_run: bool = False,
-        _bundle_services_cache: (dict[str, str] | None) = None;
+        _bundle_services_cache: (dict[str, str] | None) = None,
+        _serve_settings_cache: (ServeSettings | None) = None,
+        _minted_secret: str = "";
 
     def _ms_cfg -> dict[str, any] {
         if self.microservices_config is not None {
@@ -688,8 +691,61 @@ obj ManifestBuilder {
         return {name: derive_route_prefix(name)};
     }
 
+    """The project's `[serve]` settings, as the pod will resolve them."""
+    def _serve_settings -> ServeSettings {
+        if self._serve_settings_cache is None {
+            self._serve_settings_cache = ServeSettings.load(self.project_dir or '.');
+        }
+        return self._serve_settings_cache;
+    }
+
     def _drain_timeout -> int {
-        return int(self._ms_cfg().get("drain_timeout_seconds", 10));
+        return int(self._serve_settings().timeouts.drain);
+    }
+
+    """The signing secret every replica shares: configured, or minted once per deploy."""
+    def _signing_secret -> str {
+        import secrets;
+        configured = str(self.secrets.get("JAC_SERVE_AUTH_SECRET") or "").strip();
+        if configured {
+            return configured;
+        }
+        from_project = self._serve_settings().auth.secret.strip();
+        if from_project {
+            return from_project;
+        }
+        if not self._minted_secret {
+            self._minted_secret = secrets.token_urlsafe(48);
+        }
+        return self._minted_secret;
+    }
+
+    """Serve settings the pod needs as environment: workers, log shape, secret.
+
+    The pod reads the same `JAC_SERVE_*` variables a laptop would; a value set
+    here is what makes a fleet behave as one service. The signing secret goes
+    into the app Secret, never into a plain env value."""
+    def _serve_env(svc_name: str, svc_cfg: dict[str, any]) -> list[dict[str, any]] {
+        settings = self._serve_settings();
+        workers = str(svc_cfg.get("workers") or settings.workers.count);
+        env: list[dict[str, any]] = [
+            {"name": "JAC_SERVE_WORKERS", "value": workers},
+            {"name": "JAC_SERVE_ACCESS_LOG_FORMAT", "value": "json"},
+            {"name": "JAC_SERVE_ACCESS_LOG_SUPPRESS_HEALTH", "value": "1"},
+            {"name": "JAC_SERVE_DRAIN_TIMEOUT", "value": str(self._drain_timeout())}
+        ];
+        threads = svc_cfg.get("threads");
+        if threads is not None {
+            env.append({"name": "JAC_SERVE_THREADS", "value": str(threads)});
+        }
+        trusted = list(settings.proxy.trusted);
+        if svc_name != GATEWAY_NAME {
+            trusted = trusted or ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"];
+        }
+        if trusted {
+            env.append({"name": "JAC_SERVE_PROXY_TRUSTED", "value": ",".join(trusted)});
+        }
+        return env;
     }
 
     def _service_config(svc_name: str) -> dict[str, any] {
@@ -882,9 +938,8 @@ obj ManifestBuilder {
     }
 
     def _build_user_secret_manifest -> dict[str, any] | None {
-        if not self.secrets {
-            return None;
-        }
+        data: dict[str, str] = {k: str(v) for (k, v) in self.secrets.items()};
+        data["JAC_SERVE_AUTH_SECRET"] = self._signing_secret();
         return {
             "apiVersion": "v1",
             "kind": "Secret",
@@ -898,7 +953,7 @@ obj ManifestBuilder {
                 }
             },
             "type": "Opaque",
-            "stringData": {k: str(v) for (k, v) in self.secrets.items()}
+            "stringData": data
         };
     }
 
@@ -979,6 +1034,7 @@ obj ManifestBuilder {
         for `entry in self.deploy_context.env_list {
             env.append(`entry);
         }
+        env.extend(self._serve_env(svc_name, svc_cfg));
 
         extra: dict[str, any] = svc_cfg.get("env", {});
         for (k, v) in extra.items() {
@@ -1562,13 +1618,11 @@ obj ManifestBuilder {
             container["volumeMounts"] = shared_mounts;
         }
 
-        if self.secrets {
-            container["envFrom"] = [{"secretRef": {"name": self._user_secret_name()}}];
-        }
+        container["envFrom"] = [{"secretRef": {"name": self._user_secret_name()}}];
         spec: dict[str, any] = {
             "containers": [container],
             "terminationGracePeriodSeconds": drain_t
-                + _UVICORN_EXIT_CUSHION_S
+                + _EXIT_CUSHION_S
                 + self._alb_deregistration_cushion()
         };
         sa_name = self._service_account_name();

@@ -1244,16 +1244,98 @@ impl _parse_toml_data(
             );
             on_conflict = "retry";
         }
+        workers_data = serve_data.get("workers", {});
+        if not isinstance(workers_data, dict) {
+            workers_data = {"count": workers_data};
+        }
+        tls_data = serve_data.get("tls", {}) or {};
+        proxy_data = serve_data.get("proxy", {}) or {};
+        limits_data = serve_data.get("limits", {}) or {};
+        timeouts_data = serve_data.get("timeouts", {}) or {};
+        access_data = serve_data.get("access_log", {}) or {};
+        compression_data = serve_data.get("compression", {}) or {};
+        ws_data = serve_data.get("websocket", {}) or {};
+        auth_data = serve_data.get("auth", {}) or {};
+        cors_raw = serve_data.get("cors_origins", ["*"]);
         config.serve = ServeConfig(
+            host=str(serve_data.get("host", "0.0.0.0")),
             port=serve_data.get("port", 8000),
             session=serve_data.get("session", ""),
             main=serve_data.get("main", True),
             cl_route_prefix=serve_data.get("cl_route_prefix", "cl"),
             base_route_app=serve_data.get("base_route_app", ""),
-            identity=str(serve_data.get("identity", "auto")),
+            docs_enabled=bool(serve_data.get("docs_enabled", True)),
+            graph_enabled=bool(serve_data.get("graph_enabled", True)),
+            cors_origins=[str(_o) for _o in cors_raw]
+                if isinstance(cors_raw, list)
+                else [str(cors_raw)],
             on_conflict=on_conflict,
             conflict_max_attempts=serve_data.get("conflict_max_attempts", 5),
-            conflict_backoff_ms=serve_data.get("conflict_backoff_ms", 0)
+            conflict_backoff_ms=serve_data.get("conflict_backoff_ms", 0),
+            workers=ServeWorkersConfig(
+                count=str(workers_data.get("count", "1")),
+                threads=str(workers_data.get("threads", "auto")),
+                max_requests=int(workers_data.get("max_requests", 0)),
+                max_requests_jitter=int(workers_data.get("max_requests_jitter", 0)),
+                request_timeout=float(workers_data.get("request_timeout", 0.0)),
+                boot_timeout=float(workers_data.get("boot_timeout", 120.0)),
+                hang_timeout=float(workers_data.get("hang_timeout", 30.0))
+            ),
+            tls=ServeTlsConfig(
+                certfile=str(tls_data.get("certfile", "")),
+                keyfile=str(tls_data.get("keyfile", "")),
+                ca_certs=str(tls_data.get("ca_certs", "")),
+                min_version=str(tls_data.get("min_version", "1.2"))
+            ),
+            proxy=ServeProxyConfig(
+                trusted=[str(_p) for _p in proxy_data.get("trusted", [])]
+            ),
+            limits=ServeLimitsConfig(
+                max_connections=int(limits_data.get("max_connections", 0)),
+                backlog=int(limits_data.get("backlog", 2048)),
+                max_body_bytes=int(limits_data.get("max_body_bytes", 104857600)),
+                max_header_bytes=int(limits_data.get("max_header_bytes", 65536)),
+                max_header_count=int(limits_data.get("max_header_count", 100)),
+                max_request_line_bytes=int(
+                    limits_data.get("max_request_line_bytes", 8192)
+                ),
+                multipart_spool_bytes=int(
+                    limits_data.get("multipart_spool_bytes", 1048576)
+                )
+            ),
+            timeouts=ServeTimeoutsConfig(
+                header=float(timeouts_data.get("header", 30.0)),
+                body=float(timeouts_data.get("body", 60.0)),
+                keepalive=float(timeouts_data.get("keepalive", 65.0)),
+                drain=float(timeouts_data.get("drain", 10.0)),
+                close=float(timeouts_data.get("close", 5.0))
+            ),
+            access_log=ServeAccessLogConfig(
+                enabled=bool(access_data.get("enabled", True)),
+                format=str(access_data.get("format", "text")),
+                suppress_health_checks=bool(
+                    access_data.get("suppress_health_checks", False)
+                )
+            ),
+            compression=ServeCompressionConfig(
+                enabled=bool(compression_data.get("enabled", True)),
+                min_bytes=int(compression_data.get("min_bytes", 1024)),
+                level=int(compression_data.get("level", 4))
+            ),
+            websocket=ServeWebSocketConfig(
+                allowed_origins=[
+                    str(_o) for _o in ws_data.get("allowed_origins", [])
+                ],
+                max_message_bytes=int(ws_data.get("max_message_bytes", 0)),
+                ping_interval=float(ws_data.get("ping_interval", 20.0)),
+                ping_timeout=float(ws_data.get("ping_timeout", 20.0))
+            ),
+            auth=ServeAuthConfig(
+                secret=str(auth_data.get("secret", "")),
+                algorithm=str(auth_data.get("algorithm", "HS256")),
+                token_ttl_days=int(auth_data.get("token_ttl_days", 7)),
+                password_hash_cost=int(auth_data.get("password_hash_cost", 14))
+            )
         );
     }
     if "format" in data {

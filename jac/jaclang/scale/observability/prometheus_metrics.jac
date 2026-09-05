@@ -202,10 +202,31 @@ obj PrometheusMetricsCollector(MetricsCollector) {
         }
     }
 
+    """The registry a scrape reads: this process's, or every worker's merged.
+
+    Under the pre-fork supervisor `PROMETHEUS_MULTIPROC_DIR` is set before
+    any worker forks, and prometheus_client writes each process's samples to
+    that directory; a scrape landing on any worker then reports the fleet."""
+    def _scrape_registry -> any {
+        import os;
+        if not os.environ.get('PROMETHEUS_MULTIPROC_DIR') {
+            return self._registry;
+        }
+        try {
+            import from prometheus_client { multiprocess }
+            merged = CollectorRegistry();
+            multiprocess.MultiProcessCollector(merged);
+            return merged;
+        } except Exception as e {
+            logger.debug(f"multiprocess metrics unavailable ({e}); exposing this process only");
+            return self._registry;
+        }
+    }
+
     def get_endpoint_handler -> Callable[..., any] {
-        registry = self._registry;
+        collector = self;
         def metrics_endpoint -> Response {
-            _content: any = generate_latest(registry);
+            _content: any = generate_latest(collector._scrape_registry());
             _mt: any = CONTENT_TYPE_LATEST;
             return Response(content=_content, media_type=_mt);
         }
@@ -213,7 +234,7 @@ obj PrometheusMetricsCollector(MetricsCollector) {
     }
 
     def expose -> bytes {
-        _payload: any = generate_latest(self._registry);
+        _payload: any = generate_latest(self._scrape_registry());
         return _payload;
     }
 

@@ -12,6 +12,8 @@ glob logger = logging.getLogger(__name__),
          'checkout',
          'release',
          'drain_all',
+         'forget_all',
+         'detach',
          'pool_stats'
      ];
 
@@ -146,6 +148,59 @@ def drain_all {
         for (conn, _at) in bucket {
             _discard(conn);
         }
+    }
+}
+
+
+"""Drop every parked connection without touching its socket.
+
+Runs in a forked child: the parent still owns those sockets, so closing them
+here would send a Terminate message down a connection the parent is about to
+reuse. Detaching leaves the child with an empty pool and lets the parent's
+descriptors survive untouched."""
+def forget_all {
+    with _lock {
+        buckets = list(_pools.values());
+        _pools.clear();
+    }
+    for bucket in buckets {
+        for (conn, _at) in bucket {
+            detach(conn);
+        }
+    }
+}
+
+
+"""Mark a connection closed on this side without sending Terminate."""
+def detach(conn: any) -> None {
+    if conn is None {
+        return;
+    }
+    try {
+        conn._closed = True;
+        sock = conn?._sock;
+        if sock is not None {
+            sock.detach();
+        }
+        conn._sock = None;
+    } except Exception {}
+}
+
+
+def _before_fork {
+    drain_all();
+}
+
+
+def _after_fork_in_child {
+    _lock = threading.Lock();
+    forget_all();
+}
+
+
+with entry {
+    if hasattr(os, 'register_at_fork') {
+        os.register_at_fork(before=_before_fork, after_in_child=_after_fork_in_child);
     }
 }
 

@@ -94,7 +94,8 @@ obj RuntimeLease {
 
 obj ScratchState {
     has database: str,
-        base_path: str;
+        base_path: str,
+        owner_pid: int = 0;
 }
 
 

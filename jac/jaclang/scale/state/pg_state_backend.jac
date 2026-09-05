@@ -4,6 +4,13 @@ import from jaclang.scale.state.state_backend { StateBackend }
 glob logger = logging.getLogger(__name__);
 
 
+def _lease_owner -> str {
+    import os;
+    import socket;
+    return f"{socket.gethostname()}:{os.getpid()}";
+}
+
+
 obj PgStateBackend(StateBackend) {
     has store: any;
 
@@ -68,25 +75,10 @@ obj PgStateBackend(StateBackend) {
     }
 
     def acquire_lock(key: str, ttl_seconds: int) -> bool {
-        rows = self.store.rows(
-            """
-            INSERT INTO kv_state (key, value, expires_at, updated_at)
-            VALUES (
-                :k, '1', now() + make_interval(secs => CAST(:ttl AS int)), now()
-            )
-            ON CONFLICT (key) DO UPDATE SET
-                expires_at = EXCLUDED.expires_at,
-                updated_at = now()
-            WHERE kv_state.expires_at IS NOT NULL
-                  AND kv_state.expires_at <= now()
-            RETURNING key
-            """,
-            {'k': f"lock:{key}", 'ttl': ttl_seconds}
-        );
-        return bool(rows);
+        return self.store.kv_acquire_lease(key, ttl_seconds, _lease_owner());
     }
 
     def release_lock(key: str) {
-        self.store.kv_delete(f"lock:{key}");
+        self.store.kv_release_lease(key, _lease_owner());
     }
 }
