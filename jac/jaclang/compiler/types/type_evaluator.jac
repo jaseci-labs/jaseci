@@ -334,6 +334,7 @@ obj ConditionInfo {
 walker TypeEvaluator {
     can eval_expr with Expr entry;
     def _intern_shared(shared: ClassDetailsShared) -> ClassDetailsShared;
+    def _scope_is_current(scope: UniScopeNode) -> bool;
 
     has program: JacProgram,
         _shared_intern: dict[tuple, ClassDetailsShared] = {},
@@ -699,6 +700,7 @@ walker TypeEvaluator {
     ) -> OverloadedType | None;
 
     def _create_dataclass_init_method(class_type: ClassType) -> FunctionType;
+    def _scope_has_fields(tab: any) -> bool;
     def _create_namedtuple_new_method(class_type: ClassType) -> FunctionType;
     def _create_special_builtin_type(name: str, base_class: ClassType) -> ClassType;
     def _validate_constructor_method(

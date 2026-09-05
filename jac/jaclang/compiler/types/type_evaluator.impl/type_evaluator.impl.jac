@@ -1004,7 +1004,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                             );
 
                             has_any_has_vars = any(
-                                len(cls.shared.symbol_table.get_has_vars()) > 0
+                                self._scope_has_fields(cls.shared.symbol_table)
                                 for cls in base_type.shared.mro
                                 if cls.shared.class_name != "object"
                             );
@@ -6226,9 +6226,21 @@ impl TypeEvaluator._intern_shared(shared: ClassDetailsShared) -> ClassDetailsSha
     src = shared.symbol_table?.loc?.orig_src;
     key = (site, src.hash if src is not None else "");
     found = self._shared_intern.get(key);
-    if found is not None {
-        return found;
+    if found is None {
+        self._shared_intern[key] = shared;
+        return shared;
     }
-    self._shared_intern[key] = shared;
-    return shared;
+    if found.symbol_table is not shared.symbol_table
+        and self._scope_is_current(shared.symbol_table) {
+        found.symbol_table = shared.symbol_table;
+    }
+    return found;
+}
+
+impl TypeEvaluator._scope_is_current(scope: UniScopeNode) -> bool {
+    mod = scope if isinstance(scope, Module) else scope.find_parent_of_type(Module);
+    if mod is None or mod.loc is None or not mod.loc.mod_path {
+        return False;
+    }
+    return self.program.find_module(self.program.hub_key(mod.loc.mod_path)) is mod;
 }

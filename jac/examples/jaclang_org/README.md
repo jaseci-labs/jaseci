@@ -1,7 +1,7 @@
 # jaclang.org -- the official Jac website
 
 The marketing site, docs reader, Ninja Leaderboard, and Socialize (a full
-Twitter-style social app, littleX, living at `/socialize`) for the Jac
+Twitter-style social app, Jacyak, living at `/socialize`) for the Jac
 programming language, built end to end in Jac (naturally). One language spans all three
 codespaces here: the pages and components compile to JavaScript, the
 endpoints compile to Python and serve over RPC, and the game in
@@ -86,7 +86,7 @@ root is shared.
 |---|---|
 | `jac.toml` | The workspace: `[apps.*]`, npm deps, shadcn theme, lint/test/gc config |
 | `core/` | Shared domain and logic that belongs to no app: **no JSX, no DOM** |
-| `core/social_graph.jac` | The whole Socialize backend (nodes, edges, walkers); the `social_graph` **service app** is rooted at this file |
+| `core/social_graph.jac` | The whole Jacyak backend (profiles with uploaded avatars, posts, follows, channels, and projects that every user adds as GitHub repos and the Ninja Scores scorer grades on the way in); the `social_graph` **service app** is rooted at this file |
 | `core/scoring_service.jac` | The repo scorer; the `scoring` **service app** is rooted at this file |
 | `core/leaderboard/` | `board.jac` (graph, walkers, view models), `scoring.jac` (rubric), `format.jac` (belt labels) |
 | `core/docs/` | `graph.jac` is the docs read model (schema + walkers), `sync.jac` the scheduled writer that ingests it |
@@ -97,7 +97,7 @@ root is shared.
 | `web/landing/` | The marketing page: Hero, Showcase, Capabilities and friends; `diagrams/` holds the four animated SVG arguments |
 | `web/docs/` | The docs reader: shell, sidebar, TOC rail, article, renderer |
 | `web/leaderboard/` | Submit form, board, card, breakdown modal |
-| `web/socialize/` | littleX embedded as a login-gated section: `Socialize.jac` + `components/` |
+| `web/socialize/` | Jacyak embedded as a login-gated section: `Socialize.jac` + `components/`, `identity.jac` for handles and avatars |
 | `web/source/` | The live source browser, code spotlights, and the floating window |
 | `web/game/` | The rlgl shooter (`arena.jac`, owned/borrowed, zero-GC) and its WebGL host |
 | `web/ui/` | jac-shadcn primitives (**registry-managed, import only**) plus the site chrome: Navbar, Footer, CodeBlock, GraphBackdrop, SectionRail |

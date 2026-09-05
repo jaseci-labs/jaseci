@@ -6,6 +6,7 @@ import from web.ui.avatar { Avatar, AvatarImage, AvatarFallback }
 import from web.ui.badge { Badge }
 import from web.ui.hover_card { HoverCard, HoverCardTrigger, HoverCardContent }
 import from core.social_graph { Profile, TrendingTag }
+import from ..identity { handle_of, initial_of, name_of, avatar_of }
 
 def:pub RightSidebar(
     searchQuery: str,
@@ -15,8 +16,10 @@ def:pub RightSidebar(
     trendingTags: list[TrendingTag],
     onTrendClick: Callable[[str], None],
     toFollow: list[Profile],
+    avatars: dict[str, str],
     onFollow: Callable[[str], None],
     onShowMore: Callable[[], None],
+    onViewProfile: Callable[[str], None],
 ) -> JsxElement {
     <aside
         className="sticky top-16 hidden h-[calc(100vh-4rem)] w-80 shrink-0 flex-col gap-4 overflow-y-auto border-l border-border px-4 py-4 lg:flex"
@@ -28,7 +31,7 @@ def:pub RightSidebar(
             />
             <Input
                 className="rounded-full bg-muted pl-9 pr-9"
-                placeholder="Search Little-X"
+                placeholder="Search Jacyak"
                 value={searchQuery}
                 onChange={lambda (e: ChangeEvent) { onSearchChange(e.target.value); }}
                 onKeyDown={lambda (e: KeyboardEvent) { if e.key == "Enter" {
@@ -84,64 +87,55 @@ def:pub RightSidebar(
                             className="flex items-center gap-2 px-4 py-2 transition-colors hover:bg-muted/50"
                             key={jid(u)}
                         >
-                            <Avatar className="size-9 shrink-0">
-                                <AvatarImage
-                                    src={"https://i.pravatar.cc/150?u=fake@"
-                                        + u.username}
-                                    alt={u.username}
-                                />
-                                <AvatarFallback>
-                                    {(
-                                        u.username.split("@")[0]
-                                            if "@" in u.username
-                                            else u.username
-                                    )[0].upper()}
-                                </AvatarFallback>
-                            </Avatar>
+                            <button
+                                type="button"
+                                className="shrink-0"
+                                onClick={lambda { onViewProfile(u.username); }}
+                            >
+                                <Avatar className="size-9">
+                                    <AvatarImage
+                                        src={avatar_of(avatars, u.username)}
+                                        alt={handle_of(u.username)}
+                                    />
+                                    <AvatarFallback>
+                                        {initial_of(name_of(u))}
+                                    </AvatarFallback>
+                                </Avatar>
+                            </button>
                             <div className="min-w-0 flex-1">
                                 <HoverCard>
                                     <HoverCardTrigger asChild={True}>
-                                        <span
-                                            className="block cursor-pointer truncate text-sm font-semibold text-foreground hover:underline"
+                                        <button
+                                            type="button"
+                                            className="block max-w-full cursor-pointer truncate text-left text-sm font-semibold text-foreground hover:underline"
+                                            onClick={lambda { onViewProfile(
+                                                u.username
+                                            ); }}
                                         >
-                                            {u.username.split("@")[0]
-                                                if "@" in u.username
-                                                else u.username}
-                                        </span>
+                                            {name_of(u)}
+                                        </button>
                                     </HoverCardTrigger>
                                     <HoverCardContent className="w-64">
                                         <div className="flex items-center gap-3">
                                             <Avatar className="size-11">
                                                 <AvatarImage
-                                                    src={"https://i.pravatar.cc/150?u=fake@"
-                                                        + u.username}
-                                                    alt={u.username}
+                                                    src={avatar_of(avatars, u.username)}
+                                                    alt={handle_of(u.username)}
                                                 />
                                                 <AvatarFallback>
-                                                    {(
-                                                        u.username.split("@")[0]
-                                                            if "@" in u.username
-                                                            else u.username
-                                                    )[0].upper()}
+                                                    {initial_of(name_of(u))}
                                                 </AvatarFallback>
                                             </Avatar>
                                             <div className="min-w-0">
                                                 <div
                                                     className="truncate font-semibold text-foreground"
                                                 >
-                                                    {u.username.split("@")[0]
-                                                        if "@" in u.username
-                                                        else u.username}
+                                                    {name_of(u)}
                                                 </div>
                                                 <div
                                                     className="truncate text-xs text-muted-foreground"
                                                 >
-                                                    {"@"
-                                                        + (
-                                                            u.username.split("@")[0]
-                                                                if "@" in u.username
-                                                                else u.username
-                                                        )}
+                                                    {"@" + handle_of(u.username)}
                                                 </div>
                                             </div>
                                         </div>
@@ -153,12 +147,7 @@ def:pub RightSidebar(
                                     </HoverCardContent>
                                 </HoverCard>
                                 <div className="truncate text-xs text-muted-foreground">
-                                    {"@"
-                                        + (
-                                            u.username.split("@")[0]
-                                                if "@" in u.username
-                                                else u.username
-                                        )}
+                                    {"@" + handle_of(u.username)}
                                 </div>
                             </div>
                             <Button
@@ -184,7 +173,7 @@ def:pub RightSidebar(
         <Card className="bg-muted/30">
             <CardHeader>
                 <CardTitle className="font-display text-base text-primary">
-                    LITTLE-X
+                    JACYAK
                 </CardTitle>
             </CardHeader>
             <CardContent className="-mt-3">

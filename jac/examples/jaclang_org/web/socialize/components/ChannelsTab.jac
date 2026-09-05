@@ -37,6 +37,8 @@ def:pub ChannelsTab(
     onSelectChannel: Callable[[str], None],
     onChannelPost: Callable[[str], None],
     onBackToChannels: Callable[[], None],
+    avatars: dict[str, str],
+    onViewProfile: Callable[[str], None],
     onLike: Callable[[str], None],
     onComment: Callable[[str, str], None],
     onDelete: Callable[[str], None],
@@ -284,6 +286,8 @@ def:pub ChannelsTab(
                     key={jid(tweet)}
                     {tweet}
                     myUsername={profileUsername}
+                    {avatars}
+                    {onViewProfile}
                     {onLike}
                     {onComment}
                     {onDelete}

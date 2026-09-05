@@ -8,20 +8,6 @@ impl _ensure_hub -> BoardHub {
     return fresh;
 }
 
-impl parse_repo_url(url: str) -> tuple[str, str] | None {
-    u = url.strip().rstrip("/");
-    m = re.`match(
-        r"^(?:https?://)?(?:www\.)?github\.com/([\w.\-]+)/([\w.\-]+?)(?:\.git)?$", u
-    );
-    if m is None {
-        m = re.`match(r"^([\w.\-]+)/([\w.\-]+)$", u);
-    }
-    if m is None {
-        return None;
-    }
-    return (m.group(1) as str, m.group(2) as str);
-}
-
 impl _find_entry(full_name: str) -> RepoEntry | None {
     found = [root.shared-->[?:BoardHub]->:OnBoard:->[?:RepoEntry, full==full_name]];
     return found[0] if found else None;

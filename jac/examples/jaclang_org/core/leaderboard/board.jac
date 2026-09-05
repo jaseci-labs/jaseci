@@ -4,6 +4,7 @@ import from core.timefmt { now_iso, seconds_since }
 import from core.github { RepoMeta }
 import from .scoring { RepoAnalysis, RepoFeatures, ScoreBreakdown, ScorePart }
 
+import from core.github { parse_repo_url }
 import from core.scoring_service { ScoredPayload, fetch_and_score }
 
 obj BoardEntry {
@@ -84,7 +85,6 @@ edge OnBoard {}
 
 def _ensure_hub -> BoardHub;
 
-def parse_repo_url(url: str) -> tuple[str, str] | None;
 
 def _find_entry(full_name: str) -> RepoEntry | None;
 

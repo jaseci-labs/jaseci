@@ -733,8 +733,7 @@ impl JacCompiler.parse_str(
     hub_key = target_program.hub_key(mod.loc.mod_path);
     if had_error {
         mod.parse_failed = True;
-        target_program.mod.hub[hub_key] = mod;
-        target_program.hub_cache_stamp(hub_key);
+        target_program.install_module(hub_key, mod);
         return mod;
     }
     if target_program.mod.main.stub_only {
@@ -744,7 +743,7 @@ impl JacCompiler.parse_str(
         target_program.mod.hub.clear();
         target_program.mod.hub.update(old_hub);
     }
-    target_program.mod.hub[hub_key] = mod;
+    target_program.install_module(hub_key, mod);
 
     if run_codespace_infer {
         _opts = target_program.options;
@@ -1551,7 +1550,7 @@ impl JacCompiler._compile_once(
 
     _iface_reg: any = None;
     _iface_target = "";
-    if use_str is None and not self.selfhost.is_selfhost(actual_program) {
+    if use_str is None {
         _iface_target = os.path.realpath(str(file_path));
         _reg_probe = actual_program.iface_registry();
         if _reg_probe.eligible(self, _iface_target, options) {

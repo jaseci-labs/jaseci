@@ -244,6 +244,7 @@ class JacAccessValidation {
         to: Anchor, min_level: AccessLevel, operation: str
     ) -> bool;
 
+    static def _is_shared_root(to: Anchor) -> bool;
     static def allow_root(
         archetype: Archetype,
         root_id: UUID,
@@ -551,6 +552,7 @@ class JacRuntime(JacRuntimeInterface) {
     static def get_full_target_path -> (str | None);
     static def set_base_path(base_path: (str | None)) -> None;
     static def set_full_target_path(target_path: (str | None)) -> None;
+    static def shared_root_id -> (UUID | None);
     static def get_shared_root -> Root;
     static def set_shared_root_resolver(
         resolver: (Callable[([], (str | None))] | None)

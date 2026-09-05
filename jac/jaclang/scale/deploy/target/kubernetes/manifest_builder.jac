@@ -989,6 +989,7 @@ obj ManifestBuilder {
     def _build_env(svc_name: str, svc_cfg: dict[str, any]) -> list[dict[str, any]] {
         env: list[dict[str, any]] = [
             {"name": "JAC_SV_NAME", "value": svc_name},
+            {"name": "JAC_SV_SIBLING", "value": "1"},
             {"name": "K8S_APP_NAME", "value": self.k8s_config.app_name},
             {"name": "K8S_NAMESPACE", "value": self.k8s_config.namespace}
         ];
@@ -1036,7 +1037,7 @@ obj ManifestBuilder {
 
         extra: dict[str, any] = svc_cfg.get("env", {});
         for (k, v) in extra.items() {
-            if k in ("JAC_SV_NAME", "JAC_SV_FILE", FLEET_ENV) {
+            if k in ("JAC_SV_NAME", "JAC_SV_FILE", "JAC_SV_SIBLING", FLEET_ENV) {
                 continue;
             }
             if k.startswith("JAC_APP_")
@@ -1555,7 +1556,6 @@ obj ManifestBuilder {
                 "set -euo pipefail; "
                 f"cd {APP_MOUNT_PATH}; "
                 f"{apt_prefix}"
-                "export JAC_SV_SIBLING=1; "
                 'if [ "$JAC_SV_NAME" = "__gateway__" ]; then '
                 "  exec jac scale gateway; "
                 "else "
@@ -1633,6 +1633,20 @@ obj ManifestBuilder {
         }
         spec["volumes"] = list(shared_vols);
         spec["initContainers"] = list(self.deploy_context.init_containers);
+        if shared_mounts {
+            import from jaclang.scale.injector.pvc_injector {
+                VOLUME_PERMS_NAME,
+                build_volume_perms_init_container,
+                runtime_pod_security_context
+            }
+            spec["initContainers"].insert(
+                0,
+                build_volume_perms_init_container(
+                    VOLUME_PERMS_NAME, resolved_image, shared_mounts
+                )
+            );
+            spec["securityContext"] = runtime_pod_security_context();
+        }
 
         import from jaclang.scale.injector.binary_injector { BinaryInjector }
         injector: BinaryInjector = BinaryInjector(

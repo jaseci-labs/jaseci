@@ -18,6 +18,7 @@ import from web.ui.dropdown_menu {
     DropdownMenuItem
 }
 import from core.utils { cn }
+import from ..identity { handle_of }
 
 def:pub Sidebar(
     activeTab: str,
@@ -35,15 +36,11 @@ def:pub Sidebar(
         className="sticky top-16 hidden h-[calc(100vh-4rem)] w-20 shrink-0 flex-col gap-1 border-r border-border px-2 py-4 md:flex xl:w-64 xl:px-3"
     >
         <div className="mb-2 flex items-center gap-2 px-2 xl:px-3">
-            <img
-                src="/static/assets/littlex-logo.svg"
-                className="size-9"
-                alt="little-x"
-            />
+            <img src="/static/assets/jacyak-logo.svg" className="size-9" alt="Jacyak"/>
             <span
                 className="hidden font-display text-xl font-black tracking-tight text-primary xl:inline"
             >
-                LITTLE-X
+                JACYAK
             </span>
         </div>
         <nav className="flex flex-col gap-1">
@@ -130,7 +127,7 @@ def:pub Sidebar(
                             {displayUsername}
                         </div>
                         <div className="truncate text-xs text-muted-foreground">
-                            {"@" + displayUsername}
+                            {"@" + handle_of(profileUsername)}
                         </div>
                     </div>
                     <MoreHorizontal

@@ -3,7 +3,7 @@ import from web.game.webgl_host { run_game }
 impl WasmGame.launch(_e: MouseEvent) {
     launched = True;
     if canvasRef.current {
-        run_game(
+        stopRef.current = run_game(
             canvasRef.current,
             lambda (exports: any, game: any, fps: int) {
                 score_el: any = document.getElementById("game-hud-score");

@@ -31,8 +31,19 @@ obj Shim {
         time: float = 0.0,
         t0: float = 0.0,
         draws: int = 0,
-        on_tick: any = None;
+        on_tick: any = None,
+        stopped: bool = False,
+        on_key_down: any = None,
+        on_key_up: any = None,
+        on_mouse_down: any = None,
+        on_mouse_move: any = None,
+        on_lock_change: any = None;
 }
+
+# One shim for the page's lifetime: the wasm host instantiates arena.wasm
+# once per module stem with the env built here, so a relaunch has to reuse
+# the object those env closures captured rather than mint a new one.
+glob _shim: any = None;
 
 def _m_ident -> list {
     return [
@@ -318,51 +329,82 @@ def _keymap(code: str) -> int {
     return m.get(code, 0);
 }
 
+# The game owns the keyboard only while it is engaged: the pointer is locked
+# to its canvas, or the canvas is the focused element. Anywhere else on the
+# page (a login form, the docs search) WASD, Space, Tab and the arrows keep
+# their normal meaning.
+def _engaged(sh: any) -> bool {
+    return sh.locked or document.activeElement == sh.canvas;
+}
+
 def _install_input(sh: any) {
-    window.addEventListener(
-        "keydown",
-        lambda (e: any) {
-            kc = _keymap(e.code);
-            if kc != 0 {
-                e.preventDefault();
-                sh.keys[kc] = 1;
-                sh.pressed[kc] = 1;
-            }
+    sh.on_key_down = lambda (e: any) {
+        if not _engaged(sh) {
+            return;
         }
-    );
-    window.addEventListener(
-        "keyup",
-        lambda (e: any) {
-            kc = _keymap(e.code);
-            if kc != 0 {
-                sh.keys[kc] = 0;
-            }
+        kc = _keymap(e.code);
+        if kc != 0 {
+            e.preventDefault();
+            sh.keys[kc] = 1;
+            sh.pressed[kc] = 1;
         }
-    );
-    sh.canvas.addEventListener("mousedown", lambda (e: any) { sh.mpressed[0] = 1; });
-    document.addEventListener(
-        "mousemove",
-        lambda (e: any) { if sh.locked {
-            sh.mouseX = sh.mouseX + e.movementX;  # jac:ignore[E1055,E1001]
-            sh.mouseY = sh.mouseY + e.movementY;  # jac:ignore[E1055,E1001]
-        } else {
-            sh.mouseX = e.offsetX;
-            sh.mouseY = e.offsetY;
-        } }
-    );
-    document.addEventListener(
-        "pointerlockchange",
-        lambda (e: any) {
-            was = sh.locked;
-            sh.locked = document.pointerLockElement == sh.canvas;
-            if was and not sh.locked {
-                sh.pressed[258] = 1;
-            }
+    };
+    sh.on_key_up = lambda (e: any) {
+        kc = _keymap(e.code);
+        if kc != 0 {
+            sh.keys[kc] = 0;
         }
-    );
+    };
+    sh.on_mouse_down = lambda (e: any) { sh.mpressed[0] = 1; };
+    sh.on_mouse_move = lambda (e: any) { if sh.locked {
+        sh.mouseX = sh.mouseX + e.movementX;  # jac:ignore[E1055,E1001]
+        sh.mouseY = sh.mouseY + e.movementY;  # jac:ignore[E1055,E1001]
+    } else {
+        sh.mouseX = e.offsetX;
+        sh.mouseY = e.offsetY;
+    } };
+    sh.on_lock_change = lambda (e: any) {
+        was = sh.locked;
+        sh.locked = document.pointerLockElement == sh.canvas;
+        if was and not sh.locked {
+            sh.pressed[258] = 1;
+        }
+    };
+    window.addEventListener("keydown", sh.on_key_down);
+    window.addEventListener("keyup", sh.on_key_up);
+    sh.canvas.addEventListener("mousedown", sh.on_mouse_down);
+    document.addEventListener("mousemove", sh.on_mouse_move);
+    document.addEventListener("pointerlockchange", sh.on_lock_change);
+}
+
+def _remove_input(sh: any) {
+    window.removeEventListener("keydown", sh.on_key_down);
+    window.removeEventListener("keyup", sh.on_key_up);
+    sh.canvas.removeEventListener("mousedown", sh.on_mouse_down);
+    document.removeEventListener("mousemove", sh.on_mouse_move);
+    document.removeEventListener("pointerlockchange", sh.on_lock_change);
+}
+
+# Halts the frame loop, drops every page-level listener and releases the
+# pointer, so an unmounted game leaves nothing behind.
+def _stop(sh: any) {
+    if sh.stopped {
+        return;
+    }
+    sh.stopped = True;
+    _remove_input(sh);
+    if sh.locked {
+        document.exitPointerLock();
+    }
+    sh.keys = {};
+    sh.pressed = {};
+    sh.mpressed = {};
 }
 
 def _frame_tick(sh: any, ts: float) {
+    if sh.stopped {
+        return;
+    }
     if sh.t0 == 0.0 {
         sh.t0 = ts;
     }
@@ -385,17 +427,45 @@ def _frame_tick(sh: any, ts: float) {
     }
 }
 
-async def:pub run_game(canvas: any, on_tick: any = None) {
-    sh = Shim();
+async def _boot(sh: any) {
+    try {
+        sh.game = await init();
+    } except Exception as err {
+        console.error("arena.wasm failed to start", err);
+        return;
+    }
+    if sh.stopped {
+        return;
+    }
+    requestAnimationFrame(lambda (ts: float) { _frame_tick(sh, ts); });
+}
+
+# Starts the game on `canvas` and returns a stop function. Call it when the
+# canvas leaves the page: it ends the frame loop and removes the keyboard and
+# mouse listeners, which otherwise outlive the landing page and swallow
+# WASD / Space / Tab on every other route.
+def:pub run_game(canvas: any, on_tick: any = None) -> any {
+    if _shim is None {
+        _shim = Shim();
+        set_na_env("arena", _shim, {"env": _build_env(_shim)});
+    }
+    sh: any = _shim;
+    sh.stopped = False;
     sh.on_tick = on_tick;
     sh.canvas = canvas;
     sh.gl = canvas.getContext("webgl");
     sh.proj = _m_ident();
     sh.mv = _m_ident();
+    sh.pstack = [];
+    sh.mvstack = [];
+    sh.verts = [];
+    sh.locked = False;
+    sh.t0 = 0.0;
+    sh.time = 0.0;
     _init_gl(sh);
     _install_input(sh);
+    canvas.focus();
 
-    set_na_env("arena", sh, {"env": _build_env(sh)});
-    sh.game = await init();
-    requestAnimationFrame(lambda (ts: float) { _frame_tick(sh, ts); });
+    _ = _boot(sh);
+    return lambda { _stop(sh); };
 }

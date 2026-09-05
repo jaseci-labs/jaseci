@@ -1,3 +1,4 @@
+import re;
 import io;
 import os;
 import json;
@@ -40,6 +41,20 @@ impl fetch(
         } except Exception {}
     }
     return None;
+}
+
+impl parse_repo_url(url: str) -> tuple[str, str] | None {
+    u = url.strip().rstrip("/");
+    m = re.`match(
+        r"^(?:https?://)?(?:www\.)?github\.com/([\w.\-]+)/([\w.\-]+?)(?:\.git)?$", u
+    );
+    if m is None {
+        m = re.`match(r"^([\w.\-]+)/([\w.\-]+)$", u);
+    }
+    if m is None {
+        return None;
+    }
+    return (m.group(1) as str, m.group(2) as str);
 }
 
 impl repo_meta(repo: str, agent: str) -> RepoMeta | None {

@@ -694,8 +694,7 @@ impl TypeEvaluator._super_owner_for(
         if (
             member_name in ('init', '__init__')
             and candidate.is_data_class()
-            and isinstance(candidate.shared.symbol_table, Archetype)
-            and candidate.shared.symbol_table.get_has_vars()
+            and self._scope_has_fields(candidate.shared.symbol_table)
         ) {
             return candidate;
         }

@@ -24,6 +24,8 @@ def fetch(
     url: str, agent: str, accept_json: bool = False, timeout: int = 10
 ) -> bytes | None;
 
+def parse_repo_url(url: str) -> tuple[str, str] | None;
+
 def repo_meta(repo: str, agent: str) -> RepoMeta | None;
 
 def head_sha(repo: str, ref: str, agent: str) -> str;

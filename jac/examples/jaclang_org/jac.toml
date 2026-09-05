@@ -109,6 +109,11 @@ react-native-web = "^0.19.13"
 lucide-react-native = "^0.469.0"
 react-native-svg = "^15.13.0"
 
+# identity.jac is pure client helpers over the social graph's wire shapes;
+# without JSX of its own the solver cannot see that, so pin it.
+[apps.web.placement.pins]
+"web.socialize.identity" = "client"
+
 [apps.web.client.vite]
 plugins = ["tailwindcss()"]
 lib_imports = ["import tailwindcss from '@tailwindcss/vite'"]

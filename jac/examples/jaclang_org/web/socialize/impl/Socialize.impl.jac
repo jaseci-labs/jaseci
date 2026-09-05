@@ -26,6 +26,42 @@ impl Socialize.loadData -> None {
     last_seen_str = localStorage.getItem("lx_activity_total");
     last_seen = int(last_seen_str) if last_seen_str else 0;
     notifCount = total_activity - last_seen if total_activity > last_seen else 0;
+    refreshAvatars();
+}
+
+impl Socialize.refreshAvatars -> None {
+    known: list[Profile] = list(allProfiles);
+    if myProfile {
+        known.append(myProfile.profile);
+    }
+    if viewedProfile {
+        known.append(viewedProfile.profile);
+    }
+    next_map: dict[str, str] = {};
+    next_seen: dict[str, str] = {};
+    wanted: list[str] = [];
+    for p in known {
+        if p.avatar_v == "" {
+            continue;
+        }
+        next_seen[p.username] = p.avatar_v;
+        if avatarSeen.get(p.username) == p.avatar_v and p.username in avatars {
+            next_map[p.username] = avatars[p.username];
+        } elif p.username not in wanted {
+            wanted.append(p.username);
+        }
+    }
+    if wanted {
+        result = root spawn get_avatars(usernames=wanted);
+        found: dict[str, str] = result.reports[0] if result.reports else {};
+        for u in wanted {
+            if u in found {
+                next_map[u] = found[u];
+            }
+        }
+    }
+    avatars = next_map;
+    avatarSeen = next_seen;
 }
 
 impl Socialize.handleLogin -> None {
@@ -87,6 +123,11 @@ impl Socialize.handleLogout -> None {
     activeTab = "feed";
     authUsername = "";
     authPassword = "";
+    avatars = {};
+    avatarSeen = {};
+    viewedProfile = None;
+    allProjects = [];
+    editingProfile = False;
 }
 
 impl Socialize.postTweet -> None {
@@ -159,6 +200,15 @@ impl Socialize.handleFollow(profileId: str) -> None {
     myProfile = profileResult.reports[0] if profileResult.reports else myProfile;
     feedResult = root spawn load_feed(search_query=searchQuery);
     tweets = feedResult.reports[0] if feedResult.reports else [];
+    if viewedProfile and jid(viewedProfile.profile) == profileId {
+        viewResult = root spawn get_user_profile(
+            username=viewedProfile.profile.username
+        );
+        viewOutcome = viewResult.reports[0] if viewResult.reports else None;
+        if viewOutcome and viewOutcome.ok and viewOutcome.bundle {
+            viewedProfile = viewOutcome.bundle;
+        }
+    }
 }
 
 impl Socialize.handleUnfollow(profileId: str) -> None {
@@ -167,14 +217,191 @@ impl Socialize.handleUnfollow(profileId: str) -> None {
     myProfile = profileResult.reports[0] if profileResult.reports else myProfile;
     feedResult = root spawn load_feed(search_query=searchQuery);
     tweets = feedResult.reports[0] if feedResult.reports else [];
+    if viewedProfile and jid(viewedProfile.profile) == profileId {
+        viewResult = root spawn get_user_profile(
+            username=viewedProfile.profile.username
+        );
+        viewOutcome = viewResult.reports[0] if viewResult.reports else None;
+        if viewOutcome and viewOutcome.ok and viewOutcome.bundle {
+            viewedProfile = viewOutcome.bundle;
+        }
+    }
 }
 
-impl Socialize.handleSaveBio -> None {
-    uname = myProfile.profile.username if myProfile else "";
-    root spawn setup_profile(username=uname, bio=bioText);
+impl Socialize.handleSaveProfile(fields: dict[str, str]) -> None {
+    profileSaving = True;
+    profileError = "";
+    result = root spawn update_profile(
+        display_name=fields["display_name"] or "",
+        bio=fields["bio"] or "",
+        location=fields["location"] or "",
+        website=fields["website"] or "",
+        github=fields["github"] or ""
+    );
+    outcome = result.reports[0] if result.reports else None;
+    profileSaving = False;
+    if outcome and outcome.ok and outcome.bundle {
+        myProfile = outcome.bundle;
+        editingProfile = False;
+        profilesResult = root spawn get_all_profiles();
+        allProfiles = profilesResult.reports[0] if profilesResult.reports else [];
+    } else {
+        profileError = outcome.error
+            if outcome and outcome.error
+            else "Could not save your profile";
+    }
+}
+
+impl Socialize.handleAvatarFile(file: any) -> None {
+    if not file {
+        return;
+    }
+    avatarBusy = True;
+    profileError = "";
+    data_url = "";
+    try {
+        data_url = await shrink_avatar(file);
+    } except Exception {
+        avatarBusy = False;
+        profileError = "That file could not be read as an image";
+        return;
+    }
+    result = root spawn set_avatar(data_url=data_url);
+    outcome = result.reports[0] if result.reports else None;
+    avatarBusy = False;
+    me = myProfile.profile.username if myProfile else "";
+    if outcome and outcome.ok {
+        next_map: dict[str, str] = {** avatars};
+        next_seen: dict[str, str] = {** avatarSeen};
+        next_map[me] = outcome.avatar_url;
+        next_seen[me] = outcome.avatar_v;
+        avatars = next_map;
+        avatarSeen = next_seen;
+        profileResult = root spawn get_profile();
+        myProfile = profileResult.reports[0] if profileResult.reports else myProfile;
+        profilesResult = root spawn get_all_profiles();
+        allProfiles = profilesResult.reports[0] if profilesResult.reports else [];
+    } else {
+        profileError = outcome.error
+            if outcome and outcome.error
+            else "Could not upload that photo";
+    }
+}
+
+impl Socialize.handleClearAvatar -> None {
+    avatarBusy = True;
+    root spawn clear_avatar();
+    avatarBusy = False;
+    me = myProfile.profile.username if myProfile else "";
+    next_map: dict[str, str] = {};
+    for u in avatars {
+        if u != me {
+            next_map[u] = avatars[u];
+        }
+    }
+    avatars = next_map;
     profileResult = root spawn get_profile();
     myProfile = profileResult.reports[0] if profileResult.reports else myProfile;
-    editingBio = False;
+    profilesResult = root spawn get_all_profiles();
+    allProfiles = profilesResult.reports[0] if profilesResult.reports else [];
+}
+
+impl Socialize.handleViewProfile(username: str) -> None {
+    if not username {
+        return;
+    }
+    me = myProfile.profile.username if myProfile else "";
+    if username == me {
+        navigate("profile");
+        return;
+    }
+    viewedLoading = True;
+    activeTab = "user";
+    result = root spawn get_user_profile(username=username);
+    outcome = result.reports[0] if result.reports else None;
+    if outcome and outcome.ok and outcome.bundle {
+        viewedProfile = outcome.bundle;
+    } else {
+        viewedProfile = None;
+        activeTab = "explore";
+    }
+    viewedLoading = False;
+    refreshAvatars();
+}
+
+impl Socialize.loadProjects -> None {
+    projectsLoading = True;
+    result = root spawn get_all_projects();
+    allProjects = result.reports[0] if result.reports else [];
+    projectsLoading = False;
+    refreshAvatars();
+}
+
+impl Socialize.handleAddProject(url: str) -> None {
+    if not url.strip() or projectBusy {
+        return;
+    }
+    projectBusy = True;
+    projectError = "";
+    projectNotice = "";
+    result = root spawn add_project(url=url.strip());
+    outcome = result.reports[0] if result.reports else None;
+    projectBusy = False;
+    if outcome and outcome.ok and outcome.project {
+        projectNotice = (
+            outcome.project.full
+            + " scored "
+            + str(outcome.project.score)
+            + " points, "
+            + outcome.project.belt
+            + " belt."
+        );
+    } elif outcome and outcome.project {
+        projectError = project_error_message(outcome.error);
+    } else {
+        projectError = project_error_message(outcome.error if outcome else "internal");
+    }
+    profileResult = root spawn get_profile();
+    myProfile = profileResult.reports[0] if profileResult.reports else myProfile;
+}
+
+impl Socialize.handleRemoveProject(projectId: str) -> None {
+    projectError = "";
+    projectNotice = "";
+    root spawn remove_project(project_id=projectId);
+    profileResult = root spawn get_profile();
+    myProfile = profileResult.reports[0] if profileResult.reports else myProfile;
+    allProjects = [
+        p
+        for p in allProjects
+        if jid(p) != projectId
+    ];
+}
+
+impl Socialize.handleRescoreProject(projectId: str) -> None {
+    if projectBusy {
+        return;
+    }
+    projectBusy = True;
+    projectError = "";
+    projectNotice = "";
+    result = root spawn rescore_project(project_id=projectId);
+    outcome = result.reports[0] if result.reports else None;
+    projectBusy = False;
+    if outcome and outcome.error == "cooldown" {
+        projectNotice = project_error_message("cooldown");
+    } elif outcome and outcome.ok and outcome.project {
+        projectNotice = (
+            outcome.project.full
+            + " rescored: "
+            + str(outcome.project.score)
+            + " points."
+        );
+    } else {
+        projectError = project_error_message(outcome.error if outcome else "internal");
+    }
+    profileResult = root spawn get_profile();
+    myProfile = profileResult.reports[0] if profileResult.reports else myProfile;
 }
 
 impl Socialize.handleSearch(query: str) -> None {
@@ -201,6 +428,13 @@ impl Socialize.handleTrendClick(tag: str) -> None {
 
 impl Socialize.navigate(tab: str) -> None {
     activeTab = tab;
+    if tab != "profile" {
+        editingProfile = False;
+        profileError = "";
+    }
+    if tab == "explore" and exploreMode == "repos" {
+        loadProjects();
+    }
     if tab == "feed" and searchQuery {
         searchQuery = "";
         handleSearch("");

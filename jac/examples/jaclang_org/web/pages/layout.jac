@@ -1,4 +1,4 @@
-import from "@jac/runtime" { Outlet }
+import from "@jac/runtime" { Outlet, useLocation }
 import from web.ui.Navbar { Navbar }
 import from web.ui.Footer { Footer }
 
@@ -13,6 +13,8 @@ def init_theme {
 
 def:pub layout -> JsxLayout {
     init_theme();
+    location = useLocation();
+    in_app = location.pathname.startswith("/socialize");
     return
         <div
             className="min-h-screen overflow-x-clip bg-background text-foreground antialiased"
@@ -21,6 +23,8 @@ def:pub layout -> JsxLayout {
             <main>
                 <Outlet/>
             </main>
-            <Footer/>
+            {if not in_app {
+                <Footer/>
+            }}
         </div>;
 }

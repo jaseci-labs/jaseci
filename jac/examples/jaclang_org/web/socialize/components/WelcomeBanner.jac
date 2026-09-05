@@ -13,7 +13,7 @@ def:pub WelcomeBanner(onDismiss: Callable[[], None]) -> JsxElement {
             </div>
             <div className="flex-1">
                 <div className="font-display text-lg font-extrabold text-foreground">
-                    Welcome to LITTLE-X
+                    Welcome to JACYAK
                 </div>
                 <ul className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground">
                     <li className="flex items-center gap-2">
