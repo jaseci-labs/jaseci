@@ -167,6 +167,10 @@ impl IdentityStorage.authenticate(
         }
         pw_hash = cred.get('password_hash', '');
         if IdentityStorage.verify_password(password, pw_hash) {
+            if _needs_rehash(pw_hash) {
+                cred['password_hash'] = IdentityStorage.hash_password(password);
+                self._update_credentials(user_id, credentials);
+            }
             return {
                 'user_id': user_id,
                 'root_id': user['root_id'],

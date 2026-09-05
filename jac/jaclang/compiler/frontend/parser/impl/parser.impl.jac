@@ -284,8 +284,7 @@ impl Parser.expect_name(context: str = "identifier") -> LexToken {
     if self.is_keyword_token() {
         kw = self.current().value;
         self.emit_diag(
-            f"'{kw}' is a keyword and cannot be used as a {context} name (prefix with backtick to escape: `{kw})",
-            "E0013"
+            f"'{kw}' is a keyword and cannot be used as a {context} name", "E0013"
         );
         return self.advance();
     }
@@ -644,7 +643,7 @@ impl Parser._recover_removed_marker -> ElementStmt | EmptyToken | None {
     self.error(
         f"'{self.current().value}' placement markers were removed: "
             + "placement is inferred (override via [placement.pins] in "
-            + "jac.toml; declare services in [scale.microservices.routes]). "
+            + "jac.toml; a service is an app: [apps.<name>] kind = \"service\"). "
             + "Run 'jac fix placement' to migrate this file."
     );
     self.advance();

@@ -28,6 +28,7 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder { ManifestBuilder }
 import from jaclang.scale.injector.bundle { release_binary_env }
 import from jaclang.scale.runtime.context.util { jac_executable }
+import from jaclang.scale.tests.support { require_pod_binary }
 
 # No jac release carries this version, so it can never collide with the jac
 # running the suite.
@@ -37,7 +38,7 @@ glob PINNED: str = "0.0.0";
 def _builder(project_dir: str) -> ManifestBuilder {
     mb = ManifestBuilder(
         k8s_config=KubernetesConfig(app_name="landing", namespace="jb-landing"),
-        microservices_config={"client": {"entry": "main.jac"}}
+        client_entry="main.jac"
     );
     mb.project_dir = project_dir;
     return mb;
@@ -202,8 +203,7 @@ test "the gateway pod command carries no client rebuild fallback" {
 test "an app without a client entry skips the build untouched" {
     project_dir = _project("with entry {}\n");
     mb = ManifestBuilder(
-        k8s_config=KubernetesConfig(app_name="api", namespace="jb-api"),
-        microservices_config={"client": {"entry": False}}
+        k8s_config=KubernetesConfig(app_name="api", namespace="jb-api"), client_entry=""
     );
     mb.project_dir = project_dir;
     try {
@@ -307,10 +307,7 @@ test "a genuine compile error fails on the first attempt with no retry" {
 test "a pinned app builds its client on the pinned release, not the deploying jac" {
     # The checkout's own binary is published as the pinned release, the same way
     # the seal tests reuse it as the pod binary.
-    jac_bin = Path(str(__file__)).parents[4] / "zig-out" / "bin" / "jac";
-    if not jac_bin.is_file() {
-        return;
-    }
+    jac_bin = require_pod_binary();
     tmp = tempfile.mkdtemp(prefix="client-pin-");
     project_dir = _web_app_project(tmp);
     _pin(project_dir, PINNED);

@@ -1,12 +1,18 @@
 # jaclang.org -- the official Jac website
 
 The marketing site, docs reader, Ninja Leaderboard, and Socialize (a full
-Twitter-style social app, littleX, living at `/socialize`) for the Jac
+Twitter-style social app, Jacyak, living at `/socialize`) for the Jac
 programming language, built end to end in Jac (naturally). One language spans all three
 codespaces here: the pages and components compile to JavaScript, the
 endpoints compile to Python and serve over RPC, and the game in
-`game/arena.jac` compiles through LLVM to `/static/arena.wasm` -- fully
+`web/game/arena.jac` compiles through LLVM to `/static/arena.wasm` -- fully
 borrow-checked, with zero reference counting in the artifact.
+
+It is also one **workspace**: a single type-checked repo whose `jac.toml`
+declares five apps -- the `web` site, a mobUI `mobile` app, a `cli`, and two
+file-rooted service apps (`social_graph`, `scoring`) -- over one shared
+`core/` tree. The web, mobile and cli apps all consume the same social graph
+by importing it.
 
 Built on jac-shadcn (nova style, orange accent, Geist). Dark-first with a
 light-mode toggle. Visual-first: animated SVG diagrams drawn on scroll with
@@ -16,86 +22,122 @@ constellation, and a self-typing terminal.
 ## Run it
 
 ```bash
-jac install        # first run: pulls npm deps
-jac start          # serves on http://localhost:8000
-jac start --dev    # hot-reload dev loop
+jac install               # first run: pulls npm deps
+jac run web               # serves the site on http://localhost:8000
+jac run                   # same: [project] default-app = "web"
+jac run --dev web         # hot-reload dev loop
+jac run mobile            # the mobUI app (React Native, built for its platform)
+jac run cli -- --help     # the command-line client
+jac run --serve --fleet web   # service apps as their own local processes
 ```
 
-Docs content syncs in the background: a scheduled in-server job
-(`docs/sync.jac`) keeps a blobless clone of the monorepo under
-`.jac/data/docs-repo` and serves every release series from it -- newest
-patch per minor from v0.31 up, one menu entry each -- plus main as `dev`.
-A rate-gated `git fetch --tags` drives freshness: `dev` re-ingests when
-main's head moves, and a full re-ingest picks up new release tags with no
-redeploy. `/docs/latest` is a resolve-time alias for the newest release,
-which is also where `/docs` lands. Requests never trigger a sync -- they
-only read whatever the job last committed, and the graph persists across
-restarts. The clone is a disposable cache: any git failure resets it and
-the next tick re-clones. Set `JAC_DOCS_LOCAL=<monorepo-root>` to feed the
-job from a local docs tree instead (no git, no network), and
-`JAC_DOCS_CLONE_DIR` to move the clone. The docs job needs no GitHub API
-token; `GITHUB_TOKEN` only matters to the leaderboard's repo analysis.
+Under plain `jac run` the two service apps are **colocated**: `social_graph`
+and `scoring` load into the web server's process and bridged calls stay
+in-process. `--fleet` (and every deploy) runs each service app as its own
+process behind the gateway. Nothing in the source changes between the two;
+the app boundary is structural and the topology is a profile.
+
+Docs content comes from the binary. The docs corpus bundled with jaclang
+-- the same one `jac guide` serves offline and `jac mcp` exposes as
+`jac://docs/*` -- is read in-process through `jaclang.cli.guide_store` by a
+scheduled in-server job (`core/docs/sync.jac`) and grown into the docs graph as
+one version labelled after the running jac (`v0.37` for jac 0.37.1). No
+clone, no network, no GitHub token. The graph is populated once: the job
+fingerprints the corpus (version string plus every page and nav title), and
+a restart whose persisted graph already carries that fingerprint does
+nothing. Only a binary whose bundled docs differ triggers a rebuild, which
+replaces the version in place. After its first pass the tick is a no-op for
+the life of the process, so an edited docs tree under the `[dev]`
+live-source stanza shows up on the next restart. `/docs/latest` is a
+resolve-time alias for that version, which is also where `/docs` lands.
+Requests never trigger a sync -- they only read whatever the job last
+committed. Which docs the site shows is decided by which jac binary serves
+it. `GITHUB_TOKEN` only matters to the leaderboard's repo analysis.
 
 ## Checks
 
-The gates to run before committing:
+The gates to run before committing, from the workspace root:
 
 ```bash
 git ls-files -z '*.jac' | xargs -0 jac fmt --check --lintfix   # format + deslop autolint
-jac check . --nowarn                                           # type check
-JAC_TEST_JOBS=0 jac test docs/graph.jac docs/sync.jac leaderboard/board.jac shared/jac_tokenizer.jac shared/progress.jac socialize/social_graph.test.jac
+jac check --nowarn                                             # the workspace gate
+JAC_TEST_JOBS=0 jac test                                       # [test] directories = core, web, mobile, cli
 ```
 
-`jac precommit --install` wires the first two as a git hook.
+`jac check` with no paths is the workspace gate: it type-checks every app as
+its own rooted program (prefixing diagnostics with `[web]`, `[mobile]`, ...
+when more than one app is checked) and then sweeps `core/` for anything no
+app reaches. `jac check --app web` restricts it to one app. `jac precommit
+--install` wires the first two as a git hook. To run one module's tests:
+
+```bash
+JAC_TEST_JOBS=0 jac test core/docs/graph.jac core/leaderboard/board.jac core/social_graph.test.jac
+```
 
 ## Layout
 
-Organized by **feature**, not by layer. Each feature folder holds its own
-client and server modules side by side, because in Jac the codespace a
-declaration runs in is inferred per-declaration -- so the directory tree has no
-business encoding it. A `components/` + `services/` split sorts files by which
-machine runs them, which is the tier boundary this language exists to erase.
+The top level is split by **app**, and inside `web/` by **feature**. The
+split is not client/server -- in Jac the codespace a declaration runs in is
+inferred per-declaration, so no directory encodes it. It is *ownership*: a
+module belongs to the app whose root contains it, and anything under no app
+root is shared.
 
 | Path | What it is |
 |---|---|
-| `main.jac` | Entry: `app`, global CSS, and the endpoint imports that register routes |
-| `pages/` | File-based routes -- thin re-exports into features |
-| `landing/` | The marketing page: Hero, Showcase, Capabilities and friends |
-| `landing/diagrams/` | The four animated SVG arguments |
-| `docs/` | The docs reader: `graph.jac` is the read model (schema + walkers), `sync.jac` the scheduled writer that ingests it; shell, sections, renderer |
-| `leaderboard/` | Submit, score, board: rubric, graph, shell, card |
-| `game/` | The rlgl shooter (`arena.jac`, owned/borrowed, zero-GC) and its WebGL host |
-| `source/` | The live source browser and its floating window |
-| `socialize/` | littleX embedded as a login-gated section: `social_graph.jac` is the whole backend (nodes, edges, walkers), `Socialize.jac` + `components/` the client |
-| `shared/` | Earned its way in: used by two or more features |
-| `shared/ui/` | jac-shadcn primitives -- **registry-managed, import only** |
-| `examples/` | Real compiled Jac samples, runnable with `jac run` |
-| `styles/` | `global.css` is generated by `jac retheme`; `site.css` is hand-written |
+| `jac.toml` | The workspace: `[apps.*]`, npm deps, shadcn theme, lint/test/gc config |
+| `core/` | Shared domain and logic that belongs to no app: **no JSX, no DOM** |
+| `core/social_graph.jac` | The whole Jacyak backend (profiles with uploaded avatars, posts, follows, channels, and projects that every user adds as GitHub repos and the Ninja Scores scorer grades on the way in); the `social_graph` **service app** is rooted at this file |
+| `core/scoring_service.jac` | The repo scorer; the `scoring` **service app** is rooted at this file |
+| `core/leaderboard/` | `board.jac` (graph, walkers, view models), `scoring.jac` (rubric), `format.jac` (belt labels) |
+| `core/docs/` | `graph.jac` is the docs read model (schema + walkers), `sync.jac` the scheduled writer that ingests it |
+| `core/source/files.jac` | The workspace-walking source browser backend |
+| `core/{github,timefmt,progress,install,jac_tokenizer,async_utils,utils}.jac` | Tarball/API plumbing, timestamps, the job-progress protocol, the install script endpoint, the syntax highlighter, `sleep`, `cn()` |
+| `web/` | The site (`kind = "web-app"`); `main.jac` is its entry: `app`, global CSS, and the imports that bring the web-owned endpoints into its program |
+| `web/pages/` | File-based routes -- thin re-exports into features |
+| `web/landing/` | The marketing page: Hero, Showcase, Capabilities and friends; `diagrams/` holds the four animated SVG arguments |
+| `web/docs/` | The docs reader: shell, sidebar, TOC rail, article, renderer |
+| `web/leaderboard/` | Submit form, board, card, breakdown modal |
+| `web/socialize/` | Jacyak embedded as a login-gated section: `Socialize.jac` + `components/`, `identity.jac` for handles and avatars |
+| `web/source/` | The live source browser, code spotlights, and the floating window |
+| `web/game/` | The rlgl shooter (`arena.jac`, owned/borrowed, zero-GC) and its WebGL host |
+| `web/ui/` | jac-shadcn primitives (**registry-managed, import only**) plus the site chrome: Navbar, Footer, CodeBlock, GraphBackdrop, SectionRail |
+| `web/examples/` | Real compiled Jac samples, runnable with `jac run` |
+| `web/styles/`, `web/assets/`, `web/scripts/` | `global.css` is generated by `jac retheme`, `site.css` is hand-written; static assets; the OG-card generator |
+| `mobile/` | The mobUI app (`kind = "mobile"`: native views through React Native) |
+| `cli/` | The command-line client (`kind = "cli"`) |
 
-`shared/` is a **promotion destination, not a default one**. A module lives
-with the feature that owns it until a second feature needs it. That rule keeps
-`Reveal` (nine consumers, every one of them a landing section) and
-`CopyCommand` in `landing/`, while `CodeBlock`, `GraphBackdrop` and
-`async_utils` genuinely earn the move.
+`core/` is the promotion destination for anything two apps share, and it is
+also where every server-placed module lives that the web app *owns
+implicitly*: `docs`, `leaderboard`, `source` and `install` reach the web
+server only through `web/main.jac`, so `web` is their single owner. The
+social graph and the scorer are reached by more than one app, so they are
+declared as apps of their own and own exactly their entry files.
 
-Features may depend on features -- `landing/Hero.jac` embeds
-`source/FloatingSource.jac` -- which keeps `shared/` smaller than treating
-every cross-feature import as a promotion signal.
+Inside `web/`, features may depend on features -- `landing/Hero.jac` embeds
+`source/FloatingSource.jac` -- and `Reveal` (nine consumers, every one of them
+a landing section) and `CopyCommand` stay in `landing/` because nothing
+outside it needs them.
 
 ### Import forms
 
 Two rules, and neither is stylistic:
 
-- **Within a feature, use the sibling form.** `docs/DocsShell.jac` reaches its
-  server module with `import from .graph { doc_page }`. The whole
-  cross-codespace call is one dot, because both halves live together.
-- **Across packages, server modules use the no-dot absolute form.**
-  `import from shared.github { untar }`, never `..shared.github`. A `..` that
-  climbs out of a feature folder resolves under `jac start` but breaks
-  `jac test <file>` with `attempted relative import beyond top-level package`,
-  because the test runner roots the package at the target file's own
-  directory. Client modules keep the dotted form (`..shared.utils`), which is
-  what the bundler resolves.
+- **Across directories, use the absolute form from the workspace root.**
+  `import from core.docs.graph { doc_page }`, `import from web.ui.button {
+  Button }`, `import from core.social_graph { load_feed }`. It resolves the
+  same way under `jac run`, `jac test <file>` and the client bundler (which
+  emits a file-relative specifier from the resolved path), and it reads as
+  what it is: an app reaching into shared code, or a feature reaching a
+  sibling feature.
+- **Within a directory, use the sibling form.** `import from .Reveal {
+  Reveal }`, `import from .components.AuthForm { AuthForm }`, `import from
+  .scoring { RepoAnalysis }`.
+
+The one exception is `web/ui/`'s registry-managed primitives, which keep the
+`import from ...core.utils { cn }` form `jac install --shadcn` writes for
+this layout (`[jac-shadcn] components_dir` / `utils_path` pin it). Impl
+annexes (`impl/<name>.impl.jac`) resolve imports exactly like their decl
+file.
 
 ### Where the codespaces are
 
@@ -104,24 +146,30 @@ import is a plain `import` -- the compiler classifies each module by its
 anchors and takes the right edge:
 
 - **Server-anchored** (Python imports, nodes/edges/walkers, `::py::`) --
-  `docs/graph.jac`, `leaderboard/board.jac`: `def:pub`s bridge to RPC stubs,
-  objs cross as wire types. What `sv import` used to spell, now inferred.
+  `core/docs/graph.jac`, `core/leaderboard/board.jac`,
+  `core/social_graph.jac`: `def:pub`s and walkers bridge to RPC stubs, objs
+  cross as wire types.
+- **Across an app boundary** -- `core/leaderboard/board.jac` (owned by
+  `web`) importing `fetch_and_score` from `core/scoring_service.jac` (the
+  `scoring` app): the same plain import, classified as a service bridge. The
+  stub is typed and async, so the call is `await fetch_and_score(...)` and a
+  missing `await` is a type error, not a runtime surprise.
 - **Native-anchored** (clib externs, ownership marks, or a dep that has
-  them) -- `game/arena.jac` and friends: a client import takes the cl→na
+  them) -- `web/game/arena.jac` and friends: a client import takes the cl→na
   edge (wasm binding, `/static/arena.wasm`, nothing on the Python side);
   a server import stays the ctypes crossing.
 - **Client-anchored** (JSX, npm string imports, browser globals) -- the
-  components, `shared/utils.jac`, `leaderboard/format.jac` (`Date`),
-  `shared/async_utils.jac` (`Promise`/`setTimeout`).
-- **Unanchored pure logic** -- `shared/jac_tokenizer.jac`,
-  `landing/diagrams/motion.jac`: codespace-polymorphic, compiled into
+  components, `core/utils.jac`, `core/leaderboard/format.jac` (`Date`),
+  `core/async_utils.jac` (`Promise`/`setTimeout`).
+- **Unanchored pure logic** -- `core/jac_tokenizer.jac`,
+  `web/landing/diagrams/motion.jac`: codespace-polymorphic, compiled into
   whichever side imports it; `def:pub` there means "exported", not
   "endpoint".
 
-The explicit markers (`cl`/`sv`/`na` prefixes, `.cl.jac`/`.sv.jac`/`.na.jac`
-suffixes) still exist as intent overrides -- this tree needs exactly one:
-`examples/fullstack_todo.jac` keeps `cl` on its component because the marker
-is the point of the teaching sample.
+There are no placement markers anywhere in this tree: the `cl`/`sv`/`na`
+prefixes and the `.cl.jac`/`.sv.jac`/`.na.jac` suffixes were retired, and
+the only override an app can still express is a `[placement.pins]` entry
+(or a per-app `[apps.<name>.placement.pins]` overlay) in `jac.toml`.
 
 ### Typed contracts, not dict payloads
 
@@ -129,29 +177,42 @@ Every endpoint returns a declared `obj`, and the client stores those types
 directly (`has page: DocPageView | None`, `has entries: list[BoardEntry]`).
 Nothing is hand-marshalled across the wire, so a server signature change lands
 as a `jac check` diagnostic on the exact client line that went stale. Each
-feature owns its view models:
+module owns its view models:
 
-- `docs/graph.jac` -- `DocsStatus`, `DocTree`, `TreeNode`, `DocPageView`,
+- `core/docs/graph.jac` -- `DocsStatus`, `DocTree`, `TreeNode`, `DocPageView`,
   `TocEntry`, `Crumb`, `PageRef`, `VersionInfo`
-- `leaderboard/board.jac` -- `BoardView`, `BoardEntry`, `ScoreBreakdown`,
+- `core/leaderboard/board.jac` -- `BoardView`, `BoardEntry`, `ScoreBreakdown`,
   `RepoFeatures`, `SubmitResult`, `BoardStatus`
-- `shared/progress.jac` -- `JobProgress` / `JobStep`, the live-narration
+- `core/scoring_service.jac` -- `ScoredPayload`, the wire type that crosses
+  the `web` → `scoring` app boundary
+- `core/progress.jac` -- `JobProgress` / `JobStep`, the live-narration
   protocol the leaderboard's scoring job reports through
-- `shared/github.jac` -- `RepoMeta` plus the shared tarball/API plumbing
-- `source/files.jac` -- `SourceFile`, `SourceView`
+- `core/github.jac` -- `RepoMeta` plus the shared tarball/API plumbing
+- `core/source/files.jac` -- `SourceFile`, `SourceView`, `SourceSpan`
+- `core/social_graph.jac` -- `ProfileBundle`, `ChannelBundle`, `TrendingTag`
+  and the `Profile` / `Tweet` / `Channel` nodes every client app renders
 
-Heading anchors are computed once, on the server (`docs.graph.slugify`), and shipped
-in `DocPageView.toc`; the client renders them and never re-derives a slug.
+Heading anchors are computed once, on the server (`core.docs.graph.slugify`),
+and shipped in `DocPageView.toc`; the client renders them and never
+re-derives a slug.
 
 ## Tests
 
-`jac test` covers the pure logic on both sides of the wire: the URL parser,
-repo analyzer and scoring rubric (`leaderboard/board.test.jac`), the docs
+A bare `jac test` targets the default app (`web`), whose `[test]
+directories` lists `core`, `web`, `mobile` and `cli`, so it runs the whole
+workspace: the pure logic on both sides of the wire -- the URL parser, repo
+analyzer and scoring rubric (`core/leaderboard/*.test.jac`), the docs
 slugifier, route rewriter, TOC builder and swap-commit protocol
-(`docs/graph.test.jac`), the nav parsers, release-tag
-picker and drift check (`docs/sync.test.jac`), the progress protocol
-(`shared/progress.test.jac`), and the Jac syntax highlighter
-(`shared/jac_tokenizer.test.jac`) -- 49 tests.
+(`core/docs/graph.test.jac`), the version label, link rewriter, corpus
+fingerprint and once-only ingest (`core/docs/sync.test.jac`), the progress
+protocol (`core/progress.test.jac`), the Jac syntax highlighter
+(`core/jac_tokenizer.test.jac`), the social graph
+(`core/social_graph.test.jac`) and its fullstack smoke
+(`web/socialize/fullstack.test.jac`) -- 58 tests -- plus the cli app's 16
+(`cli/main.test.jac`, `cli/commands/*.test.jac`) and the mobile app's 5
+(`mobile/format.test.jac`). `jac test cli` and `jac test mobile` run only
+that app's annexes: each declares `[apps.<name>.test] directories = ["."]`,
+resolved against the app root.
 
 ## The centerpiece diagrams
 
@@ -170,15 +231,19 @@ picker and drift check (`docs/sync.test.jac`), the progress protocol
   non-excluded `.jac`. Explanation belongs in commit messages, `AGENTS.md`,
   or this README. The exclude list is short and each entry says
   why it is there.
-- **Never edit `shared/ui/`.** Fixes belong upstream in the jac-shadcn
-  template; a local patch is a fork that silently diverges.
+- **Never edit the shadcn primitives in `web/ui/`.** Fixes belong upstream in
+  the jac-shadcn template; a local patch is a fork that silently diverges.
+  The hand-written chrome beside them (Navbar, Footer, CodeBlock,
+  GraphBackdrop, SectionRail) is ours.
+- **`core/` renders nothing.** No JSX, no DOM, no lucide. A module that needs
+  a component belongs to the app that renders it.
 - **Content is anchored** to the monorepo README, *the twelve claims*, the
   `this_is_jac` showcase, and the fundamentals book ("the ninja book").
   House style: "discontinuities", not "seams"; "the first…", not "the only…".
 
 ## The game module
 
-`game/arena.jac` carries no marker at all; the compiler classifies it native
+`web/game/arena.jac` carries no marker at all; the compiler classifies it native
 by its anchors (raylib externs in `platform_rl`, `own`/`&mut` throughout),
 and the browser host reaches it with a plain import:
 
@@ -186,7 +251,7 @@ and the browser host reaches it with a plain import:
 import from .arena { init }
 ```
 
-That one line in `game/webgl_host.jac` is the whole wiring. Because the host
+That one line in `web/game/webgl_host.jac` is the whole wiring. Because the host
 is client code and the target is native-anchored, the import IS the cl→na
 edge: the client build compiles the module to `/static/arena.wasm`, binds
 `init` to a generated stub that lazily instantiates the wasm on first call
@@ -208,5 +273,5 @@ as an opaque handle; every update pass borrows it `&mut` down the call tree.
 The same source also builds headlessly:
 
 ```bash
-jac nacompile game/arena.jac --target wasm32 --enforce-nogc --gc none --assert-no-rc
+jac nacompile web/game/arena.jac --target wasm32 --enforce-nogc --gc none --assert-no-rc
 ```

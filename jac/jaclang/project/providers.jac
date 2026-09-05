@@ -675,14 +675,23 @@ def capability_dependencies(
         resolve_closure,
         scale_intent_from_config
     }
-    import from jaclang.project.kinds { plan_project_run }
+    import from jaclang.project.kinds { plan_app_run }
     if config is None {
         return [];
     }
     if not action {
         proj_root = str(config.project_root) if config.project_root else ".";
-        plan = plan_project_run(config, proj_root);
-        action = plan.action if plan else "execute";
+        action = "execute";
+        for app in (list(config.apps.values()) or [config.resolve_app("")]) {
+            try {
+                if plan_app_run(config, proj_root, app).action == "serve" {
+                    action = "serve";
+                    break;
+                }
+            } except ValueError {
+                continue;
+            }
+        }
     }
     intent = scale_intent_from_config(config);
     if intent and action != "serve" {
