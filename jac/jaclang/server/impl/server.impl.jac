@@ -1450,7 +1450,7 @@ impl JacAPIServer.build_app -> ServingApp {
         custom_headers_middleware
     }
     import from jaclang.server.serving.openapi { register_docs_endpoints }
-    import from jaclang.project.config { get_config }
+    import from jaclang.project.config { JacConfig }
     settings = self.resolved_settings();
     self.introspector.load();
     self.introspector.dev_mode = settings.dev;
@@ -1481,7 +1481,7 @@ impl JacAPIServer.build_app -> ServingApp {
             allow_headers=['Content-Type', 'Authorization', 'X-Request-Id']
         )
     );
-    config = get_config();
+    config = JacConfig.discover(Path(self.base_path) if self.base_path else None);
     if config
         and config.environments
         and 'response' in config.environments
@@ -1698,7 +1698,10 @@ impl JacAPIServer._register_scheduled_tasks -> None {
     _self = self;
     def _make_target(name: str, is_walker: bool) -> Callable[[], None] {
         async def _run -> any {
-            registry = _self.get_walkers() if is_walker else _self.get_functions();
+            intro = _self.introspector;
+            registry: dict[str, any] = (
+                dict(intro._walkers) if is_walker else dict(intro._functions)
+            );
             if name not in registry {
                 return {'error': f"'{name}' is no longer registered"};
             }
@@ -1729,9 +1732,10 @@ impl JacAPIServer._register_scheduled_tasks -> None {
         }
         return target;
     }
+    self.introspector.load();
     for (registry, is_walker) in [
-        (self.introspector.get_walkers(), True),
-        (self.introspector.get_functions(), False)
+        (dict(self.introspector._walkers), True),
+        (dict(self.introspector._functions), False)
     ] {
         for (name, item) in registry.items() {
             spec = item?.schedule_spec;
@@ -1742,6 +1746,11 @@ impl JacAPIServer._register_scheduled_tasks -> None {
                 name, _make_target(name, is_walker), spec, is_walker
             );
         }
+    }
+    if self.scheduler.has_pending() {
+        logger.info(
+            f"static scheduler: {len(self.scheduler._tasks)} task(s) registered"
+        );
     }
     import from jaclang.server.identity.identity_storage { PgIdentityStorage }
     storage = self.user_manager._identity_storage;

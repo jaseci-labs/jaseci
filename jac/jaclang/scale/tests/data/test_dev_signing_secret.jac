@@ -180,10 +180,15 @@ test "the environment mirror overrides the project secret" {
             '[serve.auth]\nsecret = "deployed-secret"\n', encoding="utf-8"
         );
         previous = _set_env(
-            {CLUSTER_ENV: None, DATA_PATH_ENV: None, "JAC_SERVE_AUTH_SECRET": "env-secret"}
+            {
+                CLUSTER_ENV: None,
+                DATA_PATH_ENV: None,
+                "JAC_SERVE_AUTH_SECRET": "env-secret"
+            }
         );
         try {
-            assert ServeSettings.load(tmpdir).auth.resolve_secret(tmpdir) == "env-secret";
+            assert ServeSettings.load(tmpdir).auth.resolve_secret(tmpdir)
+                == "env-secret";
         } finally {
             _set_env(previous);
         }

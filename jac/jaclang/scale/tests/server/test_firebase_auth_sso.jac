@@ -74,8 +74,7 @@ def _setup_user_manager(sso_config: dict) -> tuple[str, SSOAuth] {
     mock_config = MockScaleConfig(sso_config);
     user_manager = UserManager(base_path=test_dir);
     with unittest.mock.patch(
-        'jaclang.scale.sso.sso_auth.get_scale_config',
-        return_value=mock_config
+        'jaclang.scale.sso.sso_auth.get_scale_config', return_value=mock_config
     ) {
         sso = SSOAuth(users=user_manager);
     }
@@ -145,8 +144,7 @@ test 'supported platforms includes firebase when configured' {
     reset_scale_config();
     mock_config = MockScaleConfig(mock_sso_config_with_firebase());
     with unittest.mock.patch(
-        'jaclang.scale.sso.sso_auth.get_scale_config',
-        return_value=mock_config
+        'jaclang.scale.sso.sso_auth.get_scale_config', return_value=mock_config
     ) {
         user_manager = SSOAuth(users=unittest.mock.Mock());
         assert 'firebase' in user_manager.platforms;
@@ -160,8 +158,7 @@ test 'supported platforms excludes firebase when not configured' {
     reset_scale_config();
     mock_config = MockScaleConfig(mock_sso_config_without_firebase());
     with unittest.mock.patch(
-        'jaclang.scale.sso.sso_auth.get_scale_config',
-        return_value=mock_config
+        'jaclang.scale.sso.sso_auth.get_scale_config', return_value=mock_config
     ) {
         user_manager = SSOAuth(users=unittest.mock.Mock());
         assert 'firebase' not in user_manager.platforms;
@@ -197,9 +194,7 @@ test 'firebase sso initiate returns helpful error' {
     (test_dir, auth) = _setup_user_manager(mock_sso_config_with_firebase());
     user_manager = auth.users;
     try {
-        coro: any = auth.sso_initiate(
-            Platforms.FIREBASE.value, Operations.LOGIN.value
-        );
+        coro: any = auth.sso_initiate(Platforms.FIREBASE.value, Operations.LOGIN.value);
         result: any = asyncio.run(coro);
         assert isinstance(result, TransportResponse);
         assert not result.ok;
@@ -224,11 +219,8 @@ test 'firebase token auth login existing user' {
                 picture='https://example.com/picture.jpg'
             )
         );
-        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso
-        ) {
-            coro: any = auth.firebase_token_auth_with_id_token(
-                'firebase-token'
-            );
+        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso) {
+            coro: any = auth.firebase_token_auth_with_id_token('firebase-token');
             result: any = asyncio.run(coro);
             assert result.ok;
             assert result.data['message'] == 'Login successful';
@@ -264,11 +256,8 @@ test 'firebase token auth auto register new user' {
                 display_name='New User'
             )
         );
-        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso
-        ) {
-            coro: any = auth.firebase_token_auth_with_id_token(
-                'firebase-token'
-            );
+        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso) {
+            coro: any = auth.firebase_token_auth_with_id_token('firebase-token');
             result: any = asyncio.run(coro);
             assert result.ok;
             user_id = result.data['user_id'];
@@ -341,7 +330,11 @@ test 'register firebase token endpoint' {
     ) {
         SSOExtension().register(_as_any(host));
     }
-    endpoints = [e for e in host._endpoints if e.path == '/sso/firebase/token'];
+    endpoints = [
+        e
+        for e in host._endpoints
+        if e.path == '/sso/firebase/token'
+    ];
     assert len(endpoints) == 1;
     assert endpoints[0].method.name == 'POST';
 }
@@ -364,8 +357,7 @@ test 'firebase token endpoint http integration' {
                 picture='https://example.com/picture.jpg'
             )
         );
-        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso
-        ) {
+        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso) {
             response = client.post(
                 '/sso/firebase/token', json={'id_token': 'firebase-token'}
             );

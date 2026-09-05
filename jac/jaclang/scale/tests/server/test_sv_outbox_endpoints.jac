@@ -250,9 +250,7 @@ test "scale server: the bridge secret authenticates a service caller" {
 def _noop(*args: any, **kwargs: any) {}
 
 
-def _fake_run(
-    self: ServingServer, on_ready: any = None, port_retries: int = 0
-) -> int {
+def _fake_run(self: ServingServer, on_ready: any = None, port_retries: int = 0) -> int {
     if on_ready is not None {
         on_ready(self.port or 0);
     }

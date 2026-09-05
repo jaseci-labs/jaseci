@@ -33,6 +33,15 @@ def _pool_max -> int {
 }
 
 
+def _pool_total_max -> int {
+    try {
+        return max(0, int(os.environ.get('JAC_DB_POOL_TOTAL_MAX', '48') or 48));
+    } except ValueError {
+        return 48;
+    }
+}
+
+
 def _idle_ttl -> float {
     try {
         return max(1.0, float(os.environ.get('JAC_DB_POOL_IDLE_S', '300') or 300));
@@ -129,13 +138,44 @@ def release(info: any, conn: any) -> None {
             kept.append((conn, now));
         }
         _pools[key] = kept;
+        evicted = _evict_oldest_locked(_pool_total_max());
     }
     for old in expired {
+        _discard(old);
+    }
+    for old in evicted {
         _discard(old);
     }
     if overflow is not None {
         _discard(overflow);
     }
+}
+
+
+def _evict_oldest_locked(keep: int) -> list {
+    total = sum(len(bucket) for bucket in _pools.values());
+    if total <= keep {
+        return [];
+    }
+    parked: list[tuple[float, str, any]] = [
+        (at, key, conn) for (key, bucket) in _pools.items() for (conn, at) in bucket
+    ];
+    parked.sort(key=lambda (item: tuple[float, str, any]) { item[0]; });
+    doomed = parked[:total - keep];
+    victims: set[int] = {id(conn) for (_at, _key, conn) in doomed};
+    for key in list(_pools.keys()) {
+        remaining = [
+            item
+            for item in _pools[key]
+            if id(item[0]) not in victims
+        ];
+        if remaining {
+            _pools[key] = remaining;
+        } else {
+            _pools.pop(key, None);
+        }
+    }
+    return [conn for (_at, _key, conn) in doomed];
 }
 
 

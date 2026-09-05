@@ -332,8 +332,7 @@ def _setup_user_manager -> tuple[str, SSOAuth] {
     mock_config = MockScaleConfig(mock_sso_config_with_credentials());
     user_manager = UserManager(base_path=test_dir);
     with unittest.mock.patch(
-        "jaclang.scale.sso.sso_auth.get_scale_config",
-        return_value=mock_config
+        "jaclang.scale.sso.sso_auth.get_scale_config", return_value=mock_config
     ) {
         sso = SSOAuth(users=user_manager);
     }
@@ -394,8 +393,7 @@ test "get sso with unconfigured platform" {
         reset_scale_config();
         mock_config = MockScaleConfig(mock_sso_config_without_credentials());
         with unittest.mock.patch(
-            "jaclang.scale.sso.sso_auth.get_scale_config",
-            return_value=mock_config
+            "jaclang.scale.sso.sso_auth.get_scale_config", return_value=mock_config
         ) {
             um = SSOAuth(users=user_manager);
             sso = um.get_sso(Platforms.GOOGLE.value);
@@ -425,7 +423,8 @@ test "sso initiate success" {
     (test_dir, auth) = _setup_user_manager();
     user_manager = auth.users;
     try {
-        with unittest.mock.patch.object(auth, 'get_sso', return_value=MockGoogleSSO("id", "secret", "uri")
+        with unittest.mock.patch.object(
+            auth, 'get_sso', return_value=MockGoogleSSO("id", "secret", "uri")
         ) {
             coro: any = auth.sso_initiate(
                 Platforms.GOOGLE.value, Operations.LOGIN.value
@@ -443,9 +442,7 @@ test "sso initiate with invalid platform" {
     (test_dir, auth) = _setup_user_manager();
     user_manager = auth.users;
     try {
-        coro: any = auth.sso_initiate(
-            "invalid_platform", Operations.LOGIN.value
-        );
+        coro: any = auth.sso_initiate("invalid_platform", Operations.LOGIN.value);
         result: any = asyncio.run(coro);
         assert isinstance(result, (JSONResponse, TransportResponse));
         body = _get_response_body(result);
@@ -460,9 +457,7 @@ test "sso initiate with unconfigured platform" {
     user_manager = auth.users;
     try {
         auth.platforms = {};
-        coro: any = auth.sso_initiate(
-            Platforms.GOOGLE.value, Operations.LOGIN.value
-        );
+        coro: any = auth.sso_initiate(Platforms.GOOGLE.value, Operations.LOGIN.value);
         result: any = asyncio.run(coro);
         assert isinstance(result, (JSONResponse, TransportResponse));
         body = _get_response_body(result);
@@ -476,9 +471,7 @@ test "sso initiate with invalid operation" {
     (test_dir, auth) = _setup_user_manager();
     user_manager = auth.users;
     try {
-        coro: any = auth.sso_initiate(
-            Platforms.GOOGLE.value, "invalid_operation"
-        );
+        coro: any = auth.sso_initiate(Platforms.GOOGLE.value, "invalid_operation");
         result: any = asyncio.run(coro);
         assert isinstance(result, (JSONResponse, TransportResponse));
         body = _get_response_body(result);
@@ -516,8 +509,7 @@ test "sso callback login existing user" {
         mock_sso.verify_and_process = unittest.mock.AsyncMock(
             return_value=MockUserInfo(email="test@example.com")
         );
-        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso
-        ) {
+        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso) {
             coro: any = auth.sso_callback(
                 _as_any(mock_request), Platforms.GOOGLE.value
             );
@@ -560,8 +552,7 @@ test "sso callback existing user with no profile data" {
                 picture=_as_any(None)
             )
         );
-        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso
-        ) {
+        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso) {
             coro: any = auth.sso_callback(
                 _as_any(mock_request), Platforms.GOOGLE.value
             );
@@ -598,8 +589,7 @@ test "sso callback new user with no profile data" {
                 picture=_as_any(None)
             )
         );
-        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso
-        ) {
+        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso) {
             coro: any = auth.sso_callback(
                 _as_any(mock_request), Platforms.GOOGLE.value
             );
@@ -632,8 +622,7 @@ test "sso callback auto register new user" {
         mock_sso.verify_and_process = unittest.mock.AsyncMock(
             return_value=MockUserInfo(email="newuser@example.com")
         );
-        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso
-        ) {
+        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso) {
             coro: any = auth.sso_callback(
                 _as_any(mock_request), Platforms.GOOGLE.value
             );
@@ -666,9 +655,7 @@ test "sso callback with invalid platform" {
     user_manager = auth.users;
     try {
         mock_request = unittest.mock.Mock(spec=Request);
-        coro: any = auth.sso_callback(
-            _as_any(mock_request), "invalid_platform"
-        );
+        coro: any = auth.sso_callback(_as_any(mock_request), "invalid_platform");
         result: any = asyncio.run(coro);
         assert isinstance(result, (JSONResponse, TransportResponse));
         body = _get_response_body(result);
@@ -684,9 +671,7 @@ test "sso callback with unconfigured platform" {
     try {
         mock_request = unittest.mock.Mock(spec=Request);
         auth.platforms = {};
-        coro: any = auth.sso_callback(
-            _as_any(mock_request), Platforms.GOOGLE.value
-        );
+        coro: any = auth.sso_callback(_as_any(mock_request), Platforms.GOOGLE.value);
         result: any = asyncio.run(coro);
         assert isinstance(result, (JSONResponse, TransportResponse));
         body = _get_response_body(result);
@@ -726,8 +711,7 @@ test "sso callback when email not provided" {
         mock_sso.verify_and_process = unittest.mock.AsyncMock(
             return_value=mock_user_info
         );
-        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso
-        ) {
+        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso) {
             coro: any = auth.sso_callback(
                 _as_any(mock_request), Platforms.GOOGLE.value
             );
@@ -750,8 +734,7 @@ test "sso callback authentication failure" {
         mock_sso.verify_and_process = unittest.mock.AsyncMock(
             side_effect=Exception("Authentication failed")
         );
-        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso
-        ) {
+        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso) {
             coro: any = auth.sso_callback(
                 _as_any(mock_request), Platforms.GOOGLE.value
             );
@@ -774,13 +757,11 @@ test "supported platforms initialization with jac toml credentials" {
         }
     );
     with unittest.mock.patch(
-        "jaclang.scale.sso.sso_auth.get_scale_config",
-        return_value=mock_config
+        "jaclang.scale.sso.sso_auth.get_scale_config", return_value=mock_config
     ) {
         user_manager = SSOAuth(users=unittest.mock.Mock());
         assert "google" in user_manager.platforms;
-        assert user_manager.platforms["google"]["client_id"]
-            == "toml_test_id";
+        assert user_manager.platforms["google"]["client_id"] == "toml_test_id";
     }
 }
 
@@ -788,8 +769,7 @@ test "supported platforms initialization without jac toml credentials" {
     reset_scale_config();
     mock_config = MockScaleConfig(mock_sso_config_without_credentials());
     with unittest.mock.patch(
-        "jaclang.scale.sso.sso_auth.get_scale_config",
-        return_value=mock_config
+        "jaclang.scale.sso.sso_auth.get_scale_config", return_value=mock_config
     ) {
         user_manager = SSOAuth(users=unittest.mock.Mock());
         assert "google" not in user_manager.platforms;
@@ -965,8 +945,7 @@ test "sso initiate forwards loopback client callback as state" {
                 url="https://accounts.google.com/oauth/authorize"
             )
         );
-        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso
-        ) {
+        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso) {
             coro: any = auth.sso_initiate(
                 Platforms.GOOGLE.value, Operations.LOGIN.value, loopback
             );
@@ -988,8 +967,7 @@ test "sso initiate drops non-loopback client callback" {
                 url="https://accounts.google.com/oauth/authorize"
             )
         );
-        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso
-        ) {
+        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso) {
             coro: any = auth.sso_initiate(
                 Platforms.GOOGLE.value, Operations.LOGIN.value, "https://evil.com/steal"
             );
@@ -1095,7 +1073,8 @@ test "apple sso initiate success" {
     (test_dir, auth) = _setup_user_manager();
     user_manager = auth.users;
     try {
-        with unittest.mock.patch.object(auth, 'get_sso', return_value=MockAppleSSO("id", "secret", "uri")
+        with unittest.mock.patch.object(
+            auth, 'get_sso', return_value=MockAppleSSO("id", "secret", "uri")
         ) {
             coro: any = auth.sso_initiate(
                 Platforms.APPLE.value, Operations.LOGIN.value
@@ -1119,11 +1098,8 @@ test "apple sso callback login existing user" {
         mock_sso.verify_and_process = unittest.mock.AsyncMock(
             return_value=MockUserInfo(email="test@privaterelay.appleid.com")
         );
-        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso
-        ) {
-            coro: any = auth.sso_callback(
-                _as_any(mock_request), Platforms.APPLE.value
-            );
+        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso) {
+            coro: any = auth.sso_callback(_as_any(mock_request), Platforms.APPLE.value);
             result: any = asyncio.run(coro);
             assert isinstance(result, (JSONResponse, TransportResponse));
             data = _parse_body(result)["data"];
@@ -1154,11 +1130,8 @@ test "apple sso callback auto register new user" {
         mock_sso.verify_and_process = unittest.mock.AsyncMock(
             return_value=MockUserInfo(email="newuser@privaterelay.appleid.com")
         );
-        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso
-        ) {
-            coro: any = auth.sso_callback(
-                _as_any(mock_request), Platforms.APPLE.value
-            );
+        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso) {
+            coro: any = auth.sso_callback(_as_any(mock_request), Platforms.APPLE.value);
             result: any = asyncio.run(coro);
             assert isinstance(result, (JSONResponse, TransportResponse));
             data = _parse_body(result)["data"];
@@ -1223,8 +1196,7 @@ test "supported platforms initialization with apple credentials" {
         }
     );
     with unittest.mock.patch(
-        "jaclang.scale.sso.sso_auth.get_scale_config",
-        return_value=mock_config
+        "jaclang.scale.sso.sso_auth.get_scale_config", return_value=mock_config
     ) {
         user_manager = SSOAuth(users=unittest.mock.Mock());
         assert "google" in user_manager.platforms;
@@ -1243,8 +1215,7 @@ test "supported platforms initialization without apple credentials" {
         }
     );
     with unittest.mock.patch(
-        "jaclang.scale.sso.sso_auth.get_scale_config",
-        return_value=mock_config
+        "jaclang.scale.sso.sso_auth.get_scale_config", return_value=mock_config
     ) {
         user_manager = SSOAuth(users=unittest.mock.Mock());
         assert "google" in user_manager.platforms;
@@ -1289,7 +1260,8 @@ test "github sso initiate success" {
     (test_dir, auth) = _setup_user_manager();
     user_manager = auth.users;
     try {
-        with unittest.mock.patch.object(auth, 'get_sso', return_value=MockGithubSSO("id", "secret", "uri")
+        with unittest.mock.patch.object(
+            auth, 'get_sso', return_value=MockGithubSSO("id", "secret", "uri")
         ) {
             coro: any = auth.sso_initiate(
                 Platforms.GITHUB.value, Operations.LOGIN.value
@@ -1313,8 +1285,7 @@ test "github sso callback login existing user" {
         mock_sso.verify_and_process = unittest.mock.AsyncMock(
             return_value=MockUserInfo(email="test@github.com")
         );
-        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso
-        ) {
+        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso) {
             coro: any = auth.sso_callback(
                 _as_any(mock_request), Platforms.GITHUB.value
             );
@@ -1345,8 +1316,7 @@ test "github sso callback auto register new user" {
         mock_sso.verify_and_process = unittest.mock.AsyncMock(
             return_value=MockUserInfo(email="newuser@github.com")
         );
-        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso
-        ) {
+        with unittest.mock.patch.object(auth, 'get_sso', return_value=mock_sso) {
             coro: any = auth.sso_callback(
                 _as_any(mock_request), Platforms.GITHUB.value
             );
@@ -1418,8 +1388,7 @@ test "supported platforms initialization with github credentials" {
         }
     );
     with unittest.mock.patch(
-        "jaclang.scale.sso.sso_auth.get_scale_config",
-        return_value=mock_config
+        "jaclang.scale.sso.sso_auth.get_scale_config", return_value=mock_config
     ) {
         user_manager = SSOAuth(users=unittest.mock.Mock());
         assert "github" in user_manager.platforms;
@@ -1437,8 +1406,7 @@ test "supported platforms initialization without github credentials" {
         }
     );
     with unittest.mock.patch(
-        "jaclang.scale.sso.sso_auth.get_scale_config",
-        return_value=mock_config
+        "jaclang.scale.sso.sso_auth.get_scale_config", return_value=mock_config
     ) {
         user_manager = SSOAuth(users=unittest.mock.Mock());
         assert "google" in user_manager.platforms;
@@ -1450,8 +1418,7 @@ test "supported platforms initialization with all providers" {
     reset_scale_config();
     mock_config = MockScaleConfig(mock_sso_config_with_credentials());
     with unittest.mock.patch(
-        "jaclang.scale.sso.sso_auth.get_scale_config",
-        return_value=mock_config
+        "jaclang.scale.sso.sso_auth.get_scale_config", return_value=mock_config
     ) {
         user_manager = SSOAuth(users=unittest.mock.Mock());
         assert "google" in user_manager.platforms;

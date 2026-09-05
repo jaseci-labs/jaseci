@@ -2160,11 +2160,12 @@ test "concurrent multi-user requests do not race on ctx.user_root" {
     }
 }
 
-"""A request whose setup raises outside the walker-execution envelope (here:
-the user's persisted root anchor is gone from the anchor store, e.g. stale
-state written by an older runtime) must surface as a 500 JSON error response
-- never as a silently dropped connection with no HTTP response at all."""
-test "orphaned user root returns 500 json instead of dropping the connection" {
+"""A request whose setup fails before the walker runs (here: the user's
+persisted root anchor is gone from the anchor store, e.g. stale state written
+by an older runtime) must fail closed with a JSON error response that names
+the problem - never continue on another root, and never drop the connection
+with no HTTP response at all."""
+test "orphaned user root is refused with a json error instead of dropping the connection" {
     with TemporaryDirectory() as tmpdir {
         client = make_client(tmpdir);
         reg = client.register_user("orphan_user", "pw12345");
@@ -2179,12 +2180,14 @@ test "orphaned user root returns 500 json instead of dropping the connection" {
             str(orphan["user_id"]), {"root_id": "deadbeefdeadbeefdeadbeefdeadbeef"}
         );
         resp = client.post("/walker/CreateTask", json={"title": "x"});
-        assert resp.status_code == 500 , f"expected a 500 error envelope, got {resp.status_code}: {resp.text}";
+        assert resp.status_code == 401 , f"expected a fail-closed error envelope, got {resp.status_code}: {resp.text}";
         body = resp.json();
-        assert "error" in body , f"500 body should carry an error: {resp.text}";
+        assert "error" in body , f"the body should carry an error: {resp.text}";
         # Registered users are NOT healed: silently minting a new root would
         # mask real data loss. The error names the problem instead.
-        assert "does not exist in the anchor store" in str(body.get("error")) , f"error should explain the missing root anchor: {resp.text}";
+        assert body["error"]["code"] == "IDENTITY_UNRESOLVABLE" , resp.text;
+        assert "does not exist in the anchor store"
+            in str(body["error"].get("message")) , f"error should explain the missing root anchor: {resp.text}";
         client.close();
     }
 }

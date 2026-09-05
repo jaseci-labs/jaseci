@@ -1902,7 +1902,11 @@ test "health check filter suppresses probe records and keeps the rest" {
             args=(),
             exc_info=None
         );
-        rec.access = AccessRecord(client='127.0.0.1', method='GET', path=path, status=200);
+        setattr(
+            rec,
+            'access',
+            AccessRecord(client='127.0.0.1', method='GET', path=path, status=200)
+        );
         return rec;
     }
 
@@ -1910,11 +1914,25 @@ test "health check filter suppresses probe records and keeps the rest" {
     for path in ['/healthz', '/healthz/ready', '/healthz/live'] {
         assert not f.filter(make_record(path)) , f"Expected suppressed: {path}";
     }
-    for path in ['/walker/MyWalker', '/user/login', '/graph', '/function/add_numbers', '/health/extra', '/docs', '/'] {
+    for path in [
+        '/walker/MyWalker',
+        '/user/login',
+        '/graph',
+        '/function/add_numbers',
+        '/health/extra',
+        '/docs',
+        '/'
+    ] {
         assert f.filter(make_record(path)) , f"Expected allowed: {path}";
     }
     plain = logging.LogRecord(
-        name=ACCESS_LOGGER_NAME, level=logging.INFO, pathname="", lineno=0, msg="x", args=(), exc_info=None
+        name=ACCESS_LOGGER_NAME,
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg="x",
+        args=(),
+        exc_info=None
     );
     assert f.filter(plain) , "records without an access payload pass through";
 }
@@ -1928,17 +1946,27 @@ test "json access log formatter emits one object per request" {
         AccessRecord
     }
     rec = logging.LogRecord(
-        name=ACCESS_LOGGER_NAME, level=logging.INFO, pathname="", lineno=0, msg="m", args=(), exc_info=None
+        name=ACCESS_LOGGER_NAME,
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg="m",
+        args=(),
+        exc_info=None
     );
-    rec.access = AccessRecord(
-        client='10.0.0.9',
-        method='POST',
-        path='/walker/Foo',
-        status=201,
-        bytes_sent=42,
-        duration_ms=3.5,
-        request_id='abc',
-        ts=1700000000.25
+    setattr(
+        rec,
+        'access',
+        AccessRecord(
+            client='10.0.0.9',
+            method='POST',
+            path='/walker/Foo',
+            status=201,
+            bytes_sent=42,
+            duration_ms=3.5,
+            request_id='abc',
+            ts=1700000000.25
+        )
     );
     payload = json.loads(AccessJsonFormatter().format(rec));
     assert payload['method'] == 'POST';

@@ -56,7 +56,11 @@ test "the scale build status route serves the status document shape" {
     with TemporaryDirectory() as tmp {
         stub = _CapturedServer(base_path=tmp);
         register_diagnostics_endpoints(stub);
-        status_eps = [e for e in stub.endpoints if e.path == "/__build_status"];
+        status_eps = [
+            e
+            for e in stub.endpoints
+            if e.path == "/__build_status"
+        ];
         assert len(status_eps) == 1;
         ep = status_eps[0];
         body = asyncio.run(ep.callback(Request())).content;

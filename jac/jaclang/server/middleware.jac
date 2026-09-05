@@ -71,13 +71,11 @@ def request_context_middleware -> Callable[..., any] {
         req_token = JacRuntime.push_request_context(ctx);
         user_id = request.state?.user_root_id;
         bind_error: any = None;
-        bind_status: int = 401;
         if user_id {
             ctx.mem.read_scope_enter();
             try {
                 await ctx.aset_user_root(str(user_id));
             } except MissingAnchorError as missing {
-                bind_status = 500;
                 bind_error = RuntimeError(
                     f"Root anchor {missing.anchor_id} for the authenticated user "
                     "does not exist in the anchor store. The data store was likely "
@@ -97,7 +95,7 @@ def request_context_middleware -> Callable[..., any] {
                     f"{type(bind_error).__name__}: {bind_error}"
                 );
                 resp = JSONResponse(
-                    status_code=bind_status,
+                    status_code=401,
                     content={
                         'ok': False,
                         'error': {
