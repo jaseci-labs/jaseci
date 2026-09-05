@@ -113,11 +113,15 @@ impl default_threads(worker_count: int, quota: int) -> int {
 
 
 impl ServeSettings.load(
-    base_path: str = '', overrides: (dict[str, any] | None) = None
+    base_path: str = '',
+    overrides: (dict[str, any] | None) = None,
+    config: (JacConfig | None) = None
 ) -> ServeSettings {
     given = dict(overrides or {});
-    start = Path(base_path) if base_path else None;
-    config = JacConfig.discover(start);
+    if config is None {
+        start = Path(base_path) if base_path else None;
+        config = JacConfig.discover(start);
+    }
     cfg: ServeConfig = config.serve if config is not None else ServeConfig();
     quota = cpu_quota();
 

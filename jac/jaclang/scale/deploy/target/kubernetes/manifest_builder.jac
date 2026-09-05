@@ -745,7 +745,10 @@ obj ManifestBuilder {
 
     def _serve_settings -> ServeSettings {
         if self._serve_settings_cache is None {
-            self._serve_settings_cache = ServeSettings.load(self.project_dir or '.');
+            project = get_scale_config().get_jac_config();
+            self._serve_settings_cache = ServeSettings.load(
+                str(project.project_root or self.project_dir or '.'), config=project
+            );
         }
         return self._serve_settings_cache;
     }

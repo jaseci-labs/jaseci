@@ -108,7 +108,9 @@ obj ServeSettings {
         auth: AuthSettings = AuthSettings();
 
     static def load(
-        base_path: str = '', overrides: (dict[str, any] | None) = None
+        base_path: str = '',
+        overrides: (dict[str, any] | None) = None,
+        config: (JacConfig | None) = None
     ) -> ServeSettings;
 
     def validate -> list[str];
