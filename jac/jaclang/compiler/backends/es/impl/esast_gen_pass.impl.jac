@@ -2617,8 +2617,7 @@ impl EsastGenPass._convert_assignment_target(
     ) {
         (argument, _, _) = self._convert_assignment_target(target.operand);
         pattern = self.sync_loc(
-            es.RestElement(argument=cast(es.Pattern, argument)),
-            jac_node=target
+            es.RestElement(argument=cast(es.Pattern, argument)), jac_node=target
         );
         return (pattern, None, None);
     }

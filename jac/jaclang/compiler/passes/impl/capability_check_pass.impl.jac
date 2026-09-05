@@ -377,9 +377,7 @@ impl native_capability_violations(
             }
             if isinstance(nd, Assignment) {
                 _targets = (
-                    nd.target
-                    if isinstance(nd.target, (list, tuple))
-                    else [nd.target]
+                    nd.target if isinstance(nd.target, (list, tuple)) else [nd.target]
                 );
                 for _target in _targets {
                     if isinstance(_target, (TupleVal, ListVal)) {
@@ -407,7 +405,6 @@ impl native_capability_violations(
                     }
                 }
             }
-
 
             if isinstance(nd, CtrlStmt)
                 and isinstance(nd.ctrl, Token)
