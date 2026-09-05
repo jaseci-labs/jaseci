@@ -111,7 +111,7 @@ test "bare jac run --show prints one plan row per app" {
     d = _mk_workspace(True);
     (rc, out) = _run_in(d, "", True);
     assert rc == 0 , out;
-    for column in ["app", "kind", "entry", "action", "client", "route"] {
+    for column in ["app", "kind", "entry", "action", "ui", "route"] {
         assert column in out , f"missing column {column!r} in:\n{out}";
     }
     assert "web" in out and "tool" in out , out;
