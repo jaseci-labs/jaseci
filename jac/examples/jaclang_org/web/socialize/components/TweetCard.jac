@@ -2,12 +2,7 @@ import from "lucide-react" { Heart, MessageCircle, Trash2, Repeat2, Send }
 import from web.ui.avatar { Avatar, AvatarImage, AvatarFallback }
 import from web.ui.button { Button }
 import from web.ui.input { Input }
-import from web.ui.tooltip {
-    TooltipProvider,
-    Tooltip,
-    TooltipTrigger,
-    TooltipContent
-}
+import from web.ui.tooltip { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent }
 import from web.ui.alert_dialog {
     AlertDialog,
     AlertDialogTrigger,
