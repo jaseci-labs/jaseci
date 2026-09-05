@@ -1,12 +1,3 @@
-"""Liveness and readiness, wired to the transport's drain state.
-
-`/healthz/live` answers 200 while the process can run a handler at all.
-`/healthz/ready` answers 200 only while the process should receive traffic:
-it flips to 503 the moment draining starts and while any registered
-readiness check fails, which is what a load balancer or Kubernetes
-readinessProbe needs to stop routing to this instance before it exits.
-`/healthz` is the legacy alias for liveness.
-"""
 import logging;
 import from jaclang.server.serving.app { ServingApp }
 import from jaclang.server.serving.datatypes { JSONResponse }

@@ -1,10 +1,3 @@
-"""The assembly's own middleware: request context, bearer auth, metrics.
-
-Order matters and is fixed by `JacAPIServer._install_middleware`: a request
-is authenticated first, then given a fresh execution context bound to the
-caller's root, and only then reaches the router. Extensions add theirs on
-the outside of these.
-"""
 import logging;
 import time;
 import from jaclang.runtime.runtime { JacRuntime }
@@ -25,7 +18,6 @@ def bearer_token(request: Request) -> (str | None) {
 }
 
 
-"""Resolve the bearer token to a user once per request, onto `request.state`."""
 def jwt_middleware(user_manager: UserManager) -> Callable[..., any] {
     async def _middleware(request: Request, call_next: any) -> Response {
         username: (str | None) = None;
@@ -59,11 +51,6 @@ def _service_unavailable(detail: str) -> JSONResponse {
 }
 
 
-"""Give every request a fresh execution context bound to its caller's root.
-
-The context owns a session on the project's store for the life of the
-request, so nothing leaks between callers and every worker resolves anchors
-through the database rather than a process-wide cache."""
 def request_context_middleware -> Callable[..., any] {
     async def _middleware(request: Request, call_next: any) -> Response {
         next_fn: any = call_next;
@@ -81,7 +68,7 @@ def request_context_middleware -> Callable[..., any] {
             return _service_unavailable('unable to reach the database');
         }
         req_token = JacRuntime.push_request_context(ctx);
-        user_id = getattr(request.state, 'user_root_id', None);
+        user_id = request.state?.user_root_id;
         bind_error: any = None;
         if user_id {
             ctx.mem.read_scope_enter();
@@ -126,7 +113,6 @@ def request_context_middleware -> Callable[..., any] {
 }
 
 
-"""Report request timing into an installed metrics hook."""
 def metrics_middleware(metrics: any, exempt_path: str = '') -> Callable[..., any] {
     async def _middleware(request: Request, call_next: any) -> Response {
         next_fn: any = call_next;
@@ -158,9 +144,8 @@ def unauthorized(message: str = 'Unauthorized') -> TransportResponse {
 }
 
 
-"""The authenticated user id, or a 401 envelope when there is none."""
 def require_user(request: Request) -> tuple[(str | None), (TransportResponse | None)] {
-    username = getattr(request.state, 'username', None);
+    username = request.state?.username;
     if not username {
         return (None, unauthorized('Invalid or expired token'));
     }

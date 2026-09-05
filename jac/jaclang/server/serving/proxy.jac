@@ -1,13 +1,3 @@
-"""Forwarded-header resolution behind a trusted reverse proxy.
-
-Nothing forwarded is believed unless the TCP peer is inside `trusted`.
-When it is, the client address is the rightmost hop of `X-Forwarded-For`
-(or RFC 7239 `Forwarded: for=`) that is not itself a trusted proxy, the
-scheme comes from `X-Forwarded-Proto` / `Forwarded: proto=`, and the host
-from `X-Forwarded-Host` / `Forwarded: host=`. With no trusted proxies the
-peer address and the listener's own scheme are the truth, and a stray
-`X-Forwarded-For` is logged once and ignored.
-"""
 import ipaddress;
 import logging;
 import threading;
@@ -95,7 +85,8 @@ obj ProxyResolver {
         if _untrusted_warned.is_set() {
             return;
         }
-        if headers.get('X-Forwarded-For') is None and headers.get('Forwarded') is None {
+        if headers.get('X-Forwarded-For') is None
+            and headers.get('Forwarded') is None {
             return;
         }
         _untrusted_warned.set();

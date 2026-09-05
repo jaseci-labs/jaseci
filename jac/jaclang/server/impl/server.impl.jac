@@ -6,7 +6,11 @@ import os;
 import from inspect { iscoroutine }
 import from typing { get_type_hints }
 import from jaclang.data.serializer { Serializer }
-import from jaclang.client.client_bundle { ClientBundleError, MissingBunError, _ensure_js_generated }
+import from jaclang.client.client_bundle {
+    ClientBundleError,
+    MissingBunError,
+    _ensure_js_generated
+}
 import from jaclang.runtime.exceptions { ReadOnlyRetry, WriteConflict }
 import from jaclang.compiler.frontend.constant { Constants as Con }
 import from jaclang.server.net { PORT_RETRY_LIMIT }
@@ -1315,7 +1319,6 @@ impl ModuleIntrospector.client_claimed_paths(candidates: list[str]) -> list[str]
 }
 
 
-
 impl ModuleIntrospector.walker_protocol(walker_name: str) -> str {
     walkers = self.get_walkers();
     if walker_name not in walkers {
@@ -1439,16 +1442,8 @@ impl JacAPIServer.add_shutdown_hook(fn: Callable[..., any]) -> None {
     self.app.add_shutdown_hook(fn);
 }
 
-"""Middleware the assembly always installs; extensions add theirs after.
-
-Added inner to outer: the request context runs closest to the handler, the
-bearer check just outside it. Drain, CORS, response headers and metrics are
-appended after every extension has registered, so they wrap everything."""
 impl JacAPIServer._install_middleware -> None {
-    import from jaclang.server.middleware {
-        jwt_middleware,
-        request_context_middleware
-    }
+    import from jaclang.server.middleware { jwt_middleware, request_context_middleware }
     self.add_middleware(request_context_middleware());
     self.add_middleware(jwt_middleware(self.user_manager));
 }
@@ -1645,7 +1640,6 @@ impl JacAPIServer._ensure_sv_siblings -> None {
     }
 }
 
-"""Build the client bundle once, in the parent, before any worker forks."""
 impl JacAPIServer._ensure_client_bundle -> None {
     import sys;
     import time;
@@ -1694,7 +1688,6 @@ impl JacAPIServer._ensure_client_bundle -> None {
     }
 }
 
-"""The guest and system accounts every server needs, created once."""
 impl JacAPIServer._ensure_internal_users -> None {
     import from jaclang.server.identity.user_manager { SYSTEM_USER, UserRole }
     self.user_manager.ensure_internal_user(Con.GUEST.value, '__no_password__');
@@ -1703,7 +1696,6 @@ impl JacAPIServer._ensure_internal_users -> None {
     );
 }
 
-"""Static `@schedule` walkers and functions, leased so N processes fire once."""
 impl JacAPIServer._register_scheduled_tasks -> None {
     import from jaclang.server.identity.user_manager { SYSTEM_USER }
     import from jaclang.server.task_scheduler { ScheduleSpec }
@@ -1746,11 +1738,13 @@ impl JacAPIServer._register_scheduled_tasks -> None {
         (self.introspector.get_functions(), False)
     ] {
         for (name, item) in registry.items() {
-            spec = getattr(item, 'schedule_spec', None);
+            spec = item?.schedule_spec;
             if not isinstance(spec, ScheduleSpec) {
                 continue;
             }
-            self.scheduler.register(name, _make_target(name, is_walker), spec, is_walker);
+            self.scheduler.register(
+                name, _make_target(name, is_walker), spec, is_walker
+            );
         }
     }
     store: any = None;
@@ -1765,7 +1759,9 @@ impl JacAPIServer._register_scheduled_tasks -> None {
             import os;
             import socket;
             return bool(
-                _store.kv_acquire_lease(key, ttl, f"{socket.gethostname()}:{os.getpid()}")
+                _store.kv_acquire_lease(
+                    key, ttl, f"{socket.gethostname()}:{os.getpid()}"
+                )
             );
         }
         self.scheduler.lease = _lease;
@@ -1786,12 +1782,6 @@ impl JacAPIServer._validate_or_raise -> None {
     }
 }
 
-"""Boot the service: validate, load, build, then serve or supervise.
-
-Everything that must happen exactly once (bundle build, internal users,
-endpoint registration) happens here in the parent before any fork. Under
-`workers > 1` the supervisor takes over and each worker runs `_worker_main`;
-otherwise this process is the worker."""
 impl JacAPIServer.start(
     dev: bool = False,
     no_client: bool = False,
@@ -1819,15 +1809,17 @@ impl JacAPIServer.start(
     def _announce(bound_port: int) {
         self.port = bound_port;
         scheme = settings.scheme();
-        shown_host = 'localhost' if settings.host in ('0.0.0.0', '::') else settings.host;
+        shown_host = 'localhost'
+            if settings.host in ('0.0.0.0', '::')
+            else settings.host;
         console.print(
             f"Jac API Server running on {scheme}://{shown_host}:{bound_port}"
-            + (
-                f" ({settings.workers.count} workers, "
-                f"{settings.workers.threads} threads each)"
-                    if settings.workers.multi_process()
-                    else ''
-            )
+                + (
+                    f" ({settings.workers.count} workers, "
+                    f"{settings.workers.threads} threads each)"
+                        if settings.workers.multi_process()
+                        else ''
+                )
         );
         if on_ready {
             try {
@@ -1850,8 +1842,6 @@ impl JacAPIServer.start(
     return code;
 }
 
-"""One serving process: every forked worker runs this, and so does a
-single-process server. `handle` is None when there is no supervisor."""
 impl JacAPIServer._worker_main(
     handle: (WorkerHandle | None),
     on_ready: (Callable[[int], None] | None) = None,

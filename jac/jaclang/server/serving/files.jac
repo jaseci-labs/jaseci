@@ -1,9 +1,3 @@
-"""Static file responses that behave like a real file server.
-
-Every file answer carries a validator (`ETag`, `Last-Modified`) so a
-revalidating client gets a 304 instead of the bytes again, and honours a
-single byte range so media and large bundles can be resumed or seeked.
-"""
 import mimetypes;
 import os;
 import from email.utils { formatdate, parsedate_to_datetime }
@@ -86,7 +80,6 @@ def _parse_range(header: str, size: int) -> (tuple[int, int] | None) {
 }
 
 
-"""Answer a file: 304 on a fresh validator, 206 for a byte range, else 200."""
 def file_response(
     request: Request,
     path: str,
@@ -97,7 +90,9 @@ def file_response(
     try {
         stat = os.stat(path);
     } except OSError {
-        return JSONResponse(content={'error': 'Static file not found'}, status_code=404);
+        return JSONResponse(
+            content={'error': 'Static file not found'}, status_code=404
+        );
     }
     etag = _etag(stat);
     last_modified = formatdate(stat.st_mtime, usegmt=True);
@@ -111,7 +106,8 @@ def file_response(
         headers[k] = v;
     }
     mime = media_type or guess_media_type(path);
-    if request.method in ('GET', 'HEAD') and _not_modified(request, etag, stat.st_mtime) {
+    if request.method in ('GET', 'HEAD')
+        and _not_modified(request, etag, stat.st_mtime) {
         resp = Response(content=b'', status_code=304, media_type=mime, headers=headers);
         return resp;
     }
@@ -131,7 +127,9 @@ def file_response(
             fh.seek(start);
             chunk = fh.read(end - start + 1);
         }
-        resp = Response(content=chunk, status_code=206, media_type=mime, headers=headers);
+        resp = Response(
+            content=chunk, status_code=206, media_type=mime, headers=headers
+        );
         resp.headers.set('Content-Range', f"bytes {start}-{end}/{size}");
         return resp;
     }

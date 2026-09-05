@@ -45,7 +45,9 @@ impl WebhookUtils.create_api_key_token(
 impl WebhookUtils.validate_api_key(api_key: str) -> dict[str, str] | None {
     import from jaclang.server.identity.config { signing_algorithm, signing_secret }
     try {
-        payload = jwt_decode(api_key, signing_secret(), algorithms=[signing_algorithm()]);
+        payload = jwt_decode(
+            api_key, signing_secret(), algorithms=[signing_algorithm()]
+        );
 
         if payload.get('type') != 'api_key' {
             return None;

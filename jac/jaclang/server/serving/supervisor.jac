@@ -1,17 +1,3 @@
-"""Pre-fork worker supervisor.
-
-The parent binds the listening socket once, forks N workers that inherit it,
-and then does nothing but supervise: it restarts a worker that dies, kills
-one whose event loop stops heartbeating, recycles workers that have served
-their request budget, rolls the fleet on SIGHUP, and fans SIGTERM out with
-one shared drain budget. It never serves a request itself and never touches
-the database after the fork, so nothing it owns is shared with a child
-except the socket.
-
-Workers are forked after the program is loaded (the gunicorn `--preload`
-shape): compiled modules are shared copy-on-write, and the runtime's at-fork
-hook discards every inherited connection so a child starts with its own.
-"""
 import logging;
 import mmap;
 import os;
@@ -34,10 +20,6 @@ glob logger: logging.Logger = logging.getLogger(__name__),
      METRICS_DIR_ENV: str = 'PROMETHEUS_MULTIPROC_DIR';
 
 
-"""What a forked worker is handed: its slot, the socket, and its budgets.
-
-`notify_ready` must be called once the worker is accepting connections;
-`heartbeat` must be called about once a second from the event loop."""
 obj WorkerHandle {
     has index: int,
         listener: any,
@@ -104,7 +86,7 @@ obj WorkerSupervisor {
         }
         signal.signal(int(signal.SIGTERM), _stop);
         signal.signal(int(signal.SIGINT), _stop);
-        hup = getattr(signal, 'SIGHUP', None);
+        hup = signal?.SIGHUP;
         if hup is not None {
             signal.signal(int(hup), _reload);
         }
@@ -115,7 +97,8 @@ obj WorkerSupervisor {
         if base <= 0 {
             return 0;
         }
-        return base + random.randint(0, max(0, self.settings.workers.max_requests_jitter));
+        return base
+            + random.randint(0, max(0, self.settings.workers.max_requests_jitter));
     }
 
     def _spawn(slot: WorkerSlot) {
@@ -127,7 +110,7 @@ obj WorkerSupervisor {
             os.close(read_fd);
             code = EXIT_BOOT_FAILED;
             try {
-                hup = getattr(signal, 'SIGHUP', None);
+                hup = signal?.SIGHUP;
                 if hup is not None {
                     signal.signal(int(hup), signal.SIG_IGN);
                 }
@@ -156,7 +139,7 @@ obj WorkerSupervisor {
                             notify_ready=_ready
                         )
                     )
-                    or EXIT_OK
+                        or EXIT_OK
                 );
             } except SystemExit as se {
                 code = int(se.code) if isinstance(se.code, int) else 1;
@@ -342,21 +325,20 @@ obj WorkerSupervisor {
         }
     }
 
-    """Replace every worker one at a time, keeping the fleet serving.
-
-    A replacement is forked beside its predecessor and must report ready
-    before the old worker is asked to drain; a replacement that never gets
-    there is discarded and the old worker keeps its place."""
     def _rolling_restart {
         self._reload_requested = False;
         logger.info("SIGHUP: rolling restart");
-        drain_budget = self.settings.timeouts.drain + self.settings.timeouts.close + 2.0;
+        drain_budget = self.settings.timeouts.drain
+            + self.settings.timeouts.close
+            + 2.0;
         for position in range(len(self.slots)) {
             if self._stopping {
                 return;
             }
             old = self.slots[position];
-            fresh = WorkerSlot(index=old.index, cell=self._free_cell(), restarts=old.restarts);
+            fresh = WorkerSlot(
+                index=old.index, cell=self._free_cell(), restarts=old.restarts
+            );
             self.slots.append(fresh);
             self._spawn(fresh);
             if not self._wait_ready(fresh, self.settings.workers.boot_timeout) {

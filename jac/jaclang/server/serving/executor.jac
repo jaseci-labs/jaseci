@@ -1,10 +1,3 @@
-"""The thread pool sync handlers run on, sized from the CPU quota.
-
-`asyncio.to_thread` runs on the loop's default executor. CPython sizes that
-from the node's core count, which inside a container is the wrong number and
-inside a worker fleet is the wrong number N times over. The server installs
-one pool per process with an explicit size and shuts it down on exit.
-"""
 import asyncio;
 import logging;
 import from concurrent.futures { ThreadPoolExecutor }
@@ -36,7 +29,6 @@ obj SyncExecutor {
 }
 
 
-"""Run a sync callable on the installed pool from a coroutine."""
 async def run_sync(fn: Callable[..., any], *args: any) -> any {
     return await asyncio.to_thread(fn, *args);
 }

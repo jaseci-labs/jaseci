@@ -1,9 +1,3 @@
-"""SSO sign-in flows (Google, GitHub, Apple, Firebase) on top of UserManager.
-
-The user manager owns accounts and linked SSO identities; this object owns
-the provider round-trips and the `[scale.sso]` configuration that names
-them. It is registered on the server by the scale SSO extension.
-"""
 import logging;
 import from jaclang.server.identity.user_manager { UserManager }
 import from jaclang.server.serving.datatypes { Request, Response }
@@ -25,7 +19,6 @@ def sso_host -> str {
 }
 
 
-"""Provider credentials from `[scale.sso]`, keyed by platform name."""
 def configured_platforms -> dict[str, dict[str, str]] {
     sso_config = get_scale_config().get_sso_config();
     platforms: dict[str, dict[str, str]] = {};
@@ -168,9 +161,7 @@ impl SSOAuth.sso_initiate(
     return await sso.initiate_auth(state=state);
 }
 
-impl SSOAuth.sso_callback(
-    request: Request, platform: str
-) -> TransportResponse {
+impl SSOAuth.sso_callback(request: Request, platform: str) -> TransportResponse {
     if platform not in [p.value for p in Platforms] {
         return TransportResponse.fail(
             code='INVALID_PLATFORM',
@@ -208,9 +199,7 @@ impl SSOAuth.sso_callback(
     return self._complete_sso_login(platform, user_info);
 }
 
-impl SSOAuth.firebase_token_auth_with_id_token(
-    id_token: str
-) -> TransportResponse {
+impl SSOAuth.firebase_token_auth_with_id_token(id_token: str) -> TransportResponse {
     platform = Platforms.FIREBASE.value;
     if platform not in self.platforms {
         return TransportResponse.fail(
@@ -274,9 +263,7 @@ impl SSOAuth._complete_sso_login(
             current_sso: dict[str, any] = raw_sso if isinstance(raw_sso, dict) else {};
             current_sso[platform] = sso_fields;
             current_profile['sso'] = current_sso;
-            self.users.update_user_fields(
-                user_id, {'profile': current_profile}
-            );
+            self.users.update_user_fields(user_id, {'profile': current_profile});
         }
         token = self.users.create_jwt_token(user_id);
         return TransportResponse.success(

@@ -1,4 +1,3 @@
-"""Webhook walkers: `POST /webhook/<walker>` behind API keys and HMAC signatures."""
 import json;
 import logging;
 import time;
@@ -35,7 +34,9 @@ obj WebhookExtension(ServerExtension) {
         return self.manager;
     }
 
-    def webhook_parameters(server: JacAPIServer, walker_name: str) -> list[APIParameter] {
+    def webhook_parameters(
+        server: JacAPIServer, walker_name: str
+    ) -> list[APIParameter] {
         parameters: list[APIParameter] = [
             APIParameter(
                 name='x_api_key',
@@ -59,7 +60,9 @@ obj WebhookExtension(ServerExtension) {
                 kind=ParameterType.HEADER
             )
         ];
-        fields = server.introspector.introspect_walker(server.get_walkers()[walker_name])['fields'];
+        fields = server.introspector.introspect_walker(
+            server.get_walkers()[walker_name]
+        )['fields'];
         for field_name in fields {
             if field_name == '_jac_spawn_node' {
                 continue;
@@ -78,7 +81,9 @@ obj WebhookExtension(ServerExtension) {
         return parameters;
     }
 
-    def webhook_callback(server: JacAPIServer, walker_name: str) -> Callable[..., TransportResponse] {
+    def webhook_callback(
+        server: JacAPIServer, walker_name: str
+    ) -> Callable[..., TransportResponse] {
         keys = self.api_keys;
 
         async def _process(request: Request) -> TransportResponse {
@@ -101,7 +106,9 @@ obj WebhookExtension(ServerExtension) {
             }
             allowed_walkers = key_doc.get('allowed_walkers') or [];
             if allowed_walkers and walker_name not in allowed_walkers {
-                return _fail('FORBIDDEN', 'API key is not permitted to call this webhook', 403);
+                return _fail(
+                    'FORBIDDEN', 'API key is not permitted to call this webhook', 403
+                );
             }
             if not keys().check_rate_limit(key_doc.get('api_key_id', ''), rate_limit) {
                 return _fail('RATE_LIMITED', 'Rate limit exceeded', 429);
@@ -113,11 +120,15 @@ obj WebhookExtension(ServerExtension) {
             if verify_signature {
                 signature = request.headers.get(signature_header);
                 if not signature {
-                    return _fail('UNAUTHORIZED', f"Missing {signature_header} header", 401);
+                    return _fail(
+                        'UNAUTHORIZED', f"Missing {signature_header} header", 401
+                    );
                 }
                 timestamp = request.headers.get(timestamp_header);
                 if not timestamp {
-                    return _fail('UNAUTHORIZED', f"Missing {timestamp_header} header", 401);
+                    return _fail(
+                        'UNAUTHORIZED', f"Missing {timestamp_header} header", 401
+                    );
                 }
                 try {
                     request_ts = int(timestamp);
@@ -125,7 +136,9 @@ obj WebhookExtension(ServerExtension) {
                     return _fail('UNAUTHORIZED', 'Invalid webhook timestamp', 401);
                 }
                 if abs(int(time.time()) - request_ts) > replay_tolerance {
-                    return _fail('UNAUTHORIZED', 'Webhook timestamp outside allowed window', 401);
+                    return _fail(
+                        'UNAUTHORIZED', 'Webhook timestamp outside allowed window', 401
+                    );
                 }
                 signing_secret = key_doc.get('signing_secret');
                 if not signing_secret {
@@ -133,7 +146,9 @@ obj WebhookExtension(ServerExtension) {
                 }
                 signed_payload = f"{timestamp}.".encode('utf-8') + raw_body;
                 if not WebhookUtils.verify_signature(
-                    signed_payload, WebhookUtils.extract_signature(signature), signing_secret
+                    signed_payload,
+                    WebhookUtils.extract_signature(signature),
+                    signing_secret
                 ) {
                     return _fail('UNAUTHORIZED', 'Invalid webhook signature', 401);
                 }
@@ -164,13 +179,17 @@ obj WebhookExtension(ServerExtension) {
                 );
                 return _fail('EXECUTION_ERROR', 'Webhook processing failed', 500);
             }
-            return TransportResponse.success(data=result, meta=Meta(extra={'http_status': 200}));
+            return TransportResponse.success(
+                data=result, meta=Meta(extra={'http_status': 200})
+            );
         }
 
         async def callback(request: Request, **kwargs: JsonValue) -> TransportResponse {
             resp = await _process(request);
             status = resp.meta.extra.get('http_status') if resp?.meta else None;
-            outcome = 'ok' if resp.ok else (resp.error.code if resp?.error else 'error');
+            outcome = 'ok'
+                if resp.ok
+                else (resp.error.code if resp?.error else 'error');
             line = (
                 f"webhook audit walker={walker_name} ip={request.client_host or '-'} "
                 f"status={status} outcome={outcome}"
@@ -185,10 +204,11 @@ obj WebhookExtension(ServerExtension) {
         return callback;
     }
 
-    def register(server: JacAPIServer) -> None {
+    def register(server: JacAPIServer) {
         registered = False;
         for walker_name in list(server.get_walkers()) {
-            if server.introspector.walker_protocol(walker_name) != APIProtocol.WEBHOOK {
+            if server.introspector.walker_protocol(walker_name)
+                != APIProtocol.WEBHOOK {
                 continue;
             }
             registered = True;

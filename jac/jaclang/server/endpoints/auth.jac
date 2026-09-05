@@ -1,10 +1,3 @@
-"""The `/user/*` account endpoints: register, login, sessions, profile, identities.
-
-Everything here works with only the project database. Flows that need an
-outbound mail channel (verification mail, password-reset mail) are the
-recovery extension in jaclang.scale, which builds on the token store used
-by `/user/verify-identity` and `/user/reset-password` below.
-"""
 import logging;
 import traceback;
 import from jaclang.server.identity.audit { client_ip, emit as audit }
@@ -43,7 +36,9 @@ def fail(
     if extra {
         meta_extra.update(extra);
     }
-    return TransportResponse.fail(code=code, message=message, meta=Meta(extra=meta_extra));
+    return TransportResponse.fail(
+        code=code, message=message, meta=Meta(extra=meta_extra)
+    );
 }
 
 
@@ -102,7 +97,9 @@ def register_auth_endpoints(server: EndpointHost) {
     );
 
     def login_handler(body_data: LoginRequest) -> TransportResponse {
-        result = users.authenticate(body_data.identity.value, body_data.credential.password);
+        result = users.authenticate(
+            body_data.identity.value, body_data.credential.password
+        );
         if not result {
             return fail('UNAUTHORIZED', 'Invalid credentials', 401);
         }
@@ -173,7 +170,9 @@ def register_auth_endpoints(server: EndpointHost) {
             str(user_id), body_data.current_password, body_data.new_password
         );
         if 'error' in result {
-            return fail('UPDATE_FAILED', result.get('error', 'Password update failed'), 400);
+            return fail(
+                'UPDATE_FAILED', result.get('error', 'Password update failed'), 400
+            );
         }
         return ok(result);
     }
@@ -249,7 +248,9 @@ def register_auth_endpoints(server: EndpointHost) {
         if 'error' in result {
             err_msg = result.get('error', 'Profile update failed');
             status = 404 if err_msg == 'User not found' else 400;
-            return fail('NOT_FOUND' if status == 404 else 'UPDATE_FAILED', err_msg, status);
+            return fail(
+                'NOT_FOUND' if status == 404 else 'UPDATE_FAILED', err_msg, status
+            );
         }
         response = UpdateProfileResponse(
             message='Profile updated', profile=result.get('profile') or {}
@@ -326,7 +327,9 @@ def register_auth_endpoints(server: EndpointHost) {
                 reason='invalid_or_expired_token',
                 source_ip=source_ip
             );
-            return fail('INVALID_TOKEN', 'Verification token is invalid or expired', 400);
+            return fail(
+                'INVALID_TOKEN', 'Verification token is invalid or expired', 400
+            );
         }
         user_id = record.get('user_id', '');
         identity_value = record.get('identity_value', '') or '';
@@ -351,7 +354,9 @@ def register_auth_endpoints(server: EndpointHost) {
                             identity_value=identity_value,
                             source_ip=source_ip
                         );
-                        return ok({'status': 'already_verified', 'identity': identity_value});
+                        return ok(
+                            {'status': 'already_verified', 'identity': identity_value}
+                        );
                     }
                 }
             }
@@ -390,13 +395,21 @@ def register_auth_endpoints(server: EndpointHost) {
         source_ip = client_ip(request);
         record = AuthTokenStore.instance().consume_token(body_data.token, 'reset');
         if record is None {
-            audit('password_reset.failed', reason='invalid_or_expired_token', source_ip=source_ip);
+            audit(
+                'password_reset.failed',
+                reason='invalid_or_expired_token',
+                source_ip=source_ip
+            );
             return fail('INVALID_TOKEN', 'Reset token is invalid or expired', 400);
         }
         user_id = record.get('user_id', '');
         identity_value = record.get('identity_value', '') or '';
         if not user_id {
-            audit('password_reset.failed', reason='token_missing_user', source_ip=source_ip);
+            audit(
+                'password_reset.failed',
+                reason='token_missing_user',
+                source_ip=source_ip
+            );
             return fail('INVALID_TOKEN', 'Reset token is invalid', 400);
         }
         result = users.reset_password_by_user_id(user_id, body_data.new_password);
@@ -431,4 +444,3 @@ def register_auth_endpoints(server: EndpointHost) {
         )
     );
 }
-

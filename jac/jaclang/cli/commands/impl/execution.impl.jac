@@ -1117,7 +1117,9 @@ impl serve(
         );
     }
     try {
-        return int(server.start(dev=dev, no_client=no_client, on_ready=_announce_ready));
+        return int(
+            server.start(dev=dev, no_client=no_client, on_ready=_announce_ready)
+        );
     } except ServeConfigError as e {
         console.error(str(e));
         if hot_reloader is not None {

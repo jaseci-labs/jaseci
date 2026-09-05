@@ -1,10 +1,3 @@
-"""The access log: one record per request, text or JSON, always attached.
-
-The transport emits an `AccessRecord` on the `jaclang.serving.access` logger
-after the response is written. `configure_access_logging` attaches the one
-handler for the process; before it runs nothing is dropped silently either,
-because the logger propagates to root like any other.
-"""
 import json;
 import logging;
 import sys;
@@ -74,7 +67,7 @@ class AccessTextFormatter(logging.Formatter) {
 
 class AccessJsonFormatter(logging.Formatter) {
     def format(self: AccessJsonFormatter, record: logging.LogRecord) -> str {
-        payload = getattr(record, 'access', None);
+        payload = record?.access;
         if isinstance(payload, AccessRecord) {
             return json.dumps(payload.as_dict(), separators=(',', ':'));
         }
@@ -84,7 +77,7 @@ class AccessJsonFormatter(logging.Formatter) {
 
 class HealthCheckFilter(logging.Filter) {
     def filter(self: HealthCheckFilter, record: logging.LogRecord) -> bool {
-        payload = getattr(record, 'access', None);
+        payload = record?.access;
         if isinstance(payload, AccessRecord) {
             return payload.path not in HEALTH_PATHS;
         }
@@ -93,7 +86,6 @@ class HealthCheckFilter(logging.Filter) {
 }
 
 
-"""Attach the process's access-log handler, replacing any earlier one."""
 def configure_access_logging(
     enabled: bool = True, format: str = 'text', suppress_health_checks: bool = False
 ) {

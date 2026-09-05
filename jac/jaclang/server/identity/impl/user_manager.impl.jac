@@ -41,7 +41,6 @@ impl UserManager.create_internal_user(
     return result;
 }
 
-"""Create an internal account once; a second boot (or worker) finds it."""
 impl UserManager.ensure_internal_user(
     username: str, password: str, role: str = 'user'
 ) -> dict[str, any] {
@@ -72,9 +71,7 @@ impl UserManager.update_user_fields(user_id: str, fields: dict[str, any]) -> boo
     return self._identity_storage.update_user_fields(user_id, fields);
 }
 
-impl UserManager.authenticate(
-    identifier: str, password: str
-) -> dict[str, any] | None {
+impl UserManager.authenticate(identifier: str, password: str) -> dict[str, any] | None {
     result = self._identity_storage.authenticate(identifier, password);
     if result is not None {
         result['token'] = self.create_jwt_token(result.get('user_id', ''));
@@ -168,9 +165,7 @@ impl UserManager.is_identity_taken(value: str) -> bool {
     return self._identity_storage.identity_taken(value);
 }
 
-impl UserManager.set_identity_verified(
-    user_id: str, value_normalized: str
-) -> bool {
+impl UserManager.set_identity_verified(user_id: str, value_normalized: str) -> bool {
     return self._identity_storage._set_identity_verified(user_id, value_normalized);
 }
 
@@ -206,9 +201,7 @@ impl UserManager.get_username(user_id: str) -> str | None {
     return self._identity_storage.get_username(user_id);
 }
 
-impl UserManager.create_jwt_token(
-    user_id: str, include_role: bool = True
-) -> str {
+impl UserManager.create_jwt_token(user_id: str, include_role: bool = True) -> str {
     now = datetime.now(UTC);
     payload: dict[(str, any)] = {
         'sub': user_id,
@@ -338,9 +331,7 @@ impl UserManager.link_sso_account(
     return self._identity_storage.link_sso_account(user_id, platform, external_id);
 }
 
-impl UserManager.unlink_sso_account(
-    user_id: str, platform: str
-) -> dict[str, str] {
+impl UserManager.unlink_sso_account(user_id: str, platform: str) -> dict[str, str] {
     return self._identity_storage.unlink_sso_account(user_id, platform);
 }
 

@@ -1,11 +1,3 @@
-"""Walker and function endpoints, typed from the module's own signatures.
-
-Every public walker becomes `POST /walker/<name>` (plus `/{nd}` for a node
-entry) and every public function `POST /function/<name>`, unless a
-`@restspec` names another method and path. Parameters are bound by the
-serving layer from the declared field types, so the OpenAPI document and
-request validation come from one source: the Jac code.
-"""
 import json;
 import logging;
 import from inspect { isgenerator }
@@ -29,7 +21,9 @@ glob logger: logging.Logger = logging.getLogger('jaclang.serve');
 
 def _unauthorized -> TransportResponse {
     return TransportResponse.fail(
-        code='UNAUTHORIZED', message='Unauthorized', meta=Meta(extra={'http_status': 401})
+        code='UNAUTHORIZED',
+        message='Unauthorized',
+        meta=Meta(extra={'http_status': 401})
     );
 }
 
@@ -134,7 +128,7 @@ def walker_callback(
     async def callback(
         request: Request, nd: (str | None) = None, **kwargs: JsonValue
     ) -> (TransportResponse | StreamingResponse) {
-        username: (str | None) = getattr(request.state, 'username', None);
+        username: (str | None) = request.state?.username;
         if requires_auth and not username {
             return _unauthorized();
         }
@@ -256,7 +250,7 @@ def function_callback(
     async def callback(
         request: Request, **kwargs: JsonValue
     ) -> (TransportResponse | StreamingResponse | Response) {
-        username: (str | None) = getattr(request.state, 'username', None);
+        username: (str | None) = request.state?.username;
         if requires_auth and not username {
             return _unauthorized();
         }
@@ -314,7 +308,9 @@ def register_function_endpoints(server: JacAPIServer) {
                 tags=['Functions'],
                 summary=f"Call {func_name}",
                 description=f"Call the {func_name} function.",
-                requires_auth=server.introspector.is_auth_required_for_function(func_name),
+                requires_auth=server.introspector.is_auth_required_for_function(
+                    func_name
+                ),
                 forward_undeclared_query_params=False
             )
         );

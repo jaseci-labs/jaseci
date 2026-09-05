@@ -388,10 +388,6 @@ impl JacScaleScheduler.setup(system_user_id: str, server: any | None = None) -> 
     }
 }
 
-"""Start the runner in this process: APScheduler plus the jobs-changed listener.
-
-Threads start here rather than in `setup` so a pre-fork parent can prepare
-the job table once and every worker starts its own listener after the fork."""
 impl JacScaleScheduler.start -> None {
     if self._apscheduler is not None {
         try {

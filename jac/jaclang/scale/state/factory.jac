@@ -1,11 +1,3 @@
-"""The process's state backend: shared through Postgres, or in-process.
-
-`shared` says whether more than one process must agree on the state (N
-workers, N replicas, a fleet behind a gateway). When it does, the backend
-is the project database; there is no silent fallback to process memory,
-because per-process limits and locks in a fleet are exactly the bugs the
-shared backend exists to prevent.
-"""
 import logging;
 import os;
 import from jaclang.scale.state.state_backend { StateBackend, InProcessStateBackend }

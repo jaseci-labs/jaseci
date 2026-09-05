@@ -329,7 +329,8 @@ def _setup_user_manager -> tuple[str, UserManager] {
     reset_scale_config();
     mock_config = MockScaleConfig(mock_sso_config_with_credentials());
     with unittest.mock.patch(
-        "jaclang.server.identity.user_manager.get_scale_config", return_value=mock_config
+        "jaclang.server.identity.user_manager.get_scale_config",
+        return_value=mock_config
     ) {
         user_manager = UserManager(base_path=test_dir);
     }
@@ -759,7 +760,8 @@ test "supported platforms initialization with jac toml credentials" {
         }
     );
     with unittest.mock.patch(
-        "jaclang.server.identity.user_manager.get_scale_config", return_value=mock_config
+        "jaclang.server.identity.user_manager.get_scale_config",
+        return_value=mock_config
     ) {
         user_manager = UserManager(base_path="");
         assert "google" in user_manager.SUPPORTED_PLATFORMS;
@@ -772,7 +774,8 @@ test "supported platforms initialization without jac toml credentials" {
     reset_scale_config();
     mock_config = MockScaleConfig(mock_sso_config_without_credentials());
     with unittest.mock.patch(
-        "jaclang.server.identity.user_manager.get_scale_config", return_value=mock_config
+        "jaclang.server.identity.user_manager.get_scale_config",
+        return_value=mock_config
     ) {
         user_manager = UserManager(base_path="");
         assert "google" not in user_manager.SUPPORTED_PLATFORMS;
@@ -1217,7 +1220,8 @@ test "supported platforms initialization with apple credentials" {
         }
     );
     with unittest.mock.patch(
-        "jaclang.server.identity.user_manager.get_scale_config", return_value=mock_config
+        "jaclang.server.identity.user_manager.get_scale_config",
+        return_value=mock_config
     ) {
         user_manager = UserManager(base_path="");
         assert "google" in user_manager.SUPPORTED_PLATFORMS;
@@ -1236,7 +1240,8 @@ test "supported platforms initialization without apple credentials" {
         }
     );
     with unittest.mock.patch(
-        "jaclang.server.identity.user_manager.get_scale_config", return_value=mock_config
+        "jaclang.server.identity.user_manager.get_scale_config",
+        return_value=mock_config
     ) {
         user_manager = UserManager(base_path="");
         assert "google" in user_manager.SUPPORTED_PLATFORMS;
@@ -1408,7 +1413,8 @@ test "supported platforms initialization with github credentials" {
         }
     );
     with unittest.mock.patch(
-        "jaclang.server.identity.user_manager.get_scale_config", return_value=mock_config
+        "jaclang.server.identity.user_manager.get_scale_config",
+        return_value=mock_config
     ) {
         user_manager = UserManager(base_path="");
         assert "github" in user_manager.SUPPORTED_PLATFORMS;
@@ -1426,7 +1432,8 @@ test "supported platforms initialization without github credentials" {
         }
     );
     with unittest.mock.patch(
-        "jaclang.server.identity.user_manager.get_scale_config", return_value=mock_config
+        "jaclang.server.identity.user_manager.get_scale_config",
+        return_value=mock_config
     ) {
         user_manager = UserManager(base_path="");
         assert "google" in user_manager.SUPPORTED_PLATFORMS;
@@ -1438,7 +1445,8 @@ test "supported platforms initialization with all providers" {
     reset_scale_config();
     mock_config = MockScaleConfig(mock_sso_config_with_credentials());
     with unittest.mock.patch(
-        "jaclang.server.identity.user_manager.get_scale_config", return_value=mock_config
+        "jaclang.server.identity.user_manager.get_scale_config",
+        return_value=mock_config
     ) {
         user_manager = UserManager(base_path="");
         assert "google" in user_manager.SUPPORTED_PLATFORMS;

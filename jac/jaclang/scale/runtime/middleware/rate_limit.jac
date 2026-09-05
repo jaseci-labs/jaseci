@@ -1,11 +1,3 @@
-"""Per-IP and per-user request rate limits for the gateway.
-
-The client address is whatever the transport resolved through the
-`[serve.proxy]` trusted list, so a spoofed `X-Forwarded-For` never reaches
-this middleware. Buckets live in the shared state backend whenever more
-than one process serves the fleet, so the configured rate is the fleet's
-rate, not each pod's.
-"""
 import logging;
 import time;
 import hashlib;

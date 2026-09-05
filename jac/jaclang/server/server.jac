@@ -1,14 +1,3 @@
-"""The one server assembly.
-
-`JacAPIServer` turns a Jac module into an HTTP service: it introspects the
-module for walkers, functions and client pages, registers them as typed
-endpoints on a `ServingApp`, wires the middleware chain (request context,
-JWT, drain, CORS, response headers, metrics), and runs the `ServingServer`
-transport, in-process or under the pre-fork supervisor. Features that only
-some deployments want (SSO, webhooks, websockets, the jobs API, the admin
-portal, events) are `ServerExtension`s registered onto this assembly, not a
-second assembly beside it.
-"""
 import asyncio;
 import logging;
 import threading;
@@ -37,41 +26,29 @@ glob JsonValue: TypeAlias = None
      logger: logging.Logger = logging.getLogger('jaclang.serve');
 
 
-"""A feature registered onto the assembly.
-
-`validate` runs before anything binds and returns refusals (a memory
-backplane under N workers, say); `register` adds endpoints, middleware and
-shutdown hooks once, before the fork; `on_worker_start` runs in every
-serving process after the fork, for anything that owns a thread, socket or
-listener."""
 obj ServerExtension {
     def validate(server: JacAPIServer) -> list[str] {
         return [];
     }
 
     def register(server: JacAPIServer) -> None abst;
-
-    def on_worker_start(server: JacAPIServer) -> None {}
+    def on_worker_start(server: JacAPIServer) {}
 }
 
 
-"""What an endpoint registrar needs from whoever hosts the endpoints.
-
-The assembly is the usual host; the microservice gateway is the other, for
-the account endpoints it answers on behalf of the services behind it."""
 obj EndpointHost {
     def add_endpoint(ep: JEndPoint) -> None abst;
     def identity -> UserManager abst;
 }
 
 
-"""Request-level metrics hook the assembly reports into when one is installed."""
 obj RequestMetrics {
     def request_started -> None abst;
     def request_finished -> None abst;
     def record_request(
         method: str, path: str, status: int, duration: float
     ) -> None abst;
+
     def record_read_tier_retry(unit_key: str) -> None abst;
 }
 
@@ -240,6 +217,7 @@ obj JacAPIServer(EndpointHost) {
         on_ready: (Callable[[int], None] | None) = None,
         port_retries: int = 0
     ) -> int;
+
     def request_stop -> None;
 }
 

@@ -1,10 +1,3 @@
-"""Client pages, the client bundle, static assets, and the graph visualizer.
-
-Static answers go through `file_response`, so they carry validators and
-honour ranges; every asset path is resolved through the contained lookups
-in `jaclang.server.static_files`, so a request can never read outside the
-directories the project publishes.
-"""
 import logging;
 import from pathlib { Path }
 import from jaclang.compiler.frontend.constant { Constants as Con }
@@ -61,7 +54,9 @@ def _render(
         return HTMLResponse(content='<h1>404 Not Found</h1>', status_code=404);
     } except RuntimeError as exc {
         logger.error(f"rendering page {name!r} failed: {exc}");
-        return HTMLResponse(content='<h1>503 Service Unavailable</h1>', status_code=503);
+        return HTMLResponse(
+            content='<h1>503 Service Unavailable</h1>', status_code=503
+        );
     }
 }
 
@@ -98,7 +93,10 @@ def register_page_endpoints(server: JacAPIServer) {
     def root_index(request: Request, **kwargs: JsonValue) -> Response {
         if base_route_app {
             return _render(
-                server, base_route_app, kwargs, server.introspector.spa_fallback_status('/')
+                server,
+                base_route_app,
+                kwargs,
+                server.introspector.spa_fallback_status('/')
             );
         }
         return JSONResponse(
@@ -135,9 +133,7 @@ def register_page_endpoints(server: JacAPIServer) {
         } except RuntimeError as exc {
             return JSONResponse(content={'error': str(exc)}, status_code=503);
         }
-        resp = Response(
-            content=js_code, media_type='text/javascript; charset=utf-8'
-        );
+        resp = Response(content=js_code, media_type='text/javascript; charset=utf-8');
         resp.headers.set('Cache-Control', 'no-cache');
         return resp;
     }
@@ -156,7 +152,9 @@ def register_page_endpoints(server: JacAPIServer) {
     def static_file(request: Request, file_path: str) -> Response {
         candidate = find_static_candidate(_static_base(server), file_path);
         if candidate is None {
-            return JSONResponse(content={'error': 'Static file not found'}, status_code=404);
+            return JSONResponse(
+                content={'error': 'Static file not found'}, status_code=404
+            );
         }
         return file_response(request, str(candidate));
     }
@@ -187,11 +185,18 @@ def register_page_endpoints(server: JacAPIServer) {
         }
         candidate = find_root_asset(_static_base(server), file_path);
         if candidate is not None {
-            return file_response(request, str(candidate), cache_control=ASSET_CACHE_CONTROL);
+            return file_response(
+                request, str(candidate), cache_control=ASSET_CACHE_CONTROL
+            );
         }
-        if not Path(file_path).suffix and base_route_app and not server.introspector.dev_mode {
+        if not Path(file_path).suffix
+            and base_route_app
+            and not server.introspector.dev_mode {
             return _render(
-                server, base_route_app, {}, server.introspector.spa_fallback_status(file_path)
+                server,
+                base_route_app,
+                {},
+                server.introspector.spa_fallback_status(file_path)
             );
         }
         return JSONResponse(content={'error': 'Not found'}, status_code=404);
@@ -251,10 +256,12 @@ def register_graph_endpoints(server: JacAPIServer) {
 
     def graph_data(request: Request) -> Response {
         import from jaclang.runtime.graph_utils { collect_node_connections }
-        username = getattr(request.state, 'username', None) or Con.GUEST.value;
+        username = request.state?.username or Con.GUEST.value;
         root_id = server.user_manager.get_root_id(str(username));
         if not root_id {
-            return JSONResponse(status_code=404, content={'error': 'User root not found'});
+            return JSONResponse(
+                status_code=404, content={'error': 'User root not found'}
+            );
         }
         ctx = Jac.get_context();
         ctx.set_user_root(root_id);
@@ -268,7 +275,9 @@ def register_graph_endpoints(server: JacAPIServer) {
         nodes.append({'id': Jac.object_ref(user_root), 'label': 'root'});
         for node_arch in visited_nodes {
             if node_arch != user_root {
-                nodes.append({'id': Jac.object_ref(node_arch), 'label': repr(node_arch)});
+                nodes.append(
+                    {'id': Jac.object_ref(node_arch), 'label': repr(node_arch)}
+                );
             }
         }
         for (_, source_node, target_node, edge_arch) in connections {
@@ -352,4 +361,3 @@ def register_diagnostics_endpoints(server: JacAPIServer) {
         )
     );
 }
-

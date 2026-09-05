@@ -691,7 +691,6 @@ obj ManifestBuilder {
         return {name: derive_route_prefix(name)};
     }
 
-    """The project's `[serve]` settings, as the pod will resolve them."""
     def _serve_settings -> ServeSettings {
         if self._serve_settings_cache is None {
             self._serve_settings_cache = ServeSettings.load(self.project_dir or '.');
@@ -703,7 +702,6 @@ obj ManifestBuilder {
         return int(self._serve_settings().timeouts.drain);
     }
 
-    """The signing secret every replica shares: configured, or minted once per deploy."""
     def _signing_secret -> str {
         import secrets;
         configured = str(self.secrets.get("JAC_SERVE_AUTH_SECRET") or "").strip();
@@ -720,11 +718,6 @@ obj ManifestBuilder {
         return self._minted_secret;
     }
 
-    """Serve settings the pod needs as environment: workers, log shape, secret.
-
-    The pod reads the same `JAC_SERVE_*` variables a laptop would; a value set
-    here is what makes a fleet behave as one service. The signing secret goes
-    into the app Secret, never into a plain env value."""
     def _serve_env(svc_name: str, svc_cfg: dict[str, any]) -> list[dict[str, any]] {
         settings = self._serve_settings();
         workers = str(svc_cfg.get("workers") or settings.workers.count);

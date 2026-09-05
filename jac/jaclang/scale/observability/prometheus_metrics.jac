@@ -202,11 +202,6 @@ obj PrometheusMetricsCollector(MetricsCollector) {
         }
     }
 
-    """The registry a scrape reads: this process's, or every worker's merged.
-
-    Under the pre-fork supervisor `PROMETHEUS_MULTIPROC_DIR` is set before
-    any worker forks, and prometheus_client writes each process's samples to
-    that directory; a scrape landing on any worker then reports the fleet."""
     def _scrape_registry -> any {
         import os;
         if not os.environ.get('PROMETHEUS_MULTIPROC_DIR') {
@@ -218,7 +213,9 @@ obj PrometheusMetricsCollector(MetricsCollector) {
             multiprocess.MultiProcessCollector(merged);
             return merged;
         } except Exception as e {
-            logger.debug(f"multiprocess metrics unavailable ({e}); exposing this process only");
+            logger.debug(
+                f"multiprocess metrics unavailable ({e}); exposing this process only"
+            );
             return self._registry;
         }
     }

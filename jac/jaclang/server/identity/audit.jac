@@ -5,7 +5,6 @@ import from jaclang.server.serving.datatypes { Request }
 glob _audit_logger = logging.getLogger('jaclang.server.identity.audit');
 
 
-"""The client address the transport already resolved through trusted proxies."""
 def client_ip(request: Request) -> str {
     return request.client_host or 'unknown';
 }

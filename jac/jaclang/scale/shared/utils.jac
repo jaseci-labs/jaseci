@@ -39,7 +39,6 @@ def _extract_path_param_names(path: (str | None)) -> list[str] {
     return param_names;
 }
 
-"""A credential nobody will ever type: SSO accounts still need a password row."""
 def generate_random_password(length: int = 32) -> str {
     import secrets;
     return secrets.token_urlsafe(max(16, length));

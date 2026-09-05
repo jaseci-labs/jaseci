@@ -152,12 +152,6 @@ def drain_all {
 }
 
 
-"""Drop every parked connection without touching its socket.
-
-Runs in a forked child: the parent still owns those sockets, so closing them
-here would send a Terminate message down a connection the parent is about to
-reuse. Detaching leaves the child with an empty pool and lets the parent's
-descriptors survive untouched."""
 def forget_all {
     with _lock {
         buckets = list(_pools.values());
@@ -171,7 +165,6 @@ def forget_all {
 }
 
 
-"""Mark a connection closed on this side without sending Terminate."""
 def detach(conn: any) -> None {
     if conn is None {
         return;

@@ -1,10 +1,3 @@
-"""The scale package's features, as extensions on the one server assembly.
-
-`scale_extensions()` is what the runtime hands `JacAPIServer` when the
-scale package is importable. Each extension owns one feature end to end:
-its config keys, its endpoints, its middleware, and anything it must start
-per worker process.
-"""
 import base64;
 import hmac;
 import logging;
@@ -42,14 +35,15 @@ import from jaclang.scale.server.websocket_ext { WebSocketExtension }
 glob logger: logging.Logger = logging.getLogger(__name__);
 
 
-"""Structured logs, trace ids and spans, and auth propagation for RPC."""
 obj ObservabilityExtension(ServerExtension) {
-    def register(server: JacAPIServer) -> None {
+    def register(server: JacAPIServer) {
         import from jaclang.scale.runtime.context.auth_ctx {
             reset_current_auth,
             set_current_auth
         }
-        import from jaclang.scale.runtime.context.log_emit { install_structured_logging }
+        import from jaclang.scale.runtime.context.log_emit {
+            install_structured_logging
+        }
         import from jaclang.scale.runtime.context.trace_ctx {
             ensure_trace_id,
             reset_current_trace,
@@ -71,13 +65,17 @@ obj ObservabilityExtension(ServerExtension) {
             );
         }
 
-        async def observability_middleware(request: Request, call_next: any) -> Response {
+        async def observability_middleware(
+            request: Request, call_next: any
+        ) -> Response {
             next_fn: any = call_next;
             if request.url.path in HEALTH_PATHS {
                 return await next_fn(request);
             }
             auth_token = set_current_auth(request.headers.get('Authorization'));
-            trace_id = ensure_trace_id(request.headers.get('X-Trace-Id') or request.request_id);
+            trace_id = ensure_trace_id(
+                request.headers.get('X-Trace-Id') or request.request_id
+            );
             trace_token = set_current_trace(trace_id);
             span = start_server_span(
                 f"{request.method} {request.url.path}",
@@ -109,7 +107,6 @@ obj ObservabilityExtension(ServerExtension) {
 }
 
 
-"""Prometheus metrics: the collector the assembly reports into, plus /metrics."""
 obj MetricsExtension(ServerExtension) {
     def register(server: JacAPIServer) -> None {
         import from jaclang.scale.observability.factory { UtilityFactory }
@@ -123,7 +120,9 @@ obj MetricsExtension(ServerExtension) {
         endpoint = str(cfg.get('endpoint', '/metrics'));
         server.metrics_path = endpoint;
         scrape_password = str(cfg.get('prometheus_admin_password', ''));
-        admin_username = str(get_scale_config().get_admin_config().get('username', 'admin'));
+        admin_username = str(
+            get_scale_config().get_admin_config().get('username', 'admin')
+        );
         users = server.user_manager;
         expose: any = collector.get_endpoint_handler();
 
@@ -152,7 +151,10 @@ obj MetricsExtension(ServerExtension) {
                     status_code=403,
                     content={
                         'ok': False,
-                        'error': {'code': 'FORBIDDEN', 'message': 'Admin access required'}
+                        'error': {
+                            'code': 'FORBIDDEN',
+                            'message': 'Admin access required'
+                        }
                     }
                 );
             }
@@ -175,15 +177,13 @@ obj MetricsExtension(ServerExtension) {
 }
 
 
-"""Outbound mail flows: identity verification and password-reset links.
-
-Rate limits live in the shared state backend, so a fleet of N workers or
-pods enforces the configured hourly rate once, not N times."""
 obj RecoveryMailExtension(ServerExtension) {
     has emailer: (Emailer | None) = None,
         state: (StateBackend | None) = None;
 
-    def _limiter(kind: str, rate_per_hour: float, burst: float) -> Callable[[str], tuple[bool, float]] {
+    def _limiter(
+        kind: str, rate_per_hour: float, burst: float
+    ) -> Callable[[str], tuple[bool, float]] {
         backend = self.state;
         window = 3600;
         allowance = max(1, int(burst));
@@ -192,7 +192,9 @@ obj RecoveryMailExtension(ServerExtension) {
             if backend is None or rate_per_hour <= 0 {
                 return (True, 0.0);
             }
-            count = backend.increment(f"ratelimit:{kind}:{key}", 1.0, ttl_seconds=window);
+            count = backend.increment(
+                f"ratelimit:{kind}:{key}", 1.0, ttl_seconds=window
+            );
             if count <= allowance {
                 return (True, 0.0);
             }
@@ -201,7 +203,7 @@ obj RecoveryMailExtension(ServerExtension) {
         return consume;
     }
 
-    def register(server: JacAPIServer) -> None {
+    def register(server: JacAPIServer) {
         import from jaclang.scale.emailer.factory { create as create_emailer }
         emailer_cfg = get_scale_config().get_emailer_config();
         self.emailer = create_emailer(emailer_cfg);
@@ -222,21 +224,32 @@ obj RecoveryMailExtension(ServerExtension) {
         users = server.user_manager;
         ext = self;
 
-        def _fail(code: str, message: str, status: int, extra: (dict | None) = None) -> TransportResponse {
+        def _fail(
+            code: str, message: str, status: int, extra: (dict | None) = None
+        ) -> TransportResponse {
             meta_extra: dict[str, any] = {'http_status': status};
             if extra {
                 meta_extra.update(extra);
             }
-            return TransportResponse.fail(code=code, message=message, meta=Meta(extra=meta_extra));
+            return TransportResponse.fail(
+                code=code, message=message, meta=Meta(extra=meta_extra)
+            );
         }
         def _ok(data: dict[str, any], status: int = 200) -> TransportResponse {
-            return TransportResponse.success(data=data, meta=Meta(extra={'http_status': status}));
+            return TransportResponse.success(
+                data=data, meta=Meta(extra={'http_status': status})
+            );
         }
-        def _link_token(user_id: str, purpose: str, identity_value: str, ttl: int, template: str) -> str {
+        def _link_token(
+            user_id: str, purpose: str, identity_value: str, ttl: int, template: str
+        ) -> str {
             store = AuthTokenStore.instance();
             store.revoke_user_tokens(user_id, purpose);
             token = store.create_token(
-                user_id=user_id, purpose=purpose, ttl_seconds=ttl, identity_value=identity_value
+                user_id=user_id,
+                purpose=purpose,
+                ttl_seconds=ttl,
+                identity_value=identity_value
             );
             return template.replace('{token}', token) if template else token;
         }
@@ -262,7 +275,9 @@ obj RecoveryMailExtension(ServerExtension) {
                 return _fail('VALIDATION_ERROR', 'Identity value is required', 400);
             }
             if identity.get('type') != 'email' {
-                return _fail('VALIDATION_ERROR', 'Only email identities can be verified', 400);
+                return _fail(
+                    'VALIDATION_ERROR', 'Only email identities can be verified', 400
+                );
             }
             user = users.get_user(str(user_id));
             if user is None {
@@ -300,18 +315,28 @@ obj RecoveryMailExtension(ServerExtension) {
             }
             emailer = ext.emailer;
             if emailer is None or not emailer.is_ready() {
-                return _fail('EMAIL_DISABLED', 'Email features are not configured on this server', 503);
+                return _fail(
+                    'EMAIL_DISABLED',
+                    'Email features are not configured on this server',
+                    503
+                );
             }
             ttl = int(auth_cfg.get('verify_token_ttl_seconds', 86400));
             link = _link_token(
-                str(user_id), 'verify', normalized, ttl, str(auth_cfg.get('verify_url_template', ''))
+                str(user_id),
+                'verify',
+                normalized,
+                ttl,
+                str(auth_cfg.get('verify_url_template', ''))
             );
             sent = emailer.send_email(
                 to_addr=target.get('value_raw') or raw_value,
                 subject='Verify your email address',
                 body_text=_mail_body('verify your email address', link, ttl)
             );
-            return _ok({'status': 'pending_verification', 'email_sent': bool(sent)}, status=202);
+            return _ok(
+                {'status': 'pending_verification', 'email_sent': bool(sent)}, status=202
+            );
         }
         server.add_endpoint(
             JEndPoint(
@@ -330,7 +355,10 @@ obj RecoveryMailExtension(ServerExtension) {
             request: Request, body_data: ForgotPasswordRequest
         ) -> TransportResponse {
             ok_response = _ok(
-                {'status': 'ok', 'message': 'If that account exists, a reset link has been sent.'}
+                {
+                    'status': 'ok',
+                    'message': 'If that account exists, a reset link has been sent.'
+                }
             );
             identity = body_data.identity.model_dump(mode='json');
             normalized = (identity.get('value', '') or '').lower().strip();
@@ -339,7 +367,9 @@ obj RecoveryMailExtension(ServerExtension) {
             }
             emailer = ext.emailer;
             if emailer is None or not emailer.is_ready() {
-                logger.warning('/user/forgot-password called but no emailer is configured');
+                logger.warning(
+                    '/user/forgot-password called but no emailer is configured'
+                );
                 return ok_response;
             }
             user = users.find_user_by_identity(normalized);
@@ -388,7 +418,10 @@ obj RecoveryMailExtension(ServerExtension) {
                 to_addr=recipient_raw,
                 subject='Reset your password',
                 body_text=_mail_body(
-                    'reset your password', link, ttl, footer=', your password will remain unchanged'
+                    'reset your password',
+                    link,
+                    ttl,
+                    footer=', your password will remain unchanged'
                 )
             );
             audit(
@@ -415,7 +448,6 @@ obj RecoveryMailExtension(ServerExtension) {
 }
 
 
-"""The event stream broker and its subscriptions."""
 obj EventsExtension(ServerExtension) {
     has broker: any = None;
 
@@ -487,7 +519,7 @@ obj EventsExtension(ServerExtension) {
         return [];
     }
 
-    def on_worker_start(server: JacAPIServer) -> None {
+    def on_worker_start(server: JacAPIServer) {
         if self.broker is not None {
             self.broker.start();
         }
@@ -495,19 +527,7 @@ obj EventsExtension(ServerExtension) {
 }
 
 
-"""The admin portal and its operational views, as one extension."""
-obj AdminExtension(
-    ServerExtension,
-    JacAPIServerAdmin,
-    JacAPIServerLLMTelemetry,
-    JacAPIServerWorkloads,
-    JacAPIServerLogs,
-    JacAPIServerTraces,
-    JacAPIServerOps,
-    JacAPIServerDeployHealth,
-    JacAPIServerNetwork,
-    JacAPIServerPodEnv
-) {
+obj AdminExtension(ServerExtension, JacAPIServerAdmin, JacAPIServerLLMTelemetry, JacAPIServerWorkloads, JacAPIServerLogs, JacAPIServerTraces, JacAPIServerOps, JacAPIServerDeployHealth, JacAPIServerNetwork, JacAPIServerPodEnv) {
     def register(server: JacAPIServer) -> None {
         if not get_scale_config().get_admin_config().get('enabled', True) {
             return;
@@ -528,10 +548,6 @@ obj AdminExtension(
 }
 
 
-"""Every scale feature, in registration order.
-
-Metrics comes first so later extensions (websockets, admin) can report into
-the collector; admin comes last so it sees everything else."""
 def scale_extensions -> list[ServerExtension] {
     return [
         ObservabilityExtension(),

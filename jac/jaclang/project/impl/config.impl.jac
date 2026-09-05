@@ -1323,9 +1323,7 @@ impl _parse_toml_data(
                 level=int(compression_data.get("level", 4))
             ),
             websocket=ServeWebSocketConfig(
-                allowed_origins=[
-                    str(_o) for _o in ws_data.get("allowed_origins", [])
-                ],
+                allowed_origins=[str(_o) for _o in ws_data.get("allowed_origins", [])],
                 max_message_bytes=int(ws_data.get("max_message_bytes", 0)),
                 ping_interval=float(ws_data.get("ping_interval", 20.0)),
                 ping_timeout=float(ws_data.get("ping_timeout", 20.0))

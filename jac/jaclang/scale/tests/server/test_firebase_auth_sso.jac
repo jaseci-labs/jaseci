@@ -71,7 +71,8 @@ def _setup_user_manager(sso_config: dict) -> tuple[str, UserManager] {
     reset_scale_config();
     mock_config = MockScaleConfig(sso_config);
     with unittest.mock.patch(
-        'jaclang.server.identity.user_manager.get_scale_config', return_value=mock_config
+        'jaclang.server.identity.user_manager.get_scale_config',
+        return_value=mock_config
     ) {
         user_manager = UserManager(base_path=test_dir);
     }
@@ -131,7 +132,8 @@ test 'supported platforms includes firebase when configured' {
     reset_scale_config();
     mock_config = MockScaleConfig(mock_sso_config_with_firebase());
     with unittest.mock.patch(
-        'jaclang.server.identity.user_manager.get_scale_config', return_value=mock_config
+        'jaclang.server.identity.user_manager.get_scale_config',
+        return_value=mock_config
     ) {
         user_manager = UserManager(base_path='');
         assert 'firebase' in user_manager.SUPPORTED_PLATFORMS;
@@ -145,7 +147,8 @@ test 'supported platforms excludes firebase when not configured' {
     reset_scale_config();
     mock_config = MockScaleConfig(mock_sso_config_without_firebase());
     with unittest.mock.patch(
-        'jaclang.server.identity.user_manager.get_scale_config', return_value=mock_config
+        'jaclang.server.identity.user_manager.get_scale_config',
+        return_value=mock_config
     ) {
         user_manager = UserManager(base_path='');
         assert 'firebase' not in user_manager.SUPPORTED_PLATFORMS;

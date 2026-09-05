@@ -18,10 +18,9 @@ impl TlsSettings.build_context -> any {
         }
     }
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);
-    floor = {
-        '1.2': ssl.TLSVersion.TLSv1_2,
-        '1.3': ssl.TLSVersion.TLSv1_3
-    }.get(self.min_version);
+    floor = {'1.2': ssl.TLSVersion.TLSv1_2, '1.3': ssl.TLSVersion.TLSv1_3}.get(
+        self.min_version
+    );
     if floor is None {
         raise ServeConfigError(
             f"[serve.tls] min_version must be '1.2' or '1.3', got {self.min_version!r}"
@@ -37,12 +36,6 @@ impl TlsSettings.build_context -> any {
 }
 
 
-"""The signing secret, or a refusal that names the fix.
-
-A configured secret always wins. Without one, a laptop keeps a per-project
-secret under the data directory so every process serving that directory
-agrees; a pod has no shared directory, so it must be given one (the deploy
-target mints it into the app Secret)."""
 impl AuthSettings.resolve_secret(base_path: str) -> str {
     import from jaclang.server.serving.authcrypt {
         PLACEHOLDER_JWT_SECRET,
@@ -63,7 +56,6 @@ impl AuthSettings.resolve_secret(base_path: str) -> str {
 }
 
 
-"""Cores this process may actually use: cgroup quota first, then affinity."""
 impl cpu_quota -> int {
     try {
         text = Path('/sys/fs/cgroup/cpu.max').read_text(encoding='utf-8').strip();
@@ -89,7 +81,7 @@ impl cpu_quota -> int {
             return max(1, -(-quota_v1 // period_v1));
         }
     } except (OSError, ValueError) {}
-    counter: any = getattr(os, 'process_cpu_count', None);
+    counter: any = os?.process_cpu_count;
     counted = counter() if counter is not None else os.cpu_count();
     return max(1, int(counted or 1));
 }
@@ -114,11 +106,6 @@ impl resolve_count(raw: str, quota: int, label: str) -> int {
 }
 
 
-"""Sync-handler threads per worker.
-
-One core's worth of GIL-serialised work is what a worker can push through, so
-the pool exists to overlap I/O, not to add CPU. Size it from the quota this
-worker actually shares rather than from the node's core count."""
 impl default_threads(worker_count: int, quota: int) -> int {
     per_worker = max(1, quota // max(1, worker_count));
     return min(32, per_worker * 4 + 4);
@@ -134,9 +121,13 @@ impl ServeSettings.load(
     cfg: ServeConfig = config.serve if config is not None else ServeConfig();
     quota = cpu_quota();
 
-    workers_raw = str(given.get('workers') or env_value('WORKERS') or cfg.workers.count);
+    workers_raw = str(
+        given.get('workers') or env_value('WORKERS') or cfg.workers.count
+    );
     worker_count = resolve_count(workers_raw, quota, '[serve.workers] count');
-    threads_raw = str(given.get('threads') or env_value('THREADS') or cfg.workers.threads);
+    threads_raw = str(
+        given.get('threads') or env_value('THREADS') or cfg.workers.threads
+    );
     threads = default_threads(worker_count, quota)
         if threads_raw.strip().lower() == WORKERS_AUTO
         else resolve_count(threads_raw, quota, '[serve.workers] threads');
@@ -224,10 +215,7 @@ impl ServeSettings.load(
             token_ttl_days=env_int('AUTH_TOKEN_TTL_DAYS', cfg.auth.token_ttl_days),
             password_hash_cost=max(
                 10,
-                min(
-                    17,
-                    env_int('AUTH_PASSWORD_HASH_COST', cfg.auth.password_hash_cost)
-                )
+                min(17, env_int('AUTH_PASSWORD_HASH_COST', cfg.auth.password_hash_cost))
             )
         )
     );
@@ -235,12 +223,6 @@ impl ServeSettings.load(
 }
 
 
-"""Every reason this configuration cannot run, as user-facing sentences.
-
-Multi-process serving is where single-process assumptions turn into silent
-misbehaviour, so anything that only works in one process is refused rather
-than degraded once `workers > 1`. Extensions add their own refusals through
-`ServerExtension.validate`."""
 impl ServeSettings.validate -> list[str] {
     problems: list[str] = [];
     if self.access_log.format not in ('text', 'json') {

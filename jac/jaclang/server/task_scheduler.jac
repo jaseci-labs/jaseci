@@ -24,12 +24,6 @@ obj ScheduledTask {
         last_run: (datetime.datetime | None) = None;
 }
 
-"""Fires static `@schedule` tasks on time, once per fleet when leased.
-
-`lease(key, ttl_seconds)` is supplied by the server from the project store;
-when it is set, a task fires only in the process that wins the lease for
-that tick, so N workers on a host and N pods behind a database agree on one
-firing. Without a lease (no store) every process fires, as before."""
 obj Scheduler {
     has _tasks: list[ScheduledTask] = [],
         _thread: (threading.Thread | None) = None,

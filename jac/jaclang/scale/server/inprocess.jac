@@ -1,9 +1,3 @@
-"""The server assembly without a socket: an in-process app behind a test client.
-
-Used by the desktop target (the native shell dispatches requests straight
-into the app) and by tests. The assembly is built exactly as `jac start`
-builds it; `endpoint_profile` only chooses which extensions come along.
-"""
 import os;
 import sys;
 
@@ -38,7 +32,6 @@ obj PreparedInProcessRuntime {
 }
 
 
-"""Which extensions a profile carries: none for the desktop shell, all otherwise."""
 def _extensions_for(profile: str) -> list[ServerExtension] {
     if profile == "desktop" {
         return [];

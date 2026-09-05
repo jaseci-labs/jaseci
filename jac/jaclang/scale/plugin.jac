@@ -711,7 +711,6 @@ class JacScalePlugin {
         return None;
     }
 
-    """Every feature the scale package layers onto the one server assembly."""
     static def get_server_extensions -> list[ServerExtension] {
         import from .server.extensions { scale_extensions }
         return scale_extensions();

@@ -143,10 +143,6 @@ obj URL {
     }
 }
 
-"""A form part. Small parts stay in memory; large ones spool to disk.
-
-`body` is the whole payload as bytes for handlers that want it that way;
-`file` is a seekable binary handle for handlers that stream it onward."""
 obj UploadFile {
     has filename: str = '',
         content_type: str = 'application/octet-stream',
@@ -157,9 +153,7 @@ obj UploadFile {
     has file: any { getter; }
     has body: bytes { getter; }
 
-    static def from_bytes(
-        filename: str, content_type: str, data: bytes
-    ) -> UploadFile {
+    static def from_bytes(filename: str, content_type: str, data: bytes) -> UploadFile {
         import io;
         return UploadFile(
             filename=filename,

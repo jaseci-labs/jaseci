@@ -979,7 +979,9 @@ impl MicroserviceGateway.setup -> ServingApp {
 
     import from jaclang.server.serving.drain { drain_middleware }
     registry.register(
-        Middleware(name="drain", priority=20, fn=drain_middleware(self.drain, "__gateway__"))
+        Middleware(
+            name="drain", priority=20, fn=drain_middleware(self.drain, "__gateway__")
+        )
     );
 
     import from jaclang.scale.config.config_loader { get_scale_config }

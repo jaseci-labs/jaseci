@@ -1,10 +1,3 @@
-"""multipart/form-data and urlencoded form parsing.
-
-The multipart parser streams: it scans the request body (in memory, or the
-spooled temp file the transport wrote it to) in fixed-size chunks and copies
-each file part into its own spooled file, so a large upload never needs a
-second full-size copy in memory. Field values stay in memory and are capped.
-"""
 import io;
 import tempfile;
 import from urllib.parse { parse_qs }
@@ -47,10 +40,6 @@ def _parse_part_headers(raw: bytes) -> dict[str, str] {
 }
 
 
-"""Chunked scanner over a multipart body.
-
-`marker` is `\\r\\n--boundary`; the body starts with `--boundary` (no leading
-CRLF) so the preamble is matched against the bare delimiter once."""
 obj _PartReader {
     has source: any,
         delim: bytes,
@@ -117,7 +106,9 @@ obj _PartReader {
                 return _parse_part_headers(raw);
             }
             if len(self.buf) > MAX_PART_HEADER_BYTES {
-                raise HTTPError(status_code=431, detail='Multipart part headers too large');
+                raise HTTPError(
+                    status_code=431, detail='Multipart part headers too large'
+                );
             }
             if not self._fill() {
                 raise HTTPError(status_code=400, detail='Malformed multipart body');
@@ -133,7 +124,9 @@ obj _PartReader {
             if idx >= 0 {
                 piece = self.buf[:idx];
                 if cap and written + len(piece) > cap {
-                    raise HTTPError(status_code=413, detail='Multipart field too large');
+                    raise HTTPError(
+                        status_code=413, detail='Multipart field too large'
+                    );
                 }
                 sink.write(piece);
                 written += len(piece);
@@ -145,7 +138,9 @@ obj _PartReader {
             if len(self.buf) > keep {
                 piece = self.buf[:-keep];
                 if cap and written + len(piece) > cap {
-                    raise HTTPError(status_code=413, detail='Multipart field too large');
+                    raise HTTPError(
+                        status_code=413, detail='Multipart field too large'
+                    );
                 }
                 sink.write(piece);
                 written += len(piece);

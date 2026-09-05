@@ -1,11 +1,3 @@
-"""Users, credentials, roles and JWT sessions, on the project's Postgres.
-
-One identity implementation for every server this runtime starts. Sessions
-are HS256 JWTs signed with the project secret; credentials are scrypt
-hashes; identities (username, email) and linked SSO accounts live on the
-same store the graph does. SSO flows themselves are a scale extension that
-drives this object through `link_sso_account` and friends.
-"""
 import logging;
 import from contextvars { ContextVar }
 import from datetime { UTC, datetime, timedelta }

@@ -1,13 +1,3 @@
-"""The HTTP/1.1 transport: one asyncio server per process.
-
-Everything a production listener owes its operator lives here once: TLS on
-the socket, a connection cap, request-line and header limits with the right
-status codes, timeouts on every read, strict framing (no ambiguous lengths,
-no unknown transfer codings), trusted-proxy resolution, content-encoding,
-`Date`/`Server`/`X-Request-Id` on every response, an access log with latency
-and bytes, signal-driven drain, worker recycling and a heartbeat for the
-supervisor. The same object serves a laptop and a pod; only settings differ.
-"""
 import asyncio;
 import inspect;
 import logging;
@@ -82,7 +72,6 @@ glob _REASONS: dict[int, str] = {
      };
 
 
-"""A request the transport refused before it reached the app."""
 obj ProtocolError(Exception) {
     has status: int = 400,
         reason: str = 'Bad Request';
@@ -412,7 +401,8 @@ obj ServingServer {
             }
             self._log_access(request, response, bytes_sent, started);
             self.requests_served += 1;
-            if self.request_budget > 0 and self.requests_served >= self.request_budget {
+            if self.request_budget > 0
+                and self.requests_served >= self.request_budget {
                 _logger.info(
                     f"worker served {self.requests_served} requests; recycling"
                 );
@@ -439,8 +429,7 @@ obj ServingServer {
             );
             import from jaclang.server.serving.datatypes { JSONResponse }
             resp = JSONResponse(
-                status_code=504,
-                content={'detail': f"request exceeded {budget:.0f}s"}
+                status_code=504, content={'detail': f"request exceeded {budget:.0f}s"}
             );
             resp.headers.set('Connection', 'close');
             return resp;
@@ -464,7 +453,9 @@ obj ServingServer {
         }
     }
 
-    def _log_access(request: Request, response: Response, bytes_sent: int, started: float) {
+    def _log_access(
+        request: Request, response: Response, bytes_sent: int, started: float
+    ) {
         record = AccessRecord(
             client=request.client_host or '-',
             method=request.method,
@@ -523,7 +514,8 @@ obj ServingServer {
             }
             count += 1;
             header_bytes += len(raw);
-            if count > limits.max_header_count or header_bytes > limits.max_header_bytes {
+            if count > limits.max_header_count
+                or header_bytes > limits.max_header_bytes {
                 raise ProtocolError(
                     status=431, reason='Request Header Fields Too Large'
                 );
@@ -553,10 +545,16 @@ obj ServingServer {
         forwarded = self._proxy.resolve(peer_host, headers);
         scheme = forwarded.scheme or self.scheme();
         netloc = forwarded.host or (headers.get('Host') or '');
-        request_id = (headers.get('X-Request-Id') or '').strip()[:128] or uuid.uuid4().hex;
+        request_id = (headers.get('X-Request-Id') or '').strip()[:128]
+            or uuid.uuid4().hex;
         return Request(
             method=method.upper(),
-            url=URL(path=unquote(split.path) or '/', query=split.query, scheme=scheme, netloc=netloc),
+            url=URL(
+                path=unquote(split.path) or '/',
+                query=split.query,
+                scheme=scheme,
+                netloc=netloc
+            ),
             headers=headers,
             query_params=QueryParams(raw=parse_query_string(split.query)),
             body=body,
@@ -599,8 +597,7 @@ obj ServingServer {
         limits = self.settings.limits;
         body_timeout = self.settings.timeouts.body;
         transfer = [
-            t.strip().lower()
-            for raw in headers.getlist('Transfer-Encoding')
+            t.strip().lower() for raw in headers.getlist('Transfer-Encoding')
             for t in str(raw).split(',')
             if t.strip()
         ];

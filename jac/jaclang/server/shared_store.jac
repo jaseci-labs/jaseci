@@ -1,10 +1,3 @@
-"""The one process-wide Postgres store for identity, tokens, jobs and state.
-
-Resolved from `JAC_DB_URL`, then `[scale.database] url`, then the project's
-embedded server (never inside a cluster, where that would be per-replica).
-One store per process; a forked worker forgets the parent's and opens its
-own on first use.
-"""
 import logging;
 import os;
 import threading;

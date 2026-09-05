@@ -71,12 +71,6 @@ glob ROOT_ASSET_EXTENSIONS: set[str] = DEFAULT_ASSET_EXTENSIONS
          | {'.pdf', '.txt', '.xml'};
 
 
-"""A file under one of the project's public asset roots, or None.
-
-Every candidate is resolved and must stay inside the project root, so a
-request path can never walk out of the directories the server is meant to
-publish. The project root itself is not a root: `jac.toml`, source and data
-files are not assets."""
 def find_root_asset(base_path: str, relative_path: str) -> (Path | None) {
     rel = relative_path.lstrip('/');
     if not rel or Path(rel).suffix.lower() not in ROOT_ASSET_EXTENSIONS {

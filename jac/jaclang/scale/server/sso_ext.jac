@@ -1,4 +1,3 @@
-"""SSO sign-in and API-key extensions for the server assembly."""
 import from urllib.parse { quote }
 import from jaclang.server.identity.auth_models { FirebaseTokenRequest }
 import from jaclang.server.middleware { require_user }
@@ -28,7 +27,7 @@ def resolve_sso_client_redirect(requested: (str | None), configured: str) -> str
 obj SSOExtension(ServerExtension) {
     has sso: (SSOAuth | None) = None;
 
-    def register(server: JacAPIServer) -> None {
+    def register(server: JacAPIServer) {
         sso = SSOAuth(users=server.user_manager);
         self.sso = sso;
         platform_param = APIParameter(
@@ -135,7 +134,7 @@ obj ApiKeyExtension(ServerExtension) {
         return self.manager;
     }
 
-    def register(server: JacAPIServer) -> None {
+    def register(server: JacAPIServer) {
         keys = self.api_keys;
 
         async def create_api_key(
@@ -170,7 +169,9 @@ obj ApiKeyExtension(ServerExtension) {
             }
             return keys().list_api_keys(str(user_id));
         }
-        async def revoke_api_key(request: Request, api_key_id: str) -> TransportResponse {
+        async def revoke_api_key(
+            request: Request, api_key_id: str
+        ) -> TransportResponse {
             (user_id, error) = require_user(request);
             if error is not None {
                 return error;

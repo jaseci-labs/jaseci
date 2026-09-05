@@ -17,12 +17,6 @@ def _address_in_use(e: OSError) -> bool {
 }
 
 
-"""Bind one listening socket, moving up the port range only when allowed.
-
-The socket is what a server (or a pre-fork supervisor, whose workers inherit
-it) accepts on; it is created non-inheritable-by-default and left blocking so
-`asyncio.start_server(sock=...)` can take it over. A pinned port never moves:
-it is a contract with whatever sits in front of the process."""
 def bind_listener(
     host: str, port: int, backlog: int = 2048, port_retries: int = PORT_RETRY_LIMIT
 ) -> socket.socket {

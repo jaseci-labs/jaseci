@@ -45,7 +45,6 @@ obj CompiledRoute {
     }
 }
 
-"""Names of the `{param}` / `{param:path}` segments in a route template."""
 def path_param_names(path: (str | None)) -> list[str] {
     if not path {
         return [];

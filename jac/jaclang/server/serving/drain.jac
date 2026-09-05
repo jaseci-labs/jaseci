@@ -1,10 +1,3 @@
-"""Graceful-shutdown state shared by the transport, health probes and app.
-
-One `DrainState` per server process. The transport flips it on SIGTERM (or
-when the supervisor asks), readiness starts answering 503 so the load
-balancer stops sending traffic, the drain middleware refuses new requests,
-and the transport waits for in-flight ones up to the configured budget.
-"""
 import logging;
 import time;
 import from jaclang.server.serving.datatypes { JSONResponse, Request, Response }
@@ -62,8 +55,9 @@ def draining_response(service: str = 'service') -> Response {
 }
 
 
-"""Refuse new work once draining; health probes always pass through."""
-def drain_middleware(state: DrainState, service: str = 'service') -> Callable[..., any] {
+def drain_middleware(
+    state: DrainState, service: str = 'service'
+) -> Callable[..., any] {
     async def _middleware(request: Request, call_next: any) -> Response {
         next_fn: any = call_next;
         if request.url.path in HEALTH_PATHS or not state.draining {

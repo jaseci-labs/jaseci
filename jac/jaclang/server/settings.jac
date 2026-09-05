@@ -1,11 +1,3 @@
-"""Typed serve settings: the one object every server knob flows through.
-
-Precedence, highest first: explicit CLI overrides, `JAC_SERVE_*` environment
-variables, the `[serve]` table of the nearest jac.toml, built-in defaults.
-Nothing under `jaclang.server` reads jac.toml or the environment for a server
-setting anywhere else; the deploy target sets the same environment variables
-this module reads, so a pod and a laptop resolve settings the same way.
-"""
 import logging;
 import os;
 import from jaclang.project.config { JacConfig, ServeConfig }
@@ -15,7 +7,6 @@ glob ENV_PREFIX: str = 'JAC_SERVE_',
      logger: logging.Logger = logging.getLogger(__name__);
 
 
-"""A serve setting that cannot be honoured; the message names the fix."""
 obj ServeConfigError(Exception) {}
 
 
@@ -140,7 +131,7 @@ def env_value(name: str) -> (str | None) {
         return None;
     }
     stripped = raw.strip();
-    return stripped if stripped else None;
+    return stripped;
 }
 
 def env_bool(name: str, `default: bool) -> bool {

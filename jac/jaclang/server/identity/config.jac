@@ -1,15 +1,9 @@
-"""The auth settings the identity layer signs and hashes with.
-
-The server installs them once at boot from `ServeSettings.auth`; every
-identity module reads them from here, so a token minted by one worker
-verifies on every other worker serving the same project.
-"""
 import from jaclang.server.settings { AuthSettings }
 
 glob _active: list[any] = [AuthSettings(), '', None];
 
 
-def configure_identity(settings: AuthSettings, base_path: str) -> None {
+def configure_identity(settings: AuthSettings, base_path: str) {
     _active[0] = settings;
     _active[1] = base_path;
     _active[2] = None;

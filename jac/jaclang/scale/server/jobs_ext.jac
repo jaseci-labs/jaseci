@@ -1,9 +1,3 @@
-"""Dynamic scheduling: the `/jobs` API and the persistent job runner.
-
-Static `@schedule` tasks are the assembly's own scheduler. This extension
-adds jobs created at runtime through the API, persisted in the project
-database and fired once across the fleet under the shared lease.
-"""
 import asyncio;
 import logging;
 import from jaclang.data.pgwire { PgWireError }
@@ -21,13 +15,18 @@ import from jaclang.server.serving.endpoint {
 import from jaclang.server.transport { Meta, TransportResponse }
 import from jaclang.scale.config.config_loader { get_scale_config }
 import from jaclang.scale.scheduler.scheduler { JacScaleScheduler, TriggerSpec }
-import from jaclang.scale.scheduler.scheduler_models { CreateJobRequest, UpdateJobRequest }
+import from jaclang.scale.scheduler.scheduler_models {
+    CreateJobRequest,
+    UpdateJobRequest
+}
 
 glob logger: logging.Logger = logging.getLogger(__name__);
 
 
 def _fail(code: str, message: str, status: int) -> TransportResponse {
-    return TransportResponse.fail(code=code, message=message, meta=Meta(extra={'http_status': status}));
+    return TransportResponse.fail(
+        code=code, message=message, meta=Meta(extra={'http_status': status})
+    );
 }
 
 
@@ -62,11 +61,13 @@ def _build_spec(body: dict) -> tuple[(TriggerSpec | None), (TransportResponse | 
 
 
 obj JobsExtension(ServerExtension) {
-    def register(server: JacAPIServer) -> None {
+    def register(server: JacAPIServer) {
         users = server.user_manager;
         scheduler_cfg = get_scale_config().get_scheduler_config();
         system_user = users.find_user_by_identity(SYSTEM_USER);
-        system_user_id = str(system_user.get('user_id', SYSTEM_USER)) if system_user else SYSTEM_USER;
+        system_user_id = str(system_user.get('user_id', SYSTEM_USER))
+            if system_user
+            else SYSTEM_USER;
         jobs = JacScaleScheduler.instance();
         jobs.setup(system_user_id=system_user_id, server=server);
         jobs.register_dynamic_tasks_from_db();
@@ -79,7 +80,9 @@ obj JobsExtension(ServerExtension) {
                     timeout=float(timeout_sec)
                 );
             } except asyncio.TimeoutError {
-                logger.warning(f"Scheduler drain exceeded {timeout_sec}s; forcing shutdown");
+                logger.warning(
+                    f"Scheduler drain exceeded {timeout_sec}s; forcing shutdown"
+                );
                 JacScaleScheduler.instance().stop(drain=False);
             }
         }
@@ -89,7 +92,9 @@ obj JobsExtension(ServerExtension) {
             return users.get_user_role(user_id) == UserRole.ADMIN.value;
         }
 
-        def _ensure_authorized(job: (dict | None), user_id: str) -> (TransportResponse | None) {
+        def _ensure_authorized(
+            job: (dict | None), user_id: str
+        ) -> (TransportResponse | None) {
             if job is None {
                 return _fail('NOT_FOUND', 'Job not found', 404);
             }
@@ -99,7 +104,9 @@ obj JobsExtension(ServerExtension) {
             return _fail('NOT_FOUND', 'Job not found', 404);
         }
 
-        async def create_job(request: Request, body_data: CreateJobRequest) -> TransportResponse {
+        async def create_job(
+            request: Request, body_data: CreateJobRequest
+        ) -> TransportResponse {
             (user_id, auth_err) = require_user(request);
             if auth_err is not None {
                 return auth_err;
@@ -112,7 +119,9 @@ obj JobsExtension(ServerExtension) {
             }
             target = server.get_walkers().get(name) or server.get_functions().get(name);
             if target is None {
-                return _fail('NOT_FOUND', f'Walker or function "{name}" not found', 404);
+                return _fail(
+                    'NOT_FOUND', f'Walker or function "{name}" not found', 404
+                );
             }
             schedule_spec = target.schedule_spec if target?.schedule_spec else None;
             if schedule_spec is None {
@@ -135,7 +144,9 @@ obj JobsExtension(ServerExtension) {
                 job = JacScaleScheduler.instance().create_job(
                     name=name, spec=spec, created_by=str(user_id)
                 );
-                return TransportResponse.success(data=job, meta=Meta(extra={'http_status': 201}));
+                return TransportResponse.success(
+                    data=job, meta=Meta(extra={'http_status': 201})
+                );
             } except Exception as e {
                 return _err_response(e);
             }
@@ -151,12 +162,19 @@ obj JobsExtension(ServerExtension) {
                 limit = min(max(int(params.get('limit', '50')), 1), 500);
                 offset = max(int(params.get('offset', '0')), 0);
             } except (ValueError, TypeError) {
-                return _fail('INVALID_REQUEST', 'limit and offset must be integers', 400);
+                return _fail(
+                    'INVALID_REQUEST', 'limit and offset must be integers', 400
+                );
             }
             try {
-                creator = params.get('created_by') if _is_admin(str(user_id)) else str(user_id);
+                creator = params.get('created_by')
+                    if _is_admin(str(user_id))
+                    else str(user_id);
                 (page, total) = JacScaleScheduler.instance().list_jobs(
-                    limit=limit, offset=offset, trigger=params.get('trigger'), created_by=creator
+                    limit=limit,
+                    offset=offset,
+                    trigger=params.get('trigger'),
+                    created_by=creator
                 );
                 return TransportResponse.success(
                     data={
@@ -184,7 +202,9 @@ obj JobsExtension(ServerExtension) {
                 if access_err is not None {
                     return access_err;
                 }
-                return TransportResponse.success(data=job, meta=Meta(extra={'http_status': 200}));
+                return TransportResponse.success(
+                    data=job, meta=Meta(extra={'http_status': 200})
+                );
             } except Exception as e {
                 return _err_response(e);
             }
@@ -209,7 +229,9 @@ obj JobsExtension(ServerExtension) {
                 if updated is None {
                     return _fail('NOT_FOUND', 'Job not found', 404);
                 }
-                return TransportResponse.success(data=updated, meta=Meta(extra={'http_status': 200}));
+                return TransportResponse.success(
+                    data=updated, meta=Meta(extra={'http_status': 200})
+                );
             } except Exception as e {
                 return _err_response(e);
             }
@@ -222,7 +244,9 @@ obj JobsExtension(ServerExtension) {
             }
             try {
                 acting_as = None if _is_admin(str(user_id)) else str(user_id);
-                if not JacScaleScheduler.instance().delete_job(job_id, acting_as=acting_as) {
+                if not JacScaleScheduler.instance().delete_job(
+                    job_id, acting_as=acting_as
+                ) {
                     return _fail('NOT_FOUND', 'Job not found', 404);
                 }
                 return TransportResponse.success(
@@ -303,7 +327,7 @@ obj JobsExtension(ServerExtension) {
         );
     }
 
-    def on_worker_start(server: JacAPIServer) -> None {
+    def on_worker_start(server: JacAPIServer) {
         JacScaleScheduler.instance().start();
     }
 }

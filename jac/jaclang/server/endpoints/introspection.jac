@@ -1,4 +1,3 @@
-"""Discovery endpoints: what walkers and functions this service exposes."""
 import from jaclang.server.middleware { unauthorized }
 import from jaclang.server.serving.datatypes { Request }
 import from jaclang.server.serving.endpoint {
@@ -47,7 +46,7 @@ def register_introspection_endpoints(server: JacAPIServer) {
             return _not_found('Function', name);
         }
         if server.introspector.is_auth_required_for_function(name)
-            and not getattr(request.state, 'username', None) {
+            and not request.state?.username {
             return unauthorized();
         }
         return TransportResponse.success(
@@ -65,11 +64,14 @@ def register_introspection_endpoints(server: JacAPIServer) {
             return _not_found('Walker', name);
         }
         if server.introspector.is_auth_required_for_walker(name)
-            and not getattr(request.state, 'username', None) {
+            and not request.state?.username {
             return unauthorized();
         }
         return TransportResponse.success(
-            data={'name': name, 'info': server.introspector.introspect_walker(walkers[name])},
+            data={
+                'name': name,
+                'info': server.introspector.introspect_walker(walkers[name])
+            },
             meta=Meta(extra={'http_status': 200})
         );
     }
@@ -77,7 +79,13 @@ def register_introspection_endpoints(server: JacAPIServer) {
     for (method, path, cb, params, summary) in [
         (HTTPMethod.GET, '/functions', list_functions, [], 'List functions'),
         (HTTPMethod.GET, '/walkers', list_walkers, [], 'List walkers'),
-        (HTTPMethod.GET, '/function/{name}', function_info, name_param, 'Function signature'),
+        (
+            HTTPMethod.GET,
+            '/function/{name}',
+            function_info,
+            name_param,
+            'Function signature'
+        ),
         (HTTPMethod.GET, '/walker/{name}', walker_info, name_param, 'Walker fields')
     ] {
         server.add_endpoint(
@@ -93,4 +101,3 @@ def register_introspection_endpoints(server: JacAPIServer) {
         );
     }
 }
-

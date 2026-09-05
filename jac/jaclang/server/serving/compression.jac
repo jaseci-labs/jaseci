@@ -1,15 +1,3 @@
-"""Content-encoding negotiation over the resolved response body.
-
-The bytes of a response exist at exactly one point, when the transport
-resolves `body_bytes()` or pulls the stream, so this is the one place any
-byte-level policy lives. gzip is the first policy: buffered bodies of a
-compressible media type at or above `min_bytes` are compressed once; streams
-are compressed incrementally with a sync flush per source chunk so an SSE
-frame never sits in the compressor. `Vary: Accept-Encoding` is appended on
-every negotiable response so shared caches never hand a gzip body to an
-identity client. The ingress gzip type list is generated from
-`COMPRESSIBLE_TYPES`, so there is one list.
-"""
 import gzip;
 import inspect;
 import zlib;
@@ -76,8 +64,7 @@ def is_compressible(media_type: str) -> bool {
 
 def _append_vary(headers: Headers) {
     existing = [
-        v.strip()
-        for raw in headers.getlist('Vary')
+        v.strip() for raw in headers.getlist('Vary')
         for v in str(raw).split(',')
         if v.strip()
     ];
@@ -147,12 +134,9 @@ obj CompressionPolicy {
         return is_compressible(media);
     }
 
-    """Compress in place when the client and the response both allow it.
-
-    Returns the buffered body to write (already compressed when it was), or
-    None when the response streams; a streaming response has its iterator
-    replaced by the gzip wrapper."""
-    def apply(request: Request, response: Response, body: (bytes | None)) -> (bytes | None) {
+    def apply(
+        request: Request, response: Response, body: (bytes | None)
+    ) -> (bytes | None) {
         if not self._negotiable(request, response) {
             return body;
         }

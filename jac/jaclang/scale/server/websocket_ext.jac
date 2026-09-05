@@ -1,9 +1,3 @@
-"""WebSocket walkers and functions, with a backplane that spans processes.
-
-Under `workers > 1` the memory backplane is refused at validation time: a
-broadcast delivered only to the clients one worker happens to hold is a
-silent correctness bug, and the Postgres backplane exists for exactly this.
-"""
 import asyncio;
 import logging;
 import time;
@@ -123,7 +117,13 @@ async def serve_ws_connection(
             }
             ctx.last_seen = time.monotonic();
             control = await ws_handle_control(
-                websocket, ctx, data, user_manager, requires_auth, msgs_per_sec, rate_capacity
+                websocket,
+                ctx,
+                data,
+                user_manager,
+                requires_auth,
+                msgs_per_sec,
+                rate_capacity
             );
             if control == 'break' {
                 break;
@@ -147,7 +147,8 @@ async def serve_ws_connection(
             } elif isinstance(result, dict) and 'error' in result {
                 await websocket.send_json(
                     ws_error_frame(
-                        'EXECUTION_ERROR', result.get('error', f"{label} execution failed")
+                        'EXECUTION_ERROR',
+                        result.get('error', f"{label} execution failed")
                     )
                 );
             } else {
@@ -157,7 +158,9 @@ async def serve_ws_connection(
     } except WebSocketDisconnect {
         logger.debug(f"WS client disconnected conn_id={ctx.conn_id}");
     } except Exception as e {
-        logger.error(f"WS error {label.lower()}='{target_name}' conn_id={ctx.conn_id}: {e}");
+        logger.error(
+            f"WS error {label.lower()}='{target_name}' conn_id={ctx.conn_id}: {e}"
+        );
     } finally {
         heartbeat_task.cancel();
         try {
@@ -181,10 +184,11 @@ obj WebSocketExtension(ServerExtension) {
         has_ws = any(
             server.introspector.walker_protocol(n) == APIProtocol.WEBSOCKET
             for n in server.get_walkers()
-        ) or any(
-            server.introspector.function_protocol(n) == APIProtocol.WEBSOCKET
-            for n in server.get_functions()
-        );
+        )
+            or any(
+                server.introspector.function_protocol(n) == APIProtocol.WEBSOCKET
+                for n in server.get_functions()
+            );
         if not has_ws {
             return [];
         }
@@ -238,7 +242,8 @@ obj WebSocketExtension(ServerExtension) {
         is_broadcast = bool(restspec.broadcast) if restspec?.broadcast else False;
         user_manager = server.user_manager;
         settings = server.resolved_settings();
-        max_bytes = settings.websocket.max_message_bytes or int(ws_cfg['max_message_bytes']);
+        max_bytes = settings.websocket.max_message_bytes
+            or int(ws_cfg['max_message_bytes']);
 
         async def websocket_handler(websocket: WebSocket) {
             def make_awaitable(data: dict, user: str) -> any {
@@ -262,9 +267,10 @@ obj WebSocketExtension(ServerExtension) {
         return websocket_handler;
     }
 
-    def register(server: JacAPIServer) -> None {
+    def register(server: JacAPIServer) {
         for walker_name in list(server.get_walkers()) {
-            if server.introspector.walker_protocol(walker_name) != APIProtocol.WEBSOCKET {
+            if server.introspector.walker_protocol(walker_name)
+                != APIProtocol.WEBSOCKET {
                 continue;
             }
             handler = self.target_handler(
@@ -279,7 +285,8 @@ obj WebSocketExtension(ServerExtension) {
             server.add_ws_endpoint(f"/ws/{walker_name}", handler);
         }
         for func_name in list(server.get_functions()) {
-            if server.introspector.function_protocol(func_name) != APIProtocol.WEBSOCKET {
+            if server.introspector.function_protocol(func_name)
+                != APIProtocol.WEBSOCKET {
                 continue;
             }
             handler = self.target_handler(

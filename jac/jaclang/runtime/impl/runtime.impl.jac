@@ -1581,7 +1581,6 @@ impl JacServe.get_api_server_class -> type {
     return JacAPIServer;
 }
 
-"""Feature extensions the scale package registers onto the one assembly."""
 impl JacServe.get_server_extensions -> list[ServerExtension] {
     _sp = _scale_provider();
     if _sp is None {
@@ -2305,19 +2304,13 @@ impl JacRuntime.reset_request_context(token: any) -> None {
     _request_context.reset(token);
 }
 
-"""Forget every process-bound handle a forked worker inherited.
-
-The parent keeps its own session, store connection and thread pool; the child
-must not close them (the sockets are shared) and must not reuse them (two
-processes on one Postgres connection interleave messages). The child gets a
-fresh context, a fresh pool and re-resolves the shared root on first use."""
 impl JacRuntime.after_fork_in_child -> None {
     import from concurrent.futures { ThreadPoolExecutor }
     import from jaclang.data.pgpool { detach }
     ctx = JacRuntime.exec_ctx;
     JacRuntime.exec_ctx = None;
     if ctx is not None {
-        store = getattr(ctx.mem, 'store', None);
+        store = ctx.mem?.store;
         if store is not None {
             for attr in ('_conn', '_side_conn') {
                 detach(getattr(store, attr, None));
