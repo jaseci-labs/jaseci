@@ -52,7 +52,18 @@ impl AuthSettings.resolve_secret(base_path: str) -> str {
             "tokens. Set [serve.auth] secret or JAC_SERVE_AUTH_SECRET."
         );
     }
-    return project_signing_secret(base_path or '.');
+    return project_signing_secret(secret_home(base_path));
+}
+
+
+impl secret_home(base_path: str) -> str {
+    import from jaclang.project.config { find_project_root }
+    start = Path(base_path) if base_path else Path.cwd();
+    found = find_project_root(start);
+    if found is not None {
+        return str(found[0]);
+    }
+    return base_path or '.';
 }
 
 

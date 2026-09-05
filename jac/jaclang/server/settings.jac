@@ -121,6 +121,9 @@ obj ServeSettings {
 }
 
 
+def secret_home(base_path: str) -> str;
+
+
 def in_cluster -> bool {
     return bool(os.environ.get('KUBERNETES_SERVICE_HOST', '').strip());
 }
