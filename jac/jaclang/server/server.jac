@@ -227,7 +227,8 @@ obj JacAPIServer(EndpointHost) {
     def serve_background(
         dev: bool = False,
         no_client: bool = False,
-        on_ready: Callable[..., None] | None = None
+        on_ready: Callable[..., None] | None = None,
+        port_retries: int = 0
     ) -> Callable[[], None];
 
     def _worker_main(

@@ -163,6 +163,7 @@ impl ServeSettings.load(
         dev=bool(given.get('dev', False)),
         no_client=bool(given.get('no_client', False)),
         client_dist=str(given.get('client_dist') or ''),
+        static_only=bool(given.get('static_only', False)),
         docs_enabled=env_bool('DOCS', cfg.docs_enabled),
         graph_enabled=env_bool('GRAPH', cfg.graph_enabled),
         cors_origins=env_list('CORS_ORIGINS', list(cfg.cors_origins)),

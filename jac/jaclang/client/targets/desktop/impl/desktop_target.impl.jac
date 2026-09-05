@@ -21,7 +21,25 @@ impl DesktopTarget.out_dir_for(entry_file: Path, project_dir: Path) -> Path {
 impl DesktopTarget.build(
     entry_file: Path, project_dir: Path, platform: Optional[str] = None
 ) -> Path {
-    web_bundle = super.build(entry_file, project_dir, platform);
+    import os;
+    import from jaclang.client.desktop_config { get_desktop_config }
+    import from jaclang.client.vite_bundler { API_BASE_URL_ENV_VAR }
+    backend = get_desktop_config(project_dir).get_backend();
+    prior = os.environ.get(API_BASE_URL_ENV_VAR);
+    if backend != "embedded" {
+        os.environ[API_BASE_URL_ENV_VAR] = backend;
+    }
+    try {
+        web_bundle = super.build(entry_file, project_dir, platform);
+    } finally {
+        if backend != "embedded" {
+            if prior is None {
+                os.environ.pop(API_BASE_URL_ENV_VAR, None);
+            } else {
+                os.environ[API_BASE_URL_ENV_VAR] = prior;
+            }
+        }
+    }
     out_dir = self.out_dir_for(entry_file, project_dir);
     if self.engine(project_dir) == "cef" {
         import from jaclang.client.targets.desktop.cef_shell { cef_build }

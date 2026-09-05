@@ -1015,12 +1015,8 @@ test "generated host source contains required elements" {
     assert "import from fused.bringup" in src;
     assert "engine_boot" in src;
     assert "Py_Finalize" in src;
-    assert "_jac_invoke_handler" in src;
-    assert "_PH_DISPATCH" in src;
-    assert "wv.bind" in src;
     assert "BOOTSTRAP_JS" in src;
     assert "BOOT_PY" in src;
-    assert "__jac_invoke" in src;
     assert "TestApp" in src;
     assert "800" in src;
     assert "600" in src;
@@ -1029,10 +1025,12 @@ test "generated host source contains required elements" {
     assert "host_boot.boot(" in src;
     assert "path" in src;
     assert "true" in src;
-    # Bridge must be inlined (not imported from separate file)
-    assert "PyGILState_Ensure" in src;
-    assert "respond" in src;
+    # The window talks to the loopback server over HTTP; the host binds no
+    # native call bridge, it only hands the webview handle to the plugin host.
+    assert "wv.bind" not in src;
+    assert "_jac_invoke_handler" not in src;
     assert "_stash_wv_in_python" in src;
+    assert "_ctx.shutdown()" in src;
     assert "run_main_loop()" in src;
     assert "webview_create(0, 0)" in src;
     assert "LAST_WEBVIEW_HANDLE = _wv_raw" in src;
@@ -1056,10 +1054,8 @@ test "generated host source with no plugins" {
         plugin_configs={}
     );
     assert "import from webview" in src;
-    assert "wv.bind" in src;
+    assert "host_boot.boot(" in src;
     assert "NoPlugins" in src;
-    # Bridge must be inlined
-    assert "_jac_invoke_handler" in src;
     # Plugin registration happens inside host_boot.boot(), not in generated code
     assert "host_boot.boot(" in src;
     assert "_pc.get" not in src;  # old hand-written registration removed
@@ -1147,7 +1143,8 @@ test "js sdk snippet matches generated host source" {
     # critical pieces rather than requiring a single contiguous literal.
     assert "window.__jac={" in host_boot;
     assert "invoke:function(p,c,a){" in host_boot;
-    assert "window.__JAC_NATIVE__=true;" in host_boot;
+    assert "window.__JAC_DESKTOP__=true;" in host_boot;
+    assert "__JAC_NATIVE__" not in host_boot , "walker calls are plain HTTP; no native transport flag";
     assert "__emit__:function(ev,p){" in host_boot;
 }
 
@@ -1414,10 +1411,9 @@ test "build pipeline wires the runtime-imported bootstrap" {
     # Plugin bootstrap / broker / dispatch wiring live in host_boot, not here.
     assert "bootstrap_plugins" not in host_src;
     assert "make_handler" not in host_src;
+    assert "prepare_inprocess_runtime" not in host_src;
     # Bridge + JS SDK still present.
-    assert "_jac_invoke_handler" in host_src;
-    assert "_PH_DISPATCH" in host_src;
-    assert "PyGILState_Ensure" in host_src;
+    assert "_jac_invoke_handler" not in host_src;
     assert "__JAC_DESKTOP__" in host_src;
 }
 

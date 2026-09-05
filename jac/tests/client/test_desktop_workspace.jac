@@ -134,3 +134,38 @@ test "a single-app project keeps .jac/client/desktop" {
         shutil.rmtree(d, ignore_errors=True);
     }
 }
+
+
+test "[desktop] backend is embedded by default, a URL when remote, nothing else" {
+    d = _workspace();
+    try {
+        _target(d, "shell");
+        assert get_desktop_config(project_dir=Path(d)).get_backend() == "embedded";
+        toml = Path(d) / "jac.toml";
+        toml.write_text(
+            toml.read_text()
+                + "\n[apps.kiosk.desktop]\nbackend = \"https://kiosk.example\"\n"
+        );
+        _target(d, "kiosk");
+        assert get_desktop_config(project_dir=Path(d)).get_backend()
+            == "https://kiosk.example";
+        _target(d, "shell");
+        assert get_desktop_config(project_dir=Path(d)).get_backend() == "embedded";
+        toml.write_text(
+            toml.read_text() + "\n[apps.web.desktop]\nbackend = \"sometimes\"\n"
+        );
+        _target(d, "web");
+        raised = False;
+        try {
+            get_desktop_config(project_dir=Path(d)).get_backend();
+        } except ValueError {
+            raised = True;
+        }
+        assert raised , "backend must be 'embedded' or an http(s) URL";
+    } finally {
+        reset_desktop_config();
+        set_config(None);
+        Jac.set_full_target_path("");
+        shutil.rmtree(d, ignore_errors=True);
+    }
+}

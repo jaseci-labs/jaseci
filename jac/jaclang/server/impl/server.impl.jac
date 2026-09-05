@@ -1531,6 +1531,10 @@ impl JacAPIServer.register_endpoints -> None {
     import from jaclang.server.serving.health { register_health_endpoints }
     settings = self.resolved_settings();
     register_health_endpoints(self.require_app(), self.drain);
+    if settings.static_only {
+        register_page_endpoints(self);
+        return;
+    }
     register_diagnostics_endpoints(self);
     register_auth_endpoints(self);
     register_introspection_endpoints(self);
@@ -1807,7 +1811,8 @@ impl JacAPIServer._prepare_to_serve(dev: bool, no_client: bool) -> ServeSettings
 impl JacAPIServer.serve_background(
     dev: bool = False,
     no_client: bool = False,
-    on_ready: Callable[..., None] | None = None
+    on_ready: Callable[..., None] | None = None,
+    port_retries: int = 0
 ) -> Callable[[], None] {
     import from jaclang.server.outbox { start_worker_if_bridging, stop_worker }
     settings = self._prepare_to_serve(dev, no_client);
@@ -1826,7 +1831,9 @@ impl JacAPIServer.serve_background(
             on_ready(bound_port);
         }
     }
-    stop_transport = serving.serve_background(on_ready=_ready, port_retries=0);
+    stop_transport = serving.serve_background(
+        on_ready=_ready, port_retries=port_retries
+    );
     def _stop {
         stop_transport();
         self.scheduler.stop();
