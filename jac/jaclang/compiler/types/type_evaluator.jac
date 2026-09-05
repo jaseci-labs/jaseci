@@ -420,6 +420,9 @@ walker TypeEvaluator {
     ) -> (TypeBase | None);
 
     def _ts_decl_path(from_loc: ModulePath) -> (str | None);
+    def _jac_virtual_sibling_dts(
+        import_node: Import, from_mod_type: ModuleType
+    ) -> (str | None);
     def _ts_declared_type_from_file(
         dts_path: str, item_name: str
     ) -> (TypeBase | None);

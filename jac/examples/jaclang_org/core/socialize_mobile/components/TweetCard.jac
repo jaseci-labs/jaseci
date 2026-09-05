@@ -1,8 +1,8 @@
 import from "@jac/mobui" { View, Text, Pressable, TextInput }
 import from core.social_graph { Tweet }
-import from mobile.theme { C, styles }
-import from mobile.format { display_name }
-import from mobile.icon { Icon }
+import from core.socialize_mobile.theme { C, styles }
+import from core.socialize_mobile.format { display_name }
+import from core.socialize_mobile.icon { Icon }
 import from .Avatar { Avatar }
 
 def time_ago(stamp: str) -> str {

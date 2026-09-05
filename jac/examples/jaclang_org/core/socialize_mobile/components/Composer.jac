@@ -1,6 +1,6 @@
 import from "@jac/mobui" { View, Text, Pressable, TextInput, ActivityIndicator }
-import from mobile.theme { C, styles }
-import from mobile.format { chars_left }
+import from core.socialize_mobile.theme { C, styles }
+import from core.socialize_mobile.format { chars_left }
 import from .Avatar { Avatar }
 
 def:pub Composer(

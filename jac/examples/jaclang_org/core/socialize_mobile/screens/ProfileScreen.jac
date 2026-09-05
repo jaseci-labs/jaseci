@@ -1,11 +1,11 @@
 import from "@jac/mobui" { View, Text, Pressable, TextInput, ScrollView }
 import from core.social_graph { ProfileBundle }
-import from mobile.theme { C, styles }
-import from mobile.format { display_name }
-import from mobile.icon { Icon }
-import from mobile.components.Avatar { Avatar }
-import from mobile.components.TweetCard { TweetCard }
-import from mobile.components.StatusView { EmptyState }
+import from core.socialize_mobile.theme { C, styles }
+import from core.socialize_mobile.format { display_name }
+import from core.socialize_mobile.icon { Icon }
+import from core.socialize_mobile.components.Avatar { Avatar }
+import from core.socialize_mobile.components.TweetCard { TweetCard }
+import from core.socialize_mobile.components.StatusView { EmptyState }
 
 def:pub ProfileScreen(
     profile: ProfileBundle | None,

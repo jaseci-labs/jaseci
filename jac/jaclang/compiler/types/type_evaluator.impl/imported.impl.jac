@@ -142,6 +142,22 @@ impl TypeEvaluator.get_type_of_module_item(node_: ModuleItem) -> TypeBase {
                 self._emit_untyped_external(binding, item_name, from_mod_name);
                 return binding.type;
             }
+            if virtual_dts := self._jac_virtual_sibling_dts(import_node, from_mod_type) {
+                if declared := self._ts_declared_type_from_file(virtual_dts, item_name) {
+                    binding.type = declared;
+                    declared_kind = self._ts_declared_kind_from_file(
+                        virtual_dts, item_name
+                    )
+                        or BindingKind.VALUE;
+                    binding._sym_category = SymbolType.TYPE
+                        if declared_kind.is_type_only()
+                        else SymbolType.VAR;
+                    self._apply_import_binding_kind(
+                        node_, binding, declared_kind, from_mod_name
+                    );
+                    return binding.type;
+                }
+            }
             if from_mod_type.symbol_table is not None
                 and (
                     sym

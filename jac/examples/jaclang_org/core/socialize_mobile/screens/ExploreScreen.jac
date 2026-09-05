@@ -1,10 +1,10 @@
 import from "@jac/mobui" { View, Text, Pressable, ScrollView }
 import from core.social_graph { Profile, TrendingTag }
-import from mobile.theme { C, styles }
-import from mobile.format { display_name }
-import from mobile.icon { Icon }
-import from mobile.components.Avatar { Avatar }
-import from mobile.components.StatusView { EmptyState, LoadingRows }
+import from core.socialize_mobile.theme { C, styles }
+import from core.socialize_mobile.format { display_name }
+import from core.socialize_mobile.icon { Icon }
+import from core.socialize_mobile.components.Avatar { Avatar }
+import from core.socialize_mobile.components.StatusView { EmptyState, LoadingRows }
 
 def:pub ExploreScreen(
     profiles: list[Profile],

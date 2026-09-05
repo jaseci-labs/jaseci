@@ -6,9 +6,14 @@ like, reply, follow people, browse trending hashtags, and join channels --
 against the very same accounts and the very same persisted graph as the web
 app, because both consume one domain module: `core/social_graph.jac`.
 
-There is no backend in this directory. Every walker the screens spawn
+There is no backend in this directory, and no UI either: `main.jac` is a
+shell that renders `SocializeMobile` from `core/socialize_mobile/`, where the
+whole phone lives. It sits in `core/` because two apps consume it -- this one
+wraps it for Android and iOS, and the site's landing page wraps the same
+component in a bezel (`web/landing/MobileShowcase.jac`), so the phone on
+jaclang.org is this app, imported. Every walker the screens spawn
 (`load_feed`, `create_tweet`, `like_tweet`, `follow_user`, `join_channel`,
-...) is imported from `core.social_graph`, and the compiler turns each
+...) comes from `core.social_graph`, and the compiler turns each
 `root spawn` into a call across the app boundary to the `social_graph`
 service app that owns those walkers. Whether that service shares the web
 server's process or runs on its own is a profile (`jac run --serve` vs
@@ -22,7 +27,7 @@ jac run --dev mobile                     # native: Metro, press a / i or scan th
 jac run --dev --platform web mobile      # the same UI in a browser via react-native-web
 jac build mobile --platform android      # APK
 jac build mobile --platform ios          # .app / .ipa (macOS or EAS)
-jac test mobile                          # the pure-Jac helpers in format.jac
+jac test core/socialize_mobile           # the pure-Jac helpers in format.jac
 ```
 
 The first native run needs `jac setup mobile` (an Expo project is scaffolded
@@ -33,24 +38,32 @@ in another terminal is enough; the dev API base URL is injected for you.
 
 ```
 mobile/
-  main.jac            def:pub app -- auth gate, state, screen switch, tab bar
-  impl/main.impl.jac  the handlers: every bridged call, wrapped for BridgeError
-  theme.jac           tokens as objs (C, S, R, F) + one StyleSheet
-  icon.jac            <Icon name=.../> on web    (lucide-react)
-  icon.native.jac     <Icon name=.../> on native (lucide-react-native)
-  format.jac          pure helpers shared by the screens (+ format.test.jac)
-  components/         Avatar, TweetCard, Composer, TabBar, BridgeBanner, StatusView
-  screens/            AuthScreen, FeedScreen, ExploreScreen, ChannelsScreen, ProfileScreen
+  main.jac                  def:pub app -- renders <SocializeMobile/>
+core/socialize_mobile/
+  SocializeMobile.jac       the root component -- auth gate, state, screen switch, tab bar;
+                            embedded={True} sizes it to its container instead of the window
+  impl/SocializeMobile.impl.jac  the handlers: every bridged call, wrapped for BridgeError
+  theme.jac                 tokens as objs (C, S, R, F) + one StyleSheet
+  icon.jac                  <Icon name=.../> on web    (lucide-react)
+  icon.native.jac           <Icon name=.../> on native (lucide-react-native)
+  format.jac                pure helpers shared by the screens (+ format.test.jac)
+  components/               Avatar, TweetCard, Composer, TabBar, BridgeBanner, StatusView
+  screens/                  AuthScreen, FeedScreen, ExploreScreen, ChannelsScreen, ProfileScreen
 ```
 
 ## What to look at
 
-**Only `@jac/mobui` primitives.** The app is `kind = "mobile"`, so a
-raw `<div>` or `<span>` anywhere in it is a compile error (E1105). Layout is
-`View`, text is `Text`, taps are `Pressable`, input is `TextInput`, lists
-scroll in a `ScrollView` with a `RefreshControl`, the channel creator is a
-`Modal`. Styling is React Native's model: `style={styles.x}` objects from one
-`StyleSheet.create` in `theme.jac`, no CSS, no `className`.
+**Only `@jac/mobui` primitives.** Layout is `View`, text is `Text`, taps
+are `Pressable`, input is `TextInput`, lists scroll in a `ScrollView` with a
+`RefreshControl`, the channel creator is a `Modal`. Styling is React Native's
+model: `style={styles.x}` objects from one `StyleSheet.create` in
+`theme.jac`, no CSS, no `className`. The primitives are typed: the checker
+reads the declarations shipped beside `@jac/mobui`, so a misspelled prop on
+`View` is E1101 like any other component, and `StyleSheet.create` or
+`useWindowDimensions()` have real return types. Inside a `kind = "mobile"`
+root a raw `<div>` is additionally E1105; the shared tree in `core/` keeps
+to the primitives by convention, and the site builds it with
+react-native-web.
 
 **Typed tokens.** `theme.jac` declares the design tokens as `obj`s
 (`Colors`, `Spacing`, `Radii`, `Fonts`) and exports one instance of each
@@ -64,7 +77,7 @@ picks the `.native.jac` file for the app's native platforms (android / ios)
 and the plain file for its web platform. The variant-agreement check (E5105)
 keeps the two public surfaces identical.
 
-**Friendly failure.** Every bridged call in `impl/main.impl.jac` sits in a
+**Friendly failure.** Every bridged call in `impl/SocializeMobile.impl.jac` sits in a
 `try { ... } except BridgeError as e { reportBridge(e, ...); }`. The
 `BridgeError` family (`BridgeUnavailable`, `BridgeTimeout`, `BridgeRejected`)
 comes from `@jac/runtime`; `reportBridge` maps each to a one-line message and
@@ -73,7 +86,7 @@ button instead of a crashed screen. Auth calls additionally catch plain
 network errors so a dead server reads as "can't reach the server" on the
 login form.
 
-**State like the web app.** `def:pub app` keeps its state in `has` fields,
+**State like the web app.** `def:pub SocializeMobile` keeps its state in `has` fields,
 mounts with `can with entry`, reacts to login with `can with [isLoggedIn]
 entry`, and passes typed callbacks (`Callable[[str], None]`) down to screens
 that own only their local UI state (a draft, an open modal). The shapes it
@@ -85,4 +98,5 @@ renders are the domain's own `obj`s and nodes -- `ProfileBundle`,
 
 Dark-first, jaclang orange (`#ff6b35`) accent, pink likes, blue replies. On
 the web target the page is capped at 640px and centred so it reads as a
-phone column; on native it fills the screen.
+phone column; on native it fills the screen; embedded on the landing page it
+fills the bezel.

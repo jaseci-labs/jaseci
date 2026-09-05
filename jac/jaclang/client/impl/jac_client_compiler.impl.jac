@@ -278,6 +278,9 @@ impl JacClientCompiler.compile_dependencies_recursively(
         return;
     }
     for (_name, import_path) in manifest.imports.items() {
+        if _name in self.SELF_COMPILED_VIRTUAL_MODULES {
+            continue;
+        }
         path_obj = Path(str(import_path)).resolve();
         if native {
             path_obj = self._native_variant(path_obj);

@@ -1,4 +1,4 @@
-impl app.reportBridge(e: BridgeError, retry: str) -> None {
+impl SocializeMobile.reportBridge(e: BridgeError, retry: str) -> None {
     if isinstance(e, BridgeUnavailable) {
         bridgeMessage = "Can't reach the server. Check your connection and try again.";
     } elif isinstance(e, BridgeTimeout) {
@@ -11,12 +11,12 @@ impl app.reportBridge(e: BridgeError, retry: str) -> None {
     bridgeRetry = retry;
 }
 
-impl app.dismissBridge -> None {
+impl SocializeMobile.dismissBridge -> None {
     bridgeMessage = "";
     bridgeRetry = "";
 }
 
-impl app.retryBridge -> None {
+impl SocializeMobile.retryBridge -> None {
     target = bridgeRetry;
     dismissBridge();
     if target == "load" {
@@ -33,7 +33,7 @@ impl app.retryBridge -> None {
     }
 }
 
-impl app.loadData -> None {
+impl SocializeMobile.loadData -> None {
     feedLoading = True;
     try {
         result = root spawn setup_profile(
@@ -51,7 +51,7 @@ impl app.loadData -> None {
     feedLoading = False;
 }
 
-impl app.refreshFeed -> None {
+impl SocializeMobile.refreshFeed -> None {
     try {
         feedResult = root spawn load_feed(search_query=searchQuery);
         tweets = feedResult.reports[0] if feedResult.reports else [];
@@ -60,7 +60,7 @@ impl app.refreshFeed -> None {
     }
 }
 
-impl app.refreshProfile -> None {
+impl SocializeMobile.refreshProfile -> None {
     try {
         profileResult = root spawn get_profile();
         myProfile = profileResult.reports[0] if profileResult.reports else myProfile;
@@ -69,7 +69,7 @@ impl app.refreshProfile -> None {
     }
 }
 
-impl app.refreshPeople -> None {
+impl SocializeMobile.refreshPeople -> None {
     peopleLoading = True;
     try {
         profilesResult = root spawn get_all_profiles();
@@ -80,7 +80,7 @@ impl app.refreshPeople -> None {
     peopleLoading = False;
 }
 
-impl app.refreshTrending -> None {
+impl SocializeMobile.refreshTrending -> None {
     try {
         trendResult = root spawn get_trending();
         trendingTags = trendResult.reports[0] if trendResult.reports else [];
@@ -89,7 +89,7 @@ impl app.refreshTrending -> None {
     }
 }
 
-impl app.refreshChannels -> None {
+impl SocializeMobile.refreshChannels -> None {
     channelsLoading = True;
     try {
         result = root spawn get_channels();
@@ -100,7 +100,7 @@ impl app.refreshChannels -> None {
     channelsLoading = False;
 }
 
-impl app.refreshChannelDetail(channelId: str) -> None {
+impl SocializeMobile.refreshChannelDetail(channelId: str) -> None {
     try {
         detailResult = root spawn get_channel_detail(channel_id=channelId);
         detail = detailResult.reports[0] if detailResult.reports else None;
@@ -113,7 +113,7 @@ impl app.refreshChannelDetail(channelId: str) -> None {
     }
 }
 
-impl app.handleLogin -> None {
+impl SocializeMobile.handleLogin -> None {
     authError = "";
     if not authUsername.strip() or not authPassword {
         authError = "Please fill in all fields";
@@ -139,7 +139,7 @@ impl app.handleLogin -> None {
     authLoading = False;
 }
 
-impl app.handleSignup -> None {
+impl SocializeMobile.handleSignup -> None {
     authError = "";
     if not authUsername.strip() or not authPassword {
         authError = "Please fill in all fields";
@@ -175,7 +175,7 @@ impl app.handleSignup -> None {
     authLoading = False;
 }
 
-impl app.handleLogout -> None {
+impl SocializeMobile.handleLogout -> None {
     jacLogout();
     __removeLocalStorage(USERNAME_KEY);
     isLoggedIn = False;
@@ -196,7 +196,7 @@ impl app.handleLogout -> None {
     dismissBridge();
 }
 
-impl app.postTweet -> None {
+impl SocializeMobile.postTweet -> None {
     text = composerText.strip();
     if not text or posting {
         return;
@@ -214,29 +214,29 @@ impl app.postTweet -> None {
     posting = False;
 }
 
-impl app.handleRefresh -> None {
+impl SocializeMobile.handleRefresh -> None {
     refreshing = True;
     await refreshFeed();
     await refreshTrending();
     refreshing = False;
 }
 
-impl app.handleSearch -> None {
+impl SocializeMobile.handleSearch -> None {
     await refreshFeed();
 }
 
-impl app.clearSearch -> None {
+impl SocializeMobile.clearSearch -> None {
     searchQuery = "";
     await refreshFeed();
 }
 
-impl app.handleTrendPress(tag: str) -> None {
+impl SocializeMobile.handleTrendPress(tag: str) -> None {
     searchQuery = tag;
     activeTab = "feed";
     await refreshFeed();
 }
 
-impl app.handleLike(tweetId: str) -> None {
+impl SocializeMobile.handleLike(tweetId: str) -> None {
     try {
         root spawn like_tweet(tweet_id=tweetId);
     } except BridgeError as e {
@@ -252,7 +252,7 @@ impl app.handleLike(tweetId: str) -> None {
     }
 }
 
-impl app.handleComment(tweetId: str, content: str) -> None {
+impl SocializeMobile.handleComment(tweetId: str, content: str) -> None {
     if not content.strip() {
         return;
     }
@@ -271,7 +271,7 @@ impl app.handleComment(tweetId: str, content: str) -> None {
     }
 }
 
-impl app.handleDelete(tweetId: str) -> None {
+impl SocializeMobile.handleDelete(tweetId: str) -> None {
     try {
         root spawn delete_tweet(tweet_id=tweetId);
     } except BridgeError as e {
@@ -285,7 +285,7 @@ impl app.handleDelete(tweetId: str) -> None {
     }
 }
 
-impl app.handleFollow(profileId: str) -> None {
+impl SocializeMobile.handleFollow(profileId: str) -> None {
     try {
         root spawn follow_user(target_id=profileId);
     } except BridgeError as e {
@@ -296,7 +296,7 @@ impl app.handleFollow(profileId: str) -> None {
     await refreshFeed();
 }
 
-impl app.handleUnfollow(profileId: str) -> None {
+impl SocializeMobile.handleUnfollow(profileId: str) -> None {
     try {
         root spawn unfollow_user(target_id=profileId);
     } except BridgeError as e {
@@ -307,12 +307,12 @@ impl app.handleUnfollow(profileId: str) -> None {
     await refreshFeed();
 }
 
-impl app.startEditBio -> None {
+impl SocializeMobile.startEditBio -> None {
     bioText = myProfile.profile.bio if myProfile else "";
     editingBio = True;
 }
 
-impl app.handleSaveBio -> None {
+impl SocializeMobile.handleSaveBio -> None {
     uname = myProfile.profile.username if myProfile else "";
     try {
         root spawn setup_profile(username=uname, bio=bioText.strip());
@@ -324,7 +324,7 @@ impl app.handleSaveBio -> None {
     editingBio = False;
 }
 
-impl app.navigate(tab: str) -> None {
+impl SocializeMobile.navigate(tab: str) -> None {
     activeTab = tab;
     if tab == "explore" {
         await refreshPeople();
@@ -336,7 +336,7 @@ impl app.navigate(tab: str) -> None {
     }
 }
 
-impl app.handleCreateChannel(name: str, description: str) -> None {
+impl SocializeMobile.handleCreateChannel(name: str, description: str) -> None {
     if not name.strip() {
         return;
     }
@@ -349,7 +349,7 @@ impl app.handleCreateChannel(name: str, description: str) -> None {
     await refreshChannels();
 }
 
-impl app.handleJoinChannel(channelId: str) -> None {
+impl SocializeMobile.handleJoinChannel(channelId: str) -> None {
     try {
         root spawn join_channel(channel_id=channelId);
     } except BridgeError as e {
@@ -362,7 +362,7 @@ impl app.handleJoinChannel(channelId: str) -> None {
     }
 }
 
-impl app.handleLeaveChannel(channelId: str) -> None {
+impl SocializeMobile.handleLeaveChannel(channelId: str) -> None {
     try {
         root spawn leave_channel(channel_id=channelId);
     } except BridgeError as e {
@@ -375,11 +375,11 @@ impl app.handleLeaveChannel(channelId: str) -> None {
     }
 }
 
-impl app.handleSelectChannel(channelId: str) -> None {
+impl SocializeMobile.handleSelectChannel(channelId: str) -> None {
     await refreshChannelDetail(channelId);
 }
 
-impl app.handleChannelPost(text: str) -> None {
+impl SocializeMobile.handleChannelPost(text: str) -> None {
     if not text.strip() or selectedChannel is None {
         return;
     }
@@ -393,7 +393,7 @@ impl app.handleChannelPost(text: str) -> None {
     await refreshChannelDetail(channelId);
 }
 
-impl app.handleBackToChannels -> None {
+impl SocializeMobile.handleBackToChannels -> None {
     selectedChannel = None;
     channelPosts = [];
 }
