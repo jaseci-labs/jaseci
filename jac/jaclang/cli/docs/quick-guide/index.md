@@ -61,18 +61,15 @@ This single file defines a persistent data model, an AI-powered categorizer, a R
     name = "mini-todo"
 
     [dependencies.npm]
-    react = "^18.2.0"
-    react-dom = "^18.2.0"
+    react = "^19.2.0"
+    react-dom = "^19.2.0"
 
     [dependencies.npm.dev]
     vite = "^6.4.1"
     "@vitejs/plugin-react" = "^4.2.1"
     typescript = "^5.3.3"
-    "@types/react" = "^18.2.0"
-    "@types/react-dom" = "^18.2.0"
-
-    [serve]
-    base_route_app = "app"
+    "@types/react" = "^19.2.0"
+    "@types/react-dom" = "^19.2.0"
 
     [scale]
 

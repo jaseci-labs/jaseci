@@ -857,7 +857,7 @@ with entry {
 
 test "real repo walker file social_graph lowers identically" {
     path = os.path.join(
-        JAC_ROOT, "examples", "jaclang_org", "socialize", "social_graph.jac"
+        JAC_ROOT, "examples", "jaclang_org", "core", "social_graph.jac"
     );
     (ref_tree, got_tree, blob) = dual_compile_file(path);
     assert_dump_equal(ref_tree, got_tree);

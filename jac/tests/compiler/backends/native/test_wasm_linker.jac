@@ -21,6 +21,7 @@ import from tests.support { TESTS_DIR }
 import jaclang;
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.backends.native.na_compile_pass { native_linked_ir_text }
 import from jaclang.compiler.backends.native.wasm_linker {
     WasmLinker,
     _uleb,
@@ -54,7 +55,7 @@ def emit_wasm_object(fixture: str) -> bytes {
         ]}";
         llvm.initialize_all_targets();
         llvm.initialize_all_asmprinters();
-        mod = llvm.parse_assembly(str(ir.gen.llvm_ir));
+        mod = llvm.parse_assembly(native_linked_ir_text(ir));
         mod.verify();
         tm = llvm.Target.from_triple(WASM_TRIPLE).create_target_machine(opt=2);
         pto = llvm.create_pipeline_tuning_options(speed_level=2);

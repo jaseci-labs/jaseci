@@ -171,7 +171,7 @@ def _warn_dropped_xff_once(request: any) -> None {
         f"Ignoring X-Forwarded-For from peer {peer!r}: no trusted_proxies "
         "are configured, so requests are rate-limited by TCP peer address. "
         "If a proxy or ingress fronts this server, set "
-        "[scale.microservices.rate_limit] trusted_proxies to its address."
+        "[scale.gateway.rate_limit] trusted_proxies to its address."
     );
 }
 

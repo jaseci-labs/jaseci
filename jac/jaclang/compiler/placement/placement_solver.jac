@@ -90,6 +90,10 @@ def _native_deps_ok(
 ) -> bool {
     import from jaclang.compiler.frontend.codeinfo { effective_native_closure_cap }
     import from jaclang.compiler.driver.na_coverage { _note_native_closure_cap }
+    import from jaclang.compiler.native_scope {
+        in_native_scope_path,
+        scope_lowering_active
+    }
     cap = effective_native_closure_cap();
     edges: dict[str, list[str]] = {root_path: list(root_deps)};
     queue: list[str] = list(root_deps);
@@ -101,6 +105,9 @@ def _native_deps_ok(
         dep = queue.pop();
         if dep in edges {
             continue;
+        }
+        if in_native_scope_path(dep) and not scope_lowering_active() {
+            return False;
         }
         info = _native_dep_scan(dep, hold_exempt=hold_exempt);
         if info is None {
@@ -140,13 +147,9 @@ def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
     import from jaclang.compiler.driver.schedules { native_pipeline_available }
     import from jaclang.compiler.placement.placement_pins { _is_demoted_native }
 
-    try {
-        import from jaclang.project.config { get_config }
-        _cfg = get_config();
-        if (_cfg is not None and getattr(_cfg?.project, 'kind', '') == 'web-app') {
-            return (False, "web-app project: native is opt-in");
-        }
-    } except Exception {}
+    if module.app_kind == 'web-app' {
+        return (False, "web-app project: native is opt-in");
+    }
     (env_ok, env_reason) = native_pipeline_available();
     if not env_ok {
         return (False, env_reason);
@@ -157,6 +160,16 @@ def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
     }
     if _is_demoted_native(os.path.realpath(mod_path)) {
         return (False, "previously-demoted");
+    }
+    import from jaclang.compiler.native_scope {
+        in_native_scope_path,
+        scope_lowering_active
+    }
+    if in_native_scope_path(mod_path) and not scope_lowering_active() {
+        return (False, "compiler frontend module: native only inside the kernel build");
+    }
+    if not any([isinstance(e, uni.ElementStmt) for e in module.body]) {
+        return (False, "empty module: nothing to lower");
     }
     base_dir = os.path.dirname(os.path.abspath(mod_path)) or '.';
     (sv_reason, deps) = scan_native_blockers(module, base_dir);
@@ -171,7 +184,7 @@ def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
 
 def _endpoint_veto_applies(module: uni.Module) -> bool {
     import from jaclang.compiler.placement.placement { project_has_server }
-    return project_has_server(module.loc.mod_path or '');
+    return project_has_server(module);
 }
 
 def _top_element(module: uni.Module, nd: uni.UniNode) -> (uni.UniNode | None) {
@@ -187,8 +200,9 @@ def _is_client_top(elem: uni.UniNode) -> bool {
         and elem.code_context == CodeContext.CLIENT;
 }
 
-def _py_import_client_portable(elem: uni.Import) -> bool {
-    import from jaclang.runtime.portability { client_supports_py_module }
+def _py_import_client_portable(elem: uni.Import, app_kind: str = '') -> bool {
+    import from jaclang.runtime.portability { supports }
+    kind = app_kind or 'web-app';
     targets: list[str] = [];
     if elem.from_loc is not None {
         targets.append(elem.from_loc.dot_path_str);
@@ -203,7 +217,7 @@ def _py_import_client_portable(elem: uni.Import) -> bool {
         return False;
     }
     for tgt in targets {
-        if not client_supports_py_module(tgt) {
+        if not supports(tgt, 'client', kind) {
             return False;
         }
     }
@@ -225,13 +239,13 @@ def _pullable_by_client_reference(
             return True;
         }
         if elem.from_loc is None {
-            return _py_import_client_portable(elem);
+            return _py_import_client_portable(elem, module.app_kind);
         }
         resolved = elem.from_loc.resolve_relative_path();
         if isinstance(resolved, str) and resolved.endswith('.jac') {
             return True;
         }
-        return _py_import_client_portable(elem);
+        return _py_import_client_portable(elem, module.app_kind);
     }
     if isinstance(elem, (uni.Archetype, uni.TypeAlias)) {
         for top in module.body {
@@ -281,7 +295,9 @@ def _ref_top_ids(module: uni.Module, elem: uni.UniNode) -> set[int] {
 }
 
 def _is_sv_import(elem: uni.UniNode) -> bool {
-    return isinstance(elem, uni.Import) and elem.is_service_import;
+    import from jaclang.compiler.driver.boundary_classify { import_crosses_apps }
+    return isinstance(elem, uni.Import)
+        and (elem.is_service_import or import_crosses_apps(elem));
 }
 
 def _named_top_element(target: uni.Module, name: str) -> (uni.UniNode | None) {
@@ -339,7 +355,7 @@ def _closure_pullable(
         return True;
     }
     if isinstance(top, uni.Import) {
-        if top.is_service_import {
+        if _is_sv_import(top) {
             return True;
         }
         source_mod = _import_source_module(top, prog);
@@ -769,7 +785,7 @@ def _pull_into_target(
 
 def _pull_boundary_import(imp: uni.Import, module: uni.Module, prog: any) -> int {
     if (
-        imp.is_service_import
+        _is_sv_import(imp)
         or imp.is_virtual_jac
         or imp.has_string_path
         or imp.from_loc is None

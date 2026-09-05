@@ -8,6 +8,7 @@ import from jaclang.scale.runtime.gateway.service_registry {
 }
 import from jaclang.scale.runtime.gateway.microservice_gateway { MicroserviceGateway }
 import from jaclang.server.serving.datatypes { Headers, Request, URL }
+import from jaclang.scale.tests.support { get_free_port }
 
 test "resolve strips prefix and preserves walker path" {
     reg = ServiceRegistry();
@@ -1247,16 +1248,14 @@ test "gateway drain does not burn metrics labels on 503d requests" {
 obj _FakeScaleConfig {
     has _cors: dict = {};
 
-    def get_microservices_config -> dict {
+    def get_gateway_config -> dict {
         return {
-            "enabled": True,
             "gateway_port": 8000,
             "gateway_host": "0.0.0.0",
             "drain_timeout_seconds": 10.0,
-            "routes": {},
-            "services": {},
+            "rate_limit": {},
             "cors": self._cors,
-            "client": {"entry": "", "dist_dir": "", "base_route": "/"}
+            "tracing": {}
         };
     }
 
@@ -1419,12 +1418,20 @@ test "http_forward_timeout falls back to 30s default when config read fails" {
 obj _TimeoutStubCfg {
     has data: dict[str, any];
 
-    def get_microservices_config -> dict[str, any] {
-        return self.data;
+    def get_gateway_config -> dict[str, any] {
+        return {
+            k: v
+            for (k, v) in self.data.items()
+            if k != "apps"
+        };
+    }
+
+    def get_app_scale_config(app_name: str) -> dict[str, any] {
+        return dict(self.data.get("apps", {}).get(app_name, {}));
     }
 }
 
-test "http_forward_timeout precedence: per-service > global > default" {
+test "http_forward_timeout precedence: per-app > gateway > default" {
     import from jaclang.scale.runtime.context.util { http_forward_timeout }
     import jaclang.scale.config.config_loader as cfg_mod;
 
@@ -1433,9 +1440,7 @@ test "http_forward_timeout precedence: per-service > global > default" {
         setattr(
             cfg_mod,
             "get_scale_config",
-            lambda { _TimeoutStubCfg(
-                data={"http_forward_timeout": 45.0, "services": {}}
-            ); }
+            lambda { _TimeoutStubCfg(data={"http_forward_timeout": 45.0, "apps": {}}); }
         );
         assert http_forward_timeout(None) == 45.0;
         assert http_forward_timeout("any_service") == 45.0;
@@ -1446,7 +1451,7 @@ test "http_forward_timeout precedence: per-service > global > default" {
             lambda { _TimeoutStubCfg(
                 data={
                     "http_forward_timeout": 45.0,
-                    "services": {"llm_app": {"http_forward_timeout": 300.0}}
+                    "apps": {"llm_app": {"http_forward_timeout": 300.0}}
                 }
             ); }
         );
@@ -1457,7 +1462,7 @@ test "http_forward_timeout precedence: per-service > global > default" {
             cfg_mod,
             "get_scale_config",
             lambda { _TimeoutStubCfg(
-                data={"services": {"llm_app": {"http_forward_timeout": 120.0}}}
+                data={"apps": {"llm_app": {"http_forward_timeout": 120.0}}}
             ); }
         );
         assert http_forward_timeout("llm_app") == 120.0;
@@ -1469,7 +1474,7 @@ test "http_forward_timeout precedence: per-service > global > default" {
             lambda { _TimeoutStubCfg(
                 data={
                     "http_forward_timeout": 45.0,
-                    "services": {"llm_app": {"rpc_timeout": 120.0}}
+                    "apps": {"llm_app": {"rpc_timeout": 120.0}}
                 }
             ); }
         );
@@ -1598,16 +1603,6 @@ def _stop_backend(srv: any) {
     try {
         srv.close();
     } except OSError {}
-}
-
-
-def _free_port -> int {
-    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
-    probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
-    probe.bind(("127.0.0.1", 0));
-    port = probe.getsockname()[1];
-    probe.close();
-    return port;
 }
 
 
@@ -1963,7 +1958,7 @@ test "a service that was unreachable at the first crawl is learned once it answe
     hits_a: dict = {};
     hits_b: dict = {};
     (srv_a, port_a) = _start_backend(hits_a, {"GET /openapi.json": _spec([])});
-    port_b = _free_port();
+    port_b = get_free_port();
     srv_b = None;
     try {
         (gw, client) = _gateway(

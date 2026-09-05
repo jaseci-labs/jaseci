@@ -1149,6 +1149,27 @@ def _lower_spawn(tokens: list[Token]) -> list[Token]:
     return tokens
 
 
+
+def _paren_group_spans_subscript(tokens: list[Token], open_idx: int) -> bool:
+    """True when the paren group opening at open_idx is the entire subscript.
+
+    `dict[(str, Info)]` and `dict[((int | str), object)]` wrap the whole
+    subscript and lower to `dict[str, Info]`; `tuple[(str | None), bool]`
+    does not, and its parens must survive so the `)` stays matched.
+    """
+    depth = 0
+    j = open_idx
+    while j < len(tokens):
+        t = tokens[j]
+        if t.type in (TT.LPAREN, TT.LBRACKET, TT.LBRACE):
+            depth += 1
+        elif t.type in (TT.RPAREN, TT.RBRACKET, TT.RBRACE):
+            depth -= 1
+            if depth == 0:
+                return j + 1 < len(tokens) and tokens[j + 1].type == TT.RBRACKET
+        j += 1
+    return False
+
 def transform_tokens(tokens: list[Token]) -> list[Token]:
     """Apply Jac→Python transformations on a token list.
 
@@ -1283,13 +1304,14 @@ def transform_tokens(tokens: list[Token]) -> list[Token]:
                 i += 1
             continue
 
-        # === NAME[( → NAME[, skip ( ===
+        # === NAME[( ... )] → NAME[ ... ], only when the group spans the subscript ===
         if (
             tok.type == TT.LBRACKET
             and i + 1 < len(tokens)
             and tokens[i + 1].type == TT.LPAREN
             and out
             and out[-1].type == TT.NAME
+            and _paren_group_spans_subscript(tokens, i + 1)
         ):
             bracket_depth += 1
             bracket_stack.append(bracket_depth)
@@ -1843,6 +1865,14 @@ class Parser:
             is_classmethod = True
         # consume 'def' or 'can'
         self._advance()
+        # Optional access modifier :pub, :priv, :prot (same as _parse_has)
+        if (
+            self._at(TT.COLON)
+            and self._peek(1).type == TT.NAME
+            and self._peek(1).value in ("pub", "priv", "prot", "protect")
+        ):
+            self._advance()  # skip :
+            self._advance()  # consume access modifier
         name = self._expect(TT.NAME).value
         # Skip optional type parameters: def foo[T, E](...)
         if self._match(TT.LBRACKET):
@@ -2792,6 +2822,23 @@ class CodeGen:
                 elif d_norm == "{}":
                     self._line(
                         f"{var.name}: {var.type_ann} = field(default_factory=dict)"
+                    )
+                elif d_norm in ("set()", "list()", "dict()", "frozenset()"):
+                    self._line(
+                        f"{var.name}: {var.type_ann} = "
+                        f"field(default_factory={d_norm[:-2]})"
+                    )
+                elif (
+                    d.endswith(")")
+                    and not d.startswith("(")
+                    and not d.startswith("field(")
+                    and not d.startswith("ClassVar")
+                ):
+                    # A call expression builds a fresh value per instance;
+                    # a shared default would alias it across instances.
+                    self._line(
+                        f"{var.name}: {var.type_ann} = "
+                        f"field(default_factory=lambda: {var.default})"
                     )
                 else:
                     self._line(f"{var.name}: {var.type_ann} = {var.default}")

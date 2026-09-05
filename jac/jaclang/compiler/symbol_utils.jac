@@ -616,7 +616,7 @@ def client_bridged_endpoint(mod: Module, top: UniNode) -> bool {
         and top.access is not None
         and top.access.tag.name == Tok.KW_PUB
         and top.code_context == CodeContext.SERVER
-        and project_has_server(mod.loc.mod_path or '')
+        and project_has_server(mod)
     );
 }
 
@@ -732,7 +732,7 @@ def serverless_server_evidence(
         get_module_summary,
         project_has_server
     }
-    if project_has_server(mod.loc.mod_path or '') {
+    if project_has_server(mod) {
         return [];
     }
     out: list[tuple[str, str, UniNode]] = [];
@@ -768,7 +768,7 @@ def report_serverless_kind_errors(reporter: any, mod: Module) {
     if not evidence {
         return;
     }
-    kind = project_kind_name(mod.loc.mod_path or '') or 'client-only';
+    kind = project_kind_name(mod) or 'client-only';
     for (name, reason, stmt) in evidence {
         already = _already_reported(reporter, E5087, stmt);
         if not already {
