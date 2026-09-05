@@ -211,8 +211,12 @@ test "a provider's import of a shared pure helper is not an app edge" {
     assert "E5104" not in found , (
         f"false cycle through a shared helper: {[str(e) for e in prog.errors_had]}"
     );
-    import from jaclang.compiler.driver.boundary_classify { symbol_linked_source_module }
-    import from jaclang.compiler.passes.boundary_analysis_pass { _parse_module_for_types }
+    import from jaclang.compiler.driver.boundary_classify {
+        symbol_linked_source_module
+    }
+    import from jaclang.compiler.passes.boundary_analysis_pass {
+        _parse_module_for_types
+    }
     feed = _parse_module_for_types(fixture("feed_app.jac"));
     assert feed is not None;
     imp = import_of(feed, "shared_fmt");

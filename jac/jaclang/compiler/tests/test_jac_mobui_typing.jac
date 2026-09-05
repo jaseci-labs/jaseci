@@ -153,7 +153,11 @@ test "the mobui declarations name every export of the shim" {
     with open(dts, "r", encoding="utf-8") as f {
         decls = parse_dts(f.read());
     }
-    missing = [name for name in exported if name not in decls];
+    missing = [
+        name
+        for name in exported
+        if name not in decls
+    ];
     assert missing == [] , missing;
 }
 
@@ -163,7 +167,11 @@ test "an unknown prop on a mobui primitive is rejected" {
     try {
         entry_file = _write_workspace(base_dir);
         with open(os.path.join(base_dir, "core", "phone.jac"), "w") as f {
-            f.write(_SHARED_SRC.replace("<View style={styles.root}>", "<View stlye={styles.root}>"));
+            f.write(
+                _SHARED_SRC.replace(
+                    "<View style={styles.root}>", "<View stlye={styles.root}>"
+                )
+            );
         }
         with open(entry_file, "w") as f {
             f.write(_ENTRY_SRC.replace("<View style=", "<View stlye="));
@@ -171,7 +179,11 @@ test "an unknown prop on a mobui primitive is rejected" {
         for root_file in (entry_file, os.path.join(base_dir, "core", "phone.jac")) {
             prog = JacProgram();
             prog.compile(file_path=root_file, no_cgen=True);
-            codes = [e.code.code for e in prog.errors_had if e.code];
+            codes = [
+                e.code.code
+                for e in prog.errors_had
+                if e.code
+            ];
             assert "E1101" in codes , (root_file, [str(e) for e in prog.errors_had]);
         }
     } finally {
