@@ -143,6 +143,37 @@ impl NaIRGenContainerHelpers._emit_elem_release(
     );
 }
 
+impl NaIRGenContainerHelpers._emit_elem_slot_drop(
+    b: ir.IRBuilder,
+    fn: ir.Function,
+    cont: ir.Value,
+    layout: dict,
+    data_index: int,
+    val: ir.Value
+) -> ir.IRBuilder {
+    i8p = ir.IntType(8).as_pointer();
+    i32 = ir.IntType(32);
+    _slot_p = b.gep(
+        cont,
+        [ir.Constant(i32, 0), ir.Constant(i32, layout["drop_base"] + data_index)],
+        name="eslot.p"
+    );
+    _slot = b.load(_slot_p, name="eslot");
+    _have = b.icmp_unsigned(
+        "!=",
+        _slot,
+        ir.Constant(self._nogc_elem_drop_slot_ty(), None),
+        name="eslot.have"
+    );
+    _drop_bb = fn.append_basic_block("eslot.drop");
+    _done_bb = fn.append_basic_block("eslot.done");
+    b.cbranch(_have, _drop_bb, _done_bb);
+    _bd = ir.IRBuilder(_drop_bb);
+    _bd.call(_slot, [_bd.bitcast(val, i8p, name="eslot.i8")]);
+    _bd.branch(_done_bb);
+    return ir.IRBuilder(_done_bb);
+}
+
 impl NaIRGenContainerHelpers._reject_ptr_into_raw_slot(
     nd: (uni.UniNode | None), value: ir.Value, elem_type: ir.Type, what: str
 ) -> bool {

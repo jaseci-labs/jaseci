@@ -19,6 +19,52 @@ import from tests.ownership_helpers { compile_fixture, expect_ownership_codes }
 
 # (group, case name, fixture, expected E13xx codes, [enforce nogc])
 glob OWNERSHIP_CASES: list[tuple] = [
+         # -- linear ----------------------------------------------------------
+         (
+             "linear",
+             "a lin binding consumed once by an own call",
+             "lin_consumed_ok.jac",
+             []
+         ),
+         (
+             "linear",
+             "E1305: a lin binding never consumed",
+             "lin_never_consumed.jac",
+             ["E1305"]
+         ),
+         (
+             "linear",
+             "E1305: a lin binding consumed on one branch only",
+             "lin_one_branch.jac",
+             ["E1305"]
+         ),
+         ("linear", "a lin parameter consumed before return", "lin_param_ok.jac", []),
+         (
+             "linear",
+             "E1305: a lin parameter only read is dropped unconsumed",
+             "lin_param_dropped.jac",
+             ["E1305"]
+         ),
+         (
+             "linear",
+             "E1301: a lin binding stays affine after its move",
+             "lin_use_after_move.jac",
+             ["E1301"]
+         ),
+         ("linear", "returning a lin binding consumes it", "lin_returned_ok.jac", []),
+         # -- container moves -------------------------------------------------
+         (
+             "container_moves",
+             "E1301: append moves a named own archetype",
+             "move_into_append_use_after.jac",
+             ["E1301"]
+         ),
+         (
+             "container_moves",
+             "E1301: a dict store moves a named own archetype",
+             "move_into_dict_use_after.jac",
+             ["E1301"]
+         ),
          # -- views -----------------------------------------------------------
          (
              "views",

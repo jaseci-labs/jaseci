@@ -397,6 +397,58 @@ impl OwnershipCheckPass._nogc_fresh_scalar_list(expr: Expr | None) -> bool {
     return True;
 }
 
+impl OwnershipCheckPass._emit_raises_diagnostics -> None {
+    if self.nogc_prov is None {
+        return;
+    }
+    import from jaclang.compiler.frontend.diagnostics { E1407 }
+    for mc in self.ir_in.get_all_sub_nodes(ModuleCode) {
+        for exc in sorted(self._local_raises(mc)) {
+            reported = False;
+            for call in mc.get_all_sub_nodes(FuncCall) {
+                owner = call.find_parent_of_type(Ability);
+                if owner is not None and self._node_within(owner, mc) {
+                    continue;
+                }
+                callee = self._callee_ability(call);
+                if callee is None
+                    or exc not in callee.raises
+                    or self._handled_by_enclosing_try(call, exc, mc) {
+                    continue;
+                }
+                cname = callee.name_ref.sym_name
+                    if callee.name_ref is not None
+                    else "call";
+                self.emit(E1407, node_override=call, name=cname, exc=exc);
+                reported = True;
+                break;
+            }
+            if not reported {
+                for rs in mc.get_all_sub_nodes(RaiseStmt) {
+                    if self._raise_type_name(rs) == exc
+                        and not self._handled_by_enclosing_try(rs, exc, mc) {
+                        self.emit(E1407, node_override=rs, name="raise", exc=exc);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl OwnershipCheckPass._nogc_moved_arch_elem(expr: Expr | None) -> bool {
+    if not isinstance(expr, Name) or self._owned_sym_of(expr) is None {
+        return False;
+    }
+    _m = "";
+    try {
+        _m = expr.type.mangle() if expr.type is not None else "";
+    } except Exception {
+        _m = "";
+    }
+    return _m != "str";
+}
+
 impl OwnershipCheckPass._nogc_fresh_arch_elem(expr: Expr | None) -> bool {
     if not isinstance(expr, FuncCall) {
         return False;
@@ -559,6 +611,7 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
                         and (
                             self._nogc_fresh_arch_elem(_le)
                             or self._nogc_fresh_scalar_list(_le)
+                            or self._nogc_moved_arch_elem(_le)
                         )
                     ) {
                     continue;
@@ -606,6 +659,8 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
                 );
                 _val_bad = (
                     not self._nogc_str_elem_ok(_kv.value)
+                    and not self._nogc_fresh_arch_elem(_kv.value)
+                    and not self._nogc_moved_arch_elem(_kv.value)
                     and self._nogc_local_shape_expr_heap(_kv.value)
                 );
                 if _key_bad or _val_bad {
@@ -664,6 +719,7 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
                     and (
                         self._nogc_fresh_arch_elem(_gav)
                         or self._nogc_fresh_scalar_list(_gav)
+                        or self._nogc_moved_arch_elem(_gav)
                     ) {
                     continue;
                 }
@@ -786,10 +842,8 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
                 and self._nogc_is_container_expr(_tgt.target)
                 and nd.value is not None
                 and not self._nogc_str_elem_ok(nd.value)
-                and not (
-                    self._nogc_is_list_expr(_tgt.target)
-                    and self._nogc_fresh_arch_elem(nd.value)
-                )
+                and not self._nogc_fresh_arch_elem(nd.value)
+                and not self._nogc_moved_arch_elem(nd.value)
                 and self._nogc_local_shape_expr_heap(nd.value) {
                 self.emit(
                     E1406,
@@ -1076,6 +1130,7 @@ impl OwnershipCheckPass._stamp_arch_view_bindings -> None {
         self.borrow_created_at[_sid] = nd;
         self.view_syms.add(_sid);
         self.arch_view_syms.add(_sid);
+        _tgt.sym.is_view = True;
     }
     for _mc in self.ir_in.get_all_sub_nodes(FuncCall) {
         _grow = self._nogc_container_grow_method(_mc);

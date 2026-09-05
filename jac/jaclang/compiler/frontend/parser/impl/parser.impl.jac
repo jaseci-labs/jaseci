@@ -4944,26 +4944,30 @@ impl Parser._recover_misplaced_disconnect -> None {
     }
 }
 
-impl Parser.parse_ownership_prefix(kids: list[UniNode]) -> OwnershipKind {
+impl Parser.parse_ownership_prefix(kids: list[UniNode]) -> tuple[OwnershipKind, bool] {
     if self.check(TokenKind.KW_OWN) {
         own_tok = self.expect(TokenKind.KW_OWN);
         kids.append(self.make_uni_token(own_tok));
-        return OwnershipKind.OWN;
+        return (OwnershipKind.OWN, False);
+    } elif self.check(TokenKind.KW_LIN) {
+        lin_tok = self.expect(TokenKind.KW_LIN);
+        kids.append(self.make_uni_token(lin_tok));
+        return (OwnershipKind.OWN, True);
     } elif self.check(TokenKind.KW_IMM) {
         imm_tok = self.expect(TokenKind.KW_IMM);
         kids.append(self.make_uni_token(imm_tok));
-        return OwnershipKind.IMM;
+        return (OwnershipKind.IMM, False);
     } elif self.check(TokenKind.BW_AND) {
         amp_tok = self.expect(TokenKind.BW_AND);
         kids.append(self.make_uni_token(amp_tok));
         if self.check(TokenKind.KW_MUT) {
             mut_tok = self.expect(TokenKind.KW_MUT);
             kids.append(self.make_uni_token(mut_tok));
-            return OwnershipKind.MUT_BORROW;
+            return (OwnershipKind.MUT_BORROW, False);
         }
-        return OwnershipKind.BORROW;
+        return (OwnershipKind.BORROW, False);
     }
-    return OwnershipKind.NONE;
+    return (OwnershipKind.NONE, False);
 }
 
 impl Parser.parse_assignment_with_target(
@@ -4974,10 +4978,10 @@ impl Parser.parse_assignment_with_target(
         colon_uni = self.make_uni_token(self.previous());
 
         own_kid: list[UniNode] = [colon_uni];
-        own_kind = self.parse_ownership_prefix(own_kid);
+        (own_kind, own_lin) = self.parse_ownership_prefix(own_kid);
         tp = self.parse_pipe();
         own_kid.append(tp);
-        type_tag = SubTag(tag=tp, ownership=own_kind, kid=own_kid);
+        type_tag = SubTag(tag=tp, ownership=own_kind, linear=own_lin, kid=own_kid);
     }
     value: (Expr | YieldExpr | None) = None;
     aug_op: (Token | None) = None;
@@ -6265,10 +6269,12 @@ impl Parser.parse_param_var -> ParamVar | None {
     if self.match_tok(TokenKind.COLON) {
         param_colon_uni = self.make_uni_token(self.previous());
         param_type_kid: list[UniNode] = [param_colon_uni];
-        param_kind = self.parse_ownership_prefix(param_type_kid);
+        (param_kind, param_lin) = self.parse_ownership_prefix(param_type_kid);
         tp = self.parse_pipe();
         param_type_kid.append(tp);
-        type_tag = SubTag(tag=tp, ownership=param_kind, kid=param_type_kid);
+        type_tag = SubTag(
+            tag=tp, ownership=param_kind, linear=param_lin, kid=param_type_kid
+        );
     }
     default_val: Expr | None = None;
     param_eq_uni: Token | None = None;
@@ -6601,10 +6607,10 @@ impl Parser.parse_global_var_assignment -> Assignment {
     if self.match_tok(TokenKind.COLON) {
         gv_colon_uni = self.make_uni_token(self.previous());
         gv_own_kid: list[UniNode] = [gv_colon_uni];
-        gv_own_kind = self.parse_ownership_prefix(gv_own_kid);
+        (gv_own_kind, gv_lin) = self.parse_ownership_prefix(gv_own_kid);
         tp = self.parse_pipe();
         gv_own_kid.append(tp);
-        type_tag = SubTag(tag=tp, ownership=gv_own_kind, kid=gv_own_kid);
+        type_tag = SubTag(tag=tp, ownership=gv_own_kind, linear=gv_lin, kid=gv_own_kid);
     }
     value: (Expr | YieldExpr | None) = None;
     targets: list[Expr] = [name];

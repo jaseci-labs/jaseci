@@ -316,7 +316,7 @@ Emitted by `OwnershipCheckPass` for `own`/`imm`/`borrow`/`&`/`&mut` bindings and
 | `E1302` | Conflicting mutable borrow of '{name}' while another borrow is live |
 | `E1303` | Cannot mutate '{name}' while a shared borrow of it is live |
 | `E1304` | '{name}' is destroyed while still borrowed |
-| `E1305` | *Reserved, not yet registered* -- will be "Linear resource '{name}' is never consumed" once the planned `linear` marker lands (a `linear` binding must be moved exactly once; plain `own` is affine and may be silently dropped) |
+| `E1305` | Linear binding '{name}' is never consumed |
 | `E1306` | Borrow of '{name}' escapes its scope |
 | `E1307` | Reference to '{name}' escapes its region |
 | `E1308` | '{name}' is not sendable across a concurrency boundary |
@@ -340,6 +340,7 @@ Emitted by `OwnershipCheckPass` only in **nogc-enforced** native modules (`jac n
 | `E1404` | '{name}' is `any`-typed and could be heap-allocated in a nogc-enforced module ({provenance}) |
 | `E1405` | Closure capture of '{name}' escapes its scope in a nogc-enforced module ({provenance}) |
 | `E1406` | '{name}' has retaining or aliasing semantics not supported in a nogc-enforced module ({provenance}) |
+| `E1407` | '{name}' raises {exc}, and the entry block does not handle it |
 
 ### Type-Only Import Bindings
 

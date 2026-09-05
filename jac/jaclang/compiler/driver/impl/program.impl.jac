@@ -149,18 +149,21 @@ impl JacProgram.load_dependency_module(
     }
 
     mod: uni.Module;
+    foreign_untyped = (
+        resolved_path in target_hub
+        and target_program is not self
+        and not resolved_path.endswith('.pyi')
+        and not target_hub[resolved_path].stub_only
+        and not target_program.analysis.analyses_run.provides(
+            target_hub[resolved_path], 'TypeOf'
+        )
+    );
     if resolved_path in self.mod.hub {
         mod = self.mod.hub[resolved_path];
-    } elif resolved_path in target_hub
-        and (
-            target_program is self
-            or target_program.analysis.analyses_run.provides(
-                target_hub[resolved_path], 'TypeOf'
-            )
-        ) {
+    } elif resolved_path in target_hub and not foreign_untyped {
         mod = target_hub[resolved_path];
     } else {
-        if resolved_path in target_hub {
+        if foreign_untyped {
             events = self.analysis.cache_events;
             events["untyped_foreign_tree_skipped"] = (
                 events.get("untyped_foreign_tree_skipped", 0) + 1
@@ -199,7 +202,7 @@ impl JacProgram.load_dependency_module(
                 )
             );
         }
-        if not hasattr(mod, "cat_kids") {
+        if not hasattr(mod, "cat_kids") and not foreign_untyped {
             target_program.install_module(resolved_path, mod);
         }
     }

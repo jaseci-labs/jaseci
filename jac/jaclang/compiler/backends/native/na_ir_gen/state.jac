@@ -230,6 +230,8 @@ obj NaIRGenState(ModuleCodegenPass) {
         _ct_bindings: dict = {},
         _gen_ctx: (dict | None) = None,
         _gen_try_stack: list = [],
+        _slot_try_stack: list = [],
+        _nogc_err_globals: (tuple | None) = None,
         decorated_fns: dict[str, tuple] = {},
         closure_cell_vars: set[str] = set(),
         closure_cell_handles: dict[str, ir.Value] = {},

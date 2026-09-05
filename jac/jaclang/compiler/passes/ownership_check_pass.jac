@@ -2,6 +2,7 @@ import from enum { Enum }
 import from typing { TypeAlias }
 import from jaclang.compiler.frontend.unitree {
     Ability,
+    AstElseBodyNode,
     Archetype,
     Assignment,
     AtomTrailer,
@@ -35,6 +36,9 @@ import from jaclang.compiler.frontend.unitree {
     OpenStmt,
     ParamVar,
     RaiseStmt,
+    FinallyStmt,
+    Except,
+    TryStmt,
     ReturnStmt,
     SetVal,
     Slice,
@@ -57,7 +61,11 @@ import from jaclang.compiler.frontend.constant {
     is_mut_kind
 }
 import from jaclang.compiler.passes.transform { Transform }
-import from jaclang.compiler.passes.dataflow { solve_backward, solve_forward }
+import from jaclang.compiler.passes.dataflow {
+    solve_backward,
+    solve_forward,
+    solve_forward_must
+}
 import type from jaclang.compiler.driver.program { JacProgram }
 
 glob SymId: TypeAlias = int,
@@ -93,6 +101,7 @@ walker OwnershipCheckPass(Transform) {
         ir_in: Module,
         cancel_token: any = None,
         owned_decl: dict[SymId, Name] = {},
+        linear_decl: dict[SymId, Name] = {},
         consumed_syms: set[SymId] = set(),
         borrow_meta: dict[SymId, BorrowMeta] = {},
         e1304_borrow_ids: set[SymId] = set(),
@@ -175,6 +184,12 @@ walker OwnershipCheckPass(Transform) {
     def _method_writes_self(ability: Ability) -> bool;
     def _self_method_callees(ability: Ability) -> list[Ability];
     def _stamp_receiver_modes -> None;
+    def _stamp_raises_effects -> None;
+    def _raise_type_name(nd: RaiseStmt) -> (str | None);
+    def _handled_by_enclosing_try(nd: UniNode, exc: str, stop: UniNode) -> bool;
+    def _callee_ability(call: FuncCall) -> (Ability | None);
+    def _local_raises(ab: UniNode) -> set[str];
+    def _emit_raises_diagnostics -> None;
     def _is_consuming_receiver(nd: Name) -> bool;
     def _method_call_receiver(call: FuncCall) -> (Name | None);
     def _method_call_mode(call: FuncCall) -> OwnershipKind;
@@ -185,7 +200,12 @@ walker OwnershipCheckPass(Transform) {
     def _emit_place_move(expr: Expr) -> None;
     def _callee_own_param_names(call: FuncCall) -> (set[str] | None);
     def _emit_place_move_diagnostics -> None;
+    def _emit_linear_diagnostics(cfg_nodes: list[UniCFGNode]) -> None;
+    def _node_within(nd: UniNode, scope: UniNode) -> bool;
+    def _is_scope_exit(nd: UniCFGNode) -> bool;
     def _call_consumes_args(call: FuncCall) -> bool;
+    def _grow_arg_moves(call: FuncCall, arg: Expr | None) -> bool;
+    def _nogc_moved_arch_elem(expr: Expr | None) -> bool;
     def _has_region_blocks -> bool;
     def _emit_region_escape_diagnostics -> None;
     def _emit_sendability_diagnostics -> None;

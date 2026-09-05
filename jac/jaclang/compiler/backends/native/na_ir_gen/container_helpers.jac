@@ -23,6 +23,15 @@ obj NaIRGenContainerHelpers(NaIRGenState) {
     def _emit_jacval_release_fn -> ir.Function;
     def _emit_jacval_rc_fn(fn_name: str, is_retain: bool) -> ir.Function;
     def _container_managed_fields(layout: dict) -> list;
+    def _emit_elem_slot_drop(
+        b: ir.IRBuilder,
+        fn: ir.Function,
+        cont: ir.Value,
+        layout: dict,
+        data_index: int,
+        val: ir.Value
+    ) -> ir.IRBuilder;
+
     def _reject_ptr_into_raw_slot(
         nd: (uni.UniNode | None), value: ir.Value, elem_type: ir.Type, what: str
     ) -> bool;

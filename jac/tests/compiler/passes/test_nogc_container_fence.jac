@@ -9,7 +9,9 @@ storage the container must not free, so they stay fenced, as do non-str heap
 elements (archetypes, nested containers), whose element-drop monomorphization
 is still deferred. These tests pin both sides: every unsupported write is
 fenced, and the supported shapes (scalar containers, str containers, and a
-same-named method on a non-container user type) stay clean.
+same-named method on a non-container user type) stay clean. Archetype
+elements move into lists and dict values (fresh values and named own
+bindings alike); sets of archetypes stay fenced.
 
 Each fixture is compiled through the real type-check schedule with enforcement
 enabled via CompileOptions, matching `jac nacompile --enforce-nogc --gc none`.
@@ -53,16 +55,20 @@ test "E1406: appending an obj field read into a list" {
     assert enforced_codes("append_field_fenced.jac") == ["E1406"];
 }
 
-test "E1406: index-assigning an owned heap object as a dict value" {
-    assert enforced_codes("dict_heap_val.jac") == ["E1406"];
+test "a fresh archetype index-assigned as a dict value moves into the dict" {
+    assert enforced_codes("dict_heap_val.jac") == [];
 }
 
 test "E1406: adding an owned heap object to a set" {
     assert enforced_codes("set_add_obj.jac") == ["E1406"];
 }
 
-test "E1406: a dict literal with an owned heap value" {
-    assert enforced_codes("dict_literal_heap.jac") == ["E1406"];
+test "a dict literal with a fresh archetype value moves it into the dict" {
+    assert enforced_codes("dict_literal_heap.jac") == [];
+}
+
+test "E1306 + E1406: a borrowed heap object as a dict value" {
+    assert enforced_codes("dict_heap_val_borrow.jac") == ["E1306", "E1406"];
 }
 
 test "E1406: a set literal with an owned heap element" {

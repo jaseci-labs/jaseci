@@ -246,24 +246,6 @@ impl NaIRGenExceptions._codegen_raise(nd: uni.RaiseStmt) -> None {
     i8p = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
 
-    if getattr(self.ir_in.gen, "nogc_enforced", False)
-        and not self._raise_has_frame_handler(nd) {
-        self._emit_scope_cleanup(loc="nogc.abort");
-        _abort_fn = self._get_or_declare_extern("abort", ir.VoidType(), []);
-        _msg = self._make_global_string(
-            "jac: unhandled exception in nogc-enforced module (abort)",
-            name_prefix=".nogc.abort"
-        );
-        _puts_fn = self._get_or_declare_extern("puts", i32, [i8p]);
-        _msg_i8 = self.builder.bitcast(_msg, i8p, name="nogc.abort.msg");
-        self.builder.call(_puts_fn, [_msg_i8]);
-        _fflush_fn = self._get_or_declare_extern("fflush", i32, [i8p]);
-        self.builder.call(_fflush_fn, [ir.Constant(i8p, None)]);
-        self.builder.call(_abort_fn, []);
-        self.builder.unreachable();
-        return;
-    }
-
     if self._exc_raise_fn is None {
         self._declare_exception_runtime();
     }
@@ -322,6 +304,10 @@ impl NaIRGenExceptions._codegen_raise(nd: uni.RaiseStmt) -> None {
         exc_payload = self.builder.bitcast(exc_payload, i8p, name="exc.obj.cast");
     }
 
+    if self._slot_lowering_active() {
+        self._codegen_raise_slot(exc_payload, exc_type_id, exc_msg);
+        return;
+    }
     self.builder.call(
         self._exc_raise_fn, [exc_payload, ir.Constant(i32, exc_type_id), exc_msg]
     );
@@ -345,6 +331,10 @@ impl NaIRGenExceptions._raise_has_frame_handler(nd: uni.RaiseStmt) -> bool {
 }
 
 impl NaIRGenExceptions._codegen_try(nd: uni.TryStmt) -> None {
+    if self._slot_lowering_active() {
+        self._codegen_try_slot(nd);
+        return;
+    }
     i8p = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
 
@@ -561,5 +551,208 @@ impl NaIRGenExceptions._codegen_try(nd: uni.TryStmt) -> None {
         self.builder.branch(merge_bb);
     }
 
+    self.builder.position_at_end(merge_bb);
+}
+
+impl NaIRGenExceptions._slot_lowering_active -> bool {
+    return bool(getattr(self.ir_in.gen, "nogc_enforced", False))
+        and self._gen_ctx is None;
+}
+
+impl NaIRGenExceptions._nogc_err_slot -> tuple {
+    if self._nogc_err_globals is not None {
+        return self._nogc_err_globals;
+    }
+    i32 = ir.IntType(32);
+    i8p = ir.IntType(8).as_pointer();
+    out: list = [];
+    for (name, ty, init) in (
+        ("__jac_err_type", i32, 0),
+        ("__jac_err_obj", i8p, None),
+        ("__jac_err_msg", i8p, None)
+    ) {
+        if name in self.llvm_module.globals {
+            out.append(self.llvm_module.globals[name]);
+            continue;
+        }
+        g = ir.GlobalVariable(self.llvm_module, ty, name=name);
+        g.linkage = "linkonce_odr";
+        g.initializer = ir.Constant(ty, init);
+        out.append(g);
+    }
+    self._nogc_err_globals = (out[0], out[1], out[2]);
+    return self._nogc_err_globals;
+}
+
+impl NaIRGenExceptions._emit_err_propagate(loc: str = "") -> None {
+    i8p = ir.IntType(8).as_pointer();
+    if self._slot_try_stack {
+        self.builder.branch(self._slot_try_stack[-1]["dispatch"]);
+        return;
+    }
+    func = self.builder.function;
+    if func.name == "jac_entry" {
+        (_tg, _og, mglob) = self._nogc_err_slot();
+        msg = self.builder.load(mglob, name="err.msg");
+        fmt = self._make_global_string(
+            "jac: unhandled exception: %s\n", name_prefix=".err.unhandled"
+        );
+        self.builder.call(
+            self._get_printf(), [self.builder.bitcast(fmt, i8p, name="err.fmt"), msg]
+        );
+        abort_fn = self._get_or_declare_extern("abort", ir.VoidType(), []);
+        self.builder.call(abort_fn, []);
+        self.builder.unreachable();
+        return;
+    }
+    self._emit_scope_cleanup(loc=loc or "err.propagate");
+    rt = func.function_type.return_type;
+    if isinstance(rt, ir.VoidType) {
+        self.builder.ret_void();
+    } else {
+        self.builder.ret(self._default_arg_fallback(rt));
+    }
+}
+
+impl NaIRGenExceptions._emit_err_check(callee: (uni.Ability | None)) -> None {
+    if callee is None or not callee.raises or not self._slot_lowering_active() {
+        return;
+    }
+    if self._builder is None or self.builder.block.is_terminated {
+        return;
+    }
+    i32 = ir.IntType(32);
+    (tglob, _og, _mg) = self._nogc_err_slot();
+    t = self.builder.load(tglob, name="err.type");
+    is_err = self.builder.icmp_signed("!=", t, ir.Constant(i32, 0), name="err.set");
+    func = self.builder.function;
+    err_bb = func.append_basic_block("err.propagate");
+    cont_bb = func.append_basic_block("err.cont");
+    self.builder.cbranch(is_err, err_bb, cont_bb);
+    self.builder.position_at_end(err_bb);
+    self._emit_err_propagate(loc="err.check");
+    self.builder.position_at_end(cont_bb);
+}
+
+impl NaIRGenExceptions._codegen_raise_slot(
+    payload: ir.Value, type_id: int, msg: ir.Value
+) -> None {
+    i32 = ir.IntType(32);
+    (tglob, oglob, mglob) = self._nogc_err_slot();
+    self.builder.store(ir.Constant(i32, type_id), tglob);
+    self.builder.store(payload, oglob);
+    self.builder.store(msg, mglob);
+    self._emit_err_propagate(loc="raise");
+}
+
+impl NaIRGenExceptions._codegen_try_slot(nd: uni.TryStmt) -> None {
+    i8p = ir.IntType(8).as_pointer();
+    i32 = ir.IntType(32);
+    func = self.builder.function;
+    (tglob, oglob, mglob) = self._nogc_err_slot();
+    body_bb = func.append_basic_block("try.body");
+    dispatch_bb = func.append_basic_block("except.dispatch");
+    finally_bb = func.append_basic_block("finally");
+    merge_bb = func.append_basic_block("try.merge");
+    kind = self._entry_alloca(i32, "try.kind");
+    self.builder.store(ir.Constant(i32, 0), kind);
+    self.builder.branch(body_bb);
+    self.builder.position_at_end(body_bb);
+    self._slot_try_stack.append({"dispatch": dispatch_bb});
+    try {
+        if isinstance(nd.body, (list, tuple)) {
+            self._codegen_body(nd.body);
+        }
+    } finally {
+        self._slot_try_stack.pop();
+    }
+    if not self.builder.block.is_terminated {
+        if isinstance(nd.else_body, uni.ElseStmt)
+            and isinstance(nd.else_body.body, (list, tuple)) {
+            self._codegen_body(nd.else_body.body);
+        }
+        if not self.builder.block.is_terminated {
+            self.builder.store(ir.Constant(i32, 0), kind);
+            self.builder.branch(finally_bb);
+        }
+    }
+    self.builder.position_at_end(dispatch_bb);
+    err_type = self.builder.load(tglob, name="err.type");
+    for (i, except_node) in enumerate(nd.excepts or []) {
+        ex = except_node.ex_type;
+        caught: (str | None) = None;
+        if isinstance(ex, uni.Name) {
+            caught = ex.value;
+        } elif isinstance(ex, uni.AtomTrailer) and isinstance(ex.right, uni.Name) {
+            caught = ex.right.value;
+        }
+        handler_bb = func.append_basic_block(f"except.handler.{i}");
+        next_bb = func.append_basic_block(f"except.dispatch.{i + 1}");
+        if caught is None or caught in ("Exception", "BaseException") {
+            self.builder.branch(handler_bb);
+        } else {
+            ids = [self._get_or_register_exc_type(caught)];
+            for desc in self._get_exc_descendants(caught) {
+                ids.append(self._get_or_register_exc_type(desc));
+            }
+            does_match: (ir.Value | None) = None;
+            for tid in ids {
+                cmp = self.builder.icmp_signed(
+                    "==", err_type, ir.Constant(i32, tid), name=f"exc.is.{tid}"
+                );
+                does_match = cmp
+                    if does_match is None
+                    else self.builder.or_(does_match, cmp, name="exc.match");
+            }
+            self.builder.cbranch(does_match, handler_bb, next_bb);
+        }
+        self.builder.position_at_end(handler_bb);
+        self.builder.store(ir.Constant(i32, 0), tglob);
+        if except_node.name is not None {
+            var_name = except_node.name.value
+                if isinstance(except_node.name, uni.Name)
+                else str(except_node.name);
+            if caught is not None and caught in self.struct_types {
+                _exc_sp_ty = self.struct_types[caught].as_pointer();
+                typed_obj = self.builder.bitcast(
+                    self.builder.load(oglob, name="exc.bound.obj"),
+                    _exc_sp_ty,
+                    name="exc.bound.typed"
+                );
+                alloca = self._entry_alloca(_exc_sp_ty, var_name);
+                self.builder.store(typed_obj, alloca);
+            } else {
+                alloca = self._entry_alloca(i8p, var_name);
+                self.builder.store(
+                    self.builder.load(mglob, name="exc.bound.msg"), alloca
+                );
+            }
+        }
+        if isinstance(except_node.body, (list, tuple)) {
+            self._codegen_body(except_node.body);
+        }
+        if not self.builder.block.is_terminated {
+            self.builder.store(ir.Constant(i32, 0), kind);
+            self.builder.branch(finally_bb);
+        }
+        self.builder.position_at_end(next_bb);
+    }
+    self.builder.store(ir.Constant(i32, 1), kind);
+    self.builder.branch(finally_bb);
+    self.builder.position_at_end(finally_bb);
+    if nd.finally_body is not None
+        and isinstance(nd.finally_body.body, (list, tuple)) {
+        self._codegen_body(nd.finally_body.body);
+    }
+    if not self.builder.block.is_terminated {
+        k = self.builder.load(kind, name="try.kind.v");
+        is_prop = self.builder.icmp_signed(
+            "!=", k, ir.Constant(i32, 0), name="try.propagating"
+        );
+        prop_bb = func.append_basic_block("try.propagate");
+        self.builder.cbranch(is_prop, prop_bb, merge_bb);
+        self.builder.position_at_end(prop_bb);
+        self._emit_err_propagate(loc="try.propagate");
+    }
     self.builder.position_at_end(merge_bb);
 }

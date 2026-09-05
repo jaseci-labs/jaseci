@@ -61,9 +61,9 @@ test "fresh archetype elements pass the container fence" {
     assert codes == [] , codes;
 }
 
-test "named archetype bindings stay fenced (E1406)" {
+test "named archetype bindings move into the container" {
     codes = _enforced_codes(os.path.join(CONTAINER_DIR, "append_obj_named.jac"));
-    assert "E1406" in codes , codes;
+    assert codes == [] , codes;
 }
 
 test "element drops fire exactly once at identical points in all gc modes" {

@@ -3123,9 +3123,13 @@ impl NaIRGenObjects._codegen_method_call_inner(nd: uni.FuncCall) -> (ir.Value | 
             coerced.append(arg);
         }
     }
+    _release = self._transfer_own_args(
+        nd, func, coerced, list(coerced), offset=len(coerced) - len(nd.params or [])
+    );
     result = self.builder.call(func, coerced, name=f"call.{method_name}");
 
-    self._release_owned_args(coerced, op="call_arg");
+    self._release_owned_args(_release, op="call_arg");
+    self._emit_err_check(self._callee_ability_of(nd) or self._linked_callee_decl(func));
 
     if isinstance(func.return_value.type, ir.VoidType) {
         return ir.Constant(ir.IntType(64), 0);

@@ -114,3 +114,50 @@ test "views over a borrowed list never own its elements" {
             "done"
         ] , out;
 }
+
+test "owned archetype values in a dict: overwrite, pop, del and the dict drop" {
+    out = assert_native_identity(_fixture("owned_dict_values.jac"));
+    assert out.splitlines()
+        == [
+            "drop 1",
+            "a=10",
+            "popped=2",
+            "drop 10",
+            "sink 2",
+            "drop 2",
+            "drop 3",
+            "1",
+            "done"
+        ] , out;
+}
+
+test "named own archetypes move into append, insert, a dict store and a list literal" {
+    out = assert_native_identity(_fixture("named_move_containers.jac"));
+    assert out.splitlines()
+        == [
+            "xs=21",
+            "m=34",
+            "ys=5",
+            "sink 1",
+            "drop 1",
+            "sink 4",
+            "drop 4",
+            "drop 3",
+            "sink 5",
+            "drop 5",
+            "drop 2",
+            "2",
+            "done"
+        ] , out;
+}
+
+test "a lin binding lowers exactly like own in every memory mode" {
+    out = assert_native_identity(_fixture("lin_handle.jac"));
+    assert out.splitlines() == ["using 7", "close 7", "drop 7", "1", "done"] , out;
+}
+
+test "raise propagates through the hidden error slot with static drops and finally" {
+    out = assert_native_identity(_fixture("error_slot.jac"));
+    assert out.splitlines()
+        == ["drop 1", "81", "drop 1", "8080", "caught", "finally", "done"] , out;
+}

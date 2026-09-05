@@ -1333,21 +1333,81 @@ impl JcirGenPass.resolve_stmt_block(
     ];
     ret: list[CgItem] = [self.nod('Pass', [], [])]
         if (isinstance(nd, Sequence) and not valid_stmts)
-        else self._flatten_ast_list(
-            [
-                self.outs(x)
-                    if not isinstance(x, SwitchStmt)
-                    else self.resolve_switch_stmt(x)
-                for x in valid_stmts
-                if not isinstance(x, ImplDef)
-            ]
-        )
+        else self._stmts_with_releases(valid_stmts)
             if (nd is not None)
             else [self.nod('Pass', [], [])];
     if doc {
         ret = [self.nod('Expr', ['value'], [self.val(doc)], jac_node=doc), *ret];
     }
     return ret;
+}
+
+impl JcirGenPass._stmts_with_releases(stmts: list) -> list[CgItem] {
+    out: list[CgItem] = [];
+    for x in stmts {
+        if isinstance(x, ImplDef) {
+            continue;
+        }
+        out.extend(
+            self.outs(x)
+                if not isinstance(x, SwitchStmt)
+                else self.resolve_switch_stmt(x)
+        );
+        out.extend(self._move_release_stmts(x));
+    }
+    return out;
+}
+
+impl JcirGenPass._move_release_stmts(stmt: CodeBlockStmt) -> list[CgNode] {
+    if isinstance(stmt, (ReturnStmt, RaiseStmt)) {
+        return [];
+    }
+    sites = self.ir_in.own_move_sites;
+    last_uses = self.ir_in.rc_last_use.get(id(stmt)) or [];
+    if not sites and not last_uses {
+        return [];
+    }
+    targets: list[str] = [];
+    if isinstance(stmt, Assignment) {
+        targets = [
+            t.sym_name
+            for t in stmt.target
+            if isinstance(t, Name)
+        ];
+    }
+    names: list[str] = [];
+    for nm in stmt.get_all_sub_nodes(Name) {
+        if id(nm) not in sites
+            or nm.sym is None
+            or nm.find_parent_of_type(CodeBlockStmt) is not stmt
+            or nm.find_parent_of_type(LambdaExpr) is not None
+            or nm.sym.storage not in (SymbolStorage.LOCAL, SymbolStorage.PARAM)
+            or nm.sym_name in targets
+            or nm.sym_name in names {
+            continue;
+        }
+        names.append(nm.sym_name);
+    }
+    for ln in last_uses {
+        if ln in names or ln in targets {
+            continue;
+        }
+        sym = stmt.sym_tab.lookup(ln) if stmt.sym_tab is not None else None;
+        if sym is None
+            or sym.ownership != OwnershipKind.OWN
+            or sym.storage != SymbolStorage.LOCAL {
+            continue;
+        }
+        names.append(ln);
+    }
+    return [
+        self.nod(
+            'Delete',
+            ['targets'],
+            [[self.nod('Name', ['id', 'ctx'], [n, self.nod('Del', [], [])])]],
+            jac_node=stmt
+        ) for n in names
+    ];
 }
 
 impl JcirGenPass.scope_directive_stmts(

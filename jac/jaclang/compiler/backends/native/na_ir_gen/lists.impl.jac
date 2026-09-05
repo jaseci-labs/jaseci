@@ -385,7 +385,12 @@ impl NaIRGenLists._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         }
     }
     _lit_spec = self._elem_spec_of(nd);
-    if _lit_spec == "jacval" and self?.jacval_type {
+    _aos_lit = self._aos_elem_of(nd);
+    if _aos_lit is not None {
+        self._emit_aos_list_helpers(_aos_lit);
+        elem_type_name = f"aos.{_aos_lit}";
+        elem_type = self.list_helpers[elem_type_name]["elem_type"];
+    } elif _lit_spec == "jacval" and self?.jacval_type {
         elem_type = self.jacval_type;
         elem_type_name = "jacval";
     } elif _lit_spec in ("i64", "f64")
@@ -412,7 +417,9 @@ impl NaIRGenLists._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         self._pending_list_elem_struct = elem_type;
     }
 
-    self._emit_list_helpers(elem_type_name, elem_type);
+    if _aos_lit is None {
+        self._emit_list_helpers(elem_type_name, elem_type);
+    }
     helpers = self.list_helpers[elem_type_name];
     i8p = ir.IntType(8).as_pointer();
 

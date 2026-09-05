@@ -6,6 +6,7 @@ import from jaclang.compiler.frontend.diagnostics {
     E1302,
     E1303,
     E1304,
+    E1305,
     E1306,
     E1311,
     W1312
@@ -110,6 +111,7 @@ impl OwnershipCheckPass._run_impl(ir_in: Module) -> Module {
     self._build_index(ir_in);
     self._compute_view_archs();
     self._stamp_receiver_modes();
+    self._stamp_raises_effects();
     self._stamp_ownership();
     self._stamp_loop_borrows();
     self._stamp_region_borrows();
@@ -137,7 +139,9 @@ impl OwnershipCheckPass._run_impl(ir_in: Module) -> Module {
     self._run_borrow_liveness(cfg_nodes);
     self._run_reaching_borrows(cfg_nodes);
     self._emit_diagnostics();
+    self._emit_linear_diagnostics(cfg_nodes);
     self._emit_receiver_diagnostics();
+    self._emit_raises_diagnostics();
     self._emit_place_move_diagnostics();
     self._emit_borrow_diagnostics();
     self._emit_element_space_conflicts();
@@ -263,6 +267,10 @@ impl OwnershipCheckPass._stamp_ownership -> None {
             sid = self._name_sym_id(own_target);
             own_target.sym.ownership = OwnershipKind.OWN;
             self.owned_decl[sid] = own_target;
+            if nd.type_tag is not None and nd.type_tag.linear {
+                own_target.sym.linear = True;
+                self.linear_decl[sid] = own_target;
+            }
         }
         borrow_target = self._is_borrow_decl(nd);
         if borrow_target is not None and borrow_target.sym is not None {
@@ -315,6 +323,10 @@ impl OwnershipCheckPass._stamp_ownership -> None {
         } elif tag.ownership == OwnershipKind.OWN {
             name.sym.ownership = OwnershipKind.OWN;
             self.owned_decl[sid] = name;
+            if tag.linear {
+                name.sym.linear = True;
+                self.linear_decl[sid] = name;
+            }
         } elif tag.ownership == OwnershipKind.IMM {
             name.sym.ownership = OwnershipKind.IMM;
             self.imm_decl[sid] = name;
@@ -658,15 +670,16 @@ impl OwnershipCheckPass._call_move_gen(nd: UniCFGNode) -> set[SymId] {
                 gen.add(recv_owned);
             }
         }
-        if not self._call_consumes_args(call) {
-            continue;
-        }
+        consumes_all = self._call_consumes_args(call);
         for param in self._call_params(call) {
             arg: Expr | None = None;
             if isinstance(param, KWPair) {
                 arg = param.value;
             } elif isinstance(param, Expr) {
                 arg = param;
+            }
+            if not consumes_all and not self._grow_arg_moves(call, arg) {
+                continue;
             }
             owned = self._owned_sym_of(arg);
             if owned is not None {
@@ -675,6 +688,212 @@ impl OwnershipCheckPass._call_move_gen(nd: UniCFGNode) -> set[SymId] {
         }
     }
     return gen;
+}
+
+impl OwnershipCheckPass._emit_linear_diagnostics(cfg_nodes: list[UniCFGNode]) -> None {
+    if not self.linear_decl {
+        return;
+    }
+    universe = set(self.linear_decl.keys());
+    must_in = solve_forward_must(cfg_nodes, self._transfer, universe);
+    for (sid, decl) in self.linear_decl.items() {
+        scope: UniNode | None = decl.find_parent_of_type(Ability);
+        if scope is None {
+            scope = decl.find_parent_of_type(ModuleCode);
+        }
+        if scope is None {
+            continue;
+        }
+        for n in cfg_nodes {
+            if n is scope
+                or not self._node_within(n, scope)
+                or not self._is_scope_exit(n) {
+                continue;
+            }
+            if sid not in self._transfer(n, must_in.get(id(n), set())) {
+                self.emit(E1305, node_override=decl, name=decl.sym_name);
+                break;
+            }
+        }
+    }
+}
+
+impl OwnershipCheckPass._node_within(nd: UniNode, scope: UniNode) -> bool {
+    cur: UniNode | None = nd.parent;
+    while cur is not None {
+        if cur is scope {
+            return True;
+        }
+        cur = cur.parent;
+    }
+    return False;
+}
+
+impl OwnershipCheckPass._is_scope_exit(nd: UniCFGNode) -> bool {
+    if not nd.bb_out {
+        return bool(nd.bb_in);
+    }
+    if isinstance(nd, AstElseBodyNode) and nd.else_body is not None {
+        return False;
+    }
+    for succ in nd.bb_out {
+        if not self._node_within(succ, nd) {
+            return False;
+        }
+    }
+    return True;
+}
+
+impl OwnershipCheckPass._raise_type_name(nd: RaiseStmt) -> (str | None) {
+    cause = nd.cause;
+    if isinstance(cause, FuncCall) {
+        cause = cause.target;
+    }
+    if isinstance(cause, Name) {
+        return cause.sym_name;
+    }
+    if isinstance(cause, AtomTrailer) and isinstance(cause.right, Name) {
+        return cause.right.sym_name;
+    }
+    if cause is None {
+        handler = nd.find_parent_of_type(Except);
+        if handler is not None {
+            ex = handler.ex_type;
+            if isinstance(ex, Name) {
+                return ex.sym_name;
+            }
+        }
+        return "Exception";
+    }
+    return None;
+}
+
+impl OwnershipCheckPass._handled_by_enclosing_try(
+    nd: UniNode, exc: str, stop: UniNode
+) -> bool {
+    child: UniNode = nd;
+    cur: UniNode | None = nd.parent;
+    while cur is not None and cur is not stop {
+        if isinstance(cur, TryStmt) and child in list(cur.body) {
+            for handler in cur.excepts {
+                ex = handler.ex_type;
+                caught = ex.sym_name if isinstance(ex, Name) else None;
+                if caught in (exc, "Exception", "BaseException") {
+                    return True;
+                }
+            }
+        }
+        child = cur;
+        cur = cur.parent;
+    }
+    return False;
+}
+
+impl OwnershipCheckPass._callee_ability(call: FuncCall) -> (Ability | None) {
+    tgt = call.target;
+    sym = tgt.sym
+        if isinstance(tgt, (Name, AtomTrailer)) and hasattr(tgt, "sym")
+        else None;
+    decl = sym.decl if sym is not None else None;
+    ability = decl.find_parent_of_type(Ability) if decl is not None else None;
+    if ability is None or decl is not ability.name_ref {
+        return None;
+    }
+    return ability;
+}
+
+impl OwnershipCheckPass._local_raises(ab: UniNode) -> set[str] {
+    out: set[str] = set();
+    for rs in ab.get_all_sub_nodes(RaiseStmt) {
+        owner = rs.find_parent_of_type(Ability);
+        if isinstance(ab, Ability) {
+            if owner is not ab {
+                continue;
+            }
+        } elif owner is not None and self._node_within(owner, ab) {
+            continue;
+        }
+        exc = self._raise_type_name(rs);
+        if exc is None or self._handled_by_enclosing_try(rs, exc, ab) {
+            continue;
+        }
+        out.add(exc);
+    }
+    for call in ab.get_all_sub_nodes(FuncCall) {
+        owner = call.find_parent_of_type(Ability);
+        if isinstance(ab, Ability) and owner is not ab {
+            continue;
+        }
+        if not isinstance(ab, Ability)
+            and owner is not None
+            and self._node_within(owner, ab) {
+            continue;
+        }
+        callee = self._callee_ability(call);
+        if callee is None or callee is ab {
+            continue;
+        }
+        for exc in callee.raises {
+            if not self._handled_by_enclosing_try(call, exc, ab) {
+                out.add(exc);
+            }
+        }
+    }
+    return out;
+}
+
+impl OwnershipCheckPass._stamp_raises_effects -> None {
+    abilities = [
+        ab
+        for ab in self.ir_in.get_all_sub_nodes(Ability)
+        if ab.body is not None
+    ];
+    if not abilities {
+        return;
+    }
+    for ab in abilities {
+        ab.raises = [];
+    }
+    changed = True;
+    rounds = 0;
+    while changed and rounds < 64 {
+        changed = False;
+        rounds += 1;
+        for ab in abilities {
+            new = sorted(self._local_raises(ab));
+            if new != ab.raises {
+                ab.raises = new;
+                changed = True;
+            }
+        }
+    }
+}
+
+impl OwnershipCheckPass._grow_arg_moves(call: FuncCall, arg: Expr | None) -> bool {
+    if not isinstance(arg, Name) or self._owned_sym_of(arg) is None {
+        return False;
+    }
+    _grow = self._nogc_container_grow_method(call);
+    if _grow is None or _grow == "add" {
+        return False;
+    }
+    _direct = False;
+    for _p in self._call_params(call) {
+        if (_p.value if isinstance(_p, KWPair) else _p) is arg {
+            _direct = True;
+            break;
+        }
+    }
+    if not _direct {
+        return False;
+    }
+    _m = "";
+    try {
+        _m = arg.type.mangle() if arg.type is not None else "";
+    } except Exception {
+        _m = "";
+    }
+    return _m != "str";
 }
 
 impl OwnershipCheckPass._return_move_gen(nd: UniCFGNode) -> set[SymId] {
@@ -1326,7 +1545,11 @@ impl OwnershipCheckPass._is_move_producing_use(nd: Name) -> bool {
     kind = self._classify_access(nd);
     if kind == AccessKind.CALL_ARG {
         _call = nd.find_parent_of_type(FuncCall);
-        return _call is None or self._call_consumes_args(_call);
+        return (
+            _call is None
+            or self._call_consumes_args(_call)
+            or self._grow_arg_moves(_call, nd)
+        );
     }
     if kind == AccessKind.RETURN_VALUE {
         return True;

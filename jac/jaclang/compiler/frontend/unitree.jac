@@ -258,6 +258,8 @@ node Symbol {
         imported: bool postinit,
         semstr: str postinit,
         ownership: OwnershipKind = OwnershipKind.NONE,
+        linear: bool = False,
+        is_view: bool = False,
         param_rebound: bool = False,
         na_escapes: bool = False,
         na_region_handle: bool = False,
@@ -614,12 +616,14 @@ node MatchPattern(UniNode) {}
 
 node SubTag[T](UniNode) {
     has tag: T,
-        ownership: OwnershipKind = OwnershipKind.NONE;
+        ownership: OwnershipKind = OwnershipKind.NONE,
+        linear: bool = False;
 
     def init(
         *,
         tag: T,
         ownership: OwnershipKind = OwnershipKind.NONE,
+        linear: bool = False,
         kid: Sequence[UniNode] = []
     ) -> None;
 
@@ -1071,7 +1075,9 @@ node Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBlo
 
     def postinit -> None;
 
-    has receiver_mode: OwnershipKind = OwnershipKind.NONE;
+    has receiver_mode: OwnershipKind = OwnershipKind.NONE,
+        raises: list[str] postinit;
+
     has is_method: bool { getter; }
     has is_cls_method: bool { getter; }
     has is_def: bool { getter; }

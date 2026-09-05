@@ -1828,6 +1828,10 @@ impl NaIRGenRefcount._nogc_stamp_elem_drops(
         return;
     }
     _base = _layout["drop_base"];
+    _cont_elems = cont.type.pointee?.elements or ();
+    if _base + len(_layout["data_fields"]) > len(_cont_elems) {
+        return;
+    }
     _slot_specs: list = [
         (_base + _k, elem_mangles[_k])
         for _k in range(len(_layout["data_fields"]))
@@ -1989,7 +1993,21 @@ impl NaIRGenRefcount._nogc_consume_local(
 impl NaIRGenRefcount._nogc_elem_prep(
     expr: uni.UniNode | None, val: ir.Value | None
 ) -> (ir.Value | None) {
-    if val is None or self._gc_mode() != "none" {
+    if val is None {
+        return val;
+    }
+    if self._gc_mode() != "none" {
+        if isinstance(expr, uni.Name)
+            and isinstance(val.type, ir.PointerType)
+            and self._is_move_site(expr) {
+            _mslot = self.local_vars.get(expr.sym_name);
+            if _mslot is not None
+                and isinstance(_mslot.type, ir.PointerType)
+                and isinstance(_mslot.type.pointee, ir.PointerType) {
+                self.builder.store(ir.Constant(_mslot.type.pointee, None), _mslot);
+                self._mark_owned(val);
+            }
+        }
         return val;
     }
     if self._str_desc_ty is not None and val.type == self._str_desc_ty {

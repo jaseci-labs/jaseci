@@ -195,6 +195,27 @@ def exchange(a: &mut List, b: &mut List) { swap(&mut a.head, &mut b.head); }
 
 List elements are moved out with `pop()` or `pop(i)`, which hand the element to the receiver; `take` and `swap` address locals and attributes.
 
+### Containers take ownership
+
+A container store is a move. Appending or inserting a named `own` archetype binding into a list, storing one as a dict value (by subscript or in a literal), or placing one in a list literal moves it into the container, which drops it with its other elements; the source binding is consumed, so a later read is `E1301`. Strings are the exception: a named owned `str` is copied in and stays live. Taking an element back out (`pop()`, or a dict `pop(key)`) hands ownership to the receiver; overwriting a dict value or `del` on a key drops the old value at that point.
+
+```jac
+obj Box { has tag: int = 0; def drop { print("drop", self.tag); } }
+
+def run -> int {
+    xs: list[own Box] = [];
+    b: own Box = Box(tag=1);
+    xs.append(b);                 # b is moved; `b.tag` here would be E1301
+    d: dict[str, own Box] = {};
+    d["k"] = Box(tag=2);
+    d["k"] = Box(tag=3);          # prints "drop 2"
+    got: own Box = d.pop("k");    # the receiver now owns tag 3
+    return xs[0].tag + got.tag;   # xs drops tag 1; got drops tag 3
+}
+```
+
+Sets of archetypes stay outside this rule (they hash by identity), and a borrowed value or a field read cannot enter a container; both remain `E1406` under enforcement.
+
 ## Receiver modes
 
 A method reads, writes, or consumes its receiver, and the checker knows which. The mode is **inferred from the body**: a method that assigns a field of `self`, grows or mutates a container field of `self` (`append`, `insert`, `pop`, `remove`, `clear`, `extend`, `update`, `sort`, ...), takes `&mut self`, or calls another method that mutates `self` is `&mut self`; every other method is `&self`. Methods that call each other resolve to the least mode consistent with their bodies, so a cycle of read-only methods stays `&self`. The inferred mode is stamped on the method as a fact editors can show.
@@ -294,7 +315,7 @@ def work -> int {
 
 The loop variable is checked as a borrow of the iterated owner: storing it into a field or otherwise escaping the loop is `E1306`. Element mutation through the `&mut` form is visible after the loop at identical program points under every gc mode, including enforced headerless builds.
 
-## `imm` and `linear` markers
+## `imm` and `lin` markers
 
 Two further binding markers refine `own` at either end of the strictness spectrum.
 
@@ -310,24 +331,62 @@ with entry {
 }
 ```
 
-!!! warning "`linear` is planned, not implemented"
-    The `linear` marker described below **does not parse yet** -- there is no
-    `linear` keyword, no checker support, and `E1305` is a reserved code that
-    is not registered. It is tracked as a follow-up to the ownership-endgame
-    plan ([#7453](https://github.com/jaseci-labs/jac/issues/7453)); this
-    section documents the intended design.
-
-`linear` will declare a **must-use** resource: move-checked exactly like `own`, but where `own` is affine (dropping is fine), a `linear` binding must be consumed -- moved to its final owner, passed on, or sealed into managed storage -- exactly once before its scope ends. Never consuming it will be `E1305` (reserved); consuming it twice is the usual use-after-move `E1301`:
+`lin` declares a **must-consume** resource. A `lin` binding is an `own` binding in every other respect (it moves, it borrows, it drops, and it lowers identically on every backend), but where `own` is affine (dropping an unconsumed value is fine), a `lin` binding must be consumed on every path before its scope ends: passed to an `own` parameter, stored in an owned place, or returned. A path that lets it go out of scope unconsumed is [`E1305`](../diagnostics.md#ownership-borrow-errors); consuming it twice is the usual use-after-move `E1301`. `lin` is accepted wherever `own` is, and the must-consume check covers locals and parameters:
 
 <!-- jac-skip -->
 ```jac
-obj File { has fd: int = 0; }
+obj File { has fd: int = 0; def drop { close_fd(self.fd); } }
 
-with entry {
-    f: linear File = File();
-    print("done");   # error[E1305]: linear resource 'f' is never consumed
+def finish(f: own File) -> None { print("closing", f.fd); }
+
+def run(flag: bool) -> None {
+    f: lin File = File(fd=3);
+    if flag {
+        finish(f);
+    }                 # error[E1305]: Linear binding 'f' is never consumed (the `flag == False` path)
+}
+
+def ok -> None {
+    g: lin File = File(fd=4);
+    finish(g);        # consumed exactly once: clean
 }
 ```
+
+The check is a must-analysis over the control-flow graph: a `lin` value consumed inside a loop body or on one arm of a branch is not consumed on the paths that skip it, so those paths report. Pair `lin` with a [`drop` hook](#the-drop-hook) when the resource must be released explicitly rather than by falling out of scope.
+
+## Seeing what was inferred
+
+The profile leans on inference, so the editor shows it. The language server publishes inlay hints for every inferred fact: the ownership state of a local that carries no marker (`: own`, `: &`, `: &mut`, `: imm`, `: lin`), a binding that is a view over a borrow (`view`), the receiver mode of a method that names no `self` (`(&self)`, `(&mut self)`, `(own self)`), and the raises effect of a function (`raises ValueError`). The same facts drive the diagnostics, so a hint and an error never disagree.
+
+## Errors without unwinding
+
+Under the nogc profile there is no unwinder, so `raise`, `try`, and `except` keep their syntax and change their lowering. Every function carries an inferred *raises* effect: the exception types it raises itself outside a handling `try`, plus those of the functions it calls without handling them. A raising function returns through a hidden error slot; the caller checks the slot after the call and either dispatches to its own `except` clause, runs its `finally` and propagates, or, with no handler, drops its owned locals at their static points and returns. Nothing about this is written in the source; `jac check` reports the inferred effect through the language server's inlay hints.
+
+An entry block has no caller to propagate to, so a raising call it does not handle is a compile-time error, [`E1407`](../diagnostics.md#ownership-borrow-errors):
+
+```jac
+def parse_port(s: &str) -> int {          # raises ValueError
+    if len(s) == 0 { raise ValueError("empty port"); }
+    return int(s);
+}
+
+def load(cfg: &Cfg) -> int {              # raises ValueError, propagated from parse_port
+    g: own Guard = Guard();               # dropped on both the value path and the error path
+    return parse_port(&cfg.port_text) + 1;
+}
+
+def load_or_default(cfg: &Cfg) -> int {   # raises nothing
+    try { return load(cfg); } except ValueError { return 8080; }
+}
+
+with entry {
+    c: own Cfg = Cfg();
+    print(load_or_default(&c));           # clean
+    print(load(&c));                      # error[E1407]: 'load' raises ValueError, and the entry block does not handle it
+}
+```
+
+Managed and `rc` builds keep the setjmp-based runtime; the identity contract holds, so a program prints the same output under every profile, including the order of `drop` hooks on the error path.
 
 ## Regions: first-class `Region` handles and `in` opens
 

@@ -131,7 +131,8 @@ import from jaclang.compiler.frontend.constant {
     CodeContext,
     EdgeDir,
     is_borrow_kind,
-    OwnershipKind
+    OwnershipKind,
+    SymbolStorage
 }
 import from jaclang.compiler.frontend.constant { Constants as Con }
 import from jaclang.compiler.frontend.constant { Tokens as Tok }
@@ -368,6 +369,8 @@ walker JcirGenPass(BaseAstGenPass[CgItem]) {
     ) -> CgNode;
 
     def _flatten_ast_list(items: list[CgItem | list[CgItem] | None]) -> list[CgItem];
+    def _move_release_stmts(stmt: CodeBlockStmt) -> list[CgNode];
+    def _stmts_with_releases(stmts: list) -> list[CgItem];
     def outs(nd: UniNode) -> list[CgItem];
     def set_out(nd: UniNode, items: list[CgItem]) -> None;
     def _apply_coercion(nd: Expr) -> None;

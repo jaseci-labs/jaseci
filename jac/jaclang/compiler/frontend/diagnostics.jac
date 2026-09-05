@@ -904,6 +904,15 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " of it is still live. A borrow must not outlive the value it points to; keep"
          " '{name}' in scope for at least as long as every borrow of it."
      ),
+     E1305 = _err(
+         "E1305",
+         Category.SEMANTIC,
+         "Linear binding '{name}' is never consumed",
+         help="'{name}' is declared `lin`, so every path must move it exactly once"
+         " (pass it to an `own` parameter, store it in an owned place, or return"
+         " it) before it goes out of scope. Consume it on the path that drops it,"
+         " or declare it `own` if dropping it unconsumed is acceptable."
+     ),
      E1306 = _err(
          "E1306",
          Category.SEMANTIC,
@@ -1079,6 +1088,15 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " which needs reference counting. Pass '{name}' as an explicit parameter, or"
          " restructure so the closure does not outlive the scope.",
          blocks_codegen=True
+     ),
+     E1407 = _err(
+         "E1407",
+         Category.SEMANTIC,
+         "'{name}' raises {exc}, and the entry block does not handle it",
+         help="Under the nogc profile a raise returns through a hidden error slot"
+         " that each caller checks; a function propagates it automatically, but an"
+         " entry block has no caller, so an unhandled raise here would abort the"
+         " program. Wrap the call in `try { ... } except {exc} { ... }`."
      ),
      E1406 = _err(
          "E1406",

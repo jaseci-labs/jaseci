@@ -14,4 +14,10 @@ obj NaIRGenExceptions(NaIRGenState) {
     def _codegen_raise(nd: uni.RaiseStmt) -> None;
     def _raise_has_frame_handler(nd: uni.RaiseStmt) -> bool;
     def _codegen_try(nd: uni.TryStmt) -> None;
+    def _slot_lowering_active -> bool;
+    def _nogc_err_slot -> tuple;
+    def _emit_err_check(callee: (uni.Ability | None)) -> None;
+    def _emit_err_propagate(loc: str = "") -> None;
+    def _codegen_raise_slot(payload: ir.Value, type_id: int, msg: ir.Value) -> None;
+    def _codegen_try_slot(nd: uni.TryStmt) -> None;
 }

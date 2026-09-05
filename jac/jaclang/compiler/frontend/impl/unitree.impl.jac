@@ -2685,6 +2685,8 @@ impl Enum.postinit -> None {
 
 
 impl Ability.postinit -> None {
+    _raises: list[str] = [];
+    self.raises = _raises;
     UniNode.postinit(self);
     if (self.name_ref is None) {
         first_tok = self.kid[0]

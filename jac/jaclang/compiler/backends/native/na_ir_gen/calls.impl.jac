@@ -76,6 +76,99 @@ impl NaIRGenCalls._erased_generic_ctor(nd: uni.FuncCall) -> (str | None) {
     return self._erased_arch_base(_tk[5:-1]);
 }
 
+impl NaIRGenCalls._transfer_own_args(
+    nd: uni.FuncCall,
+    func: (ir.Function | None),
+    args: list,
+    release_args: list,
+    offset: int = 0
+) -> list {
+    _hl = self._nogc_headerless();
+    _is_ctor = isinstance(nd.target, uni.Name)
+        and (
+            nd.target.sym_name in self.arch_ast_map
+            or self._arch_alias_target(nd.target) in self.arch_ast_map
+        );
+    if _is_ctor and not _hl {
+        return release_args;
+    }
+    _sig = None if _is_ctor else self._callee_sig_of(nd, func);
+    _sig_params = _sig.get_parameters() if _sig is not None else [];
+    _own_idx: set = set();
+    if _is_ctor {
+        for _oi in range(len(release_args)) {
+            _own_idx.add(_oi);
+        }
+    } elif _sig is not None and len(_sig_params) + offset == len(release_args) {
+        for (_oi, _op) in enumerate(_sig_params) {
+            if _op.type_tag is not None
+                and _op.type_tag.ownership == OwnershipKind.OWN {
+                _own_idx.add(_oi + offset);
+            }
+        }
+    }
+    if not _own_idx {
+        return release_args;
+    }
+    _param_idx: dict = {};
+    for (_pi2, _p2) in enumerate(_sig_params) {
+        _param_idx[_p2.name.sym_name] = _pi2 + offset;
+    }
+    _pos = offset;
+    for _pa in (nd.params or []) {
+        _aidx = -1;
+        _anode: (uni.Expr | None) = None;
+        if isinstance(_pa, uni.KWPair) {
+            _anode = _pa.value;
+            _k = _pa.key.sym_name if _pa.key is not None else None;
+            if _k is not None and _k in _param_idx {
+                _aidx = _param_idx[_k];
+            }
+        } else {
+            _anode = _pa;
+            _aidx = _pos;
+            _pos += 1;
+        }
+        if not (_is_ctor or _aidx in _own_idx) or not isinstance(_anode, uni.Name) {
+            continue;
+        }
+        if not _hl and not self._is_move_site(_anode) {
+            continue;
+        }
+        _salloca = self.local_vars.get(_anode.sym_name);
+        if _salloca is None
+            or not isinstance(_salloca.type, ir.PointerType)
+            or not isinstance(_salloca.type.pointee, ir.PointerType) {
+            continue;
+        }
+        self.builder.store(ir.Constant(_salloca.type.pointee, None), _salloca);
+        if not _hl and 0 <= _aidx < len(args) {
+            self._mark_owned(args[_aidx]);
+        }
+    }
+    if not _hl {
+        return release_args;
+    }
+    return [
+        _rv
+        for (_ri, _rv) in enumerate(release_args)
+        if _ri not in _own_idx
+    ];
+}
+
+impl NaIRGenCalls._callee_ability_of(nd: uni.FuncCall) -> (uni.Ability | None) {
+    tgt = nd.target;
+    sym = tgt.sym
+        if isinstance(tgt, (uni.Name, uni.AtomTrailer)) and hasattr(tgt, "sym")
+        else None;
+    decl = sym.decl if sym is not None else None;
+    ability = decl.find_parent_of_type(uni.Ability) if decl is not None else None;
+    if ability is None or decl is not ability.name_ref {
+        return None;
+    }
+    return ability;
+}
+
 impl NaIRGenCalls._linked_callee_decl(
     func: (ir.Function | None)
 ) -> (uni.Ability | None) {
@@ -2266,71 +2359,7 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             release_args.append(arg);
         }
     }
-    if self._nogc_headerless() {
-        _skip_own: set = set();
-        _is_ctor = isinstance(nd.target, uni.Name)
-            and (
-                nd.target.sym_name in self.arch_ast_map
-                or self._arch_alias_target(nd.target) in self.arch_ast_map
-            );
-        _sig = None if _is_ctor else self._callee_sig_of(nd, func);
-        _sig_params = _sig.get_parameters() if _sig is not None else [];
-        if _is_ctor {
-            for _oi in range(len(release_args)) {
-                _skip_own.add(_oi);
-            }
-        } elif _sig is not None and len(_sig_params) == len(release_args) {
-            for (_oi, _op) in enumerate(_sig_params) {
-                if _op.type_tag is not None
-                    and _op.type_tag.ownership == OwnershipKind.OWN {
-                    _skip_own.add(_oi);
-                }
-            }
-        }
-        if _skip_own {
-            _kept: list = [];
-            for (_ri, _rv) in enumerate(release_args) {
-                if _ri not in _skip_own {
-                    _kept.append(_rv);
-                }
-            }
-            release_args = _kept;
-            _param_idx: dict = {};
-            for (_pi2, _p2) in enumerate(_sig_params) {
-                _param_idx[_p2.name.sym_name] = _pi2;
-            }
-            _pos = 0;
-            for _pa in (nd.params or []) {
-                _aidx = -1;
-                _anode: (uni.Expr | None) = None;
-                if isinstance(_pa, uni.KWPair) {
-                    _anode = _pa.value;
-                    _k = _pa.key.sym_name if _pa.key is not None else None;
-                    if _k is not None and _k in _param_idx {
-                        _aidx = _param_idx[_k];
-                    }
-                } else {
-                    _anode = _pa;
-                    _aidx = _pos;
-                    _pos += 1;
-                }
-                if not (_is_ctor or _aidx in _skip_own) {
-                    continue;
-                }
-                if not isinstance(_anode, uni.Name) {
-                    continue;
-                }
-                _salloca = self.local_vars.get(_anode.sym_name);
-                if _salloca is not None
-                    and isinstance(_salloca.type, ir.PointerType)
-                    and isinstance(_salloca.type.pointee, ir.PointerType) {
-                    self.builder.store(
-                        ir.Constant(_salloca.type.pointee, None), _salloca
-                    );
-                }
-            }
-        }
-    }
+    release_args = self._transfer_own_args(nd, func, coerced, release_args);
     if _is_foreign {
         _actual_params = func.function_type.args;
         for (_ai, _av) in enumerate(coerced) {
@@ -2364,6 +2393,7 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     }
 
     self._release_owned_args(release_args, op="call_arg");
+    self._emit_err_check(self._callee_ability_of(nd) or self._linked_callee_decl(func));
 
     if func_name in self.clib_extern_names {
         for (sname, abi_type) in self.clib_struct_abi_types.items() {

@@ -1502,3 +1502,33 @@ test "an embedded server leaves the process's root logger level alone" {
         teardown_test();
     }
 }
+
+test "inlay hints show inferred receiver modes and raises effects" {
+    setup_test();
+    try {
+        lsp = create_server();
+        hints_file = uris.from_fs_path(fixture_path("ownership_hints.jac"));
+        assert hints_file is not None;
+        lsp.type_check_file(hints_file);
+        hints = lsp.get_inlay_hints(
+            hints_file,
+            lspt.Range(
+                start=lspt.Position(line=0, character=0),
+                end=lspt.Position(line=200, character=0)
+            )
+        );
+        labels = sorted([h.label for h in hints]);
+        assert labels
+            == [
+                " raises ValueError",
+                " raises ValueError",
+                "(&mut self)",
+                "(&self)"
+            ] , labels;
+        by_line = {h.position.line: h.label for h in hints};
+        assert by_line.get(3) == "(&mut self)" , by_line;
+        assert by_line.get(7) == "(&self)" , by_line;
+    } finally {
+        teardown_test();
+    }
+}
