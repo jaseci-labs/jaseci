@@ -13,6 +13,7 @@ glob _NOGC_OSP_ENGINE_STRUCTS: tuple = (
      ),
      _NOGC_CONTAINER_DROP_OPS: tuple = (
          "scope_exit",
+         "field_set",
          "iter_end",
          "overwrite",
          "fori_coll",
@@ -1257,9 +1258,20 @@ impl NaIRGenRefcount._emit_rc_retain(
     self._clear_rc_ctx();
 }
 
+impl NaIRGenRefcount._rc_unwrap_optional(val: ir.Value) -> ir.Value {
+    if isinstance(val.type, ir.PointerType) {
+        return val;
+    }
+    if self._opt_ptr_payload_of(val.type) is None {
+        return val;
+    }
+    return self.builder.extract_value(val, 1, name="rc.opt.pv");
+}
+
 impl NaIRGenRefcount._emit_rc_release_simple(
     ptr: ir.Value, op: str = "", loc: str = ""
 ) -> None {
+    ptr = self._rc_unwrap_optional(ptr);
     _rls_owned = self._is_owned(ptr);
     if self._str_desc_ty is not None and ptr.type == self._str_desc_ty {
         ptr = self.builder.extract_value(ptr, 0, name="rc.desc.root");
@@ -1310,6 +1322,7 @@ impl NaIRGenRefcount._emit_rc_release_simple(
 impl NaIRGenRefcount._emit_rc_release_typed(
     val: ir.Value, op: str = "", loc: str = ""
 ) -> None {
+    val = self._rc_unwrap_optional(val);
     _rlt_owned = self._is_owned(val);
     if self._str_desc_ty is not None and val.type == self._str_desc_ty {
         val = self.builder.extract_value(val, 0, name="rc.desc.root");
@@ -1459,23 +1472,19 @@ impl NaIRGenRefcount._emit_nogc_field_drops(
             }
             continue;
         }
-        if fname in foreign_fields or not isinstance(ftype, ir.PointerType) {
+        if fname in foreign_fields {
+            continue;
+        }
+        _opt_payload = self._opt_ptr_payload_of(ftype);
+        _ptr_ty = _opt_payload if _opt_payload is not None else ftype;
+        if not isinstance(_ptr_ty, ir.PointerType) {
             continue;
         }
         idx = field_indices.get(fname, -1);
         if idx < 0 {
             continue;
         }
-        _fld_drop: (ir.Function | None) = None;
-        _pointee = ftype?.pointee;
-        _pname = getattr(_pointee, "name", "") or "";
-        if _pname in self.struct_types or _pname == type_name {
-            _fld_drop = self._emit_struct_drop_fn(_pname);
-        } elif _pname.startswith("List.")
-            or _pname.startswith("Dict.")
-            or _pname.startswith("Set.") {
-            _fld_drop = self._emit_container_drop_fn(_pname);
-        }
+        _fld_drop = self._nogc_drop_fn_for(_ptr_ty, type_name);
         if _fld_drop is None {
             continue;
         }
@@ -1483,9 +1492,27 @@ impl NaIRGenRefcount._emit_nogc_field_drops(
             _dobj, [ir.Constant(i32, 0), ir.Constant(i32, idx)], name=f"drop.{fname}.p"
         );
         fv = b.load(fp, name=f"drop.{fname}");
+        if _opt_payload is not None {
+            fv = b.extract_value(fv, 1, name=f"drop.{fname}.pv");
+        }
         fv_i8 = b.bitcast(fv, i8p, name=f"drop.{fname}.i8");
         b.call(_fld_drop, [fv_i8]);
     }
+}
+
+impl NaIRGenRefcount._nogc_drop_fn_for(
+    ptr_ty: ir.PointerType, self_type: str = ""
+) -> (ir.Function | None) {
+    _pname = getattr(ptr_ty.pointee, "name", "") or "";
+    if _pname in self.struct_types or (_pname and _pname == self_type) {
+        return self._emit_struct_drop_fn(_pname);
+    }
+    if _pname.startswith("List.")
+        or _pname.startswith("Dict.")
+        or _pname.startswith("Set.") {
+        return self._emit_container_drop_fn(_pname);
+    }
+    return None;
 }
 
 impl NaIRGenRefcount._emit_container_drop_fn(cont_name: str) -> (ir.Function | None) {
@@ -1868,6 +1895,35 @@ impl NaIRGenRefcount._emit_jacval_slot_drop_fn(
     return fn;
 }
 
+impl NaIRGenRefcount._is_move_site(expr: uni.UniNode | None) -> bool {
+    if not isinstance(expr, uni.Name) {
+        return False;
+    }
+    _eid = id(expr);
+    return _eid in self.ir_in.own_move_sites or _eid in self.ir_in.rc_move_in;
+}
+
+impl NaIRGenRefcount._nogc_consume_local(expr: uni.UniNode | None) -> bool {
+    if not self._nogc_headerless() or not self._is_move_site(expr) {
+        return False;
+    }
+    _slot = self.local_vars.get(expr.sym_name);
+    if _slot is None or not isinstance(_slot.type, ir.PointerType) {
+        return False;
+    }
+    _slot_ty = _slot.type.pointee;
+    _movable = (
+        isinstance(_slot_ty, ir.PointerType)
+        or (self._str_desc_ty is not None and _slot_ty == self._str_desc_ty)
+        or self._opt_ptr_payload_of(_slot_ty) is not None
+    );
+    if not _movable {
+        return False;
+    }
+    self.builder.store(ir.Constant(_slot_ty, None), _slot);
+    return True;
+}
+
 impl NaIRGenRefcount._nogc_elem_prep(
     expr: uni.UniNode | None, val: ir.Value | None
 ) -> (ir.Value | None) {
@@ -1878,13 +1934,8 @@ impl NaIRGenRefcount._nogc_elem_prep(
         if self._is_owned(val) or isinstance(expr, uni.FString) {
             return val;
         }
-        if isinstance(expr, uni.Name) and expr.sym_name in self.local_vars {
-            _mi = self.ir_in.rc_move_in;
-            if id(expr) in _mi {
-                _slot = self.local_vars[expr.sym_name];
-                self.builder.store(ir.Constant(_slot.type.pointee, None), _slot);
-                return val;
-            }
+        if self._nogc_consume_local(expr) {
+            return val;
         }
         if self.str_new_fn is None {
             self._emit_str_len_helpers();
@@ -1910,19 +1961,9 @@ impl NaIRGenRefcount._nogc_elem_prep(
         if isinstance(val.type, ir.PointerType)
             and isinstance(expr, uni.Name)
             and expr.sym_name in self.local_vars
-            and expr.sym_name not in self.param_vars {
-            _epm = self.ir_in.rc_move_in;
-            if id(expr) in _epm {
-                _ep_slot = self.local_vars[expr.sym_name];
-                if isinstance(_ep_slot.type, ir.PointerType)
-                    and isinstance(_ep_slot.type.pointee, ir.PointerType) {
-                    self.builder.store(
-                        ir.Constant(_ep_slot.type.pointee, None), _ep_slot
-                    );
-                }
-            } else {
-                self.nogc_no_free_vars.add(expr.sym_name);
-            }
+            and expr.sym_name not in self.param_vars
+            and not self._nogc_consume_local(expr) {
+            self.nogc_no_free_vars.add(expr.sym_name);
         }
         return val;
     }
@@ -1940,13 +1981,8 @@ impl NaIRGenRefcount._nogc_elem_prep(
             return val;
         }
     }
-    if isinstance(expr, uni.Name) and expr.sym_name in self.local_vars {
-        _mi = self.ir_in.rc_move_in;
-        if id(expr) in _mi {
-            _slot = self.local_vars[expr.sym_name];
-            self.builder.store(ir.Constant(_slot.type.pointee, None), _slot);
-            return val;
-        }
+    if self._nogc_consume_local(expr) {
+        return val;
     }
     return self._rc_strdup(val, name="elem.copy");
 }
@@ -2064,17 +2100,13 @@ impl NaIRGenRefcount._emit_scope_cleanup(
             }
             continue;
         }
-        if not self._nogc_headerless()
-            and isinstance(alloca.type, ir.PointerType)
+        if isinstance(alloca.type, ir.PointerType)
             and self._opt_ptr_payload_of(alloca.type.pointee) is not None {
             if var_name == skip_var {
                 self.builder.store(ir.Constant(alloca.type.pointee, None), alloca);
             } else {
                 val = self.builder.load(alloca, name=f"cleanup.{var_name}");
-                _opt_pv = self.builder.extract_value(
-                    val, 1, name=f"cleanup.{var_name}.pv"
-                );
-                self._emit_rc_release_simple(_opt_pv, op="scope_exit", loc=loc);
+                self._emit_rc_release_simple(val, op="scope_exit", loc=loc);
                 self.builder.store(ir.Constant(alloca.type.pointee, None), alloca);
             }
             continue;
@@ -2142,14 +2174,10 @@ impl NaIRGenRefcount._emit_loop_iter_cleanup(body_locals: list, loc: str = "") -
             _region_handles.append((var_name, alloca));
             continue;
         }
-        if not self._nogc_headerless()
-            and isinstance(alloca.type, ir.PointerType)
+        if isinstance(alloca.type, ir.PointerType)
             and self._opt_ptr_payload_of(alloca.type.pointee) is not None {
             val = self.builder.load(alloca, name=f"iter.cleanup.{var_name}");
-            _opt_pv = self.builder.extract_value(
-                val, 1, name=f"iter.cleanup.{var_name}.pv"
-            );
-            self._emit_rc_release_simple(_opt_pv, op="iter_end", loc=loc);
+            self._emit_rc_release_simple(val, op="iter_end", loc=loc);
             self.builder.store(ir.Constant(alloca.type.pointee, None), alloca);
             continue;
         }

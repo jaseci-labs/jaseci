@@ -181,9 +181,17 @@ obj NaIRGenObjects(NaIRGenState) {
     ) -> (ir.Value | None);
 
     def _codegen_field_assign(
-        target: uni.AtomTrailer, value: ir.Value, skip_narrow_coerce: bool = False
+        target: uni.AtomTrailer,
+        value: ir.Value,
+        skip_narrow_coerce: bool = False,
+        value_node: (uni.Expr | None) = None
     ) -> None;
 
+    def _field_slot_ptr(
+        obj_val: ir.Value, field_name: str, type_name: str
+    ) -> ir.Value;
+
+    def _codegen_place_ptr(expr: uni.Expr) -> (ir.Value | None);
     def _read_field_or_refuse(
         nd: uni.UniNode, obj_val: ir.Value, field_name: str, arch_name: str
     ) -> (ir.Value | None);
