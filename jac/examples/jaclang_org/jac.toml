@@ -141,6 +141,7 @@ plugins = ["tailwindcss()"]
 lib_imports = ["import tailwindcss from '@tailwindcss/vite'"]
 
 [client.assets]
+dir = "core/site/assets"
 custom_extensions = [
     ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico",
     ".woff", ".woff2", ".ttf", ".otf", ".eot", ".mp4", ".webm", ".mp3",

@@ -1021,6 +1021,7 @@ jobs:
           curl -fsS "${ORIGIN}__jac/health" | grep -q '"ok": true' || { echo "::error::broker health failed"; exit 1; }
           curl -fsS "$ORIGIN" | grep -q "The Jac Programming Language" || { echo "::error::the site index did not load"; exit 1; }
           curl -fsS "${ORIGIN}docs/getting-started" | grep -q "The Jac Programming Language" || { echo "::error::SPA fallback failed"; exit 1; }
+          curl -fsS "${ORIGIN}static/assets/jac-logo.svg" | grep -q "<svg" || { echo "::error::the shared site assets are not served by the desktop host"; exit 1; }
           code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${ORIGIN}walker/doc_page" -H 'Content-Type: application/json' -d '{}')
           [ "$code" = "404" ] || [ "$code" = "405" ] || { echo "::error::a remote-backend desktop app served a walker locally ($code)"; exit 1; }
           kill $APP_PID $XVFB_PID 2>/dev/null || true
