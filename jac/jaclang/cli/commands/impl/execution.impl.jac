@@ -805,8 +805,14 @@ def _exec_file(
                     console.error(error.pretty_print());
                 }
             } else {
-                import from jaclang.runtime.traceback_render { dump_traceback }
-                console.error(dump_traceback(e));
+                import from jaclang.cli.errmap { humanize_error }
+                mapped = humanize_error(e);
+                if mapped is not None {
+                    console.error(mapped[0], hint=mapped[1]);
+                } else {
+                    import from jaclang.runtime.traceback_render { dump_traceback }
+                    console.error(dump_traceback(e));
+                }
             }
         }
         sys.argv = original_argv;
@@ -930,9 +936,15 @@ impl serve(
                 console.error(error.pretty_print());
             }
         } else {
-            import from jaclang.runtime.traceback_render { dump_traceback }
-            console.error(f"Error loading {filename}: {e}");
-            console.error(dump_traceback(e));
+            import from jaclang.cli.errmap { humanize_error }
+            mapped = humanize_error(e);
+            if mapped is not None {
+                console.error(mapped[0], hint=mapped[1]);
+            } else {
+                import from jaclang.runtime.traceback_render { dump_traceback }
+                console.error(f"Error loading {filename}: {e}");
+                console.error(dump_traceback(e));
+            }
         }
         mach.close();
         return 1;
