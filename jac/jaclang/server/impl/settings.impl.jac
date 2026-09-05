@@ -147,8 +147,6 @@ impl ServeSettings.load(
         docs_enabled=env_bool('DOCS', cfg.docs_enabled),
         graph_enabled=env_bool('GRAPH', cfg.graph_enabled),
         cors_origins=env_list('CORS_ORIGINS', list(cfg.cors_origins)),
-        cl_route_prefix=cfg.cl_route_prefix,
-        base_route_app=cfg.base_route_app,
         workers=WorkerSettings(
             count=worker_count,
             threads=threads,

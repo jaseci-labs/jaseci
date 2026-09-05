@@ -502,15 +502,16 @@ impl PgStore.ensure_schema(promotions: dict[str, list[str]]) -> None {
 
 impl PgStore.ensure_schema_once(promotions: dict[str, list[str]]) -> None {
     ns = _store_ns(self.conninfo);
-    if ns in _schema_ready {
+    key = _schema_extension_key();
+    if _schema_ready.get(ns) == key {
         return;
     }
     with _schema_gate {
-        if ns in _schema_ready {
+        if _schema_ready.get(ns) == key {
             return;
         }
         self.ensure_schema(promotions);
-        _schema_ready.add(ns);
+        _schema_ready[ns] = key;
     }
 }
 
@@ -628,6 +629,11 @@ impl PgStore._apply_schema_ddl -> None {
         }
         self._apply_promotions();
         self._property_graph_ddl();
+        for name in sorted(_schema_extensions) {
+            for stmt in _schema_extensions[name] {
+                self._run(stmt, {});
+            }
+        }
     } finally {
         self._run('SET lock_timeout = DEFAULT', {});
     }
@@ -651,6 +657,12 @@ impl PgStore._schema_fingerprint -> str {
     }
     for col in sorted(self._promotion_columns()) {
         h.update(str(col).encode());
+    }
+    for name in sorted(_schema_extensions) {
+        h.update(name.encode());
+        for stmt in _schema_extensions[name] {
+            h.update(stmt.encode());
+        }
     }
     return f"{SCHEMA_VERSION}:{h.hexdigest()[:24]}";
 }

@@ -1,30 +1,113 @@
-"""Tests for the Jac-native desktop target + config.
+"""Tests for the Jac desktop target + config.
 
 These exercise the direct target registration and config surface. The native
 webview binding has a dependency-free test alongside this one:
 `test_desktop_binding.jac`.
 """
 
-"""register_targets() registers the native + CEF desktop targets in the registry.
+"""register_targets() registers one desktop target in the registry.
 
-The desktop targets ship with core now and register directly via
+The desktop target ships with core and registers directly via
 `register_targets()` instead of a secondary `jac_client` pluggy plugin group.
+The renderer engine (native webview or CEF) is not a separate target: it is
+picked per project through `[desktop] engine`.
 """
-test "register_targets registers the desktop targets" {
+test "register_targets registers the desktop target" {
+    import from pathlib { Path }
     import from jaclang.client.targets.register { register_targets }
-    import from jaclang.client.targets.registry { get_target_registry }
+    import from jaclang.client.targets.registry {
+        KIND_TARGET,
+        get_target_registry,
+        target_for_kind
+    }
+    import from jaclang.client.targets.desktop.desktop_target { DesktopTarget }
+    import from jaclang.client.targets.web_target { WebTarget }
 
     register_targets();
     registry = get_target_registry();
     target = registry.get("desktop");
     assert target is not None , "desktop target should be registered";
     assert target.name == "desktop" , "target name should be 'desktop'";
+    assert isinstance(target, DesktopTarget);
+    assert isinstance(target, WebTarget) , "the desktop build wraps the web bundle";
     # The native target needs no scaffolding (unlike the old PyTauri target).
     assert target.requires_setup == False , "native desktop needs no setup step";
-    # The CEF renderer target registers alongside the native one.
-    cef = registry.get("cef");
-    assert cef is not None , "CEF desktop target should be registered";
-    assert cef.name == "cef" , "CEF target name should be 'cef'";
+    assert str(target.output_dir) == str(Path(".jac/client/desktop"));
+    # The desktop kind is what selects it.
+    assert KIND_TARGET["desktop"] == "desktop";
+    assert target_for_kind("desktop", Path(".")) is target;
+    # CEF is an engine of this one target, not a second registered target.
+    assert registry.get("cef") is None , "'cef' is not a client target any more";
+    assert registry.get("native-desktop") is None;
+}
+
+"""DesktopTarget.engine() reads `[desktop] engine` and dispatches on it: the
+default is the native webview, and `engine = "cef"` selects the CEF shell.
+The two shells are helper modules, not targets of their own."""
+test "desktop target dispatches on the configured engine" {
+    import tempfile;
+    import unittest.mock;
+    import from pathlib { Path }
+    import from jaclang.client.desktop_config { reset_desktop_config }
+    import from jaclang.client.targets.desktop.desktop_target { DesktopTarget }
+    import jaclang.client.targets.desktop.cef_shell as cef_shell;
+    import jaclang.client.targets.desktop.webview_shell as webview_shell;
+
+    target = DesktopTarget();
+    with tempfile.TemporaryDirectory() as d {
+        proj = Path(d);
+        reset_desktop_config();
+        (proj / "jac.toml").write_text(
+            '[project]\nname = "t"\nversion = "1.0.0"\nentry-point = "main.jac"\n'
+            'kind = "desktop"\n'
+        );
+        assert target.engine(proj) == "native" , "engine defaults to the native webview";
+        reset_desktop_config();
+        (proj / "jac.toml").write_text(
+            '[project]\nname = "t"\nversion = "1.0.0"\nentry-point = "main.jac"\n'
+            'kind = "desktop"\n\n[desktop]\nengine = "cef"\n'
+        );
+        assert target.engine(proj) == "cef" , "[desktop] engine = cef selects CEF";
+        # dev: the CEF shell has no dev loop; the native one does. Stub both
+        # shells so no bundle is built and no window opens.
+        calls: list[str] = [];
+        def _cef_dev_unsupported {
+            calls.append("cef_dev_unsupported");
+            raise RuntimeError("cef dev unsupported (stub)");
+        }
+        def _webview_dev(
+            entry_file: Path,
+            project_dir: Path,
+            out_dir: Path,
+            port: int = 8000,
+            api_port: int = 0
+        ) {
+            calls.append("webview_dev");
+        }
+        with unittest.mock.patch.object(
+            cef_shell, "cef_dev_unsupported", _cef_dev_unsupported
+        ), unittest.mock.patch.object(webview_shell, "webview_dev", _webview_dev) {
+            raised = False;
+            try {
+                target.dev(proj / "main.jac", proj);
+            } except RuntimeError as e {
+                raised = True;
+                assert "cef dev unsupported" in str(e);
+            }
+            assert raised , "under engine = cef, dev must refuse via cef_dev_unsupported";
+            assert calls == ["cef_dev_unsupported"];
+            reset_desktop_config();
+            (proj / "jac.toml").write_text(
+                '[project]\nname = "t"\nversion = "1.0.0"\nentry-point = "main.jac"\n'
+                'kind = "desktop"\n'
+            );
+            target.dev(proj / "main.jac", proj);
+            assert calls == ["cef_dev_unsupported", "webview_dev"] , (
+                "under the native engine, dev runs the webview dev loop"
+            );
+        }
+        reset_desktop_config();
+    }
 }
 
 """Window geometry is read from [desktop.window]."""

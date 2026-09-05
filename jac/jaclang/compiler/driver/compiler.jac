@@ -48,7 +48,6 @@ import from jaclang.compiler.driver.pass_driver {
     setup_progress
 }
 import from jaclang.compiler.driver.schedules {
-    _jsx_intrinsic_guard_pass_type,
     get_analysis_sched,
     get_boundary_analysis_sched,
     get_format_sched,
@@ -163,7 +162,8 @@ obj JacCompiler {
 
     def resolve_absorb_imports(mod: uni.Module, target_program: JacProgram) -> None;
     def stamp_boundary_facts(mod: uni.Module, target_program: JacProgram) -> None;
-    def stamp_client_kind_facts(mod: uni.Module, target_program: JacProgram) -> None;
+    def stamp_app_facts(mod: uni.Module, target_program: JacProgram) -> None;
+    static def _module_defines_owned_elements(mod: uni.Module) -> bool;
     def stamp_access_check_facts(mod: uni.Module) -> None;
     def stamp_native_import_facts(mod: uni.Module, target_program: JacProgram) -> None;
     def _persist_module_cache(

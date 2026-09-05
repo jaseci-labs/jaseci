@@ -2341,21 +2341,8 @@ impl Import.is_service_import.getter -> bool {
     if self.from_loc is None or not self.items {
         return False;
     }
-    import os;
-    import from jaclang.compiler.placement.service_cut { is_service_module_stem }
-    mod_path = self.loc.mod_path or '';
-    stem = self.from_loc.base_module_name;
-    if not stem or not is_service_module_stem(mod_path, stem) {
-        return False;
-    }
-    own_stem = '';
-    if mod_path {
-        own_stem = os.path.basename(mod_path);
-        if own_stem.endswith('.jac') {
-            own_stem = own_stem[:-4];
-        }
-    }
-    return stem != own_stem;
+    import from jaclang.compiler.driver.boundary_classify { is_service_bridge_import }
+    return is_service_bridge_import(self);
 }
 
 impl Import.is_virtual_jac.getter -> bool {

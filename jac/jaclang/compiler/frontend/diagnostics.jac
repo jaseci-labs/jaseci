@@ -1373,6 +1373,34 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "another project.",
          help="Protected (`:protect`) names are visible only within their own project (the directory tree rooted at its jac.toml). Mark '{name}' `:pub` to export it as a library endpoint."
      ),
+     E2039 = _err(
+         "E2039",
+         Category.SEMANTIC,
+         "'{name}' belongs to app '{app}'; app '{user_app}' may only use it "
+         "through shared code or its bridge surface",
+         help="An app boundary is structural: modules under one [apps.<name>] root are private to that app. Another app reaches them only through the owner's bridge surface -- a walker or a `def:pub` function the compiler bridges to the owner's server (`:pub` only marks an endpoint unauthenticated; a walker bridges without it) -- or by moving the code to a shared module outside every app root."
+     ),
+     W2039 = _warn(
+         "W2039",
+         Category.SEMANTIC,
+         "'{name}' belongs to app '{app}'; app '{user_app}' may only use it "
+         "through shared code or its bridge surface",
+         help="An app boundary is structural: modules under one [apps.<name>] root are private to that app. Another app reaches them only through the owner's bridge surface -- a walker or a `def:pub` function the compiler bridges to the owner's server (`:pub` only marks an endpoint unauthenticated; a walker bridges without it) -- or by moving the code to a shared module outside every app root."
+     ),
+     E2040 = _err(
+         "E2040",
+         Category.SEMANTIC,
+         "Shared module '{module}' imports '{name}' from app '{app}'; shared "
+         "code may not depend on app modules",
+         help="Shared modules sit below every app and are compiled once per app that reaches them, so a dependency on one app's module would pull that app into every other. Move '{name}' into shared code, or move the importing module under the app that owns it."
+     ),
+     W2040 = _warn(
+         "W2040",
+         Category.SEMANTIC,
+         "Shared module '{module}' imports '{name}' from app '{app}'; shared "
+         "code may not depend on app modules",
+         help="Shared modules sit below every app and are compiled once per app that reaches them, so a dependency on one app's module would pull that app into every other. Move '{name}' into shared code, or move the importing module under the app that owns it."
+     ),
      E2084 = _err(
          "E2084",
          Category.SEMANTIC,
@@ -1859,8 +1887,8 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      E5087 = _err(
          "E5087",
          Category.CODEGEN,
-         "Project kind '{kind}' has no server, but '{name}' needs one ({reason})",
-         help="A '{kind}' project builds a client-only artifact: there is no server codespace to place this in, and no endpoint route to bridge to, so a server placement here could only fail at runtime. Drop the server dependency, or declare a `[project] kind` that has a server.",
+         "App kind '{kind}' has no server, but '{name}' needs one ({reason})",
+         help="A '{kind}' app builds a client-only artifact: there is no server codespace to place this in, and no endpoint route to bridge to, so a server placement here could only fail at runtime. Drop the server dependency, or give the app a `kind` that has a server.",
          blocks_codegen=True
      ),
      E5088 = _err(
@@ -1906,6 +1934,40 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.CODEGEN,
          "OSP type-tag collision: archetypes '{name}' and '{other}' share one dispatch tag",
          help="Object-spatial dispatch keys every archetype by a stable hash of its bare name, shared across backends. Two archetypes with the same bare name (or, astronomically rarely, colliding hashes) would dispatch each other's abilities; the server runtime also refuses the second registration at first use. Rename one of the archetypes."
+     ),
+     E5108 = _err(
+         "E5108",
+         Category.CODEGEN,
+         "App '{consumer}' imports '{name}', a {kind} owned by app '{provider}'; nodes and edges never cross an app boundary",
+         help="A node or edge lives in the graph of the app that owns it, so another app cannot construct or hold one. Spawn one of '{provider}''s walkers and work with what it reports, or move the type into shared code as an obj.",
+         blocks_codegen=True
+     ),
+     E5107 = _err(
+         "E5107",
+         Category.CODEGEN,
+         "Server-placed shared module '{module}' has no single owner: reached by serving apps {apps}; declare it as a service app or pin an owner",
+         help="A shared module with server-placed elements runs on exactly one app's server so that every other app bridges to the same owner. With more than one serving app in the workspace the compiler cannot pick one. Give the module its own `[apps.<name>]` table (`kind = \"service\"`, `entry-point = \"<path>\"`), or pin it to an owner with `[apps.<owner>.placement.pins] \"<module>\" = \"server\"`.",
+         blocks_codegen=True
+     ),
+     E5104 = _err(
+         "E5104",
+         Category.CODEGEN,
+         "App dependency cycle: {cycle}",
+         help="Apps bridge to their providers over the wire and providers boot first, so the app graph has to be a DAG. Break the cycle by moving the code both apps need into a shared module, or by folding one of the apps into the other.",
+         blocks_codegen=True
+     ),
+     E5105 = _err(
+         "E5105",
+         Category.CODEGEN,
+         "Variant '{variant}' disagrees with '{base}' on '{name}': {detail}",
+         help="A `.native.jac` variant stands in for its sibling module on the react-native target, so the two have to expose the same public surface: the same names, the same kinds of declaration, the same parameters and annotations. Bring the variant's declaration of '{name}' in line with the base module, or remove it from both."
+     ),
+     E5106 = _err(
+         "E5106",
+         Category.CODEGEN,
+         "App '{consumer}' bridges to '{name}', which is not a pub element of app '{provider}'",
+         help="An app's bridge surface is its walkers and its `def:pub` functions; everything else is private to the app's own server. Make '{name}' a walker or mark it `:pub` in app '{provider}' to expose it, or move it into shared code if both apps need it in-process.",
+         blocks_codegen=True
      ),
      E5089 = _err(
          "E5089",

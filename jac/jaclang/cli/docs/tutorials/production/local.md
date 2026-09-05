@@ -117,9 +117,9 @@ Naming the port is what makes it a contract, not where you named it. A project t
 pins 3000 usually has something addressing 3000, a proxy or an OAuth callback or a
 hardcoded URL, and moving to 3001 would break it silently.
 
-One exception, for now. On a microservice project -- one declaring
-`[scale.microservices.routes]`, which `jac create --kind web-app` writes -- a
-`[scale.microservices] gateway_port` in `jac.toml` does **not** pin, because the loaded
+One exception, for now. When a workspace's service apps run as a fleet
+(`jac run <app> --fleet`, or `[scale.gateway] colocate = false`), a
+`[scale.gateway] gateway_port` in `jac.toml` does **not** pin, because the loaded
 config supplies a default for that key and nothing downstream can tell a port you chose
 from one that was merely assumed. Pass `--port` to pin the gateway.
 

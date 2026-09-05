@@ -109,12 +109,7 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
             'verify_url_template': '',
             'token_collection': 'auth_tokens'
         },
-        'microservices': {
-            'gateway_port': 8000,
-            'gateway_host': '0.0.0.0',
-            'routes': {},
-            'client': {'entry': '', 'dist_dir': '.jac/client/dist', 'base_route': '/'}
-        }
+        'gateway': {'gateway_port': 8000, 'gateway_host': '0.0.0.0', 'colocate': True}
     };
 }
 
@@ -165,18 +160,6 @@ impl JacScaleConfig.get_database_config(self: JacScaleConfig) -> dict[str, any] 
     resolved = self.get_deploy_database_config();
     resolved['url'] = os.environ.get('JAC_DB_URL') or resolved['url'];
     return resolved;
-}
-
-impl load_microservices_config -> dict[str, any] {
-    cfg = get_scale_config();
-    try {
-        return cfg.get_microservices_config();
-    } except Exception as e {
-        raise ValueError(
-            f"[scale.microservices] could not be read from {cfg.config_file}: {e}. "
-            "Deploying without it would silently pick a different topology."
-        ) from e;
-    }
 }
 
 
@@ -394,6 +377,7 @@ impl peek_scale_config -> JacScaleConfig | None {
 
 impl reset_scale_config -> None {
     _scale_config_instance = None;
+    _app_scale_cache.clear();
 }
 
 impl JacScaleConfig.get_telemetry_config(self: JacScaleConfig) -> dict[str, any] {
@@ -464,68 +448,83 @@ impl JacScaleConfig.get_auth_config(self: JacScaleConfig) -> dict[str, any] {
     };
 }
 
-impl JacScaleConfig.get_microservices_config(self: JacScaleConfig) -> dict[str, any] {
+impl JacScaleConfig.get_gateway_config(self: JacScaleConfig) -> dict[str, any] {
     config = self.load();
-    return normalize_microservices_config(config.get('microservices', {}));
+    return normalize_gateway_config(config.get('gateway', {}));
+}
+
+impl JacScaleConfig.get_app_scale_config(
+    self: JacScaleConfig, app_name: str
+) -> dict[str, any] {
+    if not app_name {
+        return {};
+    }
+    cached = _app_scale_cache.get(app_name);
+    if cached is not None {
+        return dict(cached);
+    }
+    try {
+        resolved = app_scale_overrides(self.get_jac_config(), app_name);
+    } except Exception {
+        resolved = {};
+    }
+    _app_scale_cache[app_name] = resolved;
+    return dict(resolved);
 }
 
 
-impl normalize_microservices_config(
-    ms_config: dict[str, any], env_routes_fallback: bool = True
-) -> dict[str, any] {
-    client_config = ms_config.get('client', {});
-    cors_config = ms_config.get('cors', {});
-    rl_config = ms_config.get('rate_limit', {});
+impl _pick_app_scale_keys(section: dict[str, any] | None) -> dict[str, any] {
+    import copy;
+    if not isinstance(section, dict) {
+        return {};
+    }
+    return {
+        key: copy.deepcopy(value)
+        for (key, value) in section.items()
+        if key in APP_SCALE_KEYS
+    };
+}
 
-    routes: dict[str, any] = dict(ms_config.get('routes', {}));
-    if not routes and env_routes_fallback {
-        import json;
-        env_routes: str = os.environ.get('JAC_SV_ROUTES', '');
-        if env_routes {
-            try {
-                routes = dict(json.loads(env_routes));
-            } except Exception as e {
-                import logging;
-                logging.getLogger(__name__).warning(
-                    f"Ignoring malformed JAC_SV_ROUTES env var ({e}); "
-                    f"gateway will have no routes from env."
-                );
-                routes = {};
-            }
+
+impl app_scale_overrides(config: any, app_name: str) -> dict[str, any] {
+    if config is None or not app_name or app_name not in config.apps {
+        return {};
+    }
+    app = config.apps[app_name];
+    overlays = app.overlays if isinstance(app.overlays, dict) else {};
+    declared = overlays.get("scale");
+    if isinstance(declared, dict) {
+        import from jaclang.project.config_schema { report_schema_findings }
+        import from jaclang.scale.config.validation {
+            STRICT_ENV,
+            validate_app_scale_config
         }
+        report_schema_findings(
+            validate_app_scale_config(declared, app_name),
+            f"apps.{app_name}.scale",
+            STRICT_ENV
+        );
     }
-
-    service_files: dict = dict(ms_config.get('service_files', {}) or {});
-    if routes {
-        import from jaclang.scale.runtime.routing { ensure_main_service }
-        ensure_main_service(routes, service_files);
+    try {
+        effective = config.effective_for_app(app_name);
+    } except Exception {
+        return _pick_app_scale_keys(declared);
     }
+    plugins = effective.plugins if isinstance(effective.plugins, dict) else {};
+    return _pick_app_scale_keys(plugins.get("scale", {}));
+}
 
-    raw_client_entry = client_config.get('entry', None);
 
-    if raw_client_entry is False or raw_client_entry == '' {
-        resolved_client_entry: str = '';
-    } elif raw_client_entry {
-        resolved_client_entry: str = str(raw_client_entry);
-    } else {
-        try {
-            import from jaclang.project.config { get_config }
-            cfg = get_config();
-            resolved_client_entry: str = (cfg.project.entry_point if cfg else '')
-                or 'main.jac';
-        } except Exception {
-            resolved_client_entry: str = 'main.jac';
-        }
-    }
-
+impl normalize_gateway_config(gateway_config: dict[str, any] | None) -> dict[str, any] {
+    raw = dict(gateway_config or {});
+    cors_config = dict(raw.get('cors', {}) or {});
+    rl_config = dict(raw.get('rate_limit', {}) or {});
     normalized = {
-        'enabled': ms_config.get('enabled', None),
-        'gateway_port': int(ms_config.get('gateway_port', 8000)),
-        'gateway_host': ms_config.get('gateway_host', '0.0.0.0'),
-        'http_forward_timeout': float(ms_config.get('http_forward_timeout', 30)),
-        'routes': routes,
-        'service_files': service_files,
-        'services': dict(ms_config.get('services', {})),
+        'colocate': bool(raw.get('colocate', True)),
+        'gateway_port': int(raw.get('gateway_port', 8000)),
+        'gateway_host': str(raw.get('gateway_host', '0.0.0.0')),
+        'gateway_port_pinned': bool(raw.get('gateway_port_pinned', False)),
+        'http_forward_timeout': float(raw.get('http_forward_timeout', 30)),
         'rate_limit': {
             'enabled': bool(rl_config.get('enabled', False)),
             'per_ip_rpm': int(rl_config.get('per_ip_rpm', 60)),
@@ -544,29 +543,24 @@ impl normalize_microservices_config(
             'expose_headers': list(cors_config.get('expose_headers', [])),
             'max_age': int(cors_config.get('max_age', 600))
         },
-        'client': {
-            'entry': resolved_client_entry,
-            'dist_dir': client_config.get('dist_dir', '.jac/client/dist'),
-            'base_route': client_config.get('base_route', '/'),
-            'static_mounts': list(client_config.get('static_mounts', []) or [])
-        },
         'identity': {
             'gateway_owned': bool(
-                dict(ms_config.get('identity', {})).get('gateway_owned', True)
+                dict(raw.get('identity', {}) or {}).get('gateway_owned', True)
             )
         },
-        'ingress': dict(ms_config.get('ingress', {})),
-        'shared_volumes': list(ms_config.get('shared_volumes', [])),
-        'logs': dict(ms_config.get('logs', {})),
-        'tracing': dict(ms_config.get('tracing', {}))
+        'ingress': dict(raw.get('ingress', {}) or {}),
+        'shared_volumes': list(raw.get('shared_volumes', []) or []),
+        'logs': dict(raw.get('logs', {}) or {}),
+        'tracing': dict(raw.get('tracing', {}) or {})
     };
-    for boot_key in (
-        'boot_health_timeout',
-        'boot_max_wait',
-        'health_monitor_interval'
-    ) {
-        if boot_key in ms_config {
-            normalized[boot_key] = ms_config[boot_key];
+    for boot_key in GATEWAY_BOOT_KEYS {
+        if boot_key in raw and raw[boot_key] is not None {
+            normalized[boot_key] = raw[boot_key];
+        }
+    }
+    for pod_key in GATEWAY_POD_KEYS {
+        if pod_key in raw and raw[pod_key] is not None {
+            normalized[pod_key] = raw[pod_key];
         }
     }
     return normalized;

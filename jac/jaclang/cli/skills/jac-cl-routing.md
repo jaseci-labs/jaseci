@@ -186,6 +186,6 @@ def:pub AppShell() -> JsxElement {
 ## Pitfalls
 
 - `useParams()` returns a `dict` - **subscript access only** (`params["id"]`); `params.id` fails E1030 and `params.get("id")` crashes at runtime (it's a plain JS object). Missing params come back as JS `undefined`, which `is not None` MISSES - use truthy checks (`if not userId`). See `jac-cl-components`.
-- Routing uses clean BrowserRouter URLs (`/users/123`, not `#/users/123`). `jac run` handles the SPA fallback automatically (serves the app HTML for extensionless non-API paths when `[serve] base_route_app` is set - see `jac-fullstack-patterns`). **Any other production host must do the same SPA fallback** or deep links / refreshes 404.
+- Routing uses clean BrowserRouter URLs (`/users/123`, not `#/users/123`). `jac run` handles the SPA fallback automatically (serves the app HTML for extensionless non-API paths - see `jac-fullstack-patterns`). **Any other production host must do the same SPA fallback** or deep links / refreshes 404.
 - Guards with `has`/hooks: a component's hooks must run before any conditional `return <Navigate/>` - see the rules-of-hooks pitfall in `jac-cl-components`. Prefer the `(auth)/` group convention for file-based routing, which avoids per-page guard code entirely.
 - Routing exports from `@jac/runtime`: `Router`, `Routes`, `Route`, `Link`, `Navigate`, `Outlet`, `AuthGuard`, `useNavigate`, `useLocation`, `useParams`, `useRouter`.

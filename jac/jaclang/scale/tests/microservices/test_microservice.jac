@@ -264,7 +264,7 @@ test "sv-to-sv: sv-imported walker does not load provider in-process" {
 }
 
 glob _SECURE_PROVIDER_SRC: str = '"""Secure downstream provider fixture.\n\n`report_status` (function) and `PrivateAudit` (walker) carry NO :pub marker,\nso the scale serve layer treats them as auth-required. A cross-service caller\nthat reaches these endpoints without a valid token is rejected by the real\ndownstream enforcement in serve.endpoints (requires_auth).\n"""\n\nobj AuditEntry {\n    has actor: str = "",\n        action: str = "",\n        allowed: bool = False;\n}\n\ndef report_status(actor: str) -> AuditEntry {\n    return AuditEntry(actor=actor, action="status", allowed=True);\n}\n\nwalker PrivateAudit {\n    has action: str;\n\n    can run with Root entry {\n        report AuditEntry(actor="downstream", action=self.action, allowed=True);\n    }\n}\n',
-     _SECURE_CONSUMER_SRC: str = '"""Consumer that imports the private downstream function report_status."""\n\nimport from secure_service { report_status, AuditEntry }\n\ndef:pub proxy_status(actor: str) -> AuditEntry {\n    return report_status(actor);\n}\n';
+     _SECURE_CONSUMER_SRC: str = '"""Consumer that imports the private downstream function report_status."""\n\nimport from secure_service { report_status, AuditEntry }\n\nasync def:pub proxy_status(actor: str) -> AuditEntry {\n    return await report_status(actor);\n}\n';
 
 def _mint_user_token(srv: JacAPIServer, username: str) -> tuple[str, str] {
     user_manager = srv.user_manager;
@@ -402,10 +402,17 @@ test "sv boundary: unauthenticated cross-service call is rejected downstream" {
     try {
         write_service(tmp, "secure_service", _SECURE_PROVIDER_SRC);
         write_service(tmp, "secure_consumer", _SECURE_CONSUMER_SRC);
-        # Declare the provider so the import lowers to an RPC stub (#7772), making
-        # the call cross-service and subject to the real downstream auth enforcement.
+        # Declare both sides as file-rooted service apps so the import lowers to a
+        # typed-async RPC stub (#7772, #8823), making the call cross-service and
+        # subject to the real downstream auth enforcement.
         toml_path = Path(tmp) / "jac.toml";
-        toml_path.write_text(toml_path.read_text() + '\nsecure_service = "/secure"\n');
+        toml_path.write_text(
+            toml_path.read_text()
+                + '\n[apps.secure_service]\nkind = "service"\n'
+                + 'entry-point = "secure_service.jac"\nroute = "/secure"\n'
+                + '\n[apps.secure_consumer]\nkind = "service"\n'
+                + 'entry-point = "secure_consumer.jac"\nroute = "/secure-consumer"\n'
+        );
         prov = make_server("secure_service", tmp);
         cons = make_server("secure_consumer", tmp);
 
@@ -414,6 +421,52 @@ test "sv boundary: unauthenticated cross-service call is rejected downstream" {
         assert body["ok"] is False;
         assert "Unauthorized" in json.dumps(body.get("error") or {});
     } finally {
+        done(tmp);
+    }
+}
+
+test "sv-to-sv over the wire: a sibling peer's JAC_APP url is used as given" {
+    import from jaclang.server.serving.server { ServingServer }
+    tmp = setup_env();
+    url_key = __jac_sv.peer_url_env_key("notify_service");
+    route_key = __jac_sv.peer_route_env_key("notify_service");
+    saved_url = os.environ.get(url_key);
+    saved_route = os.environ.get(route_key);
+    os.environ.pop(route_key, None);
+    stop_provider: any = None;
+    try {
+        # The provider is a real HTTP server on a loopback port, mounted at its
+        # root the way a fleet member or a deployed pod is (JAC_SV_SIBLING).
+        (_prov_client, prov_srv) = build_service("notify_service", tmp);
+        __jac_sv._test_clients.pop("notify_service", None);
+        __jac_sv.unregister("notify_service");
+        provider_impl = prov_srv.server;
+        assert provider_impl is not None;
+        wire = ServingServer(app=provider_impl.app, host="127.0.0.1", port=0);
+        stop_provider = wire.serve_background();
+        base = f"http://127.0.0.1:{wire.bound_port}";
+        os.environ[url_key] = base;
+
+        cons = make_server("dispatcher_service", tmp);
+        # The compiled consumer declared the provider's public route; that route
+        # belongs to the gateway, not to the peer URL.
+        assert __jac_sv.provider_route("notify_service") == "/notify";
+        rpt = xd(cons.post("/walker/TriggerGreet", json={"who": "wire"}))["reports"][0];
+        assert rpt == "hello, wire";
+        assert __jac_sv.resolve_url("notify_service") == base;
+        assert __jac_sv.registered_route("notify_service") == "";
+    } finally {
+        if stop_provider is not None {
+            stop_provider();
+        }
+        __jac_sv.unregister("notify_service");
+        for (k, v) in [(url_key, saved_url), (route_key, saved_route)] {
+            if v is None {
+                os.environ.pop(k, None);
+            } else {
+                os.environ[k] = v;
+            }
+        }
         done(tmp);
     }
 }

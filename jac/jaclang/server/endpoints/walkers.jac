@@ -11,6 +11,11 @@ import from jaclang.server.serving.endpoint {
     JEndPoint,
     ParameterType
 }
+import from jaclang.server.outbox {
+    remember_response,
+    replay_cached,
+    scoped_idempotency_key
+}
 import from jaclang.server.serving.router { path_param_names }
 import from jaclang.server.serving.sse { sse_frame_stream }
 import from jaclang.server.server {
@@ -19,6 +24,7 @@ import from jaclang.server.server {
     target_restspec,
     target_schedule_spec
 }
+import from jaclang.server.sv_client { IDEMPOTENCY_HEADER, bridge_identity }
 import from jaclang.server.transport { Meta, TransportResponse }
 
 glob logger: logging.Logger = logging.getLogger('jaclang.serve');
@@ -29,6 +35,31 @@ def _unauthorized -> TransportResponse {
         code='UNAUTHORIZED',
         message='Unauthorized',
         meta=Meta(extra={'http_status': 401})
+    );
+}
+
+
+def request_caller(server: JacAPIServer, request: Request) -> (str | None) {
+    """The caller behind a request: the JWT subject the middleware resolved, else
+    a sibling service bridging with the shared token (created on first sight)."""
+    username: (str | None) = request.state?.username;
+    if username {
+        return username;
+    }
+    ident = bridge_identity(request.headers.get('Authorization'));
+    if not ident {
+        return None;
+    }
+    if not server.user_manager.user_exists(ident) {
+        server.user_manager.create_user(ident, '__no_password__');
+    }
+    return ident;
+}
+
+
+def idempotency_key(request: Request, username: str, app: str, target: str) -> str {
+    return scoped_idempotency_key(
+        str(request.headers.get(IDEMPOTENCY_HEADER) or ''), username, app, target
     );
 }
 
@@ -127,21 +158,27 @@ def walker_parameters(
 
 def walker_callback(
     server: JacAPIServer, walker_name: str
-) -> Callable[..., (TransportResponse | StreamingResponse)] {
+) -> Callable[..., (TransportResponse | StreamingResponse | Response)] {
     requires_auth = server.introspector.is_auth_required_for_walker(walker_name);
 
     async def callback(
         request: Request, nd: (str | None) = None, **kwargs: JsonValue
-    ) -> (TransportResponse | StreamingResponse) {
-        username: (str | None) = request.state?.username;
+    ) -> (TransportResponse | StreamingResponse | Response) {
+        username = request_caller(server, request);
         if requires_auth and not username {
             return _unauthorized();
         }
         if nd {
             kwargs['_jac_spawn_node'] = nd;
         }
+        caller = username or Con.GUEST.value;
+        idem = idempotency_key(request, caller, server.module_name, walker_name);
+        replay = replay_cached(idem);
+        if replay is not None {
+            return replay;
+        }
         result = await server.execution_manager.spawn_walker(
-            server.get_walkers()[walker_name], kwargs, (username or Con.GUEST.value)
+            server.get_walkers()[walker_name], kwargs, caller
         );
         if isgenerator(result) or isinstance(result, AsyncGenerator) {
             return _stream(result);
@@ -149,8 +186,11 @@ def walker_callback(
         if isinstance(result, dict) and 'error' in result {
             return _failure(result, 'Walker execution failed');
         }
-        return TransportResponse.success(
-            data=result, meta=Meta(extra={'http_status': 200})
+        return remember_response(
+            idem,
+            TransportResponse.success(
+                data=result, meta=Meta(extra={'http_status': 200})
+            )
         );
     }
     return callback;
@@ -257,13 +297,19 @@ def function_callback(
     async def callback(
         request: Request, **kwargs: JsonValue
     ) -> (TransportResponse | StreamingResponse | Response) {
-        username: (str | None) = request.state?.username;
+        username = request_caller(server, request);
         if requires_auth and not username {
             return _unauthorized();
         }
+        caller = username or Con.GUEST.value;
+        idem = idempotency_key(request, caller, server.module_name, func_name);
+        replay = replay_cached(idem);
+        if replay is not None {
+            return replay;
+        }
         logger.debug(f"function {func_name}: {sorted(kwargs)}");
         result = await server.execution_manager.execute_function(
-            server.get_functions()[func_name], kwargs, (username or Con.GUEST.value)
+            server.get_functions()[func_name], kwargs, caller
         );
         if isgenerator(result) or isinstance(result, AsyncGenerator) {
             return _stream(result);
@@ -284,8 +330,11 @@ def function_callback(
             }
             return Response(content=body, media_type=raw_media);
         }
-        return TransportResponse.success(
-            data=result, meta=Meta(extra={'http_status': 200})
+        return remember_response(
+            idem,
+            TransportResponse.success(
+                data=result, meta=Meta(extra={'http_status': 200})
+            )
         );
     }
     return callback;

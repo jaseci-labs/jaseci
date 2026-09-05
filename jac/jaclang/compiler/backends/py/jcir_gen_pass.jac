@@ -428,10 +428,13 @@ walker JcirGenPass(BaseAstGenPass[CgItem]) {
     def _top_level_bound_names(items: any) -> list;
     def _native_test_shim_stmts(nd: Test) -> list;
     def _generate_sv_to_sv_stubs(nd: Import) -> bool;
+    def _sv_consumer_app_expr -> str;
+    def _sv_endpoint_effects(binding: InteropBinding, key: str) -> list[str];
+    def _sv_bridge_walker_call(expr: Expr) -> (FuncCall | None);
     def _gen_py_sv_func_stub(
         local_name: str,
         func_name: str,
-        module_name: str,
+        provider_app: str,
         binding: InteropBinding,
         boundary_types: dict[(str, BoundaryTypeInfo)]
     ) -> str;
@@ -439,7 +442,7 @@ walker JcirGenPass(BaseAstGenPass[CgItem]) {
     def _gen_py_sv_walker_stub(
         local_name: str,
         walker_name: str,
-        module_name: str,
+        provider_app: str,
         binding: InteropBinding,
         boundary_types: dict[(str, BoundaryTypeInfo)]
     ) -> str;

@@ -82,5 +82,3 @@ jac/jaclang/compiler/backends/es/esast_gen_pass.jac
 jac/jaclang/compiler/backends/es/impl/esast_gen_pass.impl.jac
 
 # Example apps.
-jac/examples/mobui/hello/main.jac
-jac/examples/mobui/littlex/main.jac

@@ -97,8 +97,6 @@ obj ServeSettings {
         docs_enabled: bool = True,
         graph_enabled: bool = True,
         cors_origins: list[str] = ['*'],
-        cl_route_prefix: str = 'cl',
-        base_route_app: str = '',
         workers: WorkerSettings = WorkerSettings(),
         tls: TlsSettings = TlsSettings(),
         proxy: ProxySettings = ProxySettings(),

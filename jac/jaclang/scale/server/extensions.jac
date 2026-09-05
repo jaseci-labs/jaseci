@@ -51,7 +51,7 @@ def fleet_provisions_unknown_users(sv_name: str) -> bool {
         return False;
     }
     identity_cfg = dict(
-        get_scale_config().get_microservices_config().get('identity', {})
+        get_scale_config().get_gateway_config().get('identity', {})
     );
     return bool(identity_cfg.get('gateway_owned', True));
 }
@@ -89,7 +89,7 @@ obj ObservabilityExtension(ServerExtension) {
         }
         install_structured_logging();
         if not tracing_installed() {
-            trc = get_scale_config().get_microservices_config().get('tracing', {});
+            trc = get_scale_config().get_gateway_config().get('tracing', {});
             install_tracing(
                 enabled=trc.get('enabled', False),
                 endpoint=trc.get('endpoint'),

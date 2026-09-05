@@ -32,7 +32,7 @@ class JacClientCompiler {
 
         COMPOUND_EXTENSIONS = ['.native.jac'] + list(ANNEX_SUFFIXES);
 
-        PLATFORM_RUNTIME_FILES = {"react-native": "client_runtime_native.jac"};
+        NATIVE_RUNTIME_FILE = "client_runtime_native.jac";
     }
 
     def init(
@@ -47,6 +47,8 @@ class JacClientCompiler {
     );
 
     def _get_client_dir(self: JacClientCompiler) -> Path;
+    def _client_app_dir(self: JacClientCompiler) -> Path;
+    def _app_root(self: JacClientCompiler) -> Path;
     def _collect_na_modules(self: JacClientCompiler, artifact: ClientArtifact) -> None;
     def _jac_path_to_js(self: JacClientCompiler, rel_str: str) -> str;
     def _native_variant(self: JacClientCompiler, path: Path) -> Path;
@@ -63,7 +65,7 @@ class JacClientCompiler {
         collected_exports: (set[str] | None) = None,
         collected_globals: (dict[(str, any)] | None) = None,
         source_root: (Path | None) = None,
-        target_name: str = "web",
+        native: bool = False,
         skip_existing: bool = False
     ) -> None;
 
@@ -89,7 +91,7 @@ class JacClientCompiler {
         visited: (set[Path] | None) = None,
         collected_exports: (set[str] | None) = None,
         collected_globals: (dict[(str, any)] | None) = None,
-        target_name: str = "web"
+        native: bool = False
     ) -> bool;
 
     def rescan_pages(self: JacClientCompiler) -> bool;
@@ -110,6 +112,6 @@ class JacClientCompiler {
         self: JacClientCompiler,
         module: (ModuleType | None),
         module_path: Path,
-        target_name: str = "web"
+        native: bool = False
     ) -> tuple[list[str], list[str]];
 }

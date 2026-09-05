@@ -14,11 +14,18 @@ import from jaclang.server.serving.endpoint {
     JEndPoint,
     ParameterType
 }
+import from jaclang.project.config { get_config }
 import from jaclang.server.serving.files { file_response }
 import from jaclang.server.server { JacAPIServer, JsonValue }
-import from jaclang.server.static_files { find_root_asset, find_static_candidate }
+import from jaclang.server.static_files {
+    find_root_asset,
+    find_static_candidate,
+    sibling_app_dist,
+    sibling_app_file
+}
 
 glob logger: logging.Logger = logging.getLogger('jaclang.serve'),
+     CL_PREFIX: str = 'cl/',
      API_PREFIXES: tuple = ('walker/', 'function/', 'user/', 'static/', 'healthz'),
      ASSET_CACHE_CONTROL: str = 'public, max-age=31536000, immutable';
 
@@ -61,42 +68,86 @@ def _render(
 }
 
 
+def _sibling_response(request: Request, dist: Path, rel: str) -> Response {
+    return file_response(request, str(sibling_app_file(dist, rel)));
+}
+
+
 def register_page_endpoints(server: JacAPIServer) {
     settings = server.resolved_settings();
-    prefix = settings.cl_route_prefix;
-    base_route_app = server.introspector.resolve_root_app(settings.base_route_app);
+    config = get_config();
+    root_app = server.introspector.resolve_root_app();
 
     def render_page(request: Request, page_name: str, **kwargs: JsonValue) -> Response {
+        sibling = sibling_app_dist(config, page_name, server.base_path);
+        if sibling is not None {
+            return _sibling_response(request, sibling, '');
+        }
         return _render(server, page_name, kwargs);
     }
     server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
-            path=f"/{prefix}/{{page_name}}",
+            path='/cl/{page_name}',
             callback=render_page,
             parameters=[
                 APIParameter(
                     name='page_name',
                     data_type='string',
                     required=True,
-                    description='Name of the client page to render',
+                    description='Name of the client page to render, or a sibling app',
                     kind=ParameterType.PATH
                 )
             ],
             tags=['Pages'],
             summary='Render a client page',
-            description=f"Render the named client function as a page at /{prefix}/{{name}}.",
+            description='Render the named client function as a page at /cl/{name}, or a workspace sibling app bundle at /cl/<app>/.',
             include_in_schema=False
         )
     );
 
+    if config is not None and config.is_workspace {
+        def sibling_asset(request: Request, app_name: str, file_path: str) -> Response {
+            dist = sibling_app_dist(config, app_name, server.base_path);
+            if dist is None {
+                return JSONResponse(content={'error': 'Not found'}, status_code=404);
+            }
+            return _sibling_response(request, dist, file_path);
+        }
+        server.add_endpoint(
+            JEndPoint(
+                method=HTTPMethod.GET,
+                path='/cl/{app_name}/{file_path:path}',
+                callback=sibling_asset,
+                parameters=[
+                    APIParameter(
+                        name='app_name',
+                        data_type='string',
+                        required=True,
+                        description='Sibling app whose bundle lives at dist/<app>/',
+                        kind=ParameterType.PATH
+                    ),
+                    APIParameter(
+                        name='file_path',
+                        data_type='string',
+                        required=True,
+                        description='Path inside the sibling app bundle',
+                        kind=ParameterType.PATH
+                    )
+                ],
+                tags=['Pages'],
+                summary='Serve a sibling app bundle',
+                description='Serves a workspace sibling client app from dist/<app>/ at /cl/<app>/.',
+                include_in_schema=False,
+                forward_undeclared_query_params=False
+            )
+        );
+    }
+
     def root_index(request: Request, **kwargs: JsonValue) -> Response {
-        if base_route_app {
+        if root_app {
             return _render(
-                server,
-                base_route_app,
-                kwargs,
-                server.introspector.spa_fallback_status('/')
+                server, root_app, kwargs, server.introspector.spa_fallback_status('/')
             );
         }
         return JSONResponse(
@@ -116,9 +167,7 @@ def register_page_endpoints(server: JacAPIServer) {
             tags=['Pages'],
             summary='Root',
             description=(
-                f"Serves the {base_route_app} client app"
-                    if base_route_app
-                    else 'Service index'
+                f"Serves the {root_app} client app" if root_app else 'Service index'
             ),
             include_in_schema=False
         )
@@ -180,7 +229,7 @@ def register_page_endpoints(server: JacAPIServer) {
     );
 
     def root_asset(request: Request, file_path: str) -> Response {
-        if file_path.startswith(API_PREFIXES) or file_path.startswith(f"{prefix}/") {
+        if file_path.startswith(API_PREFIXES) or file_path.startswith(CL_PREFIX) {
             return JSONResponse(content={'error': 'Not found'}, status_code=404);
         }
         candidate = find_root_asset(_static_base(server), file_path);
@@ -189,14 +238,9 @@ def register_page_endpoints(server: JacAPIServer) {
                 request, str(candidate), cache_control=ASSET_CACHE_CONTROL
             );
         }
-        if not Path(file_path).suffix
-            and base_route_app
-            and not server.introspector.dev_mode {
+        if not Path(file_path).suffix and root_app and not server.introspector.dev_mode {
             return _render(
-                server,
-                base_route_app,
-                {},
-                server.introspector.spa_fallback_status(file_path)
+                server, root_app, {}, server.introspector.spa_fallback_status(file_path)
             );
         }
         return JSONResponse(content={'error': 'Not found'}, status_code=404);

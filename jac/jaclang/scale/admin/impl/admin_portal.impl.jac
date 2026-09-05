@@ -1308,7 +1308,7 @@ impl JacAPIServerAdmin.build_admin_client(force: bool = False) -> bool {
     logger.info("Building admin client from source...");
     try {
         result = subprocess.run(
-            ["jac", "build", "main.jac", "--client", "web"],
+            ["jac", "build", "--as", "client", "main.jac"],
             cwd=str(ui_dir),
             capture_output=True,
             text=True,

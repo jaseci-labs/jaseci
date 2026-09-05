@@ -3,7 +3,14 @@ import re;
 import sys;
 import tomllib;
 import from pathlib { Path }
-glob VALID_CLIENT_KINDS: list[str] = ["web", "mobui"];
+import from jaclang.project.apps { AppConfig, implicit_app, parse_apps }
+glob CAPABILITY_SECTIONS: tuple[str, ...] = (
+         "byllm",
+         "scale",
+         "client",
+         "mcp",
+         "desktop"
+     );
 
 obj PersonConfig {
     has name: str = "",
@@ -18,7 +25,6 @@ obj PackageIncludeConfig {
 obj ProjectConfig {
     has name: str = "",
         version: str = "0.1.0",
-        client_kind: str = "web",
         description: str = "",
         authors: list[PersonConfig] = [],
         maintainers: list[PersonConfig] = [],
@@ -30,6 +36,7 @@ obj ProjectConfig {
         jac_version: str = "",
         entry_point: str = "main.jac",
         kind: str = "",
+        default_app: str = "",
         urls: dict[str, str] = {},
         `include: PackageIncludeConfig = PackageIncludeConfig();
 }
@@ -147,8 +154,6 @@ obj ServeConfig {
         port: int = 8000,
         session: str = "",
         main: bool = True,
-        cl_route_prefix: str = "cl",
-        base_route_app: str = "",
         docs_enabled: bool = True,
         graph_enabled: bool = True,
         cors_origins: list[str] = ["*"],
@@ -271,7 +276,13 @@ obj JacConfig {
         _raw_data: dict[str, any] = {},
         entrypoints: dict[str, dict[str, str]] = {},
         optional_dependencies: dict[str, dict[str, str]] = {},
-        discovered_from_ancestor: bool = False;
+        discovered_from_ancestor: bool = False,
+        apps: dict[str, AppConfig] = {},
+        is_workspace: bool = False,
+        _base_data: dict[str, any] = {},
+        _layers: list[tuple[str, str]] = [];
+
+    has default_app: str { getter; }
 
     static def discover(
         start_path: Path | None = None, profile: str | None = None
@@ -282,7 +293,6 @@ obj JacConfig {
         toml_str: str, toml_path: Path | None = None
     ) -> JacConfig;
 
-    def apply_env_interpolation -> None;
     def _section_map -> dict[
         str,
         RunConfig
@@ -319,15 +329,16 @@ obj JacConfig {
     ) -> bool;
 
     def merge_from_toml_file(toml_path: Path) -> None;
+    def app(name: str) -> AppConfig | None;
+    def resolve_app(name: str = "") -> AppConfig;
+    def resolved_kind(app: AppConfig) -> str;
+    def effective_for_app(name: str) -> JacConfig;
+    def app_for_path(abs_path: str) -> AppConfig | None;
+    def serving_apps -> list[AppConfig];
+    def owner_app_for_path(abs_path: str) -> tuple[AppConfig | None, bool];
 }
 
-def discover_config_files(
-    project_root: Path, profile: str | None = None
-) -> list[Path];
-
 def _parse_toml_data(data: dict[str, any], toml_path: Path | None = None) -> JacConfig;
-
-def _warn_legacy_plugins_table(data: dict[str, any]) -> None;
 
 def _parse_persons(raw: list[any]) -> list[PersonConfig];
 

@@ -87,7 +87,6 @@ impl PluginConfigBase.get_jac_config -> JacConfig {
             import os;
             profile: str = (
                 os.environ.get("JAC_PROFILE", "").strip()
-                or os.environ.get("JAC_ENV", "").strip()
                 or config.environment.default_profile
             );
             config.apply_profile_overlay(profile or None);

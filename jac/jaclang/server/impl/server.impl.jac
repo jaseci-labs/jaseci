@@ -1515,6 +1515,7 @@ impl JacAPIServer.build_app -> ServingApp {
 
 impl JacAPIServer.register_endpoints -> None {
     import from jaclang.server.endpoints.auth { register_auth_endpoints }
+    import from jaclang.server.endpoints.colocated { register_colocated_endpoints }
     import from jaclang.server.endpoints.introspection {
         register_introspection_endpoints
     }
@@ -1535,6 +1536,7 @@ impl JacAPIServer.register_endpoints -> None {
     register_introspection_endpoints(self);
     register_walker_endpoints(self);
     register_function_endpoints(self);
+    register_colocated_endpoints(self);
     if settings.graph_enabled {
         register_graph_endpoints(self);
     }
@@ -1648,8 +1650,9 @@ impl JacAPIServer._ensure_client_bundle -> None {
     if not client_exports {
         return;
     }
+    import from jaclang.client.targets.registry { client_app_dir_for }
     config = get_config();
-    dist_dir = config.get_client_dir() / 'dist'
+    dist_dir = client_app_dir_for(config) / 'dist'
         if config
         else Path(self.base_path) / '.jac' / 'client' / 'dist';
     if (dist_dir / 'manifest.json').exists() {
@@ -1837,6 +1840,7 @@ impl JacAPIServer._worker_main(
     on_ready: (Callable[[int], None] | None) = None,
     port_retries: int = 0
 ) -> int {
+    import from jaclang.server.outbox { start_worker_if_bridging, stop_worker }
     settings = self.resolved_settings();
     serving = ServingServer(
         app=self.require_app(),
@@ -1848,6 +1852,7 @@ impl JacAPIServer._worker_main(
     );
     self.server = serving;
     self.scheduler.start_if_pending();
+    start_worker_if_bridging();
     for ext in (self.extensions or []) {
         ext.on_worker_start(self);
     }
@@ -1864,6 +1869,7 @@ impl JacAPIServer._worker_main(
         return serving.run(on_ready=_ready, port_retries=port_retries);
     } finally {
         self.scheduler.stop();
+        stop_worker();
     }
 }
 
@@ -1958,9 +1964,14 @@ impl print_endpoint_docs(server: JacAPIServer) -> None {
             );
         }
     }
-    settings = server.resolved_settings();
-    cl_route_prefix = settings.cl_route_prefix;
-    base_route_app = server.introspector.resolve_root_app(settings.base_route_app);
+    import from jaclang.project.config { get_config }
+    import from jaclang.server.endpoints.colocated {
+        colocated_providers,
+        provider_route
+    }
+    import from jaclang.server.static_files { sibling_app_names }
+    config = get_config();
+    root_app = server.introspector.resolve_root_app();
     section('CLIENT PAGES', 'Public');
     if client_exports {
         funcs_list = ', '.join(sorted(client_exports)[:8]);
@@ -1970,18 +1981,27 @@ impl print_endpoint_docs(server: JacAPIServer) -> None {
         console.print(f"Available ({len(client_exports)}): {funcs_list}");
         endpoint(
             'GET',
-            f'/{cl_route_prefix}/<name>',
+            '/cl/<name>',
             'Render HTML for client function',
-            f'Example: /{cl_route_prefix}/App?arg1=value1'
+            'Example: /cl/App?arg1=value1'
         );
     } else {
         console.print(
             "\nNo client functions. Define with 'cl def' for browser-side rendering."
         );
     }
+    for sibling in sibling_app_names(config, server.base_path) {
+        endpoint('GET', f"/cl/{sibling}/", f"Sibling app bundle: dist/{sibling}");
+    }
+    for provider_app in colocated_providers() {
+        route = provider_route(config, provider_app);
+        endpoint(
+            'POST', f"{route}/walker/<name>", f"Colocated app {provider_app}"
+        );
+    }
     section('STATIC');
-    if base_route_app {
-        endpoint('GET', '/', f'Serves client app: {base_route_app}');
+    if root_app {
+        endpoint('GET', '/', f'Serves client app: {root_app}');
     } else {
         endpoint('GET', '/', 'API information and endpoint list');
     }
