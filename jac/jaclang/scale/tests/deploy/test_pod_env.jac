@@ -316,7 +316,7 @@ test "every service pod carries the sibling flag in its env, and no override dro
     builder = ManifestBuilder(
         k8s_config=cfg,
         project_dir=str(_K8S_E2E_FIXTURE),
-        microservices_config={"routes": {"orders_app": "/orders"}}
+        fleet=fleet_of({"orders_app": "/orders"}, root_app="main", root_file="main.jac")
     );
     app_cfg = AppConfig(code_folder=str(_K8S_E2E_FIXTURE), app_name="jac-shop");
     specs = builder.generate_service_pod_specs(app_cfg, "img");
@@ -336,26 +336,25 @@ test "every service pod carries the sibling flag in its env, and no override dro
 
 
 test "a shared volume is handed to the runtime identity before the service starts" {
-    # A PVC from [scale.microservices] shared_volumes arrives root-owned
-    # from most provisioners, the service container runs as the image's
-    # `jac` user, and nothing adjusted the mount: the first write into the
-    # volume the app declared failed with EACCES (jac#8949). The bundle
-    # volume already solved this with a root init container that chowns the
-    # mount root; a shared volume gets the same container, plus fsGroup for
-    # the backends that honor it.
+    # A PVC from [scale.gateway] shared_volumes arrives root-owned from most
+    # provisioners, the service container runs as the image's `jac` user, and
+    # nothing adjusted the mount: the first write into the volume the app
+    # declared failed with EACCES (jac#8949). The bundle volume already solved
+    # this with a root init container that chowns the mount root; a shared
+    # volume gets the same container, plus fsGroup for the backends that honor
+    # it.
     import from jaclang.scale.injector.pvc_injector {
         RUNTIME_UID,
         RUNTIME_GID,
         VOLUME_PERMS_NAME
     }
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
-    declared = {
-        "routes": {"orders_app": "/orders", "cart_app": "/cart"},
+    gateway = {
         "shared_volumes": [
             {
                 "name": "workspace",
                 "mount_path": "/app/.jachome/.jac-ide",
-                "services": ["orders_app"],
+                "apps": ["orders_app"],
                 "size": "1Gi",
                 "access_mode": "ReadWriteMany",
                 "storage_class": "standard"
@@ -363,7 +362,14 @@ test "a shared volume is handed to the runtime identity before the service start
         ]
     };
     builder = ManifestBuilder(
-        k8s_config=cfg, project_dir=str(_K8S_E2E_FIXTURE), microservices_config=declared
+        k8s_config=cfg,
+        project_dir=str(_K8S_E2E_FIXTURE),
+        fleet=fleet_of(
+            {"orders_app": "/orders", "cart_app": "/cart"},
+            root_app="main",
+            root_file="main.jac"
+        ),
+        gateway_config=gateway
     );
     app_cfg = AppConfig(code_folder=str(_K8S_E2E_FIXTURE), app_name="jac-shop");
     specs = builder.generate_service_pod_specs(app_cfg, "img");
