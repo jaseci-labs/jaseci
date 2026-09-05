@@ -1763,12 +1763,12 @@ test "identity fallthrough POST is delivered exactly once" {
             [_entry("svc_a", "/api/a", port_a), _entry("svc_b", "/api/b", port_b)]
         );
         resp = client.post(
-            "/user/verify-identity", json={"token": "secret", "identity": "x"}
+            "/user/send-verification", json={"token": "secret", "identity": "x"}
         );
 
         total = (
-            hits_a.get("POST /user/verify-identity", 0)
-            + hits_b.get("POST /user/verify-identity", 0)
+            hits_a.get("POST /user/send-verification", 0)
+            + hits_b.get("POST /user/send-verification", 0)
         );
         assert total == 1 , (
             f"credential-bearing body must reach exactly one service, reached {total}"

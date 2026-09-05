@@ -12,6 +12,12 @@ import from jaclang.server.serving.proxy {
 }
 
 
+def _reset_state {
+    import from jaclang.scale.state.factory { _backend_holder }
+    _backend_holder.clear();
+}
+
+
 def _client(r: Request, trusted: list[str]) -> str {
     return ProxyResolver(trusted=trusted).resolve(r.client_host, r.headers).client;
 }
@@ -74,12 +80,14 @@ def _req(
 
 
 test "middleware returns None when disabled" {
+    _reset_state();
     mw = build_rate_limit_middleware({"enabled": False});
     assert mw is None;
 }
 
 
 test "middleware 429s once the per-IP bucket is empty" {
+    _reset_state();
     mw = build_rate_limit_middleware(
         {
             "enabled": True,
@@ -112,6 +120,7 @@ test "middleware 429s once the per-IP bucket is empty" {
 
 
 test "middleware exempts configured paths" {
+    _reset_state();
     mw = build_rate_limit_middleware(
         {
             "enabled": True,
@@ -140,6 +149,7 @@ test "middleware exempts configured paths" {
 
 
 test "per-user bucket applies on top of per-IP when Authorization is set" {
+    _reset_state();
     mw = build_rate_limit_middleware(
         {
             "enabled": True,
@@ -171,6 +181,7 @@ test "per-user bucket applies on top of per-IP when Authorization is set" {
 
 
 test "429 envelope carries RATE_LIMITED code + Retry-After header" {
+    _reset_state();
     mw = build_rate_limit_middleware(
         {
             "enabled": True,
@@ -302,6 +313,7 @@ test "invalid trusted entries are skipped without crashing" {
 
 
 test "forged X-Forwarded-For cannot mint fresh per-IP buckets" {
+    _reset_state();
     mw = build_rate_limit_middleware(
         {
             "enabled": True,
@@ -333,6 +345,7 @@ test "forged X-Forwarded-For cannot mint fresh per-IP buckets" {
 
 
 test "distinct resolved clients get distinct buckets" {
+    _reset_state();
     mw = build_rate_limit_middleware(
         {
             "enabled": True,

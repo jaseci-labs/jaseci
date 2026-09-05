@@ -397,7 +397,7 @@ test "get sso with unconfigured platform" {
             "jaclang.scale.sso.sso_auth.get_scale_config",
             return_value=mock_config
         ) {
-            um = UserManager(base_path="");
+            um = SSOAuth(users=user_manager);
             sso = um.get_sso(Platforms.GOOGLE.value);
             assert sso is None;
         }
@@ -459,7 +459,7 @@ test "sso initiate with unconfigured platform" {
     (test_dir, auth) = _setup_user_manager();
     user_manager = auth.users;
     try {
-        user_manager.platforms = {};
+        auth.platforms = {};
         coro: any = auth.sso_initiate(
             Platforms.GOOGLE.value, Operations.LOGIN.value
         );
@@ -683,7 +683,7 @@ test "sso callback with unconfigured platform" {
     user_manager = auth.users;
     try {
         mock_request = unittest.mock.Mock(spec=Request);
-        user_manager.platforms = {};
+        auth.platforms = {};
         coro: any = auth.sso_callback(
             _as_any(mock_request), Platforms.GOOGLE.value
         );

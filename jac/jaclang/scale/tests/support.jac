@@ -213,7 +213,12 @@ import from jaclang.server.serving.endpoint { JEndPoint }
 """An endpoint host that only records what gets registered on it."""
 obj RecordingHost(EndpointHost) {
     has _endpoints: list[JEndPoint] = [],
-        users: (UserManager | None) = None;
+        users: (UserManager | None) = None,
+        metrics: any = None,
+        emailer: any = None,
+        base_path: str = "";
+
+    has user_manager: UserManager { getter; }
 
     def add_endpoint(ep: JEndPoint) {
         self._endpoints.append(ep);
@@ -225,4 +230,8 @@ obj RecordingHost(EndpointHost) {
         }
         return self.users;
     }
+}
+
+impl RecordingHost.user_manager.getter -> UserManager {
+    return self.identity();
 }
