@@ -31,7 +31,7 @@ glob _KINDS: list[dict] = [
          {"name": "AI agents & LLM apps", "cmd": "def act -> Plan by llm();"},
          {"name": "Python package (PyPI wheel)", "cmd": "jac build --as wheel"},
          {"name": "npm package (+ .d.ts)", "cmd": "jac build --as npm"},
-         {"name": "C-ABI shared library", "cmd": "jac nacompile --shared"},
+         {"name": "C-ABI shared library", "cmd": "jac build --native --lib"},
 
      ];
 

@@ -176,11 +176,11 @@ def _pin_run_scope(filename: str, takeover: (bool | None)) -> None {
 }
 
 def _default_codespace_is_native -> bool {
-    import from jaclang.project.config { get_config, BuildConfig }
+    import from jaclang.project.config { get_config, PlacementConfig }
     cfg = get_config();
-    effective = cfg.build.default_codespace
+    effective = cfg.placement.default_codespace
         if cfg is not None
-        else BuildConfig().default_codespace;
+        else PlacementConfig().default_codespace;
     return effective == 'native';
 }
 
@@ -451,8 +451,8 @@ def _serve_with(
 }
 
 def _build_plan(plan: RunPlan) -> int {
-    if plan.verb == "nacompile" {
-        import from jaclang.cli.commands.nacompile { nacompile }
+    if plan.verb == "native" {
+        import from jaclang.cli.commands.native_build { native_build }
         out = plan.flags.get("output", "");
         if out {
             out_dir = os.path.dirname(out);
@@ -460,8 +460,8 @@ def _build_plan(plan: RunPlan) -> int {
                 os.makedirs(out_dir, exist_ok=True);
             }
         }
-        return nacompile(
-            filename=plan.entry_path, output=out, shared=plan.flags.get("shared", False)
+        return native_build(
+            filename=plan.entry_path, output=out, lib=plan.flags.get("shared", False)
         );
     }
     if plan.verb == "build" {

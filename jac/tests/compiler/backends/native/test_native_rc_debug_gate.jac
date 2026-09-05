@@ -3,7 +3,7 @@
 The RC printf trace (RC MALLOC / RC RETAIN / RC RELEASE / RC FREE) is
 emitted only when JAC_RC_DEBUG_CODEGEN is present in the *compiler's*
 environment — NaIRGenPass reads it at codegen time in its postinit, so the
-flag must be injected into the `jac nacompile` subprocess env, not the
+flag must be injected into the `jac build --native` subprocess env, not the
 compiled binary's. Gate ON must reproduce the runtime-toggleable trace;
 gate OFF must compile the trace out entirely and reduce
 `__rc_debug_enable()` to a one-line stderr notice.
@@ -46,7 +46,7 @@ def _compile_and_run(rc_debug_codegen: bool) -> tuple[str, str] {
             env["JAC_RC_DEBUG_CODEGEN"] = "1";
         }
         comp = subprocess.run(
-            [sys.executable, "-m", "jaclang", "nacompile", src, "-o", out_bin],
+            [sys.executable, "-m", "jaclang", "build", "--native", src, "-o", out_bin],
             capture_output=True,
             text=True,
             timeout=900,

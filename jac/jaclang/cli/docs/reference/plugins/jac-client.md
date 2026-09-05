@@ -1851,7 +1851,7 @@ jac run --dev                # Dev server with HMR
 
 ### Desktop
 
-The desktop target ships with `jaclang` core (documented in the **[jac-desktop Reference](jac-desktop.md)**). It reuses jac-client's Vite frontend pipeline and compiles a native host (`jac nacompile`) that renders your client UI - one self-contained binary, no Rust toolchain, no PyInstaller, no setup step.
+The desktop target ships with `jaclang` core (documented in the **[jac-desktop Reference](jac-desktop.md)**). It reuses jac-client's Vite frontend pipeline and compiles a native host (`jac build --native`) that renders your client UI - one self-contained binary, no Rust toolchain, no PyInstaller, no setup step.
 
 ```bash
 jac build desktop_app

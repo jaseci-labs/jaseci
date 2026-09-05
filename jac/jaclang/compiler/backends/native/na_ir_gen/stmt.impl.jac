@@ -3787,7 +3787,7 @@ impl NaIRGenStmt._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     );
     _pjoin = self._get_or_declare_extern("pthread_join", i32, [i64, i8p]);
 
-    _env_key_gv = self._get_snprintf_fmt("JAC_FLOW_THREADS");
+    _env_key_gv = self._get_snprintf_fmt("JAC_THREADS");
     _env_key = self.builder.gep(
         _env_key_gv, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="ffor.env.key"
     );
@@ -3796,7 +3796,8 @@ impl NaIRGenStmt._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
         "==", _env_val, ir.Constant(i8p, None), name="ffor.env.null"
     );
     _nt_slot = self.builder.alloca(i32, name="ffor.nt.slot");
-    self.builder.store(ir.Constant(i32, 4), _nt_slot);
+    _cfg_threads = int(getattr(self.prog?.options, "native_threads", 4) or 4);
+    self.builder.store(ir.Constant(i32, _cfg_threads), _nt_slot);
     _envfunc = self.builder.function;
     _env_parse = _envfunc.append_basic_block("ffor.env.parse");
     _env_done = _envfunc.append_basic_block("ffor.env.done");

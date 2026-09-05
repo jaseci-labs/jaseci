@@ -1,9 +1,9 @@
-"""Owned str containers under --gc none own their elements.
+"""Owned str containers under --memory nogc own their elements.
 
 Fresh strings move into list/set/dict containers, named bindings and string
 literals are copied in, and the headerless container drop frees the elements
 it owns through a per-instance element-drop slot -- all with zero RC calls in
-the emitted IR (the zero-RC contract of --enforce-nogc --assert-no-rc).
+the emitted IR (the zero-RC contract of --memory nogc).
 """
 
 import os;
@@ -24,9 +24,7 @@ def _compile_ir(entry_path: str) -> str {
         prog = JacProgram();
         ir = prog.compile(
             file_path=entry_path,
-            options=CompileOptions(
-                aot_mode=True, na_gc_mode="none", nogc_enforce_all=True
-            )
+            options=CompileOptions(aot_mode=True, memory_profile="nogc")
         );
         assert not prog.errors_had , [str(e) for e in prog.errors_had];
         assert ir is not None and ir.gen.llvm_ir is not None;
@@ -54,13 +52,11 @@ test "host binary runs str containers and passes assert-no-rc" {
             sys.executable,
             "-m",
             "jaclang",
-            "nacompile",
+            "build",
+            "--native",
             src,
-            "--scrub",
-            "--gc",
-            "none",
-            "--enforce-nogc",
-            "--assert-no-rc",
+            "--memory",
+            "nogc",
             "-o",
             out_bin
         ],

@@ -19,8 +19,8 @@ Every kind also fixes two facts the compiler and the CLI read: its **UI** (what 
 |---|---|:--:|:--:|
 | `cli` | execute | -- | no |
 | `cli-native` | execute | -- | no |
-| `native-binary` | build (`nacompile`) | -- | no |
-| `native-lib` | build (`nacompile --shared`) | -- | no |
+| `native-binary` | build (`jac build --native`) | -- | no |
+| `native-lib` | build (`jac build --native --lib`) | -- | no |
 | `service` | serve (API only) | -- | **yes** |
 | `service-mesh` | serve | -- | **yes** |
 | `web-app` | serve (dev mode) | `dom` | **yes** |
@@ -82,7 +82,7 @@ jac run dist/<app>.jab     # servable kinds production-serve
 jac build --as binary      # -> one executable, full runtime included
 ```
 
-How is `--as binary` different from the [Native binary](#native-binary) recipe? `--as native` compiles the restricted `na` subset through LLVM into a small, dependency-free binary. `--as binary` packages *any* app -- walkers, Python imports, a full web client -- with the runtime included; the trade is a larger file. Details and the other projections (wheel, npm, source): [`jac build`](../reference/cli/index.md#jac-build).
+How is `--as binary` different from the [Native binary](#native-binary) recipe? `jac build <file> --native` compiles the restricted `na` subset through LLVM into a small, dependency-free binary. `--as binary` packages *any* app -- walkers, Python imports, a full web client -- with the runtime included; the trade is a larger file. Details and the other projections (wheel, npm, source): [`jac build`](../reference/cli/index.md#jac-build).
 
 ---
 
@@ -96,7 +96,7 @@ The simplest project: anything you run straight from the terminal -- scripts, au
 
 ### Native binary
 
-`jac nacompile` compiles a `.jac` file, through LLVM, to a **standalone, zero-dependency executable** you can ship to machines that have neither Jac nor Python installed -- like a `curl`-style single-binary tool. Same command-line territory as a [CLI tool](#cli-tool), with the trade reversed: ship-anywhere portability in exchange for the restricted native subset. To ship a *full* app as one executable instead, see [Ship it](#ship-it-one-file-or-one-executable).
+`jac build --native` compiles a `.jac` file, through LLVM, to a **standalone, zero-dependency executable** you can ship to machines that have neither Jac nor Python installed -- like a `curl`-style single-binary tool. Same command-line territory as a [CLI tool](#cli-tool), with the trade reversed: ship-anywhere portability in exchange for the restricted native subset. To ship a *full* app as one executable instead, see [Ship it](#ship-it-one-file-or-one-executable).
 
 :octicons-arrow-right-24: Recipe & guided path: [CLI tools & native binaries](../build/cli-and-native.md#native-binary) · Full tutorial: [Build a Chess Engine](../tutorials/native/chess.md)
 
@@ -148,7 +148,7 @@ The `na` runtime's other target: rather than a host binary, native-placed code c
 
 ### Desktop app
 
-Wrap the *same* full-stack app in a native desktop window. Jac compiles your `cl` UI into **one `jac nacompile`d binary that embeds the OS webview** (WebKitGTK / WKWebView / WebView2) - no Rust toolchain, no PyInstaller, no separate process. The `desktop` target ships with `jaclang` core.
+Wrap the *same* full-stack app in a native desktop window. Jac compiles your `cl` UI into **one `jac build --native`d binary that embeds the OS webview** (WebKitGTK / WKWebView / WebView2) - no Rust toolchain, no PyInstaller, no separate process. The `desktop` target ships with `jaclang` core.
 
 :octicons-arrow-right-24: Recipe & guided path: [Desktop & mobile apps](../build/desktop-mobile.md#desktop) · Full tutorial: [Desktop App](../tutorials/fullstack/desktop.md)
 

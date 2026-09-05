@@ -64,11 +64,9 @@ exclude = [
     "core/leaderboard/format.jac",
 ]
 
-[gc]
-default = "none"
-
-[gc.enforce]
-modules = ["arena*", "sim*", "gmath*", "platform_rl*"]
+[memory]
+profile = "managed"
+enforce = ["arena*", "sim*", "gmath*", "platform_rl*"]
 
 [jac-shadcn]
 style = "nova"

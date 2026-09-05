@@ -1528,50 +1528,46 @@ impl NaIRGenFunc._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
 
     if not self._nogc_headerless() {
         _getenv_fn = self._get_or_declare_extern("getenv", _i8p, [_i8p]);
-        _nogc_str = self._get_snprintf_fmt("JAC_NO_GC");
-        _nogc_ptr = self.builder.gep(
-            _nogc_str,
-            [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), 0)],
-            name="nogc.key"
+        _strcmp_fn = self._get_or_declare_extern("strcmp", _i32, [_i8p, _i8p]);
+        _gc_key = self.builder.gep(
+            self._get_snprintf_fmt("JAC_GC"),
+            [ir.Constant(_i32, 0), ir.Constant(_i32, 0)],
+            name="gc.key"
         );
-        _nogc_val = self.builder.call(_getenv_fn, [_nogc_ptr], name="nogc.env");
-        _nogc_null = ir.Constant(_i8p, None);
-        _nogc_set = self.builder.icmp_unsigned(
-            "!=", _nogc_val, _nogc_null, name="nogc.set"
+        _gc_val = self.builder.call(_getenv_fn, [_gc_key], name="gc.env");
+        _gc_set = self.builder.icmp_unsigned(
+            "!=", _gc_val, ir.Constant(_i8p, None), name="gc.set"
         );
-        _nogc_then = func.append_basic_block("nogc_disable");
-        _nogc_cont = func.append_basic_block("nogc_cont");
-        self.builder.cbranch(_nogc_set, _nogc_then, _nogc_cont);
-        b_nogc = ir.IRBuilder(_nogc_then);
+        _gc_check = func.append_basic_block("gc_env_check");
+        _gc_off = func.append_basic_block("gc_off");
+        _gc_on = func.append_basic_block("gc_on");
+        _gc_cont = func.append_basic_block("gc_cont");
+        self.builder.cbranch(_gc_set, _gc_check, _gc_on);
+        b_chk = ir.IRBuilder(_gc_check);
+        _off_lit = b_chk.gep(
+            self._get_snprintf_fmt("off"),
+            [ir.Constant(_i32, 0), ir.Constant(_i32, 0)],
+            name="gc.off.lit"
+        );
+        _is_off = b_chk.icmp_signed(
+            "==",
+            b_chk.call(_strcmp_fn, [_gc_val, _off_lit]),
+            ir.Constant(_i32, 0),
+            name="gc.is.off"
+        );
+        b_chk.cbranch(_is_off, _gc_off, _gc_on);
         if self.rc_alloc_fn is None {
             self._emit_rc_helpers();
         }
-        b_nogc.call(self.rc_gc_disable_fn, []);
-        b_nogc.branch(_nogc_cont);
-        self._builder = ir.IRBuilder(_nogc_cont);
-    }
-
-    if self._gc_mode() == "cycles" {
-        _cyc_str = self._get_snprintf_fmt("JAC_GC_CYCLES");
-        _cyc_ptr = self.builder.gep(
-            _cyc_str,
-            [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), 0)],
-            name="cyc.key"
-        );
-        _cyc_val = self.builder.call(_getenv_fn, [_cyc_ptr], name="cyc.env");
-        _cyc_set = self.builder.icmp_unsigned(
-            "!=", _cyc_val, ir.Constant(_i8p, None), name="cyc.set"
-        );
-        _cyc_then = func.append_basic_block("cyc_enable");
-        _cyc_cont = func.append_basic_block("cyc_cont");
-        self.builder.cbranch(_cyc_set, _cyc_then, _cyc_cont);
-        b_cyc = ir.IRBuilder(_cyc_then);
-        if self.rc_alloc_fn is None {
-            self._emit_rc_helpers();
+        b_off = ir.IRBuilder(_gc_off);
+        b_off.call(self.rc_gc_disable_fn, []);
+        b_off.branch(_gc_cont);
+        b_on = ir.IRBuilder(_gc_on);
+        if self._gc_mode() == "cycles" {
+            b_on.call(self.rc_cycles_enable_fn, []);
         }
-        b_cyc.call(self.rc_cycles_enable_fn, []);
-        b_cyc.branch(_cyc_cont);
-        self._builder = ir.IRBuilder(_cyc_cont);
+        b_on.branch(_gc_cont);
+        self._builder = ir.IRBuilder(_gc_cont);
     }
     _manifest = self.ir_in.gen.interop_manifest if (self.ir_in?.gen) else None;
     _all_na_sources = _manifest.native_transitive_sources if _manifest else [];

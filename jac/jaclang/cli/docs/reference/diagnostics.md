@@ -330,7 +330,7 @@ Emitted by `OwnershipCheckPass` for `own`/`imm`/`borrow`/`&`/`&mut` bindings and
 
 ### Zero-RC Enforcement Errors
 
-Emitted by `OwnershipCheckPass` only in **nogc-enforced** native modules (`jac nacompile --enforce-nogc`, or a module matching a `jac.toml [gc.enforce]` pattern -- see [Zero-RC ownership compilation](language/native-pathway.md#zero-rc-ownership-compilation)). They make zero-RC ownership coverage a compile-time contract: every heap-typed contract position must be in the owned world, and each violation is a hard error that blocks native codegen. The `{provenance}` in every message states why the module is enforced (the CLI flag or the matching config pattern).
+Emitted by `OwnershipCheckPass` only in **nogc-enforced** native modules (`jac build --native --memory nogc`, or a module matching a `jac.toml [memory]` pattern -- see [Zero-RC ownership compilation](language/native-pathway.md#zero-rc-ownership-compilation)). They make zero-RC ownership coverage a compile-time contract: every heap-typed contract position must be in the owned world, and each violation is a hard error that blocks native codegen. The `{provenance}` in every message states why the module is enforced (the CLI flag or the matching config pattern).
 
 | Code | Message |
 |------|---------|

@@ -1,6 +1,6 @@
 """End-to-end GC effectiveness tests for the native LLVM backend.
 
-Each test AOT-compiles a fixture via `jac nacompile`, then runs the resulting
+Each test AOT-compiles a fixture via `jac build --native`, then runs the resulting
 binary twice — once with the reference-counted GC enabled (default), and once
 with it disabled (`JAC_NO_GC=1`). Maximum resident set size is captured via
 `/usr/bin/time -v` and we assert that GC reduces peak RSS.
@@ -87,7 +87,7 @@ def _nacompile(fixture: str, out_bin: str) {
     src = os.path.join(FIXTURES, fixture);
     assert os.path.exists(src) , f"fixture missing: {src}";
     comp = subprocess.run(
-        [sys.executable, "-m", "jaclang", "nacompile", src, "-o", out_bin],
+        [sys.executable, "-m", "jaclang", "build", "--native", src, "-o", out_bin],
         capture_output=True,
         text=True,
         timeout=300,

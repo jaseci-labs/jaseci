@@ -1,6 +1,6 @@
 """Regression tests for the headerless nogc container-element fence (E1406).
 
-Under `--enforce-nogc --gc none`, owned containers of *str* elements are
+Under `--memory nogc`, owned containers of *str* elements are
 supported: fresh values (f-strings, concats, str slices, call results) move
 into the container, while named bindings, string literals, and container-
 element reads are copied in at codegen, so the container always owns heap
@@ -14,7 +14,7 @@ elements move into lists and dict values (fresh values and named own
 bindings alike); sets of archetypes stay fenced.
 
 Each fixture is compiled through the real type-check schedule with enforcement
-enabled via CompileOptions, matching `jac nacompile --enforce-nogc --gc none`.
+enabled via CompileOptions, matching `jac build --native --memory nogc`.
 """
 
 import os;
@@ -31,7 +31,7 @@ sorted diagnostic codes."""
 def enforced_codes(fixture: str) -> list[str] {
     path = os.path.join(FIXTURES, fixture);
     prog = JacProgram();
-    opts = CompileOptions(aot_mode=True, na_gc_mode="none", nogc_enforce_all=True);
+    opts = CompileOptions(aot_mode=True, memory_profile="nogc");
     prog.compile(file_path=path, options=opts);
     codes: set[str] = set();
     for alert in list(prog.errors_had) {

@@ -3,7 +3,7 @@ name: jac-desktop-app
 description: Packaging a full-stack Jac app as a native desktop app - a `kind = "desktop"` app built and launched by `jac build <app>` / `jac run <app>`, `[desktop]` window and engine config (OS webview or CEF), the `@jac/desktop` OS-capability plugins (fs/dialog/clipboard/notification/window/shell/path IPC), OS-webview architecture (no Rust, no Electron), Linux build deps, output layout, current limitations. Load when shipping a client UI as a desktop binary or calling OS capabilities from it.
 ---
 
-The desktop target turns a full-stack Jac app into **one `jac nacompile`d binary plus the OS's own web engine** - no Rust toolchain, no Electron, no PyInstaller, no separate backend process. It builds the same Vite client bundle the web target produces, then compiles a native host that embeds CPython to serve that bundle on a loopback port and renders it in the OS-native webview: WebKitGTK (Linux), WKWebView (macOS), WebView2 (Windows). Same client/server source as a web app - only the kind changes.
+The desktop target turns a full-stack Jac app into **one `jac build --native`d binary plus the OS's own web engine** - no Rust toolchain, no Electron, no PyInstaller, no separate backend process. It builds the same Vite client bundle the web target produces, then compiles a native host that embeds CPython to serve that bundle on a loopback port and renders it in the OS-native webview: WebKitGTK (Linux), WKWebView (macOS), WebView2 (Windows). Same client/server source as a web app - only the kind changes.
 
 ## Build and run
 
@@ -105,7 +105,7 @@ The directory is **relocatable** - the binary finds its sibling `dist/` and `lib
 - **In progress** (per [issue #6436](https://github.com/jaseci-labs/jaseci/issues/6436)): per-OS packaging/signing (phase 5). The server codespace, walkers, and functions now run **in-process** on the embedded interpreter (shipped), and desktop has its own HMR dev mode: `jac run --dev <app>` builds the native host once, serves your client UI from Vite on `127.0.0.1`, and recompiles on `.jac` saves -- iterate against the real desktop window, no web fallback needed.
 - **No cross-compilation yet.** `--platform` only affects sidecar *naming* (`--platform windows` selects `.exe`); build on each target OS.
 - Desktop builds set `JAC_BUILD=1` so import-time server starts stay inert - guard side effects accordingly.
-- `jac nacompile` lowers the host with Jac's pure-Jac linker (no `cc`/`ld` at link time), but the C toolchain is still needed once for `libwebview.so`.
+- `jac build --native` lowers the host with Jac's pure-Jac linker (no `cc`/`ld` at link time), but the C toolchain is still needed once for `libwebview.so`.
 
 ## See also
 

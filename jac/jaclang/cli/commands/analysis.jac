@@ -2,7 +2,42 @@ import from jaclang.cli.command { Arg, ArgKind, CommandSpec }
 import from jaclang.comptime { name as ct_name }
 
 
-comptime SPEC_CHECK: CommandSpec = CommandSpec(
+comptime SPEC_EXPLAIN: CommandSpec = CommandSpec(
+         name="explain",
+         help="Explain what the compiler inferred: memory (ownership, drops), placement (demotions), ir (optimized LLVM IR)",
+         args=[
+             Arg.create(
+                 "topic",
+                 kind=ArgKind.POSITIONAL,
+                 choices=["memory", "placement", "ir"],
+                 help="memory: inferred ownership states, receiver modes, raises effects and move sites; placement: every element's codespace with the diagnostics that decided it; ir: write the optimized .ll and a symbol map"
+             ),
+             Arg.create(
+                 "filename", kind=ArgKind.POSITIONAL, help="The .jac file to explain"
+             ),
+             Arg.create(
+                 "output",
+                 `default="",
+                 help="ir: where to write the .ll (defaults to <file>.ll beside the source)",
+                 short="o"
+             ),
+
+         ],
+         examples=[
+             (
+                 "jac explain memory app.jac",
+                 "Inferred ownership, receiver modes, raises effects, moves"
+             ),
+             (
+                 "jac explain placement app.jac",
+                 "Every demotion and the diagnostics that caused it"
+             ),
+             ("jac explain ir app.jac", "Write app.ll and print the symbol map")
+         ],
+         group="analysis",
+         handler_name=ct_name(explain)
+     ),
+     SPEC_CHECK: CommandSpec = CommandSpec(
          name="check",
          help="Type check Jac files",
          tier="core",
@@ -119,6 +154,8 @@ comptime SPEC_CHECK: CommandSpec = CommandSpec(
          group="analysis",
          handler_name=ct_name(check)
      );
+
+def explain(topic: str, filename: str, output: str = "") -> int;
 
 def check(
     paths: list,

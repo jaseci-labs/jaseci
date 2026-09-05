@@ -366,7 +366,7 @@ test "a floor without a manifest still links" {
     }
 }
 
-"""[gc] default = "none" promises an RC-free artifact; the audit is what makes
+"""[memory] profile = "nogc" promises an RC-free artifact; the audit is what makes
 compile_to_wasm fail loudly instead of shipping RC machinery the shim then has
 to service. Pure-IR checks -- no vendored libc needed."""
 test "rc audit passes clean IR and rejects rc machinery" {

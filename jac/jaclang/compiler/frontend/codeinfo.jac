@@ -246,7 +246,8 @@ glob NATIVE_SUPPORTED_STDLIB: set[str] = {
      _effective_codespace_ctx: ContextVar[str] = ContextVar(
          "jac_effective_default_codespace"
      ),
-     _closure_cap_ctx: ContextVar[int] = ContextVar("jac_native_closure_cap");
+     _closure_cap_ctx: ContextVar[int] = ContextVar("jac_native_closure_cap"),
+     _native_target_ctx: ContextVar[str | None] = ContextVar("jac_native_target");
 
 glob NATIVE_ERASED_ABC_BASES: frozenset = frozenset({"ABC"});
 
@@ -292,12 +293,12 @@ def effective_default_codespace -> str {
         return cur;
     }
     try {
-        import from jaclang.project.config { get_config, BuildConfig }
+        import from jaclang.project.config { get_config, PlacementConfig }
         cfg = get_config();
         if cfg is not None {
-            return cfg.build.default_codespace;
+            return cfg.placement.default_codespace;
         }
-        return BuildConfig().default_codespace;
+        return PlacementConfig().default_codespace;
     } except Exception {
         return "server";
     }
@@ -418,10 +419,29 @@ def is_bundled_native_module(module_name: str) -> bool {
     return _native_variant_path(os.path.join(stdlib_dir, path_name)) is not None;
 }
 
+def set_native_target_override(triple: str | None) -> (str | None) {
+    prev = _native_target_ctx.get(None);
+    _native_target_ctx.set(triple);
+    return prev;
+}
+
+def effective_native_target -> str {
+    cur = _native_target_ctx.get(None);
+    if cur is not None {
+        return cur;
+    }
+    try {
+        import from jaclang.project.config { get_config }
+        cfg = get_config();
+        return cfg.native.target if cfg is not None else "";
+    } except Exception {
+        return "";
+    }
+}
+
 def native_target_os -> str {
-    import os;
     import sys;
-    _t = os.environ.get("JAC_NATIVE_TARGET", "");
+    _t = effective_native_target();
     if _t {
         if ("darwin" in _t) or ("apple" in _t) {
             return "darwin";

@@ -8,7 +8,7 @@ import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.backends.native.elf_linker { ElfLinker }
 import from jaclang.compiler.backends.native.macho_linker { MachOLinker }
-import from jaclang.cli.commands.nacompile {
+import from jaclang.cli.commands.native_build {
     _inject_entry_elf_static,
     _collect_musl_static,
     _musl_lib_dir
@@ -79,7 +79,7 @@ def _musl_ok(triple: str) -> bool {
 
 def _link_static(relobj: bytes, triple: str, out: str) -> bool {
     # Static-link against vendored musl (libc.a + libzigc.a + compiler-rt + crt),
-    # exactly as `jac nacompile` does. Returns False if the musl runtime is not
+    # exactly as `jac build --native` does. Returns False if the musl runtime is not
     # vendored in this environment (callers skip the link/run in that case).
     musl = _collect_musl_static(relobj, triple);
     if musl is None {

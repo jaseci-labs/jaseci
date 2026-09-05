@@ -23,9 +23,9 @@ glob FIXDIR = os.path.join(
          TESTS_DIR, "compiler", "passes", "fixtures", "nogc_ownfield"
      ),
      MODE_FLAGS = {
-         "none": ["--enforce-nogc", "--gc", "none", "--assert-no-rc"],
-         "rc": ["--gc", "rc"],
-         "cycles": ["--gc", "cycles"]
+         "none": ["--memory", "nogc"],
+         "rc": ["--memory", "rc"],
+         "cycles": ["--memory", "managed"]
      };
 
 def _enforced_codes(name: str) -> list[str] {
@@ -35,9 +35,7 @@ def _enforced_codes(name: str) -> list[str] {
         prog = JacProgram();
         prog.compile(
             os.path.join(FIXDIR, name),
-            options=CompileOptions(
-                aot_mode=True, na_gc_mode="none", nogc_enforce_all=True
-            )
+            options=CompileOptions(aot_mode=True, memory_profile="nogc")
         );
         codes = [
             a.code.code
@@ -63,7 +61,8 @@ def _run_mode(tmp: str, mode: str) -> str {
             sys.executable,
             "-m",
             "jaclang",
-            "nacompile",
+            "build",
+            "--native",
             os.path.join(FIXDIR, "own_field_drop_count.jac")
         ]
             + MODE_FLAGS[mode]

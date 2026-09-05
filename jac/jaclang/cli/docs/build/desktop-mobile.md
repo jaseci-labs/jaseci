@@ -7,7 +7,7 @@ Take a Jac app and give it a native shell -- a desktop window that embeds the OS
 
 ## Your 5-minute quick win {#desktop}
 
-Start from any [full-stack app](fullstack-web.md). Jac compiles your `cl` UI into **one `jac nacompile`d binary that embeds the OS webview** (WebKitGTK / WKWebView / WebView2) -- no Rust toolchain, no PyInstaller, no separate process. The desktop target ships with `jaclang` core, and an app of kind `desktop` builds it with no flag:
+Start from any [full-stack app](fullstack-web.md). Jac compiles your `cl` UI into **one `jac build --native`d binary that embeds the OS webview** (WebKitGTK / WKWebView / WebView2) -- no Rust toolchain, no PyInstaller, no separate process. The desktop target ships with `jaclang` core, and an app of kind `desktop` builds it with no flag:
 
 ```bash
 jac create --app studio --kind desktop     # [apps.studio] kind = "desktop", path = "studio"

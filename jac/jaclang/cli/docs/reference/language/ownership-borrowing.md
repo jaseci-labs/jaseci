@@ -50,7 +50,7 @@ with entry {
 }
 ```
 
-(A planned [`linear` marker](#imm-and-linear-markers) will make dropping an error -- a `linear` binding must be consumed exactly once, and leaking it will be `E1305`. `linear` is not yet implemented.)
+(A planned [`lin` marker](#imm-and-lin-markers) will make dropping an error -- a `linear` binding must be consumed exactly once, and leaking it will be `E1305`. `linear` is not yet implemented.)
 
 `own` also works on parameters (`def take(x: own Buffer) -> None`), and passing an owned local to a plain (non-`own`) parameter counts as a move.
 
@@ -74,7 +74,7 @@ Reading `h.ref` back yields an ordinary managed value, not an `own` binding -- t
 
 **Own-typed fields are not the membrane.** A field declared `has ref: own Buffer` keeps its value in the owned world, owned by the parent object: storing into it still consumes the source binding (it is a move, `E1301` applies to later reads), but under [nogc enforcement](native-pathway.md#zero-rc-ownership-compilation) it is *not* an `E1402` seal -- the parent frees the field at its own drop point, and overwriting the field drops the old value first, at the same program points under every gc mode. Only stores into *unannotated* fields (and subscripts, graph objects, or module `glob` state) cross the membrane into managed storage. This is what lets ownership extend from stack frames into heap aggregates: an owned struct of owned fields is a single ownership tree with one statically placed drop for the whole shape.
 
-Under headerless codegen (`--enforce-nogc --gc none`) the backend goes further and **flattens** own-typed fields of concrete, acyclic, non-OSP archetypes inline into the parent's allocation: the parent's LLVM struct embeds the field by value (no pointer slot, no separate `malloc`), a store copies the payload in and frees the source shell, reads yield the interior address, and the parent's drop tears the field down in place. Managed modes keep pointer fields; program output is identical either way.
+Under headerless codegen (`--memory nogc`) the backend goes further and **flattens** own-typed fields of concrete, acyclic, non-OSP archetypes inline into the parent's allocation: the parent's LLVM struct embeds the field by value (no pointer slot, no separate `malloc`), a store copies the payload in and frees the source shell, reads yield the interior address, and the parent's drop tears the field down in place. Managed modes keep pointer fields; program output is identical either way.
 
 The same rule decides the element layout of an owned list, and it is a decision about the **element type**, never about the annotation. A `list[T]` in a nogc-enforced module stores its elements inline when `T` is a closed-world leaf archetype (no archetype anywhere in the program derives from it), is not an OSP archetype, and has no heap-typed slots of its own; otherwise the list stores pointers. Because the type system erases `own`, `list[own T]` and `list[T]` are one type and lower to one layout, so a `&list[T]` parameter, a generic body instantiated at `T`, and a borrow return all agree with their caller. Subclass instances therefore never lose fields in a base-typed list, and `pop()`, `pop(i)`, `insert`, `del xs[i]`, and `extend` move payloads by value: `pop` reboxes the element into a fresh allocation the receiver owns, the tail shifts with one `memmove`, and `extend` from another owned list moves its elements in and retires the consumed source. `remove(x)` is not lowered for by-value elements, since identity equality has no meaning there.
 
@@ -559,7 +559,7 @@ that could jump the close point declines the inference and the graph stays
 managed -- conservative-only is the contract, so a declined graph is never
 wrong, just unoptimized. Because the inference produces an ordinary open
 in the tree, it is portable: the Python backend runs the same `drop` hooks
-LIFO at the close. Traversals under `--enforce-nogc` still wait on the
+LIFO at the close. Traversals under `--memory nogc` still wait on the
 walker engine's zero-RC factoring.
 
 Only payloads that are statically race-free may cross a `flow`/`wait`/`thread_run` boundary: a deep-immutable `imm` value, or an `own` value that is *moved* into the boundary (a planned `linear` value will cross the same way). Sending a live `&`/`&mut` borrow is [`E1308`](../diagnostics.md#ownership-borrow-errors):
@@ -627,21 +627,19 @@ with entry {
 }
 ```
 
-Execution: in a **zero-RC enforced native build** (`--enforce-nogc --gc
-none`), `flow for` runs genuinely parallel -- the body is outlined and
+Execution: in a **zero-RC enforced native build** (`--memory nogc`), `flow for` runs genuinely parallel -- the body is outlined and
 element ranges fan out over pthreads, joining at the closing brace
-(`JAC_FLOW_THREADS` sets the width, default 4). This placement is the
-point, not a limitation: an `--assert-no-rc` binary provably contains no
+(`[native] threads` sets the width, default 4; `JAC_THREADS` overrides it at run time). This placement is the
+point, not a limitation: a `nogc` binary provably contains no
 refcount operations and no shared runtime kernel, and the checker bans
 every unsound capture, so threads are unconditionally safe --
-parallelism arrives exactly where machinery absence is proven. `--gc
-rc` builds fan out the same way: retain and release are atomic (the
+parallelism arrives exactly where machinery absence is proven. `--memory rc` builds fan out the same way: retain and release are atomic (the
 free decision consumes the atomic RMW's returned old count, so racing
 releases cannot double-free or leak), which makes values crossing task
 boundaries safe at zero added single-thread cost -- the baseline
 already paid the RMW on every retain/release. Measured ~7x on 8
 threads for an element-map kernel hammering one shared string's
-header. `--gc cycles` keeps the sequential lowering (the cycle
+header. `--memory managed` keeps the sequential lowering (the cycle
 collector's global roots and color state are unsynchronized), as do
 the Python backend and wasm, so post-join state is byte-identical
 everywhere by the disjointness rule. A named follow-up: the chunked
@@ -706,7 +704,7 @@ obj Res {
 
 `drop` fires under every native gc mode, at the same program point for a uniquely-owned value:
 
-- **[Enforced headerless modules](native-pathway.md#zero-rc-ownership-compilation)** (`--enforce-nogc --gc none`): the compiler calls the hook from the statically inserted `__drop_<T>` at each drop point.
+- **[Enforced headerless modules](native-pathway.md#zero-rc-ownership-compilation)** (`--memory nogc`): the compiler calls the hook from the statically inserted `__drop_<T>` at each drop point.
 - **Managed modes** (`rc` and the default `cycles`): the hook is invoked by the object's reference-count destructor when the last reference dies. For an unaliased local that is the same point the headerless build drops at, so program output is identical across modes.
 
 **Drops happen after last use, and no later than scope exit.** Drops are scheduled by liveness: a binding whose value the program will never read again can be reclaimed early -- a value whose last use is its own initialization is dropped right away, before later statements run. This eager case is observable through `drop`:
@@ -730,7 +728,7 @@ Outside regions, the Python backend does not invoke `def drop` automatically yet
 
 ## Zero-RC native builds
 
-On the native backend, full ownership coverage is what lets the memory-management runtime disappear from the artifact entirely. A **nogc-enforced** module (`jac nacompile --enforce-nogc`, or `jac.toml [gc.enforce]` patterns) must keep every heap-typed contract position -- parameter, return type, `has` field -- in the owned world, with violations reported as hard [`E1401`-`E1406`](../diagnostics.md#zero-rc-enforcement-errors) errors that block codegen. Compiled with `--gc none`, such a module gets **headerless owned codegen**: allocations and frees at statically determined points (a bare `malloc` at construction, a direct `__drop_<T>` call after last use), no reference counting, and no collector -- and `jac nacompile --assert-no-rc` fails the build if the emitted IR contains any RC/collector machinery, making the absence checkable in the binary. Heap values leave an enforced module only through the explicit `managed(...)` membrane builtin. The full model -- gc modes, the enforcement contract, and the `rc-stats` coverage report -- lives in [Zero-RC ownership compilation](native-pathway.md#zero-rc-ownership-compilation).
+On the native backend, full ownership coverage is what lets the memory-management runtime disappear from the artifact entirely. A **nogc-enforced** module (`jac build --native --memory nogc`, or `jac.toml [memory]` patterns) must keep every heap-typed contract position -- parameter, return type, `has` field -- in the owned world, with violations reported as hard [`E1401`-`E1406`](../diagnostics.md#zero-rc-enforcement-errors) errors that block codegen. Compiled with `--memory nogc`, such a module gets **headerless owned codegen**: allocations and frees at statically determined points (a bare `malloc` at construction, a direct `__drop_<T>` call after last use), no reference counting, and no collector -- and `jac build --native` fails the build if the emitted IR contains any RC/collector machinery, making the absence checkable in the binary. Heap values leave an enforced module only through the explicit `managed(...)` membrane builtin. The full model -- gc modes, the enforcement contract, and the `rc-stats` coverage report -- lives in [Zero-RC ownership compilation](native-pathway.md#zero-rc-ownership-compilation).
 
 ## What `&x` compiles to
 

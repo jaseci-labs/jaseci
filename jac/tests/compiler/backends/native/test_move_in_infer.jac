@@ -19,9 +19,9 @@ glob FIXTURE = os.path.join(
          TESTS_DIR, "compiler", "backends", "native", "fixtures", "move_in_infer.jac"
      ),
      MODE_FLAGS = {
-         "none": ["--enforce-nogc", "--gc", "none", "--assert-no-rc"],
-         "rc": ["--gc", "rc"],
-         "cycles": ["--gc", "cycles"]
+         "none": ["--memory", "nogc"],
+         "rc": ["--memory", "rc"],
+         "cycles": ["--memory", "managed"]
      };
 
 def _compile_ir -> str {
@@ -31,9 +31,7 @@ def _compile_ir -> str {
         prog = JacProgram();
         ir = prog.compile(
             file_path=FIXTURE,
-            options=CompileOptions(
-                aot_mode=True, na_gc_mode="none", nogc_enforce_all=True
-            )
+            options=CompileOptions(aot_mode=True, memory_profile="nogc")
         );
         assert not prog.errors_had , [e.pretty_print() for e in prog.errors_had];
         return str(ir.gen.llvm_ir);
@@ -80,7 +78,7 @@ test "move-in output is byte-identical across gc modes" {
         for mode in ("none", "rc", "cycles") {
             out_bin = os.path.join(tmp, f"mi_{mode}");
             res = subprocess.run(
-                [sys.executable, "-m", "jaclang", "nacompile", FIXTURE]
+                [sys.executable, "-m", "jaclang", "build", "--native", FIXTURE]
                     + MODE_FLAGS[mode]
                     + ["-o", out_bin],
                 capture_output=True,

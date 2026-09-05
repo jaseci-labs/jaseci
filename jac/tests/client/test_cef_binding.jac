@@ -1,7 +1,7 @@
 """Dependency-free tests for the Jac-native CEF binding.
 
 Compile-only: these need ONLY the jac toolchain - no CEF runtime, no
-libpython-dev, no display. `jac nacompile` records the needed shared libraries
+libpython-dev, no display. `jac build --native` records the needed shared libraries
 (DT_NEEDED) and an $ORIGIN runpath without dlopening them, so a host that binds
 libcef_dispatch.so (or libpython) links cleanly with nothing installed. This
 catches binding-signature drift, wrong/missing externs, wrong soname, and
@@ -46,7 +46,7 @@ def _compile_cef_host(host_src: str) -> tuple {
             f.write(host_src);
         }
         result = subprocess.run(
-            [jac, "nacompile", "host.jac", "-o", "out"],
+            [jac, "build", "--native", "host.jac", "-o", "out"],
             cwd=tmp,
             capture_output=True,
             text=True,
@@ -135,7 +135,7 @@ test "nacompile invokes a zero-arg function called from entry with parentheses" 
             f.write("import sys;\ndef _go { sys.`exit(7); }\nwith entry { _go(); }\n");
         }
         comp = subprocess.run(
-            [jac, "nacompile", "m.jac", "-o", "out"],
+            [jac, "build", "--native", "m.jac", "-o", "out"],
             cwd=tmp,
             capture_output=True,
             text=True,

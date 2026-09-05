@@ -195,14 +195,8 @@ change.
 glob NATIVE_MEMORY_PROFILES: list[str] = ["nogc", "rc", "managed"];
 
 def native_memory_flags(memory: str) -> list[str] {
-    if memory == "nogc" {
-        return ["--enforce-nogc", "--gc", "none", "--assert-no-rc"];
-    }
-    if memory == "rc" {
-        return ["--gc", "rc"];
-    }
-    if memory == "managed" {
-        return ["--gc", "cycles"];
+    if memory in ("nogc", "rc", "managed") {
+        return ["--memory", memory];
     }
     raise ValueError(f"unknown native memory profile: {memory}");
 }
@@ -226,7 +220,7 @@ def native_build(
     import sys;
     assert os.path.exists(src) , f"fixture missing: {src}";
     cmd = (
-        [sys.executable, "-m", "jaclang", "nacompile", src]
+        [sys.executable, "-m", "jaclang", "build", src, "--native"]
         + native_memory_flags(memory)
         + list(extra or [])
         + ["-o", out_bin]

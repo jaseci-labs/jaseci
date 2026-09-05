@@ -19,7 +19,7 @@ def _scan_rc_machinery(llvm_ir_str: str) -> tuple[list[str], list[str]] {
         syms.add(m.group(0));
     }
     probes: list[str] = [];
-    for probe in ["JAC_NO_GC", "JAC_GC_CYCLES"] {
+    for probe in ["JAC_GC"] {
         if probe in llvm_ir_str {
             probes.append(probe);
         }
@@ -236,17 +236,13 @@ def _finalize_native_ir(
 }
 
 
-impl nacompile(
+impl native_build(
     filename: str,
     output: str = "",
-    scrub: bool = False,
+    lib: bool = False,
     target: str = "",
-    shared: bool = False,
     debug: bool = False,
-    gc: str = "",
-    assert_no_rc: bool = False,
-    enforce_nogc: bool = False,
-    strict: bool = False
+    memory: str = ""
 ) -> int {
     import from jaclang.jac0core.ext_registry {
         is_jac,
@@ -256,74 +252,56 @@ impl nacompile(
     import from jaclang.project { get_config }
 
     _cfg = get_config();
-    _gc_cfg = _cfg.gc if _cfg else None;
-    if not gc {
-        gc = _gc_cfg.`default if _gc_cfg else "cycles";
+    _mem_cfg = _cfg.memory if _cfg else None;
+    if not memory {
+        memory = _mem_cfg.profile if _mem_cfg else "managed";
     }
-    if gc not in ("cycles", "rc", "none") {
-        console.error(f"Invalid --gc mode '{gc}' (expected: cycles, rc, none)");
+    if memory not in ("managed", "rc", "nogc") {
+        console.error(
+            f"Invalid --memory profile '{memory}' (expected: managed, rc, nogc)"
+        );
         return 1;
     }
+    shared = lib;
+    assert_no_rc = memory == "nogc";
     if not is_jac(filename) {
         console.error("Input must be a .jac file.");
         return 1;
     }
 
-    _prev_native_debug = os.environ.get("JAC_NATIVE_DEBUG") if debug else None;
-    if debug {
-        os.environ["JAC_NATIVE_DEBUG"] = "1";
-        scrub = True;
-    }
     if not os.path.exists(filename) {
         console.error(f"File not found: {filename}");
         return 1;
     }
 
     is_wasm = target in ["wasm", "wasm32", "wasm32-unknown-unknown"];
-    if is_wasm {
-        os.environ["JAC_NATIVE_TARGET"] = "wasm32-unknown-unknown";
-    }
+    _triple = "wasm32-unknown-unknown" if is_wasm else "";
 
     is_windows = (sys.platform == "win32")
         or ("windows" in target)
         or (target in ["win", "win64", "mingw"]);
     if is_windows {
-        os.environ["JAC_NATIVE_TARGET"] = (
-            target if "-" in target else "x86_64-pc-windows-msvc"
-        );
+        _triple = target if "-" in target else "x86_64-pc-windows-msvc";
     }
 
     is_macos_target = (target in ["macos", "darwin", "osx", "macosx"])
         or ("apple" in target)
         or ("darwin" in target);
     if is_macos_target {
-        os.environ["JAC_NATIVE_TARGET"] = (
-            target if "-" in target else "arm64-apple-darwin"
-        );
+        _triple = target if "-" in target else "arm64-apple-darwin";
     }
 
     is_linux_target = (target in ["linux", "elf"])
         or ("linux-gnu" in target)
         or ("linux-musl" in target);
     if is_linux_target {
-        os.environ["JAC_NATIVE_TARGET"] = (
-            target if "-" in target else "x86_64-unknown-linux-gnu"
-        );
-    }
-
-    if scrub {
-        import from jaclang.compiler.driver.jir { scrub_cache_dirs }
-        src_root = os.path.dirname(os.path.abspath(filename)) or ".";
-        _scrubbed = scrub_cache_dirs(src_root);
-        if _scrubbed {
-            console.print(f"  Scrubbed {_scrubbed} cache dir(s).");
-        }
+        _triple = target if "-" in target else "x86_64-unknown-linux-gnu";
     }
 
     if is_retired_native_marker(filename) {
         console.error(
             f"{filename}: the .na.jac marker was retired in 0.35 -- rename the "
-            "file to .jac; 'jac nacompile' compiles plain .jac natively."
+            "file to .jac; 'jac build --native' compiles plain .jac natively."
         );
         return 1;
     }
@@ -358,11 +336,10 @@ impl nacompile(
             aot_mode=True,
             default_codespace=('native' if auto_promote else ''),
             force_target_program=True,
-            na_gc_mode=gc,
-            no_ir_cache=scrub,
-            nogc_cli_target=(base_stem(filename) if enforce_nogc else ""),
-            nogc_enforce_modules=(_gc_cfg.enforce.modules if _gc_cfg else []),
-            nogc_grandfathered=(_gc_cfg.enforce.grandfathered if _gc_cfg else [])
+            memory_profile=memory,
+            native_target=(_triple or None),
+            native_debug=(True if debug else None),
+            no_ir_cache=debug
         );
         ir_module = prog.compile(file_path=os.path.abspath(filename), options=options);
     } except Exception as e {
@@ -370,14 +347,6 @@ impl nacompile(
         import traceback;
         traceback.print_exc();
         return 1;
-    } finally {
-        if debug {
-            if _prev_native_debug is None {
-                os.environ.pop("JAC_NATIVE_DEBUG", None);
-            } else {
-                os.environ["JAC_NATIVE_DEBUG"] = _prev_native_debug;
-            }
-        }
     }
 
     if prog.errors_had {
@@ -452,21 +421,19 @@ impl nacompile(
     }
 
     llvm_ir_str = native_linked_ir_text(ir_module);
-    if strict {
-        import from jaclang.compiler.backends.native.na_compile_pass {
-            native_demoted_ir_symbols as _demoted_syms
-        }
-        _demoted = _demoted_syms(llvm_ir_str);
-        if _demoted {
-            console.error(
-                f"{len(
-                    _demoted
-                )} function(s) in the native closure were demoted to Python-only: "
-                    + ", ".join(_demoted),
-                hint="A self-contained binary cannot run a demoted function. Rerun with JAC_NA_DEBUG=1 to see why each one failed to lower."
-            );
-            return 1;
-        }
+    import from jaclang.compiler.backends.native.na_compile_pass {
+        native_demoted_ir_symbols as _demoted_syms
+    }
+    _demoted = _demoted_syms(llvm_ir_str);
+    if _demoted {
+        console.error(
+            f"{len(
+                _demoted
+            )} function(s) in the native closure were demoted to Python-only: "
+                + ", ".join(_demoted),
+            hint="A self-contained binary cannot run a demoted function; run `jac explain placement` on the file to see why each one failed to lower."
+        );
+        return 1;
     }
 
     if assert_no_rc {
@@ -480,7 +447,7 @@ impl nacompile(
                 _parts.append("entry-point env probes: " + ", ".join(_rc_probes));
             }
             console.error(
-                "assert-no-rc: emitted IR contains "
+                "nogc invariant violated (compiler bug): emitted IR contains "
                     + "; ".join(_parts)
                     + "\n  (module has managed heap types or RC-emitting code;"
                     + " see rc-stats coverage)"
@@ -488,7 +455,7 @@ impl nacompile(
             return 1;
         }
         console.print(
-            "  assert-no-rc ok: 0 __rc_* symbols · 0 trace fns"
+            "  nogc invariant ok: 0 __rc_* symbols · 0 trace fns"
             " · no roots buffer · no entry-point env probes"
         );
     }

@@ -12,7 +12,7 @@ def _nacompile_run(fixture: str) -> str {
     src = os.path.join(FIXTURES, fixture);
     out_bin = os.path.join(tempfile.mkdtemp(), "probe.bin");
     comp = subprocess.run(
-        [sys.executable, "-m", "jaclang", "nacompile", src, "-o", out_bin],
+        [sys.executable, "-m", "jaclang", "build", "--native", src, "-o", out_bin],
         capture_output=True,
         text=True,
         timeout=300
@@ -36,7 +36,7 @@ test "unsupported os path members fail the native compile loudly" {
     src = os.path.join(FIXTURES, "os_path_unsupported.jac");
     out_bin = os.path.join(tempfile.mkdtemp(), "nope.bin");
     comp = subprocess.run(
-        [sys.executable, "-m", "jaclang", "nacompile", src, "-o", out_bin],
+        [sys.executable, "-m", "jaclang", "build", "--native", src, "-o", out_bin],
         capture_output=True,
         text=True,
         timeout=300

@@ -43,21 +43,17 @@ impl OwnershipCheckPass._nogc_resolve_provenance -> (str | None) {
     }
     opts = self.prog?.options;
     if opts is not None and getattr(opts, "nogc_enforce_all", False) {
-        return "enforced by --enforce-nogc";
+        return "enforced by the nogc profile";
     }
-    _cli_target = getattr(opts, "nogc_cli_target", "") if opts else "";
-    if _cli_target and _cli_target in _nogc_name_candidates(self.ir_in.name) {
-        return "enforced by --enforce-nogc";
-    }
-    _pats = list(getattr(opts, "nogc_enforce_modules", []) or []) if opts else [];
-    _grand = list(getattr(opts, "nogc_grandfathered", []) or []) if opts else [];
+    _pats = list(getattr(opts, "memory_enforce", []) or []) if opts else [];
+    _grand = list(getattr(opts, "memory_exempt", []) or []) if opts else [];
     if not _pats {
         try {
             import from jaclang.project { get_config }
             _cfg = get_config();
             if _cfg {
-                _pats = list(_cfg.gc.enforce.modules);
-                _grand = list(_cfg.gc.enforce.grandfathered);
+                _pats = list(_cfg.memory.enforce);
+                _grand = list(_cfg.memory.exempt);
             }
         } except Exception {
             return None;
@@ -75,7 +71,7 @@ impl OwnershipCheckPass._nogc_resolve_provenance -> (str | None) {
     }
     for _pat in _pats {
         if fnmatch.fnmatchcase(_mod, _pat) {
-            return f'enforced by jac.toml [gc.enforce] "{_pat}"';
+            return f'enforced by jac.toml [memory] "{_pat}"';
         }
     }
     return None;
@@ -357,15 +353,15 @@ impl OwnershipCheckPass._nogc_module_enforced(mod_name: str) -> bool {
     if opts is not None and opts.nogc_enforced_for(mod_name) {
         return True;
     }
-    _pats = list(getattr(opts, "nogc_enforce_modules", []) or []) if opts else [];
-    _grand = list(getattr(opts, "nogc_grandfathered", []) or []) if opts else [];
+    _pats = list(getattr(opts, "memory_enforce", []) or []) if opts else [];
+    _grand = list(getattr(opts, "memory_exempt", []) or []) if opts else [];
     if not _pats {
         try {
             import from jaclang.project { get_config }
             _cfg = get_config();
             if _cfg {
-                _pats = list(_cfg.gc.enforce.modules);
-                _grand = list(_cfg.gc.enforce.grandfathered);
+                _pats = list(_cfg.memory.enforce);
+                _grand = list(_cfg.memory.exempt);
             }
         } except Exception {
             return False;
@@ -520,7 +516,7 @@ impl OwnershipCheckPass._nogc_check_call(call: FuncCall, prov: str) -> None {
                     self.emit(
                         E1406,
                         node_override=_a,
-                        name="managed() of a heap value under --gc none",
+                        name="managed() of a heap value under --memory nogc",
                         provenance=prov
                     );
                 }

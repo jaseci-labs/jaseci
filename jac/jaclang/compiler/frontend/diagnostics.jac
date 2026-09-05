@@ -1733,13 +1733,13 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E5024",
          Category.CODEGEN,
          "Failed to compile native module {path}: {error}. "
-         "Fix the error in the imported module or nacompile will produce a broken binary."
+         "Fix the error in the imported module or the native build will produce a broken binary."
      ),
      E5025 = _err(
          "E5025",
          Category.CODEGEN,
          "Failed to link native module {path}: {error}. "
-         "Fix the error in the imported module or nacompile will produce a broken binary."
+         "Fix the error in the imported module or the native build will produce a broken binary."
      ),
      E5026 = _err(
          "E5026",
@@ -1754,7 +1754,7 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Native module '{path}' was built with different compile options "
          "(cached fingerprint {cached_fp}, current build {current_fp}); "
          "refusing a mixed-options link.",
-         help="Every module in a native link must carry the same codegen options fingerprint (gc mode, nogc enforcement, target triple, opt level, debug gates). Rebuild the module under the current options, or scrub the stale native cache with `jac nacompile --scrub`."
+         help="Every module in a native link must carry the same codegen options fingerprint (gc mode, nogc enforcement, target triple, opt level, debug gates). Rebuild the module under the current options, or scrub the stale native cache with `jac build --native --scrub`."
      ),
      E5028 = _err(
          "E5028",

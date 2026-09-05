@@ -619,13 +619,23 @@ impl NaIRGenCycleCollector._emit_rc_root_pass(
         name=f"{prefix}slot"
     );
     optr = b.load(b.bitcast(slot, i8_ptr_ptr, name=f"{prefix}pp"), name=f"{prefix}obj");
+    work = collect_fn.append_basic_block(f"{prefix}work");
+    incr = collect_fn.append_basic_block(f"{prefix}incr");
+    b.cbranch(
+        b.icmp_unsigned("==", optr, ir.Constant(i8_ptr, None), name=f"{prefix}null"),
+        incr,
+        work
+    );
+    b = ir.IRBuilder(work);
     if clear_purple {
         (csp, cb) = self._emit_rc_color_load(b, optr);
         self._emit_rc_clear_buffered(b, csp);
     }
     b.call(phase_fn, [optr]);
+    b.branch(incr);
+    b = ir.IRBuilder(incr);
     nxt = b.add(idx, ir.Constant(i64, 1), name=f"{prefix}next");
-    idx.add_incoming(nxt, body);
+    idx.add_incoming(nxt, incr);
     b.branch(hdr);
 
     return pre;

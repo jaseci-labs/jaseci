@@ -29,7 +29,7 @@ def _compile_ir(entry_path: str, gc_mode: str, enforce: list) -> str {
         ir = prog.compile(
             file_path=entry_path,
             options=CompileOptions(
-                aot_mode=True, na_gc_mode=gc_mode, nogc_enforce_modules=enforce
+                aot_mode=True, na_gc_mode=gc_mode, memory_enforce=enforce
             )
         );
         assert not prog.errors_had , [e.pretty_print() for e in prog.errors_had];
@@ -63,9 +63,7 @@ test "host-path multi-module gc none build passes assert-no-rc" {
         `entry = _staged_entry(tmp);
         src_root = os.path.dirname(os.path.dirname(os.path.abspath(jaclang.__file__)));
         with open(os.path.join(tmp, "jac.toml"), "w") as f {
-            f.write(
-                "[project]\nname = \"xmodgc\"\n\n[gc]\ndefault = \"none\"\n\n[gc.enforce]\nmodules = [\"xmod_gc*\"]\n\n"
-            );
+            f.write("[project]\nname = \"xmodgc\"\n\n[memory]\nprofile = \"nogc\"\n\n");
             f.write(f"[dev]\njaclang_source = \"{src_root}\"\n");
         }
         out_bin = os.path.join(tmp, "xmod.bin");
@@ -74,13 +72,11 @@ test "host-path multi-module gc none build passes assert-no-rc" {
                 sys.executable,
                 "-m",
                 "jaclang",
-                "nacompile",
+                "build",
+                "--native",
                 `entry,
-                "--scrub",
-                "--gc",
-                "none",
-                "--enforce-nogc",
-                "--assert-no-rc",
+                "--memory",
+                "nogc",
                 "-o",
                 out_bin
             ],

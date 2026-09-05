@@ -27,7 +27,7 @@ import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.backends.native.macho_linker { MachOLinker }
 import from jaclang.compiler.backends.native.elf_linker { ElfLinker }
 import from jaclang.compiler.backends.native.linker_common { select_ar_members }
-import from jaclang.cli.commands.nacompile {
+import from jaclang.cli.commands.native_build {
     _inject_entry_elf_static,
     _collect_musl_static,
     _musl_lib_dir
@@ -202,7 +202,7 @@ test "nacompile CLI: `import from lzma` static-links the floor, no dylib dep (#6
     d = tempfile.mkdtemp();
     out = os.path.join(d, "crc32_cli");
     comp = subprocess.run(
-        [sys.executable, "-m", "jaclang", "nacompile", fixture, "-o", out],
+        [sys.executable, "-m", "jaclang", "build", "--native", fixture, "-o", out],
         capture_output=True,
         text=True,
         timeout=180

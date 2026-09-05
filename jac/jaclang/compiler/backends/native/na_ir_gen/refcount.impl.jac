@@ -493,7 +493,41 @@ impl NaIRGenRefcount._emit_rc_helpers -> None {
             b, release_fn.args[0], name_prefix="cd"
         );
         reclaim_bb = release_fn.append_basic_block("do_reclaim");
-        b.cbranch(_cd_is_buffered, dbg_rel_bb, reclaim_bb);
+        unbuf_pre = release_fn.append_basic_block("unbuf.pre");
+        unbuf_hdr = release_fn.append_basic_block("unbuf.hdr");
+        unbuf_body = release_fn.append_basic_block("unbuf.body");
+        unbuf_clear = release_fn.append_basic_block("unbuf.clear");
+        b.cbranch(_cd_is_buffered, unbuf_pre, reclaim_bb);
+        b = ir.IRBuilder(unbuf_pre);
+        _ub_buf = b.load(self.rc_roots_buf_gv, name="ub.buf");
+        _ub_count = b.load(self.rc_roots_count_gv, name="ub.count");
+        b.branch(unbuf_hdr);
+        b = ir.IRBuilder(unbuf_hdr);
+        _ub_i = b.phi(i64, name="ub.i");
+        _ub_i.add_incoming(ir.Constant(i64, 0), unbuf_pre);
+        b.cbranch(
+            b.icmp_unsigned(">=", _ub_i, _ub_count, name="ub.end"),
+            unbuf_clear,
+            unbuf_body
+        );
+        b = ir.IRBuilder(unbuf_body);
+        _ub_slot = b.gep(
+            _ub_buf, [b.mul(_ub_i, ir.Constant(i64, 8), name="ub.off")], name="ub.slot"
+        );
+        _ub_pp = b.bitcast(_ub_slot, i8_ptr.as_pointer(), name="ub.pp");
+        _ub_obj = b.load(_ub_pp, name="ub.obj");
+        _ub_match = b.icmp_unsigned("==", _ub_obj, release_fn.args[0], name="ub.match");
+        b.store(
+            b.select(_ub_match, ir.Constant(i8_ptr, None), _ub_obj, name="ub.new"),
+            _ub_pp
+        );
+        _ub_next = b.add(_ub_i, ir.Constant(i64, 1), name="ub.next");
+        _ub_i.add_incoming(_ub_next, unbuf_body);
+        b.branch(unbuf_hdr);
+        b = ir.IRBuilder(unbuf_clear);
+        (_ub_csp, _ub_cb) = self._emit_rc_color_load(b, release_fn.args[0]);
+        self._emit_rc_clear_buffered(b, _ub_csp);
+        b.branch(reclaim_bb);
 
         b = ir.IRBuilder(reclaim_bb);
     }
@@ -1828,8 +1862,9 @@ impl NaIRGenRefcount._nogc_stamp_elem_drops(
         return;
     }
     _base = _layout["drop_base"];
-    _cont_elems = cont.type.pointee?.elements or ();
-    if _base + len(_layout["data_fields"]) > len(_cont_elems) {
+    _cont_elems = cont.type.pointee?.elements;
+    if _cont_elems is not None
+        and _base + len(_layout["data_fields"]) > len(_cont_elems) {
         return;
     }
     _slot_specs: list = [

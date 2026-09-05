@@ -3331,7 +3331,7 @@ test "jac run loads a transitive imported-module clib (issue #6687)" {
     # carries an `$ORIGIN`-relative path; the imported-dependency clib loader
     # did not strip that loader token, so the library was never loaded into the
     # JIT and its FFI symbols resolved to NULL -- the process SIGSEGV'd after a
-    # clean compile, while the byte-identical `jac nacompile` binary ran fine.
+    # clean compile, while the byte-identical `jac build --native` binary ran fine.
     # The library must now be loaded so the cross-module FFI call returns 21.
     import platform;
     import shutil;
@@ -3684,7 +3684,7 @@ test "native-default chess.jac runs via cli" {
             f.write(
                 '[project]\nname = "chess-na"\n\n[dev]\njaclang_source = "'
                     + _src.replace("\\", "/")
-                    + '"\n\n[build]\ndefault_codespace = "na"\n'
+                    + '"\n\n[placement]\ndefault = "na"\n'
             );
         }
         result = subprocess.run(
@@ -3709,7 +3709,7 @@ test "native-default chess.jac runs via cli" {
 
 test "nacompile auto-promoted .jac links a bundled na_stdlib import (#7013 Finding 2)" {
     # A regular `.jac` (no `na {}` block) that imports a bundled na_stdlib module
-    # is auto-promoted by `jac nacompile`. The entry point emits a call to each
+    # is auto-promoted by `jac build --native`. The entry point emits a call to each
     # imported module's `__jac_glob_init_<safe>` (driven by
     # native_transitive_sources), so the cross-module merge MUST link those
     # modules' definitions. Before the fix, BoundaryAnalysisPass only classified
@@ -3724,7 +3724,7 @@ test "nacompile auto-promoted .jac links a bundled na_stdlib import (#7013 Findi
     with tempfile.TemporaryDirectory() as tmpdir {
         out = os.path.join(tmpdir, "autopromote_bundled_zlib");
         comp = subprocess.run(
-            [sys.executable, "-m", "jaclang", "nacompile", fixture, "-o", out],
+            [sys.executable, "-m", "jaclang", "build", "--native", fixture, "-o", out],
             capture_output=True,
             text=True,
             timeout=180
@@ -3764,7 +3764,7 @@ test "sys argv via jac run native default" {
             f.write(
                 '[project]\nname = "argv-na"\n\n[dev]\njaclang_source = "'
                     + _src.replace("\\", "/")
-                    + '"\n\n[build]\ndefault_codespace = "na"\n'
+                    + '"\n\n[placement]\ndefault = "na"\n'
             );
         }
         result = subprocess.run(
@@ -3807,7 +3807,16 @@ test "sys argv via nacompile" {
         out_bin = os.path.join(tmpdir, "sys_argv_bin");
         # Step 1: Compile to native binary
         comp = subprocess.run(
-            [sys.executable, "-m", "jaclang", "nacompile", fixture, "-o", out_bin],
+            [
+                sys.executable,
+                "-m",
+                "jaclang",
+                "build",
+                "--native",
+                fixture,
+                "-o",
+                out_bin
+            ],
             capture_output=True,
             text=True,
             timeout=120
@@ -3897,7 +3906,16 @@ test "sys stdout/stderr streams via nacompile" {
     with tempfile.TemporaryDirectory() as tmpdir {
         out_bin = os.path.join(tmpdir, "sys_streams_bin");
         comp = subprocess.run(
-            [sys.executable, "-m", "jaclang", "nacompile", fixture, "-o", out_bin],
+            [
+                sys.executable,
+                "-m",
+                "jaclang",
+                "build",
+                "--native",
+                fixture,
+                "-o",
+                out_bin
+            ],
             capture_output=True,
             text=True,
             timeout=120
@@ -3932,7 +3950,16 @@ test "native osp kernel links transitively through an imported module (issue #66
     with tempfile.TemporaryDirectory() as tmpdir {
         out_bin = os.path.join(tmpdir, "osp_kernel_transitive");
         comp = subprocess.run(
-            [sys.executable, "-m", "jaclang", "nacompile", fixture, "-o", out_bin],
+            [
+                sys.executable,
+                "-m",
+                "jaclang",
+                "build",
+                "--native",
+                fixture,
+                "-o",
+                out_bin
+            ],
             capture_output=True,
             text=True,
             timeout=120
@@ -3967,7 +3994,16 @@ test "native osp graph survives a cross-module spawn (kernel glob-init runs once
     with tempfile.TemporaryDirectory() as tmpdir {
         out_bin = os.path.join(tmpdir, "osp_xmod_buildsplit");
         comp = subprocess.run(
-            [sys.executable, "-m", "jaclang", "nacompile", fixture, "-o", out_bin],
+            [
+                sys.executable,
+                "-m",
+                "jaclang",
+                "build",
+                "--native",
+                fixture,
+                "-o",
+                out_bin
+            ],
             capture_output=True,
             text=True,
             timeout=120
@@ -4005,7 +4041,16 @@ test "native osp node constructed in a non-OSP module carries its dispatch tag (
     with tempfile.TemporaryDirectory() as tmpdir {
         out_bin = os.path.join(tmpdir, "osp_ctor_only");
         comp = subprocess.run(
-            [sys.executable, "-m", "jaclang", "nacompile", fixture, "-o", out_bin],
+            [
+                sys.executable,
+                "-m",
+                "jaclang",
+                "build",
+                "--native",
+                fixture,
+                "-o",
+                out_bin
+            ],
             capture_output=True,
             text=True,
             timeout=120
@@ -4045,7 +4090,16 @@ test "native osp construct living only in an impl annex materializes imported ar
     with tempfile.TemporaryDirectory() as tmpdir {
         out_bin = os.path.join(tmpdir, "osp_xmod_annexbuild");
         comp = subprocess.run(
-            [sys.executable, "-m", "jaclang", "nacompile", fixture, "-o", out_bin],
+            [
+                sys.executable,
+                "-m",
+                "jaclang",
+                "build",
+                "--native",
+                fixture,
+                "-o",
+                out_bin
+            ],
             capture_output=True,
             text=True,
             timeout=120
@@ -4091,7 +4145,16 @@ test "aarch64 standalone binary runs (issue #6366)" {
         comp_env = dict(os.environ);
         comp_env["JAC_NATIVE_TARGET"] = "aarch64-unknown-linux-gnu";
         comp = subprocess.run(
-            [sys.executable, "-m", "jaclang", "nacompile", fixture, "-o", out_bin],
+            [
+                sys.executable,
+                "-m",
+                "jaclang",
+                "build",
+                "--native",
+                fixture,
+                "-o",
+                out_bin
+            ],
             capture_output=True,
             text=True,
             timeout=120,
@@ -4153,7 +4216,16 @@ test "aarch64 static-musl binary runs (cross vendor-musl, #7626 C1)" {
         comp_env = dict(os.environ);
         comp_env["JAC_NATIVE_TARGET"] = "aarch64-unknown-linux-musl";
         comp = subprocess.run(
-            [sys.executable, "-m", "jaclang", "nacompile", fixture, "-o", out_bin],
+            [
+                sys.executable,
+                "-m",
+                "jaclang",
+                "build",
+                "--native",
+                fixture,
+                "-o",
+                out_bin
+            ],
             capture_output=True,
             text=True,
             timeout=180,

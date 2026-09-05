@@ -87,9 +87,10 @@ test "rc-stats reports promoted count" {
                 sys.executable,
                 "-m",
                 "jaclang",
-                "nacompile",
+                "build",
+                "--native",
                 FIXTURE,
-                "--gc",
+                "--memory",
                 "rc",
                 "-o",
                 os.path.join(tmp, "stkbin")

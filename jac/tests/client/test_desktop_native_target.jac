@@ -345,7 +345,7 @@ test "generated host calls shutdown after run_main_loop()" {
 The desktop host appends the CLI's `[payload][trailer]` (desktop_build.
 _bundle_runtime), so an app materializes the SAME fused runtime the CLI uses --
 which carries the LLVMPY shim the native backend ctypes-loads AND the na compiler
-pass. So any app on this runtime can `jac nacompile` / run `na` exactly like the
+pass. So any app on this runtime can `jac build --native` / run `na` exactly like the
 CLI. This test runs in that runtime (the test interpreter), so locating the shim
 + the na pass here verifies na is first-class on desktop by construction."""
 test "na/LLVM backend is first-class in the desktop fused runtime" {

@@ -73,7 +73,7 @@ SEED_PATHS: tuple[str, ...] = (
 )
 
 # Modules that live under a seed directory but belong to the native
-# toolchain tier: nacompile builds them into a shared library, and they
+# toolchain tier: jac build --native --lib builds them into a shared library, and they
 # never execute as bytecode (extern `import from c` declarations have no
 # Python lowering). The jac0 sweep and the seed-manifest gate skip them;
 # tier stamping (is_seed_source) is unaffected, which also keeps them out

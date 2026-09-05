@@ -1,6 +1,6 @@
 ---
 name: jac-native-wasm
-description: Running native-compiled Jac in the browser as WebAssembly - the client->native import edge (client code imports a native Jac module; the build emits /static/<stem>.wasm and binds lazy async stubs), `set_na_env` for modules with app FFI, plus the raw mechanics underneath - `__jac_glob_init()`, BigInt i64 marshalling, externs-as-wasm-imports, WebAssembly.Module.imports introspection, and standalone `jac nacompile --target wasm32`. Load when building in-browser native compute: a game loop, simulation, or client-side hot loop. Pair with `jac-cl-components` (the page side) and `jac-native` (the native subset).
+description: Running native-compiled Jac in the browser as WebAssembly - the client->native import edge (client code imports a native Jac module; the build emits /static/<stem>.wasm and binds lazy async stubs), `set_na_env` for modules with app FFI, plus the raw mechanics underneath - `__jac_glob_init()`, BigInt i64 marshalling, externs-as-wasm-imports, WebAssembly.Module.imports introspection, and standalone `jac build --native --target wasm32`. Load when building in-browser native compute: a game loop, simulation, or client-side hot loop. Pair with `jac-cl-components` (the page side) and `jac-native` (the native subset).
 ---
 
 The native codespace's second target: instead of a host binary, your module's native code compiles to **WebAssembly** and runs in the browser, driven by a client page - native-speed compute with no server round-trip. Jac's own wasm linker produces the module; no emscripten, no `wasm-ld`. Native placement is inferred from extern-decl imports (`import from raylib { def ... ; }`) and the code that uses them; pure compute with no FFI surface (like `count_primes` below) has nothing to infer from, so you pin it native in `jac.toml` (`[placement.pins] "main.count_primes" = "native"`) or pin the kernel module native (see `jac-codespaces`).
@@ -58,7 +58,7 @@ async def launch(shim: any, env_fns: dict) {
 A pure-computation module needs no `set_na_env` at all. Everything below is
 the raw mechanics underneath this edge - reach for it when hand-driving the
 instance (hot rAF loops on `shim.exports`), or when loading a
-`jac nacompile`-built module outside a Jac client app.
+`jac build --native`-built module outside a Jac client app.
 
 ## One module, both halves
 
@@ -99,7 +99,7 @@ jac run            # builds the client bundle AND compiles the native code to /s
 jac run --dev      # same, with hot reload   (jac build emits the artifacts without serving)
 ```
 
-(Serving pipeline per the project-kinds guide and the `jac/examples/raylib_shooter/web` example; the wasm module behavior below is verified by instantiating a `jac nacompile --target wasm32` build under Node.)
+(Serving pipeline per the project-kinds guide and the `jac/examples/raylib_shooter/web` example; the wasm module behavior below is verified by instantiating a `jac build --native --target wasm32` build under Node.)
 
 ## The boundary is the raw wasm ABI (verified)
 
@@ -158,7 +158,7 @@ There is no `with entry` browser loop - export plain functions (`init`, `frame`,
 ## Standalone emit (no server) - verified end to end
 
 ```bash
-jac nacompile primes.jac --target wasm32 -o primes.wasm   # valid \0asm module, ~500 bytes for a small fn
+jac build --native primes.jac --target wasm32 -o primes.wasm   # valid \0asm module, ~500 bytes for a small fn
 ```
 
 ```js

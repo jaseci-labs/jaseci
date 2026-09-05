@@ -47,7 +47,7 @@ test "na host boots the fused runtime (no display)" {
         # chosen by the nearest jac.toml from the cwd, and the host must be built
         # by the same compiler whose fused library was just staged beside it.
         comp = subprocess.run(
-            [jac, "nacompile", str(host), "-o", str(binary)],
+            [jac, "build", "--native", str(host), "-o", str(binary)],
             capture_output=True,
             text=True,
             timeout=300

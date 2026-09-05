@@ -110,7 +110,7 @@ impl NaIRGenDebug.post_transform -> None {
             with open(auto_ir_path, "w") as f {
                 f.write(ir_str);
             }
-            console.print(f"[JAC_DEBUG_IR] IR saved to: {auto_ir_path}");
+            console.print(f"[native debug] IR saved to: {auto_ir_path}");
         }
     }
 }

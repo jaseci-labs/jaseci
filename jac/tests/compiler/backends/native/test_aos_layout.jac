@@ -19,9 +19,9 @@ glob FIXTURE = os.path.join(
          TESTS_DIR, "compiler", "backends", "native", "fixtures", "aos_layout.jac"
      ),
      MODE_FLAGS = {
-         "none": ["--enforce-nogc", "--gc", "none", "--assert-no-rc"],
-         "rc": ["--gc", "rc"],
-         "cycles": ["--gc", "cycles"]
+         "none": ["--memory", "nogc"],
+         "rc": ["--memory", "rc"],
+         "cycles": ["--memory", "managed"]
      };
 
 def _compile_ir(gc_mode: str, enforce: bool) -> str {
@@ -50,7 +50,7 @@ test "AoS output is byte-identical across gc modes and leak-free" {
         for mode in ("none", "rc", "cycles") {
             out_bin = os.path.join(tmp, f"aos_{mode}");
             res = subprocess.run(
-                [sys.executable, "-m", "jaclang", "nacompile", FIXTURE]
+                [sys.executable, "-m", "jaclang", "build", "--native", FIXTURE]
                     + MODE_FLAGS[mode]
                     + ["-o", out_bin],
                 capture_output=True,

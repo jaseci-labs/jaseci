@@ -42,7 +42,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
                  description="Natively-compiled standalone binary (built into dist/)",
                  `entry="main.jac",
                  action="build",
-                 verb="nacompile",
+                 verb="native",
                  summary="Build native binary -> {output}",
                  output_dir="dist"
              ),
@@ -51,7 +51,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
                  description="Natively-compiled shared library (.so / .dylib / .dll)",
                  `entry="main.jac",
                  action="build",
-                 verb="nacompile",
+                 verb="native",
                  summary="Build shared library (.so / .dylib / .dll)",
                  flags={"shared": True}
              ),
