@@ -872,6 +872,15 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " not checked here, since another toolchain resolves it.",
          blocks_codegen=True
      ),
+     E1135 = _err(
+         "E1135",
+         Category.TYPE,
+         "Operator \"{op}\" has a possibly-None operand of type \"{type}\"",
+         help="A `T | None` value has no arithmetic, bitwise, or shift behavior"
+         " on its None case, so the operator would crash at runtime. Guard the"
+         " value first, e.g. `if x is not None { ... }`. Equality (`==`, `!=`)"
+         " and `is None` checks work on the optional directly and need no guard."
+     ),
      E1301 = _err(
          "E1301",
          Category.SEMANTIC,

@@ -31,7 +31,8 @@ import from jaclang.compiler.frontend.diagnostics {
     E1098,
     E1114,
     E1115,
-    E1118
+    E1118,
+    E1135
 }
 import from .fixed_width {
     both_numeric,
@@ -132,6 +133,27 @@ def _has_gradual_type_args(t: TypeBase) -> bool {
 
 glob BITWISE_OPERATORS: set[str] = {Tok.BW_AND, Tok.BW_OR, Tok.BW_XOR},
      SHIFT_OPERATORS: set[str] = {Tok.LSHIFT, Tok.RSHIFT};
+
+glob NONE_UNSAFE_BINARY_OPERATORS: set[str] = (
+         ARITHMETIC_OPERATORS | SHIFT_OPERATORS | {Tok.BW_AND, Tok.BW_XOR, Tok.DECOR_OP}
+     );
+
+def operand_carries_none(evaluator: TypeEvaluator, ty: TypeBase) -> bool {
+    if not isinstance(ty, UnionType) {
+        return False;
+    }
+    has_none = False;
+    for member in ty.types {
+        inst = evaluator._convert_to_instance(member);
+        if isinstance(inst, AnyType) or inst.is_any_instance() {
+            return False;
+        }
+        if evaluator.is_none_type(inst) {
+            has_none = True;
+        }
+    }
+    return has_none;
+}
 
 def get_numeric_promotion_type(
     evaluator: TypeEvaluator,
@@ -363,6 +385,20 @@ def get_type_of_binary_operation(
             }
         }
         (magic, rmagic) = BINARY_OPERATOR_MAP[expr.op.name];
+
+        if expr.op.name in NONE_UNSAFE_BINARY_OPERATORS {
+            for (operand_type, operand_node) in (
+                (left_type, expr.left),
+                (right_type, expr.right)
+            ) {
+                if operand_carries_none(evaluator, operand_type) {
+                    evaluator.emit_diag(
+                        E1135, operand_node, op=expr.op.value, type=str(operand_type)
+                    );
+                    return UnknownType(is_diagnosed=True);
+                }
+            }
+        }
 
         if expr.op.name in ARITHMETIC_OPERATORS
             or expr.op.name in BITWISE_OPERATORS
