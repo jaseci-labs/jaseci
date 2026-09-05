@@ -246,7 +246,9 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
 
         for overload in caller_type.overloads {
             if not is_unbound_call
-                and not self._overload_accepts_receiver(overload, expr) {
+                and not self._overload_accepts_receiver(
+                    overload, self._call_receiver_type(expr)
+                ) {
                 continue;
             }
             arg_param_match = self.match_args_to_params(
@@ -1139,7 +1141,7 @@ impl TypeEvaluator._call_receiver_type(expr: FuncCall) -> ClassType | None {
 }
 
 impl TypeEvaluator._overload_accepts_receiver(
-    overload: FunctionType, expr: FuncCall
+    overload: FunctionType, receiver: TypeBase | None
 ) -> bool {
     if not overload.parameters {
         return True;
@@ -1149,11 +1151,12 @@ impl TypeEvaluator._overload_accepts_receiver(
     if not first.is_self or not isinstance(declared, ClassType) {
         return True;
     }
-    receiver = self._call_receiver_type(expr);
     if receiver is None or self.is_any_type(receiver) {
         return True;
     }
-    return self.assign_type(receiver, self._convert_to_instance(declared));
+    return self.assign_type(
+        self._convert_to_instance(receiver), self._convert_to_instance(declared)
+    );
 }
 
 

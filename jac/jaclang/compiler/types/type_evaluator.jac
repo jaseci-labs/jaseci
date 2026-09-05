@@ -746,7 +746,10 @@ walker TypeEvaluator {
     ) -> dict[str, TypeBase];
 
     def _call_receiver_type(expr: FuncCall) -> ClassType | None;
-    def _overload_accepts_receiver(overload: FunctionType, expr: FuncCall) -> bool;
+    def _overload_accepts_receiver(
+        overload: FunctionType, receiver: TypeBase | None
+    ) -> bool;
+
     def _validate_jsx_props(
         expr: JsxElement, expected_type: TypeBase | None = None
     ) -> None;

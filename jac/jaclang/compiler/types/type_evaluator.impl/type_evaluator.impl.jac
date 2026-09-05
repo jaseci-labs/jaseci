@@ -2903,12 +2903,14 @@ impl TypeEvaluator._assign_class(
 ) -> bool {
     unwrapped_dest: TypeBase = dest_type;
     unwrapped_src: TypeBase = src_type;
-    if dest_type.shared == self.prefetch.final_class.shared {
+    if self.prefetch.final_class is not None
+        and dest_type.shared == self.prefetch.final_class.shared {
         if len(dest_type.private.type_args) > 0 {
             unwrapped_dest = dest_type.private.type_args[0];
         }
     }
-    if src_type.shared == self.prefetch.final_class.shared {
+    if self.prefetch.final_class is not None
+        and src_type.shared == self.prefetch.final_class.shared {
         if len(src_type.private.type_args) > 0 {
             unwrapped_src = src_type.private.type_args[0];
         }
@@ -3157,6 +3159,9 @@ impl TypeEvaluator.get_type_of_magic_method_call(
 
                 _fallback_result: TypeBase | None = None;
                 for fn in overloaded_fns {
+                    if not self._overload_accepts_receiver(fn, obj_type) {
+                        continue;
+                    }
                     arg_param_match = self.match_args_to_params(
                         arg_nodes, node_for_error, fn, checking_overload=True
                     );
@@ -4643,7 +4648,6 @@ impl TypeEvaluator._get_type_from_flow_node(
                     and not isinstance(assigned_type, UnknownType)
                 ) {
                     declared_type = target.declared_type;
-
                     assigned_type = self._widen_literal_for_declaration(assigned_type);
 
                     _decl_extern = (
