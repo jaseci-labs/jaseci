@@ -1,23 +1,3 @@
-"""The desktop broker: what a native window needs from its loopback server.
-
-The desktop host serves the app with the one Jac server, on 127.0.0.1. This
-extension adds the small surface a native shell needs beyond the app's own
-endpoints, all under one prefix:
-
-- `GET  /__jac/health`                 the host is up
-- `GET  /__jac/session`                the token the SSO flow stored
-- `POST /__jac/session`                store a token; `DELETE` clears it
-- `GET  /__jac/oauth/start`            open the identity provider in the system browser
-- `GET  /__jac/oauth/callback/{state}` where that browser lands, once
-- `GET  /__jac/events`                 server-sent events the plugin host pushes
-- `POST /__jac/invoke`                 an OS-capability plugin call
-
-Everything under the prefix is loopback-only and refuses cross-site callers;
-the OAuth callback is the one route a foreign origin may land on, since the
-browser arrives there from the identity provider. The app's own endpoints are
-untouched.
-"""
-
 import asyncio;
 import json;
 import queue;
@@ -132,7 +112,7 @@ obj DesktopBrokerExtension(ServerExtension) {
         prefix: str = DEFAULT_PREFIX,
         pending: PendingAuth = PendingAuth();
 
-    def register(server: JacAPIServer) -> None {
+    def register(server: JacAPIServer) {
         prefix = self.prefix;
         callback_route = prefix + "/oauth/callback";
         store = self.store;

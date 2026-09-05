@@ -41,7 +41,7 @@ obj _FakeHost {
         return q;
     }
 
-    def unsubscribe(q: any) -> None {
+    def unsubscribe(q: any) {
         if q in self.subscribers {
             self.subscribers.remove(q);
         }

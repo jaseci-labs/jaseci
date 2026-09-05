@@ -1,16 +1,3 @@
-"""What the native desktop host runs inside its embedded interpreter.
-
-`boot` takes the JSON the build baked into the binary and stands the app up:
-the OS-capability plugin host, the program (a sealed image shipped beside the
-binary, or in dev the entry straight from the source tree), and the one Jac
-server on 127.0.0.1 with the desktop broker registered as an extension and
-the built client bundle as the served dist. The webview then navigates to that
-origin; walker and function calls are ordinary HTTP, plugin calls go to
-`/__jac/invoke`, and a remote backend means no program runs here at all: the
-bundle was built to call the remote, and this server only carries the bundle
-and the broker.
-"""
-
 import os;
 import sys;
 import json;

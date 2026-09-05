@@ -1,13 +1,3 @@
-"""Sealing a project into an image and packing it as a jab.
-
-A sealed image is the project tree plus its precompiled bytecode and manifest;
-a jab is that image as one deterministic tarball. `jac build`, the binary
-projection and the desktop host all package a program through `build_jab`, so
-there is one place that knows what ships: the whole project tree minus caches,
-the serve manifest and (when asked) the client dist of the sealed app, the
-native payloads, and the `_precompiled` bundle the sealed importer loads.
-"""
-
 import os;
 import shutil;
 import subprocess;

@@ -1,14 +1,3 @@
-"""Assembling the program a server serves: the served app and its colocated
-service apps.
-
-`jac run --serve`, an in-process test server and the desktop host all serve
-one app of a workspace, and by default the workspace's service apps ride in
-that process behind the served app's routes. The functions here are that
-assembly, independent of the CLI: which apps are services, whether the
-gateway colocates them, and loading each one and registering it as a local
-provider so the server mounts it under its route.
-"""
-
 import os;
 import from jaclang.cli.console { console }
 
@@ -70,7 +59,7 @@ def colocate_services(cfg: any, served: any, base: str) -> None {
 }
 
 
-def assemble_served_program(cfg: any, served: any, base: str) -> None {
+def assemble_served_program(cfg: any, served: any, base: str) {
     colocate_services(cfg, served, base);
     if served is not None {
         import from jaclang.server.sv_client { set_consumer_app }

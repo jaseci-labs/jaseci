@@ -63,7 +63,7 @@ def _workspace -> str {
 }
 
 
-def _target(d: str, app: str) -> None {
+def _target(d: str, app: str) {
     Jac.set_full_target_path(os.path.join(d, app, "main.jac"));
     set_config(None);
     reset_desktop_config();
