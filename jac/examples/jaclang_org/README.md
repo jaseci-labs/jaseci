@@ -211,9 +211,10 @@ protocol (`core/progress.test.jac`), the Jac syntax highlighter
 (`core/social_graph.test.jac`) and its fullstack smoke
 (`web/socialize/fullstack.test.jac`) and the phone UI's format helpers
 (`core/socialize_mobile/format.test.jac`) -- 63 tests -- plus the cli app's
-16 (`cli/main.test.jac`, `cli/commands/*.test.jac`). `jac test cli` runs
-only that app's annexes: it declares `[apps.cli.test] directories = ["."]`,
-resolved against the app root.
+16 (`cli/main.test.jac`, `cli/commands/*.test.jac`). `jac test cli` and
+`jac test mobile` run only that app's tests: cli declares
+`[apps.cli.test] directories = ["."]`, resolved against the app root, and
+mobile points at `core/socialize_mobile`, the phone UI its shell wraps.
 
 ## The centerpiece diagrams
 

@@ -27,7 +27,7 @@ jac run --dev mobile                     # native: Metro, press a / i or scan th
 jac run --dev --platform web mobile      # the same UI in a browser via react-native-web
 jac build mobile --platform android      # APK
 jac build mobile --platform ios          # .app / .ipa (macOS or EAS)
-jac test core/socialize_mobile           # the pure-Jac helpers in format.jac
+jac test mobile                          # the pure-Jac helpers in core/socialize_mobile/format.jac
 ```
 
 The first native run needs `jac setup mobile` (an Expo project is scaffolded

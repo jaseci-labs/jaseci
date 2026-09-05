@@ -204,3 +204,28 @@ test "a bridged node imported alone is E5108" {
     ][0];
     assert "Post" in msg and "node" in msg and "social" in msg , msg;
 }
+
+test "a provider's import of a shared pure helper is not an app edge" {
+    (prog, mod) = compile_fixture(fixture("portal", "main.jac"), cgen=True);
+    found = codes(prog);
+    assert "E5104" not in found , (
+        f"false cycle through a shared helper: {[str(e) for e in prog.errors_had]}"
+    );
+    import from jaclang.compiler.driver.boundary_classify { symbol_linked_source_module }
+    import from jaclang.compiler.passes.boundary_analysis_pass { _parse_module_for_types }
+    feed = _parse_module_for_types(fixture("feed_app.jac"));
+    assert feed is not None;
+    imp = import_of(feed, "shared_fmt");
+    assert symbol_linked_source_module(imp) is None , (
+        "a parsed-for-types module has unlinked import bindings; the importer itself"
+        + " is not their source module"
+    );
+    assert import_provider_app(imp) is None , (
+        "shared_fmt carries no walker, node or edge: importing it bridges nowhere"
+    );
+    ui = _parse_module_for_types(fixture("shared_ui.jac"));
+    assert ui is not None;
+    assert import_provider_app(import_of(ui, "feed_app")) == "feed" , (
+        "the walker import still bridges to its owner when the binding is unlinked"
+    );
+}
