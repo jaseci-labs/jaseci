@@ -440,9 +440,7 @@ test "sv-to-sv over the wire: a sibling peer's JAC_APP url is used as given" {
         (_prov_client, prov_srv) = build_service("notify_service", tmp);
         __jac_sv._test_clients.pop("notify_service", None);
         __jac_sv.unregister("notify_service");
-        provider_impl = prov_srv.server;
-        assert provider_impl is not None;
-        wire = ServingServer(app=provider_impl.app, host="127.0.0.1", port=0);
+        wire = ServingServer(app=prov_srv.require_app(), host="127.0.0.1", port=0);
         stop_provider = wire.serve_background();
         base = f"http://127.0.0.1:{wire.bound_port}";
         os.environ[url_key] = base;
