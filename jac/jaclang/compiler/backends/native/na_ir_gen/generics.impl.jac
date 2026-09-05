@@ -465,6 +465,7 @@ impl NaIRGenGenerics._stamp_mono_fn(
     saved_nogc = self.nogc_no_free_vars;
     saved_nogc_owned = self.nogc_owned_str_vars;
     saved_region = self.region_handle_vars;
+    saved_region_opens = self.region_open_stack;
     saved_list_struct = self.var_list_elem_struct;
     saved_cell_vars = self.closure_cell_vars;
     saved_cell_handles = self.closure_cell_handles;
@@ -481,6 +482,7 @@ impl NaIRGenGenerics._stamp_mono_fn(
         self.nogc_no_free_vars = saved_nogc;
         self.nogc_owned_str_vars = saved_nogc_owned;
         self.region_handle_vars = saved_region;
+        self.region_open_stack = saved_region_opens;
         self.var_list_elem_struct = saved_list_struct;
         self.closure_cell_vars = saved_cell_vars;
         self.closure_cell_handles = saved_cell_handles;

@@ -86,3 +86,23 @@ impl _SetupProgress._halt_at_limit -> None {
 impl _SetupProgress.is_active.getter -> bool {
     return self._banner_shown;
 }
+
+impl CompileProgress.postinit -> None {
+    self._listeners = [];
+}
+
+impl CompileProgress.notify(file_path: str) -> None {
+    for callback in list(self._listeners) {
+        callback(file_path);
+    }
+}
+
+@contextmanager
+impl CompileProgress.listen(callback: Callable[[str], None]) -> Iterator[None] {
+    self._listeners.append(callback);
+    try {
+        yield None;
+    } finally {
+        self._listeners.remove(callback);
+    }
+}

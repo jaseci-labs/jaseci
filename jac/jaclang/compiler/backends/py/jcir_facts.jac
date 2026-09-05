@@ -7,6 +7,7 @@ glob JCIR_BUILTIN_NAMES: frozenset = frozenset(
              "JacListView",
              "RaisesContext",
              "Region",
+             "region_of",
              "ScheduleTrigger",
              "_jac_chunks",
              "_jac_region_close",

@@ -1,9 +1,10 @@
-"""Regression tests for WebTarget.dev() -- the web/static/PWA dev flow.
+"""Regression tests for WebTarget.dev() -- the web/static/desktop dev flow.
 
 Bug (#7660): WebTarget.dev() started Vite without compiling the .jac
 client entry first, so a fresh project's first `jac run -d` failed
-with "Failed to resolve import /compiled/_entry.js". StaticTarget and
-PWATarget inherit this method, so both were affected too.
+with "Failed to resolve import /compiled/_entry.js". StaticTarget inherits
+this method (and DesktopTarget's native-engine dev loop builds on the same
+compile step), so those were affected too.
 
 Tests mock prepare_vite_dev_compilation() rather than calling it for
 real, since it resolves output paths via ambient project config that
@@ -113,21 +114,37 @@ test "web target dev wires up the hmr watcher and always stops it" {
 
 
 """`jac run -d` on a `kind = "web-static"` project (the bug's original repro)
-runs StaticTarget.dev(), which is WebTarget's inherited one; PWATarget defines
-its own only to print a notice before delegating via super.dev(). Both must end
-up on the fixed compile-then-serve path."""
+runs StaticTarget.dev(), which is WebTarget's inherited one. A PWA is no
+longer a target of its own -- `[client.pwa]` decorates the web build -- so a
+PWA project's dev loop is WebTarget.dev() itself, with the same fix."""
 test "static and pwa dev flows inherit the compile-before-serve fix" {
-    import from jaclang.client.targets.pwa_target { PWATarget }
+    import os;
+    import tempfile;
     import from jaclang.client.targets.static_target { StaticTarget }
+    import from jaclang.client.targets.web_target { WebTarget }
 
     assert _record_dev_calls(StaticTarget()) == ["compile", "serve"] , (
         "StaticTarget must inherit WebTarget.dev(), so web-static projects "
         "compile before Vite starts"
     );
-    assert _record_dev_calls(PWATarget()) == ["compile", "serve"] , (
-        "PWATarget.dev() must delegate to WebTarget.dev() via super.dev(), so "
-        "PWA projects compile before Vite starts"
-    );
+    with tempfile.TemporaryDirectory() as tmp {
+        (Path(tmp) / "jac.toml").write_text(
+            '[project]\nname = "pwa-app"\nversion = "1.0.0"\n'
+            'entry-point = "main.jac"\nkind = "web-app"\n\n'
+            '[client.pwa]\ntheme_color = "#000000"\n',
+            encoding="utf-8"
+        );
+        old_cwd = os.getcwd();
+        os.chdir(tmp);
+        try {
+            assert _record_dev_calls(WebTarget()) == ["compile", "serve"] , (
+                "a [client.pwa] project runs WebTarget.dev(), so PWA projects "
+                "compile before Vite starts"
+            );
+        } finally {
+            os.chdir(old_cwd);
+        }
+    }
 }
 
 

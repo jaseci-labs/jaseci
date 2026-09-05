@@ -5,7 +5,7 @@
 # here (not from a Python pyproject backend).
 [project]
 name = "jaclang"
-version = "0.37.1"
+version = "0.37.4"
 description = "Jac programming language - Python-like syntax, compiles to Python bytecode, JavaScript, and native machine code with novel constructs for AI-integrated programming."
 license = "MIT"
 readme = "jac/README.md"
@@ -57,10 +57,10 @@ isolate = ["jac/jaclang/scale/tests/*"]
 # These share one shelf_db_path SQLite file, so they additionally run one at
 # a time after the parallel phase.
 serial = [
-    "jac/jaclang/scale/tests/test_gcs_storage.jac",
-    "jac/jaclang/scale/tests/test_firebase_auth_sso.jac",
-    "jac/jaclang/scale/tests/test_identity_password.jac",
-    "jac/jaclang/scale/tests/test_firebase_env.jac",
+    "jac/jaclang/scale/tests/data/test_gcs_storage.jac",
+    "jac/jaclang/scale/tests/server/test_firebase_auth_sso.jac",
+    "jac/jaclang/scale/tests/data/test_identity_password.jac",
+    "jac/jaclang/scale/tests/data/test_firebase_env.jac",
 ]
 
 [check.lint]

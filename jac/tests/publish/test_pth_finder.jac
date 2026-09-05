@@ -83,9 +83,16 @@ test "lazy finder loads a top-level .jac module" {
 }
 
 """Make a fake compiler source dir (contains a jaclang/ package dir)."""
-def _fake_source -> str {
+def _fake_source(stubs: bool = True) -> str {
     src = tempfile.mkdtemp(prefix="jac-devsrc-");
     os.makedirs(os.path.join(src, "jaclang"), exist_ok=True);
+    if stubs {
+        # What `zig build fetch-typeshed` leaves behind: the finder reroutes
+        # into a checkout only once its typeshed stdlib is materialized.
+        stdlib = os.path.join(src, "jaclang", "vendor", "typeshed", "stdlib");
+        os.makedirs(stdlib, exist_ok=True);
+        Path(os.path.join(stdlib, "builtins.pyi")).write_text("class object: ...\n");
+    }
     return src;
 }
 
@@ -207,5 +214,34 @@ test "JAC_NO_DEV_SOURCE disables the toml loop but keeps a linked binary alive" 
     } finally {
         shutil.rmtree(baked, ignore_errors=True);
         shutil.rmtree(toml_src, ignore_errors=True);
+    }
+}
+
+test "a bare checkout (no typeshed stubs) is refused as a dev source; a baked link never is" {
+    # A fresh clone carries jaclang/ but not the gitignored typeshed stdlib
+    # (zig build fetch-typeshed materializes it), and rerouting into it breaks
+    # the first compile with "Stub file not found at .../typing.pyi" -- a
+    # released binary run inside a repo whose jac.toml ships a [dev] stanza
+    # for its contributors. The toml and inherited loops refuse such a tree
+    # with a note naming the fix; the baked link still applies, because a
+    # linked binary has no bundled compiler to fall back on.
+    import io;
+    import from contextlib { redirect_stderr }
+    bare = _fake_source(stubs=False);
+    baked = _fake_source();
+    bare_baked = _fake_source(stubs=False);
+    try {
+        err = io.StringIO();
+        with redirect_stderr(err) {
+            assert _override_result(None, bare) != bare , "a checkout without typeshed stubs must not be rerouted into";
+        }
+        assert "typeshed" in err.getvalue() and "fetch-typeshed" in err.getvalue() , f"the refusal must say what is missing and how to fix it, got: {err.getvalue()!r}";
+        assert _override_result(baked, bare) == baked , "a refused stanza falls through to the baked link";
+        assert _override_result(None, None, inherited=bare) != bare , "an inherited source without stubs is refused the same way";
+        assert _override_result(bare_baked, None) == bare_baked , "a baked link is never refused: a linked binary has nothing else to run";
+    } finally {
+        shutil.rmtree(bare, ignore_errors=True);
+        shutil.rmtree(baked, ignore_errors=True);
+        shutil.rmtree(bare_baked, ignore_errors=True);
     }
 }
