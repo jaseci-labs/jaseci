@@ -116,7 +116,7 @@ def get_ir_gen_sched(
         import jaclang.compiler.passes.layout_pass;
         import jaclang.compiler.type_registry;
         import jaclang.compiler.intrinsic_registry;
-        import jaclang.project.client_kind;
+        import jaclang.project.mobui_scope;
 
         passes: list[type[Transform]] = [
             ASTValidationPass,
@@ -198,7 +198,7 @@ def get_analysis_sched -> list[type[Transform]] {
         import jaclang.compiler.frontend.diagnostic_utils;
         import jaclang.compiler.driver.modresolver;
         import jaclang.project.tomlio;
-        import jaclang.project.client_kind;
+        import jaclang.project.mobui_scope;
         import jaclang.project.config;
         import from jaclang.compiler.passes.static_analysis_pass { StaticAnalysisPass }
         import from jaclang.compiler.passes.access_check_pass { AccessCheckPass }

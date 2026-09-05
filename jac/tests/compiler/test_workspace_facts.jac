@@ -24,7 +24,7 @@ import from jaclang.compiler.placement.workspace {
 glob WORKSPACE_TOML: str = (
          '[project]\nname = "ws"\ndefault-app = "web"\n\n'
          + '[apps.web]\nkind = "web-app"\npath = "web"\n\n'
-         + '[apps.mobile]\nkind = "mobile"\npath = "mobile"\nclient_kind = "mobui"\n\n'
+         + '[apps.mobile]\nkind = "mobile"\npath = "mobile"\n\n'
          + '[apps.social]\nkind = "service"\nentry-point = "core/social.jac"\n'
      );
 
@@ -145,7 +145,10 @@ test "the driver stamps app facts on every module" {
         assert mobile.mobui_enforced_root is not None
             and os.path.samefile(
                 mobile.mobui_enforced_root, os.path.join(tmp, "mobile")
-            ) , "client_kind = mobui at the app switches the guard on for its root_dir";
+            ) , "kind = mobile at the app switches the guard on for its root_dir";
+        mobile_spec = _app_of(files["mobile"]);
+        assert mobile_spec.ui == "mobui" and _app_of(files["web"]).ui == "dom";
+        assert not hasattr(mobile_spec, "client_kind") , "AppSpec carries ui, not client_kind";
         social = JacProgram().compile(
             files["social"], options=CompileOptions(no_cgen=True)
         );
@@ -218,7 +221,7 @@ test "a workspace without [apps] is one implicit app" {
         assert ws is not None and not ws.explicit;
         assert list(ws.apps) == ["hello"] and ws.default_app == "hello";
         app = ws.apps["hello"];
-        assert app.implicit and app.kind == "" and app.client_kind == "web";
+        assert app.implicit and app.kind == "" and app.ui == "";
         assert os.path.samefile(app.root_dir, tmp);
         assert os.path.samefile(app.`entry, main);
         (owner, ambiguous) = owner_app_for_path(main);
@@ -237,15 +240,45 @@ test "the app fact digest tracks the facts that change codegen" {
         assert app_fact_digest(None) == "";
         assert app_fact_digest(app_for_path(files["web"])) != before;
         toml_path = os.path.join(tmp, "jac.toml");
+        # The kind is the fact that flips the mobUI guard (there is no
+        # client_kind any more), so it must perturb the digest.
         _write(
             tmp,
             "jac.toml",
-            WORKSPACE_TOML.replace('client_kind = "mobui"', 'client_kind = "web"')
+            WORKSPACE_TOML.replace(
+                '[apps.mobile]\nkind = "mobile"', '[apps.mobile]\nkind = "web-static"'
+            )
         );
         st = os.stat(toml_path);
         os.utime(toml_path, (st.st_atime + 10, st.st_mtime + 10));
         after = app_fact_digest(app_for_path(files["mobile"]));
-        assert after != before , "client_kind is part of the digest";
+        assert after != before , "the kind is part of the digest";
+        assert _app_of(files["mobile"]).ui == "dom";
+    }
+}
+
+test "the mobUI guard follows the ui override and the app's kind" {
+    # CompileOptions.ui replaces the old client_kind: "mobui" with a
+    # project_root forces the guard on for that root, exactly as
+    # client_kind="mobui" did, and a mobile app's modules get it by kind.
+    with tempfile.TemporaryDirectory() as tmp {
+        files = _workspace(tmp);
+        forced = JacProgram().compile(
+            files["web"], options=CompileOptions(ui="mobui", project_root=tmp)
+        );
+        assert forced.mobui_enforced_root is not None
+            and os.path.samefile(forced.mobui_enforced_root, tmp) , (
+            "ui=mobui with a project_root forces the guard on for that root"
+        );
+        plain = JacProgram().compile(
+            files["web"], options=CompileOptions(ui="dom", project_root=tmp)
+        );
+        assert plain.mobui_enforced_root is None , "ui=dom never enforces";
+        opts = CompileOptions(ui="mobui", project_root=tmp);
+        assert opts.clone_for_native_import().ui == "mobui" , (
+            "the ui override rides along into native-import clones"
+        );
+        assert not hasattr(opts, "client_kind") , "CompileOptions.client_kind was renamed to ui";
     }
 }
 

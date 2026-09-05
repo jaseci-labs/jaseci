@@ -2003,7 +2003,7 @@ test "health check filter blocks records when attached to a handler" {
     }
 }
 
-test "pwa target uses jac-scale server" {
+test "pwa project uses jac-scale server" {
     import tempfile;
 
     port = get_free_port();
@@ -2022,17 +2022,10 @@ version = "1.0.0"
 theme_color = "#000000"
 '''
         );
+        # A [client.pwa] table is what makes this a PWA; there is no
+        # separate PWA client target or --client flag.
         server = subprocess.Popen(
-            [
-                jac_executable(),
-                "run",
-                "--serve",
-                "--client",
-                "pwa",
-                "-p",
-                str(port),
-                "main.jac"
-            ],
+            [jac_executable(), "run", "--serve", "-p", str(port), "main.jac"],
             cwd=temp_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

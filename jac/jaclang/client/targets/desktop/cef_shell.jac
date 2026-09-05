@@ -4,7 +4,6 @@ import json;
 import subprocess;
 import stat;
 import from pathlib { Path }
-import from typing { Optional }
 import from jaclang.cli.console { console }
 import from jaclang.client.targets.desktop.desktop_build {
     _find_cef_dir,
@@ -199,17 +198,14 @@ def _stage_cef_runtime(cef_dist: Path, out_dir: Path) {
     }
 }
 
-impl CefDesktopTarget.setup(project_dir: Path) -> None {}
-
-impl CefDesktopTarget.build(
-    entry_file: Path, project_dir: Path, platform: Optional[str] = None
+def cef_build(
+    entry_file: Path, project_dir: Path, out_dir: Path, web_bundle: Path
 ) -> Path {
     import from jaclang.client.desktop_config { get_desktop_config }
 
     ensure_dev_build_env();
 
     console.print("\n🖥️  Building CEF desktop app (Chromium)", style="bold");
-    web_bundle = super.build(entry_file, project_dir, platform);
     dist_dir = web_bundle.parent;
 
     cfg = get_desktop_config(project_dir);
@@ -221,7 +217,6 @@ impl CefDesktopTarget.build(
     plugin_configs = cfg.get_plugin_configs();
     app_name = ident.name or "app";
 
-    out_dir = project_dir / self.output_dir;
     if out_dir.exists() {
         shutil.rmtree(out_dir);
     }
@@ -284,10 +279,7 @@ impl CefDesktopTarget.build(
     return binary;
 }
 
-impl CefDesktopTarget.start(
-    entry_file: Path, project_dir: Path, api_port: int = 8000
-) -> None {
-    binary = self.build(entry_file, project_dir, None);
+def cef_start(binary: Path) {
     env = desktop_app_runtime_env();
     env.setdefault("LIBGL_ALWAYS_SOFTWARE", "1");
     env.setdefault("GALLIUM_DRIVER", "llvmpipe");
@@ -303,12 +295,10 @@ impl CefDesktopTarget.start(
     }
 }
 
-impl CefDesktopTarget.dev(
-    entry_file: Path, project_dir: Path, port: int = 8000, api_port: int = 0
-) -> None {
+def cef_dev_unsupported {
     raise RuntimeError(
         "CEF desktop HMR is not supported yet. CEF routes RPC through the "
-        "loopback broker, so a Vite dev origin breaks the app. Use "
-        "`jac run --client desktop` (native webview) or web mode for HMR."
+        "loopback broker, so a Vite dev origin breaks the app. Set "
+        "[desktop] engine = \"native\" for HMR, or run without --dev."
     );
 }

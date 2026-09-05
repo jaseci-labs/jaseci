@@ -1,13 +1,13 @@
 ---
 name: jac-desktop-app
-description: Packaging a full-stack Jac app as a native desktop app - a `kind = "desktop"` app built and launched by `jac build <app>` / `jac run <app>` (`--client desktop` forces it on other kinds), `[desktop]` window config, the `@jac/desktop` OS-capability plugins (fs/dialog/clipboard/notification/window/shell/path IPC), OS-webview architecture (no Rust, no Electron), Linux build deps, output layout, current limitations. Load when shipping a client UI as a desktop binary or calling OS capabilities from it.
+description: Packaging a full-stack Jac app as a native desktop app - a `kind = "desktop"` app built and launched by `jac build <app>` / `jac run <app>`, `[desktop]` window and engine config (OS webview or CEF), the `@jac/desktop` OS-capability plugins (fs/dialog/clipboard/notification/window/shell/path IPC), OS-webview architecture (no Rust, no Electron), Linux build deps, output layout, current limitations. Load when shipping a client UI as a desktop binary or calling OS capabilities from it.
 ---
 
-The desktop target turns a full-stack Jac app into **one `jac nacompile`d binary plus the OS's own web engine** - no Rust toolchain, no Electron, no PyInstaller, no separate backend process. It builds the same Vite client bundle the web target produces, then compiles a native host that embeds CPython to serve that bundle on a loopback port and renders it in the OS-native webview: WebKitGTK (Linux), WKWebView (macOS), WebView2 (Windows). Same client/server source as the web target - only the target flag changes.
+The desktop target turns a full-stack Jac app into **one `jac nacompile`d binary plus the OS's own web engine** - no Rust toolchain, no Electron, no PyInstaller, no separate backend process. It builds the same Vite client bundle the web target produces, then compiles a native host that embeds CPython to serve that bundle on a loopback port and renders it in the OS-native webview: WebKitGTK (Linux), WKWebView (macOS), WebView2 (Windows). Same client/server source as a web app - only the kind changes.
 
 ## Build and run
 
-The desktop target ships with `jaclang` core -- nothing extra to install. The app's kind selects it: `[project] kind = "desktop"` in a single-app project, or an `[apps.<name>] kind = "desktop"` table in a workspace (`jac create --app studio --kind desktop`); the kind's client target is `desktop`, so no flag is needed. `--client desktop` (or `--client cef`) forces the shell on an app of another kind.
+The desktop target ships with `jaclang` core -- nothing extra to install. The app's kind selects it: `[project] kind = "desktop"` in a single-app project, or an `[apps.<name>] kind = "desktop"` table in a workspace (`jac create --app studio --kind desktop`); no flag is needed. The renderer is `[desktop] engine`: `"native"` (default, the OS webview) or `"cef"` (a bundled Chromium; no HMR, so `jac run --dev` needs `engine = "native"`). Both build into `.jac/client/desktop/`.
 
 ```bash
 jac build studio           # -> .jac/client/desktop/<app>  (single binary + dist/); plain `jac build` in a single-app project
@@ -34,6 +34,7 @@ All fields optional:
 name = "my-app"                  # binary name
 identifier = "com.example.myapp"
 version = "1.0.0"
+engine = "native"                # "native" (OS webview, default) or "cef" (bundled Chromium)
 
 [desktop.window]
 title = "My App"

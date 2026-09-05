@@ -659,32 +659,30 @@ height = 700
 ```
 
 ```bash
-jac build --client desktop   # -> .jac/client/desktop/<app> (binary + dist/ + libwebview.so)
-jac run --client desktop     # build if needed, then launch the native window
-jac run --client desktop --dev     # HMR: Vite on 127.0.0.1 + recompile on .jac saves
+jac build <app>         # -> .jac/client/desktop/<app> (binary + dist/ + libwebview.so)
+jac run <app>           # build if needed, then launch the native window
+jac run --dev <app>     # HMR: Vite on 127.0.0.1 + recompile on .jac saves
 (cd .jac/client/desktop && ./my-app)   # or run the binary directly
 ```
 
-The client target is the app's `client` (`[apps.<name>] client`, defaulting
-to the kind's `client_target` -- `desktop` for `kind = "desktop"`), or the
-`--client` override; the name is normalized by
-`jaclang.project.kinds.normalize_client_target` and resolved through the
-client framework's string-keyed target registry, which lazy-loads the
-core-registered `NativeDesktopTarget`. There is no separate CLI verb -- the
-core `build`/`run` commands delegate to the target.
+The client follows the app's kind: `target_for_kind` in
+`client/targets/registry.jac` maps `kind = "desktop"` to the core-registered
+`DesktopTarget`, and `[desktop] engine` (`"native"`, the default, or `"cef"`)
+picks the shell it builds. There is no separate CLI verb -- the core
+`build`/`run` commands delegate to the target.
 
 ### How the targets combine
 
 | Layer | Codespace / tech | Role |
 |-------|------------------|------|
-| UI | `cl` (Vite/React bundle) | `NativeDesktopTarget` subclasses `WebTarget`; reuses the standard `.jac/client/dist/` bundle |
+| UI | `cl` (Vite/React bundle) | `DesktopTarget` subclasses `WebTarget`; reuses the standard `.jac/client/dist/` bundle |
 | Host binary | `na` (LLVM, pure-Jac linker) | A generated `host.jac`, compiled by `jac nacompile`; records `libwebview.so` as `DT_NEEDED` with an `$ORIGIN` runpath |
 | Window | C FFI → `libwebview` | OS-native webview: WebKitGTK (Linux), WKWebView (macOS), WebView2 (Windows) |
 | Local runtime | C FFI → `libpython` | Embedded CPython runs `inprocess_dispatch` (walker/function invokes) **and** a stdlib loopback HTTP broker (bundle + SSO/session) |
 | Backend | `sv` in-process | Walker/function calls route through the embedded runtime via `__jac_invoke`; a remote `api_base` is optional for external backends |
 
 The generated host wires it all together (paraphrasing
-`native_desktop_target.impl.jac`):
+`_host_bootstrap.jac` and `webview_shell.jac`):
 
 <!-- jac-skip -->
 ```jac
@@ -742,7 +740,7 @@ RPC to the backend). It is the matrix in miniature.
 | Python interop | [`meta_importer.py`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/meta_importer.py); `_jac_finder.py` (launcher `BOOT_SRC`); `backends/py/impl/jcir_gen_pass.impl.jac` (`exit_import`, `exit_py_inline_code`) |
 | Marshalling | `data/impl/serializer.impl.jac`; `server/impl/{server,transport}.impl.jac` |
 | Capability boundary | `compiler/passes/capability_check_pass.jac`; [`diagnostics.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/frontend/diagnostics.jac) (`E5090`) |
-| Desktop | `client/targets/desktop/native_desktop_target.jac` (+ impl); `client/targets/desktop/native/webview/webview.jac`; `client/targets/registry.jac` |
+| Desktop | `client/targets/desktop/desktop_target.jac` (+ impl); `client/targets/desktop/{webview_shell,cef_shell,_host_bootstrap}.jac`; `client/targets/desktop/native/webview/webview.jac`; `client/targets/registry.jac` |
 
 ---
 

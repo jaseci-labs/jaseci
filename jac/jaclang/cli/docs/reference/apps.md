@@ -20,9 +20,9 @@ Four principles hold the model together:
 - **No pass reads `jac.toml`.** The driver stamps *app facts* onto every
   module (which app, which root, which kind, which owner); the compiler's laws
   consume the stamps.
-- **The target is a stamped decision, never a filename property.** A
-  `.native.jac` variant is selected by the app's client target, not by where
-  the file sits.
+- **The platform is a stamped decision, never a filename property.** A
+  `.native.jac` variant is selected for a mobile app's native platforms, not
+  by where the file sits.
 
 ## The `[apps.<name>]` table
 
@@ -35,9 +35,7 @@ default-app = "web"          # optional; a bare `jac run` uses it
 kind = "web-app"             # required: a project kind
 path = "web"                 # optional dir root, relative to the project root
 entry-point = "main.jac"     # optional; relative to path; default = the kind's entry
-client = "web"               # optional client target; default = the kind's client target
-client_kind = "web"          # optional: "web" | "mobui"; default "web"
-platform = "android"         # optional default platform for mobile shells
+platform = "android"         # optional default platform (mobile: android | ios | web; desktop: windows | macos | linux)
 route = "/api/web"           # optional; default "/api/<name>" (apps with a server only)
 
 [apps.social_graph]          # file-rooted app: no path, the entry file IS the app
@@ -47,12 +45,10 @@ entry-point = "core/social_graph.jac"
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `kind` | string | **Required.** One of the [project kinds](../quick-guide/project-kinds.md): `cli`, `cli-native`, `native-binary`, `native-lib`, `service`, `service-mesh`, `py-package`, `js-package`, `web-app`, `web-static`, `desktop`, `mobile`. The kind decides the default entry, the action a bare `jac run <app>` takes, the default client target, and whether the app has a server. |
+| `kind` | string | **Required.** One of the [project kinds](../quick-guide/project-kinds.md): `cli`, `cli-native`, `native-binary`, `native-lib`, `service`, `service-mesh`, `py-package`, `js-package`, `web-app`, `web-static`, `desktop`, `mobile`. The kind decides the default entry, the action a bare `jac run <app>` takes, what the client renders (`web-app`, `web-static`, `desktop` and `js-package` render React DOM; `mobile` renders native views through [`@jac/mobui`](plugins/jac-client.md#the-jacmobui-vocabulary), with the `E1105` host-tag guard on every module the app claims), and whether the app has a server. |
 | `path` | string | Directory root of the app, relative to the project root. Absolute paths are rejected. Omit it (and set `entry-point`) for a file-rooted app. |
 | `entry-point` | string | Entry file, relative to `path` (or to the project root when there is no `path`). Defaults to the kind's entry (`main.jac`; `lib.jac` for the package kinds). |
-| `client` | string | Client shell target: `web`, `pwa`, `static`, `mobile`, `desktop`, `cef`, `react-native` (`rn` and `react_native` are accepted spellings). Defaults to the kind's `client_target`. `--client` on `jac run` / `jac build` overrides it for one invocation. |
-| `client_kind` | string | `"web"` (default) or `"mobui"`. `mobui` turns on the [`@jac/mobui`](plugins/jac-client.md#the-jacmobui-vocabulary) host-tag guard (`E1105`) for every module the app claims. |
-| `platform` | string | Default platform for mobile shells (`android`, `ios`). `--platform` overrides it. |
+| `platform` | string | Default platform: `android`, `ios` or `web` for a `mobile` app; `windows`, `macos` or `linux` for a `desktop` app. `--platform` on `jac run` / `jac build` overrides it for one invocation. |
 | `route` | string | The app's public route prefix, for apps whose kind has a server. Must start with `/`. Defaults to `/api/<name>`. |
 
 Any key other than these is a hard config error naming the accepted keys. App
@@ -107,9 +103,8 @@ and warnings otherwise, exactly like `E2038`.
 
 With no `[apps]` table the project is one app. Its name is `[project] name`
 (or `"main"`), its kind is `[project] kind` (or inferred from the entry-point,
-exactly as before), its entry is `[project] entry-point`, its root is the
-project root, and its `client_kind` is `"web"`. Nothing about a single-app
-`jac.toml` changed:
+exactly as before), its entry is `[project] entry-point`, and its root is the
+project root. Nothing about a single-app `jac.toml` changed:
 
 ```toml
 [project]
@@ -118,11 +113,9 @@ entry-point = "main.jac"
 kind = "web-app"
 ```
 
-The two forms are exclusive. `[project] kind`, `[project] entry-point`, and
-`[project] client_kind` cannot appear alongside `[apps]` -- the parser raises a
-hard error telling you to move the key onto the app (`[apps.<name>] kind`),
-and the CLI exits 2. `client_kind` no longer exists at `[project]` level at all;
-it is an app property.
+The two forms are exclusive. `[project] kind` and `[project] entry-point`
+cannot appear alongside `[apps]` -- the parser raises a hard error telling you
+to move the key onto the app (`[apps.<name>] kind`), and the CLI exits 2.
 
 ## Effective configuration
 
@@ -231,8 +224,8 @@ positional is the interface.
 jac run                      # the default-app (or the sole app), per its kind
 jac run web                  # serve the web app (web-app kinds serve)
 jac run cli -- score jaseci-labs/jac      # execute the cli app; argv after --
-jac run --client web --dev mobile         # override the app's client target
-jac run --show               # one plan row per app: app, kind, entry, action, client, route
+jac run --dev --platform web mobile       # run the mobile app in a browser (react-native-web)
+jac run --show               # one plan row per app: app, kind, entry, action, ui, route
 jac run web --fleet          # serve web; run the service apps as separate local processes
 
 jac build                    # the default app's artifact into dist/
@@ -242,7 +235,7 @@ jac build mobile --platform ios
 jac check                    # the workspace gate (below)
 jac check --app web          # one app only
 jac test social_graph        # [test] from that app's effective config, rooted at the app
-jac setup mobile             # the app named mobile (or the mobile target of the default app)
+jac setup mobile             # the app named mobile; `jac setup` alone is the default app
 
 jac create myproj --kind web-app         # a single-app project, as before
 jac create --app scoring --kind service  # scaffold an app inside this project
@@ -260,8 +253,8 @@ sweeps every `.jac` file no app reached as its own root. When more than one
 app was checked, each diagnostic is prefixed `[<app>]`. Explicit paths keep the
 file-per-root behavior you know, with the owning app's facts. `--app <name>`
 restricts the run to one app. Because the same app facts drive placement, the
-`.jir` placement cache is keyed by an **app-fact digest** (name, kind, client,
-client kind, platform, pins, npm names), so changing an app table invalidates
+`.jir` placement cache is keyed by an **app-fact digest** (name, kind,
+platform, pins, npm names), so changing an app table invalidates
 exactly the modules it affects.
 
 ## Worked example: the flagship workspace
@@ -281,8 +274,6 @@ path = "web"
 [apps.mobile]                  # a mobUI (React Native) client for the same social graph
 kind = "mobile"
 path = "mobile"
-client = "react-native"
-client_kind = "mobui"
 
 [apps.cli]                     # a command-line client: offline scorer + docs/feed over the wire
 kind = "cli"

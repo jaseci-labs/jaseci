@@ -3,15 +3,7 @@ import from jaclang.cli.console { console }
 import from jaclang.project.tomlio { read_toml_with_encoding }
 import from jaclang.project.config { JacConfig }
 
-glob APP_FIELDS: list[str] = [
-         "kind",
-         "path",
-         "entry_point",
-         "client",
-         "client_kind",
-         "platform",
-         "route"
-     ],
+glob APP_FIELDS: list[str] = ["kind", "path", "entry_point", "platform", "route"],
      CONFIG_GROUPS = [
          "project",
          "apps",
@@ -126,7 +118,7 @@ def _config_groups {
     console.print("\nAvailable configuration groups:\n", style="info");
     group_descriptions = {
         "project": "Project metadata (name, version, description, authors, default_app)",
-        "apps": "Workspace apps: one [apps.<name>] table per app (kind, path, entry_point, client, client_kind, platform, route)",
+        "apps": "Workspace apps: one [apps.<name>] table per app (kind, path, entry_point, platform, route)",
         "run": "Run command defaults (session, main, cache)",
         "build": "Build command defaults (typecheck, dir)",
         "test": "Test command defaults (directory, filter, verbose, fail_fast)",

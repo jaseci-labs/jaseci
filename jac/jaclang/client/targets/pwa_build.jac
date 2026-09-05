@@ -1,6 +1,4 @@
 import from pathlib { Path }
-import from typing { Optional }
-import from jaclang.client.vite_bundler { ViteBundler }
 import from jaclang.cli.console { console }
 import from jaclang.project.config { get_config }
 import json;
@@ -557,20 +555,15 @@ def _update_html_for_pwa(dist_dir: Path, pwa_config: dict) -> None {
     }
 }
 
-impl PWATarget.setup(project_dir: Path) -> None {
-    console.print("\n📱 Setting up PWA target", style="bold");
+def ensure_pwa_icons(project_dir: Path) -> None {
     icons_dest = project_dir / "pwa_icons";
-    if not icons_dest.exists() {
-        icons_dest.mkdir(parents=True);
-        _copy_pwa_icons_to_project(icons_dest);
-    } else {
+    if icons_dest.exists() {
         console.print("  ✔ pwa_icons/ directory already exists", style="muted");
+        return;
     }
-    _ensure_pwa_config(project_dir);
-    console.print("\n✅ PWA setup complete!", style="bold green");
-    console.print(
-        "  Run 'jac build --client pwa' or 'jac run --client pwa'", style="muted"
-    );
+    console.print("\n📱 Preparing PWA icons", style="bold");
+    icons_dest.mkdir(parents=True);
+    _copy_pwa_icons_to_project(icons_dest);
 }
 
 def _copy_pwa_icons_to_project(dest_dir: Path) {
@@ -591,88 +584,12 @@ def _copy_pwa_icons_to_project(dest_dir: Path) {
     }
 }
 
-def _ensure_pwa_config(project_dir: Path) -> None {
-    import tomllib;
-
-    toml_path = project_dir / "jac.toml";
-    if not toml_path.exists() {
-        console.print("  No jac.toml found, skipping config update", style="muted");
-        return;
-    }
-
-    try {
-        content = toml_path.read_text(encoding='utf-8');
-        config = tomllib.loads(content);
-
-        client_cfg = config.get('client', {});
-        if 'pwa' in client_cfg {
-            console.print("  ✔ PWA config already exists in jac.toml", style="muted");
-            return;
-        }
-
-        pwa_section = '''
-[client.pwa]
-theme_color = "#000000"
-background_color = "#ffffff"
-# cache_name = "jac-pwa-cache-v1"
-
-# Install banner configuration
-install_banner = true              # Enable auto-injected install banner
-install_banner_delay = 3000        # Ms before showing banner
-install_banner_position = "bottom" # "bottom" | "top"
-# install_title = ""               # Empty = use manifest name
-install_description = "Add to home screen for the best experience"
-install_button_text = "Install"
-install_dismiss_text = "Not now"
-
-# [client.pwa.manifest]
-# name = "My App"
-# short_name = "App"
-''';
-
-        with open(toml_path, 'a', encoding='utf-8') as f {
-            f.write(pwa_section);
-        }
-        console.print("  ✔ Added [client.pwa] section to jac.toml", style="success");
-    } except Exception as e {
-        console.warning(f"  Failed to update jac.toml: {e}");
-    }
-}
-
-impl PWATarget.build(
-    entry_file: Path, project_dir: Path, platform: Optional[str] = None
-) -> Path {
-    console.print("\n📱 Building PWA target", style="bold");
-
-    bundle_path = super.build(entry_file, project_dir, platform);
-    bundler = ViteBundler(project_dir=project_dir);
-    dist_dir = bundler.output_dir;
+def apply_pwa(dist_dir: Path, project_dir: Path) {
     (pwa_config, project_name) = _load_pwa_context();
     console.print("\n  Adding PWA features...", style="muted");
     _copy_pwa_icons_to_dist(dist_dir, project_dir);
     _generate_manifest(dist_dir, project_name, pwa_config);
     _generate_service_worker(dist_dir, pwa_config);
     _update_html_for_pwa(dist_dir, pwa_config);
-    console.print("\n✅ PWA build complete!", style="bold green");
-    console.print(f"  Output: {dist_dir}", style="muted");
-    return bundle_path;
-}
-
-impl PWATarget.dev(
-    entry_file: Path, project_dir: Path, port: int = 8000, api_port: int = 0
-) -> None {
-    console.print("\n📱 Starting PWA dev server", style="bold");
-    console.print(
-        "  Note: Service worker is disabled in dev mode for better DX", style="muted"
-    );
-
-    super.dev(entry_file, project_dir, port, api_port);
-}
-
-impl PWATarget.start(
-    entry_file: Path, project_dir: Path, api_port: int = 8000
-) -> None {
-    self.build(entry_file, project_dir, None);
-
-    super.start(entry_file, project_dir, api_port);
+    console.print("  ✔ PWA manifest and service worker written", style="success");
 }

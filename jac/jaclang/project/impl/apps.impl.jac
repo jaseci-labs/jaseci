@@ -30,13 +30,9 @@ impl AppConfig.effective_route -> str {
     return self.route or f"/api/{self.name}";
 }
 
-impl AppConfig.effective_client -> str {
-    import from jaclang.project.kinds { kind_spec }
-    if self.client {
-        return self.client;
-    }
-    spec = kind_spec(self.kind);
-    return spec.client_target if spec else "";
+impl AppConfig.ui -> str {
+    import from jaclang.project.kinds { kind_ui }
+    return kind_ui(self.kind);
 }
 
 impl AppConfig.contains(project_root: str, abs_path: str) -> bool {
@@ -61,17 +57,12 @@ impl validate_app_name(name: str) -> None {
 }
 
 impl parse_apps(project_data: dict, apps_data: dict) -> dict[str, AppConfig] {
-    import from jaclang.project.kinds {
-        KIND_SPECS,
-        default_client_kind,
-        kind_spec,
-        normalize_client_target
-    }
+    import from jaclang.project.kinds { KIND_SPECS }
     if not isinstance(apps_data, dict) {
         raise ValueError("[apps] must be a table of [apps.<name>] tables");
     }
     project = project_data if isinstance(project_data, dict) else {};
-    for key in ("kind", "entry-point", "entry_point", "client_kind", "client-kind") {
+    for key in ("kind", "entry-point", "entry_point") {
         if key in project {
             raise ValueError(
                 f"[project] {key} cannot be set alongside [apps]; "
@@ -94,6 +85,11 @@ impl parse_apps(project_data: dict, apps_data: dict) -> dict[str, AppConfig] {
                 continue;
             }
             attr = str(key).replace("-", "_");
+            if attr in REMOVED_APP_KEYS {
+                raise ValueError(
+                    f"[apps.{name}] '{key}' was removed: {REMOVED_APP_KEYS[attr]}"
+                );
+            }
             if attr not in APP_TABLE_KEYS {
                 allowed = ", ".join([k.replace("_", "-") for k in APP_TABLE_KEYS]);
                 raise ValueError(
@@ -119,23 +115,6 @@ impl parse_apps(project_data: dict, apps_data: dict) -> dict[str, AppConfig] {
             );
         }
         entry_point = str(fields.get("entry_point", "")).strip();
-        client = str(fields.get("client", "")).strip();
-        if client {
-            try {
-                client = normalize_client_target(client);
-            } except ValueError as exc {
-                raise ValueError(f"[apps.{name}] {exc}");
-            }
-        }
-        spec = kind_spec(kind);
-        client_kind = str(fields.get("client_kind", "")).strip().lower()
-            or (default_client_kind(client or (spec.client_target if spec else "")));
-        if client_kind not in VALID_CLIENT_KINDS {
-            raise ValueError(
-                f"[apps.{name}] client_kind='{fields.get('client_kind')}' is not "
-                f"one of {VALID_CLIENT_KINDS}"
-            );
-        }
         platform = str(fields.get("platform", "")).strip();
         route = str(fields.get("route", "")).strip();
         if route and not route.startswith("/") {
@@ -146,8 +125,6 @@ impl parse_apps(project_data: dict, apps_data: dict) -> dict[str, AppConfig] {
             kind=kind,
             path=path,
             entry_point=entry_point,
-            client=client,
-            client_kind=client_kind,
             platform=platform,
             route=route,
             overlays=overlays
@@ -180,16 +157,12 @@ impl parse_apps(project_data: dict, apps_data: dict) -> dict[str, AppConfig] {
 }
 
 impl implicit_app(config: any) -> AppConfig {
-    import from jaclang.project.kinds { default_client_kind, kind_spec }
     project = config.project;
-    kind = str(project.kind or "").strip();
-    spec = kind_spec(kind);
     return AppConfig(
         name=str(project.name or "").strip() or "main",
-        kind=kind,
+        kind=str(project.kind or "").strip(),
         path="",
         entry_point=str(project.entry_point or "").strip(),
-        client_kind=default_client_kind(spec.client_target if spec else ""),
         implicit=True
     );
 }

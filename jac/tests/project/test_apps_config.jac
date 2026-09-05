@@ -8,23 +8,24 @@ import from jaclang.project.apps { AppConfig, implicit_app, parse_apps }
 import from jaclang.project.config { JacConfig }
 import from jaclang.project.kinds {
     KIND_SPECS,
-    normalize_client_target,
+    MOBILE_PLATFORMS,
+    UI_DOM,
+    UI_MOBUI,
+    kind_has_client,
+    kind_is_mobui,
+    kind_ui,
     plan_app_run,
     plan_workspace,
     resolve_app_kind
 }
-import from jaclang.project.client_kind {
-    resolve_client_kind,
-    resolve_client_kind_context
-}
-import jaclang.project.client_kind_paths as pure_mod;
+import from jaclang.project.mobui_scope { mobui_module_exempt }
+import jaclang.project.mobui_scope as pure_mod;
 import jaclang.project.config as config_mod;
 
 glob WORKSPACE_TOML = (
          '[project]\nname = "acme"\ndefault-app = "web"\n\n'
          '[apps.web]\nkind = "web-app"\npath = "web"\n\n'
-         '[apps.mobile]\nkind = "mobile"\npath = "mobile"\nclient = "rn"\n'
-         'client_kind = "mobui"\nplatform = "ios"\n\n'
+         '[apps.mobile]\nkind = "mobile"\npath = "mobile"\nplatform = "ios"\n\n'
          '[apps.social_graph]\nkind = "service"\n'
          'entry-point = "core/social_graph.jac"\nroute = "/api/social"\n\n'
          '[apps.web.serve]\nport = 8100\n\n'
@@ -74,11 +75,13 @@ test "parse a three-app workspace" {
     assert web.path == "web";
     assert not web.implicit;
     assert not web.is_file_rooted();
-    assert web.effective_client() == "web";
+    assert web.ui() == "dom" , "a web-app renders the DOM";
+    assert not hasattr(web, "client") and not hasattr(web, "client_kind") , (
+        "AppConfig carries no client axis: the kind decides"
+    );
     assert web.overlays == {"serve": {"port": 8100}};
     mobile = cfg.apps["mobile"];
-    assert mobile.client == "react-native" , "client aliases are normalized";
-    assert mobile.client_kind == "mobui";
+    assert mobile.ui() == "mobui" , "a mobile app is mobUI by kind alone";
     assert mobile.platform == "ios";
     assert mobile.overlays["dependencies"]["npm"]["lucide-react-native"] == "^0.4";
     sg = cfg.apps["social_graph"];
@@ -102,7 +105,7 @@ test "no [apps] means one implicit app" {
     assert app.entry_point == "app.jac";
     assert app.path == "";
     assert not app.is_file_rooted();
-    assert app.client_kind == "web";
+    assert app.ui() == "" , "a cli app has no client UI";
     assert cfg.resolve_app("") is app;
     assert cfg.default_app == "";
     bare = JacConfig.from_toml_str("[serve]\nport = 1\n");
@@ -110,8 +113,12 @@ test "no [apps] means one implicit app" {
     assert implicit_app(bare).name == "main";
 }
 
-test "[apps] next to [project] kind, entry-point or client_kind is a hard error" {
-    for key in ['kind = "cli"', 'entry-point = "main.jac"', 'client_kind = "mobui"'] {
+test "[apps] next to [project] kind or entry-point is a hard error" {
+    for key in [
+        'kind = "cli"',
+        'entry-point = "main.jac"',
+        'entry_point = "main.jac"'
+    ] {
         raised = False;
         try {
             JacConfig.from_toml_str(
@@ -146,11 +153,9 @@ test "default-app must name an app and needs [apps]" {
     assert raised , "expected ValueError for default-app without [apps]";
 }
 
-test "app validation rejects bad kinds, clients, client kinds, names and keys" {
+test "app validation rejects bad kinds, names and keys" {
     cases = [
         ('[apps.web]\nkind = "nope"\n', "kind="),
-        ('[apps.web]\nkind = "web-app"\nclient = "flutter"\n', "client target"),
-        ('[apps.web]\nkind = "web-app"\nclient_kind = "tv"\n', "client_kind"),
         ('[apps."a/b"]\nkind = "cli"\n', "cannot contain"),
         ('[apps."main.jac"]\nkind = "cli"\n', ".jac"),
         ('[apps.web]\npath = "web"\n', "required key 'kind'"),
@@ -170,15 +175,75 @@ test "app validation rejects bad kinds, clients, client kinds, names and keys" {
     }
 }
 
+test "the removed client and client_kind keys are hard errors with a pointer" {
+    # `client` used to pick the client target (with aliases like "rn"), and
+    # `client_kind` used to opt an app into mobUI. Both are gone: the kind
+    # decides. Every spelling, and every value (even the old defaults), is
+    # refused so a stale jac.toml never silently means something else.
+    cases = [
+        ('[apps.mobile]\nkind = "mobile"\nclient = "react-native"\n', "client"),
+        ('[apps.mobile]\nkind = "mobile"\nclient = "rn"\n', "client"),
+        ('[apps.web]\nkind = "web-app"\nclient = "web"\n', "client"),
+        ('[apps.web]\nkind = "web-app"\nclient = "pwa"\n', "client"),
+        ('[apps.web]\nkind = "web-app"\nclient = "flutter"\n', "client"),
+        ('[apps.mobile]\nkind = "mobile"\nclient_kind = "mobui"\n', "client_kind"),
+        ('[apps.web]\nkind = "web-app"\nclient_kind = "web"\n', "client_kind"),
+        ('[apps.web]\nkind = "web-app"\nclient-kind = "mobui"\n', "client-kind"),
+        ('[apps.web]\nkind = "web-app"\nclient_kind = "tv"\n', "client_kind")
+    ];
+    for (body, key) in cases {
+        name = "mobile" if "[apps.mobile]" in body else "web";
+        raised = False;
+        try {
+            parse_apps({}, tomllib.loads(body)["apps"]);
+        } except ValueError as e {
+            raised = True;
+            msg = str(e);
+            assert msg.startswith(f"[apps.{name}] '{key}' was removed: ") , (
+                f"{body!r}: {msg}"
+            );
+            if key.startswith("client_") or key.startswith("client-") {
+                assert "mobUI" in msg , msg;
+            } else {
+                assert "--platform web" in msg , msg;
+                assert "kind" in msg , msg;
+            }
+        }
+        assert raised , f"expected ValueError for {body!r}";
+    }
+    raised = False;
+    try {
+        JacConfig.from_toml_str(
+            '[project]\nname = "x"\n\n[apps.mobile]\nkind = "mobile"\nclient = "rn"\n'
+        );
+    } except ValueError as e {
+        raised = True;
+        assert "[apps.mobile] 'client' was removed" in str(e) , str(e);
+    }
+    assert raised , "JacConfig.from_toml_str must surface the removed-key error";
+}
+
+test "[project] client_kind next to [apps] is no longer special-cased" {
+    # Only kind / entry-point are refused beside [apps]; a stray
+    # [project] client_kind is just an unknown key the loader ignores.
+    cfg = JacConfig.from_toml_str(
+        '[project]\nname = "x"\nclient_kind = "mobui"\n\n[apps.web]\nkind = "web-app"\n'
+    );
+    assert cfg.is_workspace and list(cfg.apps) == ["web"];
+    assert not hasattr(cfg.project, "client_kind");
+    assert cfg.apps["web"].ui() == "dom";
+}
+
 test "dashed and underscored app keys are both accepted" {
     apps = parse_apps(
         {},
         tomllib.loads(
-            '[apps.a]\nkind = "service"\nentry_point = "a.jac"\nclient-kind = "web"\n'
+            '[apps.a]\nkind = "service"\nentry_point = "a.jac"\n\n'
+            '[apps.b]\nkind = "service"\nentry-point = "b.jac"\n'
         )["apps"]
     );
     assert apps["a"].entry_point == "a.jac";
-    assert apps["a"].client_kind == "web";
+    assert apps["b"].entry_point == "b.jac";
 }
 
 # ===========================================================================
@@ -486,32 +551,50 @@ test "effective_for_app of the implicit app is a plain clone" {
 # ===========================================================================
 # Kinds and plans
 # ===========================================================================
-test "client targets normalize and kind specs carry client_target and has_server" {
-    assert normalize_client_target("") == "web";
-    assert normalize_client_target("rn") == "react-native";
-    assert normalize_client_target("React_Native") == "react-native";
-    assert normalize_client_target("static") == "static";
-    raised = False;
-    try {
-        normalize_client_target("flutter");
-    } except ValueError {
-        raised = True;
-    }
-    assert raised , "expected ValueError for an unknown client target";
-    assert KIND_SPECS["web-app"].client_target == "web";
+test "kind specs carry ui and has_server; the client axis is gone" {
+    assert UI_DOM == "dom" and UI_MOBUI == "mobui";
+    assert MOBILE_PLATFORMS == ["android", "ios", "web"];
+    assert KIND_SPECS["web-app"].ui == "dom";
     assert KIND_SPECS["web-app"].has_server;
-    assert KIND_SPECS["service"].client_target == "";
+    assert KIND_SPECS["service"].ui == "";
     assert KIND_SPECS["service"].has_server;
     assert KIND_SPECS["service-mesh"].has_server;
-    assert KIND_SPECS["web-static"].client_target == "static";
+    assert KIND_SPECS["web-static"].ui == "dom";
     assert not KIND_SPECS["web-static"].has_server;
-    assert KIND_SPECS["mobile"].client_target == "react-native";
-    assert KIND_SPECS["desktop"].client_target == "desktop";
-    assert KIND_SPECS["js-package"].client_target == "web";
+    assert KIND_SPECS["mobile"].ui == "mobui";
+    assert KIND_SPECS["mobile"].flags == {} , (
+        "the mobile kind has no client flag: the kind is the target"
+    );
+    assert KIND_SPECS["desktop"].ui == "dom";
+    assert KIND_SPECS["desktop"].flags == {};
+    assert KIND_SPECS["js-package"].ui == "dom";
     assert KIND_SPECS["js-package"].codespace == "client";
     for kind in ["cli", "cli-native", "native-binary", "native-lib", "py-package"] {
-        assert KIND_SPECS[kind].client_target == "";
+        assert KIND_SPECS[kind].ui == "";
         assert not KIND_SPECS[kind].has_server;
+    }
+    for spec in KIND_SPECS.values() {
+        assert not hasattr(spec, "client_target") , "KindSpec.client_target is gone";
+        assert "client" not in spec.flags , f"{spec.name}: no client flag on any kind";
+    }
+    # The helpers read the same table.
+    assert kind_ui("mobile") == "mobui" and kind_ui("web-app") == "dom";
+    assert kind_ui("cli") == "" and kind_ui("banana") == "";
+    assert kind_has_client("web-static") and kind_has_client("desktop");
+    assert kind_has_client("js-package") and kind_has_client("mobile");
+    assert not kind_has_client("service") and not kind_has_client("");
+    assert kind_is_mobui("mobile");
+    for kind in ["web-app", "web-static", "desktop", "js-package", "cli", ""] {
+        assert not kind_is_mobui(kind) , f"{kind!r} is not mobUI";
+    }
+    import jaclang.project as project_pkg;
+    for name in ["kind_ui", "kind_has_client", "kind_is_mobui"] {
+        assert name in project_pkg.__all__ , f"jaclang.project must export {name}";
+        assert callable(getattr(project_pkg, name));
+    }
+    for gone in ["CLIENT_TARGETS", "normalize_client_target", "VALID_CLIENT_KINDS"] {
+        assert gone not in project_pkg.__all__ , f"{gone} is gone";
+        assert not hasattr(project_pkg, gone) , f"{gone} is gone";
     }
 }
 
@@ -527,7 +610,7 @@ test "resolve_app_kind infers only for the implicit app" {
     assert resolve_app_kind(plain, plain.resolve_app(""), "") == "cli";
     explicit = AppConfig(name="svc", kind="service", entry_point="svc.jac");
     assert resolve_app_kind(cfg, explicit, "") == "service";
-    assert explicit.effective_client() == "";
+    assert explicit.ui() == "";
 }
 
 test "plan_workspace produces one plan per app" {
@@ -546,8 +629,10 @@ test "plan_workspace produces one plan per app" {
         assert web.command_line().startswith("jac run web");
         mobile = by_app["mobile"];
         assert mobile.action == "build";
-        assert mobile.flags["client"] == "react-native";
-        assert mobile.flags["platform"] == "ios";
+        assert mobile.spec.ui == "mobui";
+        assert "client" not in mobile.flags , "plans carry no client flag";
+        assert mobile.flags == {"platform": "ios"};
+        assert mobile.command_line() == "jac build mobile --platform ios";
         assert mobile.entry_path == str(root_path / "mobile" / "main.jac");
         sg = by_app["social_graph"];
         assert sg.kind == "service";
@@ -613,40 +698,55 @@ test "plan_app_run raises when a needs-entry app has no entry file" {
 }
 
 # ===========================================================================
-# Client kind lane
+# mobUI scope lane
 # ===========================================================================
-test "client kind answers from the owning app" {
+test "the mobUI guard scope answers from the owning app's kind" {
+    # The compiler reads the app's ui off the workspace facts: a mobile app
+    # switches the guard on for its root_dir; everything else is exempt.
+    import from jaclang.compiler.placement.workspace { app_for_path }
     config_mod.set_config(None);
     with TemporaryDirectory() as td {
         root_path = write_workspace(Path(td) / "acme");
         try {
-            assert resolve_client_kind(str(root_path / "mobile" / "main.jac"))
-                == "mobui";
-            assert resolve_client_kind(str(root_path / "web" / "main.jac")) == "web";
-            assert resolve_client_kind(str(root_path / "core" / "shared.jac")) == "web";
-            (kind, enforce_root) = resolve_client_kind_context(
-                str(root_path / "mobile" / "main.jac")
+            mobile_main = str(root_path / "mobile" / "main.jac");
+            web_main = str(root_path / "web" / "main.jac");
+            shared = str(root_path / "core" / "shared.jac");
+            mobile_app = app_for_path(mobile_main);
+            assert mobile_app is not None and mobile_app.ui == "mobui";
+            web_app = app_for_path(web_main);
+            assert web_app is not None and web_app.ui == "dom";
+            assert app_for_path(shared) is None , "shared code has no app";
+            enforced_root = mobile_app.root_dir;
+            assert Path(enforced_root).resolve() == (root_path / "mobile").resolve();
+            assert not mobui_module_exempt(mobile_main, enforced_root);
+            assert mobui_module_exempt(web_main, enforced_root) , (
+                "another app's module is outside the mobile root"
             );
-            assert kind == "mobui";
-            assert enforce_root is not None;
-            assert Path(enforce_root).resolve() == (root_path / "mobile").resolve();
-            (kind, _) = resolve_client_kind_context(
-                str(root_path / "web" / "main.jac"), explicit_kind="mobui"
+            assert mobui_module_exempt(shared, enforced_root) , (
+                "shared code is outside the mobile root"
             );
-            assert kind == "mobui" , "an explicit kind still wins";
+            assert mobui_module_exempt(mobile_main, None) , "no root: nothing enforced";
+            assert mobui_module_exempt(mobile_main, "") , "empty root: nothing enforced";
+            assert not hasattr(mobile_app, "client_kind") , (
+                "AppSpec carries ui, not client_kind"
+            );
         } finally {
             config_mod.set_config(None);
         }
     }
 }
 
-test "the pure client-kind lane names no project config" {
+test "the pure mobUI scope lane names no project config" {
     src = Path(pure_mod.__file__).read_text();
     assert "jaclang.project.config" not in src , (
-        "client_kind_paths grew a project-config dependency; that puts the "
-        "config lane back into every pass closure that imports it. Resolution "
-        "belongs in client_kind."
+        "mobui_scope grew a project-config dependency; that puts the config "
+        "lane back into every pass closure that imports it. The kind is a "
+        "module fact stamped by the driver."
     );
+    import importlib.util;
+    for gone in ["jaclang.project.client_kind", "jaclang.project.client_kind_paths"] {
+        assert importlib.util.find_spec(gone) is None , f"{gone} was deleted";
+    }
 }
 
 # ===========================================================================

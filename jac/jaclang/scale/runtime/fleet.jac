@@ -394,13 +394,9 @@ def _member_file(entry_path: str, relative_to: str) -> str {
 
 
 def _has_client(config: any, app: any) -> bool {
-    import from jaclang.project.kinds { kind_spec }
-    if app.client {
-        return True;
-    }
+    import from jaclang.project.kinds { kind_has_client }
     kind = config.resolved_kind(app) if config is not None else app.kind;
-    spec = kind_spec(kind);
-    return bool(spec is not None and spec.client_target);
+    return kind_has_client(kind);
 }
 
 

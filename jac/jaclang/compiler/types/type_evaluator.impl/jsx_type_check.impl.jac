@@ -7,7 +7,7 @@ impl TypeEvaluator._is_mobui_module(nd: UniNode) -> bool {
         return False;
     }
     if mod_path not in self._mobui_module_cache {
-        import from jaclang.project.client_kind_paths { mobui_module_exempt }
+        import from jaclang.project.mobui_scope { mobui_module_exempt }
         mod = nd.find_parent_of_type(Module);
         enforced_root = mod.mobui_enforced_root if mod is not None else None;
         self._mobui_module_cache[mod_path] = (

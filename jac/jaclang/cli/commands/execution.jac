@@ -131,32 +131,13 @@ comptime SPEC_RUN: CommandSpec = CommandSpec(
                  short="f"
              ),
              Arg.create(
-                 "client",
-                 typ=str,
-                 `default=None,
-                 help=(
-                     "Override the app's client target (its [apps.<name>] client, "
-                     "else the kind's default); desktop builds a native webview app"
-                 ),
-                 choices=[
-                     "web",
-                     "pwa",
-                     "static",
-                     "mobile",
-                     "desktop",
-                     "cef",
-                     "react-native"
-                 ],
-                 short=""
-             ),
-             Arg.create(
                  "host",
                  typ=str,
                  `default=None,
                  short="",
                  help=(
-                     "Mobile dev (--client mobile --dev): optional host/IP override for "
-                     "Capacitor live-reload. When omitted, jac auto-selects a host."
+                     "Mobile dev: optional host/IP the device reaches this machine on. "
+                     "When omitted, jac auto-selects a LAN address."
                  )
              ),
              Arg.create(
@@ -164,10 +145,11 @@ comptime SPEC_RUN: CommandSpec = CommandSpec(
                  typ=str,
                  `default=None,
                  help=(
-                     "Override the app's platform for mobile serving: android or ios "
+                     "Mobile apps: android or ios runs on a device or simulator, web runs "
+                     "the same app in a browser via react-native-web "
                      "(auto = the app's [apps.<name>] platform, else android)"
                  ),
-                 choices=["auto", "android", "ios"],
+                 choices=["auto", "android", "ios", "web"],
                  short=""
              ),
              Arg.create(
@@ -226,7 +208,7 @@ comptime SPEC_RUN: CommandSpec = CommandSpec(
              ("jac run --dev", "Serve the default app with hot module replacement"),
              ("jac run --dev --no-client", "HMR mode without client bundling"),
              ("jac run --faux", "Print the app's endpoint docs without serving"),
-             ("jac run --client mobile", "Run the app with the mobile client target"),
+             ("jac run --platform web mobile", "Run a mobile app in the browser"),
              (
                  "jac run web --fleet",
                  "Serve 'web' with the workspace's service apps as local processes"
@@ -261,7 +243,6 @@ def run(
     api_port: int | None = None,
     no_client: bool | None = None,
     faux: bool | None = None,
-    client: str | None = None,
     host: str | None = None,
     platform: str | None = None,
     takeover: bool | None = None,
@@ -277,7 +258,6 @@ def serve(
     dev: bool = False,
     api_port: int = 0,
     no_client: bool = False,
-    client: str = "",
     host: str = "",
     platform: str = "",
     takeover: bool = False,

@@ -171,7 +171,7 @@ def _control_build(cwd: str) -> any {
     while True {
         attempt += 1;
         result = subprocess.run(
-            [jac_executable(), "build", "main.jac", "--client", "web"],
+            [jac_executable(), "build", "--as", "client", "main.jac"],
             cwd=cwd,
             capture_output=True,
             text=True,

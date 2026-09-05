@@ -9,18 +9,19 @@ node plus the walkers the UI calls - lives in the same file as the app shell.
 
 ```bash
 jac install                                     # once, and again after editing jac.toml
-jac run --client web --dev                      # web preview: View -> <div>, Text -> <span>, hot reload
+jac run --dev --platform web                    # web preview: View -> <div>, Text -> <span>, hot reload
 jac run --show                                  # what a bare `jac run` would do for this app
 
-jac setup react-native                          # once: Expo scaffold in .jac/mobile-rn/
-jac run --client react-native --dev             # native: Metro dev server (press a / i, or scan with Expo Go)
-jac build --client react-native --platform android   # APK (gradle, or EAS via [client.react_native])
-jac build --client react-native --platform ios       # .app / .ipa (xcodebuild on macOS, or EAS)
+jac setup                                       # once: Expo scaffold in .jac/mobile-rn/
+jac run --dev                                   # native: Metro dev server (press a / i, or scan with Expo Go)
+jac build --platform android                    # APK (gradle, or EAS via [client.react_native])
+jac build --platform ios                        # .app / .ipa (xcodebuild on macOS, or EAS)
+jac build --platform web                        # the same app as a browser bundle
 ```
 
-A bare `jac run` on a `mobile` app is the build (`jac build --client react-native`);
-the `--dev` forms above are the development loops. `jac run main.jac` addresses
-the entry by file instead of by app.
+A bare `jac run` on a `mobile` app builds it for the app's platform and installs
+it on a device or simulator; the `--dev` forms above are the development loops.
+`jac run main.jac` addresses the entry by file instead of by app.
 
 Inside a workspace the app is addressed by name, for example `jac run mobile`.
 `jac create --app mobile --kind mobile` scaffolds this template into an existing
@@ -33,15 +34,14 @@ project and registers it as `[apps.mobile]`.
 ```toml
 [project]
 entry-point = "main.jac"
-kind = "mobile"              # client = "react-native" (Expo + Metro), client_kind = "mobui"
+kind = "mobile"              # React Native (Expo + Metro) with the mobUI vocabulary
 ```
 
-A `mobile` app is a React Native app with the mobUI client kind, so the two
-keys need spelling out only when an app overrides them (`client = "mobile"`
-picks the Capacitor shell instead). Inside a workspace the same keys live on
-the app's table, `[apps.mobile]`.
+A `mobile` app is a React Native app rendered through `@jac/mobui`; the kind
+alone says so. Inside a workspace the same key lives on the app's table,
+`[apps.mobile]`.
 
-`client_kind = "mobui"` turns on the compiler guard: any lowercase HTML tag
+The kind turns on the compiler guard: any lowercase HTML tag
 (`<div>`, `<span>`, `<button>`, ...) that does not resolve to an in-scope
 component is `E1105` and blocks codegen. Use the primitive instead:
 
@@ -88,8 +88,9 @@ import from .components.Button { Button }
 ```
 
 `Button.jac` wraps `Pressable`. `Icon.jac` / `Icon.native.jac` are a platform
-pair: the compiler picks the `.native.jac` file for the react-native target and
-the plain `.jac` file otherwise, so one `<Icon name="check" .../>` call renders
+pair: the compiler picks the `.native.jac` file for the app's native platforms
+(android / ios) and the plain `.jac` file for its web platform, so one
+`<Icon name="check" .../>` call renders
 real Lucide vectors on both platforms. Keep the two files' public API identical.
 
 ## Theme
@@ -107,7 +108,7 @@ jac install --npm some-package
 
 Packages the web bundle needs go under `[dependencies.npm]`; packages only the
 native (Expo) project needs go under `[dependencies.npm.native]`, which
-`jac setup react-native` merges into `.jac/mobile-rn/package.json`.
+`jac setup` merges into `.jac/mobile-rn/package.json`.
 
 ## Next steps
 

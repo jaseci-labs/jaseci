@@ -22,8 +22,6 @@ path = "web"
 [apps.mobile]
 kind = "mobile"
 path = "mobile"
-client = "react-native"
-client_kind = "mobui"
 
 [apps.cli]
 kind = "cli"

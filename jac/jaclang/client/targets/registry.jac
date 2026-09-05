@@ -3,10 +3,13 @@ import from typing { Optional }
 import from pathlib { Path }
 import type from jaclang.project.apps { AppConfig }
 
-def app_client_target(app: AppConfig, requested: str = "") -> str {
-    import from jaclang.project.kinds { normalize_client_target }
-    return normalize_client_target(requested or app.effective_client());
-}
+glob KIND_TARGET: dict[str, str] = {
+         "web-app": "web",
+         "js-package": "web",
+         "web-static": "static",
+         "desktop": "desktop",
+         "mobile": "mobile"
+     };
 
 def client_workspace_app(config: any, entry_path: str = "") -> AppConfig | None {
     if config is None or not config.is_workspace or not config.apps {
@@ -41,7 +44,6 @@ def client_app_root(config: any, project_dir: Path, entry_path: str = "") -> Pat
 class ClientTarget {
     has name: str,
         project_dir: Optional[Path] = None,
-        `default: bool = False,
         requires_setup: bool = False,
         config_section: str = "",
         required_dependencies: list[str] = [],
@@ -77,13 +79,10 @@ obj TargetRegistry {
     def clear -> None;
 }
 
-obj TargetFactory {
-    def create(name: str, project_dir: Path) -> ClientTarget;
-    def get_available_target_names -> list[str];
-}
+def target_for_kind(kind: str, project_dir: Path) -> ClientTarget;
+def target_for_app(app: AppConfig, project_dir: Path) -> ClientTarget;
 
-glob _registry: TargetRegistry | None = None,
-     _factory: TargetFactory | None = None;
+glob _registry: TargetRegistry | None = None;
 
 def get_target_registry -> TargetRegistry {
     import from jaclang.client.targets.registry { TargetRegistry }
@@ -94,12 +93,4 @@ def get_target_registry -> TargetRegistry {
         register_targets();
     }
     return _registry;
-}
-
-def get_target_factory -> TargetFactory {
-    import from jaclang.client.targets.registry { TargetFactory }
-    if _factory is None {
-        _factory = TargetFactory();
-    }
-    return _factory;
 }

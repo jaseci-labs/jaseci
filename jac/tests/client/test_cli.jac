@@ -240,9 +240,12 @@ test "create jac app with button component" {
             );
 
             # The mobile scaffold is a single-app mobUI project: the kind
-            # implies the React Native client and the mobUI client kind.
+            # alone makes it a React Native app with the mobUI vocabulary.
             assert "client_kind" not in config_data["project"] , (
                 f"[project] client_kind is gone: {config_data['project']}"
+            );
+            assert "client" not in config_data["project"] , (
+                f"[project] client is gone: {config_data['project']}"
             );
             assert "apps" not in config_data , (
                 f"a single-app scaffold has no [apps] table: {config_data.get('apps')}"

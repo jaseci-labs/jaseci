@@ -255,16 +255,7 @@ impl _build_workspace(root_dir: str, toml_path: str, doc: dict) -> WorkspaceSpec
                 root_dir=app_root,
                 `entry=entry_abs,
                 file_rooted=file_rooted,
-                client=str(raw.get('client', '') or KIND_CLIENT_TARGET.get(kind, '')),
-                client_kind=str(
-                    raw.get('client_kind', '')
-                        or default_client_kind(
-                            str(
-                                raw.get('client', '')
-                                    or KIND_CLIENT_TARGET.get(kind, '')
-                            )
-                        )
-                ),
+                ui=kind_ui(kind),
                 platform=str(raw.get('platform', '') or ''),
                 route=str(raw.get('route', '') or ''),
                 pins=pins,
@@ -286,8 +277,7 @@ impl _build_workspace(root_dir: str, toml_path: str, doc: dict) -> WorkspaceSpec
                 os.path.join(root_dir, entry_rel or kind_entry(kind))
             ),
             file_rooted=False,
-            client=KIND_CLIENT_TARGET.get(kind, ''),
-            client_kind=default_client_kind(KIND_CLIENT_TARGET.get(kind, '')),
+            ui=kind_ui(kind),
             pins=dict(base_pins),
             own_pins={},
             npm_names=set(base_npm),
@@ -382,8 +372,6 @@ impl app_fact_digest(app: (AppSpec | None)) -> str {
                 _rel(app.`entry, app.root_dir or ws_root),
                 app.file_rooted,
                 app.effective_route(),
-                app.client,
-                app.client_kind,
                 app.platform,
                 sorted(app.pins.items()),
                 sorted(app.npm_names)

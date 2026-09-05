@@ -80,27 +80,34 @@ test "static inline is a no-op without index html" {
     }
 }
 
-"""The static target registers and resolves through the factory."""
+"""The static target registers and is what the web-static kind resolves to."""
 test "static target is registered and resolvable" {
     import from jaclang.client.targets.register { register_targets }
-    import from jaclang.client.targets.registry { get_target_factory }
+    import from jaclang.client.targets.registry {
+        KIND_TARGET,
+        get_target_registry,
+        target_for_kind
+    }
 
     register_targets();
-    factory = get_target_factory();
+    registry = get_target_registry();
 
-    names = factory.get_available_target_names();
+    names = [t.name for t in registry.get_all()];
     assert "static" in names , f"static target should be registered; got {names}";
+    assert KIND_TARGET["web-static"] == "static";
 
     with tempfile.TemporaryDirectory() as temp_dir {
-        target = factory.create("static", Path(temp_dir));
-        assert target.name == "static" , "factory.create('static') should yield the static target";
+        target = target_for_kind("web-static", Path(temp_dir));
+        assert target.name == "static" , "the web-static kind should yield the static target";
+        assert target.project_dir == Path(temp_dir);
+        assert not hasattr(target, "default") , "ClientTarget has no default flag";
     }
 }
 
 """An explicit `kind = \"web-static\"` resolves to the static web project kind.
 
 This is the signal `jac build` / `jac run --serve` key off to auto-route a
-client-only project to the portable/static path without any --client flag.
+client-only project to the portable/static path; there is no client flag.
 """
 test "web-static kind is detected from jac toml" {
     import from jaclang.project.config { JacConfig }
@@ -167,8 +174,8 @@ test "static server maps static prefix to dist root" {
 
 """End-to-end: a kind=web-static project builds a dist that renders from file://.
 
-This is the user-facing contract -- `jac build` with no `--client` flag must
-auto-detect the client-only project and emit a portable page that opens
+This is the user-facing contract -- a bare `jac build` must auto-detect the
+client-only project from its kind and emit a portable page that opens
 straight off disk. Skips when the browser/build toolchain is unavailable.
 """
 test "client build renders from file protocol" {
@@ -188,7 +195,7 @@ test "client build renders from file protocol" {
     with tempfile.TemporaryDirectory() as temp_dir {
         project_dir = os.path.join(temp_dir, "browser-app");
         shutil.copytree(example_src, project_dir);
-        # Declare the project client-only; no --client flag is passed to build.
+        # Declare the project client-only; the kind alone routes the build.
         toml_path = os.path.join(project_dir, "jac.toml");
         with open(toml_path) as f {
             toml_text = f.read();

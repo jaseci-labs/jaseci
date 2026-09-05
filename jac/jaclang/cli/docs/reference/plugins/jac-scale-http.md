@@ -24,9 +24,8 @@ jac run
 | `--api_port` `-a` | Separate API port for HMR mode (0=same as port) | 0 |
 | `--no-client` `-n` | Skip client bundling/serving (API only) | false |
 | `--profile` | Configuration profile to load (e.g. prod, staging) | - |
-| `--client` | Override the app's client target for the dev server (`web`, `pwa`, `static`, `mobile`, `desktop`, `cef`, `react-native`) | the app's |
-| `--host` | Mobile dev (`--client mobile --dev`): host/IP override for Capacitor live-reload (auto-selected when omitted) | - |
-| `--platform` | Mobile start/dev: `android` or `ios` (`auto` uses the app's `[apps.<name>] platform`, or android) | auto |
+| `--host` | Mobile dev: host/IP the device reaches this machine on (a LAN address is auto-selected when omitted) | - |
+| `--platform` | Mobile apps: `android` or `ios` runs on a device or simulator, `web` runs the same app in a browser via react-native-web (`auto` uses the app's `[apps.<name>] platform`, or android) | auto |
 | `--fleet` | Run the workspace's service apps as separate local processes instead of colocating them in this server | false |
 | `--target` | Deployment target (kubernetes, aws, gcp) | kubernetes |
 | `--enable-tls` | Enable HTTPS via Let's Encrypt (run after pointing your domain CNAME to the NLB) | false |

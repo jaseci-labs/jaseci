@@ -7,8 +7,8 @@ Two layers:
 * Build / serve / HTTP (no browser) -- scaffold the workspace into a
   writable temp dir, install its npm deps, then `jac run --serve web` it and
   exercise the HTTP surface (the served `/` page, the static JS + CSS
-  bundles, 404s) plus a `jac build web --client pwa` build that emits a
-  manifest + service worker.
+  bundles, 404s) plus a `jac build --as client web` build of a `[client.pwa]`
+  project that emits a manifest + service worker.
 * Browser auth/form flows (Playwright) -- drive the Socialize section's
   `AuthForm` signup / login / logout and confirm the section gates behind
   auth.
@@ -312,7 +312,7 @@ test "site builds and serves /" {
 
 """The site serves its compiled Tailwind CSS bundle.
 
-Maps to recovering CSS-serving coverage: a `jac build web --client web`
+Maps to recovering CSS-serving coverage: a `jac build --as client web`
 emits `styles.css` into the client dist, which is served at
 `/static/styles.css`. The body is non-empty CSS carrying Tailwind/shadcn
 tokens (`:root`, `--background`).
@@ -323,14 +323,14 @@ test "site serves its CSS bundle" {
         # A build is what emits dist/styles.css (the served CSS route reads
         # from the client dist's styles.css).
         build_result = run(
-            [*jac_cmd, "build", "web", "--client", "web"],
+            [*jac_cmd, "build", "--as", "client", "web"],
             cwd=project_dir,
             capture_output=True,
             text=True,
             env=env,
         );
         assert build_result.returncode == 0 , (
-            f"jac build web --client web failed\n"
+            f"jac build --as client web failed\n"
             f"STDOUT:\n{build_result.stdout[:2000]}\n"
             f"STDERR:\n{build_result.stderr[:2000]}\n"
         );
@@ -365,23 +365,28 @@ test "site serves its CSS bundle" {
 
 """The site's pwa build emits a manifest and service worker.
 
-Maps to test_it's "pwa build generates manifest and service worker": building
-the web app with `--client pwa` writes `manifest.json` (display=standalone)
-and `sw.js` (install + fetch handlers) into the client dist, and
-`index.html` gains the manifest link + SW registration script.
+Maps to test_it's "pwa build generates manifest and service worker": a
+`[client.pwa]` table in jac.toml makes the web app's client build write
+`manifest.json` (display=standalone) and `sw.js` (install + fetch handlers)
+into the client dist, and `index.html` gains the manifest link + SW
+registration script. There is no separate PWA target or `--client pwa`.
 """
 test "site pwa build emits manifest and service worker" {
     with tempfile.TemporaryDirectory() as temp_dir {
         (project_dir, jac_cmd, env) = _setup_site_project(temp_dir);
+        toml_path = os.path.join(project_dir, "jac.toml");
+        with open(toml_path, "a") as f {
+            f.write('\n[client.pwa]\ntheme_color = "#000000"\n');
+        }
         build_result = run(
-            [*jac_cmd, "build", "web", "--client", "pwa"],
+            [*jac_cmd, "build", "--as", "client", "web"],
             cwd=project_dir,
             capture_output=True,
             text=True,
             env=env,
         );
         assert build_result.returncode == 0 , (
-            f"jac build web --client pwa failed\n"
+            f"jac build --as client web ([client.pwa]) failed\n"
             f"STDOUT:\n{build_result.stdout[:2000]}\n"
             f"STDERR:\n{build_result.stderr[:2000]}\n"
         );

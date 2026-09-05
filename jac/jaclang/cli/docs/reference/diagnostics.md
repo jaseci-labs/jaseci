@@ -297,14 +297,14 @@ Emitted by the type checker and type evaluator.
 
 ### mobUI-Project JSX Host Tags
 
-Emitted by `JsxIntrinsicGuardPass` when a module of a `mobui` app (see [React Native target](plugins/jac-client.md#react-native-target-beta)) uses a raw HTML host tag in JSX. The guard resolves every tag name in the enclosing scope; only **unresolved lowercase names** are treated as HTML host elements and rejected. Uppercase components and lowercase components that resolve to an in-scope symbol are allowed. `.jac` web-boundary files (but not `.native.jac` files, which target React Native) and modules outside the project root are exempt; the client kind is an app fact stamped from the `[apps.<name>]` table that claims each module, never the process cwd.
+Emitted by `JsxIntrinsicGuardPass` when a module of a `mobile` app (see [Mobile](plugins/jac-client.md#mobile)) uses a raw HTML host tag in JSX. The guard resolves every tag name in the enclosing scope; only **unresolved lowercase names** are treated as HTML host elements and rejected. Uppercase components and lowercase components that resolve to an in-scope symbol are allowed. `.jac` web-boundary files (but not `.native.jac` files, which target React Native) and modules outside the project root are exempt; the app's UI is an app fact stamped from the `[apps.<name>]` table that claims each module, never the process cwd.
 
 | Code | Message |
 |------|---------|
 | `E1105` | JSX tag '<{tag}>' is not in scope in a mobUI project; use {suggestion} instead |
 
 !!! tip "Fixing `E1105`"
-    `E1105` fires only in the modules of a `mobui` app (`client_kind = "mobui"` on its `[apps.<name>]` table in `jac.toml`). Replace the HTML tag with the suggested `@jac/mobui` primitive: `div`/`section`/`main` -> `View`, `span`/`p`/`h1`-`h6` -> `Text`, `button` -> `Pressable`, `input`/`textarea` -> `TextInput`, `img` -> `Image`, `ul`/`ol` -> `ScrollView`. If the lowercase name is meant to be a component, import it so it resolves in scope. Web apps (`client_kind` unset) are unaffected -- HTML tags remain valid there.
+    `E1105` fires only in the modules of a `mobile` app (`kind = "mobile"` on its `[apps.<name>]` table in `jac.toml`, or `[project] kind` in a single-app project). Replace the HTML tag with the suggested `@jac/mobui` primitive: `div`/`section`/`main` -> `View`, `span`/`p`/`h1`-`h6` -> `Text`, `button` -> `Pressable`, `input`/`textarea` -> `TextInput`, `img` -> `Image`, `ul`/`ol` -> `ScrollView`. If the lowercase name is meant to be a component, import it so it resolves in scope. Apps of every other kind are unaffected -- HTML tags remain valid there.
 
 ### Ownership / Borrow Errors
 
@@ -625,7 +625,7 @@ Emitted by the driver and the boundary passes from the app facts of a workspace 
 
 `E5104`: apps bridge to their providers over the wire and providers boot first, so the app graph has to be a DAG. It is reported on the import that closes the cycle. Break it by moving the code both apps need into a shared module, or by folding one of the apps into the other.
 
-`E5105`: a `.native.jac` variant stands in for its sibling module on the `react-native` target, so the two have to expose the same public surface -- the same names, the same kinds of declaration, the same parameters and annotations, the same `has` fields. Bring the variant's declaration in line with the base module, or remove it from both. Reported on the variant, once per disagreement.
+`E5105`: a `.native.jac` variant stands in for its sibling module on a mobile app's native platforms (android / ios), so the two have to expose the same public surface -- the same names, the same kinds of declaration, the same parameters and annotations, the same `has` fields. Bring the variant's declaration in line with the base module, or remove it from both. Reported on the variant, once per disagreement.
 
 `E5106`: an app's bridge surface is its walkers and its `def:pub` functions; everything else is private to the app's own server. Make the element a walker or mark it `:pub` in the provider app, or move it into shared code if both apps need it in-process.
 

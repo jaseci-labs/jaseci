@@ -261,12 +261,6 @@ impl JacClientConfig.is_pwa_enabled(self: JacClientConfig) -> bool {
     return len(pwa_config) > 0;
 }
 
-impl JacClientConfig.get_mobile_config(self: JacClientConfig) -> dict[str, any] {
-    client_config = self.get_jac_config().get_plugin_config("client");
-    section = client_config.get("mobile", {});
-    return section if isinstance(section, dict) else {};
-}
-
 impl JacClientConfig.get_react_native_config(self: JacClientConfig) -> dict[str, any] {
     client_config = self.get_jac_config().get_plugin_config("client");
     section = client_config.get("react_native", {});

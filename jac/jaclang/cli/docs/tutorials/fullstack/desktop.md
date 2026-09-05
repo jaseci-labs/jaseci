@@ -30,9 +30,9 @@ macOS, WebView2 on Windows) or Chromium Embedded Framework (CEF).
 
 Give the app the `desktop` kind. In a single-app project that is `kind =
 "desktop"` under `[project]`; in a workspace it is an `[apps.<name>]` table
-(`jac create --app desktop --kind desktop` writes one). The kind's client
-target is `desktop`, so every `jac run` / `jac build` of this app builds the
-native shell -- no `--client` flag:
+(`jac create --app desktop --kind desktop` writes one). The kind decides the
+client, so every `jac run` / `jac build` of this app builds the native shell
+-- no flag:
 
 ```toml
 [project]
@@ -84,7 +84,7 @@ The directory is relocatable - the binary finds its sibling `dist/` and
 `libwebview.so` relative to itself.
 
 To build with Chromium Embedded Framework instead of the OS webview, set
-`engine = "cef"` and use the CEF target:
+`engine = "cef"`:
 
 ```toml
 [desktop]
@@ -92,12 +92,12 @@ engine = "cef"
 ```
 
 ```bash
-jac build            # engine = "cef" selects the CEF shell (or pass --client cef once)
+jac build            # engine = "cef" selects the CEF shell
 ```
 
-The CEF output lands in `.jac/client/cef/` and includes the app binary,
-`dist/`, `libcef.so`, `libcef_dispatch.so`, `cef-subprocess`, Chromium `.pak`
-files, locales, and support files. The first CEF build fetches the pinned CEF
+The CEF output lands in the same `.jac/client/desktop/` and includes the app
+binary, `dist/`, `libcef.so`, `libcef_dispatch.so`, `cef-subprocess`, Chromium
+`.pak` files, locales, and support files. The first CEF build fetches the pinned CEF
 runtime, so it needs network access and roughly 1 GB of disk for the cached
 runtime and staged bundle.
 
@@ -109,13 +109,9 @@ runtime and staged bundle.
 jac run              # builds (if needed) and launches the window
 ```
 
-For the CEF renderer, with `engine = "cef"` the same command applies; to force it once:
-
-```bash
-jac run --client cef
-```
-
-Or run the built binary directly:
+With `engine = "cef"` the same command launches the CEF window (CEF has no
+HMR, so `jac run --dev` needs `engine = "native"`). Or run the built binary
+directly:
 
 ```bash
 (cd .jac/client/desktop && ./my-app)
@@ -150,18 +146,18 @@ variables are useful when smoke-testing or debugging startup issues:
 Example Linux fallback launch:
 
 ```bash
-cd .jac/client/cef
+cd .jac/client/desktop
 JAC_CEF_DISABLE_GPU=1 OZONE_PLATFORM=x11 ./my-app
 ```
 
 ---
 
-## How it differs from the web target
+## How it differs from a web app
 
-| | web | desktop |
+| | web-app | desktop |
 |---|---|---|
 | output | bundle served by a host you run | one self-contained binary |
 | UI runtime | a browser you point at the server | OS-native webview or CEF Chromium |
 | backend transport | HTTP to a remote server | embedded CPython, in-process |
 
-The same `cl`/`sv` source builds for both - only the target changes.
+The same `cl`/`sv` source builds for both - only the kind changes.

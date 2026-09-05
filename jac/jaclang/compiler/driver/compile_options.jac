@@ -48,7 +48,7 @@ obj CompileOptions {
         default_codespace: str = "",
         app_kind: str = "",
         target_app: str = "",
-        client_kind: str = "",
+        ui: str = "",
         project_root: (str | None) = None,
         native_module_walk_order: (str | None) = None,
         cancel_token: any = None;
@@ -172,7 +172,7 @@ obj CompileOptions {
             na_debug=self.na_debug,
             app_kind=self.app_kind,
             target_app=self.target_app,
-            client_kind=self.client_kind,
+            ui=self.ui,
             project_root=self.project_root
         );
     }

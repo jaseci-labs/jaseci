@@ -17,7 +17,7 @@ A task-first index into the commands below. The full alphabetical list follows i
 | Run the live hot-reload dev loop | `jac run --dev` |
 | Deploy to Kubernetes | `jac scale deploy` · `jac scale status` · `jac scale destroy` |
 | Create a new project | `jac create` |
-| Set up / build a client shell (web, desktop, mobile) | `jac setup [app]` · `jac build [app]` (`--client <target>` overrides the app's target) |
+| Set up / build a client (web, desktop, mobile) | `jac setup [app]` · `jac build [app]` (`--as client` builds only the client bundle) |
 | Compile a native binary or C-ABI shared library | `jac nacompile` · `jac build --as native` |
 | Build one distributable artifact (.jab, wheel, npm, source) | `jac build --as {jab,wheel,npm,source,…}` |
 | Add, remove, or update dependencies | `jac install <pkg>` · `jac remove` · `jac update` |
@@ -41,7 +41,7 @@ A task-first index into the commands below. The full alphabetical list follows i
 | Command | Description |
 |---------|-------------|
 | `jac run` | Execute *or* serve an app (by name), a Jac file, a `.jab`, or (no target) the default app, per its kind (`--entry <walker>`, `--debug`, `--serve`, `--port`, `--dev`, `--fleet`) |
-| `jac build` | Type-check gate, then emit one artifact per app (`--as jab\|sealed\|binary\|wheel\|npm\|source\|native`; default `.jab`; `--all` builds every app into `dist/<app>/`; `--client` overrides the app's client target) |
+| `jac build` | Type-check gate, then emit one artifact per app (`--as jab\|sealed\|binary\|wheel\|npm\|source\|native`; default `.jab`; `--all` builds every app into `dist/<app>/`; `--as client` builds only an app's client bundle) |
 | `jac create` | Create a new project, or (`--app <name> --kind <kind>`) add an app to this one; `--awesome` scaffolds the flagship workspace; `--pack` bundles a directory into a `.jacpack` template |
 | `jac check` | Type check code -- with no paths, the whole workspace, one program per app (`--app <name>` for one; `--lint` to lint, `--lint --fix` to auto-fix) |
 | `jac test` | Run tests (`jac test <app>` uses that app's `[test]` config) |
@@ -64,7 +64,7 @@ A task-first index into the commands below. The full alphabetical list follows i
 | `jac tool` | Language tools & source transforms (`jac2py`, `py2jac`, `jac2js`, `grammar`, IR, AST) |
 | `jac guide` | Show curated Jac reference guides |
 | `jac lsp` | Language server |
-| `jac setup` | One-time setup of an app's client target (`jac setup [app\|target]`) |
+| `jac setup` | One-time setup of an app's client (`jac setup [app]`) |
 | `jac db` | Manage the project's Postgres store (embedded or external): status, inspect, sql, serve, stop, fetch |
 
 ---
@@ -85,7 +85,7 @@ The CLI cleanup in #7255 folded these former top-level commands into their homes
 | `jac jac2js` | [`jac tool jac2js`](#jac-tool) |
 | `jac py2jac` | [`jac tool py2jac`](#jac-tool) |
 | `jac jac2py` | [`jac tool jac2py`](#jac-tool) |
-| `jac start` | [`jac run --serve`](#jac-run) (`--port`, `--client`, `--faux`, `--takeover` ride along) |
+| `jac start` | [`jac run --serve`](#jac-run) (`--port`, `--faux`, `--takeover` ride along) |
 | `jac dev` | [`jac run --dev`](#jac-run) |
 | `jac start --scale` | [`jac scale deploy`](#jac-scale-deploy) (with `--target`, `--enable-tls`, `--dry-run`, `--show-yaml`) |
 
@@ -123,13 +123,13 @@ Run an **app** by name, a Jac file, a prebuilt `.jab` artifact, or (with no targ
 **Note:** `jac <file>` is shorthand for `jac run <file>` - both work identically.
 
 ```bash
-jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [-e DIAGNOSTICS] [--profile PROFILE] [--entry ENTRY] [-n NODE] [-r ROOT] [--debug] [--serve | --no-serve] [-p PORT] [-d | --dev] [--api-port API_PORT] [--no-client] [-f | --faux] [--client {web,pwa,static,mobile,desktop,cef,react-native}] [--host HOST] [--platform {auto,android,ios}] [--takeover | --no-takeover] [--fleet] [target] [args ...]
+jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [-e DIAGNOSTICS] [--profile PROFILE] [--entry ENTRY] [-n NODE] [-r ROOT] [--debug] [--serve | --no-serve] [-p PORT] [-d | --dev] [--api-port API_PORT] [--no-client] [-f | --faux] [--host HOST] [--platform {auto,android,ios,web}] [--takeover | --no-takeover] [--fleet] [target] [args ...]
 ```
 
 | Option | Description | Default |
 |--------|-------------|---------|
 | `target` | An app name from `[apps]` in `jac.toml`, or a path to a `.jac`, `.py` or `.jab` file. A target that matches an app key is the app (app names never contain `/` or end in `.jac`); anything else is a file. Omit to run `[project] default-app`, or the sole app | (default app) |
-| `-s, --show` | Print the resolved run plan without executing -- in a workspace with no target, one row per app (`app`, `kind`, `entry`, `action`, `client`, `route`) | `False` |
+| `-s, --show` | Print the resolved run plan without executing -- in a workspace with no target, one row per app (`app`, `kind`, `entry_rel`, `action`, `ui`, `route`; `ui` is `dom`, `mobui` or `-`) | `False` |
 | `-m, --main` | Treat module as `__main__` | `True` |
 | `-c, --cache` | Enable compilation cache | `True` |
 | `-e, --diagnostics` | Diagnostic verbosity: `error`, `all`, or `none` | `error` |
@@ -155,9 +155,8 @@ Serving only -- rejected when the resolved action is *execute* or *build*:
 | `--api-port` | Separate API port for HMR mode (0 = same as `--port`) | `0` |
 | `--no-client` | Skip client bundling/serving (API only) | `False` |
 | `-f, --faux` | Print endpoint docs only, no server | `False` |
-| `--client` | Override the app's client target (its `[apps.<name>] client`, else the kind's default): `web`, `pwa`, `static`, `mobile`, `desktop`, `cef`, `react-native` | (app) |
-| `--host` | Mobile dev (`--client mobile --dev`) optional live-reload host/IP override | `""` |
-| `--platform` | Override the app's `platform` for mobile serving (`auto`, `android`, `ios`); `auto` = the app's `[apps.<name>] platform`, else `android` | `auto` |
+| `--host` | Mobile dev: optional host/IP the device reaches this machine on (a LAN address is auto-selected when omitted) | `""` |
+| `--platform` | Mobile apps: `android` or `ios` runs on a device or simulator, `web` runs the same app in a browser via react-native-web; `auto` = the app's `[apps.<name>] platform`, else `android` | `auto` |
 | `--fleet` | Run the workspace's service apps as separate local processes behind this server instead of colocating them in it | `False` |
 
 Project scope for a named file -- accepted whether the resolved action is *execute*, *serve* or *build*:
@@ -312,14 +311,14 @@ jac run --dev --no-client
 # Print the endpoint docs without starting a server
 jac run --faux
 
-# Mobile dev for the app named `mobile` (its client target decides Capacitor vs React Native)
+# Mobile dev for the app named `mobile` (Metro Fast Refresh on a device or simulator)
 jac run --dev mobile
 
-# The same app on the iOS simulator
-jac run --dev --platform ios mobile
+# The same app in a browser, through react-native-web
+jac run --dev --platform web mobile
 
-# Force the Capacitor shell for a file no app table describes
-jac run --client mobile --dev main.jac
+# Build the mobile app for iOS and launch it on the simulator
+jac run --platform ios mobile
 
 # Evict a stuck session holding this project's database
 jac run --takeover
@@ -455,7 +454,7 @@ jac check [-h] [-e] [-i [IGNORE ...]] [-p] [--nowarn] [--lint] [--fix] [--app AP
 | `--lint` | Also run the linter and report style/lint violations | `False` |
 | `--fix` | With `--lint`, auto-fix lint violations (code corrections) | `False` |
 
-**The workspace gate.** With no paths, `jac check` compiles **one rooted program per app** -- each app's entry with that app's facts (kind, client target, client kind, owning app) stamped -- and then sweeps every `.jac` file no app reached as its own root, so nothing under the project goes unchecked. When more than one app is checked, each diagnostic is prefixed `[<app>]`. Explicit paths keep the file-per-root behavior, using the owning app's facts for each file. `--app <name>` restricts both the app compile and the sweep to one app. This is the check that sees the cross-app laws (`E2039`, `E2040`, `E5107`, `E5104`, `E5106`); see [Workspaces & Apps](../apps.md#working-with-a-workspace).
+**The workspace gate.** With no paths, `jac check` compiles **one rooted program per app** -- each app's entry with that app's facts (kind, ui, platform, owning app) stamped -- and then sweeps every `.jac` file no app reached as its own root, so nothing under the project goes unchecked. When more than one app is checked, each diagnostic is prefixed `[<app>]`. Explicit paths keep the file-per-root behavior, using the owning app's facts for each file. `--app <name>` restricts both the app compile and the sweep to one app. This is the check that sees the cross-app laws (`E2039`, `E2040`, `E5107`, `E5104`, `E5106`); see [Workspaces & Apps](../apps.md#working-with-a-workspace).
 
 **Examples:**
 
@@ -1107,7 +1106,7 @@ jac config [action] [key] [value] [-g GROUP] [-o FORMAT]
 **Configuration Groups:**
 
 - `project` - Project metadata (name, version, description, default-app)
-- `apps` - The workspace's `[apps.<name>]` tables (kind, path, entry-point, client, client_kind, platform, route)
+- `apps` - The workspace's `[apps.<name>]` tables (kind, path, entry-point, platform, route)
 - `run` - Runtime settings (cache, session)
 - `build` - Build settings (output directory)
 - `test` - Test settings (verbose, filters)
@@ -1542,20 +1541,19 @@ jac clean --all --force
 Emit **one** artifact. Type checking runs on the critical path of every compilation, so the artifact compile is itself the gate: a program that does not type-check produces no artifact. By default `jac build` produces a `.jab` -- a single self-describing sealed app bundle. Use `--as` to select a different projection. `jac build` is now the single front door that the former `jac bundle` (wheel/npm), `jac eject` (source), and project-level `jac nacompile` (native/binary) folded into.
 
 ```bash
-jac build [-h] [--all] [--as {jab,sealed,binary,wheel,npm,source,native}] [-o OUTPUT] [-n] [-c] [-f]
-          [--client {web,pwa,static,mobile,desktop,cef,react-native}] [-p PLATFORM] [target]
+jac build [-h] [--all] [--as {jab,sealed,binary,wheel,npm,source,native,client}] [-o OUTPUT] [-n] [-c] [-f]
+          [-p {windows,macos,linux,all,android,ios,web}] [target]
 ```
 
 | Option | Description | Default |
 |--------|-------------|---------|
 | `target` | An app name from `[apps]`, or an entry `.jac` file (omit for `[project] default-app`, or the sole app) | (default app) |
 | `--all` | Build every app in the workspace into `<output>/<app>/` (each per its kind's output layout) | `False` |
-| `--as` | Artifact projection: `jab`, `sealed`, `binary`, `wheel`, `npm`, `source`, `native` | `jab` |
+| `--as` | Artifact projection: `jab`, `sealed`, `binary`, `wheel`, `npm`, `source`, `native`, `client` | `jab` |
 | `-o, --output` | Output directory | `dist` |
 | `-c, --check_only` | Run the gate only; emit nothing | `False` |
 | `-f, --fat` | Vendor the Python dependency closure into the bundle (`jab` / `binary` only) so it materializes offline | `False` |
-| `--client` | Override the app's client target and build its client shell instead of the artifact (`web`, `pwa`, `static`, `mobile`, `desktop`, `cef`, `react-native`). A `desktop` or `mobile` app builds its shell without the flag | None |
-| `-p, --platform` | Platform for desktop/mobile shells (`windows`, `macos`, `linux`, `all`, `android`, `ios`) | Current platform |
+| `-p, --platform` | Platform for desktop (`windows`, `macos`, `linux`, `all`) and mobile (`android`, `ios`; `web` builds the mobile app for a browser) apps | the app's `[apps.<name>] platform`, else the current platform |
 
 **Projections (`--as`):**
 
@@ -1568,6 +1566,7 @@ jac build [-h] [--all] [--as {jab,sealed,binary,wheel,npm,source,native}] [-o OU
 | `npm` | An npm tarball | `jac bundle --target npm` |
 | `source` | An editable FastAPI + JavaScript source tree (zero `.jac` files) | `jac eject` |
 | `native` | A standalone native binary | project-level `jac nacompile` |
+| `client` | Only the app's client bundle (the browser bundle of a `web-app` / `web-static`, the desktop binary of a `desktop` app, the platform build of a `mobile` app) | -- |
 
 **The type-check gate.** `jac build` refuses to emit an artifact if the program fails type checking, and there is no flag that skips it. Because every compilation type-checks, the artifact compile *is* the gate rather than a separate pass over the project. Use `--check_only` to run the whole-project check and emit nothing (useful in CI).
 
@@ -1641,17 +1640,20 @@ jac build web
 jac build --all
 ```
 
-**Building a client shell:**
+**Building a client:**
 
 ```bash
-# A desktop app (kind = "desktop") builds its native webview shell
+# A desktop app (kind = "desktop") builds its native shell
 jac build desktop_app
 
-# A mobile app builds its shell for a platform
+# A mobile app builds for a platform
 jac build mobile -p android
 
-# Force a shell for an app whose kind is not a shell kind
-jac build --client desktop
+# The mobile app as a browser bundle (react-native-web)
+jac build mobile -p web
+
+# Only the browser bundle of the web app, no server artifact
+jac build --as client web
 ```
 
 > **Note:** The `[project.include]` / `**/*.jir` collection settings in `jac.toml` govern what `jac build --as wheel` collects (this was formerly `jac bundle`). See the [Configuration Reference](../config/index.md#project) for the full set of publishing fields (`name`, `version`, `license`, `readme`, `authors`, `[project.include]`, and more). For the full end-to-end publishing workflow, see the [Publishing Packages](../publishing.md) guide.
@@ -1866,67 +1868,61 @@ jac completions --shell fish --install
 
 The built-in full-stack client framework contributes these commands and flags. They ship with `jaclang` core -- no separate install needed.
 
-### jac build --client
+### jac build --as client
 
-Build a **client shell** for an app. Every app has a client target -- `[apps.<name>] client`, defaulting to its kind's target (`web` for `web-app`, `static` for `web-static`, `desktop` for `desktop`, `mobile` for `mobile`) -- so a `desktop` or `mobile` app builds its shell from a plain `jac build <app>`. `--client <target>` overrides the app's target for one build and forces the shell build on any app; see [`jac build`](#jac-build) for the artifact projections (`.jab`, wheel, npm, source, native). Client builds type-check like every other compilation.
+Build only an app's **client**. The app's kind decides what that is -- the browser bundle of a `web-app` (or `js-package`), the static page of a `web-static` app, the native shell of a `desktop` app, the platform build of a `mobile` app -- so a `desktop` or `mobile` app already builds its client from a plain `jac build <app>`; `--as client` skips the server artifact for kinds that have one. See [`jac build`](#jac-build) for the other projections (`.jab`, wheel, npm, source, native). Client builds type-check like every other compilation.
 
 ```bash
-jac build [target] [--client TARGET] [-p PLATFORM]
+jac build [target] --as client [-p PLATFORM]
 ```
 
 | Option | Description | Default |
 |--------|-------------|---------|
 | `target` | App name, or a `.jac` entry file | (default app) |
-| `--client` | Override the app's client target (`web`, `desktop`, `pwa`, `mobile`, `static`, `cef`, `react-native`) | (app's) |
-| `-p, --platform` | **Mobile:** `android`, `ios`, `all`. **Desktop:** `windows` names the sidecar `jac-sidecar.exe` | Current platform |
+| `-p, --platform` | **Mobile:** `android`, `ios`, or `web` (the app in a browser via react-native-web). **Desktop:** `windows`, `macos`, `linux`, `all` (`windows` names the sidecar `jac-sidecar.exe`) | the app's `platform`, else the current platform |
+
+A `web-app` with a `[client.pwa]` table in `jac.toml` builds as a PWA: the bundle gains `manifest.json`, `sw.js`, the icons and the install banner.
 
 **Examples:**
 
 ```bash
-# A desktop app: its kind picks the desktop shell
+# A desktop app: its kind picks the desktop shell ([desktop] engine picks native webview or CEF)
 jac build desktop_app
 
 # Build on Windows for the windows binary
 jac build desktop_app --platform windows
 
-# A mobile app (Capacitor by default; client = "react-native" for native views)
+# A mobile app: native views through React Native
 jac build mobile --platform android
 jac build mobile --platform ios
+jac build mobile --platform web        # the same app as a browser bundle
 
-# Override the target: a PWA shell for the web app
-jac build web --client pwa
+# Only the web app's browser bundle
+jac build --as client web
 ```
 
 ### jac setup
 
-One-time initialization of an app's client target.
+One-time initialization of an app's client.
 
 ```bash
-jac setup [app|target] [-p PLATFORM]
+jac setup [app]
 ```
 
 | Option | Description |
 |--------|-------------|
-| `target` | An app name from `[apps]` (sets up that app's client target), or a client target name (`mobile`, `pwa`, `desktop`, `react-native`) for the default app. Omit to set up the default app's target |
-| `-p, --platform` | Mobile setup platform: `android`, `ios`, `all` |
+| `app` | An app name from `[apps]`. Omit to set up the default app |
+
+What it does depends on the app's kind: a `mobile` app gets its Expo/Metro scaffold at `.jac/mobile-rn/` (with `[dependencies.npm.native]` merged in); a `web-app` with a `[client.pwa]` table gets a `pwa_icons/` directory with placeholder icons; `desktop` apps need no setup (the native host is generated at build time).
 
 **Examples:**
 
 ```bash
-# Set up the default app's client target
+# Set up the default app's client
 jac setup
 
-# The app named `mobile` (or the Capacitor target of the default app)
+# The Expo scaffold for the app named `mobile`
 jac setup mobile
-
-# iOS scaffold only (macOS only)
-jac setup mobile --platform ios
-
-# Both Android and iOS scaffolds (macOS)
-jac setup mobile --platform all
-
-# The React Native (Expo/Metro) scaffold for an app whose client is react-native
-jac setup react-native
 ```
 
 ### Extended Flags
@@ -1936,21 +1932,21 @@ jac setup react-native
 | `jac create` | `--kind web-app` | Create full-stack project template |
 | `jac create` | `--app <name> --kind <kind>` | Add an app to the current project |
 | `jac create` | `--skip` | Skip npm package installation |
-| `jac run` | `--client <target>` | Override the app's client target for the dev server |
+| `jac run` | `--platform <android\|ios\|web>` | Where a mobile app runs (device/simulator, or a browser via react-native-web) |
+| `jac build` | `--as client` | Build only the app's client bundle |
 | `jac run` | `--fleet` | Run service apps as separate local processes |
 | `jac install` | `--npm` | Add npm (client-side) dependency |
 | `jac remove` | `--npm` | Remove npm (client-side) dependency |
 
 ### Desktop builds
 
-The `desktop` and `cef` client targets ship with `jaclang` core -- no
-separate install. There is no separate `jac desktop` command and no setup step.
-An app with `kind = "desktop"` builds and launches the OS-native webview target
-from `jac build <app>` / `jac run <app>`; set `engine = "cef"` under
-`[desktop]` (or pass `--client cef`) for the Chromium Embedded Framework
-target. `--client desktop` / `--client cef` force either shell on any app.
-See the [jac-desktop Reference](../plugins/jac-desktop.md) for configuration
-and CEF runtime flags.
+The desktop target ships with `jaclang` core -- no separate install. There is
+no separate `jac desktop` command and no setup step. An app with `kind =
+"desktop"` builds and launches its native window from `jac build <app>` /
+`jac run <app>`; `[desktop] engine` picks the renderer, `"native"` (the OS
+webview, default) or `"cef"` (Chromium Embedded Framework), and both build into
+`.jac/client/desktop/`. See the [jac-desktop Reference](../plugins/jac-desktop.md)
+for configuration and CEF runtime flags.
 
 ---
 

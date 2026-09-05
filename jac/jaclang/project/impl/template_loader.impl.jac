@@ -379,7 +379,7 @@ impl migrate_implicit_app(lines: list[str], base: JacConfig) -> str {
     import from jaclang.project.kinds { kind_entry }
     base_app = base.resolve_app("");
     base_kind = base.resolved_kind(base_app);
-    for key in ("kind", "entry-point", "entry_point", "client_kind", "client-kind") {
+    for key in ("kind", "entry-point", "entry_point") {
         _toml_delete_key(lines, ("project", ), key);
     }
     default_line = toml_value(base_app.name);

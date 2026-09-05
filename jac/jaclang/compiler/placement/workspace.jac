@@ -6,16 +6,16 @@ import from jaclang.compiler.driver.modresolver { find_jac_project_root }
 
 glob KIND_CODESPACE: dict[str, str] = {"js-package": "client"},
      KIND_HAS_SERVER: tuple = ("web-app", "service", "service-mesh"),
-     KIND_CLIENT_TARGET: dict[str, str] = {
-         "web-app": "web",
-         "web-static": "static",
-         "mobile": "react-native",
-         "desktop": "desktop",
-         "js-package": "web"
+     KIND_UI: dict[str, str] = {
+         "web-app": "dom",
+         "web-static": "dom",
+         "desktop": "dom",
+         "js-package": "dom",
+         "mobile": "mobui"
      },
+     UI_MOBUI: str = "mobui",
      KIND_ENTRY: dict[str, str] = {"py-package": "lib.jac", "js-package": "lib.jac"},
-     DEFAULT_ENTRY: str = "main.jac",
-     DEFAULT_CLIENT_KIND: str = "web";
+     DEFAULT_ENTRY: str = "main.jac";
 
 obj AppSpec {
     has name: str,
@@ -23,8 +23,7 @@ obj AppSpec {
         root_dir: str = "",
         `entry: str = "",
         file_rooted: bool = False,
-        client: str = "",
-        client_kind: str = "web",
+        ui: str = "",
         platform: str = "",
         route: str = "",
         pins: dict[str, str] = {},
@@ -61,8 +60,8 @@ glob _ws_cache: dict[str, tuple[tuple, WorkspaceSpec]] = {};
 def kind_codespace(kind: str) -> str;
 def kind_has_server(kind: str) -> bool;
 def kind_entry(kind: str) -> str;
-def default_client_kind(client: str) -> str {
-    return "mobui" if client == "react-native" else DEFAULT_CLIENT_KIND;
+def kind_ui(kind: str) -> str {
+    return KIND_UI.get(kind, '');
 }
 
 def workspace_for_path(path: str) -> (WorkspaceSpec | None);

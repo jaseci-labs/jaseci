@@ -903,11 +903,12 @@ impl JacCompiler.stamp_app_facts(mod: uni.Module, target_program: JacProgram) ->
     } else {
         mod.app_kind = '';
     }
-    override_kind = opts.client_kind if (opts is not None and opts.client_kind) else '';
-    client_kind = override_kind or (app.client_kind if app is not None else 'web');
-    if client_kind == 'mobui' {
+    import from jaclang.compiler.placement.workspace { UI_MOBUI }
+    override_ui = opts.ui if (opts is not None and opts.ui) else '';
+    ui = override_ui or (app.ui if app is not None else '');
+    if ui == UI_MOBUI {
         enforced_root: (str | None) = None;
-        if override_kind and opts.project_root {
+        if override_ui and opts.project_root {
             enforced_root = opts.project_root;
         }
         if enforced_root is None and app is not None and app.root_dir {

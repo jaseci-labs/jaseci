@@ -1,17 +1,17 @@
 ---
 name: jac-mobui
-description: Building a cross-platform mobile + web app with MobUI - an `[apps.<name>]` table with `client = "react-native"` + `client_kind = "mobui"`, the `@jac/mobui` primitives (View/Text/Pressable/TextInput/ScrollView), the no-HTML rule (E1105), RN props/events, StyleSheet styling, typed theme tokens, cross-platform icons via `.native.jac` variants (E5105), and the `jac run <app>` / `jac build <app>` flow. Load when the user wants a mobile / iOS / Android / React Native app, or when editing any `client_kind = "mobui"` app. This is the React Native target - for the Capacitor webview wrapper of a web bundle see `jac-mobile-app`.
+description: Building a cross-platform mobile + web app with MobUI - a `kind = "mobile"` app (`[apps.<name>]` in a workspace), the `@jac/mobui` primitives (View/Text/Pressable/TextInput/ScrollView), the no-HTML rule (E1105), RN props/events, StyleSheet styling, typed theme tokens, cross-platform icons via `.native.jac` variants (E5105), and the `jac run <app>` / `jac build <app>` flow. Load when the user wants a mobile / iOS / Android / React Native app, or when editing any `kind = "mobile"` app. The toolchain side (Expo scaffold, builders, EAS, devices) is in `jac-mobile-app`.
 ---
 
-MobUI is Jac's cross-platform UI model: **one source compiles to both native React Native (Expo/Metro) and web (react-native-web)**. It is turned on per **app**: `client_kind = "mobui"` on the app's `[apps.<name>]` table in `jac.toml` flips on a compiler guard that bans HTML in that app's modules (and nowhere else - a web app in the same workspace keeps its HTML). You author entirely in `@jac/mobui` primitives - **no `<div>`, no `className`, no CSS**.
+MobUI is Jac's cross-platform UI model: **one source compiles to both native React Native (Expo/Metro) and web (react-native-web)**. Every `kind = "mobile"` app is a MobUI app: the kind on the app's `[apps.<name>]` table in `jac.toml` (or `[project] kind` in a single-app project) turns on a compiler guard that bans HTML in that app's modules (and nowhere else - a web app in the same workspace keeps its HTML). You author entirely in `@jac/mobui` primitives - **no `<div>`, no `className`, no CSS**.
 
-This is a different target from `jac-mobile-app` (Capacitor), which wraps the *web* bundle in a webview and keeps HTML. MobUI is real React Native components. The in-repo example is the flagship workspace's mobile app, `jac/examples/jaclang_org/mobile/` (`jac create <name> --awesome` scaffolds the whole workspace) - a React Native client for the same social graph the site serves, with typed theme tokens, `.native.jac` icon variants, and `BridgeError` handling; the product-scale reference is `jachammer` (a mobile clone of jacBuilder) in the jacBuilder repo under `apps/mobile/` - copy their patterns.
+MobUI is real React Native components, not a web page in a webview. The in-repo example is the flagship workspace's mobile app, `jac/examples/jaclang_org/mobile/` (`jac create <name> --awesome` scaffolds the whole workspace) - a React Native client for the same social graph the site serves, with typed theme tokens, `.native.jac` icon variants, and `BridgeError` handling; the product-scale reference is `jachammer` (a mobile clone of jacBuilder) in the jacBuilder repo under `apps/mobile/` - copy their patterns.
 
 A MobUI app is a **client app** of its workspace: it has no server of its own. Its screens import walkers / `def:pub` functions from shared `core/` code that a serving app (the `web-app`, or a file-rooted `service` app) owns, and every `root spawn` / call bridges to that owner - in the flagship, `core/social_graph.jac` is `[apps.social_graph]`'s entry file and `mobile/` is one of its clients. All of `jac-walker-patterns`, `jac-sv-endpoints`, `jac-sv-persistence` apply to that backend unchanged; `jac-sv-microservices` covers the bridge and the `BridgeError` family.
 
 ## The one hard rule: NO raw HTML (E1105)
 
-In a `mobui` project, any lowercase HTML tag that doesn't resolve to an in-scope component is **`E1105`, which blocks codegen**. Use the primitive instead:
+In a `mobile` app, any lowercase HTML tag that doesn't resolve to an in-scope component is **`E1105`, which blocks codegen**. Use the primitive instead:
 
 | HTML (FORBIDDEN) | MobUI primitive |
 |---|---|
@@ -131,11 +131,9 @@ version = "1.0.0"
 default-app = "mobile"
 
 [apps.mobile]
-kind = "mobile"
+kind = "mobile"                # THE switch: native views via Expo/Metro, @jac/mobui only (HTML is E1105)
 path = "mobile"                # dir-rooted; omit in a single-app project (root = project root)
-client = "react-native"        # native views via Expo/Metro (the kind's default is the Capacitor webview)
-client_kind = "mobui"          # THE switch - without it it's a web-style client and HTML is allowed
-platform = "android"           # optional default for `jac run mobile`
+platform = "android"           # optional default for `jac run mobile` / `jac build mobile`
 
 [dependencies.npm]
 react = "^19.2.0"
@@ -146,23 +144,24 @@ lucide-react-native = "^0.469.0"   # icons (native) - optional
 react-native-svg = "^15.13.0"      # peer dep of lucide-react-native
 ```
 
-`client_kind` accepts only `"web"` (default) or `"mobui"` and lives on the app table - `[project] client_kind` is a parse error. Mobile-only npm deps can go in the app's overlay, `[apps.mobile.dependencies.npm]`. Run `jac install` after editing `jac.toml`.
+Mobile-only npm deps can go in the app's overlay, `[apps.mobile.dependencies.npm]`; packages only the Expo project needs go under `[dependencies.npm.native]`. Run `jac install` after editing `jac.toml`.
 
 ```bash
-jac run --client web --dev mobile        # WEB preview (react-native-web via Vite) - iframe-able
+jac run --dev --platform web mobile      # WEB preview (react-native-web via Vite) - iframe-able
 jac setup mobile                         # one-time Expo scaffold → .jac/mobile-rn/
 jac run --dev mobile                     # NATIVE (Metro; press a/i, or Expo Go QR)
 jac build mobile --platform android      # APK (gradle or EAS)
 jac build mobile --platform ios          # .app / .ipa (xcodebuild on macOS, or EAS)
+jac build mobile --platform web          # the browser bundle (dist/mobile/ under `jac build --all --platform web`)
 jac test mobile                          # the app's pure-Jac helpers
 jac run web                              # in another terminal: the server the screens bridge to
 ```
 
-(Single-app project: drop the app name.) **Iterate on `jac run --client web --dev mobile`** - the web (react-native-web) target renders `View`→`div`, `Text`→`span` and hot-reloads in a browser. Native needs Metro + a device/simulator and can't render in a plain iframe. Optional native config lives under `[client.react_native]` (`project_dir`, `default_platform`, `android_builder`/`ios_builder` = `gradle`/`xcodebuild`/`eas`, `eas_profile`, OTA `eas_update*`).
+(Single-app project: drop the app name.) **Iterate on `jac run --dev --platform web mobile`** - the web platform (react-native-web) renders `View`→`div`, `Text`→`span` and hot-reloads in a browser. Native needs Metro + a device/simulator and can't render in a plain iframe. Optional native config lives under `[client.react_native]` (`project_dir`, `default_platform`, `android_builder`/`ios_builder` = `gradle`/`xcodebuild`/`eas`, `eas_profile`, OTA `eas_update*`) - see `jac-mobile-app`.
 
 ## Cross-platform icons & native modules
 
-`@jac/mobui` ships no icons. Use Lucide split into two files with the **identical** `Icon` API - the compiler picks `.native.jac` when the app's client target is `react-native`, else `.jac` (a stamped decision, never the filename alone), and **checks the two agree**: same names, kinds, parameters and annotations, or `E5105` on the variant:
+`@jac/mobui` ships no icons. Use Lucide split into two files with the **identical** `Icon` API - the compiler picks `.native.jac` for the app's native platforms (android / ios) and `.jac` for its web platform (a stamped decision, never the filename alone), and **checks the two agree**: same names, kinds, parameters and annotations, or `E5105` on the variant:
 
 ```
 # icon.jac  (WEB)                                 # icon.native.jac  (NATIVE)
@@ -197,16 +196,16 @@ def kbBehavior() -> str { return "padding" if Platform.OS == "ios" else "height"
 
 ## Scaffolding checklist (new MobUI app)
 
-1. `jac create --app mobile --kind mobile` (or `--kind mobile` on a new project): an `[apps.mobile]` table with `client = "react-native"`, `client_kind = "mobui"` + the npm deps above.
+1. `jac create --app mobile --kind mobile` (or `--kind mobile` on a new project): an `[apps.mobile]` table with `kind = "mobile"` + the npm deps above.
 2. `main.jac` - `def:pub app -> JsxElement` (auth gate, state, screen switch); the backend it bridges to lives in shared `core/` and is owned by a serving app - NOT inside the mobile app.
 3. `theme.jac` - token `obj`s + one `StyleSheet`.
 4. `screens/` + `components/` in primitives only; `icon.jac` + `icon.native.jac` if icons are needed.
-5. `jac install`, then `jac run --client web --dev mobile` and validate; `jac check` gates the whole workspace (E1105, E5105, E2039).
+5. `jac install`, then `jac run --dev --platform web mobile` and validate; `jac check` gates the whole workspace (E1105, E5105, E2039).
 
 ## See also
 
 - `jac-cl-components` - shared client-component rules (state, effects, JSX-in-Jac, pitfalls) that all still apply
-- `jac-mobile-app` - the **Capacitor** target (webview wrapper of a web bundle; keeps HTML) - different from MobUI
+- `jac-mobile-app` - the toolchain side: Expo scaffold, `[client.react_native]` builders, EAS Build / Update, devices
 - `jac-fullstack-patterns`, `jac-walker-patterns`, `jac-sv-endpoints` - the backend the UI calls
 - `jac-project-kinds` - target comparison
 - `jac-sv-microservices` - the bridge the screens call through, the `BridgeError` family, ownership of the shared `core/`

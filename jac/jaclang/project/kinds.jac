@@ -14,7 +14,7 @@ obj KindSpec {
         needs_entry: bool = True,
         output_dir: str = "",
         codespace: str = "",
-        client_target: str = "",
+        ui: str = "",
         has_server: bool = False;
 }
 
@@ -94,7 +94,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
                  flags={"as": "npm"},
                  needs_entry=False,
                  codespace="client",
-                 client_target="web"
+                 ui="dom"
              ),
              KindSpec(
                  name="web-app",
@@ -104,7 +104,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
                  verb="run",
                  summary="Serve full-stack app with client (dev mode)",
                  flags={"dev": True},
-                 client_target="web",
+                 ui="dom",
                  has_server=True
              ),
              KindSpec(
@@ -114,7 +114,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
                  action="serve",
                  verb="run",
                  summary="Serve client-only app as a static page (no backend)",
-                 client_target="static"
+                 ui="dom"
              ),
              KindSpec(
                  name="desktop",
@@ -123,38 +123,23 @@ glob KIND_SPECS: dict[str, KindSpec] = {
                  action="serve",
                  verb="run",
                  summary="Run desktop app (OS webview)",
-                 flags={"client": "desktop"},
-                 client_target="desktop"
+                 ui="dom"
              ),
              KindSpec(
                  name="mobile",
-                 description=(
-                     "Jac mobile app (mobUI, React Native; Capacitor via "
-                     'client = "mobile")'
-                 ),
+                 description="Jac mobile app (mobUI over React Native)",
                  `entry="main.jac",
                  action="build",
                  verb="build",
                  summary="Build mobile app bundle",
-                 flags={"client": "react-native"},
-                 client_target="react-native"
+                 ui="mobui"
              )
          ]
      },
      VALID_KINDS: list[str] = list(KIND_SPECS.keys()),
-     CLIENT_TARGETS: list[str] = [
-         "web",
-         "pwa",
-         "static",
-         "mobile",
-         "desktop",
-         "cef",
-         "react-native"
-     ],
-     _CLIENT_TARGET_ALIASES: dict[str, str] = {
-         "react_native": "react-native",
-         "rn": "react-native"
-     };
+     UI_DOM: str = "dom",
+     UI_MOBUI: str = "mobui",
+     MOBILE_PLATFORMS: list[str] = ["android", "ios", "web"];
 
 def kind_spec(kind: str) -> KindSpec | None {
     return KIND_SPECS.get(kind);
@@ -169,23 +154,17 @@ def is_valid_kind(kind: str) -> bool {
     return kind in KIND_SPECS;
 }
 
-def default_client_kind(client_target: str) -> str {
-    return "mobui" if client_target == "react-native" else "web";
+def kind_ui(kind: str) -> str {
+    spec = KIND_SPECS.get(kind);
+    return spec.ui if spec else "";
 }
 
-def normalize_client_target(name: str) -> str {
-    key = (name or "").strip().lower();
-    if not key {
-        return "web";
-    }
-    key = _CLIENT_TARGET_ALIASES.get(key, key);
-    if key not in CLIENT_TARGETS {
-        raise ValueError(
-            f"Unknown client target '{name}'; expected one of "
-            f"{', '.join(CLIENT_TARGETS)}"
-        );
-    }
-    return key;
+def kind_has_client(kind: str) -> bool {
+    return bool(kind_ui(kind));
+}
+
+def kind_is_mobui(kind: str) -> bool {
+    return kind_ui(kind) == UI_MOBUI;
 }
 
 obj RunPlan {
@@ -338,9 +317,6 @@ def plan_app_run(
         );
         output = os.path.join(out_dir, stem);
         flags["output"] = output;
-    }
-    if app.client {
-        flags["client"] = app.client;
     }
     if app.platform {
         flags["platform"] = app.platform;

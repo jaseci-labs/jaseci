@@ -41,8 +41,6 @@ def _ensure_libwebview(webview_dir: Path) -> Path {
     return lib;
 }
 
-impl NativeDesktopTarget.setup(project_dir: Path) -> None {}
-
 def _assemble_native_host(
     entry_file: Path, project_dir: Path, output_dir: Path, dist_dir: Optional[Path]
 ) -> Path {
@@ -137,29 +135,23 @@ def _assemble_native_host(
     return binary;
 }
 
-impl NativeDesktopTarget.build(
-    entry_file: Path, project_dir: Path, platform: Optional[str] = None
+def webview_build(
+    entry_file: Path, project_dir: Path, out_dir: Path, web_bundle: Path
 ) -> Path {
     ensure_dev_build_env();
 
     console.print("\n🖥️  Building desktop app (Jac-native webview)", style="bold");
-    web_bundle = super.build(entry_file, project_dir, platform);
-    binary = _assemble_native_host(
-        entry_file, project_dir, project_dir / self.output_dir, web_bundle.parent
-    );
+    binary = _assemble_native_host(entry_file, project_dir, out_dir, web_bundle.parent);
     console.print(f"\n✅ Desktop app built: {binary}", style="bold green");
     console.print(
         f"   run: (cd {binary.parent} && ./{binary.name}-launch.sh)"
-        "  # or jac run --client desktop",
+        "  # or jac run <app>",
         style="muted"
     );
     return binary;
 }
 
-impl NativeDesktopTarget.start(
-    entry_file: Path, project_dir: Path, api_port: int = 8000
-) -> None {
-    binary = self.build(entry_file, project_dir, None);
+def webview_start(binary: Path) {
     env = desktop_app_runtime_env();
     console.print(f"\n🚀 Launching {binary.name}", style="bold green");
     try {
@@ -169,9 +161,13 @@ impl NativeDesktopTarget.start(
     }
 }
 
-impl NativeDesktopTarget.dev(
-    entry_file: Path, project_dir: Path, port: int = 8000, api_port: int = 0
-) -> None {
+def webview_dev(
+    entry_file: Path,
+    project_dir: Path,
+    out_dir: Path,
+    port: int = 8000,
+    api_port: int = 0
+) {
     import from jaclang.server.watcher { JacFileWatcher }
     import from jaclang.client.targets.client_dev_common {
         _ClientHmrHandler,
@@ -218,9 +214,7 @@ impl NativeDesktopTarget.dev(
     try {
         console.print("  Building native host (once for dev session)…", style="muted");
 
-        binary = _assemble_native_host(
-            entry_file, project_dir, project_dir / self.output_dir, None
-        );
+        binary = _assemble_native_host(entry_file, project_dir, out_dir, None);
 
         env = desktop_app_runtime_env();
         env["JAC_DESKTOP_DEV_PORT"] = str(vite_port);

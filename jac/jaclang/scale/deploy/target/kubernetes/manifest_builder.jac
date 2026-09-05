@@ -522,7 +522,7 @@ obj ManifestBuilder {
                 attempt += 1;
                 try {
                     result = subprocess.run(
-                        [jac_bin, "build", entry_rel.as_posix(), "--client", "web"],
+                        [jac_bin, "build", "--as", "client", entry_rel.as_posix()],
                         cwd=stage,
                         capture_output=True,
                         text=True,

@@ -52,17 +52,13 @@ def target_scoped_npm_deps(config: JacConfig, target_name: str) -> dict[str, str
 
 
 def _app_wants_client(config: JacConfig, app: any) -> bool {
-    import from jaclang.project.kinds { kind_spec }
-    if app.client or app.implicit {
-        return True;
-    }
-    spec = kind_spec(app.kind);
-    return spec is not None and bool(spec.client_target);
+    import from jaclang.project.kinds { kind_has_client }
+    return app.implicit or kind_has_client(app.kind);
 }
 
 
 def app_npm_deps(config: JacConfig) -> list[tuple[str, str, str, bool]] {
-    import from jaclang.client.targets.registry { app_client_target }
+    import from jaclang.client.targets.registry { KIND_TARGET }
     (base_deps, base_dev) = manifest_plugin_deps(config, "npm");
     out: list[tuple[str, str, str, bool]] = [];
     seen: dict[tuple[str, bool], tuple[str, str]] = {};
@@ -89,7 +85,7 @@ def app_npm_deps(config: JacConfig) -> list[tuple[str, str, str, bool]] {
         if not _app_wants_client(config, app) {
             continue;
         }
-        target_name = app_client_target(app);
+        target_name = KIND_TARGET.get(config.resolved_kind(app), "web");
         effective = (
             config.effective_for_app(app.name) if app.name in config.apps else config
         );

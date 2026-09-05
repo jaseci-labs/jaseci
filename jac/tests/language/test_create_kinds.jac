@@ -130,14 +130,19 @@ test "create --kind mobile scaffolds a single-app mobUI project" {
     app = cfg.resolve_app("");
     assert app.implicit;
     assert app.kind == "mobile";
-    assert app.effective_client() == "react-native" , (
-        "a mobile app is a React Native app unless it names another client"
+    assert app.ui() == "mobui" , "a mobile app is mobUI by kind alone";
+    assert not hasattr(app, "client") and not hasattr(app, "client_kind") , (
+        "the scaffolded app carries no client axis"
     );
-    assert app.client_kind == "mobui" , "React Native implies the mobUI client kind";
+    assert "client =" not in toml and "client_kind" not in toml , (
+        "the scaffold writes no client / client_kind keys"
+    );
     plan = plan_app_run(cfg, str(proj), app);
     assert plan.action == "build" , f"mobile: expected build, got {plan.action}";
     assert plan.app == "" , "an implicit app runs without an app positional";
-    assert plan.flags.get("client") == "react-native";
+    assert "client" not in plan.flags , "the plan carries no client flag";
+    assert plan.spec.ui == "mobui";
+    assert plan.command_line() == "jac build main.jac" , plan.command_line();
     assert plan.entry_path.endswith("main.jac") , plan.entry_path;
     _cleanup();
 }

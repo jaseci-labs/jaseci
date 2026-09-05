@@ -136,9 +136,7 @@ default-app = "web"
 kind = "web-app"                 # required: any project kind
 path = "web"                     # dir root, relative to the project root
 entry-point = "main.jac"         # relative to path; default = the kind's entry
-client = "web"                   # client target; default = the kind's client target
-client_kind = "web"              # "web" | "mobui"
-platform = ""                    # default platform for mobile shells
+platform = ""                    # default platform (mobile: android | ios | web; desktop: windows | macos | linux)
 route = "/api/web"               # default "/api/<name>"; serving kinds only
 
 [apps.social_graph]              # file-rooted: no path, the entry file is the whole app
@@ -148,15 +146,13 @@ entry-point = "core/social_graph.jac"
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `kind` | string | **Required.** The app's project kind (same values as `[project] kind`) |
+| `kind` | string | **Required.** The app's project kind (same values as `[project] kind`). The kind decides the client too: `web-app`, `web-static`, `desktop` and `js-package` render React DOM; `mobile` renders native views through `@jac/mobui` (its modules are under the `E1105` host-tag guard) |
 | `path` | string | Directory root of the app, relative to the project root; omit for a file-rooted app |
 | `entry-point` | string | Entry file, relative to `path` (or to the project root without one); default = the kind's entry |
-| `client` | string | Client shell target (`web`, `pwa`, `static`, `mobile`, `desktop`, `cef`, `react-native`); default = the kind's `client_target` |
-| `client_kind` | string | `"web"` (default) or `"mobui"` -- turns on the `@jac/mobui` host-tag guard for the app's modules |
-| `platform` | string | Default platform for mobile shells (`android`, `ios`) |
+| `platform` | string | Default platform: `android`, `ios` or `web` for a `mobile` app; `windows`, `macos` or `linux` for a `desktop` app. `--platform` overrides it for one command |
 | `route` | string | Public route prefix for apps with a server; must start with `/`; default `/api/<name>`. Two serving apps claiming one prefix is a config error |
 
-`[project] kind`, `[project] entry-point` and `[project] client_kind` cannot be set alongside `[apps]` (hard error); `client_kind` exists only on apps. Without `[apps]` the project is one implicit app named after `[project] name`, and nothing else changes.
+`[project] kind` and `[project] entry-point` cannot be set alongside `[apps]` (hard error). Without `[apps]` the project is one implicit app named after `[project] name`, and nothing else changes.
 
 **Per-app overlays.** Any recognized section can be nested under an app and is deep-merged over the base table for that app only:
 
@@ -1029,7 +1025,7 @@ Project ID vars (`FIREBASE_AUTH_PROJECT_ID`, `JAC_STORAGE_FIREBASE_PROJECT_ID`, 
 | Variable | Description |
 |----------|-------------|
 | `JAC_CLIENT_SKIP_NPM_INSTALL` | Skip `npm install` during client build setup |
-| `JAC_MOBILE_PLATFORM` | Mobile platform selection for dev/build (`auto`, `android`, `ios`) |
+| `JAC_MOBILE_PLATFORM` | Set by `jac run --platform <android\|ios> <mobile-app>`; overrides `[client.react_native] default_platform` for that run |
 
 ### Scale: Webhooks
 

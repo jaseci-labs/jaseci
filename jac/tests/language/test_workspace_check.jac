@@ -131,8 +131,8 @@ test "bare jac check roots one program per app and prefixes diagnostics" {
     }
     assert "helper.jac" in out , out;
     assert "[shared] " not in out , f"every shared file here is reached by an app:\n{out}";
-    # The shared <div> component is imported only by the web app (client_kind
-    # "web"), so the mobUI guard has nothing to say.
+    # The shared <div> component is imported only by the web app (a DOM ui,
+    # not a mobile app), so the mobUI guard has nothing to say.
     assert "E1105" not in out , out;
     # Apps importing shared code, and shared code importing shared code, are
     # the legal directions of the layering laws.

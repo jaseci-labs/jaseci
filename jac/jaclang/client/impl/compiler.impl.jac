@@ -4,7 +4,7 @@ impl ViteCompiler.compile(
     self: ViteCompiler, module: (ModuleType | None), module_path: Path
 ) -> tuple[list[str], list[str]] {
     (client_exports, client_globals) = self.jac_client_compiler.compile(
-        module, module_path, target_name="web"
+        module, module_path
     );
     self._has_pages = self.jac_client_compiler._has_pages;
 

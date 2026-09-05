@@ -53,9 +53,9 @@ into the bundle) and once for `cli` (where it is bridged). No pass reads
 `jac.toml`; the stamps are the only channel.
 
 The facts are part of the program. The `.jir` placement-summary cache key
-carries an **app-fact digest** -- a hash over the app's name, kind, client
-target, client kind, platform, its merged pins, and its npm names -- so
-editing an app table invalidates exactly the modules that app claims.
+carries an **app-fact digest** -- a hash over the app's name, kind, root,
+entry, route, platform, its merged pins, and its npm names -- so editing an
+app table invalidates exactly the modules that app claims.
 
 Two laws consume the facts at every symbol use (`E2039`/`W2039`,
 `E2040`/`W2040`): an app may use another app's declarations only through the
@@ -65,9 +65,10 @@ cross-module import is a plain in-process import, a client bridge, a
 different app), or a native binding is decided by one classifier over the same
 facts; see [Cross-Codespace Interop](../internals/interop.md#one-cross-app-import-rule).
 
-**Variant agreement.** A `.native.jac` variant is selected by the app's
-client target (`react-native`), never by its filename alone, and stands in for
-its sibling `.jac` module. The two must expose the same public surface -- the
+**Variant agreement.** A `.native.jac` variant is selected for a `mobile`
+app's native platforms (android / ios; the base `.jac` serves its web
+platform), never by its filename alone, and stands in for its sibling `.jac`
+module. The two must expose the same public surface -- the
 same names, kinds of declaration, parameter names and annotations, `has`
 fields -- and each disagreement is `E5105`, reported on the variant.
 

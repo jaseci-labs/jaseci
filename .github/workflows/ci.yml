@@ -625,7 +625,8 @@ jobs:
         run: jac install "python-dotenv>=1.2.1,<2.0.0" --global
       - name: Run all client tests
         # Serial: parallel workers intermittently disagreed on collection of
-        # test_react_native_target.jac under the old pytest-xdist runner.
+        # test_mobile_target.jac (then test_react_native_target.jac) under the
+        # old pytest-xdist runner.
         # test_cef_dispatch_build.jac (the old test-cef-build job) runs here.
         env:
           JAC_TEST_JOBS: "0"

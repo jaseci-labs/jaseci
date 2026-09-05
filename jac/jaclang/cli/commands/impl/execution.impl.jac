@@ -205,16 +205,8 @@ def _populate_native_argv(engine: ExecutionEngine, argv: list[str]) -> None {
     setattr(engine, "_jac_argv_refs", (c_strings, c_argv));
 }
 
-def _plan_client(plan: RunPlan, app: any) -> str {
-    import from jaclang.project.kinds { kind_spec }
-    if app is None {
-        return str(plan.flags.get("client", "") or "");
-    }
-    if app.client {
-        return app.client;
-    }
-    spec = kind_spec(plan.kind);
-    return spec.client_target if spec is not None else "";
+def _plan_ui(plan: RunPlan) -> str {
+    return plan.spec.ui;
 }
 
 def _plan_route(plan: RunPlan, app: any) -> str {
@@ -234,9 +226,13 @@ def _print_plan(plan: RunPlan, app: any) {
     if plan.entry_path {
         console.print(f"entry-point  : {plan.entry_path}");
     }
-    client = _plan_client(plan, app);
-    if client {
-        console.print(f"client       : {client}");
+    ui = _plan_ui(plan);
+    if ui {
+        console.print(f"ui           : {ui}");
+    }
+    platform = str(plan.flags.get("platform", "") or "");
+    if platform {
+        console.print(f"platform     : {platform}");
     }
     route = _plan_route(plan, app);
     if route {
@@ -260,7 +256,7 @@ def _workspace_plans(cfg: any, project_root: str) -> list {
 }
 
 def _show_workspace(cfg: any, project_root: str) -> int {
-    header = ["app", "kind", "entry_rel", "action", "client", "route"];
+    header = ["app", "kind", "entry_rel", "action", "ui", "route"];
     rows: list[list[str]] = [];
     planned: set[str] = set();
     for plan in _workspace_plans(cfg, project_root) {
@@ -275,7 +271,7 @@ def _show_workspace(cfg: any, project_root: str) -> int {
                 plan.kind,
                 entry_rel,
                 plan.action,
-                _plan_client(plan, app) or "-",
+                _plan_ui(plan) or "-",
                 _plan_route(plan, app) or "-"
             ]
         );
@@ -289,7 +285,7 @@ def _show_workspace(cfg: any, project_root: str) -> int {
                     str(app_cfg.kind or "-"),
                     "(no entry)",
                     "-",
-                    str(app_cfg.effective_client() or "-"),
+                    str(app_cfg.ui() or "-"),
                     "-"
                 ]
             );
@@ -314,7 +310,6 @@ def _serve_flag_spelling -> dict {
         "api_port": "--api-port",
         "no_client": "--no-client",
         "faux": "--faux",
-        "client": "--client",
         "host": "--host",
         "platform": "--platform",
         "fleet": "--fleet"
@@ -342,7 +337,6 @@ def _serve_overrides(
     api_port: (int | None),
     no_client: (bool | None),
     faux: (bool | None),
-    client: (str | None),
     host: (str | None),
     platform: (str | None),
     fleet: bool,
@@ -363,9 +357,6 @@ def _serve_overrides(
     }
     if faux is not None {
         over["faux"] = faux;
-    }
-    if client is not None {
-        over["client"] = client;
     }
     if host is not None {
         over["host"] = host;
@@ -439,7 +430,6 @@ def _serve_with(
         "api_port": 0,
         "no_client": False,
         "faux": False,
-        "client": "",
         "host": "",
         "platform": "",
         "takeover": False,
@@ -479,7 +469,7 @@ def _build_plan(plan: RunPlan) -> int {
         return build(
             target=plan.app,
             projection=plan.flags.get("as", "jab"),
-            client=plan.flags.get("client", "")
+            platform=plan.flags.get("platform", None)
         );
     }
 
@@ -789,7 +779,6 @@ impl run(
     api_port: (int | None) = None,
     no_client: (bool | None) = None,
     faux: (bool | None) = None,
-    client: (str | None) = None,
     host: (str | None) = None,
     platform: (str | None) = None,
     takeover: (bool | None) = None,
@@ -829,11 +818,11 @@ impl run(
     eff = _effective_config(cfg, app);
 
     over = _serve_overrides(
-        port, dev, api_port, no_client, faux, client, host, platform, fleet, eff
+        port, dev, api_port, no_client, faux, host, platform, fleet, eff
     );
     entry_flags = _entry_flags_used(entry_name, nd, root_id, debug_mode);
     kind_serves = plan is not None and plan.action == "serve";
-    kind_can_serve = plan is None or kind_serves or bool(_plan_client(plan, app));
+    kind_can_serve = plan is None or kind_serves or bool(_plan_ui(plan));
 
     if serve_mode is False {
         want_serve = False;
@@ -1187,7 +1176,6 @@ impl serve(
     dev: bool = False,
     api_port: int = 0,
     no_client: bool = False,
-    client: str = "",
     host: str = "",
     platform: str = "",
     takeover: bool = False,
@@ -1223,17 +1211,11 @@ impl serve(
     if served is not None {
         import from jaclang.client.cli { run_client_start }
         client_rc = run_client_start(
-            served, client, host, platform, port, api_port, dev, no_client
+            served, host, platform, port, api_port, dev, no_client
         );
         if client_rc is not None {
             return client_rc;
         }
-    } elif client and client != "web" {
-        console.error(
-            f"--client {client} needs an app: no jac.toml app claims {filename}.",
-            hint=f"Run inside a project, or name the app: jac run <app> --client {client}"
-        );
-        return 1;
     }
 
     import from jaclang.scale.plugin { mark_scale_runtime }

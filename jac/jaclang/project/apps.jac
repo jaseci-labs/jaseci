@@ -1,23 +1,26 @@
 import os;
 
-glob VALID_CLIENT_KINDS: list[str] = ["web", "mobui"],
-     APP_TABLE_KEYS: tuple[str, ...] = (
+glob APP_TABLE_KEYS: tuple[str, ...] = (
          "kind",
          "path",
          "entry_point",
-         "client",
-         "client_kind",
          "platform",
          "route"
-     );
+     ),
+     REMOVED_APP_KEYS: dict[str, str] = {
+         "client": (
+             "the kind decides the client (web-app and web-static render the DOM, "
+             "desktop wraps it in a webview, mobile is React Native); "
+             "build a mobile app for a browser with --platform web"
+         ),
+         "client_kind": "every mobile app is mobUI; the kind decides the UI vocabulary"
+     };
 
 obj AppConfig {
     has name: str,
         kind: str,
         path: str = "",
         entry_point: str = "",
-        client: str = "",
-        client_kind: str = "web",
         platform: str = "",
         route: str = "",
         overlays: dict[str, any] = {},
@@ -27,7 +30,7 @@ obj AppConfig {
     def entry_path(project_root: str) -> str;
     def is_file_rooted -> bool;
     def effective_route -> str;
-    def effective_client -> str;
+    def ui -> str;
     def contains(project_root: str, abs_path: str) -> bool;
 }
 

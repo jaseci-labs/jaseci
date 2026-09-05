@@ -12,14 +12,12 @@ bundle on a loopback port and renders it in either the OS-native webview
 Embedded Framework (CEF). The embedded interpreter is also where the `sv`
 backend runs in-process.
 
-The `desktop` and `cef` targets register automatically as part of
-`jaclang` core. An app declared with `kind = "desktop"` (`jac create myapp
---kind desktop`, or `jac create --app studio --kind desktop` inside a
-workspace) has `desktop` as its client target, so `jac build <app>` and
-`jac run <app>` produce and launch the native window with no flag; `client =
-"cef"` on the app (or `engine = "cef"` under `[desktop]`) selects Chromium.
-`--client desktop` / `--client cef` force either shell on any app for one
-command.
+The desktop target registers automatically as part of `jaclang` core. An app
+declared with `kind = "desktop"` (`jac create myapp --kind desktop`, or `jac
+create --app studio --kind desktop` inside a workspace) builds and launches the
+native window from `jac build <app>` and `jac run <app>` with no flag. The
+renderer is `[desktop] engine`: `"native"` (the default, the OS webview) or
+`"cef"` (Chromium).
 
 ---
 
@@ -58,25 +56,21 @@ path = "studio"
 ```bash
 jac build studio       # -> .jac/client/desktop/<app>  (single binary + dist/)
 jac run studio         # build, then launch the native window
-
-jac build studio --client cef   # -> .jac/client/cef/  (Chromium/CEF)
-jac run studio --client cef     # build, then launch the CEF window
+jac run --dev studio   # HMR: Vite on loopback + recompile on .jac saves (engine = "native" only)
 ```
 
-In a single-app project the app name is implied: `jac build` / `jac run`. On
-an app of another kind, `--client desktop` (or `--client cef`) forces the
-desktop shell.
+In a single-app project the app name is implied: `jac build` / `jac run`.
 
 The output directory `.jac/client/desktop/` contains the self-contained binary,
-its `dist/` (the served bundle), and `libwebview.so`. The binary resolves its
-sibling `dist/` and `libwebview.so` relative to itself, so the directory is
-relocatable.
+its `dist/` (the served bundle), and the renderer's libraries: `libwebview.so`
+with the native engine; the CEF runtime, `libcef_dispatch.so`, `cef-subprocess`
+and support files with `engine = "cef"`. The binary resolves its siblings
+relative to itself, so the directory is relocatable.
 
-Use `desktop` when you want the smallest native wrapper around the platform web
-engine. Use `cef` when your app needs a consistent Chromium runtime
-across machines, stricter parity with browser APIs, or CEF-specific diagnostics.
-The CEF target stages the CEF runtime, `libcef_dispatch.so`, `cef-subprocess`,
-and support files beside the app binary.
+Use the native engine when you want the smallest wrapper around the platform
+web engine. Use `cef` when your app needs a consistent Chromium runtime across
+machines, stricter parity with browser APIs, or CEF-specific diagnostics; CEF
+has no HMR, so `jac run --dev` needs `engine = "native"`.
 
 ---
 
@@ -123,7 +117,7 @@ loopback broker, and `localStorage` persistence checks.
 
 ## CEF runtime flags
 
-The `cef` target accepts a few environment variables for diagnostics and
+The CEF engine accepts a few environment variables for diagnostics and
 platform workarounds:
 
 | Variable | Effect |
@@ -140,7 +134,7 @@ platform workarounds:
 For example:
 
 ```bash
-cd .jac/client/cef
+cd .jac/client/desktop
 JAC_CEF_DISABLE_GPU=1 OZONE_PLATFORM=x11 ./my-app
 ```
 

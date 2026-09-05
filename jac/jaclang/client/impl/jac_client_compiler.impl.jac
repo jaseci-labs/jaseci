@@ -91,7 +91,7 @@ impl JacClientCompiler.compile(
     self: JacClientCompiler,
     module: (ModuleType | None),
     module_path: Path,
-    target_name: str = "web"
+    native: bool = False
 ) -> tuple[list[str], list[str]] {
     artifact = self.jac_compiler.compile_module(module_path);
     self._collect_na_modules(artifact);
@@ -112,21 +112,20 @@ impl JacClientCompiler.compile(
         collected_exports=collected_exports,
         collected_globals=collected_globals,
         source_root=source_root,
-        target_name=target_name
+        native=native
     );
     self._has_pages = self._scan_and_compile_pages(
         visited=visited,
         collected_exports=collected_exports,
         collected_globals=collected_globals,
-        target_name=target_name
+        native=native
     );
-    runtime_filename = self.PLATFORM_RUNTIME_FILES.get(target_name);
-    if runtime_filename {
-        self.compile_runtime_utils(runtime_filename);
+    if native {
+        self.compile_runtime_utils(self.NATIVE_RUNTIME_FILE);
     }
     import from jaclang.client.config_loader { JacClientConfig as PwaConfig }
     pwa_config = PwaConfig(self.project_dir);
-    if pwa_config.is_pwa_enabled() and target_name != "react-native" {
+    if pwa_config.is_pwa_enabled() and not native {
         self.compile_pwa_runtime();
     }
     self.copy_root_assets();
@@ -225,7 +224,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
     collected_exports: (set[str] | None) = None,
     collected_globals: (dict[(str, any)] | None) = None,
     source_root: (Path | None) = None,
-    target_name: str = "web",
+    native: bool = False,
     skip_existing: bool = False
 ) -> None {
     if (visited is None) {
@@ -238,7 +237,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
         collected_globals = {};
     }
     module_path = module_path.resolve();
-    if target_name == "react-native" {
+    if native {
         module_path = self._native_variant(module_path);
     }
     if (module_path in visited) {
@@ -280,7 +279,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
     }
     for (_name, import_path) in manifest.imports.items() {
         path_obj = Path(str(import_path)).resolve();
-        if target_name == "react-native" {
+        if native {
             path_obj = self._native_variant(path_obj);
         }
         if (path_obj in visited) {
@@ -297,7 +296,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
                 collected_exports=collected_exports,
                 collected_globals=collected_globals,
                 source_root=source_root,
-                target_name=target_name,
+                native=native,
                 skip_existing=skip_existing
             );
         } elif (path_obj.suffix == '.js') {
@@ -579,7 +578,7 @@ impl JacClientCompiler._scan_and_compile_pages(
     visited: (set[Path] | None) = None,
     collected_exports: (set[str] | None) = None,
     collected_globals: (dict[(str, any)] | None) = None,
-    target_name: str = "web"
+    native: bool = False
 ) -> bool {
     scanner = RouteScanner(self._app_root(), route_exports_of=resolve_route_exports);
     if not scanner.has_pages_dir() {
@@ -599,7 +598,7 @@ impl JacClientCompiler._scan_and_compile_pages(
             collected_exports=collected_exports,
             collected_globals=collected_globals,
             source_root=source_root,
-            target_name=target_name
+            native=native
         );
     }
     self._generate_routes_manifest();

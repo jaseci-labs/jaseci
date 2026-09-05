@@ -13,9 +13,9 @@ This installs the self-contained `jac` binary -- no Python, pip, or uv required.
 !!! tip "`jac run` is kind-aware"
     Set `kind` under `[project]` in `jac.toml` (or let it be inferred from the entry-point's *inferred* codespace: a server entry implies `service`, a client entry implies `web-app`; `cli-native` is always set explicitly), and a bare `jac run` does the right thing for that kind: **execute** runnable kinds (`cli`, `cli-native`), **serve** server kinds (`service`, `web-app`, ...), or **build** artifact kinds (`native-binary`, `native-lib`, `py-package`, `js-package`). `jac run --show` prints the resolved plan and the equivalent primitive command without running it. A project can hold several apps of different kinds at once -- see [One project, several apps](#one-project-several-apps) below.
 
-Every kind also fixes two facts the compiler and the CLI read: its default **client target** (the shell `jac run` / `jac build` produce; `--client` overrides it) and whether it **has a server** (which decides whether `def:pub` means an endpoint or an export, and whether the app joins a deployed fleet):
+Every kind also fixes two facts the compiler and the CLI read: its **UI** (what its client renders, which decides the shell `jac run` / `jac build` produce: `dom` is React DOM, `mobui` is native views through React Native) and whether it **has a server** (which decides whether `def:pub` means an endpoint or an export, and whether the app joins a deployed fleet):
 
-| Kind | Action of a bare `jac run` | Client target | Has a server |
+| Kind | Action of a bare `jac run` | UI | Has a server |
 |---|---|:--:|:--:|
 | `cli` | execute | -- | no |
 | `cli-native` | execute | -- | no |
@@ -23,12 +23,12 @@ Every kind also fixes two facts the compiler and the CLI read: its default **cli
 | `native-lib` | build (`nacompile --shared`) | -- | no |
 | `service` | serve (API only) | -- | **yes** |
 | `service-mesh` | serve | -- | **yes** |
-| `web-app` | serve (dev mode) | `web` | **yes** |
-| `web-static` | serve as a static page | `static` | no |
-| `desktop` | run the OS webview app | `desktop` | no |
-| `mobile` | build the mobile bundle | `mobile` (`react-native` for mobUI) | no |
+| `web-app` | serve (dev mode) | `dom` | **yes** |
+| `web-static` | serve as a static page | `dom` | no |
+| `desktop` | run the OS webview app | `dom` | no |
+| `mobile` | build for the app's platform | `mobui` | no |
 | `py-package` | build a wheel | -- | no |
-| `js-package` | build an npm tarball | `web` | no |
+| `js-package` | build an npm tarball | `dom` | no |
 
 ## The recipes at a glance
 
@@ -49,19 +49,18 @@ Jac is also batteries-included -- it bundles LLVM, ships its own native linker, 
 | [Full-stack app](../build/fullstack-web.md#web-app) | ✅ | ● | ● | | ● | | | -- |
 | [Static / in-browser app](../build/fullstack-web.md#web-static) | ✅ | | ● | ● | ● | | | -- |
 | [Desktop app](../build/desktop-mobile.md#desktop) | 🧪⁴ | ● | ● | | ● | | desktop | WebKit² |
-| [Mobile app (webview)](../build/desktop-mobile.md#mobile) | 🧪⁵ | ◐ | ● | | | | mobile | Android SDK / Xcode |
-| [Mobile app (React Native)](../build/desktop-mobile.md#react-native) | 🧪⁶ | ◐ | ● | | | | react-native | Android SDK / Xcode |
+| [Mobile app](../build/desktop-mobile.md#mobile) | 🧪⁵ | ◐ | ● | | | | mobile | Android SDK / Xcode |
 | [Full-stack package](#on-the-roadmap) | 🚧 | ● | ● | | | attach | | -- |
 
 **Legend** -- ● uses this block · ◐ talks to a *remote* server (doesn't bundle one) · ×N replicated per service. **status**: ✅ shipping · 🧪 beta (works, with caveats footnoted below) · 🚧 not yet wired end-to-end ([see roadmap](#on-the-roadmap)). Columns 2–7 are *composition* (what it's made of): **sv / cl / na** = which runtimes compile (`na` to a host binary, or to WebAssembly for [in-browser native](#in-browser-native-wasm)) · **served** = hosted by `jac run` (exposing any `sv` walkers/functions as a REST API) · **packaged** = produces a distributable artifact · **shell** = wrapped in a native desktop/mobile shell. The **requires** column is a different axis -- *setup cost*: toolchains you install yourself, excluding the built-in `scale` subsystem (which ships with `jaclang` core; its optional deploy deps are pulled per-project via `[scale.*]` config + `jac install`) and the full-stack client/desktop framework (which also ships with `jaclang` core).
 
-<small>¹ Only to *upload* to PyPI; `jac build --as wheel` itself needs nothing. &nbsp; ² The desktop target ships with `jaclang` core (no Rust); it embeds the OS webview. On Linux you need the WebKitGTK system libraries (a bundled helper script installs them). &nbsp; ³ Only to *publish* (`npm publish`); `jac build --as npm` builds the `.tgz` with no Node/npm. &nbsp; ⁴ The binary renders your `cl` UI and runs `sv` walkers in-process, with HMR dev mode; per-OS installers/code-signing remain open ([#6436](https://github.com/jaseci-labs/jaseci/issues/6436)). &nbsp; ⁵ Frontend-only Capacitor wrapper -- the app talks to a Jac server you deploy separately. &nbsp; ⁶ Beta React Native (Expo/Metro) frontend built from a mobUI source tree (`@jac/mobui` primitives, no HTML) that also compiles for the web; it talks to a Jac server you deploy separately.</small>
+<small>¹ Only to *upload* to PyPI; `jac build --as wheel` itself needs nothing. &nbsp; ² The desktop target ships with `jaclang` core (no Rust); it embeds the OS webview. On Linux you need the WebKitGTK system libraries (a bundled helper script installs them). &nbsp; ³ Only to *publish* (`npm publish`); `jac build --as npm` builds the `.tgz` with no Node/npm. &nbsp; ⁴ The binary renders your `cl` UI and runs `sv` walkers in-process, with HMR dev mode; per-OS installers/code-signing remain open ([#6436](https://github.com/jaseci-labs/jaseci/issues/6436)). &nbsp; ⁵ Beta React Native (Expo/Metro) frontend built from a mobUI source tree (`@jac/mobui` primitives, no HTML) that also compiles for the web; it talks to a Jac server you deploy separately.</small>
 
 Read across a row and the composition is the point: a full-stack app is just a *service* plus a *client*; in-browser native swaps the server for an `na` module compiled to wasm; a desktop app is a full-stack app plus a *shell*; service apps are a *service* replicated. The 🚧 rows aren't missing "kinds" -- they're capability combinations that aren't wired yet.
 
 ## One project, several apps
 
-The kinds compose across a project, too. A `jac.toml` with an `[apps.<name>]` table per app is a **workspace**: a `web-app`, a `mobile` app, a `cli` and a couple of `service` apps over one shared `core/` directory, each with its own kind, entry, client target and effective config, all type-checked as one program by `jac check`. Everything under no app's directory is shared code that any app may import; a walker or `def:pub` that another app owns is reached through a bridge the compiler generates, so `jac run web` can colocate the services in one process while `jac run web --fleet` and `jac scale deploy` run them apart -- *the boundary is structural, the topology is profile*. `jac create <name> --awesome` scaffolds the flagship example (jaclang.org itself) and `jac create --app <name> --kind <kind>` adds an app to any project.
+The kinds compose across a project, too. A `jac.toml` with an `[apps.<name>]` table per app is a **workspace**: a `web-app`, a `mobile` app, a `cli` and a couple of `service` apps over one shared `core/` directory, each with its own kind, entry and effective config, all type-checked as one program by `jac check`. Everything under no app's directory is shared code that any app may import; a walker or `def:pub` that another app owns is reached through a bridge the compiler generates, so `jac run web` can colocate the services in one process while `jac run web --fleet` and `jac scale deploy` run them apart -- *the boundary is structural, the topology is profile*. `jac create <name> --awesome` scaffolds the flagship example (jaclang.org itself) and `jac create --app <name> --kind <kind>` adds an app to any project.
 
 :octicons-arrow-right-24: Reference: [Workspaces & Apps](../reference/apps.md) · Tutorial: [Service Apps](../tutorials/production/microservices.md)
 
@@ -153,17 +152,11 @@ Wrap the *same* full-stack app in a native desktop window. Jac compiles your `cl
 
 :octicons-arrow-right-24: Recipe & guided path: [Desktop & mobile apps](../build/desktop-mobile.md#desktop) · Full tutorial: [Desktop App](../tutorials/fullstack/desktop.md)
 
-### Mobile app (webview)
+### Mobile app
 
-Ship the same client bundle to Android/iOS via **Capacitor**, which wraps it in a native webview. The mobile app is the *frontend only* -- it talks to your Jac server over HTTP, so deploy the backend separately (e.g. as an [API service](#api-service)).
+Ship a **true native** mobile app (Android + iOS) using [React Native](https://reactnative.dev/), with platform-native views. A `mobile` app is a **mobUI** project: one source tree using Jac's `@jac/mobui` component vocabulary (`View`, `Text`, `Pressable`, ...) that compiles to both native and, through `react-native-web`, the browser. This is the *frontend only* -- it talks to your Jac server over HTTP, so deploy the backend separately (e.g. as an [API service](#api-service)). If you only want an existing web app installable from the home screen, a `[client.pwa]` table makes the web app a PWA with no rewrite.
 
-:octicons-arrow-right-24: Recipe & guided path: [Desktop & mobile apps](../build/desktop-mobile.md#mobile) · Full tutorial: [Mobile App](../tutorials/fullstack/mobile.md)
-
-### Mobile app (React Native)
-
-Ship a **true native** mobile app (Android + iOS) using [React Native](https://reactnative.dev/), with platform-native views rather than a webview. A React Native app is a **mobUI** project: one source tree using Jac's `@jac/mobui` component vocabulary (`View`, `Text`, `Pressable`, ...) that compiles to both web and native. This is the *frontend only* -- it talks to your Jac server over HTTP.
-
-:octicons-arrow-right-24: Recipe & guided path: [Desktop & mobile apps](../build/desktop-mobile.md#react-native) · Full reference: [React Native target](../reference/plugins/jac-client.md#react-native-target-beta)
+:octicons-arrow-right-24: Recipe & guided path: [Desktop & mobile apps](../build/desktop-mobile.md#mobile) · Full tutorial: [Mobile App](../tutorials/fullstack/mobile.md) · Full reference: [Mobile](../reference/plugins/jac-client.md#mobile)
 
 ---
 

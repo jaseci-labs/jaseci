@@ -318,7 +318,7 @@ test "a single-app [apps] template takes that app's kind" {
         template_dir.mkdir();
         (template_dir / "jac.toml").write_text(
             '[project]\nname = "{{name}}"\ndefault-app = "main"\n\n'
-            '[apps.main]\nkind = "mobile"\nclient = "react-native"\nclient_kind = "mobui"\n\n'
+            '[apps.main]\nkind = "mobile"\n\n'
             '[dependencies.npm]\nreact = "^18.2.0"\n\n'
             '[dependencies.npm.native]\nreact-native-svg = "^15.13.0"\n\n'
             '[jacpack]\nname = "mobile"\ndescription = "mobUI app"\n'
@@ -391,13 +391,7 @@ def _mobile_template -> ProjectTemplate {
         config={
             "project": {"name": "{{name}}", "default-app": "main"},
             "apps": {
-                "main": {
-                    "kind": "mobile",
-                    "client": "react-native",
-                    "client_kind": "mobui",
-                    "platform": "ios",
-                    "entry-point": "app.jac"
-                }
+                "main": {"kind": "mobile", "platform": "ios", "entry-point": "app.jac"}
             },
             "dependencies": {
                 "npm": {
@@ -433,8 +427,7 @@ test "scaffold_app copies the sole app's keys and npm deps as overlays" {
         app = cfg.apps["mobile"];
         assert app.kind == "mobile";
         assert app.path == "mobile";
-        assert app.client == "react-native";
-        assert app.client_kind == "mobui";
+        assert app.ui() == "mobui" , "kind = mobile is mobUI with no other key";
         assert app.platform == "ios";
         assert app.entry_point == "app.jac" , "entry-point comes from the app table";
         assert app.entry_path(str(root_path)) == str(root_path / "mobile" / "app.jac");
@@ -556,8 +549,8 @@ test "scaffold_app migration keeps the base app loadable and reusable" {
         root_path = Path(tmpdir) / "proj";
         root_path.mkdir();
         (root_path / "jac.toml").write_text(
-            '[project]\nname = "acme"\nkind = "web-app"\nentry-point = "app.jac"\n'
-            'client_kind = "web"\n\n[serve]\nport = 8090\n'
+            '[project]\nname = "acme"\nkind = "web-app"\nentry-point = "app.jac"\n\n'
+            '[serve]\nport = 8090\n'
         );
         (root_path / "app.jac").write_text("with entry {}\n");
         lines = (root_path / "jac.toml").read_text().split("\n");
@@ -569,6 +562,31 @@ test "scaffold_app migration keeps the base app loadable and reusable" {
         assert cfg.project.kind == "" and cfg.serve.port == 8090;
         assert cfg.apps["acme"].kind == "web-app";
         assert cfg.apps["acme"].entry_point == "app.jac";
-        assert cfg.apps["acme"].client_kind == "web";
+        assert cfg.apps["acme"].ui() == "dom";
+        text = (root_path / "jac.toml").read_text();
+        assert "client_kind" not in text and "client =" not in text , (
+            "migration never writes the removed client keys"
+        );
+    }
+}
+
+test "a template carrying the removed client keys is rejected on load" {
+    with TemporaryDirectory() as tmpdir {
+        template_dir = Path(tmpdir) / "stale";
+        template_dir.mkdir();
+        (template_dir / "jac.toml").write_text(
+            '[project]\nname = "{{name}}"\n\n'
+            '[apps.main]\nkind = "mobile"\nclient = "react-native"\nclient_kind = "mobui"\n\n'
+            '[jacpack]\nname = "stale"\ndescription = "pre-refactor mobile template"\n'
+        );
+        (template_dir / "main.jac").write_text("with entry {}\n");
+        raised = False;
+        try {
+            load_template_from_directory(template_dir);
+        } except ValueError as e {
+            raised = True;
+            assert "[apps.main] 'client' was removed" in str(e) , str(e);
+        }
+        assert raised , "a stale template must not load with the removed client keys";
     }
 }

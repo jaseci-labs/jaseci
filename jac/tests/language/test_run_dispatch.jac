@@ -153,8 +153,9 @@ test "kind web-app -> serve dev (client framework is core)" {
     assert p.action == "serve";
     assert p.verb == "run";
     assert p.flags.get("dev") == True;
-    # A web-app serves the default web client, so it carries no --client flag.
+    # The kind decides the client; no plan carries a client flag.
     assert "client" not in p.flags;
+    assert p.spec.ui == "dom";
 }
 
 test "kind web-static -> serve (client framework is core)" {
@@ -162,6 +163,7 @@ test "kind web-static -> serve (client framework is core)" {
     assert p.action == "serve";
     assert p.verb == "run";
     assert "client" not in p.flags;
+    assert p.spec.ui == "dom";
 }
 
 test "kind desktop -> serve the desktop client target (core)" {
@@ -169,19 +171,42 @@ test "kind desktop -> serve the desktop client target (core)" {
     assert p.action == "serve";
     assert p.verb == "run";
     # The desktop target is a core client target -- it must reach the serve
-    # path, not be turned away as a missing plugin.
-    assert p.flags.get("client") == "desktop";
-    assert "--client desktop" in p.command_line();
+    # path, not be turned away as a missing plugin. The kind alone selects
+    # it: there is no --client flag on the plan or the command line.
+    assert "client" not in p.flags;
+    assert p.spec.ui == "dom";
+    assert p.flags == {};
+    assert p.command_line() == "jac run app.jac";
 }
 
 test "kind mobile -> build the mobile client shell (core)" {
     p = _plan("kind = \"mobile\"\nentry-point = \"app.jac\"\n", "app.jac");
     assert p.action == "build";
     assert p.verb == "build";
-    # Must build the mobile shell, not fall through to a default .jab build.
-    assert p.flags.get("client") == "react-native";
+    # Must build the mobile shell, not fall through to a default .jab build:
+    # the kind's ui says mobUI and there is no `as` projection.
+    assert "client" not in p.flags;
+    assert p.spec.ui == "mobui";
     assert "as" not in p.flags;
-    assert "--client react-native" in p.command_line();
+    assert p.command_line() == "jac build app.jac";
+}
+
+test "kind mobile with a platform carries it on the plan" {
+    p = _plan("kind = \"mobile\"\nentry-point = \"app.jac\"\n", "app.jac");
+    assert "platform" not in p.flags , "no platform unless the app names one";
+    # A workspace app names its platform in its own table.
+    d = _mk_project(
+        "\n[apps.phone]\nkind = \"mobile\"\npath = \"phone\"\nplatform = \"ios\"\n"
+    );
+    os.makedirs(os.path.join(d, "phone"), exist_ok=True);
+    with open(os.path.join(d, "phone", "main.jac"), "w") as f {
+        f.write("with entry { print(\"ok\"); }");
+    }
+    cfg = JacConfig.discover(start_path=Path(d));
+    assert cfg is not None;
+    plan = plan_app_run(cfg, d, cfg.resolve_app(""));
+    assert plan.flags == {"platform": "ios"};
+    assert plan.command_line() == "jac build phone --platform ios";
 }
 
 # ---------------------------------------------------------------------------
@@ -497,22 +522,29 @@ test "entry_override keeps a named file for kinds that plan without one" {
 }
 
 test "serve flags are recognised only when they were actually typed" {
+    # (port, dev, api_port, no_client, faux, host, platform, fleet, cfg): the
+    # old `client` slot is gone with the --client flag.
     over = execution._serve_overrides(
-        None, None, None, None, None, None, None, None, False, None
+        None, None, None, None, None, None, None, False, None
     );
     assert over == {};
     over = execution._serve_overrides(
-        None, True, None, None, None, None, None, None, False, None
+        None, True, None, None, None, None, None, False, None
     );
     assert over == {"dev": True};
     # --no-client is a real choice, not an absence: False must survive.
     over = execution._serve_overrides(
-        None, None, None, False, None, None, None, None, False, None
+        None, None, None, False, None, None, None, False, None
     );
     assert over == {"no_client": False};
+    # --platform is the only client-side choice that survives.
+    over = execution._serve_overrides(
+        None, None, None, None, None, None, "ios", False, None
+    );
+    assert over == {"platform": "ios"};
     # --fleet is a plain switch: only True is an override.
     over = execution._serve_overrides(
-        None, None, None, None, None, None, None, None, True, None
+        None, None, None, None, None, None, None, True, None
     );
     assert over == {"fleet": True};
 }

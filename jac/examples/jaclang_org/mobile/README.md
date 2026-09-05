@@ -18,8 +18,8 @@ server's process or runs on its own is a profile (`jac run --serve` vs
 
 ```bash
 jac install                              # once: pulls the npm deps
-jac run mobile                           # native: Metro, press a / i or scan the Expo Go QR
-jac run --client web --dev mobile        # the same UI in a browser via react-native-web
+jac run --dev mobile                     # native: Metro, press a / i or scan the Expo Go QR
+jac run --dev --platform web mobile      # the same UI in a browser via react-native-web
 jac build mobile --platform android      # APK
 jac build mobile --platform ios          # .app / .ipa (macOS or EAS)
 jac test mobile                          # the pure-Jac helpers in format.jac
@@ -45,7 +45,7 @@ mobile/
 
 ## What to look at
 
-**Only `@jac/mobui` primitives.** The app is `client_kind = "mobui"`, so a
+**Only `@jac/mobui` primitives.** The app is `kind = "mobile"`, so a
 raw `<div>` or `<span>` anywhere in it is a compile error (E1105). Layout is
 `View`, text is `Text`, taps are `Pressable`, input is `TextInput`, lists
 scroll in a `ScrollView` with a `RefreshControl`, the channel creator is a
@@ -60,9 +60,9 @@ by editing the field defaults.
 
 **One icon API, two backends.** `icon.jac` and `icon.native.jac` declare the
 same `Icon(name, size, color, fill)` over the same name table; the compiler
-picks the `.native.jac` file for the react-native target and the plain file
-for the web. The variant-agreement check (E5105) keeps the two public
-surfaces identical.
+picks the `.native.jac` file for the app's native platforms (android / ios)
+and the plain file for its web platform. The variant-agreement check (E5105)
+keeps the two public surfaces identical.
 
 **Friendly failure.** Every bridged call in `impl/main.impl.jac` sits in a
 `try { ... } except BridgeError as e { reportBridge(e, ...); }`. The

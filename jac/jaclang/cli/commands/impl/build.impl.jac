@@ -51,7 +51,6 @@ def _build_app(
     app: any,
     projection: str,
     output: str,
-    client: str,
     platform: str | None,
     fat: bool,
     entry_override: str,
@@ -74,20 +73,32 @@ def _build_app(
     kind_builds = plan is not None and plan.action == "build";
     plan_flags: dict = plan.flags if plan is not None else {};
     plan_verb = plan.verb if plan is not None else "";
-    client_target = client
-        or (str(plan_flags.get("client", "") or "") if kind_builds else "");
+    spec = plan.spec if plan is not None else None;
+    client_artifact = projection == "client"
+        or (
+            spec is not None
+            and bool(spec.ui)
+            and not spec.has_server
+            and "as" not in spec.flags
+        );
 
-    if client_target {
+    if client_artifact {
+        import from jaclang.project.kinds { kind_has_client }
         if app is None {
             console.error(
-                f"--client {client_target} needs an app: no jac.toml app claims this file.",
-                hint="Name the app instead: jac build <app> --client " + client_target
+                "A client build needs an app: no jac.toml app claims this file.",
+                hint="Name the app instead: jac build <app>"
             );
             return 1;
         }
+        resolved = cfg.resolved_kind(app);
         import from jaclang.client.cli { run_client_build }
         return run_client_build(
-            app, client_target, platform, entry_override, output if place else ""
+            app,
+            platform,
+            entry_override,
+            output if place else "",
+            kind=resolved if kind_has_client(resolved) else "web-app"
         );
     }
 
@@ -174,7 +185,6 @@ impl build(
     projection: str = "jab",
     output: str = "dist",
     check_only: bool = False,
-    client: str = "",
     platform: str | None = None,
     fat: bool = False
 ) -> int {
@@ -214,7 +224,6 @@ impl build(
                 app,
                 projection,
                 os.path.join(output, app.name),
-                client,
                 platform,
                 fat,
                 "",
@@ -236,6 +245,6 @@ impl build(
         return rc;
     }
     return _build_app(
-        cfg, project_root, app, projection, output, client, platform, fat, file, False
+        cfg, project_root, app, projection, output, platform, fat, file, False
     );
 }

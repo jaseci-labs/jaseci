@@ -151,7 +151,7 @@ impl JacAPIServerStatic.serve_client_js_callback -> Callable[..., Response] {
 }
 
 def _sibling_app_dist(config: any, name: str) -> (Path | None) {
-    import from jaclang.project.kinds { kind_spec }
+    import from jaclang.project.kinds { kind_has_client }
     if config is None or not config.is_workspace {
         return None;
     }
@@ -163,8 +163,7 @@ def _sibling_app_dist(config: any, name: str) -> (Path | None) {
     if served is not None and served.name == app.name {
         return None;
     }
-    spec = kind_spec(config.resolved_kind(app));
-    if not (app.client or (spec is not None and spec.client_target)) {
+    if not kind_has_client(config.resolved_kind(app)) {
         return None;
     }
     root_dir = str(config.project_root) if config.project_root else "";
