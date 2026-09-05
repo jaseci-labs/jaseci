@@ -643,7 +643,7 @@ impl Parser._recover_removed_marker -> ElementStmt | EmptyToken | None {
     self.error(
         f"'{self.current().value}' placement markers were removed: "
             + "placement is inferred (override via [placement.pins] in "
-            + "jac.toml; declare services in [scale.microservices.routes]). "
+            + "jac.toml; a service is an app: [apps.<name>] kind = \"service\"). "
             + "Run 'jac fix placement' to migrate this file."
     );
     self.advance();

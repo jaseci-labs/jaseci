@@ -236,7 +236,7 @@ obj PvcInjector(Injector) {
         loader_image: str = "busybox:1.36",
         _object_key: str = "",
         _bundle_bytes: bytes = b"",
-        _ms_config: (dict[str, any] | None) = None;
+        _fleet: any = None;
 
     def _seed_artifacts -> list[tuple[str, bytes]] {
         return [(self._object_key, self._bundle_bytes)];
@@ -251,7 +251,7 @@ obj PvcInjector(Injector) {
             project_dir,
             getattr(self, "_seal_binary_bytes", b""),
             getattr(self, "_pod_arch", ""),
-            self._ms_config
+            self._fleet
         );
         digest = content_address(raw);
         self._object_key = bundle_object_key(app_name, digest);

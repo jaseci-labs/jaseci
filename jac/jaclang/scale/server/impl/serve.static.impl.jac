@@ -13,7 +13,11 @@ import from jaclang.cli.console { console }
 
 impl JacAPIServerStatic.serve_static_file(file_path: str) -> Response {
     try {
-        import from jaclang.project.config { find_project_root }
+        import from jaclang.project.config { find_project_root, get_config_for_dir }
+        import from jaclang.client.targets.registry {
+            client_app_dir_for,
+            client_app_root
+        }
         base_path_dir = Path(bp_dir)
             if (bp_dir := Jac.get_context().base_path_dir or Jac.get_base_path_dir())
             else Path.cwd();
@@ -24,65 +28,57 @@ impl JacAPIServerStatic.serve_static_file(file_path: str) -> Response {
             base_path = base_path_dir;
         }
         file_name = Path(file_path).name;
-
-        client_build_dist_file = base_path / '.jac' / 'client' / 'dist' / file_path;
-        client_build_dist_file_simple = base_path
-            / '.jac'
-            / 'client'
-            / 'dist'
-            / file_name;
-
-        dist_file = base_path / 'dist' / file_path;
-        dist_file_simple = base_path / 'dist' / file_name;
-
-        assets_file = base_path / 'assets' / file_path;
-        assets_file_simple = base_path / 'assets' / file_name;
-        if file_name.endswith('.css') {
-            if client_build_dist_file.exists() {
-                css_content = client_build_dist_file.read_text(encoding='utf-8');
-                return Response(content=css_content, media_type='text/css');
-            } elif client_build_dist_file_simple.exists() {
-                css_content = client_build_dist_file_simple.read_text(encoding='utf-8');
-                return Response(content=css_content, media_type='text/css');
-            } elif dist_file.exists() {
-                css_content = dist_file.read_text(encoding='utf-8');
-                return Response(content=css_content, media_type='text/css');
-            } elif dist_file_simple.exists() {
-                css_content = dist_file_simple.read_text(encoding='utf-8');
-                return Response(content=css_content, media_type='text/css');
-            } elif assets_file.exists() {
-                css_content = assets_file.read_text(encoding='utf-8');
-                return Response(content=css_content, media_type='text/css');
-            } elif assets_file_simple.exists() {
-                css_content = assets_file_simple.read_text(encoding='utf-8');
-                return Response(content=css_content, media_type='text/css');
-            } else {
+        roots: list[Path] = [];
+        dists: list[Path] = [];
+        cfg = get_config_for_dir(str(base_path));
+        if cfg is not None {
+            app_root = Path(client_app_root(cfg, base_path));
+            app_dist = client_app_dir_for(cfg) / 'dist';
+            if app_root != base_path {
+                roots.append(app_root);
+            }
+            dists.append(app_dist);
+        }
+        roots.append(base_path);
+        base_dist = base_path / '.jac' / 'client' / 'dist';
+        if base_dist not in dists {
+            dists.append(base_dist);
+        }
+        candidates: list[Path] = [];
+        for dist in dists {
+            candidates.append(dist / file_path);
+            candidates.append(dist / file_name);
+        }
+        for root_dir in roots {
+            candidates.append(root_dir / 'dist' / file_path);
+            candidates.append(root_dir / 'dist' / file_name);
+            candidates.append(root_dir / 'assets' / file_path);
+            candidates.append(root_dir / 'assets' / file_name);
+        }
+        for candidate_file in candidates {
+            if not (candidate_file.exists() and candidate_file.is_file()) {
+                continue;
+            }
+            if file_name.endswith('.css') {
                 return Response(
-                    status_code=404,
-                    content='CSS file not found',
-                    media_type='text/plain'
+                    content=candidate_file.read_text(encoding='utf-8'),
+                    media_type='text/css'
                 );
             }
-        }
-        for candidate_file in [
-            client_build_dist_file,
-            client_build_dist_file_simple,
-            dist_file,
-            dist_file_simple,
-            assets_file,
-            assets_file_simple
-        ] {
-            if (candidate_file.exists() and candidate_file.is_file()) {
-                file_content = candidate_file.read_bytes();
-                (content_type, _) = mimetypes.guess_type(str(candidate_file));
-                if (content_type is None) {
-                    content_type = 'application/octet-stream';
-                }
-                return Response(content=file_content, media_type=content_type);
+            (content_type, _) = mimetypes.guess_type(str(candidate_file));
+            if (content_type is None) {
+                content_type = 'application/octet-stream';
             }
+            return Response(
+                content=candidate_file.read_bytes(), media_type=content_type
+            );
         }
         return Response(
-            status_code=404, content='Static file not found', media_type='text/plain'
+            status_code=404,
+            content='CSS file not found'
+                if file_name.endswith('.css')
+                else 'Static file not found',
+            media_type='text/plain'
         );
     } except Exception as exc {
         return Response(status_code=500);
@@ -154,17 +150,59 @@ impl JacAPIServerStatic.serve_client_js_callback -> Callable[..., Response] {
     return callback;
 }
 
+def _sibling_app_dist(config: any, name: str) -> (Path | None) {
+    import from jaclang.project.kinds { kind_has_client }
+    if config is None or not config.is_workspace {
+        return None;
+    }
+    app = config.app(name);
+    if app is None {
+        return None;
+    }
+    served = config.app_for_path(Jac.get_full_target_path() or "");
+    if served is not None and served.name == app.name {
+        return None;
+    }
+    if not kind_has_client(config.resolved_kind(app)) {
+        return None;
+    }
+    root_dir = str(config.project_root) if config.project_root else "";
+    if not root_dir {
+        return None;
+    }
+    dist = Path(root_dir) / 'dist' / app.name;
+    return dist if (dist / 'index.html').is_file() else None;
+}
+
+
+def _sibling_app_file(dist: Path, rel: str) -> Response {
+    candidate = (dist / rel) if rel else (dist / 'index.html');
+    try {
+        resolved = candidate.resolve();
+        inside = resolved == dist.resolve() or dist.resolve() in resolved.parents;
+    } except Exception {
+        inside = False;
+    }
+    if not (inside and candidate.is_file()) {
+        candidate = dist / 'index.html';
+    }
+    (content_type, _) = mimetypes.guess_type(str(candidate));
+    return Response(
+        content=candidate.read_bytes(),
+        media_type=content_type or 'application/octet-stream'
+    );
+}
+
+
 impl JacAPIServerStatic.register_page_endpoint -> None {
     import from jaclang.project.config { get_config }
     config = get_config();
-    cl_route_prefix = config.serve.cl_route_prefix if config else "cl";
-    configured_root = config.serve.base_route_app if config else "";
-    base_route_app = self.introspector.resolve_root_app(configured_root);
+    root_app = self.introspector.resolve_root_app();
 
     self.server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
-            path=f'/{cl_route_prefix}/{{page_name}}',
+            path='/cl/{page_name}',
             callback=self.render_page_callback(),
             parameters=[
                 APIParameter(
@@ -179,28 +217,76 @@ impl JacAPIServerStatic.register_page_endpoint -> None {
             response_model=None,
             tags=['Pages'],
             summary='Render a page',
-            description=f'Endpoint to render and retrieve a specific page by name at /{cl_route_prefix}/{{name}}.'
+            description='Endpoint to render and retrieve a specific page by name at /cl/{name}, or a sibling app bundle at /cl/<app>/.'
         )
     );
 
-    if base_route_app {
+    if config is not None and config.is_workspace {
+        def _sibling_asset(app_name: str, file_path: str) -> Response {
+            dist = _sibling_app_dist(config, app_name);
+            if dist is None {
+                return Response(
+                    status_code=404, content='Not found', media_type='text/plain'
+                );
+            }
+            return _sibling_app_file(dist, file_path);
+        }
+        self.server.add_endpoint(
+            JEndPoint(
+                method=HTTPMethod.GET,
+                path='/cl/{app_name}/{file_path:path}',
+                callback=_sibling_asset,
+                parameters=[
+                    APIParameter(
+                        name='app_name',
+                        data_type='string',
+                        required=True,
+                        default_value=None,
+                        description='Sibling app whose bundle lives at dist/<app>/',
+                        kind=ParameterType.PATH
+                    ),
+                    APIParameter(
+                        name='file_path',
+                        data_type='string',
+                        required=True,
+                        default_value=None,
+                        description='Path inside the sibling app bundle',
+                        kind=ParameterType.PATH
+                    )
+                ],
+                response_model=None,
+                tags=['Pages'],
+                summary='Serve a sibling app bundle',
+                description='Serves a workspace sibling client app from dist/<app>/ at /cl/<app>/.'
+            )
+        );
+    }
+
+    if root_app {
         self.server.add_endpoint(
             JEndPoint(
                 method=HTTPMethod.GET,
                 path='/',
-                callback=self.render_base_route_callback(base_route_app),
+                callback=self.render_base_route_callback(root_app),
                 parameters=[],
                 response_model=None,
                 tags=['Pages'],
-                summary='Base route app',
-                description=f'Serves the {base_route_app} client app at the root path.'
+                summary='Served app',
+                description=f'Serves the {root_app} client app at the root path.'
             )
         );
     }
 }
 
-impl JacAPIServerStatic.render_page_callback -> Callable[..., HTMLResponse] {
-    def callback(page_name: str, **kwargs: JsonValue) -> HTMLResponse {
+impl JacAPIServerStatic.render_page_callback -> Callable[..., Response] {
+    import from jaclang.project.config { get_config }
+    config = get_config();
+
+    def callback(page_name: str, **kwargs: JsonValue) -> Response {
+        sibling = _sibling_app_dist(config, page_name);
+        if sibling is not None {
+            return _sibling_app_file(sibling, '');
+        }
         if self.introspector.dev_mode {
             return HTMLResponse(content='Not found', status_code=404);
         }
@@ -276,20 +362,25 @@ impl JacAPIServerStatic.serve_root_asset(file_path: str) -> Response {
     file_ext = Path(file_path).suffix.lower();
     import from jaclang.project.config { get_config }
     config = get_config();
-    cl_route_prefix = config.serve.cl_route_prefix if config else "cl";
-    api_prefixes = (f'{cl_route_prefix}/', 'walker/', 'function/', 'user/', 'static/');
+    if file_path.startswith('cl/') {
+        parts = file_path[3:].split('/', 1);
+        sibling = _sibling_app_dist(config, parts[0]);
+        if sibling is not None {
+            return _sibling_app_file(sibling, parts[1] if len(parts) > 1 else '');
+        }
+    }
+    api_prefixes = ('cl/', 'walker/', 'function/', 'user/', 'static/');
     if (not file_ext or (file_ext not in allowed_extensions)) {
-        configured_root = config.serve.base_route_app if config else "";
-        base_route_app = self.introspector.resolve_root_app(configured_root);
+        root_app = self.introspector.resolve_root_app();
         if (
             not file_ext
-            and base_route_app
+            and root_app
             and not self.introspector.dev_mode
             and not file_path.startswith(api_prefixes)
         ) {
             try {
                 render_payload = self.introspector.render_page(
-                    base_route_app, {}, Con.GUEST.value
+                    root_app, {}, Con.GUEST.value
                 );
                 return HTMLResponse(
                     content=render_payload['html'],

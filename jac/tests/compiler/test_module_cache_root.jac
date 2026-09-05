@@ -12,7 +12,6 @@ import os;
 import tempfile;
 import from pathlib { Path }
 import jaclang.compiler.driver.compile_options as compile_options;
-import jaclang.compiler.placement.placement_pins as placement_pins;
 import from jaclang.compiler.driver.jir {
     get_module_cache_path,
     module_env_fingerprint
@@ -80,13 +79,13 @@ test "a module's env key is the same inside and outside the config probe guards"
         pin_project_scope(get_config_for_path(base));
         for path in [str(mod), internal] {
             plain = module_env_fingerprint(path);
+            # The enclosing-project kind chain and its probe guard are gone
+            # (#8823): the config probe is the only re-entrancy guard left.
             compile_options._config_probe["active"] = True;
-            placement_pins._kind_probe["active"] = True;
             try {
                 guarded = module_env_fingerprint(path);
             } finally {
                 compile_options._config_probe["active"] = False;
-                placement_pins._kind_probe["active"] = False;
             }
             assert plain == guarded , (
                 f"the env key of {os.path.basename(path)} must not depend on the "

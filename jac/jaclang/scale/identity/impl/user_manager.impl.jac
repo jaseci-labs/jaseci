@@ -64,8 +64,8 @@ def _serves_gateway_owned_identity -> bool {
     if not sv_name or sv_name == '__gateway__' {
         return False;
     }
-    ms_config = get_scale_config().get_microservices_config();
-    identity_config = dict(ms_config.get('identity', {}));
+    gateway_config = get_scale_config().get_gateway_config();
+    identity_config = dict(gateway_config.get('identity', {}));
     return bool(identity_config.get('gateway_owned', True));
 }
 

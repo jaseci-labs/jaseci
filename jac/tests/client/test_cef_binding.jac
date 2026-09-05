@@ -212,9 +212,7 @@ test "JAC_CEF_DISABLE_GPU wires through to --disable-gpu in cef_dispatch" {
 # The Phase J4 (#6596) in-process sv backend + sv_bridge wiring live in
 # host_boot._start_loopback's cef branch, not in generated strings.
 test "cef host source boots inprocess and wires the sv bridge (#6596)" {
-    import from jaclang.client.targets.desktop.cef_desktop_target {
-        _generate_host_source
-    }
+    import from jaclang.client.targets.desktop.cef_shell { _generate_host_source }
     src = _generate_host_source(
         "Title", 800, 600, "myapp", "/tmp/cache", {}, "main.jac", 30.0, 128, False
     );

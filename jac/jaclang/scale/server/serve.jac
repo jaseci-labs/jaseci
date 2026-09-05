@@ -125,6 +125,7 @@ obj JacAPIServerParts {
     def get_emailer -> Emailer | None abst;
     def register_walkers_endpoints -> None abst;
     def register_functions_endpoints -> None abst;
+    def register_colocated_provider_endpoints -> None abst;
     def register_webhook_endpoints -> None abst;
     def register_websocket_endpoints -> None abst;
     def register_scheduler_endpoints -> None abst;
@@ -212,18 +213,24 @@ obj JacAPIServerCore(JacAPIServerHost) {
 
 obj JacAPIServerEndpoints(JacAPIServerHost) {
     def register_walkers_endpoints -> None;
+    def _request_caller(request: Request) -> (str | None);
+    def _idempotency_key(
+        request: Request, username: str, app: str, target: str
+    ) -> str;
+
     def create_walker_callback(
         walker_name: str, has_node_param: bool = False
-    ) -> Callable[..., (TransportResponse | StreamingResponse)];
+    ) -> Callable[..., (TransportResponse | StreamingResponse | Response)];
 
     def create_walker_parameters(
         walker_name: str, invoke_on_root: bool, method: HTTPMethod = HTTPMethod.POST
     ) -> list[APIParameter];
 
     def register_functions_endpoints -> None;
+    def register_colocated_provider_endpoints -> None;
     def create_function_callback(
         func_name: str
-    ) -> Callable[..., (TransportResponse | StreamingResponse)];
+    ) -> Callable[..., (TransportResponse | StreamingResponse | Response)];
 
     def create_function_parameters(
         func_name: str, method: HTTPMethod = HTTPMethod.POST

@@ -7,6 +7,40 @@ import from jaclang.scale.config.firebase_env {
 }
 import os;
 
+glob APP_SCALE_KEYS: tuple = (
+         "rpc_timeout",
+         "http_forward_timeout",
+         "replicas",
+         "cpu_request",
+         "cpu_limit",
+         "memory_request",
+         "memory_limit",
+         "env",
+         "hpa",
+         "pdb",
+         "deployment_overlay",
+         "triggers",
+         "http_activation",
+         "read_cache"
+     ),
+     GATEWAY_POD_KEYS: tuple = (
+         "replicas",
+         "cpu_request",
+         "cpu_limit",
+         "memory_request",
+         "memory_limit",
+         "env",
+         "hpa",
+         "pdb",
+         "deployment_overlay"
+     ),
+     GATEWAY_BOOT_KEYS: tuple = (
+         "boot_health_timeout",
+         "boot_max_wait",
+         "health_monitor_interval",
+         "route_refresh_seconds"
+     );
+
 class JacScaleConfig(PluginConfigBase) {
     override def get_plugin_name(self: JacScaleConfig) -> str;
     override def get_default_config(self: JacScaleConfig) -> dict[str, any];
@@ -28,16 +62,19 @@ class JacScaleConfig(PluginConfigBase) {
     def get_telemetry_config(self: JacScaleConfig) -> dict[str, any];
     def get_emailer_config(self: JacScaleConfig) -> dict[str, any];
     def get_auth_config(self: JacScaleConfig) -> dict[str, any];
-    def get_microservices_config(self: JacScaleConfig) -> dict[str, any];
+    def get_gateway_config(self: JacScaleConfig) -> dict[str, any];
+    def get_app_scale_config(self: JacScaleConfig, app_name: str) -> dict[str, any];
 }
 
-def normalize_microservices_config(
-    ms_config: dict[str, any], env_routes_fallback: bool = True
-) -> dict[str, any];
+def normalize_gateway_config(gateway_config: dict[str, any] | None) -> dict[str, any];
 
-def load_microservices_config -> dict[str, any];
+def app_scale_overrides(config: any, app_name: str) -> dict[str, any];
+
+def _pick_app_scale_keys(section: dict[str, any] | None) -> dict[str, any];
+
 
 glob _scale_config_instance: JacScaleConfig | None = None,
+     _app_scale_cache: dict[str, dict[str, any]] = {},
      _placeholder_jwt_secret_warned: bool = False,
      _minted_jwt_secret_announced: bool = False;
 
