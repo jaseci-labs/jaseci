@@ -7,8 +7,8 @@ import from "@jac/mobui" {
     ActivityIndicator,
     Platform
 }
-import from mobile.theme { C, styles }
-import from mobile.icon { Icon }
+import from core.socialize_mobile.theme { C, styles }
+import from core.socialize_mobile.icon { Icon }
 
 def:pub AuthScreen(
     isSignup: bool,

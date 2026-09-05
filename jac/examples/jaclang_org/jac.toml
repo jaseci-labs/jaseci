@@ -45,12 +45,13 @@ typecheck = true
 directories = ["core", "web", "mobile", "cli"]
 
 # `jac test cli` / `jac test mobile` run one app; a bare `jac test` targets the
-# default app (web) and so runs the workspace list above.
+# default app (web) and so runs the workspace list above. The mobile app is a
+# shell over the phone UI in core/socialize_mobile, so its tests live there.
 [apps.cli.test]
 directories = ["."]
 
 [apps.mobile.test]
-directories = ["."]
+directories = ["core/socialize_mobile"]
 
 [check.lint]
 select = ["all", "strip-comments", "strip-docstrings"]

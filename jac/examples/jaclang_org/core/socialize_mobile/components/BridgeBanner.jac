@@ -1,6 +1,6 @@
 import from "@jac/mobui" { View, Text, Pressable }
-import from mobile.theme { C, styles }
-import from mobile.icon { Icon }
+import from core.socialize_mobile.theme { C, styles }
+import from core.socialize_mobile.icon { Icon }
 
 def:pub BridgeBanner(
     message: str,

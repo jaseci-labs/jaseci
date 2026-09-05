@@ -1,6 +1,6 @@
 import from "@jac/mobui" { View, Text }
-import from mobile.theme { C, styles }
-import from mobile.icon { Icon }
+import from core.socialize_mobile.theme { C, styles }
+import from core.socialize_mobile.icon { Icon }
 
 def:pub EmptyState(icon: str, title: str, hint: str) -> JsxElement {
     <View style={styles.empty}>

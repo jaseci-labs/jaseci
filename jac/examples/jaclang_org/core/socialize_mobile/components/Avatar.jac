@@ -1,6 +1,6 @@
 import from "@jac/mobui" { Image }
-import from mobile.theme { styles }
-import from mobile.format { avatar_url }
+import from core.socialize_mobile.theme { styles }
+import from core.socialize_mobile.format { avatar_url }
 
 def:pub Avatar(username: str, size: int) -> JsxElement {
     <Image

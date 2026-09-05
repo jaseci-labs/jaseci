@@ -1,10 +1,10 @@
 import from "@jac/mobui" { View, Pressable, TextInput, ScrollView, RefreshControl }
 import from core.social_graph { Tweet }
-import from mobile.theme { C, styles }
-import from mobile.icon { Icon }
-import from mobile.components.Composer { Composer }
-import from mobile.components.TweetCard { TweetCard }
-import from mobile.components.StatusView { EmptyState, LoadingRows }
+import from core.socialize_mobile.theme { C, styles }
+import from core.socialize_mobile.icon { Icon }
+import from core.socialize_mobile.components.Composer { Composer }
+import from core.socialize_mobile.components.TweetCard { TweetCard }
+import from core.socialize_mobile.components.StatusView { EmptyState, LoadingRows }
 
 def:pub FeedScreen(
     username: str,
