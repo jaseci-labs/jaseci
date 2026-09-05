@@ -539,10 +539,6 @@ impl NaIRGenRefcount._emit_rc_helpers -> None {
     _pub_b.ret_void();
     self.rc_release_simple_fn = _pub_fn;
 
-    # The retain/release pair a shared library promises over the C ABI. The
-    # helpers above are private to this unit; these two external shims under
-    # the unit prefix are what the link plan's glue binds `jac_retain` and
-    # `jac_release` to for the library's root unit.
     for (_abi_name, _target) in (("jac_retain", retain_fn), ("jac_release", _pub_fn)) {
         _shim = ir.Function(
             self.llvm_module, _pub_fnty, name=self._symbol_for(_abi_name)
@@ -861,6 +857,7 @@ impl NaIRGenRefcount._emit_str_stamp_and_new -> None {
         "__jac_str_new", ir.FunctionType(i8_ptr, [i8_ptr, i64])
     );
     new_fn.linkage = "weak_odr";
+    self._record_export("__jac_str_new", new_fn.name, "abi");
     new_fn.args[0].name = "data";
     new_fn.args[1].name = "n";
     _n_entry = new_fn.append_basic_block("entry");

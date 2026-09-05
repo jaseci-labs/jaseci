@@ -447,7 +447,9 @@ impl NaIRGenObjects._visit_nonprimary_ancestor_methods(
     }
 }
 
-impl NaIRGenObjects._codegen_archetype(nd: uni.Archetype, imported: bool = False) -> None {
+impl NaIRGenObjects._codegen_archetype(
+    nd: uni.Archetype, imported: bool = False
+) -> None {
     arch_name = (nd).name.value if (nd).name else "unknown";
     struct_type = self.struct_types.get(arch_name);
     if struct_type is None {
@@ -673,6 +675,14 @@ impl NaIRGenObjects._reject_scalar_type_args(nd: uni.UniNode, type_name: str) ->
 impl NaIRGenObjects._emit_scalar_type_arg_refusal(
     nd: uni.UniNode, type_name: str, fname: str, tv_name: str, arg: any
 ) -> bool {
+    """Refuse a touch of an erased slot, inside the callable that touches it.
+
+    The slot carries no value the native side put there, so answering with
+    its bits would be wrong rather than merely un-lowered. Emitting here puts
+    the diagnostic inside the enclosing callable's demotion window, which is
+    what turns one un-lowerable declaration into a seam per method that reads
+    or writes it instead of a dead module.
+    """;
     self.emit(
         E5092,
         node_override=nd,
@@ -692,9 +702,6 @@ impl NaIRGenObjects._emit_scalar_type_arg_refusal(
     return True;
 }
 
-"""Register a class's static fields. The defining unit emits the definition
-under its own prefix; a consumer declares the defining unit's symbol and
-never re-emits the initializer."""
 impl NaIRGenObjects._register_static_fields(
     arch_name: str,
     archhas: uni.ArchHas,
@@ -1248,6 +1255,16 @@ impl NaIRGenObjects._opaque_field_if_unlowerable(
             f"opaque slot (un-lowerable declaration): "
                 + "; ".join(str(e) for e in _own)
         );
+        import from jaclang.compiler.driver.compile_options { env_na_debug as _er_dbg }
+        if _er_dbg() {
+            import sys as _er_sys;
+            import traceback as _er_tb;
+            _er_sys.stderr.write(
+                f"NA_DEBUG erased in unit {self.ir_in.loc.mod_path}; known structs: "
+                f"{sorted(self.struct_types.keys())[:40]}\n"
+                    + "".join(_er_tb.format_stack(limit=14))
+            );
+        }
     }
     try {
         import from jaclang.compiler.driver.na_coverage { na_coverage_seam }
@@ -1267,14 +1284,6 @@ impl NaIRGenObjects._opaque_field_if_unlowerable(
 impl NaIRGenObjects._refuse_opaque_field(
     nd: (uni.UniNode | None), type_name: (str | None), fname: str
 ) -> bool {
-    """Refuse a touch of an erased slot, inside the callable that touches it.
-
-    The slot carries no value the native side put there, so answering with
-    its bits would be wrong rather than merely un-lowered. Emitting here puts
-    the diagnostic inside the enclosing callable's demotion window, which is
-    what turns one un-lowerable declaration into a seam per method that reads
-    or writes it instead of a dead module.
-    """;
     if type_name is None {
         return False;
     }
@@ -3244,17 +3253,6 @@ impl NaIRGenObjects._opt_unwrap_attr(obj_val: ir.Value) -> ir.Value {
 impl NaIRGenObjects._opt_unwrap_guarded(
     val: (ir.Value | None), what: str, msg: str
 ) -> (ir.Value | None) {
-    """Payload of an optional container, guarded by the absence CPython raises on.
-
-    `has parts: (list[Item] | None)` lowers to a `JacOpt` -- a presence tag
-    beside the container pointer -- so a loop, comprehension or slice reading
-    the slot receives the wrapper, not a list. Handing that wrapper to the
-    container helpers is what used to raise `Type of #1 arg mismatch` out of
-    the builder and cost the whole function an ICE. Unwrapping here restores
-    the container the rest of the lowering expects; the `None` arm raises
-    rather than reading a null, so the two pathways agree on the absent case
-    as well as the present one.
-    """;
     if val is None {
         return None;
     }
@@ -4221,10 +4219,6 @@ impl NaIRGenObjects._jc_abi_offsets(field_types: list) -> tuple {
     return (offsets, off);
 }
 
-"""The C ABI layout of every archetype this unit defines: size, field slots,
-OSP tag, MRO and vtable slot order. It is the `classes` half of the unit's
-native interface; the link plan merges the units' layouts into the sidecar
-the kernel loader registers."""
 impl NaIRGenObjects._build_jc_layout -> dict {
     out: dict = {"classes": {}};
     _model = self.ir_in.gen.osp_model;

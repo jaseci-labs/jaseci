@@ -1,33 +1,7 @@
-"""One link plan for every native artifact.
-
-The plan owns the walk from roots to artifact and knows nothing about the
-kernel, mkpayload or the CLI: `jac nacompile`, `jac build --as native`, the
-kernel resolver, `jac precompile --seal` and the in-process JIT are all
-callers.
-
-1. Resolve roots: an entry module for an executable, `jc_unit` for the
-   kernel, every native unit of a package for a seal.
-2. Walk the native edges each unit's interface records. For each unit the
-   program's native unit registry serves a fresh interface, object and
-   bitcode for the requested codegen identity, compiling on demand through
-   `JacCompiler.compile`, so demotion, strictness and the seam report apply
-   unchanged.
-3. Check agreement: every unit's recorded dependency digests must equal the
-   digests of the units in the plan. A mismatch is an error naming both.
-4. Order initializers topologically and synthesize the glue object.
-5. Collect floor archives, clib paths and needed libraries from the unit
-   interfaces.
-6. Link, in one of two modes: `objects` (the incremental default) links the
-   units' relocatable objects; `bitcode` links every unit's bitcode into one
-   LLVM module and runs the pass pipeline whole-program before a single
-   codegen (the release lane, and what the JIT, PE and wasm targets use).
-7. Record a plan digest beside the artifact and in the layout sidecar.
-"""
 import hashlib;
 import json;
 import os;
 import sys;
-import from dataclasses { field }
 import jaclang.compiler.backends.native.llvm.binding as llvm;
 import type from jaclang.compiler.backends.native.llvm.binding {
     ExecutionEngine,
@@ -37,7 +11,8 @@ import type from jaclang.compiler.backends.native.llvm.binding {
 import from jaclang.compiler.driver.compile_options {
     CompileOptions,
     NATIVE_LINK_MODE_BITCODE,
-    NATIVE_LINK_MODE_OBJECTS
+    NATIVE_LINK_MODE_OBJECTS,
+    env_na_debug
 }
 import from jaclang.compiler.driver.native_iface {
     NativeIface,
@@ -48,7 +23,9 @@ import from jaclang.compiler.backends.native.link_glue {
     ENTRY_SYMBOL,
     GlueSpec,
     GlueUnit,
+    REGION_DIED_HOOK,
     SHARED_INIT_SYMBOL,
+    STR_NEW_SYMBOL,
     init_object_codegen,
     link_glue_ir
 }
@@ -65,8 +42,6 @@ import from jaclang.compiler.backends.native.linker_common {
     collect_musl_static
 }
 import from jaclang.compiler.frontend.codeinfo {
-    OSP_GRAPH_REL,
-    REGION_KERNEL_REL,
     install_native_static_init,
     kernel_unit_path
 }
@@ -92,15 +67,14 @@ obj LinkUnit {
         is_root: bool = False;
 }
 
-"""The link inputs a platform linker consumes."""
 obj LinkInputs {
-    has objects: list[bytes] = field(default_factory=`list),
-        archive_members: list[bytes] = field(default_factory=`list),
-        crt_objects: list[bytes] = field(default_factory=`list),
-        needed_libs: list[str] = field(default_factory=`list),
-        symbol_lib_map: dict[str, str] = field(default_factory=`dict),
-        export_symbols: list[str] = field(default_factory=`list),
-        init_funcs: list[str] = field(default_factory=`list),
+    has objects: list[bytes] = [],
+        archive_members: list[bytes] = [],
+        crt_objects: list[bytes] = [],
+        needed_libs: list[str] = [],
+        symbol_lib_map: dict[str, str] = {},
+        export_symbols: list[str] = [],
+        init_funcs: list[str] = [],
         static_musl: bool = False;
 }
 
@@ -109,8 +83,8 @@ obj LinkResult {
         plan_digest: str,
         layout_digest: str,
         sha256: str,
-        classes: dict = field(default_factory=`dict),
-        units: list[str] = field(default_factory=`list);
+        classes: dict = {},
+        units: list[str] = [];
 }
 
 obj LinkPlan {
@@ -137,7 +111,7 @@ obj LinkPlan {
                 return u;
             }
         }
-        raise LinkPlanError("link plan has no root unit");
+        raise LinkPlanError("link plan has no root_u unit");
     }
 
     def root_index -> int {
@@ -149,9 +123,12 @@ obj LinkPlan {
         return -1;
     }
 
-    """Every unit's initializer, dependencies first."""
     def init_symbols -> list[str] {
-        return [u.iface.init for u in self.units if u.iface.init];
+        return [
+            u.iface.init_symbol
+            for u in self.units
+            if u.iface.init_symbol
+        ];
     }
 
     def plan_digest -> str {
@@ -210,7 +187,6 @@ obj LinkPlan {
         return out;
     }
 
-    """The `:pub` symbols of every unit: the C ABI the artifact promises."""
     def pub_exports -> list[str] {
         out: list[str] = [];
         for u in self.units {
@@ -230,18 +206,20 @@ obj LinkPlan {
 
     def glue_spec(kind: ArtifactKind, platform: str, static_musl: bool) -> GlueSpec {
         units: list[GlueUnit] = [];
+        str_new_supplied = any(STR_NEW_SYMBOL in u.iface.exports for u in self.units);
+        hook_supplied = any(REGION_DIED_HOOK in u.iface.exports for u in self.units);
         for u in self.units {
             exports = u.iface.exports;
             probe = exports.get("__jac_rt_probe");
             units.append(
                 GlueUnit(
                     prefix=u.prefix,
-                    init=u.iface.init,
-                    entry=u.iface.entry,
+                    init_symbol=u.iface.init_symbol,
+                    entry_symbol=u.iface.entry_symbol,
                     probe=probe.symbol if probe is not None else "",
                     retain="jac_retain" in exports,
                     release="jac_release" in exports,
-                    str_new=True
+                    str_new=str_new_supplied
                 )
             );
         }
@@ -255,9 +233,7 @@ obj LinkPlan {
             triple=self.triple,
             clib_paths=self.clib_paths(),
             needs_atexit_shim=(is_elf and kind == ArtifactKind.SHARED),
-            needs_region_hook=(
-                self.has_unit(REGION_KERNEL_REL) and not self.has_unit(OSP_GRAPH_REL)
-            )
+            needs_region_hook=not hook_supplied
         );
     }
 }
@@ -276,11 +252,6 @@ def _platform_of(triple: str) -> str {
     return "elf";
 }
 
-"""Resolve `roots` and walk their native edges into a plan.
-
-`native_unit` compiles kernel roots (the frontend scope) as native units in
-the target program; ordinary roots inherit the caller's options.
-"""
 def build_link_plan(
     prog: JacProgram,
     roots: list[str],
@@ -304,18 +275,33 @@ def build_link_plan(
     edges: dict[str, list[str]] = {};
     order: list[str] = [];
 
-    def visit(path: str, stack: list[str]) -> None {
+    def walk_unit(path: str, stack: list[str]) -> None {
         if path in units {
             return;
         }
         if path in stack {
             return;
         }
-        ent = registry.ensure(path, compile_on_miss=True, options=opts);
+        for dep in registry.known_native_deps(path, opts.native_unit) {
+            walk_unit(dep, stack + [path]);
+        }
+        errs_before = len(prog.errors_had);
+        ent = registry.ensure(path, compile_on_miss=False, options=opts);
+        if ent is None and os.path.isfile(path) {
+            ent = registry.compile_unit_detached(path, opts);
+        }
         if ent is None {
+            why = [
+                e.pretty_print().split("\n")[0] for e in prog.errors_had[errs_before:]
+            ][:5];
+            crashed = registry.failures.get(path);
+            if crashed {
+                why.append(crashed);
+            }
+            detail = ("; ".join(why)) if why else "no diagnostic was recorded";
             raise LinkPlanError(
                 f"{path} is not a native unit for this codegen identity, or "
-                "failed to lower; see the diagnostics above"
+                f"failed to lower ({detail})"
             );
         }
         import from jaclang.compiler.driver.jir { module_cache_key }
@@ -330,36 +316,79 @@ def build_link_plan(
         deps = sorted(os.path.realpath(d) for d in ent.iface.deps);
         edges[path] = deps;
         for dep in deps {
-            visit(dep, stack + [path]);
+            walk_unit(dep, stack + [path]);
         }
         order.append(path);
     }
 
-    for root in real_roots {
-        visit(root, []);
+    for root_u in real_roots {
+        walk_unit(root_u, []);
     }
 
-    for (path, deps) in edges.items() {
-        for (dep, recorded) in registry.recorded_native_deps(path) {
-            dep_real = os.path.realpath(dep);
-            live = units.get(dep_real);
-            if live is None {
-                continue;
+    for _round in range(6) {
+        unsettled: dict[str, str] = {};
+        for (path, deps) in edges.items() {
+            recorded_for = dict(registry.recorded_native_deps(path));
+            for dep in deps {
+                live = units.get(dep);
+                if live is None {
+                    continue;
+                }
+                recorded = recorded_for.get(dep, "");
+                if not recorded {
+                    unsettled[path] = f"compiled while {dep} was still building";
+                } elif recorded != live.digest {
+                    unsettled[path] = (
+                        f"compiled against {dep} at {recorded[:12]}, now {live.digest[:12]}"
+                    );
+                }
             }
-            if recorded and recorded != live.digest {
+        }
+        if not unsettled {
+            break;
+        }
+        if env_na_debug() {
+            sys.stderr.write(
+                f"[link plan] round {_round + 1}: {len(unsettled)} unit(s) unsettled\n"
+                    + "".join(
+                        f"  {os.path.basename(p)}: {why}\n"
+                        for (p, why) in sorted(unsettled.items())
+                    )
+            );
+        }
+        if _round == 5 {
+            raise LinkPlanError(
+                "native interface disagreement did not settle: "
+                    + "; ".join(f"{p}: {why}" for (p, why) in sorted(unsettled.items()))
+            );
+        }
+        for path in sorted(unsettled.keys()) {
+            registry.forget(path);
+            try {
+                prog.invalidate_module(path);
+            } except Exception {}
+            ent = registry.compile_unit_detached(path, opts);
+            if ent is None {
                 raise LinkPlanError(
-                    f"native interface disagreement: {path} was compiled against "
-                    f"{dep_real} with digest {recorded[:12]}, but the plan holds "
-                    f"digest {live.digest[:12]}; recompile {path}"
+                    f"{path} failed to lower against its dependencies "
+                    f"({registry.failures.get(path) or 'no diagnostic was recorded'})"
                 );
             }
+            units[path].iface = ent.iface;
+            units[path].digest = ent.digest;
+            units[path].prefix = ent.iface.prefix;
         }
     }
 
     ordered = [units[p] for p in order];
     ordered.sort(key=lambda (u: LinkUnit) { (1 if u.is_root else 0, ); });
     return LinkPlan(
-        prog=prog, options=opts, roots=real_roots, units=ordered, mode=link_mode, triple=triple
+        prog=prog,
+        options=opts,
+        roots=real_roots,
+        units=ordered,
+        mode=link_mode,
+        triple=triple
     );
 }
 
@@ -373,12 +402,13 @@ def _target_machine(plan: LinkPlan, kind: ArtifactKind) -> TargetMachine {
     );
     assert isinstance(target, llvm.Target);
     opt = 0 if plan.options.native_debug else 2;
-    tm = target.create_target_machine(
-        opt=opt,
-        reloc=NATIVE_RELOC_MODEL,
-        codemodel=NATIVE_CODE_MODEL,
-        jit=(kind == ArtifactKind.JIT)
-    );
+    if kind == ArtifactKind.JIT {
+        tm = target.create_target_machine(opt=opt, jit=True);
+    } else {
+        tm = target.create_target_machine(
+            opt=opt, reloc=NATIVE_RELOC_MODEL, codemodel=NATIVE_CODE_MODEL
+        );
+    }
     assert isinstance(tm, llvm.TargetMachine);
     return tm;
 }
@@ -395,7 +425,6 @@ def _glue_module(
     return (mod, exports);
 }
 
-"""Every unit's bitcode plus the glue, linked into one LLVM module."""
 def whole_program_module(
     plan: LinkPlan, spec: GlueSpec
 ) -> tuple[ModuleRef, list[str]] {
@@ -422,19 +451,24 @@ def whole_program_module(
     return (merged, exports);
 }
 
-"""The relocatable objects of the plan in link order: the root first, its
-dependencies, then the glue."""
-def unit_objects(plan: LinkPlan, spec: GlueSpec, tm: TargetMachine) -> tuple[list[bytes], list[str]] {
+def unit_objects(
+    plan: LinkPlan, spec: GlueSpec, tm: TargetMachine
+) -> tuple[list[bytes], list[str]] {
     registry = plan.prog.native_units();
     objs: list[bytes] = [];
-    root = plan.root_unit();
-    ordered = [root] + [u for u in plan.units if u is not root];
+    root_u = plan.root_unit();
+    ordered = [root_u]
+        + [
+            u
+            for u in plan.units
+            if u is not root_u
+        ];
     for u in ordered {
-        obj = registry.object_for(u.path, plan.options);
-        if obj is None {
+        object_bytes = registry.object_for(u.path, plan.options);
+        if object_bytes is None {
             raise LinkPlanError(f"no object for native unit {u.path}");
         }
-        objs.append(obj);
+        objs.append(object_bytes);
     }
     (glue_mod, exports) = _glue_module(plan, spec, tm);
     glue_obj = tm.emit_object(glue_mod);
@@ -443,7 +477,24 @@ def unit_objects(plan: LinkPlan, spec: GlueSpec, tm: TargetMachine) -> tuple[lis
     return (objs, exports);
 }
 
-"""The objects the platform linker receives, in the plan's mode."""
+def optimize_whole_program(
+    plan: LinkPlan, merged: ModuleRef, kind: ArtifactKind, tm: TargetMachine
+) -> None {
+    opt_level = 0 if plan.options.native_debug else int(plan.options.opt_level or 0);
+    if opt_level <= 0 {
+        return;
+    }
+    pto = llvm.create_pipeline_tuning_options(speed_level=opt_level);
+    pb = llvm.create_pass_builder(tm, pto);
+    assert isinstance(pb, llvm.PassBuilder);
+    mpm = pb.getModulePassManager();
+    assert isinstance(mpm, llvm.ModulePassManager);
+    if kind == ArtifactKind.EXECUTABLE {
+        mpm.add_internalize_pass();
+    }
+    mpm.run(merged, pb);
+}
+
 def plan_objects(
     plan: LinkPlan, spec: GlueSpec, kind: ArtifactKind, tm: TargetMachine
 ) -> tuple[list[bytes], list[str]] {
@@ -451,37 +502,50 @@ def plan_objects(
         return unit_objects(plan, spec, tm);
     }
     (merged, exports) = whole_program_module(plan, spec);
-    opt_level = 0 if plan.options.native_debug else int(plan.options.opt_level or 0);
-    if opt_level > 0 {
-        pto = llvm.create_pipeline_tuning_options(speed_level=opt_level);
-        pb = llvm.create_pass_builder(tm, pto);
-        assert isinstance(pb, llvm.PassBuilder);
-        mpm = pb.getModulePassManager();
-        assert isinstance(mpm, llvm.ModulePassManager);
-        if kind == ArtifactKind.EXECUTABLE {
-            mpm.add_internalize_pass();
-        }
-        mpm.run(merged, pb);
-    }
+    optimize_whole_program(plan, merged, kind, tm);
     dump_path = plan.options.dump_ir_path or "";
     if dump_path {
         with open(dump_path, "w") as df {
             df.write(str(merged));
         }
     }
-    obj = tm.emit_object(merged);
-    assert isinstance(obj, bytes);
-    return ([obj], exports);
+    object_bytes = tm.emit_object(merged);
+    assert isinstance(object_bytes, bytes);
+    return ([object_bytes], exports);
 }
 
-def _write_sidecar(plan: LinkPlan, output_path: str, plan_digest: str) -> tuple[dict, str] {
+def units_source_key(paths: list[str], options: CompileOptions) -> str {
+    import from jaclang.compiler.driver.jir {
+        module_cache_key,
+        running_compiler_digest
+    }
+    h = hashlib.sha256();
+    h.update(running_compiler_digest().encode("utf-8"));
+    h.update(options.codegen_identity().encode("utf-8"));
+    h.update(options.effective_triple().encode("utf-8"));
+    for path in sorted(os.path.realpath(p) for p in paths) {
+        h.update(path.encode("utf-8"));
+        try {
+            h.update(module_cache_key(path).encode("utf-8"));
+        } except OSError {
+            h.update(b"missing");
+        }
+    }
+    return h.hexdigest();
+}
+
+def _write_sidecar(
+    plan: LinkPlan, output_path: str, plan_digest: str
+) -> tuple[dict, str] {
     classes = plan.merged_layout();
     ldigest = layout_digest(classes);
+    unit_paths = [u.path for u in plan.units];
     sidecar = {
         "classes": classes,
         "plan_digest": plan_digest,
         "layout_digest": ldigest,
-        "units": [u.path for u in plan.units]
+        "units": unit_paths,
+        "source_key": units_source_key(unit_paths, plan.options)
     };
     with open(output_path + ".layout.json", "w", encoding="utf-8") as lf {
         lf.write(json.dumps(sidecar, sort_keys=True));
@@ -497,7 +561,6 @@ def _sha256_of(path: str) -> str {
     return h.hexdigest();
 }
 
-"""Link the plan into an executable or shared library at `output_path`."""
 def link_artifact(
     plan: LinkPlan,
     output_path: str,
@@ -638,8 +701,6 @@ def link_artifact(
     );
 }
 
-"""Link the plan into a wasm module: whole-program bitcode, the vendored
-libc folded at the IR level, one object into the wasm writer."""
 def link_wasm(
     plan: LinkPlan, output_path: str, app_imports: (set | None) = None
 ) -> LinkResult {
@@ -664,16 +725,11 @@ def link_wasm(
     );
 }
 
-"""An in-process MCJIT engine over the plan: bitcode mode, one module.
-
-The engine remembers its root unit's path and interface, so a caller can
-map a Jac-level name to the unit's link symbol (`tests/support.jac`'s
-`native_address` does; the interop stubs carry the symbol themselves).
-"""
 def jit_engine(plan: LinkPlan) -> ExecutionEngine {
     tm = _target_machine(plan, ArtifactKind.JIT);
     spec = plan.glue_spec(ArtifactKind.JIT, _platform_of(plan.triple), False);
     (merged, _exports) = whole_program_module(plan, spec);
+    optimize_whole_program(plan, merged, ArtifactKind.JIT, tm);
     for lib_path in plan.clib_paths() {
         try {
             jit_load_clib(lib_path);
@@ -682,16 +738,14 @@ def jit_engine(plan: LinkPlan) -> ExecutionEngine {
     engine = llvm.create_mcjit_compiler(merged, tm);
     assert isinstance(engine, llvm.ExecutionEngine);
     install_native_static_init(engine, plan.init_symbols());
-    root = plan.root_unit();
+    root_u = plan.root_unit();
     try {
-        setattr(engine, "_jac_unit_path", root.path);
-        setattr(engine, "_jac_native_iface", root.iface);
+        setattr(engine, "_jac_unit_path", root_u.path);
+        setattr(engine, "_jac_native_iface", root_u.iface);
     } except Exception {}
     return engine;
 }
 
-"""The engine for `jac run` of a native module: the module is the root and
-its closure comes from the registry."""
 def jit_engine_for_module(
     prog: JacProgram, module: any, options: CompileOptions
 ) -> (ExecutionEngine | None) {
@@ -699,14 +753,16 @@ def jit_engine_for_module(
         return None;
     }
     if module.gen.native_iface is not None {
-        prog.native_units().record(module.loc.mod_path, module.gen.native_iface, options);
+        prog.native_units().record(
+            module.loc.mod_path, module.gen.native_iface, options
+        );
     }
-    plan = build_link_plan(prog, [module.loc.mod_path], options, mode=NATIVE_LINK_MODE_BITCODE);
+    plan = build_link_plan(
+        prog, [module.loc.mod_path], options, mode=NATIVE_LINK_MODE_BITCODE
+    );
     return jit_engine(plan);
 }
 
-"""The engine for a native module restored from its JIR: the same plan,
-rooted at the cached entry."""
 def jit_engine_for_cached(
     prog: JacProgram, path: str, options: CompileOptions
 ) -> (ExecutionEngine | None) {

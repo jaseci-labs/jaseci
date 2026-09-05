@@ -1,10 +1,3 @@
-"""The kernel's unit roster.
-
-`NATIVE_SCOPE` names the frontend modules the compiler runs as bytecode and
-the kernel links as native units. Whether a compile treats them as native is
-`CompileOptions.native_unit` (see `placement_facts.native_unit`); this module
-only answers the roster question.
-"""
 import os;
 
 obj NativeScopeEntry {
@@ -28,13 +21,9 @@ glob NATIVE_SCOPE: tuple[NativeScopeEntry, ...] = (
          NativeScopeEntry(module="jaclang.compiler.jc_materialize", strict=True),
          NativeScopeEntry(module="jaclang.compiler.jc_unit", strict=True),
 
-     );
-
-"""The kernel's link root: the unit whose `jc_*` exports are the C ABI the
-loader binds."""
-glob KERNEL_ROOT_MODULE: str = "jaclang.compiler.jc_unit";
-
-glob _SCOPE_SUFFIX_CACHE: list = [];
+     ),
+     KERNEL_ROOT_MODULE: str = "jaclang.compiler.jc_unit",
+     _SCOPE_SUFFIX_CACHE: list = [];
 
 def native_scope_path_suffixes -> list[str] {
     if not _SCOPE_SUFFIX_CACHE {
@@ -65,7 +54,6 @@ def scope_module_path(module: str) -> str {
     return os.path.join(jaclang_pkg_root(), rel);
 }
 
-"""The source path of every unit in the roster, kernel root last."""
 def native_scope_paths -> list[str] {
     return [scope_module_path(e.module) for e in NATIVE_SCOPE];
 }

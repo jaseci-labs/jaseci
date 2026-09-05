@@ -103,9 +103,6 @@ impl JacTestResult.postinit -> None {
     super.init(self.stream, self.descriptions, self.verbosity);
 }
 
-"""Run one native test through the module's engine. Asking the engine for
-the test's address runs the link plan's initializers first, in dependency
-order, so the test body sees every unit initialized."""
 impl invoke_native_test(engine: any, symbol: str, test_name: str) -> None {
     import ctypes;
     import os;

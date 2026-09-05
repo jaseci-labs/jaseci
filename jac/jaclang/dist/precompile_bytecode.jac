@@ -20,8 +20,7 @@ import from jaclang.compiler.driver.jir {
     SEC_BYTECODE,
     SEC_CTDEPS,
     SEC_DEBUG_SRC,
-    SEC_DEPS,
-    SEC_NBITCODE,
+    NATIVE_SECTIONS,
     SEC_NIFACE,
     SEC_NOBJ,
     SEC_PLACEMENT,
@@ -104,9 +103,6 @@ def _nested_project_dirs(package_dir: str) -> list[str] {
     return roots;
 }
 
-"""The bytecode candidates of a package. A module `native_only` claims has
-no bytecode meaning and is left to the native builder, with the reason
-printed once; the native units of the package are `native_units_of`."""
 def find_jac_files(package_dir: str) -> list[str] {
     import from jaclang.compiler.placement.placement_facts { native_only }
     result: list[str] = [];
@@ -145,14 +141,12 @@ def find_jac_files(package_dir: str) -> list[str] {
     if skipped {
         console.print(
             f"  Leaving {len(skipped)} native-only module(s) to the native builder: "
-            + ", ".join(skipped[:8])
+                + ", ".join(skipped[:8])
         );
     }
     return result;
 }
 
-"""The native units the seal links for a package: every source under the
-package that `native_unit` claims, plus the kernel roots for jaclang."""
 def package_native_units(package_dir: str) -> list[str] {
     import from jaclang.compiler.placement.placement_facts { native_units_of }
     base = os.path.abspath(package_dir);
@@ -329,9 +323,6 @@ def _ct_deps_extra(jac_path: str, pkg_root: str) -> dict[int, bytes] {
     }
 }
 
-"""The native sections a unit's module cache holds, carried into the sealed
-JIR verbatim: the interface, object and bitcode under their stamp, the
-dependency rows, and the placement summary with any native verdict."""
 def _native_extra(jac_path: str) -> dict[int, bytes] {
     out: dict[int, bytes] = {};
     try {
@@ -340,7 +331,7 @@ def _native_extra(jac_path: str) -> dict[int, bytes] {
             return out;
         }
         data = cache_path.read_bytes();
-        for sec in (SEC_NIFACE, SEC_NOBJ, SEC_NBITCODE, SEC_DEPS, SEC_PLACEMENT) {
+        for sec in list(NATIVE_SECTIONS) + [SEC_PLACEMENT] {
             raw = read_section_bytes(data, sec);
             if raw is not None {
                 out[int(sec)] = raw;
@@ -361,9 +352,6 @@ def _unit_extra(jac_path: str, pkg_root: str, embed_src: bool) -> dict[int, byte
 
 glob _unit_native_program: list = [];
 
-"""Compile `jac_path` as a native unit so its module cache carries the
-interface and object the seal links. Returns the unit's interface digest,
-or "" when it did not lower."""
 def precompile_native_unit(jac_path: str, collect: bool = True) -> str {
     import from jaclang.compiler.driver.program { JacProgram }
     import from jaclang.compiler.driver.compile_options { CompileOptions }
@@ -379,7 +367,9 @@ def precompile_native_unit(jac_path: str, collect: bool = True) -> str {
         native_unit=True,
         skip_native_engine=True
     );
-    ent = program.native_units().ensure(jac_path, compile_on_miss=True, options=options);
+    ent = program.native_units().ensure(
+        jac_path, compile_on_miss=True, options=options
+    );
     if ent is None {
         _emit_unit_diagnostics(jac_path, [program]);
     }
@@ -756,20 +746,18 @@ def seal_finalize(
         app_meta["placement"] = placement;
     }
     write_manifest(
-        precompiled_dir, pkg_name, pyver, manifest_modules, payloads, app_meta, native_record
+        precompiled_dir,
+        pkg_name,
+        pyver,
+        manifest_modules,
+        payloads,
+        app_meta,
+        native_record
     );
     console.print(f"  Manifest: {precompiled_dir / MANIFEST_NAME}");
     return 0;
 }
 
-"""Link the package's native artifact through the plan and describe it.
-
-The units are every native unit of the package; the roots are the kernel
-root for jaclang and every unit for an app. Each unit's sealed JIR must
-carry the interface the plan linked, and the artifact's sha256, layout
-digest and plan digest are recorded so `seal_finalize` and the runtime
-refuse an image whose units and artifact disagree.
-"""
 def seal_native(
     pkg_path: Path, out_dir: Path, pkg_name: str, manifest_modules: dict
 ) -> (dict | None) {
@@ -790,7 +778,10 @@ def seal_native(
         link_artifact
     }
     import from jaclang.compiler.backends.native.kernel_resolve { kernel_lib_name }
-    import from jaclang.compiler.driver.jir { native_section_payload, read_section_bytes as _rsb }
+    import from jaclang.compiler.driver.jir {
+        native_section_payload,
+        read_section_bytes as _rsb
+    }
     import from jaclang.compiler.driver.native_iface { NativeIface }
     import from jaclang.server.sealed_serve { NATIVE_DIR_REL }
 
@@ -808,13 +799,21 @@ def seal_native(
         artifact_rel = os.path.join("compiler", kernel_lib_name());
     } else {
         roots = list(units);
-        artifact_rel = os.path.join(NATIVE_DIR_REL, "lib" + pkg_name + _shared_suffix());
+        artifact_rel = os.path.join(
+            NATIVE_DIR_REL, "lib" + pkg_name + _shared_suffix()
+        );
     }
     console.print(f"  Native units: {len(units)} (roots: {len(roots)})");
-    plan = build_link_plan(prog, roots, options, native_unit=True);
+
+    import from jaclang.compiler.driver.compile_options { NATIVE_LINK_MODE_BITCODE }
+    plan = build_link_plan(
+        prog, roots, options, mode=NATIVE_LINK_MODE_BITCODE, native_unit=True
+    );
     artifact_path = pkg_path / artifact_rel;
     artifact_path.parent.mkdir(parents=True, exist_ok=True);
-    result = link_artifact(plan, str(artifact_path), ArtifactKind.SHARED, log=console.print);
+    result = link_artifact(
+        plan, str(artifact_path), ArtifactKind.SHARED, log=console.print
+    );
 
     unit_records: dict[str, dict] = {};
     stamp = prog.native_units().stamp_for(options);
@@ -824,11 +823,11 @@ def seal_native(
         } except ValueError {
             continue;
         }
-        entry = manifest_modules.get(rel);
-        if entry is None {
+        mod_entry = manifest_modules.get(rel);
+        if mod_entry is None {
             raise RuntimeError(f"native unit {rel} has no sealed JIR");
         }
-        jir_bytes = (out_dir / entry["jir"]).read_bytes();
+        jir_bytes = (out_dir / mod_entry["jir"]).read_bytes();
         sealed_iface = NativeIface.read_digest(
             native_section_payload(_rsb(jir_bytes, SEC_NIFACE), stamp)
         );
@@ -839,7 +838,7 @@ def seal_native(
                 f"{u.digest[:12]}; re-run the compile pass"
             );
         }
-        unit_records[rel] = {"jir": entry["jir"], "iface_digest": u.digest};
+        unit_records[rel] = {"jir": mod_entry["jir"], "iface_digest": u.digest};
     }
     console.print(
         f"  Native artifact: {artifact_rel} (plan {result.plan_digest[:12]}, "
@@ -1038,7 +1037,7 @@ def run_precompile(
             native_units_set.add(unit);
             if native_only(unit) {
                 native_only_units.append(unit);
-        }
+            }
         }
         if native_units_set {
             console.print(
@@ -1116,7 +1115,8 @@ def run_precompile(
             is_native = bool(
                 native_units_set and os.path.realpath(jac_path) in native_units_set
             );
-            if is_native and not precompile_native_unit(jac_path, collect=not use_pool) {
+            if is_native
+                and not precompile_native_unit(jac_path, collect=not use_pool) {
                 jir_path.unlink(missing_ok=True);
                 return {
                     "status": "failed",

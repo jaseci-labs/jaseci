@@ -1,17 +1,3 @@
-"""The native interface of one unit: everything a consumer links against.
-
-One record per native unit, written into the module's JIR as `SEC_NIFACE`
-and prefixed with its 64-hex digest exactly as `SEC_IFACE` is. It replaces
-the dependency IR sidecar (`DepClibMeta`), the `NativeModuleLayout` export
-and the `<lib>.layout.json` sidecar with a single typed record.
-
-Digest rules: a body edit, a renamed local or a new private helper leaves
-the digest alone and rebuilds one object; adding or removing an export,
-changing a signature or ownership convention, changing a layout, adding an
-enum member, or gaining or losing an initializer changes it and rebuilds
-dependents. Codegen options never enter the digest; the object header
-carries them (see `NativeStamp` in `driver/jir.jac`).
-"""
 import hashlib;
 import json;
 import from dataclasses { field }
@@ -29,7 +15,6 @@ glob NIFACE_FORMAT: int = 1,
      EXPORT_VTABLE: str = "vtable",
      EXPORT_TEST: str = "test";
 
-"""One external symbol a unit defines."""
 obj NativeExport {
     has name: str,
         symbol: str,
@@ -67,7 +52,6 @@ obj NativeExport {
     }
 }
 
-"""One field of a class layout as the C ABI sees it."""
 obj NativeFieldSlot {
     has index: int,
         offset: int,
@@ -93,11 +77,6 @@ obj NativeFieldSlot {
     }
 }
 
-"""The layout of one archetype defined by this unit.
-
-This is what the kernel loader registers (`native_compiler.jac`) and what a
-consumer's declaration of the class must agree with.
-"""
 obj NativeClassLayout {
     has name: str,
         size: int = 0,
@@ -145,8 +124,8 @@ obj NativeIface {
         exports: dict[str, NativeExport] = field(default_factory=`dict),
         classes: dict[str, NativeClassLayout] = field(default_factory=`dict),
         enums: dict[str, list[str]] = field(default_factory=`dict),
-        init: str = "",
-        entry: str = "",
+        init_symbol: str = "",
+        entry_symbol: str = "",
         demoted: list[str] = field(default_factory=`list),
         clib_paths: list[str] = field(default_factory=`list),
         clib_symbol_lib: dict[str, str] = field(default_factory=`dict),
@@ -154,7 +133,6 @@ obj NativeIface {
         deps: list[str] = field(default_factory=`list),
         coverage: dict = field(default_factory=`dict);
 
-    """The fields that decide whether dependents must relink."""
     def digest_fields -> dict {
         return {
             "format": self.format,
@@ -167,8 +145,8 @@ obj NativeIface {
                 k: self.classes[k].to_dict() for k in sorted(self.classes.keys())
             },
             "enums": {k: list(self.enums[k]) for k in sorted(self.enums.keys())},
-            "init": self.init,
-            "entry": self.entry,
+            "init": self.init_symbol,
+            "entry": self.entry_symbol,
             "demoted": sorted(self.demoted),
             "clib_paths": list(self.clib_paths),
             "clib_symbol_lib": {
@@ -217,15 +195,17 @@ obj NativeIface {
             enums={
                 str(k): [str(m) for m in v] for (k, v) in (d.get("enums") or {}).items()
             },
-            init=str(d.get("init", "")),
-            entry=str(d.get("entry", "")),
+            init_symbol=str(d.get("init", "")),
+            entry_symbol=str(d.get("entry", "")),
             demoted=[str(x) for x in d.get("demoted", [])],
             clib_paths=[str(x) for x in d.get("clib_paths", [])],
             clib_symbol_lib={
                 str(k): str(v) for (k, v) in (d.get("clib_symbol_lib") or {}).items()
             },
             layout=(
-                native_layout_from_dict(layout_d) if isinstance(layout_d, dict) else None
+                native_layout_from_dict(layout_d)
+                    if isinstance(layout_d, dict)
+                    else None
             ),
             deps=[str(x) for x in d.get("deps", [])],
             coverage=dict(d.get("coverage") or {})
@@ -237,7 +217,9 @@ obj NativeIface {
             return None;
         }
         try {
-            return NativeIface.from_dict(json.loads(raw[NIFACE_HASH_LEN:].decode("utf-8")));
+            return NativeIface.from_dict(
+                json.loads(raw[NIFACE_HASH_LEN:].decode("utf-8"))
+            );
         } except Exception {
             return None;
         }
@@ -254,7 +236,6 @@ obj NativeIface {
         }
     }
 
-    """Symbols a shared library promises over the C ABI: the `:pub` exports."""
     def pub_symbols -> list[str] {
         out: list[str] = [];
         for name in sorted(self.exports.keys()) {
@@ -266,7 +247,6 @@ obj NativeIface {
         return out;
     }
 
-    """Every symbol this unit defines, by Jac-level name."""
     def symbol_of(name: str) -> (str | None) {
         ex = self.exports.get(name);
         return ex.symbol if ex is not None else None;
@@ -276,7 +256,6 @@ obj NativeIface {
         return name in self.demoted;
     }
 
-    """The sidecar the kernel loader reads: class name -> jc layout."""
     def classes_json -> dict {
         return {
             name: {
@@ -292,8 +271,6 @@ obj NativeIface {
     }
 }
 
-"""Merge the class layouts of several units into one sidecar, refusing a
-class that two units lay out differently."""
 def merge_class_layouts(ifaces: list[NativeIface]) -> dict {
     merged: dict = {};
     owner: dict[str, str] = {};

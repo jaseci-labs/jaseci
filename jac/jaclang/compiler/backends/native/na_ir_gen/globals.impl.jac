@@ -161,10 +161,7 @@ impl NaIRGenGlobals._codegen_global_vars(nd: uni.GlobalVars) -> None {
                     else "(current module)";
                 _origin = self._global_origins.get(var_name, "(imported module)");
                 self.emit(
-                    E5026,
-                    symbol=_symbol,
-                    existing_module=_origin,
-                    new_module=_cur_path
+                    E5026, symbol=_symbol, existing_module=_origin, new_module=_cur_path
                 );
                 continue;
             }

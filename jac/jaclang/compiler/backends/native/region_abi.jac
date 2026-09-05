@@ -1,11 +1,3 @@
-"""The C ABI of the region arena unit (`runtime/region_native.jac`).
-
-Every entry is a `:pub` function of that unit, so the symbols are bare and
-the emitter may declare them by name; the unit is pulled into a link by the
-dependency edge `NaIRGenRegion._register_region_kernel` records. The header
-layout the arena restates is checked against `codeinfo.jac` here, so the
-two never drift apart silently.
-"""
 import os;
 
 glob REGION_KERNEL_ABI: dict[str, tuple[bool, int]] = {
@@ -47,8 +39,6 @@ def _region_layout_facts -> dict[str, int] {
     };
 }
 
-"""Refuse a region unit whose restated header constants disagree with the
-compiler's. Called by the link plan before the arena joins an artifact."""
 def verify_region_layout(source: str) {
     import re;
     facts = _region_layout_facts();

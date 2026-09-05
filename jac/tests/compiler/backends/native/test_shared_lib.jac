@@ -271,12 +271,14 @@ test "the plan's shared glue calls the unit initializer and exports the C ABI" {
     } finally {
         pop_native_target_env(prev);
     }
-    root = plan.root_unit();
-    init_sym = native_glob_init_name(root.path);
-    assert root.iface.init == init_sym , (
-        f"unit interface names initializer {root.iface.init!r}, expected {init_sym!r}"
+    root_unit = plan.root_unit();
+    init_sym = native_glob_init_name(root_unit.path);
+    assert root_unit.iface.init_symbol == init_sym , (
+        f"unit interface names initializer {root_unit.iface.init_symbol!r}, expected {init_sym!r}"
     );
-    assert plan.init_symbols() == [init_sym] , plan.init_symbols();
+    inits = plan.init_symbols();
+    assert inits[-1] == init_sym , inits;
+    assert len(inits) == len(plan.units) , "one initializer per unit, the region arena included";
     spec = plan.glue_spec(ArtifactKind.SHARED, "elf", False);
     assert spec.shared , "a SHARED glue spec must be marked shared";
     (glue_ir, glue_exports) = link_glue_ir(spec);
@@ -286,9 +288,12 @@ test "the plan's shared glue calls the unit initializer and exports the C ABI" {
     );
     assert "define i32 @main(" not in glue_ir , "a shared library carries no platform entry";
     assert "__jac_shared_init" in glue_exports , glue_exports;
-    assert "jac_str_new" in glue_exports , glue_exports;
+    has_str_new = any("__jac_str_new" in u.iface.exports for u in plan.units);
+    assert ("jac_str_new" in glue_exports) == has_str_new , (
+        "jac_str_new is exported exactly when a unit defines its target"
+    );
     for wrapper in ("jac_retain", "jac_release") {
-        if wrapper in root.iface.exports {
+        if wrapper in root_unit.iface.exports {
             assert wrapper in glue_exports , f"{wrapper} shim present but not exported";
             assert f"define void @{wrapper}(ptr" in glue_ir , glue_ir;
         }

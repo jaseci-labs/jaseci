@@ -1311,7 +1311,9 @@ impl NaIRGenFunc._emit_glob_init_func -> None {
 
     import from jaclang.compiler.frontend.codeinfo { native_glob_init_name }
     fnty = ir.FunctionType(ir.VoidType(), []);
-    _gi_name = native_glob_init_name(self.ir_in.loc.mod_path) if self.ir_in?.loc else "__jac_glob_init";
+    _gi_name = native_glob_init_name(self.ir_in.loc.mod_path)
+        if self.ir_in?.loc
+        else "__jac_glob_init";
     func = self._define_function(_gi_name, fnty);
     block = func.append_basic_block(name="entry");
     self._builder = ir.IRBuilder(block);
@@ -1493,7 +1495,9 @@ impl NaIRGenFunc._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
     }
 
     fnty = ir.FunctionType(ir.VoidType(), []);
-    _entry_sym = native_entry_name(self.ir_in.loc.mod_path) if self.ir_in?.loc else "jac_entry";
+    _entry_sym = native_entry_name(self.ir_in.loc.mod_path)
+        if self.ir_in?.loc
+        else "jac_entry";
     func = self._define_function(_entry_sym, fnty);
     self.func_symtab["jac_entry"] = func;
     self._record_export("jac_entry", func.name, "entry");
@@ -1524,12 +1528,10 @@ impl NaIRGenFunc._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
     _i8p = ir.IntType(8).as_pointer();
     _i32 = ir.IntType(32);
 
-    # The runtime probes (`JAC_NO_GC`, `JAC_GC_CYCLES`) are a separate
-    # function the synthesized `jac_entry` calls before any unit's
-    # initializer, so a dependency's initializer allocates under the same
-    # mode as the program body.
     _probe_fn = self._define_function(
-        native_runtime_probe_name(self.ir_in.loc.mod_path) if self.ir_in?.loc else "__jac_rt_probe",
+        native_runtime_probe_name(self.ir_in.loc.mod_path)
+            if self.ir_in?.loc
+            else "__jac_rt_probe",
         fnty
     );
     _probe_block = _probe_fn.append_basic_block(name="entry");
@@ -1587,10 +1589,6 @@ impl NaIRGenFunc._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
     self.builder.ret_void();
     self._builder = _entry_builder;
 
-    # Dependency initializers are not called here: the link plan orders every
-    # unit's initializer topologically and calls them from the synthesized
-    # `jac_entry` before this unit's entry runs. Each initializer guards
-    # itself, so the own-module call below is safe under either caller.
     if glob_init_fn is not None {
         self.builder.call(glob_init_fn, []);
     }

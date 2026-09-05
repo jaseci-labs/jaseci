@@ -1,6 +1,3 @@
-"""The format kernel, `compiler/backends/fmt_kernel.jac`, is an ordinary
-native unit: its abilities are declared from its AST under its own prefix
-and a dependency edge carries it into the link plan."""
 impl NaIRGenFmt._ensure_fmt_kernel -> bool {
     if self._fmt_kernel_mod is not None {
         return True;

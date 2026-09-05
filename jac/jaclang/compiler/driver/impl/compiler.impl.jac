@@ -188,6 +188,7 @@ impl JacCompiler.get_bytecode(
                     _had_native_secs
                     and full_target not in actual_program.hub.artifacts
                     and not self.selfhost.is_selfhost(actual_program)
+                    and self._wants_native_engine(full_target, actual_program)
                 ) {
                     import logging as _bc_logging;
                     _bc_logging.getLogger(__name__).warning(
@@ -266,24 +267,36 @@ impl JacCompiler.get_bytecode(
     }
 }
 
-"""Rebuild the in-process engine of a native module from its cache.
+impl JacCompiler._wants_native_engine(full_target: str, program: JacProgram) -> bool {
+    import from jaclang.compiler.driver.jir { is_compiler_source_path }
+    if is_compiler_source_path(full_target) {
+        return False;
+    }
+    opts = program.options;
+    if opts is None {
+        return True;
+    }
+    return not (opts.aot_mode or opts.skip_native_engine);
+}
 
-The module's own bitcode is one unit of a closure, so the engine comes from
-the link plan in bitcode mode, rooted at the module, exactly as a fresh
-compile would build it. A sealed app with a linked artifact gets a
-`SharedNativeEngine` over that artifact instead.
-"""
 impl JacCompiler._load_native_from_cache(
     full_target: str,
     target_program: JacProgram,
     cached_interop: (dict[str, any] | None)
 ) -> None {
+    """Stamp each import with the emitter's native-only verdict.
+
+    Whether an import resolves to a module the native lane owns, and
+    whether that module lives inside jaclang's own tree, are both
+    import-resolution questions: they need the hub, the placement pins
+    and the filesystem, which is the driver's ground and not a pass's.
+    The emitter used to ask for them through `self.prog`, the one
+    driver read left in a sealed pass. It now consumes a bool.
+    """;
     import from jaclang.compiler.frontend.codeinfo { CodeGenTarget }
     engine = self._sealed_native_engine(full_target);
     if engine is None {
-        import from jaclang.compiler.backends.native.link_plan {
-            jit_engine_for_cached
-        }
+        import from jaclang.compiler.backends.native.link_plan { jit_engine_for_cached }
         engine = jit_engine_for_cached(
             target_program, full_target, target_program.options or CompileOptions()
         );
@@ -309,8 +322,6 @@ impl JacCompiler._load_native_from_cache(
     target_program.hub.artifacts[full_target] = gen;
 }
 
-"""The engine over a sealed app's linked native artifact, when the module
-belongs to an image that carries one."""
 impl JacCompiler._sealed_native_engine(full_target: str) -> (object | None) {
     import from jaclang.jac0core { sealed as _sealed }
     found = _sealed.image_for_path(full_target);
@@ -359,7 +370,8 @@ impl JacCompiler._restore_sections(
         } except Exception {}
     }
 
-    if SEC_NBITCODE in secs or SEC_NOBJ in secs {
+    if (SEC_NBITCODE in secs or SEC_NOBJ in secs)
+        and self._wants_native_engine(full_target, actual_program) {
         try {
             import json;
             cached_interop: (dict[str, any] | None) = None;
@@ -584,9 +596,7 @@ impl JacCompiler.parse_str(
             parse_woven
         }
         codespace = '';
-        import from jaclang.compiler.frontend.codeinfo {
-            is_client_by_location as _cbl
-        }
+        import from jaclang.compiler.frontend.codeinfo { is_client_by_location as _cbl }
         import from jaclang.compiler.placement.placement_facts {
             native_only as _native_only,
             native_unit as _native_unit
@@ -779,15 +789,6 @@ impl JacCompiler.stamp_access_check_facts(mod: uni.Module) -> None {
 impl JacCompiler.stamp_native_import_facts(
     mod: uni.Module, target_program: JacProgram
 ) -> None {
-    """Stamp each import with the emitter's native-only verdict.
-
-    Whether an import resolves to a module the native lane owns, and
-    whether that module lives inside jaclang's own tree, are both
-    import-resolution questions: they need the hub, the placement pins
-    and the filesystem, which is the driver's ground and not a pass's.
-    The emitter used to ask for them through `self.prog`, the one
-    driver read left in a sealed pass. It now consumes a bool.
-    """;
     import os;
     for imp in mod.get_all_sub_nodes(uni.Import) {
         target = native_only_import_target(imp, target_program);
@@ -1101,7 +1102,7 @@ impl JacCompiler.compile(
         reset_native_unit_compile
     }
     _prev_cs = get_effective_default_codespace_override();
-    _native_unit_token = set_native_unit_compile(bool(options.native_unit));
+    _native_unit_prev = set_native_unit_compile(bool(options.native_unit));
     _depth_prev = self._reentrant_depth;
     self._reentrant_depth = _depth_prev + 1;
     if _depth_prev == 0 {
@@ -1230,7 +1231,7 @@ impl JacCompiler.compile(
             options=options
         );
     } finally {
-        reset_native_unit_compile(_native_unit_token);
+        reset_native_unit_compile(_native_unit_prev);
         set_effective_default_codespace(_prev_cs);
         self._reentrant_depth = _depth_prev;
         if _depth_prev == 0 {
@@ -1326,9 +1327,6 @@ impl JacCompiler._persist_module_cache(
     } except Exception {}
 }
 
-"""The native sections of a unit, each under the stamp of the compile that
-produced it, plus the dependency rows carrying the native digests it was
-compiled against."""
 impl JacCompiler._native_sections(
     full_target: str, result: uni.Module, actual_program: JacProgram
 ) -> dict[int, bytes] {
@@ -1337,7 +1335,7 @@ impl JacCompiler._native_sections(
     if gen.native_iface is None {
         return sections;
     }
-    import from jaclang.compiler.driver.jir { SEC_DEPS, deps_section }
+    import from jaclang.compiler.driver.jir { SEC_NDEPS, native_deps_section }
     registry = actual_program.native_units();
     stamp = registry.stamp_for(actual_program.options);
     sections[SEC_NIFACE] = stamp.pack(gen.native_iface.to_bytes());
@@ -1349,17 +1347,10 @@ impl JacCompiler._native_sections(
     }
     dep_digests = registry.dep_digests(list(gen.native_deps or []));
     registry.record(full_target, gen.native_iface, actual_program.options, dep_digests);
-    sections[SEC_DEPS] = deps_section(
-        actual_program.iface_registry().dep_rows(
-            os.path.realpath(full_target), result, list(gen.native_deps or [])
-        )
-    );
+    sections[SEC_NDEPS] = stamp.pack(native_deps_section(dep_digests));
     return sections;
 }
 
-"""Persist a native unit's products right after its compile, whether or not
-anything ever asks for its bytecode: the link plan reads them from the JIR
-and the interface registry's dependency rows point at them."""
 impl JacCompiler._persist_native_unit(
     full_target: str, result: uni.Module, actual_program: JacProgram
 ) -> None {

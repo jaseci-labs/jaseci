@@ -269,7 +269,10 @@ impl JacProgram.clear_type_system(self: JacProgram, clear_hub: bool = False) -> 
         self.mod.hub.clear();
         return;
     }
+    self.scrub_hub_types();
+}
 
+impl JacProgram.scrub_hub_types(self: JacProgram) -> None {
     for mod in self.mod.hub.values() {
         if mod.stub_only {
             continue;
@@ -281,6 +284,7 @@ impl JacProgram.clear_type_system(self: JacProgram, clear_hub: bool = False) -> 
                 nd.type = None;
                 nd.narrowed_type = None;
                 nd.coerce_to = None;
+                nd.ct_value = None;
             }
             for kid in nd.kid {
                 stack.append(kid);
@@ -314,6 +318,18 @@ impl JacProgram.release_compile_closure(
     self.hub.reset();
     self.mod = self.hub.mod;
     self.deps.clear();
+    ev = self.type_evaluator;
+    if ev is not None {
+        self.release_check_caches();
+        ev._module_type_cache.clear();
+        ev._mobui_module_cache.clear();
+        ev._ts_decl_cache.clear();
+        ev._ts_decl_path_cache.clear();
+        ev._ts_synth_class_cache.clear();
+        ev._untyped_external_cfg_cache.clear();
+        ev._shared_intern.clear();
+        ev.symbol_resolution_stack.clear();
+    }
     self.type_evaluator = None;
     self.diags.clear();
     self.scratch.clear();

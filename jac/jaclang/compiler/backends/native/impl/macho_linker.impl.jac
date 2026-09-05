@@ -48,6 +48,7 @@ glob S_REGULAR = 0x0,
 glob EXPORT_SYMBOL_FLAGS_KIND_REGULAR = 0x00;
 
 glob N_EXT = 0x01,
+     N_WEAK_DEF = 0x0080,
      N_TYPE_MASK = 0x0E,
      N_UNDF = 0x00,
      N_SECT = 0x0E;
@@ -693,6 +694,15 @@ impl MachOLinker._consolidate(
         dataoff_by_name[key] = sec_dataoff[mi];
     }
 
+    defined_ext: dict[str, int] = {};
+    for (i, s) in enumerate(self.symbols) {
+        if (s.n_type & N_TYPE_MASK) == N_SECT and (s.n_type & N_EXT) != 0 and s.name {
+            if s.name not in defined_ext {
+                defined_ext[s.name] = i;
+            }
+        }
+    }
+
     sym_remap: dict[int, int] = {};
     for (si, sym) in enumerate(syms) {
         ttype = sym.n_type & N_TYPE_MASK;
@@ -701,6 +711,24 @@ impl MachOLinker._consolidate(
             merged_idx = sec_to_merged[msi];
             base = self.sections[merged_idx].addr;
             new_val = base + sec_dataoff[msi] + (sym.n_value - sec_addrbase[msi]);
+            is_ext = (sym.n_type & N_EXT) != 0;
+            prior = defined_ext.get(sym.name) if (is_ext and sym.name) else None;
+            if prior is not None {
+                prior_sym = self.symbols[prior];
+                prior_weak = (prior_sym.n_desc & N_WEAK_DEF) != 0;
+                new_weak = (sym.n_desc & N_WEAK_DEF) != 0;
+                if prior_weak and not new_weak {
+                    self.symbols[prior] = MachOSymbol(
+                        name=sym.name,
+                        n_type=sym.n_type,
+                        n_sect=merged_idx + 1,
+                        n_desc=sym.n_desc,
+                        n_value=new_val
+                    );
+                }
+                sym_remap[si] = prior;
+                continue;
+            }
             ni = len(self.symbols);
             self.symbols.append(
                 MachOSymbol(
@@ -711,6 +739,9 @@ impl MachOLinker._consolidate(
                     n_value=new_val
                 )
             );
+            if is_ext and sym.name {
+                defined_ext[sym.name] = ni;
+            }
             sym_remap[si] = ni;
         } else {
             keep_val = sym.n_value if (sym.n_type & N_TYPE_MASK) == 0x02 else 0;
@@ -2774,9 +2805,6 @@ def _write_section_header(
 }
 
 
-"""Link `objects` into one Mach-O artifact. The first object seeds the
-linker; every further object and then every archive member is merged
-through the same consolidation."""
 impl MachOLinker.link(
     objects: list[bytes],
     output_path: str,

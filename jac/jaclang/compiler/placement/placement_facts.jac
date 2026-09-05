@@ -5,8 +5,6 @@ glob SPACE_SERVER: str = 'server',
      SPACE_CLIENT: str = 'client',
      SPACE_NATIVE: str = 'native';
 
-"""The toolchain directory whose modules are native units under the default
-verdict (the desktop target's native side)."""
 glob NATIVE_POLICY_DIR_REL: tuple[str, ...] = ("client/targets/desktop/native", );
 
 
@@ -173,9 +171,6 @@ def _toolchain_rel(source_path: str) -> (str | None) {
     return rp[len(pkg) + 1:].replace(os.sep, "/");
 }
 
-"""The module has no bytecode meaning: it imports C symbols or lives under
-the native standard library. Such a module is a native unit and nothing
-else; `find_jac_files` and `precompile_unit` never bytecode it."""
 def native_only(source_path: str) -> bool {
     rel = _toolchain_rel(source_path);
     if rel is None {
@@ -185,15 +180,6 @@ def native_only(source_path: str) -> bool {
     return is_native_only(rel);
 }
 
-"""The module participates in a native artifact.
-
-In the order `parse_str` locks a codespace: a native-only toolchain module,
-a native pin the demotion verdict has not cancelled, membership in the
-kernel's unit roster (`NATIVE_SCOPE`) under a native-unit compile, then
-the toolchain's policy directories under the default verdict. The frontend
-scope modules are native units and bytecode units at once; the kernel roots
-are native units only.
-"""
 def native_unit(source_path: str, native_unit_compile: (bool | None) = None) -> bool {
     if native_only(source_path) {
         return True;
@@ -230,8 +216,6 @@ def native_unit(source_path: str, native_unit_compile: (bool | None) = None) -> 
     return False;
 }
 
-"""The native units of a package: every sealable source `native_unit` claims,
-resolved, in sorted order."""
 def native_units_of(package_dir: str, sources: list[str]) -> list[str] {
     out: list[str] = [];
     for p in sources {

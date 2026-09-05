@@ -143,11 +143,6 @@ def native_default_path_ok(path: str) -> bool {
     return _native_deps_ok(ap, deps, hold_exempt=exempt);
 }
 
-"""Whether a module with no locked codespace may be lowered natively.
-
-`native_unit_compile` is `CompileOptions.native_unit` of the compile asking;
-the frontend scope modules are native only when the kernel build asks.
-"""
 def native_default_verdict(
     module: uni.Module, prog: any = None, native_unit_compile: bool = False
 ) -> tuple[bool, str] {

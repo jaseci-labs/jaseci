@@ -32,14 +32,6 @@ obj SelfHostCache {
         return normalized_path.startswith((self.jaclang_root() + os.sep));
     }
 
-    """Which program compiles `file_path`.
-
-    Compiler-tree modules belong to the selfhost program, except the ones
-    a native-unit compile owns: the native standard library, and the
-    kernel's scope units when `native_unit` is set. Those compile in the
-    target program, which is what lets one JIR entry carry both the
-    bytecode the compiler runs and the native unit the kernel links.
-    """
     def resolve(
         file_path: str,
         target_program: JacProgram,
@@ -58,7 +50,8 @@ obj SelfHostCache {
                 return target_program;
             }
             import from jaclang.compiler.native_scope { in_native_scope_path }
-            if (native_unit or native_unit_compile_active()) and in_native_scope_path(file_path) {
+            if (native_unit or native_unit_compile_active())
+                and in_native_scope_path(file_path) {
                 return target_program;
             }
             return self.program;

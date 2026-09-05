@@ -208,8 +208,6 @@ def clib_symbol_lib_map(
     return symbol_lib_map;
 }
 
-"""The vendored musl tree for `triple`: `JAC_NATIVE_MUSL_DIR`, else the
-matching `.pbs-build/<arch>/musl/lib`, else a bundled floor's `musl`."""
 def musl_lib_dir(triple: str) -> (str | None) {
     import os;
     import from jaclang.runtime.graph_utils { triple_arch }
@@ -248,9 +246,6 @@ def musl_lib_dir(triple: str) -> (str | None) {
     return None;
 }
 
-"""The musl members and crt objects a static executable needs, selected by
-the undefined symbols of `objects` transitively. None when no vendored
-musl serves `triple`."""
 def collect_musl_static(
     objects: list[bytes], triple: str
 ) -> (tuple[list[bytes], list[bytes]] | None) {

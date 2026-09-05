@@ -102,6 +102,8 @@ obj NaIRGenState(ModuleCodegenPass) {
         _unit_prefix: str = "",
         _unit_prefixes: dict[str, str] = {},
         _native_dep_paths: list[str] = [],
+        _typed_only_imports: set[str] = set(),
+        _full_ast_cache: dict[str, uni.Module] = {},
         _pub_symbols: set[str] = set(),
         _unit_exports: dict[str, tuple] = {},
         _demoted_names: set[str] = set(),
@@ -487,9 +489,11 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _symbol_for(
         name: str, owner: (uni.Module | None) = None, is_pub: bool = False
     ) -> str abst;
+
     def _record_export(
         name: str, symbol: str, kind: str, is_pub: bool = False
     ) -> None abst;
+
     def _note_native_dep(path: str) -> None abst;
     def _dep_iface(imported_mod: uni.Module) -> any abst;
     def _load_native_unit_module(path: str) -> (uni.Module | None) abst;

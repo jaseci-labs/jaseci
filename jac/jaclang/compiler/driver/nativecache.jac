@@ -1,15 +1,3 @@
-"""The native side of the module cache: one registry per program.
-
-`IfaceRegistry` serves a module's type interface from its JIR; this registry
-serves the same module's native interface, object and bitcode from the same
-entry. There is no second store: a unit's native products live in its module
-JIR under MODKEY plus the stamp in their own header, and freshness is the
-layered check `SEC_DEPS` already implements, extended by the native digest
-column.
-
-Compile-on-demand goes through `JacCompiler.compile` with the native-import
-options, so demotion, strictness and the seam report apply unchanged.
-"""
 import os;
 import time;
 import from jaclang.compiler.driver.jir {
@@ -24,10 +12,28 @@ import from jaclang.compiler.driver.jir {
     is_module_cache_valid,
     jir_cacheable_source_path,
     native_section_payload,
+    read_native_dep_hashes,
     read_section_bytes
 }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.driver.native_iface { NativeIface }
+
+glob _UNITS_IN_FLIGHT: set[str] = set(),
+     UNIT_CHILD_DEPTH_ENV: str = "JAC_NATIVE_UNIT_DEPTH",
+     UNIT_CHILD_MAX_DEPTH: int = 2;
+
+glob _UNIT_CHILD_DRIVER: str = (
+         "import json, sys\n"
+         "from jaclang.compiler.driver.program import JacProgram\n"
+         "from jaclang.compiler.driver.compile_options import CompileOptions\n"
+         "opts = CompileOptions.from_native_import_env(json.loads(sys.argv[2]))\n"
+         "reg = JacProgram().native_units()\n"
+         "ent = reg.compile_unit(sys.argv[1], opts)\n"
+         "if ent is None:\n"
+         "    why = reg.failures.get(sys.argv[1]) or 'no diagnostic was recorded'\n"
+         "    sys.stderr.write('jac: native unit ' + sys.argv[1] + ' failed: ' + why + '\\n')\n"
+         "    sys.exit(3)\n"
+     );
 
 obj NativeUnitEntry {
     has path: str,
@@ -38,9 +44,6 @@ obj NativeUnitEntry {
         loaded_at: float = 0.0;
 }
 
-"""A module-level native verdict persisted in `SEC_PLACEMENT`: the module
-tried to lower natively and failed, so it is served by Python until its
-content changes."""
 obj NativeVerdict {
     has demoted: bool = False,
         code: str = "",
@@ -53,6 +56,7 @@ obj NativeUnitRegistry {
         building: set[str] postinit,
         checking: set[str] postinit,
         not_native: dict[str, tuple] = {},
+        failures: dict[str, str] = {},
         recorded_deps: dict[str, dict[str, str]] = {},
         verdicts: dict[str, tuple[tuple, NativeVerdict]] = {};
 
@@ -72,6 +76,8 @@ obj NativeUnitRegistry {
         real = os.path.realpath(path);
         self.entries.pop(real, None);
         self.recorded_deps.pop(real, None);
+        self.not_native.pop(real, None);
+        self.failures.pop(real, None);
     }
 
     static def _file_key(path: str) -> (tuple | None) {
@@ -129,7 +135,9 @@ obj NativeUnitRegistry {
         }
     }
 
-    def _register(resolved: str, iface: NativeIface, stamp: NativeStamp, source: str) -> NativeUnitEntry {
+    def _register(
+        resolved: str, iface: NativeIface, stamp: NativeStamp, source: str
+    ) -> NativeUnitEntry {
         ent = NativeUnitEntry(
             path=resolved,
             digest=iface.digest(),
@@ -142,9 +150,6 @@ obj NativeUnitRegistry {
         return ent;
     }
 
-    """Record the interface a compile just produced, so the same closure
-    reads it back without a disk round trip, with the dependency digests it
-    was compiled against."""
     def record(
         path: str,
         iface: NativeIface,
@@ -158,8 +163,6 @@ obj NativeUnitRegistry {
         return self._register(resolved, iface, self.stamp_for(options), "compile");
     }
 
-    """The native digests `path` was compiled against, from this program's
-    memory first and its JIR otherwise: the plan's agreement check."""
     def recorded_native_deps(path: str) -> list[tuple[str, str]] {
         resolved = os.path.realpath(path);
         live = self.recorded_deps.get(resolved);
@@ -170,11 +173,19 @@ obj NativeUnitRegistry {
         if found is None {
             return [];
         }
-        import from jaclang.compiler.driver.jir { read_native_dep_hashes }
-        return read_native_dep_hashes(found[0], found[1]);
+        return read_native_dep_hashes(found[0], self.stamp_for(), found[1]);
     }
 
-    """The native digests of `paths` as this registry knows them now."""
+    def _deps_match(data: bytes, stamp: NativeStamp, base_dir: str) -> bool {
+        for (dep, recorded) in read_native_dep_hashes(data, stamp, base_dir) {
+            ent = self.ensure(dep, compile_on_miss=False);
+            if ent is None or ent.digest != recorded {
+                return False;
+            }
+        }
+        return True;
+    }
+
     def dep_digests(paths: list[str]) -> dict[str, str] {
         out: dict[str, str] = {};
         for p in paths {
@@ -197,24 +208,18 @@ obj NativeUnitRegistry {
         if iface is None {
             return None;
         }
-        if check_deps and not self.prog.iface_registry()._ndeps_match(data, base_dir) {
+        if check_deps and not self._deps_match(data, stamp, base_dir) {
             self._event("native_dep_miss");
             return None;
         }
         return self._register(resolved, iface, stamp, "disk");
     }
 
-    """The native interface of `path` for the current codegen identity.
-
-    Served from memory, then from the module JIR when its stamp matches and
-    every recorded native dependency digest still holds, else compiled on
-    demand. Returns None while the unit is being built higher up the stack
-    (a cycle) or when it is not a native unit.
-    """
     def ensure(
         path: str,
         compile_on_miss: bool = True,
-        options: (CompileOptions | None) = None
+        options: (CompileOptions | None) = None,
+        check_deps: bool = True
     ) -> (NativeUnitEntry | None) {
         resolved = os.path.realpath(path);
         if not jir_cacheable_source_path(resolved) {
@@ -238,7 +243,7 @@ obj NativeUnitRegistry {
         if not rebuild {
             self.checking.add(resolved);
             try {
-                found = self._read_from_disk(resolved, stamp, check_deps=True);
+                found = self._read_from_disk(resolved, stamp, check_deps=check_deps);
             } finally {
                 self.checking.discard(resolved);
             }
@@ -256,30 +261,131 @@ obj NativeUnitRegistry {
         return self.compile_unit(resolved, options);
     }
 
-    """Compile `path` as a native unit and register its interface."""
+    def read_unit(
+        path: str, options: (CompileOptions | None) = None
+    ) -> (NativeUnitEntry | None) {
+        resolved = os.path.realpath(path);
+        self.entries.pop(resolved, None);
+        return self._read_from_disk(
+            resolved, self.stamp_for(options), check_deps=False
+        );
+    }
+
+    def known_native_deps(path: str, native_unit_compile: bool = False) -> list[str] {
+        resolved = os.path.realpath(path);
+        ent = self.entries.get(resolved);
+        if ent is not None {
+            return sorted(os.path.realpath(d) for d in ent.iface.deps);
+        }
+        found = self._module_jir(resolved);
+        if found is None {
+            return [];
+        }
+        (data, base_dir) = found;
+        unpacked = NativeStamp.unpack(read_section_bytes(data, SEC_NIFACE));
+        if unpacked is not None {
+            iface = NativeIface.from_bytes(unpacked[1]);
+            if iface is not None {
+                return sorted(os.path.realpath(d) for d in iface.deps);
+            }
+        }
+        import from jaclang.compiler.driver.jir { read_dep_rows }
+        import from jaclang.compiler.placement.placement_facts { native_unit }
+        out: list[str] = [];
+        for row in read_dep_rows(data, base_dir) {
+            dep = os.path.realpath(row.path);
+            if dep.endswith(".jac")
+                and os.path.isfile(dep)
+                and native_unit(dep, native_unit_compile) {
+                out.append(dep);
+            }
+        }
+        return sorted(set(out));
+    }
+
+    def compile_unit_detached(
+        path: str, options: (CompileOptions | None) = None
+    ) -> (NativeUnitEntry | None) {
+        import json;
+        import subprocess;
+        import sys;
+        resolved = os.path.realpath(path);
+        base = options if options is not None else self._options();
+        depth = int(os.environ.get(UNIT_CHILD_DEPTH_ENV, "0") or "0");
+        if depth >= UNIT_CHILD_MAX_DEPTH {
+            return self.compile_unit(resolved, base);
+        }
+        child_env = dict(os.environ);
+        child_env[UNIT_CHILD_DEPTH_ENV] = str(depth + 1);
+        env = json.dumps(base.clone_for_native_import().native_import_env());
+        self._event("native_unit_compile_detached");
+        try {
+            proc = subprocess.run(
+                [sys.executable, "-c", _UNIT_CHILD_DRIVER, resolved, env], env=child_env
+            );
+        } except OSError as exc {
+            self.failures[resolved] = f"{type(exc).__name__}: {exc}";
+            return None;
+        }
+        if proc.returncode != 0 {
+            self.failures[resolved] = (
+                f"the unit compile exited with status {proc.returncode}"
+            );
+            return None;
+        }
+        self.forget(resolved);
+        found = self.read_unit(resolved, base);
+        if found is None {
+            self.failures[resolved] = "the unit compile left no native interface in the module cache";
+        }
+        return found;
+    }
+
     def compile_unit(
         path: str, options: (CompileOptions | None) = None
     ) -> (NativeUnitEntry | None) {
         resolved = os.path.realpath(path);
-        if resolved in self.building {
+        if resolved in self.building or resolved in _UNITS_IN_FLIGHT {
             return None;
         }
         base = options if options is not None else self._options();
         self.building.add(resolved);
+        _UNITS_IN_FLIGHT.add(resolved);
+        mod: any = None;
         try {
             self._event("native_unit_compile");
-            saved = self.prog.options;
+            import from jaclang.compiler.driver.program { JacProgram }
+            unit_prog = JacProgram();
             try {
-                mod = self.prog.compile(
+                mod = unit_prog.compile(
                     resolved, options=base.clone_for_native_import()
                 );
             } finally {
-                self.prog.options = saved;
+                if unit_prog.errors_had {
+                    self.failures[resolved] = "; ".join(
+                        e.pretty_print().split("\n")[0]
+                        for e in unit_prog.errors_had[:5]
+                    );
+                }
             }
-        } except Exception {
+        } except Exception as exc {
+            import traceback;
+            self.failures[resolved] = (
+                f"{type(exc).__name__}: {exc}"
+                + (f" ({self.failures[resolved]})" if resolved in self.failures else "")
+            );
+            import from jaclang.compiler.driver.compile_options { env_na_debug }
+            if env_na_debug() {
+                import sys;
+                sys.stderr.write(f"NA_DEBUG native unit {resolved} raised:\n");
+                sys.stderr.write(traceback.format_exc());
+                sys.stderr.write("NA_DEBUG requested from:\n");
+                sys.stderr.write("".join(traceback.format_stack(limit=30)));
+            }
             return None;
         } finally {
             self.building.discard(resolved);
+            _UNITS_IN_FLIGHT.discard(resolved);
         }
         iface = mod.gen.native_iface if (mod is not None and mod.gen) else None;
         if iface is None {
@@ -293,11 +399,36 @@ obj NativeUnitRegistry {
             return found;
         }
         self.not_native.pop(resolved, None);
-        return self._register(resolved, iface, self.stamp_for(base), "compile");
+        gen = mod.gen;
+        self.recorded_deps[resolved] = self.dep_digests(list(gen.native_deps or []));
+        ent = self._register(resolved, iface, self.stamp_for(base), "compile");
+        self._stash_products(resolved, gen);
+        try {
+            unit_prog.release_compile_closure(collect=False);
+            if not _UNITS_IN_FLIGHT {
+                shared = unit_prog._get_compiler().selfhost.peek_program();
+                if shared is not None and shared is not unit_prog {
+                    shared.scrub_hub_types();
+                }
+            }
+        } except Exception {}
+        return ent;
     }
 
-    """The digest of a unit already known to this registry, or the digest
-    its JIR carries, without compiling anything."""
+    def _stash_products(resolved: str, gen: any) {
+        import from jaclang.compiler.frontend.codeinfo { CodeGenTarget }
+        carrier = self.prog.hub.artifacts.get(resolved);
+        if carrier is None {
+            carrier = CodeGenTarget();
+            self.prog.hub.artifacts[resolved] = carrier;
+        }
+        carrier.native_iface = gen.native_iface;
+        carrier.native_object = gen.native_object;
+        carrier.native_bitcode = gen.native_bitcode;
+        carrier.native_layout = gen.native_layout;
+        carrier.native_deps = list(gen.native_deps or []);
+    }
+
     def known_digest(path: str) -> str {
         resolved = os.path.realpath(path);
         ent = self.entries.get(resolved);
@@ -327,8 +458,6 @@ obj NativeUnitRegistry {
         );
     }
 
-    """The relocatable object of `path` under the current stamp, compiling
-    on demand. None when the unit has no object for this identity."""
     def object_for(
         path: str, options: (CompileOptions | None) = None
     ) -> (bytes | None) {
@@ -337,9 +466,9 @@ obj NativeUnitRegistry {
         if live is not None and live.native_object is not None {
             return live.native_object;
         }
-        obj = self._section_payload(resolved, SEC_NOBJ, options);
-        if obj is not None {
-            return obj;
+        payload_bytes = self._section_payload(resolved, SEC_NOBJ, options);
+        if payload_bytes is not None {
+            return payload_bytes;
         }
         if self.compile_unit(resolved, options) is None {
             return None;
@@ -351,8 +480,6 @@ obj NativeUnitRegistry {
         return self._section_payload(resolved, SEC_NOBJ, options);
     }
 
-    """The LLVM bitcode of `path` under the current stamp, compiling on
-    demand; the whole-program and JIT link modes read this."""
     def bitcode_for(
         path: str, options: (CompileOptions | None) = None
     ) -> (bytes | None) {
@@ -377,16 +504,14 @@ obj NativeUnitRegistry {
 
     def _live_gen(resolved: str) -> any {
         mod = self.prog.find_module(resolved);
-        if mod is not None and mod.gen is not None {
+        if mod is not None
+            and mod.gen is not None
+            and mod.gen.native_iface is not None {
             return mod.gen;
         }
-        carrier = self.prog.hub.artifacts.get(resolved);
-        return carrier;
+        return self.prog.hub.artifacts.get(resolved);
     }
 
-    """The module-level native verdict recorded in the JIR's placement
-    summary, or None when the module has never been demoted for its current
-    content. A content edit changes MODKEY and clears the verdict with it."""
     def verdict_for(path: str) -> (NativeVerdict | None) {
         resolved = os.path.realpath(path);
         key = NativeUnitRegistry._file_key(resolved);
@@ -418,15 +543,14 @@ obj NativeUnitRegistry {
         return v.code if v is not None else "";
     }
 
-    """Note a demotion for the module's current content. The placement
-    summary carries it into `SEC_PLACEMENT` on the next persist."""
-    def record_verdict(path: str, code: str, detail: str) -> None {
+    def record_verdict(path: str, code: str, detail: str) {
         resolved = os.path.realpath(path);
         key = NativeUnitRegistry._file_key(resolved);
         if key is not None {
             self.verdicts[resolved] = (
                 key,
                 NativeVerdict(demoted=True, code=code, detail=detail),
+
             );
         }
         import from jaclang.compiler.placement.placement { note_native_verdict }
@@ -435,7 +559,6 @@ obj NativeUnitRegistry {
     }
 }
 
-"""The native verdict a JIR's placement summary carries, or None."""
 def verdict_from_jir(data: bytes) -> (NativeVerdict | None) {
     raw = read_section_bytes(data, SEC_PLACEMENT);
     if raw is None {
@@ -451,8 +574,6 @@ def verdict_from_jir(data: bytes) -> (NativeVerdict | None) {
     );
 }
 
-"""Read a module's native verdict from its module cache without a program:
-the pin resolver's path when no compile is in flight."""
 def read_native_verdict(path: str) -> (NativeVerdict | None) {
     resolved = os.path.realpath(path);
     try {

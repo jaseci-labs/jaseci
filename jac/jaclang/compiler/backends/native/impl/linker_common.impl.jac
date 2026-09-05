@@ -259,8 +259,6 @@ impl parse_ar_symbol_index(data: bytes) -> dict[str, int] {
 }
 
 
-"""The undefined symbols of one relocatable object (ELF or Mach-O), the
-roots an archive member selection starts from."""
 impl object_undefined_symbols(mem: bytes) -> list[str] {
     if len(mem) < 4 {
         return [];

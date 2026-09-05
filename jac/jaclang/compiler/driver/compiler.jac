@@ -130,6 +130,7 @@ obj JacCompiler {
     def _cached_client_artifact(full_target: str) -> (ClientArtifact | None);
     static def _client_deps_fresh(artifact: ClientArtifact) -> bool;
     def _persist_client_artifact(full_target: str, artifact: ClientArtifact) -> None;
+    def _wants_native_engine(full_target: str, program: JacProgram) -> bool;
     def _load_native_from_cache(
         full_target: str,
         target_program: JacProgram,
@@ -137,7 +138,6 @@ obj JacCompiler {
     ) -> None;
 
     def _sealed_native_engine(full_target: str) -> (object | None);
-
     def _restore_sections(
         full_target: str, actual_program: JacProgram, secs: dict[int, bytes]
     ) -> None;

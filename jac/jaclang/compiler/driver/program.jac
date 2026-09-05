@@ -48,6 +48,7 @@ class JacProgram {
     def get_type_evaluator(self: JacProgram) -> TypeEvaluator;
     def stub_catalog(self: JacProgram) -> any;
     def clear_type_system(self: JacProgram, clear_hub: bool = False) -> None;
+    def scrub_hub_types(self: JacProgram) -> None;
     def release_compile_closure(self: JacProgram, collect: bool = True) -> None;
     def release_check_caches(self: JacProgram) -> None;
     def hub_cache_stamp(self: JacProgram, resolved_path: str) -> None;

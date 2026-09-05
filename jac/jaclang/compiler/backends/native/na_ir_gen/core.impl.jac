@@ -215,7 +215,6 @@ impl NaIRGenCore._run_impl(ir_in: uni.Module) -> uni.Module {
     return self.ir_in;
 }
 
-"""Build the unit's native interface from the tables this run filled."""
 impl NaIRGenCore._export_native_iface -> None {
     import os as _ni_os;
     import from jaclang.compiler.driver.native_iface {
@@ -276,11 +275,11 @@ impl NaIRGenCore._export_native_iface -> None {
         }
     }
     if "__jac_glob_init" in self.func_symtab and mod_path {
-        iface.init = native_glob_init_name(mod_path);
+        iface.init_symbol = native_glob_init_name(mod_path);
     }
     entry_fn = self.func_symtab.get("jac_entry");
     if entry_fn is not None {
-        iface.entry = str(entry_fn.name);
+        iface.entry_symbol = str(entry_fn.name);
     }
     iface.demoted = sorted(self._demoted_names);
     iface.clib_paths = list(self.ir_in.gen._clib_paths or []);
@@ -327,8 +326,6 @@ impl NaIRGenCore._prefix_of_module(mod: (uni.Module | None)) -> str {
     return self._prefix_of_path(mod.loc.mod_path);
 }
 
-"""The one mangling rule. `:pub` keeps the bare name, the C ABI a library
-promises; everything else external lives under its unit's prefix."""
 impl NaIRGenCore._symbol_for(
     name: str, owner: (uni.Module | None) = None, is_pub: bool = False
 ) -> str {
@@ -351,19 +348,55 @@ impl NaIRGenCore._record_export(
 impl NaIRGenCore._note_native_dep(path: str) -> None {
     import os as _nd_os;
     real = _nd_os.path.realpath(path);
-    own = _nd_os.path.realpath(self.ir_in.loc.mod_path) if self.ir_in?.loc else "";
-    if real == own or real in self._native_dep_paths {
+    own_path = _nd_os.path.realpath(self.ir_in.loc.mod_path) if self.ir_in?.loc else "";
+    if real == own_path or real in self._native_dep_paths {
         return;
     }
     self._native_dep_paths.append(real);
 }
 
-"""The dependency's native interface for the current codegen identity, from
-the program's native unit registry, compiling the dependency on demand so
-its demotion verdicts are known before this module declares its calls.
-None while the dependency is mid-build higher up the stack (a cycle), in
-which case its exports are declared from its AST and the link plan's
-agreement check catches any disagreement."""
+impl NaIRGenCore._is_catalog_module(mod: uni.Module) -> bool {
+    return mod?.cat_id is not None;
+}
+
+impl NaIRGenCore._full_ast_of(full_path: str) -> (uni.Module | None) {
+    import os as _fa_os;
+    key = _fa_os.path.realpath(full_path);
+    found = self._full_ast_cache.get(key);
+    if found is not None {
+        return found;
+    }
+    import from jaclang.compiler.driver.program { JacProgram as _FaProgram }
+    opts = self.prog.options.clone_for_native_import();
+    opts.no_cgen = True;
+    opts.symtab_ir_only = True;
+    opts.need_full_ast = True;
+    try {
+        mod = _FaProgram().compile(key, options=opts);
+    } except Exception as exc {
+        import from jaclang.compiler.driver.compile_options { env_na_debug }
+        if env_na_debug() {
+            import sys as _fa_sys;
+            _fa_sys.stderr.write(
+                f"NA_DEBUG full AST of {key} raised {type(exc).__name__}: {exc}\n"
+            );
+        }
+        return None;
+    }
+    if mod is None or self._is_catalog_module(mod) {
+        import from jaclang.compiler.driver.compile_options { env_na_debug }
+        if env_na_debug() {
+            import sys as _fa_sys;
+            _fa_sys.stderr.write(
+                f"NA_DEBUG full AST of {key} unavailable ({type(mod).__name__})\n"
+            );
+        }
+        return None;
+    }
+    self._full_ast_cache[key] = mod;
+    return mod;
+}
+
 impl NaIRGenCore._dep_iface(imported_mod: uni.Module) -> any {
     if not (imported_mod?.loc and imported_mod.loc.mod_path) {
         return None;
@@ -371,7 +404,10 @@ impl NaIRGenCore._dep_iface(imported_mod: uni.Module) -> any {
     opts = self.prog.options;
     try {
         ent = self.prog.native_units().ensure(
-            imported_mod.loc.mod_path, compile_on_miss=True, options=opts
+            imported_mod.loc.mod_path,
+            compile_on_miss=True,
+            options=opts,
+            check_deps=False
         );
     } except Exception {
         return None;
@@ -379,22 +415,17 @@ impl NaIRGenCore._dep_iface(imported_mod: uni.Module) -> any {
     return ent.iface if ent is not None else None;
 }
 
-"""Materialize a toolchain native unit (an OSP or format kernel) as an
-imported module: served from the hub when the closure already holds it,
-else a symtab-only compile in this program."""
 impl NaIRGenCore._load_native_unit_module(path: str) -> (uni.Module | None) {
     import os as _lu_os;
     real = _lu_os.path.realpath(path);
-    found = self.prog.find_module(real);
-    if found is not None {
+    found = self.prog.mod.hub.get(real);
+    if found is not None and found.decided_codespace == 'native' {
         return found;
     }
     if not _lu_os.path.isfile(real) {
         return None;
     }
-    import from jaclang.compiler.driver.compile_options {
-        CompileOptions as _UnitOpts
-    }
+    import from jaclang.compiler.driver.compile_options { CompileOptions as _UnitOpts }
     saved = self.prog.options;
     try {
         return self.prog.compile(
@@ -435,9 +466,6 @@ impl NaIRGenCore._predemote_capability_unit(
     );
 }
 
-"""A function that failed to lower keeps a body that aborts, under its own
-symbol plus the `.__jac_demoted` marker, and leaves the unit's export table
-so a consumer routes the call through the bridge instead."""
 impl NaIRGenCore._rename_demoted_symbol(name: str, func: ir.Function) -> None {
     self._demoted_names.add(name);
     self._unit_exports.pop(name, None);
@@ -818,7 +846,7 @@ impl NaIRGenCore._register_imported_struct_types -> None {
                 }
             }
         }
-        wq.append((mod_name, entry_base, None));
+        wq.append((mod_name, entry_base, None, bool(imp.is_typed)));
     }
 
     _self_key = (
@@ -827,9 +855,10 @@ impl NaIRGenCore._register_imported_struct_types -> None {
 
     _canon_src: dict = {};
     dep_edges: dict = {};
+    typed_only: dict[str, bool] = {};
     qi = 0;
     while qi < len(wq) {
-        (mod_name, cur_base, parent_key) = wq[qi];
+        (mod_name, cur_base, parent_key, typed) = wq[qi];
         qi += 1;
         (src_mod_str, full_path) = resolve_native_module(mod_name, cur_base);
         if src_mod_str is None or full_path is None {
@@ -844,6 +873,7 @@ impl NaIRGenCore._register_imported_struct_types -> None {
         } else {
             dep_edges[parent_key] = [abs_key];
         }
+        typed_only[abs_key] = typed and typed_only.get(abs_key, True);
         if abs_key in processed_modules {
             continue;
         }
@@ -865,31 +895,79 @@ impl NaIRGenCore._register_imported_struct_types -> None {
                 self.prog.options = _saved_opts;
             }
         }
+        if imported_mod is not None and self._is_catalog_module(imported_mod) {
+            imported_mod = self._full_ast_of(full_path);
+        }
         if imported_mod is None {
+            import from jaclang.compiler.driver.compile_options { env_na_debug }
+            if env_na_debug() {
+                import sys as _ti_sys;
+                _ti_sys.stderr.write(
+                    f"NA_DEBUG typed import {full_path} has no AST in {self.ir_in.loc.mod_path}\n"
+                );
+            }
             continue;
         }
         self._ensure_dep_inference(imported_mod);
         processed_modules.add(abs_key);
         _canon_src[abs_key] = src_mod_str;
         imported_mods.append((src_mod_str, imported_mod));
+        import from jaclang.compiler.driver.compile_options { env_na_debug as _ti_dbg }
+        if _ti_dbg() {
+            import sys as _ti_sys2;
+            _n_arch = sum(
+                1
+                for _st in ModuleCodegenPass.iter_context_stmts(imported_mod)
+                if isinstance(_st, uni.Archetype)
+            );
+            _ti_sys2.stderr.write(
+                f"NA_DEBUG typed walk {os.path.basename(self.ir_in.loc.mod_path)} <- "
+                f"{os.path.basename(abs_key)} {type(imported_mod).__name__} "
+                f"body={len(imported_mod.body)} archetypes={_n_arch} "
+                f"codespace={imported_mod.decided_codespace} typed_only={typed}\n"
+            );
+        }
 
         sub_base = os.path.dirname(os.path.abspath(full_path));
         for sub_imp in ModuleCodegenPass.iter_module_imports(imported_mod)
             + ModuleCodegenPass.iter_nested_imports(imported_mod, CodeContext.NATIVE) {
             sub_name = self._extract_import_module_name(sub_imp);
             if sub_name {
-                wq.append((sub_name, sub_base, abs_key));
+                wq.append(
+                    (sub_name, sub_base, abs_key, typed or bool(sub_imp.is_typed))
+                );
             }
         }
     }
 
     self._foreign_modules = [m for (_s, m) in imported_mods];
+    self._typed_only_imports = {
+        k
+        for (k, v) in typed_only.items()
+        if v
+    };
 
     for _direct in dep_edges.get(None, []) {
+        if typed_only.get(_direct, False) {
+            import from jaclang.compiler.placement.placement_facts {
+                native_unit as _typed_native_unit
+            }
+            import from jaclang.compiler.frontend.codeinfo {
+                native_unit_compile_active as _typed_nuc
+            }
+            if _typed_native_unit(_direct, _typed_nuc()) {
+                self._note_native_dep(_direct);
+            }
+            continue;
+        }
         _direct_mod = self.prog.mod.hub.get(_direct);
-        _has_own_code = _direct_mod is None or any(
-            not isinstance(s, uni.Import)
-            for s in ModuleCodegenPass.iter_context_stmts(_direct_mod)
+        _has_own_code = (
+            _direct_mod is None
+            or self._is_catalog_module(_direct_mod)
+            or any(
+                not isinstance(s, uni.Import)
+                for s in ModuleCodegenPass.iter_context_stmts(_direct_mod)
+            )
         );
         if _has_own_code {
             self._note_native_dep(_direct);
@@ -918,7 +996,12 @@ impl NaIRGenCore._register_imported_struct_types -> None {
     }
 
     for (_, imported_mod) in imported_mods {
-        self._walk_imported_module_abilities(imported_mod);
+        _imp_path = os.path.abspath(imported_mod.loc.mod_path)
+            if imported_mod?.loc
+            else "";
+        self._walk_imported_module_abilities(
+            imported_mod, with_fn_verdicts=(_imp_path not in self._typed_only_imports)
+        );
     }
 }
 
@@ -1358,6 +1441,7 @@ impl NaIRGenCore._imported_function_demotions(
     }
     return None;
 }
+
 impl NaIRGenCore._process_clib_imports(module: uni.Module) -> None {
     imports = ModuleCodegenPass.iter_module_imports(module)
         + ModuleCodegenPass.iter_nested_imports(module, CodeContext.NATIVE);

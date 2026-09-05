@@ -55,8 +55,6 @@ impl _SetupProgress.on_internal_compile(file_path: str) -> None {
     self._halt_at_limit();
 }
 
-"""The setup line for a kernel derivation: the first parse of a checkout
-that has no kernel, or one whose plan digest moved, relinks it here."""
 impl _SetupProgress.on_kernel_build(lib_path: str) -> None {
     if not self._banner_shown {
         self._banner_shown = True;

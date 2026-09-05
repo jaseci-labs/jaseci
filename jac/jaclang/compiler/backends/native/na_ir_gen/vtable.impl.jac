@@ -43,8 +43,6 @@ impl NaIRGenVtable._emit_vtable_global(arch_name: str) -> None {
     self._record_export(f"{arch_name}.__vtable", vtable_global.name, "vtable");
 }
 
-"""The vtable symbol of a class lives under its defining unit's prefix, so a
-consumer's forward reference and the definer's definition name one object."""
 impl NaIRGenVtable._vtable_symbol(arch_name: str) -> str {
     import from jaclang.compiler.frontend.codeinfo { native_symbol_name }
     src = self._struct_source_mod.get(arch_name, "");
@@ -899,12 +897,6 @@ impl NaIRGenVtable._emit_isa_seq_fn -> ir.Function {
 impl NaIRGenVtable._isinstance_operand_arch(
     nd: uni.FuncCall, operand: ir.Value
 ) -> (str | None) {
-    """The archetype layout whose class id the operand's vtable slot holds.
-
-    The declared type answers first; when a union or an `any` erases it, the
-    pointee's own struct name still names the layout, which is what the class
-    id is read through.
-    """;
     named = self._struct_name_of(nd.params[0] if nd.params else None);
     if named is not None and named in self.struct_types {
         return named;

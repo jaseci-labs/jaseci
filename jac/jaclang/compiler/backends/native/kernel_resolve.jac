@@ -1,31 +1,11 @@
-"""Where the native compiler kernel comes from.
-
-`ensure_loaded` in `native_compiler.jac` calls `resolve_kernel()` and
-nothing else. The precedence is fixed:
-
-1. Explicit switches. `JAC_COMPILER_LIB` as a path is used as given and
-   must carry its layout sidecar; `off` selects the store parser;
-   `JAC_STUBCAT_BUILDING` keeps selecting the store parser during the
-   catalog build.
-2. Sealed image. The manifest's `native` record names the artifact, its
-   sha256, layout digest and plan digest. Missing or mismatched is a startup
-   error; a sealed image is immutable.
-3. Source tree. The kernel beside `native_compiler.jac` is accepted when its
-   recorded plan digest equals the digest the module cache computes now;
-   otherwise the link plan rebuilds stale units and relinks, under a lock,
-   with the store parser for the units' own parse.
-4. No native toolchain: the store parser serves, silently.
-
-There is no state in which the loader knows a kernel should exist but
-cannot make one, so `zig build -Ddev` needs no kernel step: the first parse
-derives it. The bootstrap order is the payload build's: the scope units are
-parsed by the store parser while the kernel is rebuilt, so a kernel rebuild
-never depends on a kernel.
-"""
 import json;
 import os;
 import sys;
 import from dataclasses { field }
+import from jaclang.compiler.driver.compile_options {
+    CompileOptions,
+    NATIVE_LINK_MODE_BITCODE
+}
 
 glob KERNEL_LIB_ENV: str = "JAC_COMPILER_LIB",
      STUBCAT_BUILDING_ENV: str = "JAC_STUBCAT_BUILDING",
@@ -51,7 +31,6 @@ def kernel_lib_name -> str {
     return "libjac_compiler.so";
 }
 
-"""The in-tree kernel location: beside `native_compiler.jac`."""
 def source_tree_kernel_path -> str {
     import from jaclang.compiler.frontend.codeinfo { jaclang_pkg_root }
     return os.path.join(jaclang_pkg_root(), "compiler", kernel_lib_name());
@@ -114,7 +93,9 @@ def _from_sealed_image -> (ResolvedKernel | None) {
         digest = hashlib.sha256(f.read()).hexdigest();
     }
     if digest != record.get("sha256") {
-        raise KernelUnavailable(f"sealed kernel {lib_path} does not match its manifest sha256");
+        raise KernelUnavailable(
+            f"sealed kernel {lib_path} does not match its manifest sha256"
+        );
     }
     if str(sidecar.get("plan_digest", "")) != str(record.get("plan_digest", "")) {
         raise KernelUnavailable(
@@ -139,34 +120,38 @@ def _toolchain_available -> bool {
     }
 }
 
-"""The kernel a source tree should have now: the plan over the kernel root
-with the frontend scope compiled as native units."""
-def kernel_plan(prog: any = None) -> any {
-    import from jaclang.compiler.driver.program { JacProgram }
-    import from jaclang.compiler.driver.compile_options { CompileOptions }
-    import from jaclang.compiler.native_scope { kernel_root_path }
-    import from jaclang.compiler.backends.native.link_plan { build_link_plan }
-    program = prog if prog is not None else JacProgram();
-    options = CompileOptions(
+def kernel_options -> CompileOptions {
+    """The kernel runs in this process, so it is always the host's: a cross
+    target set for the artifacts being built never reaches the kernel's
+    units, its source key or its plan.""";
+    return CompileOptions(
         aot_mode=True,
         default_codespace="native",
         force_target_program=True,
         native_unit=True,
-        skip_native_engine=True
+        skip_native_engine=True,
+        native_target=""
     );
-    return build_link_plan(program, [kernel_root_path()], options, native_unit=True);
 }
 
-"""Link the kernel at `dst` from the plan. The units' own parse goes
-through the store parser: the kernel switch is pinned off for the span of
-the build, so a kernel rebuild never depends on a kernel."""
+def kernel_plan(prog: any = None, mode: str = "") -> any {
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.native_scope { kernel_root_path }
+    import from jaclang.compiler.backends.native.link_plan { build_link_plan }
+    program = prog if prog is not None else JacProgram();
+    options = kernel_options();
+    return build_link_plan(
+        program, [kernel_root_path()], options, mode=mode, native_unit=True
+    );
+}
+
 def build_kernel(dst: str, prog: any = None, log: any = None) -> any {
     import from jaclang.compiler.backends.native.link_plan {
         ArtifactKind,
         link_artifact
     }
     with _StoreParserSpan() {
-        plan = kernel_plan(prog);
+        plan = kernel_plan(prog, mode=NATIVE_LINK_MODE_BITCODE);
         os.makedirs(os.path.dirname(os.path.abspath(dst)) or ".", exist_ok=True);
         return link_artifact(plan, dst, ArtifactKind.SHARED, log=log);
     }
@@ -209,8 +194,6 @@ class _KernelLock {
     }
 }
 
-"""Pin the kernel switch off for the span of a plan computation or a
-rebuild: the scope units parse through the store parser meanwhile."""
 class _StoreParserSpan {
     def init(self: _StoreParserSpan) {
         self.prev = None;
@@ -232,19 +215,24 @@ class _StoreParserSpan {
     }
 }
 
-"""Source tree: accept the kernel by plan digest or derive it. A derivation
-that fails (a scope unit that no longer lowers, a link error) is reported
-once and the store parser serves, so an edit that breaks the kernel never
-takes parsing down with it."""
 def _from_source_tree -> (ResolvedKernel | None) {
     if not _toolchain_available() {
         return None;
     }
     lib_path = source_tree_kernel_path();
+    found = _accept_in_tree(lib_path);
+    if found is not None {
+        return found;
+    }
+    import from jaclang.compiler.driver.nativecache { UNIT_CHILD_DEPTH_ENV }
+    if os.environ.get(UNIT_CHILD_DEPTH_ENV, "") {
+        """A unit compile child parses with the store parser rather than
+        derive a kernel from inside a link plan; the plan that spawned it
+        has a kernel or is the kernel build itself.""";
+        return None;
+    }
     try {
-        with _StoreParserSpan() {
-            return _derive_in_tree(lib_path);
-        }
+        return _derive_in_tree(lib_path);
     } except KernelUnavailable {
         raise;
     } except Exception as e {
@@ -257,35 +245,60 @@ def _from_source_tree -> (ResolvedKernel | None) {
     }
 }
 
-def _derive_in_tree(lib_path: str) -> (ResolvedKernel | None) {
-    plan = kernel_plan();
-    want = plan.plan_digest();
+def _accept_in_tree(lib_path: str) -> (ResolvedKernel | None) {
     sidecar = read_sidecar(lib_path);
-    if os.path.isfile(lib_path) and sidecar is not None
-        and str(sidecar.get("plan_digest", "")) == want {
-        return ResolvedKernel(
-            lib_path=lib_path, layout=sidecar["classes"], source="tree", plan_digest=want
-        );
+    if sidecar is None or not os.path.isfile(lib_path) {
+        return None;
+    }
+    units = sidecar.get("units");
+    recorded = str(sidecar.get("source_key", ""));
+    if not isinstance(units, list) or not units or not recorded {
+        return None;
+    }
+    import from jaclang.compiler.backends.native.link_plan { units_source_key }
+    if units_source_key([str(u) for u in units], kernel_options()) != recorded {
+        return None;
+    }
+    return ResolvedKernel(
+        lib_path=lib_path,
+        layout=sidecar["classes"],
+        source="tree",
+        plan_digest=str(sidecar.get("plan_digest", ""))
+    );
+}
+
+def _build_kernel_in_child(dst: str) {
+    import subprocess;
+    env = dict(os.environ);
+    env[KERNEL_LIB_ENV] = "off";
+    code = (
+        "import sys\n"
+        "from jaclang.compiler.backends.native.kernel_resolve import build_kernel\n"
+        "build_kernel(sys.argv[1], log=lambda m: sys.stderr.write(m + '\\n'))\n"
+    );
+    proc = subprocess.run([sys.executable, "-c", code, dst], env=env);
+    if proc.returncode != 0 {
+        raise RuntimeError(f"kernel build exited with status {proc.returncode}");
+    }
+}
+
+def _derive_in_tree(lib_path: str) -> (ResolvedKernel | None) {
+    found = _accept_in_tree(lib_path);
+    if found is not None {
+        return found;
     }
     lock = _KernelLock(lib_path);
     lock.acquire();
     try {
-        sidecar = read_sidecar(lib_path);
-        if os.path.isfile(lib_path) and sidecar is not None
-            and str(sidecar.get("plan_digest", "")) == want {
-            return ResolvedKernel(
-                lib_path=lib_path, layout=sidecar["classes"], source="tree", plan_digest=want
-            );
+        found = _accept_in_tree(lib_path);
+        if found is not None {
+            return found;
         }
         import from jaclang.compiler.driver.pass_driver { setup_progress }
         setup_progress.on_kernel_build(lib_path);
         tmp = f"{lib_path}.{os.getpid()}.tmp";
         try {
-            import from jaclang.compiler.backends.native.link_plan {
-                ArtifactKind,
-                link_artifact
-            }
-            result = link_artifact(plan, tmp, ArtifactKind.SHARED);
+            _build_kernel_in_child(tmp);
             os.replace(tmp + LAYOUT_SIDECAR_SUFFIX, lib_path + LAYOUT_SIDECAR_SUFFIX);
             os.replace(tmp, lib_path);
         } finally {
@@ -295,28 +308,31 @@ def _derive_in_tree(lib_path: str) -> (ResolvedKernel | None) {
                 } except OSError {}
             }
         }
+        sidecar = read_sidecar(lib_path);
+        if sidecar is None {
+            raise RuntimeError("the kernel build left no layout sidecar");
+        }
         return ResolvedKernel(
             lib_path=lib_path,
-            layout=result.classes,
+            layout=sidecar["classes"],
             source="tree",
-            plan_digest=result.plan_digest
+            plan_digest=str(sidecar.get("plan_digest", ""))
         );
     } finally {
         lock.release();
     }
 }
 
-"""The one kernel lookup."""
 def resolve_kernel -> (ResolvedKernel | None) {
     if os.environ.get(STUBCAT_BUILDING_ENV) {
         return None;
     }
-    override = os.environ.get(KERNEL_LIB_ENV, "");
-    if override.strip().lower() in KERNEL_OFF_VALUES {
+    lib_setting = os.environ.get(KERNEL_LIB_ENV, "");
+    if lib_setting.strip().lower() in KERNEL_OFF_VALUES {
         return None;
     }
-    if override {
-        return _from_explicit(override);
+    if lib_setting {
+        return _from_explicit(lib_setting);
     }
     sealed = _from_sealed_image();
     if sealed is not None {

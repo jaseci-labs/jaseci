@@ -113,14 +113,15 @@ obj CompileOptions {
         }
     }
 
-    """The target triple this compile emits for: the override, else the host."""
     def effective_triple -> str {
         if self.native_target {
             return str(self.native_target);
         }
         try {
-            import jaclang.compiler.backends.native.llvm.binding as llvm;
-            return str(llvm.get_default_triple());
+            import from jaclang.compiler.backends.native.llvm.binding {
+                get_default_triple
+            }
+            return str(get_default_triple());
         } except Exception {
             return "";
         }
@@ -189,6 +190,50 @@ obj CompileOptions {
         );
     }
 
+    def native_import_env -> dict {
+        return {
+            "native_unit": bool(self.native_unit),
+            "native_link_mode": self.native_link_mode,
+            "na_gc_mode": self.na_gc_mode,
+            "nogc_enforce_all": bool(self.nogc_enforce_all),
+            "nogc_enforce_modules": list(self.nogc_enforce_modules or []),
+            "nogc_grandfathered": list(self.nogc_grandfathered or []),
+            "rc_debug_codegen": self.rc_debug_codegen,
+            "native_target": self.native_target,
+            "native_debug": self.native_debug,
+            "opt_level": self.opt_level,
+            "dump_ir_path": self.dump_ir_path,
+            "debug_ir": self.debug_ir,
+            "rc_stats": self.rc_stats,
+            "nogc_debug": self.nogc_debug,
+            "na_debug": self.na_debug
+        };
+    }
+
+    static def from_native_import_env(env: dict) -> CompileOptions {
+        return CompileOptions(
+            skip_native_engine=True,
+            aot_mode=True,
+            default_codespace='native',
+            force_target_program=True,
+            native_unit=bool(env.get("native_unit", False)),
+            native_link_mode=env.get("native_link_mode"),
+            na_gc_mode=env.get("na_gc_mode"),
+            nogc_enforce_all=bool(env.get("nogc_enforce_all", False)),
+            nogc_enforce_modules=list(env.get("nogc_enforce_modules") or []),
+            nogc_grandfathered=list(env.get("nogc_grandfathered") or []),
+            rc_debug_codegen=env.get("rc_debug_codegen"),
+            native_target=env.get("native_target"),
+            native_debug=env.get("native_debug"),
+            opt_level=env.get("opt_level"),
+            dump_ir_path=env.get("dump_ir_path"),
+            debug_ir=env.get("debug_ir"),
+            rc_stats=env.get("rc_stats"),
+            nogc_debug=env.get("nogc_debug"),
+            na_debug=env.get("na_debug")
+        );
+    }
+
     def nogc_enforced_for(mod_name: str) -> bool {
         if self.nogc_enforce_all {
             return True;
@@ -215,9 +260,6 @@ glob NATIVE_LINK_MODE_OBJECTS: str = "objects",
      NATIVE_LINK_MODE_BITCODE: str = "bitcode",
      NATIVE_LINK_MODES: tuple[str, str] = ("objects", "bitcode");
 
-"""How the link plan combines units: relocatable objects (the incremental
-default) or one whole-program LLVM module from every unit's bitcode (the
-release lane). `JAC_NATIVE_LINK_MODE` selects it for a whole build."""
 def env_native_link_mode -> str {
     import os;
     raw = os.environ.get("JAC_NATIVE_LINK_MODE", "").strip().lower();

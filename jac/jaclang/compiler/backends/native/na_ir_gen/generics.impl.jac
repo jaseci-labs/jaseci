@@ -693,6 +693,9 @@ impl NaIRGenGenerics._find_source_ability(
             self.prog.options = _saved_opts;
         }
     }
+    if imported_mod is not None and self._is_catalog_module(imported_mod) {
+        imported_mod = self._full_ast_of(full_path);
+    }
     if imported_mod is None {
         return None;
     }

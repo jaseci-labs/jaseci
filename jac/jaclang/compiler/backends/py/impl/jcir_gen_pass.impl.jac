@@ -5823,9 +5823,6 @@ impl JcirGenPass.exit_semi with Semi exit {}
 
 impl JcirGenPass.exit_comment_token with CommentToken exit {}
 
-"""The Python stubs that call this module's native exports. Each stub asks
-the engine for the export's link symbol: the module-qualified name of the
-one mangling rule, or the bare name of a `:pub` export."""
 impl JcirGenPass._gen_native_interop_stubs(nd: UniNode) -> None {
     manifest = self.ir_in.gen.interop_manifest;
     parts: list[str] = [];
@@ -5849,10 +5846,12 @@ impl JcirGenPass._gen_native_interop_stubs(nd: UniNode) -> None {
             decl = binding.ast_node;
             is_pub = bool(
                 decl is not None
-                and getattr(decl, "access", None) is not None
-                and decl.access.tag.name == _NsTok.KW_PUB
+                    and decl?.access is not None
+                    and decl.access.tag.name == _NsTok.KW_PUB
             );
-            symbol = binding.name if (is_pub or not prefix) else native_symbol_name(prefix, binding.name);
+            symbol = binding.name
+                if (is_pub or not prefix)
+                else native_symbol_name(prefix, binding.name);
             parts.append(
                 f"def {binding.name}({params}):\n"
                     + f"    import ctypes\n"
@@ -5939,9 +5938,6 @@ impl JcirGenPass._top_level_bound_names(items: any) -> list {
     return names;
 }
 
-"""The Python side of a native test: ask the engine for the test's symbol.
-The engine runs the plan's initializers itself on the first address it
-hands out, so no initializer list travels with the call."""
 impl JcirGenPass._native_test_shim_stmts(nd: Test) -> list {
     import from jaclang.compiler.frontend.codeinfo {
         native_test_symbol,

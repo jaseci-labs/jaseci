@@ -809,9 +809,6 @@ def summary_store(prog: any) -> dict {
     return store;
 }
 
-"""Module-level native verdicts noted during this program's compiles, keyed
-by real path: (code, detail). They ride into the placement summary the next
-time the module is summarized, and from there into `SEC_PLACEMENT`."""
 def native_verdict_notes(prog: any) -> dict[str, tuple[str, str]] {
     notes = prog?.analysis.native_verdict_notes;
     if notes is None {
@@ -821,7 +818,7 @@ def native_verdict_notes(prog: any) -> dict[str, tuple[str, str]] {
     return notes;
 }
 
-def note_native_verdict(prog: any, resolved: str, code: str, detail: str) -> None {
+def note_native_verdict(prog: any, resolved: str, code: str, detail: str) {
     native_verdict_notes(prog)[resolved] = (code, detail);
     store = summary_store(prog);
     cached = store.get(os.path.abspath(resolved));

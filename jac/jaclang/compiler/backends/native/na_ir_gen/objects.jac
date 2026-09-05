@@ -55,7 +55,13 @@ obj NaIRGenObjects(NaIRGenState) {
     def _native_archetypes(module: uni.Module) -> list[uni.Archetype];
     def _register_archetypes(module: uni.Module) -> None;
     def _codegen_archetype(nd: uni.Archetype, imported: bool = False) -> None;
-    def _register_static_fields(arch_name: str, archhas: uni.ArchHas) -> None;
+    def _register_static_fields(
+        arch_name: str,
+        archhas: uni.ArchHas,
+        owner: (uni.Module | None) = None,
+        imported: bool = False
+    ) -> None;
+
     def _register_class_consts(
         nd: uni.Archetype, arch_name: str, block: uni.ModuleCode
     ) -> None;

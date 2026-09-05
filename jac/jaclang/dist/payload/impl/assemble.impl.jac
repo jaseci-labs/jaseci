@@ -156,11 +156,6 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
         );
     }
 
-    # The native compiler kernel is not built here: `jac precompile --seal`
-    # (run_precompile_stage) links it through the link plan as the package's
-    # native artifact and records it in the manifest, so the shipped image
-    # and the kernel it loads are verified together. A linked-source (-Ddev)
-    # build returns above and derives its kernel on the first parse.
     _bundle_bun(site, opts);
 }
 
@@ -712,9 +707,6 @@ impl prune_layer_cache(dir_path: str, keep: str) {
     }
 }
 
-"""Strip the sealed kernel in the staged site and re-record its sha256 in
-the manifest: the seal verified the unstripped artifact, and a stripped
-binary must still hash to what the manifest says."""
 impl strip_kernel_best_effort(site: str) {
     import hashlib;
     import json;

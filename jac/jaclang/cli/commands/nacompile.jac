@@ -87,7 +87,10 @@ comptime SPEC_NACOMPILE: CommandSpec = CommandSpec(
              ("jac nacompile program.jac", "Compile to ./program"),
              ("jac nacompile program.jac", "Auto-promote and compile to ./program"),
              ("jac nacompile program.jac -o mybin", "Compile to ./mybin"),
-             ("jac nacompile program.jac --scrub", "Clean rebuild (wipe the module cache)"),
+             (
+                 "jac nacompile program.jac --scrub",
+                 "Clean rebuild (wipe the module cache)"
+             ),
              (
                  "jac nacompile program.jac --link-mode bitcode",
                  "Whole-program link: every unit's bitcode optimized as one module"

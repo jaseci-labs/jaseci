@@ -1,14 +1,10 @@
-"""The client-side OSP kernel as JavaScript, cached on disk.
-
-The browser runtime carries the OSP kernel (`runtime/osp_kernel.jac` and
-`runtime/osp_graph.jac`) lowered by the ES backend. The lowering is keyed
-on the kernel sources and the ES backend's own sources, so an edit to
-either rebuilds it; nothing native reads or writes this cache.
-"""
 import hashlib;
 import os;
 
-glob OSP_CORE_PARTS: tuple[str, ...] = ("runtime/osp_kernel.jac", "runtime/osp_graph.jac"),
+glob OSP_CORE_PARTS: tuple[str, ...] = (
+         "runtime/osp_kernel.jac",
+         "runtime/osp_graph.jac"
+     ),
      _OSP_CORE_JS_MEMO: list[str] = [];
 
 def _cache_dir -> str {
@@ -35,8 +31,6 @@ def _es_backend_fingerprint -> str {
     return h.hexdigest()[:16];
 }
 
-"""The concatenated kernel sources the client lowering compiles as one
-module, written under a content key so the ES compile has a real path."""
 def _unit_source_path -> tuple[str, str] {
     import from jaclang.compiler.frontend.codeinfo { kernel_unit_path }
     texts: list[str] = [];

@@ -1,0 +1,264 @@
+# Native Units
+
+Every native module is compiled once, as its own unit, and every native
+artifact is a link of units. This page records the design behind
+`compiler/backends/native/link_plan.jac`, `link_glue.jac`,
+`kernel_resolve.jac`, `driver/nativecache.jac` and `driver/native_iface.jac`,
+and the reasons that shaped it. The [native pathway reference](../reference/language/native-pathway.md)
+describes the user-facing surface; the [analysis cache](analysis-cache.md)
+page describes the JIR sections the interface layer owns.
+
+## The unit
+
+A native unit is one module compiled in a program of its own. Its products
+live in the module's JIR entry, beside the bytecode the compiler runs for
+the same file, under `MODKEY` plus a stamp in the section's own header:
+
+| Section | Holds |
+|---|---|
+| `SEC_NIFACE` | The unit's native interface, 64-hex digest prefixed like `SEC_IFACE` |
+| `SEC_NOBJ` | The relocatable object, compiled position-independent, small code model |
+| `SEC_NBITCODE` | The unit's optimized bitcode |
+| `SEC_NDEPS` | The native-interface digest of every unit it was compiled against |
+
+The stamp (`NativeStamp`) names the compiler digest, the codegen identity
+(gc mode, target, opt level and the rest of `CompileOptions.codegen_identity`)
+and the triple. A reader that finds a stamp it did not produce treats the
+section as absent. Only a native compile writes these four sections; a
+bytecode compile of the same file merges around them. That is why the native
+digests have their own section: when they lived in `SEC_DEPS`, every
+bytecode compile of a unit rewrote the rows without them and the next link
+plan recompiled the whole closure.
+
+### The interface
+
+`NativeIface` is everything a consumer links against: exports (symbol,
+kind, parameter and return types, ownership convention, `:pub`), class
+layouts, enums, the initializer and entry symbols, the demoted function
+set, clib paths, the module layout, and the dependency edges. Its digest
+covers all of that except the edges and coverage. So a body edit, a renamed
+local or a new private helper leaves the digest alone and rebuilds one
+object; a new or removed export, a changed signature or ownership
+convention, a changed layout, a new enum member, or a gained or lost
+initializer moves it and rebuilds dependents. Codegen options never enter
+the digest: the stamp carries them.
+
+Symbols that are not `:pub` are module-qualified, `<prefix>.<name>`, where
+the prefix is the native-safe form of the module key; `:pub` symbols keep
+bare names, and only two `:pub` exports of one name in one link collide.
+The prefix is keyed on the module's path, so variants of one module written
+to different directories are different units with different digests.
+
+### Dependency edges
+
+The IR generator records an edge for every unit it calls into and for every
+type-only import that names a native unit. The second kind matters because
+a type-only import contributes layouts: a layout change there must
+recompile the importer, and a compile that could not see the unit at all
+(mid-build in a cycle) records no digest for it and is recompiled once it
+can. A type-only import of a Python-lane module is no link edge.
+
+Two lookups feed the walk. A consumer declaring its calls takes the
+dependency's interface as it stands, whether or not the dependency's own
+records are current (`ensure(..., check_deps=False)`): that agreement is the
+plan's check, and checking it from inside every consumer nested a fresh
+compile of every cycle member on every visit. The plan's own walk does
+check records (`check_deps=True`), so a dependent whose recorded digest
+moved is recompiled during the walk.
+
+## The link plan
+
+One plan produces every artifact: `jac nacompile`, `jac build --as native`,
+the kernel resolver, `jac precompile --seal` and the in-process JIT are all
+callers, and the plan knows nothing about any of them.
+
+1. Resolve roots: an entry module, `jc_unit` for the kernel, every native
+   unit of a package for a seal.
+2. Walk edges dependencies first. Before a unit is looked at, the edges it
+   is already known to have (its interface on disk under any stamp, else the
+   type-interface dependency rows that are native units) are walked, so a
+   unit compiles after its dependencies and an import cycle nests only
+   inside the child that meets it.
+3. Compile each stale unit in a child `jac` process
+   (`NativeUnitRegistry.compile_unit_detached`) and read its products back
+   from the JIR. See "Why a child process" below.
+4. Check agreement: every recorded dependency digest must equal the digest
+   of the unit in the plan. A unit that disagrees is recompiled, and the
+   rounds continue until every record agrees; a recompile can move a unit's
+   own digest (a demoted export) and unsettle its dependents in turn. A
+   cycle that never settles is an error naming every unsettled unit.
+5. Order initializers topologically and synthesize the glue object.
+6. Collect floor archives, clib paths and needed libraries from the unit
+   interfaces.
+7. Link in one of two modes. `objects`, the incremental default, links the
+   units' relocatable objects. `bitcode` links every unit's bitcode into one
+   LLVM module and runs the pass pipeline whole-program before a single
+   codegen; executables are internalized first. This is the release lane,
+   and what the JIT, PE and wasm targets use.
+8. Record the plan digest, the merged class layout and its digest, the unit
+   list and the source key in the `<artifact>.layout.json` sidecar.
+
+The JIT is the same plan rooted at the module, always in bitcode mode, with
+the merged module optimized whole-program before MCJIT sees it. Its target
+machine is llvmlite's default for `jit=True`: with the position-independent
+small-model pair the linked artifacts use, MCJIT's AArch64 stubs branch into
+the GOT instead of through it.
+
+### The glue
+
+Every artifact needs a little code no unit owns, and all of it is one LLVM
+module built from the plan's unit records, never by pattern-matching linked
+IR: the `jac_entry` preamble (the root's runtime probe, every initializer in
+dependency order, the root's entry body), the platform entry point, the
+`__jac_shared_init` a shared library exports, the `jac_retain` /
+`jac_release` / `jac_str_new` C ABI wrappers, the `atexit` shim for glibc
+floors and the aarch64 outline-atomics helpers the C floor was built against.
+
+Two rules keep the glue honest about what the units define:
+
+- A wrapper is emitted only when a unit defines its target. `jac_str_new`
+  binds to the `weak_odr` string constructor a unit carries; a library
+  whose units never build a string exports no `jac_str_new`.
+- The region-death hook (`__jac_region_died_hook`) is defined by a unit
+  that registers the OSP runtime and recorded in its interface; the glue
+  emits its no-op fallback only when no unit supplies it. A weak stub would
+  otherwise replace a unit's definition when the modules merge, and the
+  graph runtime would keep anchors of nodes whose arena is gone. The unit's
+  own definition is `weak`, not `linkonce_odr`: nothing in that unit calls
+  it, and the unit's optimizer discards an unreferenced `linkonce_odr`
+  definition before the plan ever sees it.
+
+Weak cells every unit carries (the region TLS slot, the GC switches,
+`__jac_str_new`) become one cell per artifact: the Mach-O linker keeps the
+first definition of an external name and binds later references to it,
+letting a strong definition replace a weak one, exactly as a fused module
+or a system linker would have it.
+
+## The kernel
+
+The native compiler kernel is the plan rooted at `jc_unit` with the
+frontend scope compiled as native units, linked as a shared library in
+bitcode mode. `resolve_kernel()` in `kernel_resolve.jac` is the one lookup,
+with a fixed precedence:
+
+1. Explicit switches. `JAC_COMPILER_LIB` as a path is used as given and
+   must carry its layout sidecar; `off` selects the store parser;
+   `JAC_STUBCAT_BUILDING` keeps the store parser during the catalog build.
+2. Sealed image. The manifest's `native` record names the artifact, its
+   sha256, layout digest and plan digest; missing or mismatched is a startup
+   error.
+3. Source tree. The kernel beside `native_compiler.jac` is accepted when the
+   source key its sidecar records equals the one the sources have now.
+   Otherwise a child `jac` process rebuilds it under a lock, with the store
+   parser pinned for the build.
+4. No native toolchain: the store parser serves, silently.
+
+The source key is the compiler digest plus the module key of every unit the
+kernel was linked from. Accepting a kernel therefore costs one content hash
+per unit and no plan, which is what makes a warm `jac run` in a source tree
+start in well under a second. The derivation runs in a child on purpose:
+the first parse of a checkout happens inside the compiler's own import
+chain, where half the checker is not importable yet, and a rebuild must not
+depend on the state of the process that asked for it.
+
+The kernel is always the host's. `kernel_options()` pins the target to the
+host whatever `JAC_NATIVE_TARGET` says, so a cross-compiled artifact's
+units parse with the same kernel and never provoke a derivation for a
+triple the process could not load. A unit compile child never derives a
+kernel either: the plan that spawned it either has one or is the kernel
+build itself, and a child that cannot accept the kernel on disk parses with
+the store parser.
+
+The toolchain units (the OSP kernel, the format kernel, the region arena)
+are ordinary native units pulled in by dependency edge. The region arena
+allocates on the heap for the kernel units themselves and in the current
+arena for everything else; the kernel unit never depends on itself.
+
+## Why a child process per unit
+
+A unit compile in an isolated program in the same process retained about
+450 MB after it returned. The unit's evaluator caches types and comptime
+values on nodes of modules it shares with the selfhost program (the
+compiler's own modules) and with the stub catalog, and a comptime value
+wraps bound methods of that evaluator, so every shared node pinned the
+whole closure. A kernel build reached 47 GB. Releasing the unit program's
+closure and scrubbing the shared hub after the outermost compile recovered
+part of it; the rest is held through the catalog's memo tables, which are
+global by design.
+
+Compiling each unit in a child `jac -c` process ends the question: the
+parent stays flat (about 100 MB), a unit's closure dies with its process,
+and the nested compiles an import cycle causes stay inside the child that
+hit the cycle. A child that would itself spawn past two levels compiles in
+process instead, so a cycle cannot spawn without bound. The child receives
+the native-import options as JSON (`CompileOptions.native_import_env`) and
+rebuilds them with `from_native_import_env`.
+
+Two consequences of running the compiler's modules through the same JIR
+entries as their native products deserve a note:
+
+- A module the checker served from its interface catalog has no archetype
+  bodies. The typed-import walk that lays out imported classes asks for the
+  full AST when it meets one (`_full_ast_of`), and a direct import served
+  that way is recorded as a dependency edge rather than mistaken for an
+  empty re-export module.
+- Loading a compiler-tree module's bytecode for execution must never
+  rebuild an in-process engine from its native sections, even though a
+  unit compile in progress may have routed that module to the runtime
+  program. Its native product belongs to the kernel or to an artifact that
+  links it. Without this guard an import inside a unit child built a plan,
+  which spawned a child, which imported the same module.
+
+## Sealed applications
+
+`jac precompile --seal` links every native unit of the package into one
+shared artifact in bitcode mode and records it in the manifest (format 9):
+path, sha256, layout digest and plan digest, verified at load. A sealed app
+with native pins runs it through `runtime/native_library.jac`'s
+`SharedNativeEngine`, a `ctypes` engine with the same surface as the JIT
+(`get_function_address`, `get_global_value_address`, static init symbols),
+so the interop stubs and the meta importer are unchanged. Native imports of
+Python functions bind through the JIT's symbol table and are not served by
+a sealed artifact.
+
+## Costs and where they come from
+
+Measured on the chess example (`jac/examples/chess`) and the compiler's own
+frontend, macOS arm64, September 2026:
+
+| | fused build (main) | unit model |
+|---|---|---|
+| `jac run chess.jac -b 1`, first compile | 1.9 s | 3.5 s |
+| same, warm | 1.7 s | 1.9 s |
+| `jac run chess.jac -b 20` | 4.2 s | 4.4 s |
+| `jac nacompile chess.jac`, warm units | 1.7 s, 102 KB | objects 1.5 s, 110 KB; bitcode 1.7 s, 101 KB |
+| `./chess -b 20` | 2.93 s | 2.94 s (objects), 2.89 s (bitcode) |
+| kernel, parsing 14k lines four times | 1.73 s | 1.76 s |
+| kernel, cold derivation | about 3 min | about 5.5 min |
+| kernel size | 9.2 MB | 8.4 MB |
+
+Runtime and parse speed are at parity: bitcode mode keeps the whole-program
+optimization a fused build had, and the JIT runs the same pass pipeline
+over the merged module. The unit model pays on first compile, where it emits
+both an object and bitcode and persists the interface, and on the cold
+kernel build, where the frontend's import cycles make demotion-dependent
+interfaces settle over more than one round. The right follow-up for the
+cold kernel is to compile a strongly connected component as one group and
+emit per-unit products from it: one checker pass and one demotion fixpoint
+for the group, per-unit objects for the link, incremental relinks for
+acyclic edits.
+
+## Diagnosing a broken artifact
+
+- A kernel that parses one file and crashes on the second is stale state
+  keyed on reused addresses, not a plain use-after-free. `MallocScribble=1
+  MallocPreScribble=1` makes it deterministic; `libgmalloc` makes it vanish
+  because every allocation gets fresh pages.
+- `EXC_BAD_ACCESS (code=2)` at an address inside a read-write page, from
+  JIT code, is the target-machine mismatch described above.
+- A plan with fewer units than expected means edges were lost: check the
+  consumer's demoted set (a demoted caller records no edge) and whether its
+  dependency was served from the catalog when it compiled.
+- `JAC_NA_DEBUG=1` prints the plan's unsettled units per round, each typed
+  import the walk resolved and with what, and the stack of any unit compile
+  that raised.

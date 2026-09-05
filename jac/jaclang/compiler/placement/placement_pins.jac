@@ -98,10 +98,6 @@ def config_module_pin(source_path: str) -> str {
 }
 
 
-"""Whether the module's current content was demoted from native, read from
-its own JIR through the same validity path everything else uses. The
-program that recorded the verdict answers from memory until the entry is
-persisted; any reader answers from disk afterwards."""
 def module_native_demoted(source_path: str, prog: any = None) -> bool {
     verdict = _native_verdict(source_path, prog);
     return verdict is not None and verdict.demoted;
@@ -125,7 +121,6 @@ def _native_verdict(source_path: str, prog: any) -> any {
 }
 
 
-"""A native pin the demotion verdict has not cancelled."""
 def effective_pin_for(source_path: str, element_name: str, prog: any = None) -> str {
     pin = config_pin_for(source_path, element_name);
     if pin == 'native' and module_native_demoted(os.path.realpath(source_path), prog) {

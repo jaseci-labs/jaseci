@@ -49,8 +49,11 @@ def _iface_of(path: str) -> NativeIface {
     return mod.gen.native_iface;
 }
 
-def _scratch_copy(name: str, text: str) -> str {
-    tmp = tempfile.mkdtemp(prefix="jac-niface-");
+"""Write `text` as `name` under `scratch` (a fresh directory when
+none is given). Variants of one module must share a path: the unit prefix,
+and with it every symbol and the digest, is keyed on the module's path."""
+def _scratch_copy(name: str, text: str, scratch: str = "") -> str {
+    tmp = scratch or tempfile.mkdtemp(prefix="jac-niface-");
     p = os.path.join(tmp, name);
     with open(p, "w", encoding="utf-8") as f {
         f.write(text);
@@ -68,7 +71,7 @@ test "a unit's record names its exports under the unit prefix" {
     assert iface.exports["diamond_abi_version"].symbol == "diamond_abi_version";
     assert iface.exports["diamond_abi_version"].is_pub;
     assert iface.exports["Point.sum"].symbol == native_symbol_name(prefix, "Point.sum");
-    assert iface.init == native_glob_init_name(path);
+    assert iface.init_symbol == native_glob_init_name(path);
     assert "Point" in iface.classes;
     assert "x" in iface.classes["Point"].fields;
     assert iface.pub_symbols() == ["diamond_abi_version"];
@@ -89,24 +92,25 @@ test "the record round-trips through its bytes with a stable digest" {
 
 test "a body edit keeps the digest; an export change moves it" {
     src = (Path(FIXTURES) / "base.jac").read_text();
-    p_a = _scratch_copy("unit.jac", src);
+    scratch = tempfile.mkdtemp(prefix="jac-niface-");
+    p_a = _scratch_copy("unit.jac", src, scratch);
     digest_a = _iface_of(p_a).digest();
 
     body_edit = src.replace("return v * k;", "return k * v;");
     assert body_edit != src;
-    p_b = _scratch_copy("unit.jac", body_edit);
+    p_b = _scratch_copy("unit.jac", body_edit, scratch);
     assert _iface_of(p_b).digest() == digest_a , "a body edit must not move the digest";
 
     private_helper = src + "\ndef:priv helper_only(v: int) -> int {\n    return v;\n}\n";
-    p_c = _scratch_copy("unit.jac", private_helper);
+    p_c = _scratch_copy("unit.jac", private_helper, scratch);
     assert _iface_of(p_c).digest() == digest_a , "a private helper must not move the digest";
 
     new_export = src + "\ndef another(v: int) -> int {\n    return v;\n}\n";
-    p_d = _scratch_copy("unit.jac", new_export);
+    p_d = _scratch_copy("unit.jac", new_export, scratch);
     assert _iface_of(p_d).digest() != digest_a , "a new export must move the digest";
 
     new_field = src.replace("y: int = 0;", "y: int = 0,\n        z: int = 0;");
-    p_e = _scratch_copy("unit.jac", new_field);
+    p_e = _scratch_copy("unit.jac", new_field, scratch);
     assert _iface_of(p_e).digest() != digest_a , "a layout change must move the digest";
 }
 

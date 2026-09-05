@@ -1173,10 +1173,6 @@ def _pe_write_shdr(
 }
 
 
-"""Link `objects` into one PE artifact. The COFF writer merges no
-relocatable objects, so a PE link takes exactly one object: the link plan
-produces it by linking every unit's bitcode into one module (bitcode mode)
-before codegen."""
 impl PeLinker.link(
     objects: list[bytes],
     output_path: str,

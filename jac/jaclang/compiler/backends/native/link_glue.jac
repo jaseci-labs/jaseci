@@ -1,23 +1,12 @@
-"""The one object a link plan synthesizes beside its units.
-
-Every native artifact needs a little code no unit owns: the `jac_entry`
-preamble that runs every unit's initializer in dependency order and then
-the root's entry, the platform entry point (`main`, `_start`, the PE
-start-up shim), the `__jac_shared_init` a shared library exports, the
-`jac_retain` / `jac_release` / `jac_str_new` C ABI wrappers, the `atexit`
-shim for glibc floors and the aarch64 outline-atomics helpers the C floor
-was built against. All of it is emitted here as one LLVM module from the
-plan's unit records, never by pattern-matching linked IR.
-"""
-
 glob SHARED_INIT_SYMBOL: str = "__jac_shared_init",
-     ENTRY_SYMBOL: str = "jac_entry";
+     ENTRY_SYMBOL: str = "jac_entry",
+     REGION_DIED_HOOK: str = "__jac_region_died_hook",
+     STR_NEW_SYMBOL: str = "__jac_str_new";
 
-"""What the glue needs to know about one unit, in link order."""
 obj GlueUnit {
     has prefix: str,
-        init: str = "",
-        entry: str = "",
+        init_symbol: str = "",
+        entry_symbol: str = "",
         probe: str = "",
         retain: bool = False,
         release: bool = False,
@@ -41,26 +30,23 @@ def _decl_void_fn(name: str) -> str {
     return f'declare void @"{name}"()\n';
 }
 
-"""`jac_entry`: the root's runtime probe, every unit's initializer in
-dependency order, then the root's entry body. For a library the same list
-becomes `__jac_shared_init` and there is no entry body."""
 def entry_preamble_ir(spec: GlueSpec) -> str {
     decls: list[str] = [];
     calls: list[str] = [];
-    root = spec.units[spec.root_index] if spec.root_index >= 0 else None;
-    if root is not None and root.probe {
-        decls.append(_decl_void_fn(root.probe));
-        calls.append(f'  call void @"{root.probe}"()');
+    root_unit = spec.units[spec.root_index] if spec.root_index >= 0 else None;
+    if root_unit is not None and root_unit.probe {
+        decls.append(_decl_void_fn(root_unit.probe));
+        calls.append(f'  call void @"{root_unit.probe}"()');
     }
     for unit in spec.units {
-        if unit.init {
-            decls.append(_decl_void_fn(unit.init));
-            calls.append(f'  call void @"{unit.init}"()');
+        if unit.init_symbol {
+            decls.append(_decl_void_fn(unit.init_symbol));
+            calls.append(f'  call void @"{unit.init_symbol}"()');
         }
     }
-    if not spec.shared and root is not None and root.entry {
-        decls.append(_decl_void_fn(root.entry));
-        calls.append(f'  call void @"{root.entry}"()');
+    if not spec.shared and root_unit is not None and root_unit.entry_symbol {
+        decls.append(_decl_void_fn(root_unit.entry_symbol));
+        calls.append(f'  call void @"{root_unit.entry_symbol}"()');
     }
     name = SHARED_INIT_SYMBOL if spec.shared else ENTRY_SYMBOL;
     body = "\n".join(calls) + "\n" if calls else "";
@@ -72,37 +58,34 @@ def entry_preamble_ir(spec: GlueSpec) -> str {
     );
 }
 
-"""The C ABI wrappers a shared library promises: `jac_retain`, `jac_release`
-and `jac_str_new`. The retain/release shims of the root unit and the
-`weak_odr` string constructor every unit carries are what they bind to."""
 def rc_wrapper_ir(spec: GlueSpec) -> tuple[str, list[str]] {
     parts: list[str] = [];
     exports: list[str] = [];
     if not spec.shared or spec.root_index < 0 {
         return ("", exports);
     }
-    root = spec.units[spec.root_index];
-    if root.retain {
+    root_unit = spec.units[spec.root_index];
+    if root_unit.retain {
         parts.append(
-            f'declare void @"{root.prefix}.jac_retain"(ptr)\n'
+            f'declare void @"{root_unit.prefix}.jac_retain"(ptr)\n'
             "define void @jac_retain(ptr %p) {\nentry:\n"
-            f'  call void @"{root.prefix}.jac_retain"(ptr %p)\n  ret void\n}}\n'
+            f'  call void @"{root_unit.prefix}.jac_retain"(ptr %p)\n  ret void\n}}\n'
         );
         exports.append("jac_retain");
     }
-    if root.release {
+    if root_unit.release {
         parts.append(
-            f'declare void @"{root.prefix}.jac_release"(ptr)\n'
+            f'declare void @"{root_unit.prefix}.jac_release"(ptr)\n'
             "define void @jac_release(ptr %p) {\nentry:\n"
-            f'  call void @"{root.prefix}.jac_release"(ptr %p)\n  ret void\n}}\n'
+            f'  call void @"{root_unit.prefix}.jac_release"(ptr %p)\n  ret void\n}}\n'
         );
         exports.append("jac_release");
     }
-    if root.str_new {
+    if root_unit.str_new {
         parts.append(
-            "declare ptr @__jac_str_new(ptr, i64)\n"
+            f"declare ptr @{STR_NEW_SYMBOL}(ptr, i64)\n"
             "define ptr @jac_str_new(ptr %d, i64 %n) {\nentry:\n"
-            "  %r = call ptr @__jac_str_new(ptr %d, i64 %n)\n"
+            f"  %r = call ptr @{STR_NEW_SYMBOL}(ptr %d, i64 %n)\n"
             "  ret ptr %r\n}\n"
         );
         exports.append("jac_str_new");
@@ -120,12 +103,9 @@ def atexit_shim_ir -> str {
     );
 }
 
-"""The default region-death hook: a weak definition every executable
-carries so an arena that dies with no OSP unit in the link still resolves."""
 def region_hook_ir -> str {
     return (
-        "define linkonce_odr void @__jac_region_died_hook(i64 %rgn) {\n"
-        "entry:\n  ret void\n}\n\n"
+        f"define void @{REGION_DIED_HOOK}(i64 %rgn) {{\n" "entry:\n  ret void\n}\n\n"
     );
 }
 
@@ -258,8 +238,6 @@ def platform_entry_ir(spec: GlueSpec) -> str {
     return entry_elf_ir();
 }
 
-"""The complete glue module as LLVM IR text, and the C ABI symbols it adds
-to a shared library's export list."""
 def link_glue_ir(spec: GlueSpec) -> tuple[str, list[str]] {
     parts: list[str] = [];
     if spec.data_layout {

@@ -966,14 +966,19 @@ name therefore never collide at link time; `E5026` remains for two `:pub`
 exports of one name in one link.
 
 Every native artifact is produced by one link plan
-(`compiler/backends/native/link_plan.jac`). It resolves roots (an entry
+(`compiler/backends/native/link_plan.jac`; the design and its reasons are
+recorded in the [Native Units](../../internals/native-units.md) internals
+page). It resolves roots (an entry
 module, the kernel root `jc_unit`, or every native unit of a sealed
-package), walks the native edges recorded in `SEC_DEPS`, compiles stale
-units on demand through the driver, checks that every unit's recorded
-dependency digests agree with the plan, orders initializers
-topologically, synthesizes one glue object holding `jac_entry` /
-`__jac_shared_init`, the platform entry point and the `jac_retain` /
-`jac_release` / `jac_str_new` wrappers, and links. Two modes read different
+package), walks the native edges recorded in `SEC_NDEPS` dependencies
+first, compiles each stale unit in a child `jac` process (so a plan over
+many units keeps the parent's memory flat and an import cycle nests only
+inside the child that meets it), checks that every unit's recorded
+dependency digests agree with the plan and recompiles the ones that do
+not until they settle, orders initializers topologically, synthesizes one
+glue object holding `jac_entry` / `__jac_shared_init`, the platform entry
+point and the `jac_retain` / `jac_release` / `jac_str_new` wrappers (each
+wrapper only when a unit defines its target), and links. Two modes read different
 sections of the same entries: `objects`, the incremental default, links the
 units' relocatable objects; `bitcode` links every unit's bitcode into one
 LLVM module and optimizes it whole-program before a single codegen (the
@@ -995,11 +1000,13 @@ mode flag. The kernel comes from one lookup, `resolve_kernel()`
 `JAC_COMPILER_LIB` as a path (must carry its sidecar) or `off` (the store
 parser), then a sealed image's `native` record (artifact, sha256, layout
 and plan digests; missing or mismatched is a startup error), then the
-kernel beside `native_compiler.jac` when its recorded plan digest equals the
-one the cache computes now, otherwise a rebuild through the plan under a
-lock with the store parser serving meanwhile, and finally the store parser
-when there is no native toolchain. `zig build -Ddev` needs no kernel step:
-the first parse derives it. A demotion inside a scoped module is routing,
+kernel beside `native_compiler.jac` when the source key its sidecar records
+(the compiler digest plus the module key of every unit it was linked from)
+equals the one the sources have now, otherwise a rebuild through the plan in
+a child `jac` process under a lock with the store parser serving meanwhile,
+and finally the store parser when there is no native toolchain. `zig build
+-Ddev` needs no kernel step: the first parse derives it, and accepting an
+existing kernel costs one content hash per unit and no plan. A demotion inside a scoped module is routing,
 recorded in the module's own JIR, never a refusal. The historical
 `JAC_NO_SEAL` override is gone; setting it against a sealed image is itself a
 startup error.

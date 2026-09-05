@@ -46,7 +46,6 @@ impl optimize_unit(
     mpm.run(mod, pb);
 }
 
-"""Make a C library the unit imports resolvable by the in-process JIT."""
 impl jit_load_clib(lib_path: str) -> bool {
     import os;
     import sys;
@@ -204,8 +203,6 @@ impl NativeCompilePass._run_impl(ir_in: uni.Module) -> uni.Module {
     return ir_in;
 }
 
-"""Under `--native-debug`, drop the unit's object beside its module cache so
-`jac-gdb` can map addresses back to symbols. Nothing reads this back."""
 impl NativeCompilePass._emit_debug_products(
     module: uni.Module, mod: ModuleRef, target_machine: TargetMachine
 ) -> str {

@@ -1,9 +1,3 @@
-"""The OSP runtime is two ordinary native units, `runtime/osp_kernel.jac` and
-`runtime/osp_graph.jac`. A module that spawns, connects or reports pulls
-them in exactly as it would any imported native module: their types and
-abilities are declared from the AST, their symbols are named under their
-own unit prefixes, and a dependency edge to each joins the module's native
-interface so the link plan brings their objects along."""
 impl NaIRGenOsp._register_osp_kernel_module -> None {
     if not self._osp_active() {
         return;
@@ -38,7 +32,6 @@ impl NaIRGenOsp._register_osp_kernel_module -> None {
     self._osp_graph_mod = graph_mod;
 }
 
-"""The initializers of the OSP units, declared under their own names."""
 impl NaIRGenOsp._osp_kernel_init_fns -> list[ir.Function] {
     import from jaclang.compiler.frontend.codeinfo { native_glob_init_name }
     out: list[ir.Function] = [];
@@ -49,7 +42,9 @@ impl NaIRGenOsp._osp_kernel_init_fns -> list[ir.Function] {
         name = native_glob_init_name(unit.loc.mod_path);
         fn = self.func_symtab.get(name);
         if fn is None {
-            fn = ir.Function(self.llvm_module, ir.FunctionType(ir.VoidType(), []), name=name);
+            fn = ir.Function(
+                self.llvm_module, ir.FunctionType(ir.VoidType(), []), name=name
+            );
             self.func_symtab[name] = fn;
         }
         out.append(fn);
@@ -120,9 +115,6 @@ impl NaIRGenOsp._emit_osp_thunk(arch_name: str, method: uni.Ability) -> None {
     }
     jv = self.jacval_type;
 
-    # Every thunk is this module's own glue around a method it calls, so it
-    # is internal to the unit; the unit prefix keeps the name unique in a
-    # whole-program link where two units thunk the same method.
     _thunk_name = self._symbol_for(f"{full}.__ospthunk");
     _imported = arch_name in self.imported_osp_archs;
     if _imported {
@@ -528,7 +520,7 @@ impl NaIRGenOsp._emit_osp_setup -> None {
             ir.FunctionType(ir.VoidType(), [i64]),
             name="__jac_region_died_hook"
         );
-        _hook.linkage = "linkonce_odr";
+        _hook.linkage = "weak";
         _hook.args[0].name = "rgn";
         _hb = ir.IRBuilder(_hook.append_basic_block("entry"));
         _hb.call(_ensure, []);
@@ -540,14 +532,12 @@ impl NaIRGenOsp._emit_osp_setup -> None {
         _hb.call(_died_fn, [_died_arg]);
         _hb.ret_void();
         self.extern_funcs["__jac_region_died_hook"] = _hook;
+        self._record_export("__jac_region_died_hook", _hook.name, "abi");
     }
     _e_entry = _ensure.append_basic_block("entry");
     _e_srun = _ensure.append_basic_block("setup_run");
     _e_done = _ensure.append_basic_block("done");
 
-    # Every unit initializer guards itself, so the OSP units' initializers
-    # are simply called through; the guard below covers only this module's
-    # own runtime-table setup.
     _chk_b = ir.IRBuilder(_e_entry);
     for _kgi in _kernel_inits {
         _chk_b.call(_kgi, []);

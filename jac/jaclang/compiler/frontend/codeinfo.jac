@@ -163,37 +163,22 @@ def native_module_key(path: str) -> str {
     return f"{stem}:{hashlib.sha1(rp.encode()).hexdigest()[:12]}";
 }
 
-"""The symbol prefix of one native unit: the safe form of its module key.
-
-Every external symbol a unit defines that is not `:pub` lives under this
-prefix, so two units defining the same Jac name never collide at link time.
-The prefix is a pure function of the unit's resolved path, which is what lets
-a consumer name a dependency's symbols without the dependency's object.
-"""
 def native_unit_prefix(path: str) -> str {
     return native_safe_sym(native_module_key(path));
 }
 
-"""The module-qualified external symbol for `name` defined by the unit with
-`prefix`. Methods pass `Class.method`; static fields pass `Class.field`."""
 def native_symbol_name(prefix: str, name: str) -> str {
     return f"{prefix}.{name}";
 }
 
-"""The unit's module-level initializer. Idempotent: every unit's initializer
-guards itself, so the link plan may call it from any number of roots."""
 def native_glob_init_name(path: str) -> str {
     return f"__jac_glob_init_{native_unit_prefix(path)}";
 }
 
-"""The unit's `with entry` body. The synthesized `jac_entry` of an artifact
-calls the root unit's entry after every unit's initializer has run."""
 def native_entry_name(path: str) -> str {
     return f"__jac_entry_{native_unit_prefix(path)}";
 }
 
-"""The unit's runtime-mode probe (`JAC_NO_GC`, `JAC_GC_CYCLES`), called by the
-synthesized `jac_entry` before any initializer."""
 def native_runtime_probe_name(path: str) -> str {
     return f"__jac_rt_probe_{native_unit_prefix(path)}";
 }
@@ -206,12 +191,6 @@ def native_test_symbol(name: str, line: int, prefix: str = "") -> str {
 glob JAC_ENTRY_SYMBOL: str = "jac_entry",
      JAC_SHARED_INIT_SYMBOL: str = "__jac_shared_init";
 
-"""Arm an execution engine with the ordered initializers of a link plan.
-
-`init_symbols` is the plan's topological initializer order (dependencies
-first, the root last); `jac_entry` runs them itself, so handing out its
-address must not run them a second time.
-"""
 def install_native_static_init(engine: any, init_symbols: list[str]) -> None {
     if engine is None {
         return;
@@ -220,10 +199,6 @@ def install_native_static_init(engine: any, init_symbols: list[str]) -> None {
     engine.static_init_chained = {JAC_ENTRY_SYMBOL};
 }
 
-"""Toolchain units every native artifact may pull in by dependency edge:
-the OSP runtime, the format kernel and the region arena. They are ordinary
-native units; the IR generator records an edge to whichever one a module
-uses, and the link plan pulls it like any other dependency."""
 glob KERNEL_UNIT_REL: tuple[str, ...] = (
          "runtime/osp_kernel.jac",
          "runtime/osp_graph.jac",
@@ -335,18 +310,14 @@ def effective_default_codespace -> str {
     }
 }
 
-"""Whether the enclosing compile was requested with `CompileOptions.native_unit`.
-
-Set by the driver for the span of one compile, exactly as the effective
-default codespace is; it is the option's value, reachable from the resolver
-sites that have no options handle, and never a flag a caller toggles.
-"""
-def set_native_unit_compile(value: bool) -> any {
-    return _native_unit_ctx.set(value);
+def set_native_unit_compile(value: bool) -> bool {
+    prev = _native_unit_ctx.get(False);
+    _native_unit_ctx.set(value);
+    return prev;
 }
 
-def reset_native_unit_compile(token: any) {
-    _native_unit_ctx.reset(token);
+def reset_native_unit_compile(prev: bool) {
+    _native_unit_ctx.set(prev);
 }
 
 def native_unit_compile_active -> bool {
@@ -667,23 +638,25 @@ def native_layout_to_dict(layout: NativeModuleLayout) -> dict {
     };
 }
 
-def _tuple_layout_from_dict(d: (dict | None)) -> (NativeTupleLayout | None) {
-    if not isinstance(d, dict) {
+def _tuple_layout_from_dict(raw: any) -> (NativeTupleLayout | None) {
+    if not isinstance(raw, dict) {
         return None;
     }
+    d: dict[str, any] = raw;
     return NativeTupleLayout(
         key=str(d.get("key", "")),
-        element_types=[str(x) for x in d.get("element_types", [])],
+        element_types=[str(x) for x in (d.get("element_types") or [])],
         element_struct_hints=list(d.get("element_struct_hints") or [])
     );
 }
 
-def _func_layout_from_dict(d: dict) -> NativeFuncLayout {
-    keys = d.get("ret_elem_keys");
+def _func_layout_from_dict(raw: any) -> NativeFuncLayout {
+    d: dict[str, any] = raw;
+    keys: any = d.get("ret_elem_keys");
     return NativeFuncLayout(
         name=str(d.get("name", "")),
-        param_types=[str(x) for x in d.get("param_types", [])],
-        param_names=[str(x) for x in d.get("param_names", [])],
+        param_types=[str(x) for x in (d.get("param_types") or [])],
+        param_names=[str(x) for x in (d.get("param_names") or [])],
         ret_type=str(d.get("ret_type", "i64")),
         ret_struct_name=d.get("ret_struct_name"),
         ret_tuple_layout=_tuple_layout_from_dict(d.get("ret_tuple_layout")),
@@ -692,60 +665,71 @@ def _func_layout_from_dict(d: dict) -> NativeFuncLayout {
     );
 }
 
-"""The inverse of `native_layout_to_dict`: rehydrate a layout from its JSON
-form, as carried inside a unit's native interface record."""
-def native_layout_from_dict(d: dict) -> NativeModuleLayout {
+def _field_info_from_dict(raw: any) -> NativeFieldInfo {
+    fd: dict[str, any] = raw;
+    fpt: any = fd.get("func_param_types");
+    ek: any = fd.get("elem_keys");
+    return NativeFieldInfo(
+        name=str(fd.get("name", "")),
+        llvm_type=str(fd.get("llvm_type", "i64")),
+        index=int(fd.get("index", 0)),
+        enum_type=fd.get("enum_type"),
+        is_func_ptr=bool(fd.get("is_func_ptr", False)),
+        func_param_types=list(fpt) if fpt is not None else None,
+        func_ret_type=fd.get("func_ret_type"),
+        elem_keys=list(ek) if ek is not None else None,
+        foreign=bool(fd.get("foreign", False))
+    );
+}
+
+def native_layout_from_dict(raw: any) -> NativeModuleLayout {
+    d: dict[str, any] = raw;
     layout = NativeModuleLayout(
         abi_version=int(d.get("abi_version", NATIVE_ABI_VERSION)),
         str_headerless=d.get("str_headerless")
     );
-    for (name, sd) in (d.get("structs") or {}).items() {
+    structs: dict[str, any] = d.get("structs") or {};
+    for (name, sraw) in structs.items() {
+        sd: dict[str, any] = sraw;
         fields: list[NativeFieldInfo] = [];
-        for fd in sd.get("fields") or [] {
-            fpt = fd.get("func_param_types");
-            ek = fd.get("elem_keys");
-            fields.append(
-                NativeFieldInfo(
-                    name=str(fd.get("name", "")),
-                    llvm_type=str(fd.get("llvm_type", "i64")),
-                    index=int(fd.get("index", 0)),
-                    enum_type=fd.get("enum_type"),
-                    is_func_ptr=bool(fd.get("is_func_ptr", False)),
-                    func_param_types=list(fpt) if fpt is not None else None,
-                    func_ret_type=fd.get("func_ret_type"),
-                    elem_keys=list(ek) if ek is not None else None,
-                    foreign=bool(fd.get("foreign", False))
-                )
-            );
+        for fd in (sd.get("fields") or []) {
+            fields.append(_field_info_from_dict(fd));
+        }
+        accessors: dict[str, dict[str, str]] = {};
+        raw_acc: dict[str, any] = sd.get("accessors") or {};
+        for (fn_name, kinds) in raw_acc.items() {
+            kind_map: dict[str, any] = kinds;
+            accessors[str(fn_name)] = {str(k): str(v) for (k, v) in kind_map.items()};
         }
         layout.structs[str(name)] = NativeStructLayout(
             name=str(sd.get("name", name)),
             fields=fields,
             has_vtable=bool(sd.get("has_vtable", False)),
-            accessors={
-                str(fn): {str(k): str(v) for (k, v) in kinds.items()}
-                for (fn, kinds) in (sd.get("accessors") or {}).items()
-            }
+            accessors=accessors
         );
     }
-    for (name, ed) in (d.get("enums") or {}).items() {
+    enums: dict[str, any] = d.get("enums") or {};
+    for (name, eraw) in enums.items() {
+        ed: dict[str, any] = eraw;
         layout.enums[str(name)] = NativeEnumLayout(
             name=str(ed.get("name", name)),
             is_string_valued=bool(ed.get("is_string_valued", False)),
             members=list(ed.get("members") or [])
         );
     }
-    for (name, fd) in (d.get("functions") or {}).items() {
-        layout.functions[str(name)] = _func_layout_from_dict(fd);
+    functions: dict[str, any] = d.get("functions") or {};
+    for (name, fraw) in functions.items() {
+        layout.functions[str(name)] = _func_layout_from_dict(fraw);
     }
-    for (name, fd) in (d.get("methods") or {}).items() {
-        layout.methods[str(name)] = _func_layout_from_dict(fd);
+    methods: dict[str, any] = d.get("methods") or {};
+    for (name, mraw) in methods.items() {
+        layout.methods[str(name)] = _func_layout_from_dict(mraw);
     }
-    layout.list_elem_types = {
-        str(k): str(v) for (k, v) in (d.get("list_elem_types") or {}).items()
-    };
-    for (key, td) in (d.get("tuples") or {}).items() {
-        t = _tuple_layout_from_dict(td);
+    elem_types: dict[str, any] = d.get("list_elem_types") or {};
+    layout.list_elem_types = {str(k): str(v) for (k, v) in elem_types.items()};
+    tuples: dict[str, any] = d.get("tuples") or {};
+    for (key, traw) in tuples.items() {
+        t = _tuple_layout_from_dict(traw);
         if t is not None {
             layout.tuples[str(key)] = t;
         }

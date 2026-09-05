@@ -403,13 +403,6 @@ glob _KERNEL_CELL: list = [],
      _RESOLVED: list = [],
      _RESOLVING: list = [];
 
-"""Load the kernel the resolver names, once per process.
-
-`resolve_kernel()` (`backends/native/kernel_resolve.jac`) is the only
-lookup: explicit switch, sealed image, source tree by plan digest, or no
-toolchain. While a source-tree derivation is in flight the store parser
-serves every parse it needs, so a kernel build never depends on a kernel.
-"""
 def ensure_loaded -> (NativeCompiler | None) {
     if _KERNEL_CELL {
         return _KERNEL_CELL[0];
@@ -433,8 +426,7 @@ def ensure_loaded -> (NativeCompiler | None) {
     return k;
 }
 
-"""Forget the loaded kernel so the next parse resolves again (tests)."""
-def reset_loaded -> None {
+def reset_loaded {
     _KERNEL_CELL.clear();
     _RESOLVED.clear();
     _RESOLVING.clear();

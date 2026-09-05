@@ -30,8 +30,8 @@ def _jac_cmd -> list[str] {
 
 
 def _app(tmp: str) -> str {
-    root = os.path.join(tmp, "src");
-    pkg = os.path.join(root, "natapp");
+    src_root = os.path.join(tmp, "src");
+    pkg = os.path.join(src_root, "natapp");
     os.makedirs(pkg);
     Path(os.path.join(pkg, "__init__.jac")).write_text("");
     Path(os.path.join(pkg, "jac.toml")).write_text(
@@ -46,7 +46,7 @@ def _app(tmp: str) -> str {
         "import from fast { add, triple }\n\n"
         "with entry {\n    print(add(triple(2), 1));\n}\n"
     );
-    return root;
+    return src_root;
 }
 
 
@@ -56,14 +56,14 @@ test "the seal records the native unit and its artifact" {
         assert True;
     } else {
         tmp = tempfile.mkdtemp(prefix="jac-seal-native-");
-        root = _app(tmp);
+        src_root = _app(tmp);
         run = subprocess.run(
-            _jac_cmd() + ["precompile", root, "--seal", "--jobs=0"],
+            _jac_cmd() + ["precompile", src_root, "--seal", "--jobs=0"],
             capture_output=True,
             text=True,
         );
         assert run.returncode == 0 , run.stdout + run.stderr;
-        pkg = os.path.join(root, "natapp");
+        pkg = os.path.join(src_root, "natapp");
         manifest = json.loads(Path(pkg, "_precompiled", "MANIFEST.json").read_text());
         assert manifest["format"] == MANIFEST_FORMAT;
         native = manifest.get("native");
@@ -99,14 +99,14 @@ test "a tampered artifact is refused at load" {
         assert True;
     } else {
         tmp = tempfile.mkdtemp(prefix="jac-seal-native-");
-        root = _app(tmp);
+        src_root = _app(tmp);
         run = subprocess.run(
-            _jac_cmd() + ["precompile", root, "--seal", "--jobs=0"],
+            _jac_cmd() + ["precompile", src_root, "--seal", "--jobs=0"],
             capture_output=True,
             text=True
         );
         assert run.returncode == 0 , run.stdout + run.stderr;
-        pkg = os.path.join(root, "natapp");
+        pkg = os.path.join(src_root, "natapp");
         manifest = json.loads(Path(pkg, "_precompiled", "MANIFEST.json").read_text());
         lib = Path(pkg, manifest["native"]["artifact"]["path"]);
         lib.write_bytes(lib.read_bytes() + b"\0");

@@ -20,32 +20,6 @@ def _scan_rc_machinery(llvm_ir_str: str) -> tuple[list[str], list[str]] {
 }
 
 
-"""The target triple `jac nacompile` selects from its `--target` spelling,
-or "" for the host."""
-def _target_triple(target: str) -> str {
-    if target in ["wasm", "wasm32", "wasm32-unknown-unknown"] {
-        return "wasm32-unknown-unknown";
-    }
-    if ("windows" in target) or (target in ["win", "win64", "mingw"]) {
-        return target if "-" in target else "x86_64-pc-windows-msvc";
-    }
-    if (target in ["macos", "darwin", "osx", "macosx"])
-        or ("apple" in target)
-        or ("darwin" in target) {
-        return target if "-" in target else "arm64-apple-darwin";
-    }
-    if (target in ["linux", "elf"])
-        or ("linux-gnu" in target)
-        or ("linux-musl" in target) {
-        return target if "-" in target else "x86_64-unknown-linux-gnu";
-    }
-    return "";
-}
-
-
-"""`jac nacompile`: compile one entry module and every native unit it
-reaches, then link them through the plan into an executable, a shared
-library or a wasm module."""
 impl nacompile(
     filename: str,
     output: str = "",
@@ -59,6 +33,26 @@ impl nacompile(
     enforce_nogc: bool = False,
     strict: bool = False
 ) -> int {
+    def _target_triple(target: str) -> str {
+        if target in ["wasm", "wasm32", "wasm32-unknown-unknown"] {
+            return "wasm32-unknown-unknown";
+        }
+        if ("windows" in target) or (target in ["win", "win64", "mingw"]) {
+            return target if "-" in target else "x86_64-pc-windows-msvc";
+        }
+        if (target in ["macos", "darwin", "osx", "macosx"])
+            or ("apple" in target)
+            or ("darwin" in target) {
+            return target if "-" in target else "arm64-apple-darwin";
+        }
+        if (target in ["linux", "elf"])
+            or ("linux-gnu" in target)
+            or ("linux-musl" in target) {
+            return target if "-" in target else "x86_64-unknown-linux-gnu";
+        }
+        return "";
+    }
+
     import from jaclang.jac0core.ext_registry {
         is_jac,
         is_retired_native_marker,
@@ -82,7 +76,9 @@ impl nacompile(
     }
     if link_mode and link_mode not in NATIVE_LINK_MODES {
         console.error(
-            f"Invalid --link-mode '{link_mode}' (expected: {', '.join(NATIVE_LINK_MODES)})"
+            f"Invalid --link-mode '{link_mode}' (expected: {', '.join(
+                NATIVE_LINK_MODES
+            )})"
         );
         return 1;
     }
@@ -111,7 +107,9 @@ impl nacompile(
     is_wasm = triple.startswith("wasm32");
     is_windows = (sys.platform == "win32" and not triple) or ("windows" in triple);
     is_macos = (
-        (sys.platform == "darwin" and not triple) or ("apple" in triple) or ("darwin" in triple)
+        (sys.platform == "darwin" and not triple)
+        or ("apple" in triple)
+        or ("darwin" in triple)
     );
     _prev_target = push_native_target_env(triple) if triple else None;
 
@@ -229,7 +227,8 @@ impl nacompile(
         if _demoted {
             console.error(
                 f"{len(_demoted)} function(s) in the native closure were demoted to "
-                "Python-only: " + ", ".join(_demoted),
+                "Python-only: "
+                    + ", ".join(_demoted),
                 hint="A self-contained binary cannot run a demoted function. Rerun with JAC_NA_DEBUG=1 to see why each one failed to lower."
             );
             _restore_env(debug, _prev_native_debug, triple, _prev_target);
@@ -264,7 +263,7 @@ impl nacompile(
         );
     }
 
-    if not shared and not is_wasm and not plan.root_unit().iface.entry {
+    if not shared and not is_wasm and not plan.root_unit().iface.entry_symbol {
         console.error(
             "No entry point found. " "The file must have a 'with entry { }' block."
         );
@@ -272,7 +271,9 @@ impl nacompile(
         return 1;
     }
 
-    kind = ArtifactKind.SHARED if shared else (ArtifactKind.WASM if is_wasm else ArtifactKind.EXECUTABLE);
+    kind = ArtifactKind.SHARED
+        if shared
+        else (ArtifactKind.WASM if is_wasm else ArtifactKind.EXECUTABLE);
     app_imports: (set | None) = None;
     if is_wasm {
         import from jaclang.compiler.backends.native.wasm_build { app_declared_imports }

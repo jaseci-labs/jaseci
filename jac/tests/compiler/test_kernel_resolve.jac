@@ -1,10 +1,10 @@
 """`resolve_kernel()` is the one kernel lookup (#8943).
 
 Its precedence is fixed: the explicit switch, the sealed image, the source
-tree by plan digest, then the store parser when there is no toolchain. A
-source tree with no kernel derives one on the first parse; a kernel whose
-sidecar plan digest disagrees with the plan the cache computes is rebuilt;
-nothing raises about a missing kernel a build could make.
+tree by source key, then the store parser when there is no toolchain. A
+source tree with no kernel derives one on the first parse, in a child
+process; a kernel whose sidecar source key disagrees with the sources now
+is rebuilt; nothing raises about a missing kernel a build could make.
 """
 
 import json;
@@ -14,10 +14,13 @@ import from pathlib { Path }
 import from jaclang.compiler.backends.native.kernel_resolve {
     KERNEL_LIB_ENV,
     KernelUnavailable,
+    _accept_in_tree,
+    kernel_options,
     read_sidecar,
     resolve_kernel,
     source_tree_kernel_path
 }
+import from jaclang.compiler.backends.native.link_plan { units_source_key }
 import from jaclang.compiler.native_compiler { ensure_loaded, reset_loaded }
 
 def _with_env(name: str, value: (str | None), fn: any) -> any {
@@ -86,4 +89,26 @@ test "the source-tree kernel lives beside the loader" {
     path = source_tree_kernel_path();
     assert os.path.basename(os.path.dirname(path)) == "compiler";
     assert "jac_compiler" in os.path.basename(path);
+}
+
+test "an in-tree kernel is accepted by source key, without a plan" {
+    tmp = tempfile.mkdtemp(prefix="jac-kernel-");
+    unit = os.path.join(tmp, "unit.jac");
+    Path(unit).write_text("def one -> int {\n    return 1;\n}\n");
+    lib = os.path.join(tmp, "libjac_compiler.dylib");
+    Path(lib).write_bytes(b"not a real kernel");
+    key = units_source_key([unit], kernel_options());
+    sidecar = {"classes": {}, "plan_digest": "p", "layout_digest": "l", "units": [unit], "source_key": key};
+    Path(lib + ".layout.json").write_text(json.dumps(sidecar));
+    found = _accept_in_tree(lib);
+    assert found is not None , "a matching source key accepts the kernel";
+    assert found.source == "tree" and found.plan_digest == "p";
+
+    Path(unit).write_text("def one -> int {\n    return 2;\n}\n");
+    assert _accept_in_tree(lib) is None , "an edited unit moves the source key";
+
+    stale = dict(sidecar);
+    stale.pop("source_key");
+    Path(lib + ".layout.json").write_text(json.dumps(stale));
+    assert _accept_in_tree(lib) is None , "a sidecar without a source key is never accepted";
 }

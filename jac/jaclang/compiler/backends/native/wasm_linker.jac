@@ -360,10 +360,6 @@ obj WasmLinker {
     ) -> bytes;
 }
 
-"""Link `objects` into one wasm module. The wasm writer merges no
-relocatable objects, so it takes exactly one: the link plan always links
-wasm targets in bitcode mode, folding the vendored libc at the IR level as
-before, and hands the single object here."""
 impl WasmLinker.link(
     objects: list[bytes],
     export_funcs: list = [],
