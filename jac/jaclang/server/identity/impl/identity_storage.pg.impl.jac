@@ -314,6 +314,57 @@ impl PgIdentityStorage._remove_sso_identity(user_id: str, platform: str) -> bool
     return True;
 }
 
+impl PgIdentityStorage._replace_username(
+    user_id: str, identity: dict[str, any]
+) -> bool {
+    rows = self.store.rows(
+        'SELECT doc FROM identity_users WHERE user_id = :u', {'u': user_id}
+    );
+    if not rows {
+        return False;
+    }
+    identities = list(_pg_load_doc(rows[0][0]).get('identities') or []);
+    kept = [
+        i
+        for i in identities
+        if i.get('type') != 'username'
+    ];
+    old_values = [
+        str(i.get('value_normalized') or '')
+        for i in identities
+        if i.get('type') == 'username'
+    ];
+    try {
+        self.store.rows(
+            """
+            INSERT INTO identity_lookups (value_normalized, user_id)
+            VALUES (:v, :u)
+            """,
+            {'v': identity['value_normalized'], 'u': user_id}
+        );
+    } except Exception as e {
+        if _pg_unique_violation(e) {
+            raise IdentityTakenError();
+        }
+        raise;
+    }
+    for old in old_values {
+        if old and old != identity['value_normalized'] {
+            self.store.rows(
+                'DELETE FROM identity_lookups WHERE value_normalized = :v AND user_id = :u',
+                {'v': old, 'u': user_id}
+            );
+        }
+    }
+    kept.insert(0, identity);
+    patch = {'identities': kept, 'updated_at': datetime.now(UTC).isoformat()};
+    self.store.rows(
+        'UPDATE identity_users SET doc = doc || CAST(:p AS jsonb) WHERE user_id = :u',
+        {'u': user_id, 'p': json.dumps(patch, `default=_pg_json_default)}
+    );
+    return True;
+}
+
 impl PgIdentityStorage._find_sso_link(
     platform: str, external_id: str
 ) -> dict[str, any] | None {

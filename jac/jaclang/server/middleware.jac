@@ -1,5 +1,6 @@
 import logging;
 import time;
+import from jaclang.runtime.exceptions { MissingAnchorError }
 import from jaclang.runtime.runtime { JacRuntime }
 import from jaclang.server.identity.user_manager { UserManager }
 import from jaclang.server.serving.datatypes { JSONResponse, Request, Response }
@@ -70,10 +71,19 @@ def request_context_middleware -> Callable[..., any] {
         req_token = JacRuntime.push_request_context(ctx);
         user_id = request.state?.user_root_id;
         bind_error: any = None;
+        bind_status: int = 401;
         if user_id {
             ctx.mem.read_scope_enter();
             try {
                 await ctx.aset_user_root(str(user_id));
+            } except MissingAnchorError as missing {
+                bind_status = 500;
+                bind_error = RuntimeError(
+                    f"Root anchor {missing.anchor_id} for the authenticated user "
+                    "does not exist in the anchor store. The data store was likely "
+                    "reset or migrated out from under the identity store; restore "
+                    "it or re-register the user."
+                );
             } except (ValueError, RuntimeError) as err {
                 bind_error = err;
             } finally {
@@ -87,7 +97,7 @@ def request_context_middleware -> Callable[..., any] {
                     f"{type(bind_error).__name__}: {bind_error}"
                 );
                 resp = JSONResponse(
-                    status_code=401,
+                    status_code=bind_status,
                     content={
                         'ok': False,
                         'error': {

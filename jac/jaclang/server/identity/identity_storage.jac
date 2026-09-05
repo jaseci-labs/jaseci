@@ -12,6 +12,18 @@ import from jaclang.server.identity.config { password_hash_cost }
 
 obj IdentityTakenError(Exception) {}
 
+
+def primary_username(user: dict[str, any]) -> str {
+    for identity in (user.get('identities') or []) {
+        if isinstance(identity, dict) and identity.get('type') == 'username' {
+            return str(
+                identity.get('value_raw') or identity.get('value_normalized') or ''
+            );
+        }
+    }
+    return '';
+}
+
 obj IdentityStorage {
     static def hash_password(password: str) -> str;
     static def verify_password(password: str, password_hash: str) -> bool;
@@ -22,12 +34,14 @@ obj IdentityStorage {
     def _get_identities(user_id: str) -> list[dict[str, any]];
     def _add_identity(user_id: str, identity: dict[str, any]) -> bool;
     def _remove_sso_identity(user_id: str, platform: str) -> bool;
+    def _replace_username(user_id: str, identity: dict[str, any]) -> bool;
     def _find_sso_link(platform: str, external_id: str) -> dict[str, any] | None;
     def _set_identity_verified(user_id: str, value_normalized: str) -> bool;
     def ensure_indexes -> None;
     def get_user_by_id(user_id: str) -> dict[str, any] | None;
     def delete_user(user_id: str) -> bool;
     def find_user_by_identity(value: str) -> dict[str, any] | None;
+    def rename_username(user_id: str, new_username: str) -> dict[str, any];
     def identity_taken(value: str) -> bool;
     def list_all_users(limit: int = 100, offset: int = 0) -> list[dict[str, any]];
     def get_user_by_sso(platform: str, external_id: str) -> dict[str, any] | None;
@@ -71,6 +85,7 @@ obj PgIdentityStorage(IdentityStorage) {
     def _get_identities(user_id: str) -> list[dict[str, any]];
     def _add_identity(user_id: str, identity: dict[str, any]) -> bool;
     def _remove_sso_identity(user_id: str, platform: str) -> bool;
+    def _replace_username(user_id: str, identity: dict[str, any]) -> bool;
     def _find_sso_link(platform: str, external_id: str) -> dict[str, any] | None;
     def _set_identity_verified(user_id: str, value_normalized: str) -> bool;
     def ensure_indexes -> None;

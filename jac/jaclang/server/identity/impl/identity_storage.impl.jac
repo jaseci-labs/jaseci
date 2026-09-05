@@ -88,7 +88,16 @@ impl IdentityStorage.create_user(
         return {'error': "Identity is already registered", 'code': 'IDENTITY_TAKEN'};
     }
 
-    return {'user_id': user_id, 'message': 'User registered successfully'};
+    result: dict[str, any] = {
+        'user_id': user_id,
+        'root_id': root_id,
+        'message': 'User registered successfully'
+    };
+    username = primary_username(user_doc);
+    if username {
+        result['username'] = username;
+    }
+    return result;
 }
 
 impl IdentityStorage.user_exists_by_id(user_id: str) -> bool {
@@ -170,11 +179,16 @@ impl IdentityStorage.authenticate(
                 cred['password_hash'] = IdentityStorage.hash_password(password);
                 self._update_credentials(user_id, credentials);
             }
-            return {
+            result: dict[str, any] = {
                 'user_id': user_id,
                 'root_id': user['root_id'],
                 'role': user.get('role', 'user')
             };
+            username = primary_username(user);
+            if username {
+                result['username'] = username;
+            }
+            return result;
         }
     }
     return None;
@@ -299,6 +313,42 @@ impl IdentityStorage.get_username(user_id: str) -> str | None {
         return identities[0].get('value_raw');
     }
     return None;
+}
+
+impl IdentityStorage.rename_username(
+    user_id: str, new_username: str
+) -> dict[str, any] {
+    raw_value = str(new_username or '');
+    normalized = raw_value.lower().strip();
+    if not normalized {
+        return {'error': 'New username is required', 'code': 'VALIDATION_ERROR'};
+    }
+    user = self.get_user_by_id(user_id);
+    if user is None {
+        return {'error': 'User not found', 'code': 'NOT_FOUND'};
+    }
+    if primary_username(user).lower().strip() == normalized {
+        return {'user_id': user_id, 'username': raw_value, 'root_id': user['root_id']};
+    }
+    if self.identity_taken(normalized) {
+        return {'error': 'Username is already registered', 'code': 'IDENTITY_TAKEN'};
+    }
+    identity = {
+        'type': 'username',
+        'value_raw': raw_value,
+        'value_normalized': normalized,
+        'verified': True,
+        'is_recovery': False
+    };
+    try {
+        replaced = self._replace_username(user_id, identity);
+    } except IdentityTakenError {
+        return {'error': 'Username is already registered', 'code': 'IDENTITY_TAKEN'};
+    }
+    if not replaced {
+        return {'error': 'User not found', 'code': 'NOT_FOUND'};
+    }
+    return {'user_id': user_id, 'username': raw_value, 'root_id': user['root_id']};
 }
 
 impl IdentityStorage.update_user_fields(user_id: str, fields: dict[str, any]) -> bool {

@@ -151,17 +151,33 @@ obj FirebaseTokenRequest(ApiModel) {
 
 obj UpdatePasswordRequest(ApiModel) {
     has current_password: str,
-        new_password: str;
+        new_password: str,
+        username: str = '';
 
     static def from_dict(data: any) -> UpdatePasswordRequest {
         if not isinstance(data, dict) {
             raise ValueError('request body must be an object');
         }
-        kw: dict[str, str] = {};
-        comptime for f in fields(UpdatePasswordRequest) {
-            kw[f.name] = require_str(data, f.name);
+        return UpdatePasswordRequest(
+            current_password=require_str(data, 'current_password'),
+            new_password=require_str(data, 'new_password'),
+            username=str(data.get('username') or '')
+        );
+    }
+}
+
+obj UpdateUsernameRequest(ApiModel) {
+    has new_username: str,
+        current_username: str = '';
+
+    static def from_dict(data: any) -> UpdateUsernameRequest {
+        if not isinstance(data, dict) {
+            raise ValueError('request body must be an object');
         }
-        return UpdatePasswordRequest(**kw);
+        return UpdateUsernameRequest(
+            new_username=require_str(data, 'new_username'),
+            current_username=str(data.get('current_username') or '')
+        );
     }
 }
 

@@ -154,7 +154,21 @@ def register_page_endpoints(server: JacAPIServer) {
             content={
                 'message': f"{server.module_name} API",
                 'docs': '/docs' if settings.docs_enabled else None,
-                'health': '/healthz/ready'
+                'health': '/healthz/ready',
+                'endpoints': {
+                    'POST /user/register': 'Create a new user',
+                    'POST /user/login': 'Authenticate and get a token',
+                    'GET /user/me': 'The authenticated user (auth required)',
+                    'GET /user/info': 'The user id, root id and session token (auth required)',
+                    'GET /functions': 'List the functions',
+                    'GET /walkers': 'List the walkers',
+                    'GET /function/<name>': 'A function signature',
+                    'GET /walker/<name>': 'A walker\'s fields',
+                    'POST /function/<name>': 'Call a function',
+                    'POST /walker/<name>': 'Spawn a walker',
+                    'GET /cl/<name>': 'Render a client page',
+                    'GET /cl/<app>/': 'A workspace sibling app bundle'
+                }
             }
         );
     }
@@ -238,9 +252,10 @@ def register_page_endpoints(server: JacAPIServer) {
                 request, str(candidate), cache_control=ASSET_CACHE_CONTROL
             );
         }
-        if not Path(file_path).suffix
-            and root_app
-            and not server.introspector.dev_mode {
+        if not Path(file_path).suffix and root_app {
+            if server.introspector.dev_mode {
+                return _dev_client_elsewhere();
+            }
             return _render(
                 server, root_app, {}, server.introspector.spa_fallback_status(file_path)
             );

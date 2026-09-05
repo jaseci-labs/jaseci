@@ -11,10 +11,14 @@ import from jaclang.server.identity.auth_models {
     UpdatePasswordRequest,
     UpdateProfileRequest,
     UpdateProfileResponse,
+    UpdateUsernameRequest,
     VerifyIdentityRequest
 }
 import from jaclang.server.identity.auth_tokens { AuthTokenStore }
-import from jaclang.server.identity.identity_storage { IdentityTakenError }
+import from jaclang.server.identity.identity_storage {
+    IdentityTakenError,
+    primary_username
+}
 import from jaclang.server.identity.user_manager { UserRole }
 import from jaclang.server.middleware { require_user }
 import from jaclang.server.serving.datatypes { Request }
@@ -83,6 +87,7 @@ def register_auth_endpoints(server: EndpointHost) {
                 400
             );
         }
+        result['token'] = users.create_jwt_token(str(result.get('user_id', '')));
         return ok(result, status=201);
     }
     server.add_endpoint(
@@ -93,7 +98,7 @@ def register_auth_endpoints(server: EndpointHost) {
             request_model=RegisterRequest,
             tags=['User APIs'],
             summary='Register user',
-            description='Create a user with identities (username, email) and a password credential. Log in afterwards to get a token.'
+            description='Create a user with identities (username, email) and a password credential. Answers the new user id, root id and a session token.'
         )
     );
 
@@ -167,6 +172,12 @@ def register_auth_endpoints(server: EndpointHost) {
         if error is not None {
             return error;
         }
+        if body_data.username {
+            owner = users.find_user_by_identity(body_data.username);
+            if owner is None or str(owner.get('user_id') or '') != str(user_id) {
+                return fail('FORBIDDEN', "Cannot update another user's password", 403);
+            }
+        }
         result = users.update_password(
             str(user_id), body_data.current_password, body_data.new_password
         );
@@ -175,7 +186,13 @@ def register_auth_endpoints(server: EndpointHost) {
                 'UPDATE_FAILED', result.get('error', 'Password update failed'), 400
             );
         }
-        return ok(result);
+        payload: dict[str, any] = dict(result);
+        payload['user_id'] = str(user_id);
+        username = primary_username(users.get_user(str(user_id)) or {});
+        if username {
+            payload['username'] = username;
+        }
+        return ok(payload);
     }
     server.add_endpoint(
         JEndPoint(
@@ -186,6 +203,79 @@ def register_auth_endpoints(server: EndpointHost) {
             tags=['User APIs'],
             summary='Update password',
             description="Change the authenticated user's password. Requires a Bearer token.",
+            requires_auth=True
+        )
+    );
+
+    async def update_username_handler(
+        request: Request, body_data: UpdateUsernameRequest
+    ) -> TransportResponse {
+        (user_id, error) = require_user(request);
+        if error is not None {
+            return error;
+        }
+        current = primary_username(users.get_user(str(user_id)) or {});
+        if body_data.current_username
+            and body_data.current_username.lower().strip() != current.lower().strip() {
+            return fail('FORBIDDEN', "Cannot update another user's username", 403);
+        }
+        result = users.rename_username(str(user_id), body_data.new_username);
+        if 'error' in result {
+            code = str(result.get('code') or 'UPDATE_FAILED');
+            status = 400;
+            if code == 'NOT_FOUND' {
+                status = 404;
+            }
+            return fail(code, result.get('error', 'Username update failed'), status);
+        }
+        result['token'] = users.create_jwt_token(str(user_id));
+        return ok(result);
+    }
+    server.add_endpoint(
+        JEndPoint(
+            method=HTTPMethod.PUT,
+            path='/user/username',
+            callback=update_username_handler,
+            request_model=UpdateUsernameRequest,
+            tags=['User APIs'],
+            summary='Update username',
+            description="Replace the authenticated user's username identity. Requires a Bearer token.",
+            requires_auth=True
+        )
+    );
+
+    async def user_info_handler(request: Request) -> TransportResponse {
+        (user_id, error) = require_user(request);
+        if error is not None {
+            return error;
+        }
+        user = users.get_user(str(user_id));
+        if not user {
+            return fail('NOT_FOUND', 'User not found', 404);
+        }
+        auth_header = str(request.headers.get('Authorization') or '');
+        token = auth_header[7:] if auth_header.startswith('Bearer ') else auth_header;
+        info: dict[str, any] = {
+            'user_id': str(user.get('user_id') or ''),
+            'root_id': str(user.get('root_id') or ''),
+            'role': str(user.get('role') or 'user'),
+            'token': token
+        };
+        username = primary_username(user);
+        if username {
+            info['username'] = username;
+        }
+        return ok(info);
+    }
+    server.add_endpoint(
+        JEndPoint(
+            method=HTTPMethod.GET,
+            path='/user/info',
+            callback=user_info_handler,
+            parameters=[],
+            tags=['User APIs'],
+            summary='Get user info',
+            description="The authenticated user's id, username, root id and the session token in use. Requires a Bearer token.",
             requires_auth=True
         )
     );
