@@ -110,7 +110,7 @@ obj WebSocket {
     long the socket may stay silent before a ping goes out; `timeout` is how
     long the pong may take before the connection is closed with 1011 so the
     handler's next receive sees a disconnect instead of hanging forever on a
-    peer that is gone.""";
+    peer that is gone."""
     def start_keepalive(interval: float, timeout: float) {
         if interval <= 0 or self._keepalive_task is not None {
             return;

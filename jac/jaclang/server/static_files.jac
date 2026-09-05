@@ -91,13 +91,13 @@ def find_root_asset(base_path: str, relative_path: str) -> (Path | None) {
         base / 'public',
         base / 'src'
     ];
-    for root in roots {
-        for candidate in (root / rel, root / file_name) {
+    for asset_root in roots {
+        for candidate in (asset_root / rel, asset_root / file_name) {
             if not (candidate.exists() and candidate.is_file()) {
                 continue;
             }
             resolved = candidate.resolve();
-            if root.resolve() not in resolved.parents {
+            if asset_root.resolve() not in resolved.parents {
                 continue;
             }
             return candidate;
