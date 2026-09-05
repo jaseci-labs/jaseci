@@ -1995,9 +1995,7 @@ impl print_endpoint_docs(server: JacAPIServer) -> None {
     }
     for provider_app in colocated_providers() {
         route = provider_route(config, provider_app);
-        endpoint(
-            'POST', f"{route}/walker/<name>", f"Colocated app {provider_app}"
-        );
+        endpoint('POST', f"{route}/walker/<name>", f"Colocated app {provider_app}");
     }
     section('STATIC');
     if root_app {

@@ -124,7 +124,9 @@ obj JobsExtension(ServerExtension) {
                     'NOT_FOUND', f'Walker or function "{name}" not found', 404
                 );
             }
-            schedule_spec: any = target.schedule_spec if target?.schedule_spec else None;
+            schedule_spec: any = target.schedule_spec
+                if target?.schedule_spec
+                else None;
             if schedule_spec is None {
                 return _fail(
                     'INVALID_REQUEST',

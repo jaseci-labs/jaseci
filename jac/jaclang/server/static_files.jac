@@ -47,8 +47,6 @@ def resolve_static_base(base_path: str) -> Path {
 }
 
 def static_roots(base_path: str) -> tuple[list[Path], list[Path]] {
-    """The project roots and client dist directories static files are served
-    from. In a workspace the served app's own root and client dir come first."""
     base = resolve_static_base(base_path);
     roots: list[Path] = [];
     dists: list[Path] = [];
@@ -156,8 +154,6 @@ def is_asset_request(
 
 
 def sibling_app_dist(config: any, name: str, base_path: str) -> (Path | None) {
-    """The built bundle of a workspace sibling app (dist/<app>/), or None when
-    `name` is not a sibling client app of the served one or has no build."""
     if config is None or not config.is_workspace {
         return None;
     }
@@ -181,8 +177,6 @@ def sibling_app_dist(config: any, name: str, base_path: str) -> (Path | None) {
 }
 
 def sibling_app_file(dist: Path, rel: str) -> Path {
-    """The file inside a sibling bundle for `rel`, falling back to its
-    index.html for client-side routes and for anything outside the bundle."""
     candidate = (dist / rel) if rel else (dist / 'index.html');
     try {
         resolved = candidate.resolve();

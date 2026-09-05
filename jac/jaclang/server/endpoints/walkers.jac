@@ -40,8 +40,6 @@ def _unauthorized -> TransportResponse {
 
 
 def request_caller(server: JacAPIServer, request: Request) -> (str | None) {
-    """The caller behind a request: the JWT subject the middleware resolved, else
-    a sibling service bridging with the shared token (created on first sight)."""
     username: (str | None) = request.state?.username;
     if username {
         return username;
@@ -292,7 +290,9 @@ def function_callback(
     func_obj = server.get_functions()[func_name];
     restspec: any = target_restspec(func_obj);
     raw_body: bool = restspec is not None and not restspec.envelope;
-    raw_media: str = str(restspec.produces or 'text/plain') if restspec else 'text/plain';
+    raw_media: str = str(restspec.produces or 'text/plain')
+        if restspec
+        else 'text/plain';
 
     async def callback(
         request: Request, **kwargs: JsonValue

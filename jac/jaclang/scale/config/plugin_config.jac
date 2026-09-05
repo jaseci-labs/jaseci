@@ -837,6 +837,7 @@ class JacScalePluginConfig {
                                     "default": ["/health", "/healthz", "/metrics"],
                                     "description": "Paths that bypass rate limiting entirely (monitoring + probes)."
                                 },
+
                             }
                         },
                         "cors": {

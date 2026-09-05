@@ -1,7 +1,3 @@
-"""Endpoints for colocated provider apps: workspace siblings that registered
-their module in-process (`sv_client.register_local`) and are served from this
-process under their own route prefix instead of a separate service."""
-
 import logging;
 import os;
 import from jaclang.compiler.frontend.constant { Constants as Con }
@@ -29,7 +25,7 @@ def colocated_providers -> dict[str, any] {
 
 def provider_route(config: any, provider_app: str) -> str {
     provider_cfg = config.app(provider_app) if config is not None else None;
-    route = provider_cfg.effective_route()
+    route: str = str(provider_cfg.effective_route())
         if provider_cfg is not None
         else f"/api/{provider_app}";
     return route.rstrip('/');
@@ -68,7 +64,9 @@ def _outcome(result: any, fallback: str) -> TransportResponse {
             meta=Meta(extra={'http_status': int(result.get('http_status') or 500)})
         );
     }
-    return TransportResponse.success(data=result, meta=Meta(extra={'http_status': 200}));
+    return TransportResponse.success(
+        data=result, meta=Meta(extra={'http_status': 200})
+    );
 }
 
 
@@ -99,7 +97,9 @@ def _walker_callback(
         if replay is not None {
             return replay;
         }
-        result = await server.execution_manager.spawn_walker(walker_cls, fields, caller);
+        result = await server.execution_manager.spawn_walker(
+            walker_cls, fields, caller
+        );
         return remember_response(key, _outcome(result, 'Walker execution failed'));
     }
     return callback;
@@ -180,7 +180,9 @@ def _mount_provider(
     );
     for (walker_name, walker_cls) in walkers.items() {
         walker_auth = intro.is_auth_required_for_walker(walker_name);
-        cb = _walker_callback(server, provider_app, walker_name, walker_cls, walker_auth);
+        cb = _walker_callback(
+            server, provider_app, walker_name, walker_cls, walker_auth
+        );
         server.add_endpoint(
             JEndPoint(
                 method=HTTPMethod.POST,
@@ -250,6 +252,8 @@ def register_colocated_endpoints(server: JacAPIServer) {
             );
             continue;
         }
-        _mount_provider(server, provider_app, provider_route(config, provider_app), intro);
+        _mount_provider(
+            server, provider_app, provider_route(config, provider_app), intro
+        );
     }
 }

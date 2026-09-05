@@ -50,9 +50,7 @@ def fleet_provisions_unknown_users(sv_name: str) -> bool {
     if not sv_name or sv_name == '__gateway__' {
         return False;
     }
-    identity_cfg = dict(
-        get_scale_config().get_gateway_config().get('identity', {})
-    );
+    identity_cfg = dict(get_scale_config().get_gateway_config().get('identity', {}));
     return bool(identity_cfg.get('gateway_owned', True));
 }
 
@@ -174,7 +172,9 @@ obj MetricsExtension(ServerExtension) {
                 name: str = parts[0];
                 secret: str = parts[1] if len(parts) > 1 else '';
                 return bool(
-                    hmac.compare_digest(name.encode('utf-8'), admin_username.encode('utf-8'))
+                    hmac.compare_digest(
+                        name.encode('utf-8'), admin_username.encode('utf-8')
+                    )
                 )
                     and bool(
                         hmac.compare_digest(

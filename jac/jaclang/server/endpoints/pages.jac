@@ -238,7 +238,9 @@ def register_page_endpoints(server: JacAPIServer) {
                 request, str(candidate), cache_control=ASSET_CACHE_CONTROL
             );
         }
-        if not Path(file_path).suffix and root_app and not server.introspector.dev_mode {
+        if not Path(file_path).suffix
+            and root_app
+            and not server.introspector.dev_mode {
             return _render(
                 server, root_app, {}, server.introspector.spa_fallback_status(file_path)
             );
