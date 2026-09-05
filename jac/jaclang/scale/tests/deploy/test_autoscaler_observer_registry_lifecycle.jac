@@ -28,7 +28,7 @@ obj FakeObserver(AutoscalerObserver) {
         stop_calls: list = [],
         watch_called: bool = False;
 
-    def start { }
+    def start {}
     def stop(drain: bool = True) {
         self.stop_calls.append(drain);
     }
@@ -57,7 +57,7 @@ obj FakeObserver(AutoscalerObserver) {
 obj FailingObserver(AutoscalerObserver) {
     has stop_calls: list = [];
 
-    def start { }
+    def start {}
     def watch_namespace(namespace: str) {
         raise RuntimeError("watch_namespace failed");
     }
@@ -85,7 +85,7 @@ obj SlowStoppingObserver(AutoscalerObserver) {
     has stop_finished_at: (float | None) = None,
         watch_started_at: (float | None) = None;
 
-    def start { }
+    def start {}
     def stop(drain: bool = True) {
         time.sleep(0.05);
         self.stop_finished_at = time.monotonic();
