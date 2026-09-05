@@ -16,7 +16,7 @@ def get_symtab_ir_sched -> list[type[Transform]] {
     if not schedule_tier_reason() {
         _tok = _ir_sched_loading.set(True);
         try {
-            _import_all(IR_SCHED_DEPS);
+            _import_all(SYMTAB_SCHED_DEPS);
         } except ImportError as e {
             fail_loud_on_compiler_source(e);
         } finally {
@@ -33,7 +33,8 @@ glob _ir_sched_loading = ContextVar('jac_ir_sched_loading', `default=False),
      _codegen_sched_loading = ContextVar('jac_codegen_sched_loading', `default=False),
      _analysis_sched_loading = ContextVar('jac_analysis_sched_loading', `default=False);
 
-glob IR_SCHED_DEPS: tuple = (
+glob SYMTAB_SCHED_DEPS: tuple = ('jaclang.compiler.symbol_utils', ),
+     IR_SCHED_DEPS: tuple = (
          'jaclang.compiler.symbol_utils',
          'jaclang.compiler.expr_keys',
          'jaclang.compiler.type_registry',
