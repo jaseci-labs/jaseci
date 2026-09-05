@@ -9,6 +9,11 @@ import from jaclang.scale.models.deploy_context { DeployContext }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
+import from jaclang.scale.deploy.autoscale.autoscaler {
+    DEFAULT_CPU_UTILIZATION_TARGET,
+    DEFAULT_MEMORY_UTILIZATION_TARGET,
+    RESOURCE_ONLY_TRIGGER_TYPES
+}
 import from jaclang.scale.deploy.autoscale.http_activation_config {
     build_http_activation_spec
 }
@@ -197,6 +202,31 @@ def pdb_spec(
 }
 
 
+def is_scale_to_zero_eligible(
+    autoscaler_cfg: dict[str, any] | None, engine: str
+) -> bool {
+    if not isinstance(autoscaler_cfg, dict) {
+        return False;
+    }
+    if int(autoscaler_cfg.get("min", 1)) > 0 {
+        return False;
+    }
+    if str(engine or "hpa") != "keda" {
+        return False;
+    }
+    triggers = autoscaler_cfg.get("triggers", []);
+    if not isinstance(triggers, list) {
+        return False;
+    }
+
+    return any(
+        str(dict(t).get("type", "")) not in RESOURCE_ONLY_TRIGGER_TYPES
+        for t in triggers
+        if isinstance(t, dict)
+    );
+}
+
+
 def _is_named_list(items: list) -> bool {
     if not items {
         return False;
@@ -288,7 +318,54 @@ obj ManifestBuilder {
                 self.microservices_config, env_routes_fallback=False
             );
         }
-        return load_microservices_config();
+        return self._with_implicit_solo_route(load_microservices_config());
+    }
+
+    def _with_implicit_solo_route(ms_cfg: dict[str, any]) -> dict[str, any] {
+        import from jaclang.scale.runtime.routing {
+            resolve_routes,
+            guard_route_name,
+            derive_route_prefix
+        }
+        try {
+            if resolve_routes(ms_cfg) {
+                return ms_cfg;
+            }
+            name = str(self.k8s_config.app_name or "");
+            if not name {
+                return ms_cfg;
+            }
+            guard_route_name(name);
+            synthesized = dict(ms_cfg);
+            synthesized["routes"] = {name: derive_route_prefix(name)};
+            entry_file = self._solo_entry_file();
+            if entry_file {
+                services = dict(synthesized.get("services", {}));
+                solo_cfg = dict(services.get(name, {}));
+                solo_cfg["file"] = entry_file;
+                services[name] = solo_cfg;
+                synthesized["services"] = services;
+            }
+            return synthesized;
+        } except Exception {
+            return ms_cfg;
+        }
+    }
+
+    def _solo_entry_file(app_config: (AppConfig | None) = None) -> str {
+        if app_config is not None and app_config.file_name {
+            return app_config.file_name;
+        }
+        if not self.project_dir {
+            return "";
+        }
+        try {
+            import from jaclang.scale.injector.bundle { entry_module_rel }
+            rel = entry_module_rel(self.project_dir);
+            return rel.as_posix() if rel is not None else "";
+        } except Exception {
+            return "";
+        }
     }
 
     def _injector_object_key -> str {
@@ -552,7 +629,7 @@ obj ManifestBuilder {
 
     def generate_manifests(app_config: AppConfig, image: str) -> dict[str, any] {
         self.project_dir = self.project_dir or app_config.code_folder;
-        self._bundle_services();
+        self._bundle_services(app_config);
         injector = self._prepare_injector(app_config);
         self._bundle_object_key = injector._object_key;
 
@@ -648,7 +725,7 @@ obj ManifestBuilder {
             services = dict(ms_cfg.get("services", {}));
             solo_name = list(routes.keys())[0];
             solo_cfg = dict(services.get(solo_name, {}));
-            solo_cfg["file"] = app_config.file_name;
+            solo_cfg["file"] = self._solo_entry_file(app_config);
             services[solo_name] = solo_cfg;
             ms_cfg["services"] = services;
             ms_cfg["routes"] = routes;
@@ -688,6 +765,37 @@ obj ManifestBuilder {
         return {name: derive_route_prefix(name)};
     }
 
+    def _solo_aware_ms_cfg(app_config: AppConfig) -> dict[str, any] {
+        if self.microservices_config is not None {
+            return self._ms_cfg();
+        }
+        import from jaclang.scale.runtime.routing { resolve_routes }
+        try {
+            ms_cfg = dict(get_scale_config().get_microservices_config());
+        } except Exception {
+            return self._ms_cfg();
+        }
+        if resolve_routes(ms_cfg) {
+            return self._ms_cfg();
+        }
+        routes = self._solo_route(app_config);
+        entry_file = self._solo_entry_file(app_config);
+        services = dict(ms_cfg.get("services", {}));
+        solo_name = list(routes.keys())[0];
+        solo_cfg = dict(services.get(solo_name, {}));
+        solo_cfg["file"] = entry_file;
+        services[solo_name] = solo_cfg;
+
+        main_cfg = dict(services.get("main", {}));
+        if not main_cfg.get("file") {
+            main_cfg["file"] = entry_file;
+            services["main"] = main_cfg;
+        }
+        ms_cfg["services"] = services;
+        ms_cfg["routes"] = routes;
+        return ms_cfg;
+    }
+
     def _drain_timeout -> int {
         return int(self._ms_cfg().get("drain_timeout_seconds", 10));
     }
@@ -696,11 +804,16 @@ obj ManifestBuilder {
         return dict(self._ms_cfg().get("services", {}).get(svc_name, {}));
     }
 
-    def _bundle_services -> dict[str, str] {
+    def _bundle_services(app_config: (AppConfig | None) = None) -> dict[str, str] {
         if self._bundle_services_cache is None {
             import from jaclang.scale.injector.bundle { resolved_bundle_services }
+            ms_cfg = (
+                self._solo_aware_ms_cfg(app_config)
+                    if app_config is not None
+                    else self._ms_cfg()
+            );
             self._bundle_services_cache = (
-                resolved_bundle_services(self.project_dir, self._ms_cfg())
+                resolved_bundle_services(self.project_dir, ms_cfg)
                     if self.project_dir
                     else {}
             );
@@ -1333,6 +1446,31 @@ obj ManifestBuilder {
             "triggers": raw_triggers,
             "behavior": dict(behavior)
         };
+    }
+
+    def autoscaler_config_for_deployment(
+        deployment_name: str
+    ) -> dict[str, any] | None {
+        return self._get_autoscaler_config(
+            self._service_key_for_deployment(deployment_name)
+        );
+    }
+
+    def _service_key_for_deployment(deployment_name: str) -> str {
+        suffix = "-deployment";
+        if not deployment_name.endswith(suffix) {
+            return deployment_name;
+        }
+        k8s_name = deployment_name[:-len(suffix)];
+        ms_cfg = self._ms_cfg();
+        candidates: list[str] = list(ms_cfg.get("routes", {}).keys());
+        candidates.append(GATEWAY_NAME);
+        for key in candidates {
+            if k8s_safe_name(str(key)) == k8s_name {
+                return str(key);
+            }
+        }
+        return k8s_name;
     }
 
     def _get_http_activation_config(svc_name: str) -> dict[str, any] | None {
