@@ -36,12 +36,28 @@ obj SelfHostCache {
         file_path: str, target_program: JacProgram, force: bool = False
     ) -> JacProgram {
         if not force and self.owns(file_path) {
+            if self.is_selfhost(target_program) {
+                return self.program;
+            }
+            import from jaclang.compiler.frontend.codeinfo { is_native_by_location }
+            if is_native_by_location(file_path) {
+                return target_program;
+            }
+            import from jaclang.compiler.native_scope {
+                in_native_scope_path,
+                scope_lowering_active
+            }
+            if scope_lowering_active() and in_native_scope_path(file_path) {
+                return target_program;
+            }
             return self.program;
         }
         return target_program;
     }
 
-    def evict_unit(full_target: str, result: (uni.Module | None)) -> None {
+    def evict_unit(
+        full_target: str, result: (uni.Module | None), collect: bool = True
+    ) -> None {
         import os;
         if os.environ.get("JAC_NO_UNIT_EVICT") {
             return;
@@ -56,7 +72,7 @@ obj SelfHostCache {
             slim.interop_manifest = result.gen.interop_manifest;
             self.program.hub.artifacts[full_target] = slim;
         }
-        self.program.release_compile_closure(keep_stubs=True);
+        self.program.release_compile_closure(collect=collect);
     }
 
     def enter_bytecode {
@@ -74,7 +90,10 @@ obj SelfHostCache {
 
 impl SelfHostCache.program.getter -> JacProgram {
     if (self._program is None) {
-        self._program = JacProgram();
+        import from jaclang.runtime.runtime { JacRuntime }
+        prog = JacProgram();
+        prog._compiler = JacRuntime.get_compiler();
+        self._program = prog;
     }
     return self._program;
 }

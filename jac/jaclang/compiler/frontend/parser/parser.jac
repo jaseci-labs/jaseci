@@ -26,7 +26,6 @@ import from jaclang.compiler.frontend.unitree {
     CastExpr,
     CfgExpr,
     CodeBlockStmt,
-    CommentToken,
     CompareExpr,
     ConcurrentExpr,
     ConnectOp,
@@ -43,7 +42,6 @@ import from jaclang.compiler.frontend.unitree {
     ElseStmt,
     ElementStmt,
     EmptyToken,
-    EnumBlockStmt,
     Enum,
     EventSignature,
     Except,
@@ -597,15 +595,6 @@ obj Parser {
     def parse_type_alias -> TypeAlias;
     def parse_type_params -> tuple[(list, list)];
 }
-
-def parse_source(
-    tokens: list[LexToken], file_path: str, source_code: str
-) -> tuple[(Module, int, list[SrcDiag])] {
-    parser = Parser(tokens=tokens, file_path=file_path, source_code=source_code);
-    mod = parser.parse();
-    return (mod, parser.error_count, parser.diags);
-}
-
 
 def parse_program(
     source: str, file_path: str

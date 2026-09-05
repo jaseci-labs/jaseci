@@ -1,6 +1,8 @@
 import atexit;
 import os;
 import sys;
+import from collections.abc { Callable, Iterator }
+import from contextlib { contextmanager }
 import from jaclang.compiler.passes.transform { DiagnosticPolicy }
 import from jaclang.compiler.driver.program { JacProgram }
 
@@ -131,6 +133,16 @@ def run_pass(
     } finally {
         eff = inst.policy if (inst is not None and inst.policy is not None) else pol;
         deliver_alerts(errors, warnings, prog, eff);
+        try {
+            ledger = prog.analysis;
+            pass_name = pass_cls.__name__;
+            ledger.pass_runs[pass_name] = ledger.pass_runs.get(pass_name, 0) + 1;
+            if inst is not None {
+                ledger.pass_time[pass_name] = (
+                    ledger.pass_time.get(pass_name, 0.0) + inst.time_taken
+                );
+            }
+        } except Exception {}
     }
     return inst;
 }
@@ -139,14 +151,28 @@ obj _SetupProgress {
     has _banner_shown: bool = False,
         _compile_count: int = 0,
         _seen_files: set[str] postinit,
-        _jaclang_root: (str | None) = None;
+        _jaclang_root: (str | None) = None,
+        _first_compile_at: (float | None) = None;
 
     def postinit -> None;
     def _get_jaclang_root -> str;
     def _atexit_handler -> None;
     def on_internal_compile(file_path: str) -> None;
+    def _precompile_limit -> int;
+    def _halt_at_limit -> None;
 
     has is_active: bool { getter; }
 }
 
 glob setup_progress = _SetupProgress();
+
+obj CompileProgress {
+    has _listeners: list[Callable[[str], None]] postinit;
+
+    def postinit -> None;
+    def notify(file_path: str) -> None;
+    @contextmanager
+    def listen(callback: Callable[[str], None]) -> Iterator[None];
+}
+
+glob compile_progress = CompileProgress();

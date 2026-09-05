@@ -5,10 +5,49 @@ impl es_to_js(nd: (es.Node | None), indent: str = '  ') -> str {
 
 impl es_to_js_with_map(
     nd: (es.Node | None), indent: str = '  '
-) -> tuple[str, list[tuple[int, int, int]]] {
+) -> tuple[str, list[tuple[int, int, int, int, str]]] {
     generator = JSCodeGenerator(indent=indent);
     code = generator.generate(nd);
-    return (code, generator.line_map);
+    return (code, generator.build_segments(code));
+}
+
+impl _line_starts(code: str) -> list[int] {
+    starts: list[int] = [0];
+    idx = code.find('\n');
+    while (idx >= 0) {
+        starts.append(idx + 1);
+        idx = code.find('\n', idx + 1);
+    }
+    return starts;
+}
+
+impl _segment_name(nd: es.Node) -> str {
+    if nd.type not in ('Identifier', 'PrivateIdentifier', 'JsxIdentifier') {
+        return '';
+    }
+    text = str(getattr(nd, 'name', '') or '');
+    if (text == '') or (len(text) > 128) {
+        return '';
+    }
+    first = text[0];
+    if not (first.isalpha() or (first == '_') or (first == '$')) {
+        return '';
+    }
+    for ch in text {
+        if not (ch.isalnum() or (ch == '_') or (ch == '$')) {
+            return '';
+        }
+    }
+    return text;
+}
+
+impl _offset_to_pos(line_starts: list[int], offset: int) -> tuple[int, int] {
+    import bisect;
+    row = bisect.bisect_right(line_starts, offset) - 1;
+    if (row < 0) {
+        row = 0;
+    }
+    return (row + 1, offset - line_starts[row]);
 }
 
 impl JSCodeGenerator.gen_jsx_identifier(nd: es.JsxIdentifier) -> str {
@@ -588,12 +627,8 @@ impl JSCodeGenerator.gen_block_statement(nd: es.BlockStatement) -> str {
         return '{}';
     }
     self.indent_level += 1;
-    self._current_line += 1;
     parts: list[str] = [];
     for stmt in nd.body {
-        if parts {
-            self._current_line += 1;
-        }
         assert isinstance(stmt, es.Node);
         code = self.generate(stmt);
         parts.append(code);
@@ -608,19 +643,10 @@ impl JSCodeGenerator.gen_expression_statement(nd: es.ExpressionStatement) -> str
 }
 
 impl JSCodeGenerator.gen_program(nd: es.Program) -> str {
-    self._current_line = 1;
-    self._line_to_src = {};
     parts: list[str] = [];
     for stmt in nd.body {
-        code = self.generate(stmt);
-        parts.append(code);
-
-        self._current_line += 1;
+        parts.append(self.generate(stmt));
     }
-    self.line_map = [
-        (out_line, src[0], src[1])
-        for (out_line, src) in sorted(self._line_to_src.items())
-    ];
     return '\n'.join(parts);
 }
 
@@ -629,29 +655,66 @@ impl JSCodeGenerator.generate(nd: (es.Node | None)) -> str {
     if (nd is None) {
         return '';
     }
-
-    if nd.loc and nd.loc.start and self._current_line not in self._line_to_src {
-        self._line_to_src[self._current_line] = (
-            nd.loc.start.line,
-            nd.loc.start.column
-        );
-    }
     method_name = f"gen_{pascal_to_snake(nd.type)}";
     method = getattr(self, method_name, None);
-    if method {
-        line_before = self._current_line;
-        result = method(nd);
-
-        total_newlines = result.count('\n');
-        already_counted = self._current_line - line_before;
-        remaining = total_newlines - already_counted;
-        if remaining > 0 {
-            self._current_line += remaining;
-        }
-        return result;
-    } else {
+    if method is None {
         return f"/* Unsupported node type: {nd.type} */";
     }
+    kids: list[tuple[es.Node, str, list]] = [];
+    self._frames.append(kids);
+    try {
+        result = method(nd);
+    } finally {
+        self._frames.pop();
+    }
+    if self._frames {
+        self._frames[-1].append((nd, result, kids));
+    } else {
+        self._root = [(nd, result, kids)];
+    }
+    return result;
+}
+
+impl JSCodeGenerator.build_segments(code: str) -> list[tuple[int, int, int, int, str]] {
+    line_starts = _line_starts(code);
+    found: dict[tuple[int, int], tuple[int, int, str]] = {};
+    pending: list[tuple[tuple[es.Node, str, list], int, any]] = [
+        (`entry, 0, None) for `entry in self._root
+    ];
+    while pending {
+        (frame, offset, inherited) = pending.pop();
+        (nd, text, kids) = frame;
+        loc = nd.loc
+            if (
+                nd.loc is not None
+                and nd.loc.start is not None
+                and nd.loc.start.line >= 1
+            )
+            else inherited;
+        start = loc.start if loc is not None else None;
+        if start is not None {
+            (gen_line, gen_col) = _offset_to_pos(line_starts, offset);
+            found[(gen_line, gen_col)] = (start.line, start.column, _segment_name(nd));
+        }
+        cursor = 0;
+        for kid in kids {
+            kid_text: str = kid[1];
+            if kid_text == '' {
+                pending.append((kid, offset + cursor, loc));
+                continue;
+            }
+            idx = text.find(kid_text, cursor);
+            if (idx < 0) {
+                continue;
+            }
+            cursor = idx + len(kid_text);
+            pending.append((kid, offset + idx, loc));
+        }
+    }
+    segments: list[tuple[int, int, int, int, str]] = [
+        (pos[0], pos[1], src[0], src[1], src[2]) for (pos, src) in sorted(found.items())
+    ];
+    return segments;
 }
 
 impl JSCodeGenerator.indent -> str {
@@ -661,7 +724,6 @@ impl JSCodeGenerator.indent -> str {
 impl JSCodeGenerator.init(indent: str = '  ') -> None {
     self.indent_str = indent;
     self.indent_level = 0;
-    self.line_map = [];
-    self._current_line = 1;
-    self._line_to_src = {};
+    self._frames = [];
+    self._root = [];
 }

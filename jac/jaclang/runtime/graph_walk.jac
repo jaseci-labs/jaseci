@@ -3,6 +3,7 @@ import from jaclang.runtime.archetype {
     EdgeAnchor,
     NodeAnchor,
     anchor_key,
+    light_edge_view,
     same_anchor
 }
 import from jaclang.runtime.graph_query { GraphQuery, QHop, QPred }
@@ -25,9 +26,8 @@ glob __all__ = [
 
 def access_gated -> bool {
     import from jaclang.runtime.runtime { JacRuntimeInterface }
-    try {
-        jctx = JacRuntimeInterface.get_context();
-    } except Exception {
+    jctx = JacRuntimeInterface.peek_context();
+    if jctx is None {
         return False;
     }
     ur = jctx?.user_root;
@@ -43,16 +43,21 @@ def acl_read_ok(anchor: Anchor) -> bool {
 }
 
 
-def needs_store(mem: any, origins: list[Anchor]) -> bool {
-    if not origins or mem?.store is None {
-        return False;
-    }
+def has_persistent_origin(origins: list[Anchor]) -> bool {
     for a in origins {
         if a.persistent {
             return True;
         }
     }
     return False;
+}
+
+
+def needs_store(mem: any, origins: list[Anchor]) -> bool {
+    if not origins or mem?.store is None {
+        return False;
+    }
+    return has_persistent_origin(origins);
 }
 
 
@@ -147,6 +152,54 @@ def edge_pair_for(e: EdgeAnchor, cur: Anchor, hop: QHop) -> (Anchor | None) {
 }
 
 
+def _walk_light(
+    cur: NodeAnchor,
+    hop: QHop,
+    outgoing: bool,
+    want_edges: bool,
+    gated: bool,
+    seen: set,
+    nxt: list[tuple[Anchor, (EdgeAnchor | None)]]
+) -> None {
+    d = cur.out_light if outgoing else cur.in_light;
+    if not d {
+        return;
+    }
+    ecls = hop.`edge;
+    for (k, lst) in d.items() {
+        if ecls is not None and not issubclass(k, ecls) {
+            continue;
+        }
+        for item in lst {
+            arch = item if outgoing else item();
+            if arch is None {
+                continue;
+            }
+            other = arch.__jac__;
+            if not hop_matches_node(other, hop) {
+                continue;
+            }
+            if gated and not acl_read_ok(other) {
+                continue;
+            }
+            key = (k, id(cur), id(other)) if outgoing else (k, id(other), id(cur));
+            if key in seen {
+                continue;
+            }
+            seen.add(key);
+            e: (EdgeAnchor | None) = None;
+            if want_edges {
+                view = light_edge_view(k, cur, other)
+                    if outgoing
+                    else light_edge_view(k, other, cur);
+                e = view.__jac__;
+            }
+            nxt.append((other, e));
+        }
+    }
+}
+
+
 def walk(
     origins: list[Anchor], q: GraphQuery, upto: int, gated: bool
 ) -> list[tuple[Anchor, (EdgeAnchor | None)]] {
@@ -162,6 +215,14 @@ def walk(
         for cur in frontier {
             if not isinstance(cur, NodeAnchor) or not cur.is_populated() {
                 continue;
+            }
+            if not hop.epreds {
+                if hop.dir != 1 {
+                    _walk_light(cur, hop, True, q.edges_only, gated, seen_edges, nxt);
+                }
+                if hop.dir != 2 {
+                    _walk_light(cur, hop, False, q.edges_only, gated, seen_edges, nxt);
+                }
             }
             for e in list(cur.edges) {
                 if not e.is_populated() {

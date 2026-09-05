@@ -488,6 +488,98 @@ metadata = { queueName = "orders", mode = "QueueLength", value = "50", protocol 
 host = { name = "rabbitmq-secret", key = "host" }
 ```
 
+#### HTTP Add-on Activation (Scale-to-Zero on Request)
+
+The KEDA engine above scales on CPU, memory, or any KEDA trigger, but none of those triggers can wake a workload from zero replicas in response to an incoming HTTP request itself. There is nothing listening on the Service to observe traffic when replicas are at zero. The [KEDA HTTP Add-on](https://keda.sh/http-add-on/0.15/) closes that gap: it intercepts HTTP traffic bound for the target, holds the request while a zero-replica workload starts, and forwards it only once the workload is ready.
+
+!!! note
+    The KEDA HTTP Add-on installs separately from KEDA core. It ships as its own Helm chart:
+    ```bash
+    helm repo add kedacore https://kedacore.github.io/charts
+    helm repo update
+    helm install keda kedacore/keda -n keda --create-namespace --wait
+    helm install http-add-on kedacore/keda-add-ons-http -n keda --wait
+    ```
+    If the HTTP Add-on's CRDs are missing at deploy time, jac-scale logs a warning and skips creating the `InterceptorRoute`/`ScaledObject` rather than failing the deploy, matching the `"keda"` engine's own preflight fallback above.
+
+**Prerequisites**
+
+- KEDA core is installed on the cluster, as described above for the `"keda"` engine.
+- The KEDA HTTP Add-on is installed, per the note above.
+- The scale target exposes Kubernetes' `/scale` subresource. A `Deployment` or `StatefulSet` works out of the box; a standalone `Pod` is rejected with an error explaining the `/scale` requirement. A custom resource such as a `Rollout` also works, but only once `scale_target_plural` is set, so jac-scale can confirm it exists before applying anything.
+- The target's Deployment or StatefulSet, and its Service, already exist. This feature manages the `InterceptorRoute` and `ScaledObject` around an existing workload; it does not create the workload or the Service.
+- Exactly one of `target_port` or `target_port_name` is set, and at least one of `concurrency_target` or `request_rate_target` is set. Both are validated up front with an error that names the offending `jac.toml` key.
+
+**Interaction with the base autoscaler:** a target with `http_activation.enabled = true` is scaled entirely by its `ScaledObject` (min/max replicas, scale-to-zero). `jac start --scale` skips creating the base HPA/KEDA autoscaler for that same target automatically -- KEDA's admission webhook rejects a `ScaledObject` for a workload already managed by an HPA (or another `ScaledObject`), so both can't coexist on one target. This also means the deploy's usual post-deploy HTTP reachability check is skipped for that target (it may legitimately be sitting at 0 replicas with nothing to reach); a crash-loop check on the pods runs instead.
+
+**HTTP activation configuration (`[scale.kubernetes.http_activation]`):**
+
+| TOML Key | Default | Description |
+|----------|---------|-------------|
+| `enabled` | `false` | Master switch. Off by default. |
+| `min_replicas` | `0` | Replica floor while inactive. `0` enables true scale-to-zero. |
+| `max_replicas` | `1` | Replica ceiling once activated. |
+| `polling_interval` | `30` | Seconds between HTTP metric evaluations. |
+| `cooldown_period` | `300` | Seconds of inactivity before scaling back to `min_replicas`. |
+| `target_port` / `target_port_name` | `null` | Container port on the app's Service. Set exactly one. |
+| `concurrency_target` | `null` | In-flight-request concurrency target. Set this or `request_rate_target`. |
+| `request_rate_target` | `null` | Requests-per-window target, as an alternative to `concurrency_target`. |
+| `request_rate_window` / `request_rate_granularity` | `"1m"` / `"1s"` | Window and sampling granularity for `request_rate_target`. |
+| `[[rules]]` | `[]` | Routing rules: `hosts` (list), `paths` (list), `headers` (list of `{name, value}`, `value` omitted matches any). Fields within one rule are AND'd; separate rules are OR'd. **Leaving this empty means no traffic matches** -- the interceptor never forwards anything and the target never wakes. At least one rule is required; use `hosts = ["*"]` for an explicit catch-all. |
+| `cold_start_status_code` / `cold_start_body` / `cold_start_headers` | `503` / `null` / `{}` | Static placeholder response served while the target cold-starts. |
+| `cold_start_fallback_service` / `cold_start_fallback_port` | `null` | Service to forward to while cold-starting, as an alternative to a static placeholder. |
+| `timeout_readiness` / `timeout_request` / `timeout_response_header` | `null` | Duration strings (e.g. `"30s"`) the interceptor waits at each stage. |
+| `scale_target_kind` / `scale_target_api_version` / `scale_target_plural` | `"Deployment"` / `"apps/v1"` / `null` | Only needed when activating a non-Deployment/StatefulSet target. |
+
+**To configure in `jac.toml` (monolith deploy):**
+
+```toml
+[scale.kubernetes.http_activation]
+enabled = true
+target_port = 8000
+concurrency_target = 10
+min_replicas = 0
+max_replicas = 3
+cooldown_period = 300
+
+[[scale.kubernetes.http_activation.rules]]
+hosts = ["app.example.com"]
+```
+
+**Per-service, in microservice mode:** the same keys apply under `[scale.microservices.services.<name>.http_activation]`. The target Service is always the service's own generated Service; it is never user-set. Any key left unset falls back to `[scale.kubernetes.http_activation]`'s value.
+
+```toml
+[scale.microservices.services.jac_coder_sv.http_activation]
+enabled = true
+target_port = 8000
+concurrency_target = 5
+min_replicas = 0
+
+[[scale.microservices.services.jac_coder_sv.http_activation.rules]]
+paths = ["/coder"]
+```
+
+**Traffic topology**
+
+```mermaid
+graph TD
+    Client["Client"] -->|"HTTP request"| Interceptor["HTTP Add-on Interceptor<br/>(matches InterceptorRoute rules)"]
+    Interceptor -->|"pending request count"| Scaler["External Scaler"]
+    Scaler -->|"external-push metric"| Operator["KEDA Operator"]
+    Operator -->|"scale 0 to 1"| Target["Deployment (0 replicas)"]
+    Target -->|"pod Ready"| Interceptor
+    Interceptor -->|"forward held request"| Target
+    Target -->|"response"| Client
+```
+
+jac-scale always reconciles the `InterceptorRoute` before the `ScaledObject`, because the external scaler resolves the target Service and scaling metric from the route when KEDA evaluates the trigger. Reconciling in the other order would leave the `ScaledObject` unable to find its metric source.
+
+!!! warning "Route inbound traffic through the interceptor yourself"
+    jac-scale creates the `InterceptorRoute` and `ScaledObject`, but does **not** rewire the gateway or Ingress to the interceptor proxy -- they still resolve the app's own Service directly. With `min_replicas = 0`, a request that reaches the Service instead of the interceptor is refused and never wakes the pod. Only enable `http_activation` on a service whose inbound traffic you have already pointed at the KEDA HTTP interceptor proxy. The gateway is exempt and never inherits a shared `enabled = true` default.
+
+!!! note "Programmatic API for dynamic activation"
+    A control-plane process that creates and tears down workloads on demand (for example, an IDE-preview orchestrator spinning up a per-session preview) has no fixed target to put in `jac.toml`. For that case, `HTTPActivationSpec` (`jaclang.scale.deploy.autoscale.http_activation`) and `KEDAAutoscaler.apply_http_activation` / `destroy_http_activation` (`jaclang.scale.deploy.autoscale.keda_autoscaler`) remain available as a direct API, unchanged by the `jac.toml` surface above. Use whichever entry point matches your workload's lifecycle: `jac.toml` for a known, standing service; the programmatic API for one created and destroyed at runtime.
+
 ---
 
 ### Persistent Storage
@@ -544,6 +636,8 @@ wait_image = "busybox:1.36"
 ### System Dependencies
 
 OS (apt) packages your app needs at runtime, e.g. `git` for an app that shells out to it. Declare them at the top level under `[dependencies.system]`; keys are apt package names (version specs are ignored on Debian). They are `apt-get install`ed into the **service container** at startup, so the binaries are present where your app actually runs.
+
+The install is best effort. When every package is already present the step is skipped; when `apt-get` fails the pod reports `could not install system packages (...)` on stderr and starts without them. The official image runs as the unprivileged `jac` user, which cannot install packages, so on that image a declared package that the image does not already carry is never installed: bake it into a custom `python_image` instead.
 
 **Default:** `[]` (none)
 
@@ -1006,7 +1100,9 @@ Each entry is an [array of tables](https://toml.io/en/v1.0.0#array-of-tables) (n
 
 PVC mode and hostPath mode are mutually exclusive per entry. K-track applies PVCs before Deployments so pods do not crash-loop on "PVC not found".
 
-> **EFS gotcha.** AWS EFS CSI access points enforce a POSIX UID on every file. When the EFS UID differs from the pod's running UID, in-pod `git` commands against the shared volume trip CVE-2022-24765 dubious-ownership checks. Work around it with `git config --system --add safe.directory '*'` in your pod (e.g. via a custom `python_image`), or set a matching `securityContext` on the pod (`runAsUser` / `fsGroup` -- not yet exposed in `[scale.kubernetes]`, on the roadmap).
+A freshly provisioned volume usually arrives root-owned, and the service container runs as the image's unprivileged `jac` user (uid/gid 1000). Every pod that mounts a shared volume therefore runs a `jac-volume-perms` init container first: a hardened root step that hands the mount root (the `sub_path` directory when one is set) to uid/gid 1000 without touching the data below it, and the pod carries `fsGroup: 1000` with `fsGroupChangePolicy: OnRootMismatch` for the storage backends that honor it. A backend that refuses `chown` (a root-squash NFS export, for example) logs `jac-volume-perms: chown/chmod ... not permitted` in the init container and the pod starts with the permissions as provisioned; make the export writable by uid/gid 1000 in that case.
+
+> **EFS gotcha.** AWS EFS CSI access points enforce a POSIX UID on every file. When the EFS UID differs from the pod's running UID, in-pod `git` commands against the shared volume trip CVE-2022-24765 dubious-ownership checks. Work around it with `git config --system --add safe.directory '*'` in your pod (e.g. via a custom `python_image`), or give the access point uid/gid 1000 to match the pod (`runAsUser` is not yet exposed in `[scale.kubernetes]`).
 
 ---
 
@@ -1024,7 +1120,7 @@ JAC_SV_<PEER_MODULE>_URL=http://<peer>-service.<namespace>.svc.cluster.local:<co
 
 The env-var key uses the raw module name (the peer's key in `[scale.microservices.routes]`) upper-cased and joined with `JAC_SV_..._URL`. The URL host uses the Kubernetes Service name with DNS-1123 normalization (so `jac_coder_sv` becomes `jac-coder-sv-service`). Self is skipped (no service points env at itself).
 
-Alongside the peer URLs, every pod also receives `JAC_SV_ROUTES` (the full routes map as JSON), `K8S_APP_NAME`, and `K8S_NAMESPACE`. Every pod's entrypoint (gateway included) also exports `JAC_SV_SIBLING=1` -- a shell export in the container command, not a PodSpec `env:` entry. (Sibling-only scoping of that variable exists only in local multi-process mode.)
+Alongside the peer URLs, every pod (gateway included) also receives `JAC_SV_ROUTES` (the full routes map as JSON), `JAC_SV_SIBLING=1`, `K8S_APP_NAME`, and `K8S_NAMESPACE` as PodSpec `env:` entries. `JAC_SV_SIBLING` tells the runtime it is one pod of a fleet, so it serves its own module instead of entering local microservice mode; it is part of the pod's identity, not something the boot script sets. (Sibling-only scoping of that variable exists only in local multi-process mode.)
 
 You do not write these env vars by hand in deployed K8s mode; K-track derives them from `[scale.microservices.routes]` and the configured namespace.
 
@@ -1224,6 +1320,11 @@ kubectl get pvc                     # the bundle PVC must be Bound
   persists when the backend also rejects root `chown` -- for example a
   root-squash NFS export. Make the export writable by uid/gid 1000 or disable
   root squash.
+- `Permission denied` from the app on a `shared_volumes` mount means the
+  `jac-volume-perms` init container could not hand the mount root to uid/gid
+  1000; read its log (`kubectl logs <pod-name> -c jac-volume-perms`) and make
+  the backend accept root `chown` or provision the volume writable by that
+  identity.
 - `ImagePullBackOff` on the base image means the cluster cannot reach
   `jaseci/jaclang`; set `python_image` to a base it can pull.
 

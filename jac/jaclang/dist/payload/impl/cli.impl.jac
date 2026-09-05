@@ -14,6 +14,8 @@ import from jaclang.dist.payload.pins { host_py_minor, py_ver }
 import from jaclang.dist.payload.vendor { build_musl, build_wasm_libc }
 
 impl main(argv: list[str]) -> int {
+    import os;
+    os.environ.setdefault("JAC_COMPILER_LIB", "off");
     try {
         dispatch(list(argv));
     } except PayloadDie as e {
@@ -67,9 +69,17 @@ impl dispatch(argv: list[str]) {
     } elif cmd == "typeshed-sha" {
         _need(argv, 2, "usage: payload typeshed-sha <commit>");
         typeshed_sha(argv[1]);
+    } elif cmd == "stubcat" {
+        _need(argv, 4, "usage: payload stubcat <pbs-python-dir> <site-dir> <out.bin>");
+        import from jaclang.dist.payload.assemble { resolve_python, run_stubcat }
+        if not run_stubcat(resolve_python(argv[1]), argv[1], argv[2], argv[3]) {
+            die("stubcat: build failed (see log above)");
+        }
     } elif cmd == "pack" {
-        _need(argv, 4, "usage: payload pack <stub> <payload.tar.zst> <out>");
-        pack(argv[1], argv[2], argv[3]);
+        _need(
+            argv, 4, "usage: payload pack <stub> <payload.tar.zst> <out> [stubcat.bin]"
+        );
+        pack(argv[1], argv[2], argv[3], argv[4] if len(argv) > 4 else None);
     }
 }
 
@@ -82,7 +92,8 @@ impl parse_mkpayload_flags(flags: list[str]) -> MkPayloadOpts {
         "--musl=": "musl_dir",
         "--wasm-libc=": "wasm_libc_dir",
         "--precompiled-cache=": "precompiled_cache",
-        "--layer-cache=": "layer_cache"
+        "--layer-cache=": "layer_cache",
+        "--stubcat-out=": "stubcat_out"
     };
     for arg in flags {
         if arg == "--skip-precompile" {
@@ -95,6 +106,10 @@ impl parse_mkpayload_flags(flags: list[str]) -> MkPayloadOpts {
         }
         if arg == "--debug-src" {
             opts.debug_src = True;
+            continue;
+        }
+        if arg == "--skip-stubcat" {
+            opts.skip_stubcat = True;
             continue;
         }
         for (prefix, field) in valued.items() {

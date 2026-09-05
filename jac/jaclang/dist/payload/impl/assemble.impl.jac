@@ -22,6 +22,7 @@ import from jaclang.dist.payload.fsutil {
     sha256_hex,
     skip_jaclang,
     skip_none,
+    skip_site_template,
     skip_stage_site,
     source_file_mode,
     strip_best_effort,
@@ -57,6 +58,8 @@ impl mk_payload(pbs_py_dir: str, repo_root: str, out: str, opts: MkPayloadOpts) 
     stage_floor(pbs_py_dir, work);
 
     run_precompile_stage(py, pbs_py_dir, site, opts);
+
+    run_stubcat_stage(py, pbs_py_dir, site, opts);
 
     log("==> bundling watchdog (jac run --dev) + tomlkit");
     delete_tree(os.path.join(site, "__pycache__"));
@@ -109,6 +112,16 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
             os.path.join(repo_root, "bootstrap", "pins.json"),
             os.path.join(site, "jaclang", "dist", "payload", "pins.json")
         );
+
+        awesome_src = os.path.join(repo_root, "examples", "jaclang_org");
+        if os.path.isdir(awesome_src) {
+            log("==> bundling the jaclang.org site as the --awesome template");
+            copy_tree(
+                awesome_src, os.path.join(site, "awesome_template"), skip_site_template
+            );
+        } else {
+            log(f"==> no {awesome_src}; --awesome template not bundled");
+        }
     } else {
         log(
             f"==> linked-source mode: NOT bundling jaclang (compiler served from {opts.link_source})"
@@ -132,11 +145,66 @@ impl assemble_site(repo_root: str, site: str, opts: MkPayloadOpts) {
             " build can compile + statically link the LLVMPY_* shim."
         );
     }
-    dst_dir = os.path.join(site, "jaclang", "compiler", "backends", "native", "llvm");
-    make_dirs(dst_dir);
+    dst = site_shim_path(site);
+    make_dirs(os.path.dirname(dst));
     log(f"==> bundling Zig-built LLVMPY_* shim ({so})");
-    copy_file(so, os.path.join(dst_dir, os.path.basename(so)));
+    copy_file(so, dst);
+    if not file_exists(dst) {
+        raise PayloadDie(
+            f"mkpayload: bundled {so} but no shim at {dst}; the JIR seal and the"
+            " shipped binary both locate it by that exact path."
+        );
+    }
 
+    import sys;
+    jc_name = (
+        "libjac_compiler.dylib" if sys.platform == "darwin" else "libjac_compiler.so"
+    );
+    jc_src = os.path.join(repo_root, "jaclang", "compiler", "jc_unit.jac");
+    jc_dst = os.path.join(site, "jaclang", "compiler", jc_name);
+    if not file_exists(jc_src) {
+        log("==> no compiler kernel unit in this tree; skipping kernel build");
+        _bundle_bun(site, opts);
+        return;
+    }
+    log(f"==> building native compiler kernel (nacompile --shared {jc_src})");
+    jc_boot = (
+        "import os, sys\n"
+        + "root, src, dst = sys.argv[1], sys.argv[2], sys.argv[3]\n"
+        + "sys.path.insert(0, root)\n"
+        + "import _jac_finder\n"
+        + "_jac_finder.install()\n"
+        + "from jaclang.cli.commands.nacompile import nacompile\n"
+        + "rc = int(nacompile(src, output=dst, shared=True) or 0)\n"
+        + "sys.stdout.flush()\n"
+        + "sys.stderr.flush()\n"
+        + "os._exit(rc)\n"
+    );
+    jc_env = clone_env();
+    jc_env["JAC_LLVM_SHIM"] = os.path.abspath(so);
+    jc_env["JAC_COMPILER_LIB"] = "off";
+    jc_env["JAC_NO_DEV_SOURCE"] = "1";
+    jc_env["JAC_STUBCAT_BUILDING"] = "1";
+    jc_ok = run_child(
+        [sys.executable, "-I", "-c", jc_boot, repo_root, jc_src, jc_dst], jc_env, True
+    );
+    if (
+        not jc_ok or not file_exists(jc_dst) or not file_exists(jc_dst + ".layout.json")
+    ) {
+        raise PayloadDie(
+            f"mkpayload: native compiler kernel build failed; the shipped"
+            f" binary requires {jc_dst} and its .layout.json sidecar."
+        );
+    }
+
+    jc_tree = os.path.join(repo_root, "jaclang", "compiler", jc_name);
+    copy_file(jc_dst, jc_tree);
+    copy_file(jc_dst + ".layout.json", jc_tree + ".layout.json");
+
+    _bundle_bun(site, opts);
+}
+
+impl _bundle_bun(site: str, opts: MkPayloadOpts) {
     bb = opts.bun_bin;
     if bb is not None {
         bun_dir = os.path.join(site, "jaclang", "client", "_bun");
@@ -195,6 +263,41 @@ impl run_precompile_stage(py: str, pbs_py_dir: str, site: str, opts: MkPayloadOp
     }
 }
 
+impl run_stubcat_stage(py: str, pbs_py_dir: str, site: str, opts: MkPayloadOpts) {
+    out_copy = opts.stubcat_out;
+    if opts.skip_stubcat or opts.skip_precompile or opts.link_source is not None {
+        log("==> skipping the stub catalog; the type checker builds it on first use");
+        if out_copy is not None {
+            write_bytes(out_copy, b"");
+        }
+        return;
+    }
+    site_pre = os.path.join(site, "jaclang", "_precompiled");
+    make_dirs(site_pre);
+    out = os.path.join(site_pre, "stubcat.bin");
+    if not run_stubcat(py, pbs_py_dir, site, out) {
+        die("mkpayload: stub catalog build failed (see log above).");
+    }
+    if out_copy is not None {
+        copy_file(out, out_copy);
+    }
+}
+
+impl run_stubcat(py: str, pbs_py_dir: str, site: str, out: str) -> bool {
+    log("==> building the stub catalog (pre-resolved typeshed types)");
+    boot = os.path.join(site, "stubcat_boot.py");
+    write_text(boot, STUBCAT_BOOT_SRC);
+    env = precompile_env(pbs_py_dir, site);
+    env["JAC_STUBCAT_BUILDING"] = "1";
+    ok = run_child([py, "-S", boot, out], env, True);
+    delete_file(boot);
+    if not ok or not file_exists(out) {
+        return False;
+    }
+    log(f"   stub catalog: {os.path.getsize(out)} bytes");
+    return True;
+}
+
 impl precompile_env(pbs_py_dir: str, site: str) -> dict[str, str] {
     env = clone_env();
     env["PYTHONHOME"] = os.path.join(pbs_py_dir, "install");
@@ -206,6 +309,7 @@ impl precompile_env(pbs_py_dir: str, site: str) -> dict[str, str] {
     env["HOME"] = scratch_home;
     env["PATH"] = "/usr/bin:/bin";
     env["JAC_NO_DEV_SOURCE"] = "1";
+    env["JAC_STUBCAT_BUILDING"] = "1";
     return env;
 }
 
@@ -222,7 +326,7 @@ impl precompile(py: str, pbs_py_dir: str, site: str, seal: bool, debug_src: bool
 
     boot = os.path.join(site, "precompile_boot.py");
     write_text(boot, PRECOMPILE_BOOT_SRC);
-    argv = [py, "-S", boot, pc, site];
+    argv = [py, "-S", boot, site];
     if seal {
         argv.append("--seal-compile");
     }
@@ -246,7 +350,7 @@ impl precompile(py: str, pbs_py_dir: str, site: str, seal: bool, debug_src: bool
     if not seal {
         return;
     }
-    fin = [py, "-S", boot, pc, site, "--seal-finalize"];
+    fin = [py, "-S", boot, site, "--seal-finalize"];
     if debug_src {
         fin.append("--debug-src");
     }
@@ -295,16 +399,17 @@ impl stage_tree(
     stage_stdlib(pbs_lib, lib_dst);
 
     copy_tree(site, os.path.join(stage, "site"), skip_stage_site);
+    strip_best_effort(site_shim_path(os.path.join(stage, "site")));
+    import sys as _sys;
     strip_best_effort(
         os.path.join(
             stage,
             "site",
             "jaclang",
             "compiler",
-            "backends",
-            "native",
-            "llvm",
-            shim_file_name()
+            "libjac_compiler.dylib"
+                if _sys.platform == "darwin"
+                else "libjac_compiler.so"
         )
     );
 
@@ -460,6 +565,12 @@ impl shim_file_name -> str {
     return "libjacllvm.so";
 }
 
+impl site_shim_path(site: str) -> str {
+    return os.path.join(
+        site, "jaclang", "compiler", "backends", "native", "llvm", shim_file_name()
+    );
+}
+
 impl find_libpython(lib_dir: str) -> FoundLib {
     so = f"libpython{py_ver()}.so";
     dy = f"libpython{py_ver()}.dylib";
@@ -582,7 +693,7 @@ impl zstd_compress(data: bytes) -> bytes {
         mt: dict[int, int] = dict(opts);
         mt[int(CompressionParameter.nb_workers)] = workers;
         return compress(data, options=mt);
-    } except Exception { }
+    } except Exception {}
     return compress(data, options=opts);
 }
 

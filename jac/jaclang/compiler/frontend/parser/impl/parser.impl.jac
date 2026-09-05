@@ -284,8 +284,7 @@ impl Parser.expect_name(context: str = "identifier") -> LexToken {
     if self.is_keyword_token() {
         kw = self.current().value;
         self.emit_diag(
-            f"'{kw}' is a keyword and cannot be used as a {context} name (prefix with backtick to escape: `{kw})",
-            "E0013"
+            f"'{kw}' is a keyword and cannot be used as a {context} name", "E0013"
         );
         return self.advance();
     }
@@ -3968,7 +3967,7 @@ impl Parser.parse_statement -> CodeBlockStmt | None {
     expr_kid: list[UniNode] = [expr];
     if self.match_tok(TokenKind.SEMI) {
         expr_kid.append(self.make_semi());
-    } elif isinstance(expr, JsxElement) and self._view_body_depth > 0 { } elif isinstance(
+    } elif isinstance(expr, JsxElement) and self._view_body_depth > 0 {} elif isinstance(
         expr, Name
     )
         and expr.value == "new" {
@@ -4905,12 +4904,21 @@ impl Parser.parse_assert_stmt -> AssertStmt {
 
 impl Parser.parse_delete_stmt -> DeleteStmt {
     del_uni = self.consume_uni(TokenKind.KW_DELETE);
-    target = self.parse_expression();
+    kid: list[UniNode] = [del_uni];
+    targets: list[Expr] = [];
+    first = self.parse_expression();
+    targets.append(first);
+    kid.append(first);
+    while self.match_tok(TokenKind.COMMA) {
+        kid.append(self.make_uni_token(self.previous()));
+        nxt = self.parse_expression();
+        targets.append(nxt);
+        kid.append(nxt);
+    }
     self._recover_misplaced_disconnect();
-    kid: list[UniNode] = [del_uni, target];
     self.expect(TokenKind.SEMI);
     kid.append(self.make_semi());
-    return DeleteStmt(target=target, kid=kid);
+    return DeleteStmt(targets=targets, kid=kid);
 }
 
 impl Parser._recover_misplaced_disconnect -> None {

@@ -32,6 +32,29 @@ enum SymbolType {
     }
 }
 
+enum BindingKind {
+    VALUE = 'value',
+    TYPE = 'type',
+    BOTH = 'both',
+    with entry {
+        def __str__(self: BindingKind) -> str {
+            return self.value;
+        }
+
+        def is_type_only(self: BindingKind) -> bool {
+            return (self == BindingKind.TYPE);
+        }
+
+        def denotes_type(self: BindingKind) -> bool {
+            return (self != BindingKind.VALUE);
+        }
+
+        def denotes_value(self: BindingKind) -> bool {
+            return (self != BindingKind.TYPE);
+        }
+    }
+}
+
 enum JacSemTokenType: int {
     NAMESPACE = 0,
     TYPE = 1,

@@ -39,10 +39,70 @@ impl _SetupProgress.on_internal_compile(file_path: str) -> None {
         rel_path = os.path.relpath(normalized, os.path.dirname(jaclang_root));
     }
     self._compile_count += 1;
-    sys.stderr.write(f"  Compiling {rel_path}...\n");
+    import time;
+    if self._first_compile_at is None {
+        self._first_compile_at = time.monotonic();
+    }
+    if self._precompile_limit() > 0 {
+        since = time.monotonic() - self._first_compile_at;
+        sys.stderr.write(
+            f"  Compiling {rel_path}... [{self._compile_count} @ {since:.2f}s]\n"
+        );
+    } else {
+        sys.stderr.write(f"  Compiling {rel_path}...\n");
+    }
     sys.stderr.flush();
+    self._halt_at_limit();
+}
+
+impl _SetupProgress._precompile_limit -> int {
+    raw = os.environ.get("JAC_PRECOMPILE_LIMIT");
+    if not raw {
+        return 0;
+    }
+    try {
+        return int(raw);
+    } except ValueError {
+        return 0;
+    }
+}
+
+impl _SetupProgress._halt_at_limit -> None {
+    limit = self._precompile_limit();
+    if limit <= 0 or self._compile_count < limit {
+        return;
+    }
+    import time;
+    started = self._first_compile_at if self._first_compile_at is not None else 0.0;
+    elapsed = time.monotonic() - started;
+    sys.stderr.write(
+        f"Jac precompile limit reached: {self._compile_count} modules in "
+        f"{elapsed:.2f}s\n"
+    );
+    sys.stderr.flush();
+    os._exit(0);
 }
 
 impl _SetupProgress.is_active.getter -> bool {
     return self._banner_shown;
+}
+
+impl CompileProgress.postinit -> None {
+    self._listeners = [];
+}
+
+impl CompileProgress.notify(file_path: str) -> None {
+    for callback in list(self._listeners) {
+        callback(file_path);
+    }
+}
+
+@contextmanager
+impl CompileProgress.listen(callback: Callable[[str], None]) -> Iterator[None] {
+    self._listeners.append(callback);
+    try {
+        yield None;
+    } finally {
+        self._listeners.remove(callback);
+    }
 }

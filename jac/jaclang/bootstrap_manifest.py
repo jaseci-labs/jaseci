@@ -44,6 +44,10 @@ SEED_PATHS: tuple[str, ...] = (
     "compiler/passes/semantic_analysis_pass.jac",
     "compiler/passes/sym_tab_build_pass.jac",
     "compiler/passes/transform.jac",
+    "compiler/native_scope.jac",
+    "compiler/native_compiler.jac",
+    "compiler/jc_unit.jac",
+    "compiler/jc_materialize.jac",
     "compiler/passes/uni_pass.jac",
     "compiler/tools/treeprinter.jac",
     "runtime/runtime.jac",
@@ -54,19 +58,36 @@ SEED_PATHS: tuple[str, ...] = (
     "runtime/traceback_render.jac",
     "runtime/debugger.jac",
     "runtime/portability.jac",
-    "runtime/native_dylib.jac",
     "runtime/scalars.jac",
     "runtime/osp_kernel.jac",
     "runtime/osp_kernel_sv.jac",
     "runtime/osp_graph.jac",
     "runtime/osp_graph_sv.jac",
     "runtime/osp_model.jac",
+    "runtime/osp_tag.jac",
     "lib/jaclib.jac",
     "compiler/driver/mtp.jac",
     "cli/cli_boot.jac",
     "jac0core/cli_boot.jac",
     "project/tomlio.jac",
 )
+
+# Modules that live under a seed directory but belong to the native
+# toolchain tier: nacompile builds them into a shared library, and they
+# never execute as bytecode (extern `import from c` declarations have no
+# Python lowering). The jac0 sweep and the seed-manifest gate skip them;
+# tier stamping (is_seed_source) is unaffected, which also keeps them out
+# of the full-compiler seal sweep.
+NATIVE_ONLY_SEEDS: tuple[str, ...] = (
+    "compiler/jc_unit.jac",
+    "compiler/jc_materialize.jac",
+)
+
+
+def is_native_only_seed(rel_path: str) -> bool:
+    """Whether a jaclang-package-relative POSIX path is a native-tier unit
+    that jac0 must not compile even though a seed directory covers it."""
+    return rel_path in NATIVE_ONLY_SEEDS
 
 
 def seed_abs_entries(jaclang_dir: str) -> tuple[tuple[str, ...], frozenset[str]]:

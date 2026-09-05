@@ -787,7 +787,7 @@ def:pub cef_dispatch_cmdline_append_switch_value(cmd: int, name: str, value: str
     cef_string_utf16_clear(sv);
 }
 
-def:pub cef_dispatch_base_release(handle: int) { }
+def:pub cef_dispatch_base_release(handle: int) {}
 
 def:pub cef_dispatch_create_browser(
     window_info: int, client: int, url: str, settings: int

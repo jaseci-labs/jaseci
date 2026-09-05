@@ -237,7 +237,7 @@ def is_annotation_type(evaluator: TypeEvaluator, ty: TypeBase) -> bool {
 
     none_type_class = evaluator.prefetch.none_type_class;
     if isinstance(ty, ClassType) and none_type_class is not None {
-        return ty.shared == none_type_class.shared;
+        return ty.shared.same_class(none_type_class.shared);
     }
     return False;
 }
@@ -497,6 +497,10 @@ def get_type_of_binary_operation(
 
         def validate_conn_type(type_expr: Expr) -> TypeBase {
             ct = evaluator.get_type_of_expression(type_expr);
+
+            if isinstance(ct, ClassType) and evaluator._is_type_subscript(ct) {
+                ct = evaluator._get_type_for_member_lookup(ct);
+            }
             if (
                 not ct.is_any_type()
                 and not isinstance(ct, UnknownType)
@@ -669,7 +673,9 @@ def get_type_of_binary_operation(
         synth_call = FuncCall(
             target=callable_node, params=params, genai_call=None, kid=expr.kid
         );
-        synth_call.parent = expr.parent;
+        if expr.parent is not None {
+            synth_call.set_parent(expr.parent);
+        }
         return evaluator.validate_call_args(synth_call);
     }
     return UnknownType();

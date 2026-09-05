@@ -90,6 +90,10 @@ def _native_deps_ok(
 ) -> bool {
     import from jaclang.compiler.frontend.codeinfo { effective_native_closure_cap }
     import from jaclang.compiler.driver.na_coverage { _note_native_closure_cap }
+    import from jaclang.compiler.native_scope {
+        in_native_scope_path,
+        scope_lowering_active
+    }
     cap = effective_native_closure_cap();
     edges: dict[str, list[str]] = {root_path: list(root_deps)};
     queue: list[str] = list(root_deps);
@@ -101,6 +105,9 @@ def _native_deps_ok(
         dep = queue.pop();
         if dep in edges {
             continue;
+        }
+        if in_native_scope_path(dep) and not scope_lowering_active() {
+            return False;
         }
         info = _native_dep_scan(dep, hold_exempt=hold_exempt);
         if info is None {
@@ -146,9 +153,7 @@ def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
         if (_cfg is not None and getattr(_cfg?.project, 'kind', '') == 'web-app') {
             return (False, "web-app project: native is opt-in");
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     (env_ok, env_reason) = native_pipeline_available();
     if not env_ok {
         return (False, env_reason);
@@ -159,6 +164,16 @@ def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
     }
     if _is_demoted_native(os.path.realpath(mod_path)) {
         return (False, "previously-demoted");
+    }
+    import from jaclang.compiler.native_scope {
+        in_native_scope_path,
+        scope_lowering_active
+    }
+    if in_native_scope_path(mod_path) and not scope_lowering_active() {
+        return (False, "compiler frontend module: native only inside the kernel build");
+    }
+    if not any([isinstance(e, uni.ElementStmt) for e in module.body]) {
+        return (False, "empty module: nothing to lower");
     }
     base_dir = os.path.dirname(os.path.abspath(mod_path)) or '.';
     (sv_reason, deps) = scan_native_blockers(module, base_dir);
@@ -700,9 +715,7 @@ def _emit_solver_warning(
                 help_text=diag.format_help(**kwargs)
             )
         );
-    } except Exception {
-        ;
-    }
+    } except Exception {}
 }
 
 def _warn_state_forks(target: uni.Module, prog: any) {
@@ -804,9 +817,7 @@ def _pull_boundary_import(imp: uni.Import, module: uni.Module, prog: any) -> int
         ) {
             targets.append(linked);
         }
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     new_stamps = 0;
     for target in targets {
         new_stamps += _pull_into_target(imp, target, module, prog);
@@ -947,13 +958,14 @@ def demote_client_pulled_elements(
             style="dim",
             file=sys.stderr
         );
-    } except Exception {
-        ;
-    }
+    } except Exception {}
     return True;
 }
 
-obj PlacementApplyPass(Transform) {
+walker PlacementApplyPass(Transform) {
+    static has PROVIDES: tuple = ('PlacedIn', 'DecidedCodespace'),
+        REQUIRES: tuple = ('SymOf', );
+
     has prog: JacProgram,
         ir_in: uni.Module,
         cancel_token: any = None;
@@ -963,15 +975,29 @@ obj PlacementApplyPass(Transform) {
 
     def postinit -> None;
     def transform(ir_in: uni.Module) -> uni.Module;
+    def _run_impl(ir_in: uni.Module) -> uni.Module;
+    can run_walk with uni.Module entry;
 }
 
 impl PlacementApplyPass.postinit -> None {
     super.postinit();
 }
 
-impl PlacementApplyPass.transform(ir_in: uni.Module) -> uni.Module {
+impl PlacementApplyPass._run_impl(ir_in: uni.Module) -> uni.Module {
     import from jaclang.compiler.symbol_utils { report_serverless_kind_errors }
     solve_module_placement(ir_in, self.prog);
     report_serverless_kind_errors(self, ir_in);
     return ir_in;
+}
+
+impl PlacementApplyPass.transform(ir_in: uni.Module) -> uni.Module {
+    self.ir_out = ir_in;
+    ir_in spawn self;
+    out = self.ir_out;
+    assert isinstance(out, uni.Module);
+    return out;
+}
+
+impl PlacementApplyPass.run_walk with uni.Module entry {
+    self.ir_out = self._run_impl(here);
 }

@@ -83,7 +83,7 @@ obj BorrowMeta {
         field: str = "";
 }
 
-obj OwnershipCheckPass(Transform) {
+walker OwnershipCheckPass(Transform) {
     has prog: JacProgram,
         ir_in: Module,
         cancel_token: any = None,
@@ -109,11 +109,13 @@ obj OwnershipCheckPass(Transform) {
         nogc_prov: (str | None) = None;
 
     static has PROVIDES: tuple = ('ownership', ),
-        REQUIRES: tuple = ('cfg', 'inference'),
+        REQUIRES: tuple = ('CfgSucc', 'TypeOf'),
         HOST_PASS: bool = True;
 
     def postinit -> None;
     def transform(ir_in: Module) -> Module;
+    def _run_impl(ir_in: Module) -> Module;
+    can run_walk with Module entry;
     def _nogc_setup -> None;
     def _nogc_resolve_provenance -> (str | None);
     def _nogc_infer_locals -> None;
@@ -168,6 +170,11 @@ obj OwnershipCheckPass(Transform) {
     def _emit_region_escape(nm: Name, region: OpenStmt) -> None;
     def _region_expr_is_scalar(expr: Expr | None) -> bool;
     def _region_callee_is_safe(call: FuncCall, region: OpenStmt) -> bool;
+    def _region_call_result_rooted(
+        expr: Expr | None, region: OpenStmt, hsid: SymId | None
+    ) -> bool;
+
+    def _emit_region_call_escape(call: Expr, region: OpenStmt) -> None;
     def _stamp_region_borrows -> None;
     def _open_handle_name(region: OpenStmt) -> (Name | None);
     def _seal_connect_handle(bx: BinaryExpr) -> (Name | None);

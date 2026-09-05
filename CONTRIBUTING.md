@@ -215,7 +215,7 @@ Every generated file that is tracked in git must carry the standard marker as it
 # DO NOT EDIT MANUALLY - regenerate with `<command>`.
 ```
 
-Generated artifacts that are not meant to be tracked must be written to a cache or build-output directory (or be reliably cleaned up), never left in the source tree. If CI can cheaply verify the file is in sync (like `jac gen-uni-dispatch --verify`), wire that up; otherwise guard it with a snapshot test. Better still, derive the table at compile time with `comptime` so there is no generated file to keep in sync at all, as the CLI manifest does.
+Generated artifacts that are not meant to be tracked must be written to a cache or build-output directory (or be reliably cleaned up), never left in the source tree. If CI can cheaply verify the file is in sync, wire that up; otherwise guard it with a snapshot test. Better still, derive the table at compile time with `comptime` so there is no generated file to keep in sync at all, as the CLI manifest does.
 
 **Issue Assignment**
 
@@ -260,10 +260,13 @@ After the release PR is merged, the **Release** workflow triggers automatically:
    - Go to **GitHub Actions** -> find the running **Release** workflow
    - Click the paused job, then **Review deployments**, select `release-approval`, and **Approve and deploy**
 2. The workflow then handles everything automatically:
-   - Tags `v<version>` at the merge commit and creates/updates the GitHub Release
+   - Tags `v<version>` at the release PR's merge commit, and builds that exact commit (the build is pinned to the sha, not to the tag), then creates/updates the GitHub Release
    - Builds the native `jac` binary per platform (Linux x86_64 + aarch64 at a pinned glibc 2.17 floor, macOS arm64), smoke-tests each on real hardware, verifies the Linux glibc floors, and attaches the binaries + checksums to the Release
+   - The Intel-Mac binary (macos-x86_64) is not part of the release matrix; it is a manual lane, see the troubleshooting table below
 
-Every step is idempotent: re-running a partial release converges instead of erroring (existing tags are left in place, the release is updated in place, and asset uploads clobber).
+Every step is idempotent: re-running a partial release converges instead of erroring (a tag already on the release commit is left in place, the release is updated in place, and asset uploads clobber).
+
+A tag that points at a *different* commit is a refusal, not a re-run. The tag is never moved (a published release's assets and notes describe the commit it was cut from), and the release stops rather than quietly rebuilding the old tree. See the troubleshooting table below for the two ways out.
 
 ### Troubleshooting
 
@@ -274,3 +277,5 @@ Every step is idempotent: re-running a partial release converges instead of erro
 | Publish workflow didn't trigger | Ensure the PR branch started with `release/` |
 | Binaries missing from the release | Re-run **Build jac native binaries** via `workflow_dispatch` with the release tag (e.g. `v0.30.4`); it rebuilds and re-attaches idempotently. An empty tag builds artifacts only (a dry run that attaches nothing) |
 | Need to re-run after the release PR is merged | Manually trigger **Release** with `action: publish`; the version is re-read from the root `jac.toml` |
+| `Refusing to release vX.Y.Z: the tag already exists and points at a different commit` | The version was cut once already, from a commit that is not the one you are releasing now (a reverted release, say). Either bump the version and release that instead, or, **only if `vX.Y.Z` was never published** (its Release is still a draft with no assets), retire the stale tag and draft with `gh release delete vX.Y.Z --cleanup-tag --yes` and re-run. Never move a tag whose release was published: its assets and notes describe the old commit, and users who installed it keep that build |
+| Need an Intel-Mac (macos-x86_64) binary for a release | The leg is manual: it is off the release matrix (broken since #8805, and it sat on every release's critical path on the slowest runners while shipping nothing). Dispatch **Build jac native binaries** with `only: macos-x86_64` and `tag: vX.Y.Z`; it builds that one leg and attaches the asset to the already-published release. `plan` refuses `only` + `tag` for any blocking leg, so this lane can never publish a partial release. A weekly probe in nightly.yml (`intel-mac-probe`) builds the leg with no tag so it keeps a signal |

@@ -1,18 +1,14 @@
 import from typing { TypeAlias }
 import from jaclang.compiler.frontend.unitree {
     Ability,
-    Archetype,
     Assignment,
     AtomTrailer,
     BinaryExpr,
     BoolExpr,
     CompareExpr,
-    ConnectOp,
-    CtrlStmt,
     DictCompr,
     DictVal,
     Expr,
-    ExprStmt,
     FString,
     FuncCall,
     FuncSignature,
@@ -29,26 +25,21 @@ import from jaclang.compiler.frontend.unitree {
     MultiString,
     Name,
     NameAtom,
-    OpenStmt,
     ParamVar,
-    RaiseStmt,
     ReturnStmt,
     SetVal,
     String,
     Symbol,
     Test,
-    Token,
     UnaryExpr,
     UniCFGNode,
     UniNode,
-    WhileStmt,
-    YieldExpr
+    WhileStmt
 }
 import from jaclang.compiler.passes.dataflow { solve_backward_gen_kill }
 import from jaclang.compiler.frontend.constant {
     OwnershipKind,
     SymbolStorage,
-    Tokens as Tok,
     is_borrow_kind
 }
 import from jaclang.compiler.passes.transform { Transform }
@@ -111,17 +102,19 @@ def loop_body_locals(body: (Sequence[UniNode] | None)) -> list[str] {
     return out;
 }
 
-obj RcFactsPass(Transform) {
+walker RcFactsPass(Transform) {
     has ir_in: Module,
         cancel_token: any = None,
         _node_use: dict[int, set[SymId]] = {},
         _node_def: dict[int, set[SymId]] = {};
 
     static has PROVIDES: tuple = ('rc-facts', ),
-        REQUIRES: tuple = ('cfg', );
+        REQUIRES: tuple = ('CfgSucc', );
 
     def postinit -> None;
     def transform(ir_in: Module) -> Module;
+    def _run_impl(ir_in: Module) -> Module;
+    can run_walk with Module entry;
     def _stamp_param_rebound(ir_in: Module) -> None;
     def _stamp_escapes(ir_in: Module) -> None;
     def _call_use_stack_safe(nm: NameAtom, sym: Symbol) -> bool;
@@ -134,18 +127,6 @@ obj RcFactsPass(Transform) {
     def _is_param_sym(sym: Symbol) -> bool;
     def _stamp_last_use(ir_in: Module) -> None;
     def _stamp_move_in(ir_in: Module) -> None;
-    def _stamp_anon_regions(ir_in: Module) -> None;
-    def _scan_anon_region_block(
-        body: Sequence[UniNode]
-    ) -> list[tuple[int, int, list[str]]];
-
-    def _arch_of_call(expr: (UniNode | None)) -> (Archetype | None);
-    def _connect_chain_leaves(expr: UniNode) -> (list[Name] | None);
-    def _blessed_arch_call(fc: FuncCall, member_sids: set[int]) -> bool;
-    def _anon_extent_poisoned(
-        body: Sequence[UniNode], open_idx: int, close_idx: int, member_sids: set[int]
-    ) -> bool;
-
     def _collect_last_use(
         owner: UniNode, body: Sequence[UniNode], out: dict[int, list[str]]
     ) -> None;

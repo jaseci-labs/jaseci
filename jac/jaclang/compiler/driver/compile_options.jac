@@ -21,11 +21,14 @@ obj CompileOptions {
     has symtab_ir_only: bool = False,
         no_cgen: bool = False,
         native_parity: bool = False,
+        iface_ok: bool = False,
+        need_full_ast: bool = False,
         skip_native_engine: bool = False,
         no_ir_cache: bool = False,
         resolve_annex_parent: bool = False,
         force_target_program: bool = False,
         aot_mode: bool = False,
+        kernel_unit: bool = False,
         force_codespace: str = "",
         na_gc_mode: (str | None) = None,
         nogc_enforce_all: bool = False,
@@ -112,7 +115,8 @@ obj CompileOptions {
                 f"rc_debug={int(bool(self.rc_debug_codegen))}",
                 f"target={self.native_target}",
                 f"native_debug={int(bool(self.native_debug))}",
-                f"opt={self.opt_level}"
+                f"opt={self.opt_level}",
+                f"kernel_unit={int(bool(self.kernel_unit))}"
             ]
         );
     }
@@ -120,6 +124,24 @@ obj CompileOptions {
     def codegen_fingerprint -> str {
         import hashlib;
         return hashlib.sha256(self.codegen_identity().encode()).hexdigest()[:12];
+    }
+
+    def analysis_identity -> str {
+        return ";".join(
+            [
+                f"gc={self.na_gc_mode}",
+                f"nogc_all={int(bool(self.nogc_enforce_all))}",
+                f"nogc_cli={self.nogc_cli_target}",
+                "nogc_mods=" + ",".join(sorted(self.nogc_enforce_modules or [])),
+                "nogc_grand=" + ",".join(sorted(self.nogc_grandfathered or [])),
+                f"target={self.native_target}"
+            ]
+        );
+    }
+
+    def analysis_fingerprint -> str {
+        import hashlib;
+        return hashlib.sha256(self.analysis_identity().encode()).hexdigest()[:12];
     }
 
     def clone_for_native_import -> CompileOptions {
@@ -169,6 +191,11 @@ obj CompileOptions {
 
 def effective_codegen_fingerprint -> str {
     return CompileOptions().codegen_fingerprint();
+}
+
+
+def effective_analysis_fingerprint -> str {
+    return CompileOptions().analysis_fingerprint();
 }
 
 def link_fingerprint_mismatches(

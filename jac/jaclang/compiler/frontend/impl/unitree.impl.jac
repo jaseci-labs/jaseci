@@ -1,14 +1,1078 @@
 impl UniNode.postinit -> None {
-    self.parent = None;
-    self.kid = [x.set_parent(self) for x in self.kid];
     self.__sub_node_tab = None;
+    self._ctx_parent = None;
+    self._struct_frozen = False;
     self._in_mod_nodes = [];
     self._gen = None;
     self.ct_pruned = False;
+    if self?._role_shapes is None {
+        self._role_shapes = None;
+    }
     (first_tok, last_tok) = self.resolve_tok_range();
     self.loc = CodeLocInfo(first_tok, last_tok);
 }
 
+impl UniNode.walk_kids with TreeWalker entry {
+    visit : 0 : [
+        k
+        for k in self.kid
+        if k and not k.ct_pruned
+    ];
+}
+
+impl UniNode._attach(child: UniNode, role: type[Role]) -> None {
+    if role is Role {
+        self +>:Role:+> child;
+        return;
+    }
+    if role is ImplOf {
+        self +>:ImplOf:+> child;
+        return;
+    }
+    if role is AccessRole {
+        self +>:AccessRole:+> child;
+        return;
+    }
+    if role is AccessorsRole {
+        self +>:AccessorsRole:+> child;
+        return;
+    }
+    if role is AliasRole {
+        self +>:AliasRole:+> child;
+        return;
+    }
+    if role is ArchTagInfoRole {
+        self +>:ArchTagInfoRole:+> child;
+        return;
+    }
+    if role is ArchTypeRole {
+        self +>:ArchTypeRole:+> child;
+        return;
+    }
+    if role is ArgPatternsRole {
+        self +>:ArgPatternsRole:+> child;
+        return;
+    }
+    if role is AssignmentsRole {
+        self +>:AssignmentsRole:+> child;
+        return;
+    }
+    if role is AssignsRole {
+        self +>:AssignsRole:+> child;
+        return;
+    }
+    if role is AttributesRole {
+        self +>:AttributesRole:+> child;
+        return;
+    }
+    if role is AugOpRole {
+        self +>:AugOpRole:+> child;
+        return;
+    }
+    if role is AwaitingBodyRole {
+        self +>:AwaitingBodyRole:+> child;
+        return;
+    }
+    if role is BaseClassesRole {
+        self +>:BaseClassesRole:+> child;
+        return;
+    }
+    if role is BodyRole {
+        self +>:BodyRole:+> child;
+        return;
+    }
+    if role is BoundRole {
+        self +>:BoundRole:+> child;
+        return;
+    }
+    if role is CasesRole {
+        self +>:CasesRole:+> child;
+        return;
+    }
+    if role is CastTypeRole {
+        self +>:CastTypeRole:+> child;
+        return;
+    }
+    if role is CauseRole {
+        self +>:CauseRole:+> child;
+        return;
+    }
+    if role is ChainRole {
+        self +>:ChainRole:+> child;
+        return;
+    }
+    if role is ChildrenRole {
+        self +>:ChildrenRole:+> child;
+        return;
+    }
+    if role is ClibDeclsRole {
+        self +>:ClibDeclsRole:+> child;
+        return;
+    }
+    if role is CodeRole {
+        self +>:CodeRole:+> child;
+        return;
+    }
+    if role is CollectionRole {
+        self +>:CollectionRole:+> child;
+        return;
+    }
+    if role is ComparesRole {
+        self +>:ComparesRole:+> child;
+        return;
+    }
+    if role is ComprRole {
+        self +>:ComprRole:+> child;
+        return;
+    }
+    if role is ConditionRole {
+        self +>:ConditionRole:+> child;
+        return;
+    }
+    if role is ConditionalRole {
+        self +>:ConditionalRole:+> child;
+        return;
+    }
+    if role is ConnAssignRole {
+        self +>:ConnAssignRole:+> child;
+        return;
+    }
+    if role is ConnTypeRole {
+        self +>:ConnTypeRole:+> child;
+        return;
+    }
+    if role is CountByRole {
+        self +>:CountByRole:+> child;
+        return;
+    }
+    if role is CtrlRole {
+        self +>:CtrlRole:+> child;
+        return;
+    }
+    if role is DecoratorsRole {
+        self +>:DecoratorsRole:+> child;
+        return;
+    }
+    if role is DefaultValRole {
+        self +>:DefaultValRole:+> child;
+        return;
+    }
+    if role is DescriptionRole {
+        self +>:DescriptionRole:+> child;
+        return;
+    }
+    if role is DocRole {
+        self +>:DocRole:+> child;
+        return;
+    }
+    if role is DynamicTagRole {
+        self +>:DynamicTagRole:+> child;
+        return;
+    }
+    if role is EdgeSpecRole {
+        self +>:EdgeSpecRole:+> child;
+        return;
+    }
+    if role is ElseBodyRole {
+        self +>:ElseBodyRole:+> child;
+        return;
+    }
+    if role is ElseValueRole {
+        self +>:ElseValueRole:+> child;
+        return;
+    }
+    if role is EndRole {
+        self +>:EndRole:+> child;
+        return;
+    }
+    if role is ErrorMsgRole {
+        self +>:ErrorMsgRole:+> child;
+        return;
+    }
+    if role is EventRole {
+        self +>:EventRole:+> child;
+        return;
+    }
+    if role is ExTypeRole {
+        self +>:ExTypeRole:+> child;
+        return;
+    }
+    if role is ExceptsRole {
+        self +>:ExceptsRole:+> child;
+        return;
+    }
+    if role is ExprRole {
+        self +>:ExprRole:+> child;
+        return;
+    }
+    if role is ExprsRole {
+        self +>:ExprsRole:+> child;
+        return;
+    }
+    if role is FTypeRole {
+        self +>:FTypeRole:+> child;
+        return;
+    }
+    if role is FilterCondRole {
+        self +>:FilterCondRole:+> child;
+        return;
+    }
+    if role is FinallyBodyRole {
+        self +>:FinallyBodyRole:+> child;
+        return;
+    }
+    if role is FormatPartRole {
+        self +>:FormatPartRole:+> child;
+        return;
+    }
+    if role is FormatSpecRole {
+        self +>:FormatSpecRole:+> child;
+        return;
+    }
+    if role is FromLocRole {
+        self +>:FromLocRole:+> child;
+        return;
+    }
+    if role is FromTargetRole {
+        self +>:FromTargetRole:+> child;
+        return;
+    }
+    if role is GuardRole {
+        self +>:GuardRole:+> child;
+        return;
+    }
+    if role is HintRole {
+        self +>:HintRole:+> child;
+        return;
+    }
+    if role is InsertLocRole {
+        self +>:InsertLocRole:+> child;
+        return;
+    }
+    if role is ItemsRole {
+        self +>:ItemsRole:+> child;
+        return;
+    }
+    if role is IterRole {
+        self +>:IterRole:+> child;
+        return;
+    }
+    if role is KeyRole {
+        self +>:KeyRole:+> child;
+        return;
+    }
+    if role is KeywordsRole {
+        self +>:KeywordsRole:+> child;
+        return;
+    }
+    if role is KvPairRole {
+        self +>:KvPairRole:+> child;
+        return;
+    }
+    if role is KvPairsRole {
+        self +>:KvPairsRole:+> child;
+        return;
+    }
+    if role is KwPatternsRole {
+        self +>:KwPatternsRole:+> child;
+        return;
+    }
+    if role is KwargsRole {
+        self +>:KwargsRole:+> child;
+        return;
+    }
+    if role is KwonlyargsRole {
+        self +>:KwonlyargsRole:+> child;
+        return;
+    }
+    if role is LeftRole {
+        self +>:LeftRole:+> child;
+        return;
+    }
+    if role is MainRole {
+        self +>:MainRole:+> child;
+        return;
+    }
+    if role is NameRole {
+        self +>:NameRole:+> child;
+        return;
+    }
+    if role is NameRefRole {
+        self +>:NameRefRole:+> child;
+        return;
+    }
+    if role is OpRole {
+        self +>:OpRole:+> child;
+        return;
+    }
+    if role is OperandRole {
+        self +>:OperandRole:+> child;
+        return;
+    }
+    if role is OpsRole {
+        self +>:OpsRole:+> child;
+        return;
+    }
+    if role is OutExprRole {
+        self +>:OutExprRole:+> child;
+        return;
+    }
+    if role is ParamsRole {
+        self +>:ParamsRole:+> child;
+        return;
+    }
+    if role is PartsRole {
+        self +>:PartsRole:+> child;
+        return;
+    }
+    if role is PathRole {
+        self +>:PathRole:+> child;
+        return;
+    }
+    if role is PatternRole {
+        self +>:PatternRole:+> child;
+        return;
+    }
+    if role is PatternsRole {
+        self +>:PatternsRole:+> child;
+        return;
+    }
+    if role is PosonlyParamsRole {
+        self +>:PosonlyParamsRole:+> child;
+        return;
+    }
+    if role is ReturnTypeRole {
+        self +>:ReturnTypeRole:+> child;
+        return;
+    }
+    if role is RightRole {
+        self +>:RightRole:+> child;
+        return;
+    }
+    if role is RightsRole {
+        self +>:RightsRole:+> child;
+        return;
+    }
+    if role is SignatureRole {
+        self +>:SignatureRole:+> child;
+        return;
+    }
+    if role is SlicesRole {
+        self +>:SlicesRole:+> child;
+        return;
+    }
+    if role is SpecRole {
+        self +>:SpecRole:+> child;
+        return;
+    }
+    if role is SrcEndpointRole {
+        self +>:SrcEndpointRole:+> child;
+        return;
+    }
+    if role is StartRole {
+        self +>:StartRole:+> child;
+        return;
+    }
+    if role is StepRole {
+        self +>:StepRole:+> child;
+        return;
+    }
+    if role is StopRole {
+        self +>:StopRole:+> child;
+        return;
+    }
+    if role is StringsRole {
+        self +>:StringsRole:+> child;
+        return;
+    }
+    if role is TargetRole {
+        self +>:TargetRole:+> child;
+        return;
+    }
+    if role is TgtEndpointRole {
+        self +>:TgtEndpointRole:+> child;
+        return;
+    }
+    if role is TokRole {
+        self +>:TokRole:+> child;
+        return;
+    }
+    if role is TypeCtxRole {
+        self +>:TypeCtxRole:+> child;
+        return;
+    }
+    if role is TypeParamsRole {
+        self +>:TypeParamsRole:+> child;
+        return;
+    }
+    if role is TypeTagRole {
+        self +>:TypeTagRole:+> child;
+        return;
+    }
+    if role is UnpackRole {
+        self +>:UnpackRole:+> child;
+        return;
+    }
+    if role is ValueRole {
+        self +>:ValueRole:+> child;
+        return;
+    }
+    if role is ValueTypeRole {
+        self +>:ValueTypeRole:+> child;
+        return;
+    }
+    if role is ValuesRole {
+        self +>:ValuesRole:+> child;
+        return;
+    }
+    if role is VarargsRole {
+        self +>:VarargsRole:+> child;
+        return;
+    }
+    if role is VarsRole {
+        self +>:VarsRole:+> child;
+        return;
+    }
+    self +>:(role):+> child;
+}
+
+impl UniNode._as_node_list(value: any) -> list[UniNode] {
+    return value;
+}
+
+impl UniNode._link(kid: Sequence[UniNode], roles: dict[type, any]) -> None {
+    if not roles {
+        for k in kid {
+            if k is not None {
+                self +>:Kid:+> k;
+            }
+        }
+        return;
+    }
+
+    role_of: dict[int, type] = {};
+    extra_roles: dict[int, list[type]] = {};
+    if roles {
+        shapes: dict[type, str] = self?._role_shapes or {};
+        self._role_shapes = shapes;
+        for (role, value) in roles.items() {
+            if value is None {
+                shapes[role] = "none";
+            } elif isinstance(value, (list, tuple)) {
+                shapes[role] = "many";
+                vlist = self._as_node_list(value);
+                for v in vlist {
+                    if isinstance(v, UniNode) {
+                        prev = role_of.get(id(v));
+                        if prev is None {
+                            role_of[id(v)] = role;
+                        } elif prev is not role {
+                            extra_roles.setdefault(id(v), []).append(role);
+                        }
+                    }
+                }
+            } elif isinstance(value, UniNode) {
+                shapes[role] = "one";
+                prev = role_of.get(id(value));
+                if prev is None {
+                    role_of[id(value)] = role;
+                } elif prev is not role {
+                    extra_roles.setdefault(id(value), []).append(role);
+                }
+            } else {
+                shapes[role] = "none";
+            }
+        }
+    }
+    attached: set[int] = set();
+    for k in kid {
+        if k is not None {
+            self +>:Kid:+> k;
+            role = role_of.get(id(k));
+            if role is not None and id(k) not in attached {
+                self._attach(k, role);
+                attached.add(id(k));
+                if extra_roles {
+                    for extra in extra_roles.get(id(k), []) {
+                        self._attach(k, extra);
+                    }
+                }
+            }
+        }
+    }
+    for (role, value) in roles.items() {
+        if isinstance(value, (list, tuple)) {
+            vlist2 = self._as_node_list(value);
+            for v in vlist2 {
+                if isinstance(v, UniNode) and id(v) not in attached {
+                    self._attach(v, role);
+                    attached.add(id(v));
+                    if extra_roles {
+                        for extra in extra_roles.get(id(v), []) {
+                            if extra is not role {
+                                self._attach(v, extra);
+                            }
+                        }
+                    }
+                }
+            }
+        } elif isinstance(value, UniNode) and id(value) not in attached {
+            one: UniNode = value;
+            self._attach(one, role);
+            attached.add(id(one));
+            if extra_roles {
+                for extra in extra_roles.get(id(one), []) {
+                    if extra is not role {
+                        self._attach(one, extra);
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl UniNode._children -> list[UniNode] {
+    out: list[UniNode] = self.kid;
+    seen: set[int] = {id(k) for k in out};
+    for tgt in [self->:Role:->] {
+        if id(tgt) not in seen {
+            seen.add(id(tgt));
+            out.append(tgt);
+        }
+    }
+    return out;
+}
+
+impl UniNode.kid.getter -> list[UniNode] {
+    return [self->:Kid:->];
+}
+
+impl UniNode.parent.getter -> (UniNode | None) {
+    found = [self<-:Kid:<-];
+    if found {
+        return found[-1];
+    }
+    holders = [self<-:Role:<-];
+    return holders[-1] if holders else self._ctx_parent;
+}
+
+impl UniNode._role_shaped(role: type[Role], found: list[UniNode]) -> any {
+    shape = (self?._role_shapes or {}).get(role, "none");
+    if shape == "many" {
+        return found;
+    }
+    if shape == "one" {
+        return found[0] if found else None;
+    }
+    return None;
+}
+
+impl UniNode._assert_thawed -> None {
+    if self._struct_frozen {
+        raise RuntimeError(
+            f"structural mutation of frozen node {type(self).__name__}; "
+            "call thaw_structure() on the module first"
+        );
+    }
+}
+
+impl UniNode.freeze_structure -> None {
+    stack: list[UniNode] = [self];
+    seen: set[int] = set();
+    while stack {
+        nd = stack.pop();
+        if id(nd) in seen {
+            continue;
+        }
+        seen.add(id(nd));
+        nd._struct_frozen = True;
+        for tgt in nd._children() {
+            if id(tgt) not in seen {
+                stack.append(tgt);
+            }
+        }
+    }
+}
+
+impl UniNode.thaw_structure -> None {
+    stack: list[UniNode] = [self];
+    seen: set[int] = set();
+    while stack {
+        nd = stack.pop();
+        if id(nd) in seen {
+            continue;
+        }
+        seen.add(id(nd));
+        nd._struct_frozen = False;
+        for tgt in nd._children() {
+            if id(tgt) not in seen {
+                stack.append(tgt);
+            }
+        }
+    }
+}
+
+impl UniNode.structure_thawed -> StructureThaw {
+    return StructureThaw(target=self);
+}
+
+impl StructureThaw.__enter__ -> StructureThaw {
+    self.refreeze = self.target._struct_frozen;
+    if self.refreeze {
+        self.target.thaw_structure();
+    }
+    return self;
+}
+
+impl StructureThaw.__exit__(exc_type: any, exc: any, tb: any) -> bool {
+    if self.refreeze {
+        self.target.freeze_structure();
+    }
+    return False;
+}
+
+impl UniNode._role_clear(role: type[Role]) -> None {
+    if role is Role {
+        del [edge self->:Role:->];
+        return;
+    }
+    if role is ImplOf {
+        del [edge self->:ImplOf:->];
+        return;
+    }
+    if role is AccessRole {
+        del [edge self->:AccessRole:->];
+        return;
+    }
+    if role is AccessorsRole {
+        del [edge self->:AccessorsRole:->];
+        return;
+    }
+    if role is AliasRole {
+        del [edge self->:AliasRole:->];
+        return;
+    }
+    if role is ArchTagInfoRole {
+        del [edge self->:ArchTagInfoRole:->];
+        return;
+    }
+    if role is ArchTypeRole {
+        del [edge self->:ArchTypeRole:->];
+        return;
+    }
+    if role is ArgPatternsRole {
+        del [edge self->:ArgPatternsRole:->];
+        return;
+    }
+    if role is AssignmentsRole {
+        del [edge self->:AssignmentsRole:->];
+        return;
+    }
+    if role is AssignsRole {
+        del [edge self->:AssignsRole:->];
+        return;
+    }
+    if role is AttributesRole {
+        del [edge self->:AttributesRole:->];
+        return;
+    }
+    if role is AugOpRole {
+        del [edge self->:AugOpRole:->];
+        return;
+    }
+    if role is AwaitingBodyRole {
+        del [edge self->:AwaitingBodyRole:->];
+        return;
+    }
+    if role is BaseClassesRole {
+        del [edge self->:BaseClassesRole:->];
+        return;
+    }
+    if role is BodyRole {
+        del [edge self->:BodyRole:->];
+        return;
+    }
+    if role is BoundRole {
+        del [edge self->:BoundRole:->];
+        return;
+    }
+    if role is CasesRole {
+        del [edge self->:CasesRole:->];
+        return;
+    }
+    if role is CastTypeRole {
+        del [edge self->:CastTypeRole:->];
+        return;
+    }
+    if role is CauseRole {
+        del [edge self->:CauseRole:->];
+        return;
+    }
+    if role is ChainRole {
+        del [edge self->:ChainRole:->];
+        return;
+    }
+    if role is ChildrenRole {
+        del [edge self->:ChildrenRole:->];
+        return;
+    }
+    if role is ClibDeclsRole {
+        del [edge self->:ClibDeclsRole:->];
+        return;
+    }
+    if role is CodeRole {
+        del [edge self->:CodeRole:->];
+        return;
+    }
+    if role is CollectionRole {
+        del [edge self->:CollectionRole:->];
+        return;
+    }
+    if role is ComparesRole {
+        del [edge self->:ComparesRole:->];
+        return;
+    }
+    if role is ComprRole {
+        del [edge self->:ComprRole:->];
+        return;
+    }
+    if role is ConditionRole {
+        del [edge self->:ConditionRole:->];
+        return;
+    }
+    if role is ConditionalRole {
+        del [edge self->:ConditionalRole:->];
+        return;
+    }
+    if role is ConnAssignRole {
+        del [edge self->:ConnAssignRole:->];
+        return;
+    }
+    if role is ConnTypeRole {
+        del [edge self->:ConnTypeRole:->];
+        return;
+    }
+    if role is CountByRole {
+        del [edge self->:CountByRole:->];
+        return;
+    }
+    if role is CtrlRole {
+        del [edge self->:CtrlRole:->];
+        return;
+    }
+    if role is DecoratorsRole {
+        del [edge self->:DecoratorsRole:->];
+        return;
+    }
+    if role is DefaultValRole {
+        del [edge self->:DefaultValRole:->];
+        return;
+    }
+    if role is DescriptionRole {
+        del [edge self->:DescriptionRole:->];
+        return;
+    }
+    if role is DocRole {
+        del [edge self->:DocRole:->];
+        return;
+    }
+    if role is DynamicTagRole {
+        del [edge self->:DynamicTagRole:->];
+        return;
+    }
+    if role is EdgeSpecRole {
+        del [edge self->:EdgeSpecRole:->];
+        return;
+    }
+    if role is ElseBodyRole {
+        del [edge self->:ElseBodyRole:->];
+        return;
+    }
+    if role is ElseValueRole {
+        del [edge self->:ElseValueRole:->];
+        return;
+    }
+    if role is EndRole {
+        del [edge self->:EndRole:->];
+        return;
+    }
+    if role is ErrorMsgRole {
+        del [edge self->:ErrorMsgRole:->];
+        return;
+    }
+    if role is EventRole {
+        del [edge self->:EventRole:->];
+        return;
+    }
+    if role is ExTypeRole {
+        del [edge self->:ExTypeRole:->];
+        return;
+    }
+    if role is ExceptsRole {
+        del [edge self->:ExceptsRole:->];
+        return;
+    }
+    if role is ExprRole {
+        del [edge self->:ExprRole:->];
+        return;
+    }
+    if role is ExprsRole {
+        del [edge self->:ExprsRole:->];
+        return;
+    }
+    if role is FTypeRole {
+        del [edge self->:FTypeRole:->];
+        return;
+    }
+    if role is FilterCondRole {
+        del [edge self->:FilterCondRole:->];
+        return;
+    }
+    if role is FinallyBodyRole {
+        del [edge self->:FinallyBodyRole:->];
+        return;
+    }
+    if role is FormatPartRole {
+        del [edge self->:FormatPartRole:->];
+        return;
+    }
+    if role is FormatSpecRole {
+        del [edge self->:FormatSpecRole:->];
+        return;
+    }
+    if role is FromLocRole {
+        del [edge self->:FromLocRole:->];
+        return;
+    }
+    if role is FromTargetRole {
+        del [edge self->:FromTargetRole:->];
+        return;
+    }
+    if role is GuardRole {
+        del [edge self->:GuardRole:->];
+        return;
+    }
+    if role is HintRole {
+        del [edge self->:HintRole:->];
+        return;
+    }
+    if role is InsertLocRole {
+        del [edge self->:InsertLocRole:->];
+        return;
+    }
+    if role is ItemsRole {
+        del [edge self->:ItemsRole:->];
+        return;
+    }
+    if role is IterRole {
+        del [edge self->:IterRole:->];
+        return;
+    }
+    if role is KeyRole {
+        del [edge self->:KeyRole:->];
+        return;
+    }
+    if role is KeywordsRole {
+        del [edge self->:KeywordsRole:->];
+        return;
+    }
+    if role is KvPairRole {
+        del [edge self->:KvPairRole:->];
+        return;
+    }
+    if role is KvPairsRole {
+        del [edge self->:KvPairsRole:->];
+        return;
+    }
+    if role is KwPatternsRole {
+        del [edge self->:KwPatternsRole:->];
+        return;
+    }
+    if role is KwargsRole {
+        del [edge self->:KwargsRole:->];
+        return;
+    }
+    if role is KwonlyargsRole {
+        del [edge self->:KwonlyargsRole:->];
+        return;
+    }
+    if role is LeftRole {
+        del [edge self->:LeftRole:->];
+        return;
+    }
+    if role is MainRole {
+        del [edge self->:MainRole:->];
+        return;
+    }
+    if role is NameRole {
+        del [edge self->:NameRole:->];
+        return;
+    }
+    if role is NameRefRole {
+        del [edge self->:NameRefRole:->];
+        return;
+    }
+    if role is OpRole {
+        del [edge self->:OpRole:->];
+        return;
+    }
+    if role is OperandRole {
+        del [edge self->:OperandRole:->];
+        return;
+    }
+    if role is OpsRole {
+        del [edge self->:OpsRole:->];
+        return;
+    }
+    if role is OutExprRole {
+        del [edge self->:OutExprRole:->];
+        return;
+    }
+    if role is ParamsRole {
+        del [edge self->:ParamsRole:->];
+        return;
+    }
+    if role is PartsRole {
+        del [edge self->:PartsRole:->];
+        return;
+    }
+    if role is PathRole {
+        del [edge self->:PathRole:->];
+        return;
+    }
+    if role is PatternRole {
+        del [edge self->:PatternRole:->];
+        return;
+    }
+    if role is PatternsRole {
+        del [edge self->:PatternsRole:->];
+        return;
+    }
+    if role is PosonlyParamsRole {
+        del [edge self->:PosonlyParamsRole:->];
+        return;
+    }
+    if role is ReturnTypeRole {
+        del [edge self->:ReturnTypeRole:->];
+        return;
+    }
+    if role is RightRole {
+        del [edge self->:RightRole:->];
+        return;
+    }
+    if role is RightsRole {
+        del [edge self->:RightsRole:->];
+        return;
+    }
+    if role is SignatureRole {
+        del [edge self->:SignatureRole:->];
+        return;
+    }
+    if role is SlicesRole {
+        del [edge self->:SlicesRole:->];
+        return;
+    }
+    if role is SpecRole {
+        del [edge self->:SpecRole:->];
+        return;
+    }
+    if role is SrcEndpointRole {
+        del [edge self->:SrcEndpointRole:->];
+        return;
+    }
+    if role is StartRole {
+        del [edge self->:StartRole:->];
+        return;
+    }
+    if role is StepRole {
+        del [edge self->:StepRole:->];
+        return;
+    }
+    if role is StopRole {
+        del [edge self->:StopRole:->];
+        return;
+    }
+    if role is StringsRole {
+        del [edge self->:StringsRole:->];
+        return;
+    }
+    if role is TargetRole {
+        del [edge self->:TargetRole:->];
+        return;
+    }
+    if role is TgtEndpointRole {
+        del [edge self->:TgtEndpointRole:->];
+        return;
+    }
+    if role is TokRole {
+        del [edge self->:TokRole:->];
+        return;
+    }
+    if role is TypeCtxRole {
+        del [edge self->:TypeCtxRole:->];
+        return;
+    }
+    if role is TypeParamsRole {
+        del [edge self->:TypeParamsRole:->];
+        return;
+    }
+    if role is TypeTagRole {
+        del [edge self->:TypeTagRole:->];
+        return;
+    }
+    if role is UnpackRole {
+        del [edge self->:UnpackRole:->];
+        return;
+    }
+    if role is ValueRole {
+        del [edge self->:ValueRole:->];
+        return;
+    }
+    if role is ValueTypeRole {
+        del [edge self->:ValueTypeRole:->];
+        return;
+    }
+    if role is ValuesRole {
+        del [edge self->:ValuesRole:->];
+        return;
+    }
+    if role is VarargsRole {
+        del [edge self->:VarargsRole:->];
+        return;
+    }
+    if role is VarsRole {
+        del [edge self->:VarsRole:->];
+        return;
+    }
+}
+
+impl UniNode._role_set(role: type[Role], value: any) -> None {
+    shapes: dict[type, str] = self?._role_shapes or {};
+    self._role_shapes = shapes;
+    self._role_clear(role);
+    if value is None {
+        shapes[role] = "none";
+    } elif isinstance(value, (list, tuple)) {
+        shapes[role] = "many";
+        vsrc = self._as_node_list(value);
+        for v in vsrc {
+            if isinstance(v, UniNode) {
+                self._attach(v, role);
+            }
+        }
+    } elif isinstance(value, UniNode) {
+        shapes[role] = "one";
+        one: UniNode = value;
+        self._attach(one, role);
+    } else {
+        shapes[role] = "none";
+    }
+    self._invalidate_sub_node_tab();
+}
+
+impl UniNode.link_impl(impl_node: UniNode) -> None {
+    self +>:ImplOf:+> impl_node;
+}
 
 impl UniNode._sub_node_tab.getter -> dict[(type, list[UniNode])] {
     if (self.__sub_node_tab is None) {
@@ -40,7 +1104,7 @@ impl UniNode._construct_sub_node_tab -> None {
 
 impl UniNode._invalidate_sub_node_tab -> None {
     cur: (UniNode | None) = self;
-    while cur is not None and cur.__sub_node_tab is not None {
+    while cur is not None {
         cur.__sub_node_tab = None;
         cur = cur.parent;
     }
@@ -65,79 +1129,137 @@ impl UniNode.sym_tab.getter -> UniScopeNode {
 }
 
 impl UniNode.add_kids_left(
-    nodes: Sequence[UniNode], pos_update: bool = True, parent_update: bool = False
+    nodes: Sequence[UniNode],
+    pos_update: bool = True,
+    parent_update: bool = False,
+    role: (type[Role] | None) = None
 ) -> UniNode {
-    new_kid: list[UniNode] = [];
-    new_kid.extend(nodes);
-    new_kid.extend(self.kid);
-    self.kid = new_kid;
-    if pos_update {
-        for i in nodes {
-            i.parent = self;
-        }
-        self.loc.update_first_token(self.kid[0].loc.first_tok);
-    } elif parent_update {
-        for i in nodes {
-            i.parent = self;
+    self.set_kids([*nodes, *self.kid], pos_update=pos_update);
+    if role is not None {
+        for n in nodes {
+            self._attach(n, role);
         }
     }
-    self._invalidate_sub_node_tab();
     return self;
 }
 
 impl UniNode.add_kids_right(
-    nodes: Sequence[UniNode], pos_update: bool = True, parent_update: bool = False
+    nodes: Sequence[UniNode],
+    pos_update: bool = True,
+    parent_update: bool = False,
+    role: (type[Role] | None) = None
 ) -> UniNode {
-    new_kid: list[UniNode] = [];
-    new_kid.extend(self.kid);
-    new_kid.extend(nodes);
-    self.kid = new_kid;
-    if pos_update {
-        for i in nodes {
-            i.parent = self;
-        }
-        self.loc.update_last_token(self.kid[-1].loc.last_tok);
-    } elif parent_update {
-        for i in nodes {
-            i.parent = self;
+    self.set_kids([*self.kid, *nodes], pos_update=pos_update);
+    if role is not None {
+        for n in nodes {
+            self._attach(n, role);
         }
     }
-    self._invalidate_sub_node_tab();
     return self;
 }
 
 impl UniNode.insert_kids_at_pos(
-    nodes: Sequence[UniNode], pos: int, pos_update: bool = True
+    nodes: Sequence[UniNode],
+    pos: int,
+    pos_update: bool = True,
+    role: (type[Role] | None) = None
 ) -> UniNode {
-    self.kid = [*self.kid[:pos], *nodes, *self.kid[pos:]];
-    if pos_update {
-        for i in nodes {
-            i.parent = self;
+    cur = self.kid;
+    self.set_kids([*cur[:pos], *nodes, *cur[pos:]], pos_update=pos_update);
+    if role is not None {
+        for n in nodes {
+            self._attach(n, role);
         }
-        self.loc.update_token_range(*self.resolve_tok_range());
     }
-    self._invalidate_sub_node_tab();
     return self;
 }
 
-impl UniNode.set_kids(nodes: Sequence[UniNode]) -> UniNode {
-    self.kid = [*nodes];
-    for i in nodes {
-        i.parent = self;
+impl UniNode.set_kids(nodes: Sequence[UniNode], pos_update: bool = True) -> UniNode {
+    self._assert_thawed();
+    del [edge self->:Kid:->];
+    for n in nodes {
+        if n is not None {
+            self +>:Kid:+> n;
+        }
     }
-    self.loc.update_token_range(*self.resolve_tok_range());
     self._invalidate_sub_node_tab();
+    if pos_update {
+        self.loc.update_token_range(*self.resolve_tok_range());
+    }
     return self;
+}
+
+impl UniNode.replace_kid(old: UniNode, new: UniNode) -> UniNode {
+    self._assert_thawed();
+    roles: list[type] = [];
+    for e in [edge self->:Role:->] {
+        if getattr(e, "__jac__").target.archetype is old and `type(e) not in roles {
+            roles.append(`type(e));
+        }
+    }
+    for role in roles {
+        targets = [self->:role:->];
+        del [edge self->:role:->];
+        for t in targets {
+            self._attach(new if t is old else t, role);
+        }
+    }
+    self.set_kids([new if k is old else k for k in self.kid], pos_update=False);
+    return self;
+}
+
+impl UniNode.detached_copy -> UniNode {
+    import copy;
+
+    return copy.deepcopy(self);
+}
+
+impl UniNode.__deepcopy__(memo: dict) -> UniNode {
+    import copy;
+
+    dup = object.__new__(type(self));
+    memo[id(self)] = dup;
+    for (key, val) in self.__dict__.items() {
+        if key == "__jac__" {
+            continue;
+        }
+        if key == "_ctx_parent" or key.endswith("__sub_node_tab") {
+            dup.__dict__[key] = None;
+        } elif key == "_struct_frozen" {
+            dup.__dict__[key] = False;
+        } elif key == "orig_src" {
+            dup.__dict__[key] = val;
+        } else {
+            dup.__dict__[key] = copy.deepcopy(val, memo);
+        }
+    }
+    for k in self.kid {
+        kc = copy.deepcopy(k, memo);
+        dup +>:Kid:+> kc;
+    }
+    roles: list[type] = [];
+    for e in [edge self->:Role:->] {
+        if `type(e) not in roles {
+            roles.append(`type(e));
+        }
+    }
+    for role in roles {
+        for tgt in [self->:role:->] {
+            dup._attach(copy.deepcopy(tgt, memo), role);
+        }
+    }
+    return dup;
 }
 
 impl UniNode.set_parent(parent: UniNode) -> UniNode {
-    self.parent = parent;
+    self._ctx_parent = parent;
     return self;
 }
 
 impl UniNode.resolve_tok_range -> tuple[(Token, Token)] {
-    if len(self.kid) {
-        return (self.kid[0].loc.first_tok, self.kid[-1].loc.last_tok);
+    kids = self.kid;
+    if kids {
+        return (kids[0].loc.first_tok, kids[-1].loc.last_tok);
     } elif isinstance(self, Token) {
         return (self, self);
     } else {
@@ -208,6 +1330,10 @@ impl UniNode.in_native_context -> bool {
     return self.codespace() == CodeContext.NATIVE;
 }
 
+impl Module.absorb_annex_body(stmts: Sequence[UniNode]) -> None {
+    self.add_kids_right(stmts, pos_update=False, parent_update=True, role=BodyRole);
+}
+
 impl Module.declares_codespace(ctx: CodeContext, path_hint: str = '') -> bool {
     if ctx != CodeContext.SERVER and self.decided_codespace == ctx.value {
         return True;
@@ -242,13 +1368,28 @@ impl Symbol.init(
     parent_tab: (UniScopeNode | None) = None,
     imported: bool = False
 ) -> None {
-    self.defn = [defn];
-    self.uses = [];
+    self.name = defn.sym_name;
     self.imported = imported;
-    defn.sym = self;
     self.access = access;
-    self.parent_tab = parent_tab;
     self.semstr = '';
+    self +>:Defines:+> defn;
+    defn.sym = self;
+    if parent_tab is not None {
+        parent_tab +>:InScope:+> self;
+    }
+}
+
+impl Symbol.defn.getter -> list[NameAtom] {
+    return [self->:Defines:->];
+}
+
+impl Symbol.uses.getter -> list[NameAtom] {
+    return [self->:Uses:->];
+}
+
+impl Symbol.parent_tab.getter -> (UniScopeNode | None) {
+    found = [self<-:InScope:<-];
+    return found[0] if found else None;
 }
 
 impl Symbol.decl.getter -> NameAtom {
@@ -279,6 +1420,27 @@ impl Symbol.symbol_table.getter -> (UniScopeNode | None) {
         return self.parent_tab.find_scope(self.sym_name);
     }
     return None;
+}
+
+impl Symbol.binding_kind.getter -> BindingKind {
+    for cur in import_chain_of(self) {
+        decl = cur.decl;
+        item = decl.parent if isinstance(decl.parent, ModuleItem) else None;
+        if item is not None and item.from_parent.is_typed {
+            return BindingKind.TYPE;
+        }
+        if cur._binding_kind is not None {
+            return cur._binding_kind;
+        }
+        if item is None {
+            return binding_kind_of_decl(decl);
+        }
+    }
+    return BindingKind.VALUE;
+}
+
+impl Symbol.binding_kind.setter(binding_kind: BindingKind) -> None {
+    self._binding_kind = binding_kind;
 }
 
 impl Symbol.storage.getter -> SymbolStorage {
@@ -330,7 +1492,7 @@ impl Symbol.storage.getter -> SymbolStorage {
 }
 
 impl Symbol.add_defn(nd: NameAtom) -> None {
-    self.defn.append(nd);
+    self +>:Defines:+> nd;
     nd.sym = self;
 }
 
@@ -340,7 +1502,7 @@ impl Symbol.add_use(nd: NameAtom) -> None {
     if self.in_stub_scope() {
         return;
     }
-    self.uses.append(nd);
+    self +>:Uses:+> nd;
 }
 
 impl Symbol.in_stub_scope -> bool {
@@ -369,11 +1531,41 @@ impl UniScopeNode._init_scope(
     name: str, parent_scope: (UniScopeNode | None) = None
 ) -> None {
     self.scope_name = name;
-    self.parent_scope = parent_scope;
-    self.kid_scope: list[UniScopeNode] = [];
-    self.names_in_scope: dict[(str, Symbol)] = {};
-    self.names_in_scope_overload: dict[(str, list[Symbol])] = {};
     self.implicit_rebinds: dict[(str, Symbol)] = {};
+    self._names_index: dict[(str, Symbol)] = {};
+    self._overload_index: dict[(str, list[Symbol])] = {};
+    if parent_scope is not None {
+        self.parent_scope = parent_scope;
+    }
+}
+
+impl UniScopeNode.parent_scope.getter -> (UniScopeNode | None) {
+    found = [self<-:ScopeChild:<-];
+    if found {
+        return found[-1];
+    }
+    owners = [self->:ScopeParent:->];
+    return owners[-1] if owners else None;
+}
+
+impl UniScopeNode.parent_scope.setter(parent_scope: (UniScopeNode | None)) {
+    del [edge self<-:ScopeChild:<-];
+    del [edge self->:ScopeParent:->];
+    if parent_scope is not None {
+        self +>:ScopeParent:+> parent_scope;
+    }
+}
+
+impl UniScopeNode.kid_scope.getter -> list[UniScopeNode] {
+    return [self->:ScopeChild:->];
+}
+
+impl UniScopeNode.names_in_scope.getter -> dict[(str, Symbol)] {
+    return self?._names_index or {};
+}
+
+impl UniScopeNode.names_in_scope_overload.getter -> dict[(str, list[Symbol])] {
+    return self?._overload_index or {};
 }
 
 impl UniScopeNode.lookup(
@@ -444,15 +1636,21 @@ impl UniScopeNode.insert(
         parent_tab=self,
         imported=imported
     );
-    if (nd.sym_name in self.names_in_scope) {
-        self.names_in_scope_overload.setdefault(nd.sym_name, []).append(symbol);
+    current = self.names_in_scope;
+    if (nd.sym_name in current) {
+        self +>:ScopeOverload:+> symbol;
+        self._overload_index.setdefault(nd.sym_name, []).append(symbol);
     }
-    if (force_overwrite or (nd.sym_name not in self.names_in_scope)) {
-        self.names_in_scope[nd.sym_name] = symbol;
+    if (force_overwrite or (nd.sym_name not in current)) {
+        prev = current.get(nd.sym_name);
+        if prev is not None {
+            self._drop_primary(prev);
+        }
+        self +>:ScopePrimary:+> symbol;
+        self._names_index[nd.sym_name] = symbol;
     } else {
-        self.names_in_scope[nd.sym_name].add_defn(nd.name_spec);
+        current[nd.sym_name].add_defn(nd.name_spec);
     }
-    nd.name_spec.sym = self.names_in_scope[nd.sym_name];
     return collision;
 }
 
@@ -498,10 +1696,38 @@ impl UniScopeNode.get_enclosing_captures -> list[Symbol] {
     return out;
 }
 
+impl UniScopeNode.set_primary_names(syms: dict[(str, Symbol)]) -> None {
+    del [edge self->:ScopePrimary:->];
+    for (key, sym) in syms.items() {
+        self +>:ScopePrimary:+> sym;
+    }
+    self._names_index = dict(syms);
+}
+
+impl UniScopeNode.adopt_primary(sym: Symbol, alias: str = "") -> None {
+    key = alias or sym.name;
+    prev = self._names_index.get(key);
+    if prev is not None {
+        self._drop_primary(prev);
+    }
+    self +>:ScopePrimary:+> sym;
+    self._names_index[key] = sym;
+}
+
+impl UniScopeNode._drop_primary(sym: Symbol) -> None {
+    for e in [edge self->:ScopePrimary:->] {
+        if getattr(e, "__jac__").target.archetype is sym {
+            del e;
+            break;
+        }
+    }
+}
+
 impl UniScopeNode.link_kid_scope(key_node: UniScopeNode) -> UniScopeNode {
-    key_node.parent_scope = self;
-    self.kid_scope.append(key_node);
-    return self.kid_scope[-1];
+    del [edge key_node<-:ScopeChild:<-];
+    del [edge key_node->:ScopeParent:->];
+    self +>:ScopeChild:+> key_node;
+    return key_node;
 }
 
 impl UniScopeNode.def_insert(
@@ -620,7 +1846,7 @@ impl UniScopeNode.__repr__ -> str {
 }
 
 impl AstDocNode.set_doc(elem_doc: (String | None)) -> None {
-    self.doc = elem_doc;
+    self._role_set(DocRole, elem_doc);
 }
 
 
@@ -684,8 +1910,28 @@ impl AstAccessNode.public_access.getter -> bool {
     return (self.access_type == SymbolAccess.PUBLIC);
 }
 
-impl ContextAwareNode.postinit -> None {
-    self.code_context = CodeContext.SERVER;
+impl ContextAwareNode.postinit -> None {}
+
+impl ContextAwareNode.code_context.getter -> CodeContext {
+    found = [self->:PlacedIn:->];
+    return CodeContext(found[0].kind) if found else CodeContext.SERVER;
+}
+
+impl ContextAwareNode.code_context.setter(code_context: CodeContext) {
+    del [edge self->:PlacedIn:->];
+    self +>:PlacedIn:+> codespace_node(code_context.value);
+}
+
+impl Module.decided_codespace.getter -> str {
+    found = [self->:DecidedCodespace:->];
+    return found[0].kind if found else "";
+}
+
+impl Module.decided_codespace.setter(decided_codespace: str) {
+    del [edge self->:DecidedCodespace:->];
+    if decided_codespace {
+        self +>:DecidedCodespace:+> codespace_node(decided_codespace);
+    }
 }
 
 
@@ -695,10 +1941,46 @@ impl WalkerStmtOnlyNode.postinit -> None {
 
 
 impl UniCFGNode.postinit -> None {
-    self.bb_in = [];
-    self.bb_out = [];
     _syms: set[str] = set();
     self.affected_symbols = _syms;
+}
+
+impl UniCFGNode.bb_out.getter -> list[UniCFGNode] {
+    return [self->:CfgSucc:->];
+}
+
+impl UniCFGNode.bb_in.getter -> list[UniCFGNode] {
+    return [self<-:CfgSucc:<-];
+}
+
+impl UniCFGNode.cfg_link(target: UniCFGNode) -> None {
+    if target not in [self->:CfgSucc:->] {
+        self +>:CfgSucc:+> target;
+    }
+}
+
+impl ConditionalNode.sc_true_target.getter -> (UniCFGNode | None) {
+    found = [self->:CfgTrue:->];
+    return found[0] if found else None;
+}
+
+impl ConditionalNode.sc_true_target.setter(sc_true_target: (UniCFGNode | None)) {
+    del [edge self->:CfgTrue:->];
+    if sc_true_target is not None {
+        self +>:CfgTrue:+> sc_true_target;
+    }
+}
+
+impl ConditionalNode.sc_false_target.getter -> (UniCFGNode | None) {
+    found = [self->:CfgFalse:->];
+    return found[0] if found else None;
+}
+
+impl ConditionalNode.sc_false_target.setter(sc_false_target: (UniCFGNode | None)) {
+    del [edge self->:CfgFalse:->];
+    if sc_false_target is not None {
+        self +>:CfgFalse:+> sc_false_target;
+    }
 }
 
 impl ConditionalNode.postinit -> None {
@@ -784,8 +2066,8 @@ impl UniCFGNode.get_tail -> UniCFGNode {
 
 impl Expr.postinit -> None {
     self._type_sym_tab = None;
-    self.type = None;
-    self.narrowed_type = None;
+    self._type_cache = None;
+    self._type_cache_ok = False;
     self.ct_value = None;
     self.coerce_to = None;
     self.fw = None;
@@ -805,7 +2087,6 @@ impl AstImplNeedingNode.needs_impl.getter -> bool {
 
 impl NameAtom.postinit -> None {
     self.name_of = self;
-    self._sym = None;
     self._sym_name = '';
     self._sym_category = SymbolType.UNKNOWN;
     self._expr_ctx = ExprCtx.LOAD;
@@ -898,13 +2179,12 @@ impl SubTag.postinit -> None {
 
 impl Module.postinit -> None {
     self.src_terminals = self.terminals;
+    self.codespace_inferred = False;
     self.ct_file_deps = [];
+    self.ct_body_deps = [];
     self.rc_last_use = {};
     _rc_move_in: set[int] = set();
     self.rc_move_in = _rc_move_in;
-    self.anon_region_open = {};
-    self.anon_region_close = {};
-    self.anon_region_locals = {};
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=self.name);
 }
@@ -919,10 +2199,9 @@ impl Module.annexable_by.getter -> (str | None) {
 }
 
 impl ProgramModule.postinit -> None {
-    self.main = self.main_mod or Module.make_stub();
-    self.kid = [self.main];
     UniNode.postinit(self);
-    self.hub = {self.loc.mod_path: self.main_mod} if self.main_mod else {};
+    main = self.main_mod;
+    self.hub = {self.loc.mod_path: main} if main else {};
 }
 
 
@@ -938,12 +2217,6 @@ impl TypeParam.postinit -> None {
 
 
 impl TypeAlias.postinit -> None {
-    _tp = self.type_params;
-    if _tp is not None {
-        self.type_params = `list(_tp);
-    } else {
-        self.type_params = [];
-    }
     UniNode.postinit(self);
     AstSymbolNode._init_symbol(
         self,
@@ -966,11 +2239,10 @@ impl GlobalVars.postinit -> None {
 
 impl Test.postinit -> None {
     name_node = self.name;
-    name_node.parent = self;
+    name_node.set_parent(self);
     name_node._sym_name = f"test_{name_node.value}"
         if not name_node.value.startswith('test_')
         else name_node.value;
-    self.body = `list(self.body);
     UniNode.postinit(self);
 
     if (self.description is None and name_node not in self.kid) {
@@ -1002,8 +2274,6 @@ impl PyInlineCode.postinit -> None {
 
 
 impl Import.postinit -> None {
-    self.hint = None;
-    self.absorbed_mod = None;
     self.jac_detected = None;
     self.boundary_facts = None;
     self.native_only_drop = False;
@@ -1274,24 +2544,6 @@ impl ModuleItem.resolve_relative_path -> str {
 }
 
 impl Archetype.postinit -> None {
-    _bc = self.base_classes;
-    if _bc is not None {
-        self.base_classes = `list(_bc);
-    } else {
-        self.base_classes = [];
-    }
-    _kw = self.keywords;
-    if _kw is not None {
-        self.keywords = `list(_kw);
-    } else {
-        self.keywords = [];
-    }
-    _tp = self.type_params;
-    if _tp is not None {
-        self.type_params = `list(_tp);
-    } else {
-        self.type_params = [];
-    }
     UniNode.postinit(self);
     AstSymbolNode._init_symbol(
         self,
@@ -1371,7 +2623,6 @@ impl Archetype.get_methods -> list[Ability] {
 }
 
 impl ImplDef.postinit -> None {
-    self.spec = `list(self.spec) if isinstance(self.spec, list) else self.spec;
     UniNode.postinit(self);
     AstSymbolNode._init_symbol(
         self,
@@ -1397,7 +2648,7 @@ impl ImplDef.create_impl_name_node -> Name {
         pos_start=self.target[0].loc.pos_start,
         pos_end=self.target[-1].loc.pos_end
     );
-    ret.parent = self;
+    ret.set_parent(self);
     return ret;
 }
 
@@ -1426,17 +2677,11 @@ impl SemDef.create_sem_name_node -> Name {
         pos_start=self.target[0].loc.pos_start,
         pos_end=self.target[-1].loc.pos_end
     );
-    ret.parent = self;
+    ret.set_parent(self);
     return ret;
 }
 
 impl Enum.postinit -> None {
-    _bc = self.base_classes;
-    if _bc is not None {
-        self.base_classes = `list(_bc);
-    } else {
-        self.base_classes = [];
-    }
     UniNode.postinit(self);
     AstSymbolNode._init_symbol(
         self,
@@ -1479,7 +2724,7 @@ impl Ability.postinit -> None {
             is_enum_stmt=False
         );
         name_spec_for_init: (Name | NameAtom) = synthetic_name_ref;
-        self.name_ref = synthetic_name_ref;
+        self._role_set(NameRefRole, synthetic_name_ref);
     } else {
         name_spec_for_init = self.name_ref;
     }
@@ -1598,14 +2843,6 @@ impl Ability.event_trigger_type_names -> (list[str] | None) {
 }
 
 impl FuncSignature.postinit -> None {
-    self.posonly_params = `list(self.posonly_params);
-    _ps = self.params;
-    if _ps is not None {
-        self.params = `list(_ps);
-    } else {
-        self.params = [];
-    }
-    self.kwonlyargs = `list(self.kwonlyargs);
     UniNode.postinit(self);
 }
 
@@ -1680,7 +2917,6 @@ impl ParamVar.is_kwargs.getter -> bool {
 }
 
 impl ArchHas.postinit -> None {
-    self.vars = `list(self.vars);
     UniNode.postinit(self);
     CodeBlockStmt.postinit(self);
 }
@@ -1707,7 +2943,6 @@ impl TypedCtxBlock.postinit -> None {
 
 
 impl OpenStmt.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1715,7 +2950,6 @@ impl OpenStmt.postinit -> None {
 
 
 impl IfStmt.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1723,7 +2957,6 @@ impl IfStmt.postinit -> None {
 
 
 impl ElseStmt.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
 }
@@ -1736,8 +2969,6 @@ impl ExprStmt.postinit -> None {
 
 
 impl TryStmt.postinit -> None {
-    self.body = `list(self.body);
-    self.excepts = `list(self.excepts);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1745,7 +2976,6 @@ impl TryStmt.postinit -> None {
 
 
 impl Except.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1753,7 +2983,6 @@ impl Except.postinit -> None {
 
 
 impl FinallyStmt.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1761,7 +2990,6 @@ impl FinallyStmt.postinit -> None {
 
 
 impl AwaitingClause.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1769,7 +2997,6 @@ impl AwaitingClause.postinit -> None {
 
 
 impl IterForStmt.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1777,7 +3004,6 @@ impl IterForStmt.postinit -> None {
 
 
 impl InForStmt.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1785,7 +3011,6 @@ impl InForStmt.postinit -> None {
 
 
 impl WhileStmt.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1793,7 +3018,6 @@ impl WhileStmt.postinit -> None {
 
 
 impl ForeverStmt.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1801,7 +3025,6 @@ impl ForeverStmt.postinit -> None {
 
 
 impl WithStmt.postinit -> None {
-    self.body = `list(self.body);
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
     CodeBlockStmt.postinit(self);
@@ -1834,6 +3057,100 @@ impl CtrlStmt.postinit -> None {
 impl DeleteStmt.postinit -> None {
     UniNode.postinit(self);
     CodeBlockStmt.postinit(self);
+}
+
+
+impl DeleteStmt.leaf_targets -> list[Expr] {
+    leaves: list[Expr] = [];
+    pending: list[Expr] = `list(self.targets);
+    pending.reverse();
+    while pending {
+        inner = DeleteStmt.unwrap_target(pending.pop());
+        if isinstance(inner, (TupleVal, ListVal)) {
+            elems = [
+                el
+                for el in inner.values
+                if isinstance(el, Expr)
+            ];
+            elems.reverse();
+            pending.extend(elems);
+        } else {
+            leaves.append(inner);
+        }
+    }
+    return leaves;
+}
+
+
+impl DeleteStmt.unwrap_target(target: Expr) -> Expr {
+    inner: Expr = target;
+    while isinstance(inner, AtomUnit) and isinstance(inner.value, Expr) {
+        inner = inner.value;
+    }
+    return inner;
+}
+
+
+impl DeleteStmt.is_location(target: Expr) -> bool {
+    inner = DeleteStmt.unwrap_target(target);
+    if isinstance(inner, Name) {
+        return True;
+    }
+    return isinstance(inner, AtomTrailer)
+        and (inner.is_attr or isinstance(inner.right, IndexSlice));
+}
+
+
+impl DeleteStmt.type_may_hold_graph(t: (TypeBase | None)) -> bool {
+    import from jaclang.compiler.types.types { ClassType, UnionType }
+
+    def never_graph(ty: any) -> bool {
+        if isinstance(ty, UnionType) {
+            return all(never_graph(m) for m in ty.types);
+        }
+        if not isinstance(ty, ClassType) {
+            return False;
+        }
+        if ty.is_any_type()
+            or ty.is_node_type()
+            or ty.is_edge_type()
+            or ty.is_walker_type()
+            or not ty.is_builtin() {
+            return False;
+        }
+        class_name = ty.shared.class_name;
+        if class_name
+            in (
+                "int",
+                "float",
+                "complex",
+                "str",
+                "bytes",
+                "bytearray",
+                "bool",
+                "None",
+                "NoneType"
+            ) {
+            return True;
+        }
+        type_args = ty.private.type_args;
+        if type_args is None or len(type_args) == 0 {
+            return False;
+        }
+        if class_name in ("list", "tuple", "set", "frozenset") {
+            return all(never_graph(a) for a in type_args);
+        }
+        if class_name == "dict" {
+            return len(type_args) == 2 and never_graph(type_args[1]);
+        }
+        return False;
+    }
+    return not never_graph(t);
+}
+
+
+impl DeleteStmt.target_may_hold_graph(target: Expr) -> bool {
+    return DeleteStmt.type_may_hold_graph(target.type);
 }
 
 
@@ -1875,7 +3192,6 @@ impl CastExpr.postinit -> None {
 
 
 impl Assignment.postinit -> None {
-    self.target = `list(self.target);
     UniNode.postinit(self);
     CodeBlockStmt.postinit(self);
 }
@@ -1906,10 +3222,6 @@ impl BoolExpr.postinit -> None {
 
 
 impl LambdaExpr.postinit -> None {
-    lam_body = self.body;
-    if isinstance(lam_body, list) {
-        self.body = `list(lam_body);
-    }
     UniNode.postinit(self);
     Expr.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
@@ -1997,7 +3309,6 @@ impl MultiString.lit_value.getter -> str | bytes {
 
 
 impl FString.postinit -> None {
-    self.parts = `list(self.parts);
     UniNode.postinit(self);
     Expr.postinit(self);
     AstSymbolStubNode._init_stub(self, sym_type=SymbolType.STRING);
@@ -2018,12 +3329,6 @@ impl ListVal.postinit -> None {
 
 
 impl SetVal.postinit -> None {
-    _vals = self.values;
-    if _vals is not None {
-        self.values = `list(_vals);
-    } else {
-        self.values = [];
-    }
     UniNode.postinit(self);
     Expr.postinit(self);
     AstSymbolStubNode._init_stub(self, sym_type=SymbolType.SEQUENCE);
@@ -2031,7 +3336,6 @@ impl SetVal.postinit -> None {
 
 
 impl TupleVal.postinit -> None {
-    self.values = `list(self.values);
     UniNode.postinit(self);
     Expr.postinit(self);
     AstSymbolStubNode._init_stub(self, sym_type=SymbolType.SEQUENCE);
@@ -2118,13 +3422,6 @@ impl YieldExpr.postinit -> None {
 
 
 impl FuncCall.postinit -> None {
-    _ps = self.params;
-    if _ps is not None {
-        self.params = `list(_ps);
-    } else {
-        self.params = [];
-    }
-    self.callee_decl = None;
     UniNode.postinit(self);
     Expr.postinit(self);
 }
@@ -2168,7 +3465,6 @@ impl ConnectOp.postinit -> None {
 
 
 impl FilterCompr.postinit -> None {
-    self.compares = `list(self.compares);
     UniNode.postinit(self);
     Expr.postinit(self);
     AstSymbolStubNode._init_stub(self, sym_type=SymbolType.SEQUENCE);
@@ -2176,7 +3472,6 @@ impl FilterCompr.postinit -> None {
 
 
 impl AssignCompr.postinit -> None {
-    self.assigns = `list(self.assigns);
     UniNode.postinit(self);
     Expr.postinit(self);
     AstSymbolStubNode._init_stub(self, sym_type=SymbolType.SEQUENCE);
@@ -2184,18 +3479,6 @@ impl AssignCompr.postinit -> None {
 
 
 impl JsxElement.postinit -> None {
-    _attrs = self.attributes;
-    if _attrs is not None {
-        self.attributes = `list(_attrs);
-    } else {
-        self.attributes = [];
-    }
-    _ch = self.children;
-    if _ch is not None {
-        self.children = `list(_ch);
-    } else {
-        self.children = [];
-    }
     UniNode.postinit(self);
     Expr.postinit(self);
     AstSymbolStubNode._init_stub(self, sym_type=SymbolType.OBJECT_ARCH);
@@ -2233,7 +3516,6 @@ impl JsxElement.get_body_end_line -> (int | None) {
 }
 
 impl JsxElementName.postinit -> None {
-    self.parts = `list(self.parts);
     UniNode.postinit(self);
 }
 
@@ -2379,18 +3661,6 @@ impl MatchStar.postinit -> None {
 
 
 impl MatchArch.postinit -> None {
-    _ap = self.arg_patterns;
-    if _ap is not None {
-        self.arg_patterns = `list(_ap);
-    } else {
-        self.arg_patterns = None;
-    }
-    _kp = self.kw_patterns;
-    if _kp is not None {
-        self.kw_patterns = `list(_kp);
-    } else {
-        self.kw_patterns = None;
-    }
     UniNode.postinit(self);
 }
 
@@ -2416,7 +3686,6 @@ impl Token.init(
     self.pos_start = pos_start;
     self.pos_end = pos_end;
     self._is_synthetic = False;
-    self.kid = [];
     UniNode.postinit(self);
 }
 
@@ -2452,7 +3721,6 @@ impl Name.init(
         pos_end=pos_end
     );
     self.name_of = self;
-    self._sym = None;
     self._sym_name = '';
     self._sym_category = SymbolType.UNKNOWN;
     self._expr_ctx = ExprCtx.LOAD;
@@ -2654,7 +3922,7 @@ impl CommentToken.init(
         pos_start=pos_start,
         pos_end=pos_end
     );
-    self.kid = [x.set_parent(self) for x in kid];
+    self._link(kid, {});
     (first_tok, last_tok) = self.resolve_tok_range();
     self.loc = CodeLocInfo(first_tok, last_tok);
 }
@@ -2710,12 +3978,40 @@ impl Expr.type_sym_tab.setter(type_sym_tab: UniScopeNode) {
     self._type_sym_tab = type_sym_tab;
 }
 
+impl FuncCall.callee_decl.getter -> (Ability | None) {
+    found = [self->:CalleeDecl:->];
+    return found[0] if found else None;
+}
+
+impl FuncCall.callee_decl.setter(callee_decl: (Ability | None)) {
+    del [edge self->:CalleeDecl:->];
+    if callee_decl is not None {
+        self +>:CalleeDecl:+> callee_decl;
+    }
+}
+
+impl Import.absorbed_mod.getter -> (Module | None) {
+    found = [self->:Absorbs:->];
+    return found[0] if found else None;
+}
+
+impl Import.absorbed_mod.setter(absorbed_mod: (Module | None)) {
+    del [edge self->:Absorbs:->];
+    if absorbed_mod is not None {
+        self +>:Absorbs:+> absorbed_mod;
+    }
+}
+
 impl NameAtom.sym.getter -> (Symbol | None) {
-    return self._sym;
+    found = [self->:SymOf:->];
+    return found[0] if found else None;
 }
 
 impl NameAtom.sym.setter(sym: Symbol) {
-    self._sym = sym;
+    del [edge self->:SymOf:->];
+    if sym is not None {
+        self +>:SymOf:+> sym;
+    }
 }
 
 impl NameAtom.expr_ctx.getter -> ExprCtx {
@@ -2798,7 +4094,10 @@ impl record_cross_scope_rebind(py_scope: UniScopeNode, name: str, sym: Symbol) -
     if not isinstance(py_scope, (Ability, ImplDef, Test)) {
         return;
     }
-    if py_scope.names_in_scope is outer_tab.names_in_scope {
+    if isinstance(py_scope, ImplDef) and py_scope.decl_link is outer_tab {
+        return;
+    }
+    if isinstance(outer_tab, ImplDef) and outer_tab.decl_link is py_scope {
         return;
     }
     if isinstance(outer_tab, Module) {
@@ -2819,7 +4118,7 @@ impl rebind_or_def_insert(
         outer_sym = lookup_enclosing_binding(py_scope, target.sym_name);
         if outer_sym is not None {
             outer_sym.add_use(target.name_spec);
-            py_scope.names_in_scope[target.sym_name] = outer_sym;
+            py_scope.adopt_primary(outer_sym, target.sym_name);
             py_scope.implicit_rebinds[target.sym_name] = outer_sym;
             return;
         }
@@ -2887,6 +4186,113 @@ impl ability_of_symbol(sym: (Symbol | None)) -> (Ability | None) {
     return decl;
 }
 
+impl binding_kind_of_decl(decl: NameAtom) -> BindingKind {
+    owner = decl.name_of;
+    if isinstance(owner, (Archetype, Enum, TypeAlias)) {
+        return BindingKind.BOTH;
+    }
+    if isinstance(owner, TypeParam) {
+        return BindingKind.TYPE;
+    }
+    return BindingKind.VALUE;
+}
+
+impl import_chain_of(sym: Symbol) -> list[Symbol] {
+    seen: set[int] = set();
+    chain: list[Symbol] = [];
+    cur: Symbol = sym;
+    while True {
+        if id(cur) in seen or not cur.defn {
+            return chain;
+        }
+        seen.add(id(cur));
+        chain.append(cur);
+        decl = cur.decl;
+        if not isinstance(decl.parent, ModuleItem) {
+            return chain;
+        }
+        nxt = decl.sym;
+        if nxt is None or nxt is cur {
+            return chain;
+        }
+        cur = nxt;
+    }
+}
+
+impl resolved_decl_of(sym: Symbol) -> (NameAtom | None) {
+    for cur in import_chain_of(sym) {
+        decl = cur.decl;
+        if not isinstance(decl.parent, ModuleItem) {
+            return decl;
+        }
+    }
+    return None;
+}
+
+impl kind_has_runtime_binding(
+    kind: BindingKind, decl: (NameAtom | None), space: CodeContext
+) -> bool {
+    if not kind.denotes_value() {
+        return False;
+    }
+    if space != CodeContext.CLIENT {
+        return True;
+    }
+    return decl is None or not isinstance(decl.name_of, TypeAlias);
+}
+
+impl has_runtime_binding(sym: Symbol, space: CodeContext) -> bool {
+    return kind_has_runtime_binding(sym.binding_kind, resolved_decl_of(sym), space);
+}
+
+impl is_client_destined(nd: UniNode) -> bool {
+    cur: (UniNode | None) = nd;
+    while cur is not None {
+        if isinstance(cur, ContextAwareNode) {
+            return (cur.code_context == CodeContext.CLIENT) or cur.codespace_dual;
+        }
+        cur = cur.parent;
+    }
+    return False;
+}
+
+impl type_only_import_of(nd: NameAtom) -> (ModuleItem | None) {
+    sym = nd.sym;
+    if sym is None or not sym.imported or not sym.defn {
+        return None;
+    }
+    found: (ModuleItem | None) = None;
+    for d in sym.defn {
+        if d is nd or not isinstance(d.parent, ModuleItem) {
+            return None;
+        }
+        if not d.parent.from_parent.is_typed {
+            return None;
+        }
+        found = d.parent;
+    }
+    return found;
+}
+
+impl in_type_position(nd: UniNode) -> bool {
+    cur: UniNode = nd;
+    parent = cur.parent;
+    while parent is not None {
+        if isinstance(parent, (SubTag, TypeAlias, TypeParam, IndexSlice)) {
+            return True;
+        }
+        if isinstance(parent, CastExpr) and parent.cast_type is cur {
+            return True;
+        }
+        if isinstance(parent, FuncSignature) and parent.return_type is cur {
+            return True;
+        }
+        cur = parent;
+        parent = cur.parent;
+    }
+    return False;
+}
+
 impl bind_assignment_targets(nd: Assignment) -> None {
     for i in nd.target {
         if isinstance(i, AstSymbolNode) {
@@ -2939,5 +4345,59 @@ impl bind_assignment_targets(nd: Assignment) -> None {
                 find_typed_decl_scope_of(i).def_insert(i, single_decl='local var');
             }
         }
+    }
+}
+
+impl Expr.type.getter -> (TypeBase | None) {
+    if self._type_cache_ok {
+        return self._type_cache;
+    }
+    found = [self->:TypeOf:->];
+    self._type_cache = found[0] if found else None;
+    self._type_cache_ok = True;
+    return self._type_cache;
+}
+
+impl Expr.type.setter(type: (TypeBase | None)) -> None {
+    del [edge self->:TypeOf:->];
+    if type is not None {
+        self +>:TypeOf:+> type;
+    }
+    self._type_cache = type;
+    self._type_cache_ok = True;
+}
+
+impl Expr.narrowed_type.getter -> (TypeBase | None) {
+    found = [self->:NarrowedTypeOf:->];
+    return found[0] if found else None;
+}
+
+impl Expr.narrowed_type.setter(narrowed_type: (TypeBase | None)) -> None {
+    del [edge self->:NarrowedTypeOf:->];
+    if narrowed_type is not None {
+        self +>:NarrowedTypeOf:+> narrowed_type;
+    }
+}
+
+impl AstTypedVarNode.type.getter -> (TypeBase | None) {
+    found = [self->:TypeOf:->];
+    return found[0] if found else None;
+}
+
+impl AstTypedVarNode.type.setter(type: (TypeBase | None)) -> None {
+    del [edge self->:TypeOf:->];
+    if type is not None {
+        self +>:TypeOf:+> type;
+    }
+}
+
+impl Ability.event_triggers.getter -> (list[TypeBase] | None) {
+    return [self->:EventTriggerOf:->];
+}
+
+impl Ability.event_triggers.setter(event_triggers: (list[TypeBase] | None)) -> None {
+    del [edge self->:EventTriggerOf:->];
+    for t in (event_triggers or []) {
+        self +>:EventTriggerOf:+> t;
     }
 }

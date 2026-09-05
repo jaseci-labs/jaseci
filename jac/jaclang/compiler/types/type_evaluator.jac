@@ -75,6 +75,9 @@ import from jaclang.compiler.frontend.unitree {
     MultiString,
     Name,
     NameAtom,
+    is_client_destined,
+    kind_has_runtime_binding,
+    resolved_decl_of,
     Null,
     OpenStmt,
     ParamKind as UniParamKind,
@@ -106,6 +109,8 @@ import from jaclang.compiler.frontend.unitree {
 }
 import from jaclang.compiler.frontend.constant {
     TOKEN_MAP,
+    BindingKind,
+    CodeContext,
     SymbolType,
     Tokens as Tok,
     EdgeDir,
@@ -185,7 +190,8 @@ import from jaclang.compiler.types.ts_decl_parser {
     TsTypeKind,
     TsDeclKind,
     TsAccess,
-    TsMember
+    TsMember,
+    ts_decl_binding_kind
 }
 
 import from jaclang.compiler.frontend.diagnostics {
@@ -234,6 +240,8 @@ import from jaclang.compiler.frontend.diagnostics {
     E1120,
     E1121,
     E1129,
+    E1131,
+    E1134,
     E0049,
     E5094,
     W1050,
@@ -323,10 +331,13 @@ obj ConditionInfo {
         attr_name: str | None = None;
 }
 
-glob _stub_module_memo: dict[str, tuple[float, Module]] = {};
+walker TypeEvaluator {
+    can eval_expr with Expr entry;
+    def _intern_shared(shared: ClassDetailsShared) -> ClassDetailsShared;
+    def _scope_is_current(scope: UniScopeNode) -> bool;
 
-obj TypeEvaluator {
     has program: JacProgram,
+        _shared_intern: dict[tuple, ClassDetailsShared] = {},
         _BUILTINS_STUB_FILE_PATH: str postinit,
         _TYPING_STUB_FILE_PATH: str postinit,
         _TYPES_STUB_FILE_PATH: str postinit,
@@ -379,6 +390,8 @@ obj TypeEvaluator {
     def _read_dunder_all(path: str) -> (set[str] | None);
     def _read_ambient_imports_by_module(path: str) -> dict[str, set[str]];
     def _load_stub_module(path: str) -> Module;
+    def _init_prelude_from_catalog(catalog: any) -> list[Module];
+    def _init_prelude_from_sources -> list[Module];
     def _get_type_from_module(module: Module, name: str) -> TypeBase;
     def _prefetch_types;
     def get_none_type -> TypeBase;
@@ -391,22 +404,41 @@ obj TypeEvaluator {
     def resolve_to_definition_symbol(symbol: Symbol) -> Symbol;
     def _widen_literal_for_declaration(ty: TypeBase) -> TypeBase;
     def _import_module_from_path(
-        path: str, importer_path: (str | None) = None
+        path: str, importer_path: (str | None) = None, need_tree: bool = False
     ) -> Module;
 
     def _resolve_importer_path(ast_node: UniNode) -> (str | None);
     def forget_module(resolved_path: str) -> None;
     def _resolve_from_path(from_mod: ModulePath) -> Path;
     def _resolve_client_npm_module(node_: ModulePath) -> (str | None);
+    def _relative_import_must_resolve(node_: ModulePath) -> bool;
+    def _import_error_is_handled(imp: Import) -> bool;
     def _client_npm_base(spec: str, mod_path: str) -> (str | None);
     def _client_entry_mod_path -> (str | None);
     def _get_ts_declared_item_type(
         from_loc: ModulePath, item_name: str
     ) -> (TypeBase | None);
 
+    def _ts_decl_path(from_loc: ModulePath) -> (str | None);
     def _ts_declared_type_from_file(
         dts_path: str, item_name: str
     ) -> (TypeBase | None);
+
+    def _ts_declared_kind_from_file(
+        dts_path: str, item_name: str
+    ) -> (BindingKind | None);
+
+    def _ts_declared_kind(
+        from_loc: ModulePath, item_name: str
+    ) -> (BindingKind | None);
+
+    def _apply_import_binding_kind(
+        node_: ModuleItem,
+        binding: Name,
+        kind: BindingKind,
+        module: str,
+        target_decl: (NameAtom | None) = None
+    ) -> None;
 
     def _load_ts_declarations(dts_path: str) -> (dict[str, TsDecl] | None);
     def _map_ts_decl(
@@ -642,6 +674,10 @@ obj TypeEvaluator {
         solved_type_vars: (dict[str, TypeBase] | None) = None
     ) -> bool;
 
+    def _merge_catalog_field_params(
+        tab: any, param_map: dict[str, Parameter], skip_deferred: bool
+    ) -> None;
+
     def _build_field_params(
         class_type: ClassType, skip_deferred: bool = True
     ) -> dict[str, Parameter];
@@ -664,6 +700,7 @@ obj TypeEvaluator {
     ) -> OverloadedType | None;
 
     def _create_dataclass_init_method(class_type: ClassType) -> FunctionType;
+    def _scope_has_fields(tab: any) -> bool;
     def _create_namedtuple_new_method(class_type: ClassType) -> FunctionType;
     def _create_special_builtin_type(name: str, base_class: ClassType) -> ClassType;
     def _validate_constructor_method(

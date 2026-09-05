@@ -2,7 +2,9 @@ import from jaclang.compiler.backends.native.linker_common {
     collect_floor_archives,
     floor_lib_dir,
     resolve_floor_dir,
-    clib_to_archive_name
+    clib_to_archive_name,
+    clib_needed_libs,
+    clib_symbol_lib_map
 }
 import os;
 import sys;
@@ -204,6 +206,36 @@ def _inject_entry_pe(llvm_ir_str: str) -> str {
 }
 
 
+def _finalize_native_ir(
+    llvm_ir_str: str,
+    triple: str,
+    clib_paths: list[str],
+    manifest: any,
+    shared: bool,
+    is_windows: bool,
+    is_macos: bool,
+    static_musl: bool
+) -> tuple[str, list[str]] {
+    import from jaclang.compiler.backends.native.shared_emit {
+        aarch64_floor_atomics_ir,
+        inject_shared_init
+    }
+    extra_exports: list[str] = [];
+    if shared {
+        (llvm_ir_str, extra_exports) = inject_shared_init(llvm_ir_str, manifest);
+    } elif is_windows {
+        llvm_ir_str = _inject_entry_pe(llvm_ir_str);
+    } elif is_macos {
+        llvm_ir_str = _inject_entry_macho(llvm_ir_str);
+    } elif static_musl {
+        llvm_ir_str = _inject_entry_elf_static(llvm_ir_str);
+    } else {
+        llvm_ir_str = _inject_entry_elf(llvm_ir_str, triple);
+    }
+    return (llvm_ir_str + aarch64_floor_atomics_ir(triple, clib_paths), extra_exports);
+}
+
+
 impl nacompile(
     filename: str,
     output: str = "",
@@ -316,6 +348,9 @@ impl nacompile(
 
     import from jaclang.compiler.driver.program { JacProgram }
     import from jaclang.compiler.driver.compile_options { CompileOptions }
+    import from jaclang.compiler.backends.native.na_compile_pass {
+        native_linked_ir_text
+    }
 
     try {
         prog = JacProgram();
@@ -384,7 +419,8 @@ impl nacompile(
         }
         try {
             wasm_bytes = emit_wasm_from_ir(
-                str(ir_module.gen.llvm_ir), app_imports=app_declared_imports(ir_module),
+                native_linked_ir_text(ir_module),
+                app_imports=app_declared_imports(ir_module),
             );
         } except Exception as e {
             console.error(f"Wasm emit/link failed: {e}");
@@ -415,7 +451,7 @@ impl nacompile(
         return 1;
     }
 
-    llvm_ir_str = str(ir_module.gen.llvm_ir);
+    llvm_ir_str = native_linked_ir_text(ir_module);
     if strict {
         import from jaclang.compiler.backends.native.na_compile_pass {
             native_demoted_ir_symbols as _demoted_syms
@@ -467,8 +503,8 @@ impl nacompile(
     console.print("  LLVM IR generated successfully.");
 
     import jaclang.compiler.backends.native.llvm.binding as llvm;
-    llvm.initialize_all_targets();
-    llvm.initialize_all_asmprinters();
+    import from jaclang.compiler.backends.native.shared_emit { init_object_codegen }
+    init_object_codegen();
 
     triple = (options.native_target or "") or str(llvm.get_default_triple());
     console.print(f"  Target: {triple}");
@@ -493,41 +529,22 @@ impl nacompile(
     } else {
         needed_libs: list[str] = [];
     }
-    _lib_norm: dict[str, str] = {};
-    if clib_paths {
-        for lib_path in clib_paths {
-            if lib_path in _floor_handled {
-                continue;
-            }
-            _needed = lib_path;
-            if (not os.path.isabs(lib_path))
-                and (not lib_path.startswith("$"))
-                and (not lib_path.startswith("@"))
-                and ("/" in lib_path or "\\" in lib_path) {
-                _needed = os.path.basename(lib_path);
-            }
-            _needed_base = os.path.basename(_needed);
-            if _needed_base == "libc.so" {
-                _needed = "libc.so.6";
-            } elif _needed_base == "libm.so" {
-                _needed = "libm.so.6";
-            }
-            if _needed not in needed_libs {
-                needed_libs.append(_needed);
-            }
-            _lib_norm[lib_path] = _needed;
-        }
-    }
+    _lib_norm = clib_needed_libs(needed_libs, clib_paths or [], _floor_handled);
 
     _is_linux_exec = (not shared) and (not is_windows) and (not is_macos);
     _static_musl = _is_linux_exec and (len(needed_libs) == 0);
 
+    (llvm_ir_str, _extra_exports) = _finalize_native_ir(
+        llvm_ir_str,
+        triple,
+        clib_paths or [],
+        ir_module.gen.interop_manifest,
+        shared,
+        is_windows,
+        is_macos,
+        _static_musl
+    );
     if shared {
-        _mf = ir_module.gen.interop_manifest;
-        import from jaclang.compiler.backends.native.shared_emit {
-            inject_shared_init as _inject_shared_init
-        }
-        (llvm_ir_str, _extra_exports) = _inject_shared_init(llvm_ir_str, _mf);
         init_funcs = ["__jac_shared_init"];
         for _s in ir_module.gen._exported_symbols {
             if _s not in export_symbols {
@@ -550,14 +567,6 @@ impl nacompile(
             f"  Exporting {len(export_symbols)} C-ABI symbol(s): "
                 + ", ".join(export_symbols)
         );
-    } elif is_windows {
-        llvm_ir_str = _inject_entry_pe(llvm_ir_str);
-    } elif is_macos {
-        llvm_ir_str = _inject_entry_macho(llvm_ir_str);
-    } elif _static_musl {
-        llvm_ir_str = _inject_entry_elf_static(llvm_ir_str);
-    } else {
-        llvm_ir_str = _inject_entry_elf(llvm_ir_str, triple);
     }
 
     if (shared or (_is_linux_exec and not _static_musl))
@@ -571,13 +580,9 @@ impl nacompile(
         }
     }
 
-    symbol_lib_map: dict[str, str] = {};
-    for (_sym, _raw) in ir_module.gen._clib_symbol_lib.items() {
-        if _raw in _floor_handled {
-            continue;
-        }
-        symbol_lib_map[_sym] = _lib_norm.get(_raw, _raw);
-    }
+    symbol_lib_map = clib_symbol_lib_map(
+        ir_module.gen._clib_symbol_lib, _floor_handled, _lib_norm, shared, is_macos
+    );
 
     try {
         mod = llvm.parse_assembly(llvm_ir_str);
@@ -725,6 +730,13 @@ impl nacompile(
     file_size = os.path.getsize(output);
     if shared {
         console.print(f"  Shared library written to {output} ({file_size} bytes).");
+        if ir_module.gen.jc_layout is not None {
+            _lay_path = f"{output}.layout.json";
+            with open(_lay_path, "w") as _lf {
+                _lf.write(ir_module.gen.jc_layout);
+            }
+            console.print(f"  Class layout written to {_lay_path}.");
+        }
         console.print(
             "  Load it from C/ctypes (dlopen + dlsym); the C ABI surface is the "
             "exported `:pub` symbols plus jac_retain/jac_release."

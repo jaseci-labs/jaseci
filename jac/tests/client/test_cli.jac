@@ -915,7 +915,7 @@ test "raw template config files from jac toml" {
 
             # Create jac.toml with raw template config
             raw_content = 'import { defineConfig, defineDocs } from "fumadocs-mdx/config";\n\nexport const docs = defineDocs({\n  dir: "content/docs",\n});\n\nexport default defineConfig({});';
-            toml_content = f'[project]\nname = "test-raw-configs"\nversion = "1.0.0"\ndescription = "Test project"\nentry-point = "main.jac"\n\n[dependencies.npm]\nreact = "^18.2.0"\nreact-dom = "^18.2.0"\nreact-router-dom = "^6.22.0"\nreact-error-boundary = "^5.0.0"\n\n[dependencies.npm.dev]\nvite = "^6.4.1"\n"@vitejs/plugin-react" = "^4.2.1"\ntypescript = "^5.3.3"\n"@types/react" = "^18.2.0"\n"@types/react-dom" = "^18.2.0"\n\n[client.configs.source]\nextension = ".ts"\nraw = """\n{raw_content}\n"""\n';
+            toml_content = f'[project]\nname = "test-raw-configs"\nversion = "1.0.0"\ndescription = "Test project"\nentry-point = "main.jac"\n\n[dependencies.npm]\nreact = "^19.2.0"\nreact-dom = "^19.2.0"\nreact-router-dom = "^6.22.0"\nreact-error-boundary = "^5.0.0"\n\n[dependencies.npm.dev]\nvite = "^6.4.1"\n"@vitejs/plugin-react" = "^4.2.1"\ntypescript = "^5.3.3"\n"@types/react" = "^19.2.0"\n"@types/react-dom" = "^19.2.0"\n\n[client.configs.source]\nextension = ".ts"\nraw = """\n{raw_content}\n"""\n';
             config_path = os.path.join(temp_dir, "jac.toml");
             with open(config_path, "w") as f {
                 f.write(toml_content);
@@ -957,7 +957,7 @@ test "npmrc from jac toml" {
 
             # Create jac.toml with npm scoped registry and auth config
             # Include required npm deps to avoid auto-injection modifying the file
-            toml_content = '[project]\nname = "test-npmrc"\nversion = "1.0.0"\ndescription = "Test project"\nentry-point = "main.jac"\n\n[dependencies.npm]\nreact = "^18.2.0"\nreact-dom = "^18.2.0"\nreact-router-dom = "^6.22.0"\nreact-error-boundary = "^5.0.0"\n\n[dependencies.npm.dev]\nvite = "^6.4.1"\n"@vitejs/plugin-react" = "^4.2.1"\ntypescript = "^5.3.3"\n"@types/react" = "^18.2.0"\n"@types/react-dom" = "^18.2.0"\n\n[client.npm.settings]\nregistry = "https://registry.example.com"\nalways-auth = true\nstrict-ssl = false\n\n[client.npm.scoped_registries]\n"@mycompany" = "https://npm.pkg.github.com"\n"@myorg" = "https://registry.example.com"\n\n[client.npm.auth."//npm.pkg.github.com/"]\n_authToken = "${NODE_AUTH_TOKEN}"\n';
+            toml_content = '[project]\nname = "test-npmrc"\nversion = "1.0.0"\ndescription = "Test project"\nentry-point = "main.jac"\n\n[dependencies.npm]\nreact = "^19.2.0"\nreact-dom = "^19.2.0"\nreact-router-dom = "^6.22.0"\nreact-error-boundary = "^5.0.0"\n\n[dependencies.npm.dev]\nvite = "^6.4.1"\n"@vitejs/plugin-react" = "^4.2.1"\ntypescript = "^5.3.3"\n"@types/react" = "^19.2.0"\n"@types/react-dom" = "^19.2.0"\n\n[client.npm.settings]\nregistry = "https://registry.example.com"\nalways-auth = true\nstrict-ssl = false\n\n[client.npm.scoped_registries]\n"@mycompany" = "https://npm.pkg.github.com"\n"@myorg" = "https://registry.example.com"\n\n[client.npm.auth."//npm.pkg.github.com/"]\n_authToken = "${NODE_AUTH_TOKEN}"\n';
             config_path = os.path.join(temp_dir, "jac.toml");
             with open(config_path, "w") as f {
                 f.write(toml_content);
@@ -1232,7 +1232,7 @@ test "vite config generation" {
             build_config_content = build_config_path.read_text();
             assert "globalThis.__JAC_API_BASE_URL__" in build_config_content;
             assert "https://api.example.com" in build_config_content;
-            assert "jacSourceMapper()" in build_config_content;  # Build-specific plugin
+            assert "jacSourceMapChain()" in build_config_content;  # Build-specific plugin
             assert "tailwindcss()" in build_config_content;  # Tailwind plugin
             assert "@tailwindcss/vite" in build_config_content;  # Tailwind import
 

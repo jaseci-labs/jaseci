@@ -692,11 +692,12 @@ impl JacScaleScheduler._execute_task(
                     self._record_run(job_id, 'succeeded');
                 }
             } finally {
-                Jac.reset_request_context(ctx_token);
                 try {
                     ctx.mem.close();
                 } except Exception as ce {
                     logger.warning(f"Scheduled job context close failed: {ce}");
+                } finally {
+                    Jac.reset_request_context(ctx_token);
                 }
             }
         }
@@ -786,7 +787,7 @@ impl JacScaleScheduler._on_jobs_changed(payload: str) -> None {
         try {
             self._apscheduler.remove_job(job_id);
             logger.debug(f"jobs-changed: removed local schedule for {job_id}");
-        } except Exception { }
+        } except Exception {}
         return;
     }
     try {

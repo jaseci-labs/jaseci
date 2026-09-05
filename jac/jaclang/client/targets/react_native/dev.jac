@@ -2,7 +2,7 @@ import json;
 import os;
 import subprocess;
 import from pathlib { Path }
-import from typing { Optional, cast }
+import from typing { Optional }
 import from jaclang.cli.console { console }
 import from jaclang.server.watcher { FileChangeEvent }
 import from jaclang.client.targets.react_native.common { resolve_node_tool }
@@ -107,22 +107,17 @@ def rn_hmr_on_jac_changed(
             return;
         }
         invalidate_runtime_module_cache([pth, str(entry_file)]);
-        compile_out = cast(any, compiler.jac_compiler.compile_module(entry_file));
-        mod2 = compile_out[1];
-        if not mod2 {
-            return;
-        }
-        compiler.compile(mod2, entry_file, target_name="react-native");
+        compiler.compile(None, entry_file, target_name="react-native");
         compiled_dir = compiler.compiled_dir;
         if compiled_dir is not None {
             try {
                 js_sources = read_user_js_sources(compiled_dir);
                 lint_unmapped_tags(compiled_dir, sources=js_sources);
                 lint_native_incompatible_usage(compiled_dir, sources=js_sources);
-            } except Exception { }
+            } except Exception {}
             try {
                 strip_css_imports(compiled_dir);
-            } except Exception { }
+            } except Exception {}
             try {
                 stage_compiled_entry(compiled_dir, rn_dir, entry_module);
             } except Exception as stage_err {
@@ -140,11 +135,11 @@ def rn_hmr_on_jac_changed(
                 "  ✔ Native client recompiled — Metro will Fast Refresh",
                 style="success"
             );
-        } except Exception { }
+        } except Exception {}
     } except Exception as e {
         try {
             console.error(f"  HMR recompile failed: {e}");
-        } except Exception { }
+        } except Exception {}
     }
 }
 

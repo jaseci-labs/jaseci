@@ -98,34 +98,128 @@ def config_module_pin(source_path: str) -> str {
 }
 
 
-glob _na_demotion_memo: dict[str, tuple] = {};
+glob _na_demotion_memo: dict[str, tuple] = {},
+     _na_demotion_code: dict[str, str] = {},
+     _na_demotion_probed: set[str] = set();
+
+
+def _demotion_sidecar(path: str) -> (str | None) {
+    try {
+        import from jaclang.compiler.driver.jir { get_module_cache_path }
+        return str(get_module_cache_path(path).with_suffix('.nademote'));
+    } except Exception {
+        return None;
+    }
+}
+
+
+def _file_key(path: str) -> (tuple | None) {
+    try {
+        st = os.stat(path);
+        return (st.st_mtime_ns, st.st_size);
+    } except OSError {
+        return None;
+    }
+}
+
+
+def _load_demotion(path: str) -> (tuple | None) {
+    sidecar = _demotion_sidecar(path);
+    if sidecar is None {
+        return None;
+    }
+    try {
+        with open(sidecar, "r", encoding="utf-8") as f {
+            parts = f.read().split();
+        }
+        if len(parts) < 2 {
+            return None;
+        }
+        _na_demotion_code[path] = parts[2] if len(parts) > 2 else "";
+        return (int(parts[0]), int(parts[1]));
+    } except Exception {
+        return None;
+    }
+}
+
+
+def _remove_demotion_sidecar(path: str) {
+    sidecar = _demotion_sidecar(path);
+    if sidecar is None {
+        return;
+    }
+    try {
+        os.remove(sidecar);
+    } except OSError {}
+}
 
 
 def _is_demoted_native(path: str) -> bool {
     key = _na_demotion_memo.get(path);
     if key is None {
-        return False;
-    }
-    try {
-        st = os.stat(path);
-        if key == (st.st_mtime_ns, st.st_size) {
-            return True;
+        if path in _na_demotion_probed {
+            return False;
         }
-    } except OSError {
-        ;
+        _na_demotion_probed.add(path);
+        key = _load_demotion(path);
+        if key is None {
+            return False;
+        }
+        _na_demotion_memo[path] = key;
+    }
+    if key == _file_key(path) {
+        return True;
     }
     del _na_demotion_memo[path];
+    _na_demotion_code.pop(path, None);
+    _remove_demotion_sidecar(path);
     return False;
 }
 
 
-def _mark_demoted_native(path: str) {
-    try {
-        st = os.stat(path);
-        _na_demotion_memo[path] = (st.st_mtime_ns, st.st_size);
-    } except OSError {
-        ;
+def _demoted_native_code(path: str) -> str {
+    if not _is_demoted_native(path) {
+        return "";
     }
+    return _na_demotion_code.get(path, "");
+}
+
+
+def _mark_demoted_native(path: str, code: str = "") {
+    import from jaclang.compiler.native_scope {
+        in_native_scope_path,
+        scope_lowering_active
+    }
+    if scope_lowering_active() and in_native_scope_path(path) {
+        return;
+    }
+    key = _file_key(path);
+    if key is None {
+        return;
+    }
+    _na_demotion_memo[path] = key;
+    _na_demotion_code[path] = code;
+    _na_demotion_probed.discard(path);
+    sidecar = _demotion_sidecar(path);
+    if sidecar is None {
+        return;
+    }
+    try {
+        os.makedirs(os.path.dirname(sidecar), exist_ok=True);
+        tmp = f"{sidecar}.{os.getpid()}.tmp";
+        with open(tmp, "w", encoding="utf-8") as f {
+            f.write(f"{key[0]} {key[1]} {code}\n");
+        }
+        os.replace(tmp, sidecar);
+    } except OSError {}
+}
+
+
+def _clear_demoted_native(path: str) {
+    _na_demotion_memo.pop(path, None);
+    _na_demotion_code.pop(path, None);
+    _na_demotion_probed.discard(path);
+    _remove_demotion_sidecar(path);
 }
 
 

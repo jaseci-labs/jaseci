@@ -1,3 +1,19 @@
+impl jwt_secret -> str {
+    return str(get_scale_config().get_jwt_config()['secret']);
+}
+
+impl jwt_algorithm -> str {
+    return str(get_scale_config().get_jwt_config()['algorithm']);
+}
+
+impl jwt_exp_delta_days -> int {
+    return int(get_scale_config().get_jwt_config()['exp_delta_days']);
+}
+
+impl sso_host -> str {
+    return str(get_scale_config().get_sso_config()['host']);
+}
+
 impl JacScaleUserManager.postinit -> None {
     sso_config = get_scale_config().get_sso_config();
     for platform in Platforms {
@@ -206,7 +222,7 @@ impl JacScaleUserManager.validate_token(token: str) -> str | None {
     return self.validate_jwt_token(token);
 }
 
-impl JacScaleUserManager.close -> None { }
+impl JacScaleUserManager.close -> None {}
 
 impl JacScaleUserManager.get_username(user_id: str) -> str | None {
     return self._identity_storage.get_username(user_id);
@@ -219,7 +235,7 @@ impl JacScaleUserManager.create_jwt_token(
     payload: dict[(str, any)] = {
         'sub': user_id,
         'user_id': user_id,
-        'exp': (now + timedelta(days=JWT_EXP_DELTA_DAYS)),
+        'exp': (now + timedelta(days=jwt_exp_delta_days())),
         'iat': now.timestamp()
     };
     username = self.get_username(user_id);
@@ -232,12 +248,12 @@ impl JacScaleUserManager.create_jwt_token(
             payload['role'] = role;
         }
     }
-    return jwt_encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM);
+    return jwt_encode(payload, jwt_secret(), algorithm=jwt_algorithm());
 }
 
 impl JacScaleUserManager.get_jwt_claims(token: str) -> dict | None {
     try {
-        return jwt_decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM]);
+        return jwt_decode(token, jwt_secret(), algorithms=[jwt_algorithm()]);
     } except Exception as e {
         logger.debug(f"Failed to decode JWT token: {str(e)}");
         return None;
@@ -262,7 +278,7 @@ impl JacScaleUserManager.validate_jwt_token_detail(
     }
     try {
         decoded = jwt_decode(
-            token, JWT_SECRET, algorithms=[JWT_ALGORITHM], verify_exp=True
+            token, jwt_secret(), algorithms=[jwt_algorithm()], verify_exp=True
         );
     } except JWTExpiredError {
         return {
@@ -325,7 +341,7 @@ impl JacScaleUserManager.validate_jwt_token_detail(
 impl JacScaleUserManager.refresh_jwt_token(token: str) -> str | None {
     try {
         decoded = jwt_decode(
-            token, JWT_SECRET, algorithms=[JWT_ALGORITHM], verify_exp=True
+            token, jwt_secret(), algorithms=[jwt_algorithm()], verify_exp=True
         );
         if decoded.get('type') == 'api_key' {
             return None;
@@ -347,7 +363,7 @@ impl JacScaleUserManager.get_sso(platform: str) -> SSOProvider | None {
         import from jaclang.scale.sso.firebase { FirebaseSSOProvider }
         return FirebaseSSOProvider(project_id=credentials['project_id']);
     } elif platform == Platforms.GOOGLE.value {
-        redirect_uri = f"{SSO_HOST}/sso/{platform}/callback";
+        redirect_uri = f"{sso_host()}/sso/{platform}/callback";
         import from jaclang.scale.sso.google { GoogleSSOProvider }
         return GoogleSSOProvider(
             client_id=credentials['client_id'],
@@ -356,7 +372,7 @@ impl JacScaleUserManager.get_sso(platform: str) -> SSOProvider | None {
             allow_insecure_http=True
         );
     } elif platform == Platforms.APPLE.value {
-        redirect_uri = f"{SSO_HOST}/sso/{platform}/callback";
+        redirect_uri = f"{sso_host()}/sso/{platform}/callback";
         import from jaclang.scale.sso.apple { AppleSSOProvider }
         return AppleSSOProvider(
             client_id=credentials['client_id'],
@@ -365,7 +381,7 @@ impl JacScaleUserManager.get_sso(platform: str) -> SSOProvider | None {
             allow_insecure_http=True
         );
     } elif platform == Platforms.GITHUB.value {
-        redirect_uri = f"{SSO_HOST}/sso/{platform}/callback";
+        redirect_uri = f"{sso_host()}/sso/{platform}/callback";
         import from jaclang.scale.sso.github { GithubSSOProvider }
         return GithubSSOProvider(
             client_id=credentials['client_id'],

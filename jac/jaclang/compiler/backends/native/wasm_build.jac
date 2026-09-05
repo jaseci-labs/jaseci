@@ -132,9 +132,9 @@ def _load_libc_module(libc_dir: str, triple: str) -> (ModuleRef | None) {
         } except OSError {
             try {
                 os.unlink(tmp_path);
-            } except OSError { }
+            } except OSError {}
         }
-    } except OSError { }
+    } except OSError {}
     return merged;
 }
 
@@ -511,7 +511,10 @@ def compile_to_wasm(file_path: str, export_funcs: list = []) -> bytes {
                 f"native lowering produced no IR for '{file_path}': {reason}"
             );
         }
-        llvm_ir_str = str(ir.gen.llvm_ir);
+        import from jaclang.compiler.backends.native.na_compile_pass {
+            native_linked_ir_text
+        }
+        llvm_ir_str = native_linked_ir_text(ir);
         app_imports = app_declared_imports(ir);
     } finally {
         pop_native_target_env(prev);

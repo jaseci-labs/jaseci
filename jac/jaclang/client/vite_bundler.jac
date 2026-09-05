@@ -15,13 +15,38 @@ glob logger = logging.getLogger(__name__),
      VITE_READY_TIMEOUT_SECONDS = 60,
      VITE_READY_PATTERNS = ['ready in', 'local:'],
      VITE_URL_PATTERNS = ['localhost', 'Local:', 'Network:'],
-     CONFIG_META_KEYS = frozenset({'extension'});
+     CONFIG_META_KEYS = frozenset({'extension'}),
+     CLIENT_EVENT_PREFIX = '@@jac-client-event ',
+     DEV_PROXY_PREFIXES: list[str] = [
+         '/walker',
+         '/function',
+         '/user',
+         '/introspect',
+         '/static',
+         '/docs',
+         '/openapi.json',
+         '/healthz',
+         '/admin',
+         '/graph',
+         '/redoc',
+         '/assets'
+     ];
 
 def client_deps_stale(build_dir: Path) -> bool;
 
-class ViteBundler {
-    has dev_server_port: int = 0;
+def _forward_vite_output(
+    proc: any,
+    ready_event: any,
+    sys_module: any,
+    output_buffer: list[str],
+    dispatch: any = None
+) -> None;
 
+class ViteBundler {
+    has dev_server_port: int = 0,
+        on_client_event: any = None;
+
+    def _dispatch_client_event(self: ViteBundler, line: str) -> None;
     def init(
         self: ViteBundler,
         project_dir: Path,
@@ -49,7 +74,9 @@ class ViteBundler {
         mobile_hmr_host: str = "",
         mobile_hmr_port: int = 0,
         for_desktop_dev: bool = False,
-        desktop_broker_port: int = 0
+        desktop_broker_port: int = 0,
+        api_paths: (list[str] | None) = None,
+        client_paths: (list[str] | None) = None
     ) -> Path;
 
     def _format_config_object(self: ViteBundler, config: dict, indent: int = 0) -> str;
@@ -83,7 +110,9 @@ class ViteBundler {
         mobile_hmr_host: str = "",
         mobile_hmr_port: int = 0,
         for_desktop_dev: bool = False,
-        desktop_broker_port: int = 0
+        desktop_broker_port: int = 0,
+        api_paths: (list[str] | None) = None,
+        client_paths: (list[str] | None) = None
     ) -> str;
 
     def create_package_json(
@@ -102,7 +131,7 @@ class ViteBundler {
 
     def _ensure_dev_index_html(self: ViteBundler, build_dir: Path) -> None;
     def _write_fast_refresh_plugin(self: ViteBundler, configs_dir: Path) -> None;
-    def _write_dev_status_plugin(self: ViteBundler, configs_dir: Path) -> None;
+    def _write_client_events_plugin(self: ViteBundler, configs_dir: Path) -> None;
     def _ensure_dev_dependencies(self: ViteBundler, build_dir: Path) -> None;
     def _start_vite_with_output_capture(
         self: ViteBundler, command: list[str], build_dir: Path, sys_module: any

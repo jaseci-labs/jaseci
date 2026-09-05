@@ -1,12 +1,7 @@
 impl NaIRGenStmt._codegen_body(stmts: (list | tuple)) -> None {
-    _ar_open = self.ir_in.anon_region_open;
-    _ar_close = self.ir_in.anon_region_close;
     for stmt in stmts {
         if self.builder.block.is_terminated {
             break;
-        }
-        if id(stmt) in _ar_open {
-            self._open_anon_region(_ar_open[id(stmt)]);
         }
 
         _di_blk_count_snap = 0;
@@ -27,9 +22,6 @@ impl NaIRGenStmt._codegen_body(stmts: (list | tuple)) -> None {
         }
         self._codegen_stmt(stmt);
         self._emit_last_use_releases(stmt);
-        if id(stmt) in _ar_close {
-            self._close_anon_region(_ar_close[id(stmt)]);
-        }
 
         if _di_blk_snap is not None and _di_line_snap > 0 {
             try {
@@ -50,7 +42,7 @@ impl NaIRGenStmt._codegen_body(stmts: (list | tuple)) -> None {
                         }
                     }
                 }
-            } except Exception { }
+            } except Exception {}
         }
     }
 }
@@ -165,96 +157,10 @@ impl NaIRGenStmt._codegen_stmt(nd: uni.UniNode) -> None {
             );
         }
     } elif isinstance(nd, uni.DeleteStmt) {
-        target_expr = nd.target;
-        _del_arch = self._struct_name_of(target_expr);
-        _del_model = self.ir_in.gen.osp_model;
-        if (_del_arch is not None)
-            and (_del_model is not None)
-            and (_del_model.arch_kind.get(_del_arch) == "edge") {
-            _disc_fn = self.func_symtab.get("osp_disconnect");
-            _edge_h = self._codegen_expr(target_expr);
-            if (_disc_fn is not None) and (_edge_h is not None) {
-                _disc_argtys = _disc_fn.function_type.args;
-                self.builder.call(
-                    _disc_fn, [self._coerce_type(_edge_h, _disc_argtys[0])]
-                );
-            } elif _disc_fn is None {
-                self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
-            }
-        } elif isinstance(target_expr, uni.AtomTrailer) and target_expr.is_attr {
-            _del_cls = self._struct_name_of(target_expr.target);
-            _del_fld = self._get_name(target_expr.right);
-            _del_slot = self._accessor_slot_of(_del_cls, _del_fld, "deleter")
-                if (_del_cls is not None and _del_fld is not None)
-                else None;
-            if _del_slot is not None {
-                _del_recv = self._codegen_expr(target_expr.target);
-                if _del_recv is None
-                    or self._codegen_accessor_call(_del_recv, _del_cls, _del_slot, [])
-                        is None {
-                    self.emit(
-                        E5092, node_override=nd, kind="statement", name="DeleteStmt"
-                    );
-                }
-            }
-        } elif (
-            isinstance(target_expr, uni.AtomTrailer)
-            and not target_expr.is_attr
-            and target_expr.right?.slices
-        ) {
-            slices = target_expr.right.slices or [];
-            if slices {
-                dict_type_key = self._dict_key_of(target_expr.target);
-                if dict_type_key is None {
-                    dict_val_tmp = self._codegen_expr(target_expr.target);
-                    if dict_val_tmp is not None {
-                        dict_info = self._infer_dict_type(dict_val_tmp);
-                        if dict_info is not None {
-                            dict_type_key = f"{dict_info[0]}:{dict_info[1]}";
-                        }
-                    }
-                }
-                if dict_type_key is not None {
-                    dict_val = self._codegen_expr(target_expr.target);
-                    dict_type_key = self._dict_key_reconcile(dict_type_key, dict_val);
-                    idx_node = slices[0];
-                    idx_val = self._codegen_expr(idx_node);
-                    if idx_val is None and idx_node?.start {
-                        idx_val = self._codegen_expr(idx_node.start);
-                    }
-                    if dict_val is not None and idx_val is not None {
-                        self._dispatch_primitive_method(
-                            "dict", "remove", dict_val, [idx_val], dict_type_key
-                        );
-                    }
-                } else {
-                    list_val_tmp = self._codegen_expr(target_expr.target);
-                    if list_val_tmp is not None {
-                        elem_type_name = self._infer_list_elem_type(list_val_tmp);
-                        if elem_type_name is not None {
-                            list_val = self._codegen_expr(target_expr.target);
-                            idx_node = slices[0];
-                            idx_val = self._codegen_expr(idx_node);
-                            if idx_val is None and idx_node?.start {
-                                idx_val = self._codegen_expr(idx_node.start);
-                            }
-                            if list_val is not None and idx_val is not None {
-                                self._dispatch_primitive_method(
-                                    "list",
-                                    "del_at",
-                                    list_val,
-                                    [idx_val],
-                                    elem_type_name
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    } elif isinstance(nd, uni.Semi) { } elif isinstance(nd, uni.Import) { } elif isinstance(
+        self._codegen_delete(nd);
+    } elif isinstance(nd, uni.Semi) {} elif isinstance(nd, uni.Import) {} elif isinstance(
         nd, uni.PyInlineCode
-    ) { } elif isinstance(nd, uni.VisitStmt) {
+    ) {} elif isinstance(nd, uni.VisitStmt) {
         self._codegen_visit(nd);
     } elif isinstance(nd, uni.DisengageStmt) {
         self._codegen_disengage(nd);
@@ -263,6 +169,151 @@ impl NaIRGenStmt._codegen_stmt(nd: uni.UniNode) -> None {
     } else {
         self.emit(E5092, node_override=nd, kind="statement", name=type(nd).__name__);
     }
+}
+
+impl NaIRGenStmt._codegen_delete(nd: uni.DeleteStmt) -> None {
+    for target in nd.leaf_targets() {
+        if not uni.DeleteStmt.is_location(target) {
+            self._codegen_destroy_target(target, nd);
+            continue;
+        }
+        if self._del_target_holds_graph(target) {
+            self._codegen_destroy_target(target, nd);
+        }
+        if isinstance(target, uni.AtomTrailer) {
+            self._codegen_delete_location(target, nd);
+        }
+    }
+}
+
+impl NaIRGenStmt._codegen_destroy_target(target: uni.Expr, nd: uni.DeleteStmt) -> None {
+    _destroy_fn = self.func_symtab.get("osp_destroy");
+    _destroy_all_fn = self.func_symtab.get("osp_destroy_all");
+    if _destroy_fn is None or _destroy_all_fn is None {
+        self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
+        return;
+    }
+    _val = self._codegen_expr(target);
+    if _val is None {
+        self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
+        return;
+    }
+    _forget_fn = self.func_symtab.get("osp_forget");
+    _forget_all_fn = self.func_symtab.get("osp_forget_all");
+    if self._infer_list_elem_type(_val) is not None {
+        _all_argtys = _destroy_all_fn.function_type.args;
+        _hs = self._coerce_type(_val, _all_argtys[0]);
+        self.builder.call(_destroy_all_fn, [_hs]);
+        if _forget_all_fn is not None {
+            _fa_argtys = _forget_all_fn.function_type.args;
+            self.builder.call(_forget_all_fn, [self._coerce_type(_hs, _fa_argtys[0])]);
+        }
+        return;
+    }
+    if self._struct_name_of(target) is None {
+        self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
+        return;
+    }
+    _argtys = _destroy_fn.function_type.args;
+    _h = self._coerce_type(_val, _argtys[0]);
+    self.builder.call(_destroy_fn, [_h]);
+    if _forget_fn is not None {
+        _f_argtys = _forget_fn.function_type.args;
+        self.builder.call(_forget_fn, [self._coerce_type(_h, _f_argtys[0])]);
+    }
+}
+
+impl NaIRGenStmt._del_target_holds_graph(target: uni.Expr) -> bool {
+    _model = self.ir_in.gen.osp_model;
+    _type_key = self._type_key_of(target);
+    if (_model is None) or (_type_key is None) {
+        return False;
+    }
+    _flat = _type_key;
+    for _ch in "[](),|" {
+        _flat = _flat.replace(_ch, " ");
+    }
+    for _part in _flat.split() {
+        if _model.arch_kind.get(_part) is not None {
+            return True;
+        }
+    }
+    return False;
+}
+
+impl NaIRGenStmt._codegen_delete_location(
+    target: uni.AtomTrailer, nd: uni.DeleteStmt
+) -> None {
+    if target.is_attr {
+        _del_cls = self._struct_name_of(target.target);
+        _del_fld = self._get_name(target.right);
+        if _del_cls is None or _del_fld is None {
+            self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
+            return;
+        }
+        _del_slot = self._accessor_slot_of(_del_cls, _del_fld, "deleter");
+        if _del_slot is None {
+            self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
+            return;
+        }
+        _del_recv = self._codegen_expr(target.target);
+        if _del_recv is None
+            or self._codegen_accessor_call(_del_recv, _del_cls, _del_slot, [])
+                is None {
+            self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
+        }
+        return;
+    }
+    _islice = target.right;
+    if (not isinstance(_islice, uni.IndexSlice))
+        or _islice.is_range
+        or len(_islice.slices) != 1 {
+        self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
+        return;
+    }
+    _idx_node = _islice.slices[0];
+    _idx_direct = self._codegen_expr(_idx_node);
+    _idx_val = _idx_direct
+        if _idx_direct is not None
+        else (self._codegen_expr(_idx_node.start) if _idx_node?.start else None);
+    if _idx_val is None {
+        self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
+        return;
+    }
+    _dict_type_key = self._dict_key_of(target.target);
+    if _dict_type_key is None {
+        _dict_probe = self._codegen_expr(target.target);
+        _dict_info = self._infer_dict_type(_dict_probe)
+            if _dict_probe is not None
+            else None;
+        if _dict_info is not None {
+            _dict_type_key = f"{_dict_info[0]}:{_dict_info[1]}";
+        }
+    }
+    _container = self._codegen_expr(target.target);
+    if _container is None {
+        self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
+        return;
+    }
+    if _dict_type_key is not None {
+        _dict_key = self._dict_key_reconcile(_dict_type_key, _container);
+        if _dict_key is None {
+            self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
+            return;
+        }
+        self._dispatch_primitive_method(
+            "dict", "remove", _container, [_idx_val], _dict_key
+        );
+        return;
+    }
+    _elem_type_name = self._infer_list_elem_type(_container);
+    if _elem_type_name is None {
+        self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
+        return;
+    }
+    self._dispatch_primitive_method(
+        "list", "del_at", _container, [_idx_val], _elem_type_name
+    );
 }
 
 impl NaIRGenStmt._codegen_return(nd: uni.ReturnStmt) -> None {
@@ -614,55 +665,47 @@ impl NaIRGenStmt._codegen_open_stmt(nd: uni.OpenStmt) -> None {
     _region_body_locals = loop_body_locals(
         nd.body if isinstance(nd.body, (list, tuple)) else None
     );
-
-    self._emit_arena_helpers();
     _i8p = ir.IntType(8).as_pointer();
-    import from jaclang.compiler.expr_keys { is_builtin_region_name }
-    _anon_region = (
-        isinstance(nd.target, uni.FuncCall) and is_builtin_region_name(nd.target.target)
-    );
+    _hdl = self._codegen_expr(nd.target);
+    if _hdl is None {
+        if isinstance(nd.body, (list, tuple)) {
+            self._codegen_body(nd.body);
+        }
+        return;
+    }
+    _hdl = self._region_ptr(_hdl, name="region.hdl");
     _synth: (str | None) = None;
-    if _anon_region {
-        _arena = self.builder.call(self.region_new_fn, [], name="region.anon");
-        _synth = f".region.{self.region_anon_count}";
-        self.region_anon_count += 1;
+    if not isinstance(nd.target, uni.Name) {
+        _synth = f".region.{id(nd)}";
         _slot = self._entry_alloca(_i8p, _synth);
-        self.builder.store(_arena, _slot);
+        self.builder.store(_hdl, _slot);
         self.local_vars[_synth] = _slot;
         self.region_handle_vars.add(_synth);
-    } else {
-        _arena = self._codegen_expr(nd.target);
-        if _arena is not None and _arena.type != _i8p {
-            _arena = self.builder.bitcast(_arena, _i8p, name="region.hdl");
-        }
     }
-    _pushed = _arena is not None;
-    if _pushed {
-        self.region_stack.append(_arena);
-    }
-
+    self._region_enter(_hdl);
+    self.region_open_stack.append(len(self.loop_stack));
     _region_prebody = set(self.local_vars.keys());
     if isinstance(nd.body, (list, tuple)) {
         self._codegen_body(nd.body);
     }
-    if _pushed {
-        self.region_stack.pop();
+    self.region_open_stack.pop();
+    if self.builder.block.is_terminated {
+        return;
     }
-    if not self.builder.block.is_terminated {
-        _region_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.last_line
-            if nd.loc
-            else 0}";
-        self._emit_loop_iter_cleanup(
-            [
-                _v
-                for _v in _region_body_locals
-                if _v not in _region_prebody
-            ],
-            loc=_region_loc
-        );
-        if _synth is not None {
-            self._emit_region_handle_drop(self.local_vars[_synth], _synth);
-        }
+    self._region_leave();
+    _region_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.last_line
+        if nd.loc
+        else 0}";
+    self._emit_loop_iter_cleanup(
+        [
+            _v
+            for _v in _region_body_locals
+            if _v not in _region_prebody
+        ],
+        loc=_region_loc
+    );
+    if _synth is not None {
+        self._emit_region_handle_drop(self.local_vars[_synth], _synth);
     }
 }
 
@@ -1596,7 +1639,7 @@ impl NaIRGenStmt._apply_scalar_aug_op(
 
 impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
     _rhs_errs_before = len(self.errors_had);
-    if self._try_partition_sugar_assign(nd) {
+    if self._lower_partition_unpack(nd) {
         return;
     }
     value: (ir.Value | None) = None;
@@ -2307,15 +2350,14 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
             self._register_region_handle_var(nd, var_name);
             if isinstance(alloca.type.pointee, ir.PointerType)
                 and not is_inplace_set_op {
-                if _is_raw_int_ptr {
-                    self.param_vars.add(var_name);
-                } elif var_name in self.region_handle_vars {
-                    self._emit_arena_helpers();
+                if var_name in self.region_handle_vars {
                     _old_hdl = self.builder.load(alloca, name=f"{var_name}.old");
-                    _old_i8 = self.builder.bitcast(
-                        _old_hdl, ir.IntType(8).as_pointer(), name=f"{var_name}.old.i8"
+                    self.builder.call(
+                        self._region_kernel_fn("__jac_region_drop"),
+                        [self._region_i64(_old_hdl, name=f"{var_name}.old.i64")]
                     );
-                    self.builder.call(self.region_drop_fn, [_old_i8]);
+                } elif _is_raw_int_ptr {
+                    self.param_vars.add(var_name);
                 } else {
                     if self._nogc_headerless()
                         and isinstance(nd.value, uni.Name)
@@ -2425,6 +2467,13 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                 } elif self._is_owned(value) {
                     self.rc_ops_elided += 1;
                 }
+            } elif var_name in self.region_handle_vars
+                and self._opt_ptr_payload_of(alloca.type.pointee) is not None {
+                _old_opt_hdl = self.builder.load(alloca, name=f"{var_name}.old");
+                self.builder.call(
+                    self._region_kernel_fn("__jac_region_drop"),
+                    [self._region_i64(_old_opt_hdl, name=f"{var_name}.old.i64")]
+                );
             } elif self._opt_ptr_payload_of(alloca.type.pointee) is not None
                 and not self._nogc_headerless()
                 and not is_inplace_set_op
@@ -2802,10 +2851,9 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                 self.builder.position_at_end(_cur_bb);
             }
             self._register_region_handle_var(nd, var_name);
-            if isinstance(var_type, ir.PointerType)
-                and var_name in self.region_handle_vars {
-                ;
-            } elif isinstance(var_type, ir.PointerType)
+            if var_name in self.region_handle_vars {} elif isinstance(
+                var_type, ir.PointerType
+            )
                 or (self._str_desc_ty is not None and var_type == self._str_desc_ty) {
                 if getattr(value, 'opname', '') == 'inttoptr' {
                     self.param_vars.add(var_name);
@@ -2961,6 +3009,7 @@ impl NaIRGenStmt._codegen_ctrl(nd: uni.CtrlStmt) -> None {
 
     if ctrl_name == Tok.KW_SKIP {
         if isinstance(self.builder.function.function_type.return_type, ir.VoidType) {
+            self._emit_region_leaves(len(self.region_open_stack));
             self.builder.ret_void();
         } else {
             self.emit(
@@ -2980,6 +3029,16 @@ impl NaIRGenStmt._codegen_ctrl(nd: uni.CtrlStmt) -> None {
         return;
     }
     (continue_bb, break_bb) = self.loop_stack[-1];
+    _loop_depth = len(self.loop_stack);
+    self._emit_region_leaves(
+        len(
+            [
+                _d
+                for _d in self.region_open_stack
+                if _d >= _loop_depth
+            ]
+        )
+    );
     if ctrl_name == Tok.KW_BREAK {
         self.builder.branch(break_bb);
     } elif ctrl_name == Tok.KW_CONTINUE {
@@ -3526,7 +3585,7 @@ impl NaIRGenStmt._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     saved_cell_vars = self.closure_cell_vars;
     saved_cell_handles = self.closure_cell_handles;
     saved_loop_stack = self.loop_stack;
-    saved_region_stack = self.region_stack;
+    saved_region_opens = self.region_open_stack;
     saved_di = self._di_current_sp;
 
     _b_entry = _body_fn.append_basic_block("entry");
@@ -3538,7 +3597,7 @@ impl NaIRGenStmt._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};
     self.loop_stack = [];
-    self.region_stack = [];
+    self.region_open_stack = [];
     self._di_current_sp = None;
 
     _bctx = self.builder.bitcast(_body_fn.args[0], _ctx_ty.as_pointer(), name="ctx.t");
@@ -3700,7 +3759,7 @@ impl NaIRGenStmt._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     self.closure_cell_vars = saved_cell_vars;
     self.closure_cell_handles = saved_cell_handles;
     self.loop_stack = saved_loop_stack;
-    self.region_stack = saved_region_stack;
+    self.region_open_stack = saved_region_opens;
     self._di_current_sp = saved_di;
 
     _len_val = self.builder.call(helpers["len"], [coll], name="ffor.len");

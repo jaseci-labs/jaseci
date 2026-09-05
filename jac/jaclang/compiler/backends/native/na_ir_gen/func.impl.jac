@@ -199,7 +199,7 @@ impl NaIRGenFunc._elem_keys_of_annotation(ann: (uni.UniNode | None)) -> (list | 
         if _etb is not None {
             try {
                 _ek = self._normalize_type_key(self._mangled_of(_etb));
-            } except Exception { }
+            } except Exception {}
         }
         keys.append(_ek);
     }
@@ -220,7 +220,7 @@ impl NaIRGenFunc._record_ret_facts(name: str, sig: uni.FuncSignature) -> None {
             self.func_ret_type_key[name] = self._normalize_type_key(
                 self._mangled_of(_rtb)
             );
-        } except Exception { }
+        } except Exception {}
     }
     keys = self._elem_keys_of_annotation(_rt);
     if keys {
@@ -366,6 +366,7 @@ impl NaIRGenFunc._declare_clib_ability(nd: uni.Ability) -> None {
     ret_type = self._resolve_clib_type(sig.return_type);
 
     fnty = ir.FunctionType(ret_type, param_types, var_arg=is_variadic);
+    self.clib_declared_sigs[name] = (ret_type, list(param_types));
     if name in self.extern_funcs {
         func = self.extern_funcs[name];
     } elif name in self.func_symtab {
@@ -392,6 +393,9 @@ impl NaIRGenFunc._codegen_ability(nd: uni.Ability) -> None {
     }
     func = self.func_symtab.get(name);
     if func is None {
+        if id(nd) in self._capability_demotions {
+            self._claimed_capability_demotions.add(id(nd));
+        }
         return;
     }
 
@@ -427,6 +431,7 @@ impl NaIRGenFunc._codegen_ability(nd: uni.Ability) -> None {
         self.nogc_no_free_vars = set();
         self.nogc_owned_str_vars = set();
         self.region_handle_vars = set();
+        self.region_open_stack = [];
         self.closure_cell_vars = set();
         self.closure_cell_handles = {};
 
@@ -548,6 +553,7 @@ impl NaIRGenFunc._codegen_test(nd: uni.Test) -> None {
     self.nogc_no_free_vars = set();
     self.nogc_owned_str_vars = set();
     self.region_handle_vars = set();
+    self.region_open_stack = [];
     saved_param_vars = self.param_vars;
     self.param_vars = set();
     saved_cell_vars = self.closure_cell_vars;
@@ -720,6 +726,7 @@ impl NaIRGenFunc._codegen_nested_ability(nd: uni.Ability) -> None {
     self.nogc_no_free_vars = set();
     self.nogc_owned_str_vars = set();
     self.region_handle_vars = set();
+    self.region_open_stack = [];
     self.param_vars = set();
     self.var_list_elem_struct = {};
     self.closure_cell_vars = set();
@@ -1049,6 +1056,7 @@ impl NaIRGenFunc._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     saved_nogc = self.nogc_no_free_vars;
     saved_nogc_owned = self.nogc_owned_str_vars;
     saved_region = self.region_handle_vars;
+    saved_region_opens = self.region_open_stack;
     saved_cell_vars = self.closure_cell_vars;
     saved_cell_handles = self.closure_cell_handles;
     saved_try_stack = self._gen_try_stack;
@@ -1060,6 +1068,7 @@ impl NaIRGenFunc._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     self.nogc_no_free_vars = set();
     self.nogc_owned_str_vars = set();
     self.region_handle_vars = set();
+    self.region_open_stack = [];
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};
     self._gen_try_stack = [];
@@ -1150,6 +1159,7 @@ impl NaIRGenFunc._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     self.nogc_no_free_vars = saved_nogc;
     self.nogc_owned_str_vars = saved_nogc_owned;
     self.region_handle_vars = saved_region;
+    self.region_open_stack = saved_region_opens;
     self.closure_cell_vars = saved_cell_vars;
     self.closure_cell_handles = saved_cell_handles;
     self._gen_try_stack = saved_try_stack;
@@ -1163,6 +1173,7 @@ impl NaIRGenFunc._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     self.nogc_no_free_vars = set();
     self.nogc_owned_str_vars = set();
     self.region_handle_vars = set();
+    self.region_open_stack = [];
 
     if self.rc_alloc_fn is None {
         self._emit_rc_helpers();
@@ -1303,6 +1314,7 @@ impl NaIRGenFunc._emit_glob_init_func -> None {
     self.nogc_no_free_vars = set();
     self.nogc_owned_str_vars = set();
     self.region_handle_vars = set();
+    self.region_open_stack = [];
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};
     if self?._global_init_nodes and self._global_init_nodes {
@@ -1485,6 +1497,7 @@ impl NaIRGenFunc._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
     self.nogc_no_free_vars = set();
     self.nogc_owned_str_vars = set();
     self.region_handle_vars = set();
+    self.region_open_stack = [];
     self.closure_cell_vars = set();
     self.closure_cell_handles = {};
     for _ent_scan in nodes {
@@ -1626,7 +1639,7 @@ impl NaIRGenFunc._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
                     "DILocation", {"line": 1, "column": 0, "scope": _di_init_sp}
                 );
                 _init_call.set_metadata("dbg", _di_init_loc);
-            } except Exception { }
+            } except Exception {}
         }
         if _guard_kernel {
             self.builder.branch(_gk_done);

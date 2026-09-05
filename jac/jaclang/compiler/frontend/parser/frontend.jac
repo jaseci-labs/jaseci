@@ -19,7 +19,7 @@ def _replay_diags(diags: any, from_pass: type, prog: JacProgram, diag_src: Sourc
             (loc.pos_start, loc.pos_end)
         );
         code = DIAGNOSTICS.get(d.code_str) if d.code_str else None;
-        help_text = getattr(d, "help", "");
+        help_text = getattr(d, "help", "") or None;
         alrt = Alert(d.message, span, from_pass, code=code, help_text=help_text);
         if d.is_error {
             prog.errors_had.append(alrt);
@@ -108,9 +108,42 @@ def _finish_parse(
     return p_errs > 0 or lex_errs > 0;
 }
 
+def _native_parse_woven(
+    source_str: str, file_path: str, prog: (JacProgram | None), annexes: list
+) -> (tuple | None) {
+    import jaclang.compiler.native_compiler as _jc;
+    kernel = _jc.ensure_loaded();
+    if kernel is None {
+        return None;
+    }
+    for (a_src, a_path) in annexes {
+        kernel.annex(a_src, a_path);
+    }
+    if kernel.run(source_str, file_path) != 0 {
+        return None;
+    }
+    module = kernel.take_module();
+    if module is None {
+        return None;
+    }
+    p_errs = kernel.err_count();
+    lex_errs = kernel.lex_errs();
+    p_diags = kernel.take_diags();
+    lex_diags = kernel.take_lexdiags();
+    comments = kernel.take_comments();
+    had_error = _finish_parse(
+        module, p_errs, p_diags, comments, lex_diags, lex_errs, prog
+    );
+    return (module, had_error);
+}
+
 def parse_woven(
     source_str: str, file_path: str, prog: (JacProgram | None), annexes: list
 ) -> tuple {
+    nat = _native_parse_woven(source_str, file_path, prog, annexes);
+    if nat is not None {
+        return nat;
+    }
     (module, had_error) = parse(source_str, file_path, prog=prog);
     if had_error or not annexes {
         return (module, had_error);

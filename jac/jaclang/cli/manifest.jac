@@ -18,6 +18,7 @@ comptime import from jaclang.cli.commands.fix { SPEC_FIX }
 comptime import from jaclang.cli.commands.guide { SPEC_GUIDE }
 comptime import from jaclang.cli.commands.mcp { SPEC_MCP_CMD }
 comptime import from jaclang.cli.commands.nacompile { SPEC_NACOMPILE }
+comptime import from jaclang.cli.commands.precompile { SPEC_PRECOMPILE }
 comptime import from jaclang.cli.commands.project {
     SPEC_CLEAN,
     SPEC_CREATE,
@@ -28,7 +29,6 @@ comptime import from jaclang.cli.commands.project {
 comptime import from jaclang.cli.commands.tools {
     SPEC_COMPLETIONS,
     SPEC_DOT,
-    SPEC_GEN_UNI_DISPATCH,
     SPEC_LSP,
     SPEC_TOOL
 }
@@ -108,7 +108,6 @@ comptime ROUTES: list[CommandSpec] = [
          _route(SPEC_FIX),
          _route(SPEC_FORMAT),
          _route(SPEC_GEN_PARSER),
-         _route(SPEC_GEN_UNI_DISPATCH),
          _route(SPEC_GUIDE),
          _route(SPEC_INSTALL),
          _route(SPEC_LSP),
@@ -116,6 +115,7 @@ comptime ROUTES: list[CommandSpec] = [
          _route(SPEC_MODEL),
          _route(SPEC_NACOMPILE),
          _route(SPEC_PRECOMMIT),
+         _route(SPEC_PRECOMPILE),
          _route(SPEC_REMOVE),
          _route(SPEC_RETHEME),
          _route(SPEC_RUN),
@@ -151,6 +151,11 @@ with entry {
     ) , "a command names a tier that TIER_SECTIONS does not know";
     comptime assert all([r.group in GROUP_DISPLAY for r in ROUTES]) , "a command names a group that GROUP_DISPLAY does not know";
     comptime assert all([r.handler_module and r.handler_name for r in ROUTES]) , "a command spec has no handler";
+    comptime assert not [
+        r.name
+        for r in ROUTES
+        if len({a.dest or a.name for a in r.args}) != len(r.args)
+    ] , "a command declares two arguments that bind the same name. This block is also load-bearing for #8880: ROUTES is a comptime fold of the command specs and its cached artifact does not re-key on them, so a spec that gains an argument without this file's bytes moving ships a kit whose parser rejects the new flag. Delete this only once that fold keys on its producers.";
 }
 
 def get_command_meta(name: str) -> CommandSpec | None;

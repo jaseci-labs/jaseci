@@ -911,9 +911,7 @@ def collect_placement_rows(prog: any) -> dict {
                         }
                     }
                 }
-            } except Exception {
-                ;
-            }
+            } except Exception {}
         }
         rows_by_module[os.path.abspath(str(mod_path))] = {
             'decided': mod.decided_codespace or '',

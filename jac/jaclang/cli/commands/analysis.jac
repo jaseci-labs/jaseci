@@ -73,6 +73,12 @@ comptime SPEC_CHECK: CommandSpec = CommandSpec(
                  short="",
                  help="Report where every top-level element was placed (server / client / native / dual) with the evidence behind each decision"
              ),
+             Arg.create(
+                 "jobs",
+                 `default="",
+                 short="j",
+                 help="Worker processes: a count, 'auto' (one per core, memory-budgeted) or 0 for serial; defaults to [dev] check_jobs / jobs in jac.toml or JAC_CHECK_JOBS / JAC_JOBS"
+             ),
 
          ],
          examples=[
@@ -112,7 +118,8 @@ def check(
     lint_only: bool = False,
     fix: bool = False,
     native_coverage: bool = False,
-    placements: bool = False
+    placements: bool = False,
+    jobs: str = ""
 ) -> int;
 
 def lint(paths: list, fix: bool = False, ignore: (list | None) = None) -> int;
@@ -155,6 +162,12 @@ comptime SPEC_FORMAT: CommandSpec = CommandSpec(
                  help="Skip files already known to be formatted (content + config + version keyed)",
                  short="C"
              ),
+             Arg.create(
+                 "jobs",
+                 `default="",
+                 short="j",
+                 help="Worker processes: a count, 'auto' (one per core, memory-budgeted) or 0 for serial; defaults to [dev] fmt_jobs / jobs in jac.toml or JAC_FMT_JOBS / JAC_JOBS"
+             ),
 
          ],
          examples=[
@@ -177,7 +190,8 @@ def format(
     cache: bool = False,
     cache_anchor: str = "",
     path_map: dict | None = None,
-    cache_stats: dict | None = None
+    cache_stats: dict | None = None,
+    jobs: str = ""
 ) -> int;
 
 comptime SPEC_PRECOMMIT: CommandSpec = CommandSpec(
@@ -319,6 +333,12 @@ comptime SPEC_TEST: CommandSpec = CommandSpec(
                  short="",
                  help="Configuration profile to load (e.g. prod, staging)"
              ),
+             Arg.create(
+                 "jobs",
+                 `default="",
+                 short="j",
+                 help="Worker processes: a count, 'auto' (one per core, memory-budgeted) or 0 for serial; defaults to [dev] test_jobs / jobs in jac.toml or JAC_TEST_JOBS / JAC_JOBS"
+             ),
 
          ],
          examples=[
@@ -347,7 +367,8 @@ def `test(
     pct_range: str = "",
     resume: bool = False,
     verbose: bool = False,
-    ignore: (list | None) = None
+    ignore: (list | None) = None,
+    jobs: str = ""
 ) -> int;
 
 comptime SPEC_GEN_PARSER: CommandSpec = CommandSpec(

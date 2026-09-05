@@ -95,15 +95,11 @@ obj NaIRGenState(ModuleCodegenPass) {
         imported_osp_archs: dict[str, tuple] = {},
         _osp_kernel_mod: (object | None) = None,
         _fmt_kernel_mod: (object | None) = None,
-        _osp_desc_global: (ir.GlobalVariable | None) = None,
         _osp_rt_global: (ir.GlobalVariable | None) = None,
         _osp_setup_fn: (ir.Function | None) = None,
         _osp_ensure_fn: (ir.Function | None) = None,
         _osp_kernel_inited_gv: (ir.GlobalVariable | None) = None,
         _osp_kernel_glob_init_fn: (ir.Function | None) = None,
-        _osp_filter_fn: (ir.Function | None) = None,
-        _osp_h2i_fn: (ir.Function | None) = None,
-        _osp_is_a_fn: (ir.Function | None) = None,
         tuple_types: dict[str, ir.LiteralStructType] = {},
         global_vars: dict[str, ir.GlobalVariable] = {},
         global_var_types: dict[str, ir.Type] = {},
@@ -189,19 +185,12 @@ obj NaIRGenState(ModuleCodegenPass) {
         container_layouts: dict[str, dict] = {},
         struct_drop_hooks: dict[str, ir.Function] = {},
         struct_drop_fields_fns: dict[str, ir.Function] = {},
-        arena_helpers_emitted: bool = False,
-        region_new_fn: (ir.Function | None) = None,
-        region_partition_fn: (ir.Function | None) = None,
-        region_alloc_fn: (ir.Function | None) = None,
-        region_log_dtor_fn: (ir.Function | None) = None,
-        region_drop_fn: (ir.Function | None) = None,
-        osp_anchor_alloc_fn: (ir.Function | None) = None,
-        region_handle_of_fn: (ir.Function | None) = None,
-        region_stack: list = [],
         region_handle_vars: set[str] = set(),
-        region_anon_count: int = 0,
-        anon_region_active: dict[int, str] = {},
+        region_open_stack: list[int] = [],
         rc_region_allocs: int = 0,
+        _region_kernel_registered: bool = False,
+        _managed_ctor_node: int = 0,
+        clib_declared_sigs: dict[str, tuple] = {},
         nogc_no_free_vars: set[str] = set(),
         nogc_owned_str_vars: set[str] = set(),
         list_release_fns: dict[str, ir.Function] = {},
@@ -221,6 +210,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         _di_current_sp: object = None,
         _func_loc: dict[str, int] = {},
         _func_def_mod: dict[str, str] = {},
+        _linked_fn_decls: dict[int, tuple] = {},
         _pyb_base_memo: dict[str, tuple | None] = {},
         _pyb_helper_fns: dict[str, ir.Function] = {},
         lambda_captures: dict[str, list[tuple]] = {},
@@ -256,15 +246,28 @@ obj NaIRGenState(ModuleCodegenPass) {
     has slice_struct_type: ir.Type { getter; }
     has jacval_type: ir.Type { getter; }
 
-    def _try_partition_sugar_assign(nd: uni.Assignment) -> bool abst;
+    def _register_region_kernel -> None abst;
+    def _region_kernel_fn(name: str) -> ir.Function abst;
+    def _region_i64(val: ir.Value, name: str = "rgn.i64") -> ir.Value abst;
+    def _region_ptr(val: ir.Value, name: str = "rgn.p") -> ir.Value abst;
+    def _region_new_handle -> ir.Value abst;
+    def _region_current -> ir.Value abst;
+    def _region_of_value(val: ir.Value) -> ir.Value abst;
+    def _region_enter(hdl: ir.Value) -> None abst;
+    def _region_leave -> None abst;
+    def _emit_region_leaves(count: int) -> None abst;
+    def _region_depth -> ir.Value abst;
+    def _region_unwind(depth: ir.Value) -> None abst;
+    def _region_alloc_object(
+        hdl: ir.Value, size: ir.Value, type_name: (str | None)
+    ) -> ir.Value abst;
+
+    def _region_partition(hdl: ir.Value) -> ir.Value abst;
+    def _region_owns(ptr: ir.Value) -> ir.Value abst;
     def _emit_struct_drop_fields_fn(type_name: str) -> (ir.Function | None) abst;
-    def _emit_arena_helpers -> None abst;
     def _register_region_handle_var(nd: uni.Assignment, var_name: str) -> None abst;
-    def _region_alloc(size: ir.Value, name: str = "region.alloc") -> ir.Value abst;
-    def _region_log_dtor_if_needed(obj_i8: ir.Value, type_name: str) -> None abst;
     def _emit_region_handle_drop(alloca: ir.Value, var_name: str) -> None abst;
-    def _open_anon_region(gidx: int) -> None abst;
-    def _close_anon_region(gidx: int) -> None abst;
+    def _lower_partition_unpack(nd: uni.Assignment) -> bool abst;
     def _get_or_declare_extern(
         name: str, ret_type: ir.Type, arg_types: list[ir.Type], var_arg: bool = False
     ) -> ir.Function abst;
@@ -540,6 +543,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     ) -> ir.IRBuilder abst;
 
     def _box_to_jacval(value: ir.Value) -> ir.Value abst;
+    def _emit_jacval_release_fn -> ir.Function abst;
     def _unbox_from_jacval(jv: ir.Value, target_type: ir.Type) -> ir.Value abst;
     def _codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) abst;
     def _codegen_dict_access(
@@ -960,6 +964,10 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _arch_is_osp_name(arch_name: str) -> bool abst;
     def _arch_is_walker_name(arch_name: str) -> bool abst;
     def _emit_struct_drop_fn(type_name: str) -> (ir.Function | None) abst;
+    def _emit_nogc_field_drops(
+        b: ir.IRBuilder, type_name: str, _dobj: ir.Value
+    ) -> None abst;
+
     def _emit_container_drop_fn(cont_name: str) -> (ir.Function | None) abst;
     def _nogc_elem_drop_slot_ty -> ir.Type abst;
     def _nogc_stamp_elem_drops(cont: ir.Value | None, elem_mangles: list) -> None abst;

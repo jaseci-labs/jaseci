@@ -1,4 +1,4 @@
-import from jaclang.compiler.backends.native.na_ir_gen.arena { NaIRGenArena }
+import from jaclang.compiler.backends.native.na_ir_gen.region { NaIRGenRegion }
 import from jaclang.compiler.backends.native.na_ir_gen.builtins { NaIRGenBuiltins }
 import from jaclang.compiler.backends.native.na_ir_gen.bytearray_na {
     NaIRGenBytearrayNa
@@ -52,8 +52,8 @@ import from jaclang.compiler.backends.native.na_ir_gen.types { NaIRGenTypes }
 import from jaclang.compiler.backends.native.na_ir_gen.vtable { NaIRGenVtable }
 import type from jaclang.compiler.driver.program { JacProgram }
 
-obj NaIRGenPass(NaIRGenArena, NaIRGenBuiltins, NaIRGenBytearrayNa, NaIRGenBytes, NaIRGenCalls, NaIRGenClibAbi, NaIRGenClibVtable, NaIRGenClosures, NaIRGenComprehensions, NaIRGenContainerHelpers, NaIRGenContextMgr, NaIRGenCore, NaIRGenCycleCollector, NaIRGenDebug, NaIRGenDicts, NaIRGenEnums, NaIRGenExceptions, NaIRGenExpr, NaIRGenFileIo, NaIRGenFmt, NaIRGenFunc, NaIRGenGcDebug, NaIRGenGenerics, NaIRGenGlobals, NaIRGenHashCore, NaIRGenIterators, NaIRGenLists, NaIRGenMath, NaIRGenObjects, NaIRGenOs, NaIRGenOsp, NaIRGenPybInterop, NaIRGenRandom, NaIRGenRefcount, NaIRGenRepr, NaIRGenSets, NaIRGenSized, NaIRGenStmt, NaIRGenStruct, NaIRGenTime, NaIRGenTraceFn, NaIRGenTuples, NaIRGenTypes, NaIRGenVtable) {
+walker NaIRGenPass(NaIRGenRegion, NaIRGenBuiltins, NaIRGenBytearrayNa, NaIRGenBytes, NaIRGenCalls, NaIRGenClibAbi, NaIRGenClibVtable, NaIRGenClosures, NaIRGenComprehensions, NaIRGenContainerHelpers, NaIRGenContextMgr, NaIRGenCore, NaIRGenCycleCollector, NaIRGenDebug, NaIRGenDicts, NaIRGenEnums, NaIRGenExceptions, NaIRGenExpr, NaIRGenFileIo, NaIRGenFmt, NaIRGenFunc, NaIRGenGcDebug, NaIRGenGenerics, NaIRGenGlobals, NaIRGenHashCore, NaIRGenIterators, NaIRGenLists, NaIRGenMath, NaIRGenObjects, NaIRGenOs, NaIRGenOsp, NaIRGenPybInterop, NaIRGenRandom, NaIRGenRefcount, NaIRGenRepr, NaIRGenSets, NaIRGenSized, NaIRGenStmt, NaIRGenStruct, NaIRGenTime, NaIRGenTraceFn, NaIRGenTuples, NaIRGenTypes, NaIRGenVtable) {
     has prog: JacProgram;
     static has HOST_PASS: bool = True,
-        REQUIRES: tuple = ('inference', 'cfg', 'ownership', 'capability', 'rc-facts');
+        REQUIRES: tuple = ('TypeOf', 'CfgSucc', 'ownership', 'capability', 'rc-facts');
 }

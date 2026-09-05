@@ -73,6 +73,21 @@ def inject_shared_init(llvm_ir_str: str, manifest: any) -> tuple[str, list[str]]
         );
         extra_exports.append("jac_str_new");
     }
+    import sys;
+    _is_elf = not sys.platform.startswith("win") and sys.platform != "darwin";
+    _needs_atexit = (
+        _is_elf
+        and "define i32 @atexit" not in llvm_ir_str
+        and "define hidden i32 @atexit" not in llvm_ir_str
+    );
+    if _needs_atexit {
+        parts.append(
+            "declare i32 @__cxa_atexit(ptr, ptr, ptr)\n"
+            "define hidden i32 @atexit(ptr %f) {\nentry:\n"
+            "  %r = call i32 @__cxa_atexit(ptr %f, ptr null, ptr null)\n"
+            "  ret i32 %r\n}"
+        );
+    }
     return (llvm_ir_str + "\n".join(parts) + "\n", extra_exports);
 }
 
@@ -192,6 +207,27 @@ def _lse_sym(nm: str) -> list[str] {
     return [f"  .weak {nm}", f"  .hidden {nm}", f"  .type {nm},%function", f"{nm}:"];
 }
 
+def init_object_codegen {
+    import jaclang.compiler.backends.native.llvm.binding as llvm;
+    llvm.initialize_all_targets();
+    llvm.initialize_all_asmprinters();
+    llvm.initialize_all_asmparsers();
+}
+
+def aarch64_floor_atomics_ir(triple: str, clib_paths: list[str]) -> str {
+    import from jaclang.runtime.graph_utils { triple_arch }
+    if not clib_paths or triple_arch(triple) != "aarch64" {
+        return "";
+    }
+    tl = triple.lower();
+    is_pe = ("windows" in tl) or ("win32" in tl) or ("msvc" in tl) or ("mingw" in tl);
+    is_macho = ("darwin" in tl) or ("apple" in tl) or ("macos" in tl) or ("ios" in tl);
+    if is_pe or is_macho {
+        return "";
+    }
+    return aarch64_outline_atomics_ir();
+}
+
 def emit_shared_library(
     llvm_ir_str: str,
     manifest: any,
@@ -219,10 +255,6 @@ def emit_shared_library(
             "  ret i32 %r\n}\n"
         );
     }
-    import platform;
-    if is_elf and clib_paths and platform.machine() in ["aarch64", "arm64"] {
-        ir_str += aarch64_outline_atomics_ir();
-    }
     exports: list[str] = [];
     for _s in list(export_symbols) + extra_exports + ["__jac_shared_init"] {
         if _s and _s not in exports {
@@ -232,10 +264,11 @@ def emit_shared_library(
     init_funcs: list[str] = ["__jac_shared_init"] if auto_init else [];
 
     import jaclang.compiler.backends.native.llvm.binding as llvm;
-    llvm.initialize_all_targets();
-    llvm.initialize_all_asmprinters();
+    init_object_codegen();
 
-    llvm.initialize_native_asmparser();
+    triple = llvm.get_default_triple();
+    assert isinstance(triple, str);
+    ir_str += aarch64_floor_atomics_ir(triple, list(clib_paths or []));
 
     try {
         mod = llvm.parse_assembly(ir_str);
@@ -246,8 +279,6 @@ def emit_shared_library(
 
     target = llvm.Target.from_default_triple();
     assert isinstance(target, llvm.Target);
-    triple = llvm.get_default_triple();
-    assert isinstance(triple, str);
     target_machine = target.create_target_machine(
         opt=2, reloc="pic", codemodel="small"
     );

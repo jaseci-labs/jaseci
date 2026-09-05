@@ -38,6 +38,22 @@ obj NaIRGenCalls(NaIRGenState) {
         nd: uni.FuncCall, intr: IntrinsicEntry, args: list
     ) -> (ir.Value | None);
 
+    def _emit_intrinsic_mem_load(
+        nd: uni.FuncCall, intr: IntrinsicEntry, args: list
+    ) -> (ir.Value | None);
+
+    def _emit_intrinsic_mem_store(
+        nd: uni.FuncCall, intr: IntrinsicEntry, args: list
+    ) -> (ir.Value | None);
+
+    def _emit_intrinsic_atomic_xchg(
+        nd: uni.FuncCall, intr: IntrinsicEntry, args: list
+    ) -> (ir.Value | None);
+
+    def _emit_intrinsic_call_dtor(
+        nd: uni.FuncCall, intr: IntrinsicEntry, args: list
+    ) -> (ir.Value | None);
+
     def _native_module_call_target(nd: uni.FuncCall) -> (tuple | None);
     def _emit_unsupported_builtin_call(nd: uni.FuncCall, func_name: str) -> None;
     def _empty_ctor_args_of(nd: uni.FuncCall) -> list;
@@ -79,7 +95,11 @@ obj NaIRGenCalls(NaIRGenState) {
 
     def _jacval_tags_for_type(name: str) -> list[int];
     def _erased_generic_ctor(nd: uni.FuncCall) -> (str | None);
-    def _callee_sig_of(nd: uni.FuncCall) -> (uni.FuncSignature | None);
+    def _linked_callee_decl(func: (ir.Function | None)) -> (uni.Ability | None);
+    def _callee_sig_of(
+        nd: uni.FuncCall, func: (ir.Function | None) = None
+    ) -> (uni.FuncSignature | None);
+
     def _arch_init_sig_of(type_name: str) -> (uni.FuncSignature | None);
     def _codegen_call_args(nd: uni.FuncCall) -> list;
     def _coerce_narrowed_arg(

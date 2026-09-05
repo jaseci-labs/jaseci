@@ -1528,7 +1528,7 @@ menuColor = "default"     # Menu color scheme
 
 | Key | Description | Examples |
 |-----|-------------|---------|
-| `style` | Component style variant -- read by `jac install --shadcn` to resolve bundled components | `"nova"`, `"vega"`, `"maia"`, `"lyra"`, `"mira"` |
+| `style` | Component style variant -- read by `jac install --shadcn` to resolve bundled components | `"nova"`, `"vega"`, `"maia"`, `"lyra"`, `"mira"`, `"luma"`, `"rhea"`, `"sera"` |
 | `baseColor` | Base neutral color palette | `"neutral"`, `"stone"`, `"zinc"`, `"gray"` |
 | `theme` | Accent/primary color | `"amber"`, `"blue"`, `"green"`, `"red"` |
 | `font` | Typography font family | `"figtree"` (default), `"inter"`, `"geist"`, `"outfit"` |
@@ -2271,21 +2271,106 @@ The Vite dev server is configured with `appType: 'spa'` for history API fallback
 
 ## Build Error Diagnostics
 
-When client builds fail, jac-client displays structured error diagnostics instead of raw Vite/Rollup output. Errors include:
+When the client bundle fails to build at server startup, Jac classifies the raw Vite/Rollup output with the same engine the dev loop uses and renders each error with the `jac check` renderer. Errors include:
 
-- **Error codes** (`JAC_CLIENT_001`, `JAC_CLIENT_003`, etc.)
-- **Source snippets** pointing to the original `.jac` file location
-- **Actionable hints** and quick fix commands
+- **Error codes** from the `E7xxx` runtime catalog, the same ones the dev loop reports
+- **A Jac location** -- the `.jac` line the compiled artifact was lowered from -- or a note saying why one could not be derived
+- **The registry's help text**, including the `[dependencies.npm]` guidance for an undeclared package
 
 | Code | Issue | Example Fix |
 |------|-------|-------------|
-| `JAC_CLIENT_001` | Missing npm dependency | `jac install --npm <package>` |
-| `JAC_CLIENT_003` | Syntax error in client code | Check source snippet |
-| `JAC_CLIENT_004` | Unresolved import | Verify import path |
+| `E7001` | Module has no such export | Import it with `import type`, or check the export name |
+| `E7002` | Unresolved import | Verify the path, or declare the package and run `jac install` |
+| `E7004` | Vite rejected a module | Read the location the diagnostic names |
+| `E7005` | The build could not produce a loadable module | Run `jac check` on the file it names |
+
+Run `jac guide reference/diagnostics` for the full catalog.
 
 To see raw error output alongside formatted diagnostics, set `debug = true` under `[client]` in `jac.toml` or set the `JAC_DEBUG=1` environment variable.
 
 > **Note:** Debug mode is enabled by default for a better development experience. For production deployments, set `debug = false` in `jac.toml`.
+
+### Dev Loop Diagnostics
+
+Once the dev server is up, every failure the loop can see -- a Jac compile
+error, a Vite resolve failure, a module-link error in the browser, an uncaught
+exception with a stack -- is resolved back to a Jac location and reported as one
+diagnostic value. The terminal line uses the same renderer as `jac check`:
+
+```text
+error[E7001]: The module 'mermaid' has no export named 'Mermaid'
+  --> docs/MermaidDiagram.jac:1:44
+    1 | import from "mermaid" { default as mermaid, Mermaid }
+      |                                             ^
+help: ... import it with 'import type' ...
+```
+
+The Vite plugins forward raw payloads only, over the channel the jac process
+already reads: the dev server's stdout. Each event is one tagged JSON line --
+
+```text
+@@jac-client-event {"slot": "vite", "payload": { ... }}
+```
+
+-- in slot `vite`, `client` (a module-load failure), `runtime` (anything thrown
+after the app came up) or `ready` (the browser's clean-load beacon). A `null`
+payload clears its slot, and `ready` clears both browser slots. The jac process
+consumes those lines (they are never echoed to the terminal), classifies each
+one on arrival, renders it, and keeps the result in memory. The only file
+involved is the status document it writes:
+
+| File | Written by | Contents |
+|------|-----------|----------|
+| `.jac/client/.jac-status.json` | the jac dev server | the status document (below); absent when the build is healthy |
+
+A `runtime` event is reported to the terminal but does not mark the build
+broken, so it does not appear in the status document.
+
+The status document is also what `GET /__build_status` returns, on both the core
+server and the scale gateway:
+
+```json
+{
+  "status": "ok" | "compiling" | "error" | "unavailable",
+  "diagnostics": [
+    {
+      "code": "E7001",
+      "severity": "error",
+      "category": "runtime",
+      "message": "The module 'mermaid' has no export named 'Mermaid'",
+      "help": "...",
+      "file": "docs/MermaidDiagram.jac",
+      "line": 1,
+      "column": 44,
+      "channel": "browser",
+      "raw_location": "/.vite/deps/mermaid.js?v=0926aa4f",
+      "unmapped_reason": "",
+      "related": [{"label": "...", "file": "jac.toml", "line": 6, "column": 1}],
+      "stack": "",
+      "component_stack": "",
+      "resolved_stack": "",
+      "resolved_component_stack": "",
+      "rendered": "error[E7001]: ...\n  --> docs/MermaidDiagram.jac:1:44\n..."
+    }
+  ]
+}
+```
+
+`file` is relative to the project root and is never empty: when nothing on disk
+claims the reported location, it names the best-known Jac owner and
+`unmapped_reason` says why the mapping failed. `channel` is `jac`, `vite`,
+`browser` or `server`, and `raw_location` keeps the compiled/Vite/browser
+location the diagnostic was mapped from. A stack-bearing error carries both the
+browser's raw `stack` and the `resolved_stack` whose frames were mapped onto
+`.jac` files (and the same pair for React's component stack). The browser overlay renders the same
+value, and the `/cl/__error__` endpoint logs it through the same renderer in
+production. See [Errors and Warnings](../diagnostics.md#dev-loop-and-client-runtime-errors-e7xxx)
+for the code catalog.
+
+Locations come from the per-file source maps the client compiler writes beside
+each `compiled/*.js`. They are segment-level -- generated line *and* column,
+with a `names` array -- so a stack frame or an import specifier resolves to an
+exact `.jac` column, not merely to a line.
 
 ---
 

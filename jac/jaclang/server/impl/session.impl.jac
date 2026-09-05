@@ -235,14 +235,9 @@ def _persist_hash(anchor: Anchor) -> int {
 
 
 impl Session.postinit -> None {
-    import threading;
-    self._lock = threading.RLock();
+    self._init_memory();
     self._fetch_count = 0;
-    self.__mem__ = {};
-    self._dirty = {};
-    self._deleted = set();
     self._flushed_hash = {};
-    self._on_commit = [];
     self._txn_changed = set();
     self._runtime = None;
     self._active_units = 0;
@@ -294,11 +289,6 @@ impl Session.data_location -> (str | None) {
 }
 
 
-impl Session.is_available -> bool {
-    return True;
-}
-
-
 impl Session.get(id: UUID) -> (Anchor | None) {
     if id in self._deleted {
         return None;
@@ -310,23 +300,6 @@ impl Session.get(id: UUID) -> (Anchor | None) {
         return None;
     }
     return self.batch_get([id]).get(id);
-}
-
-
-impl Session.put(anchor: Anchor) -> None {
-    aid = anchor.ensure_id();
-    with self._lock {
-        self.__mem__[aid] = anchor;
-        self._dirty[aid] = None;
-        self._deleted.discard(aid);
-    }
-}
-
-
-impl Session.mark_dirty(anchor: Anchor) -> None {
-    if anchor.id in self.__mem__ {
-        self._dirty[anchor.id] = None;
-    }
 }
 
 
@@ -364,17 +337,6 @@ impl Session.`has(id: UUID) -> bool {
 }
 
 
-impl Session.query(
-    filter: (Callable[[Anchor], bool] | None) = None
-) -> Generator[Anchor, None, None] {
-    for anchor in list(self.__mem__.values()) {
-        if filter is None or filter(anchor) {
-            yield anchor;
-        }
-    }
-}
-
-
 impl Session.get_roots -> Generator[Root, None, None] {
     seen: set[UUID] = set();
     for anchor in list(self.__mem__.values()) {
@@ -398,27 +360,6 @@ impl Session.get_roots -> Generator[Root, None, None] {
             }
         }
     }
-}
-
-
-impl Session.find(
-    ids: (UUID | Iterable[UUID]), filter: (Callable[[Anchor], Anchor] | None) = None
-) -> Generator[Anchor, None, None] {
-    id_list = [ids] if isinstance(ids, UUID) else list(ids);
-    for id in id_list {
-        if (anchor := self.get(id)) {
-            if filter is None or filter(anchor) {
-                yield anchor;
-            }
-        }
-    }
-}
-
-
-impl Session.find_one(
-    ids: (UUID | Iterable[UUID]), filter: (Callable[[Anchor], Anchor] | None) = None
-) -> (Anchor | None) {
-    return next(self.find(ids, filter), None);
 }
 
 
@@ -526,11 +467,6 @@ impl Session._evict_uncommitted -> None {
 }
 
 
-impl Session.get_mem -> dict[UUID, Anchor] {
-    return self.__mem__;
-}
-
-
 impl Session.quarantine_ref(referrer: (Anchor | None), stub: Anchor) -> None {
     import from jaclang.runtime.osp_graph_sv { sv_forget_by_id }
     sid = stub.ensure_id();
@@ -542,54 +478,6 @@ impl Session.quarantine_ref(referrer: (Anchor | None), stub: Anchor) -> None {
             );
         } except Exception as e {
             logger.debug(f"quarantine record failed: {e}");
-        }
-    }
-}
-
-
-impl Session.is_recoverable_quarantine(id: UUID) -> bool {
-    return False;
-}
-
-
-impl Session.aget(id: UUID) -> (Anchor | None) {
-    return self.get(id);
-}
-
-
-impl Session.aput(anchor: Anchor) -> None {
-    self.put(anchor);
-}
-
-
-impl Session.adelete(id: UUID) -> None {
-    self.delete(id);
-}
-
-
-impl Session.ahas(id: UUID) -> bool {
-    return self.`has(id);
-}
-
-
-impl Session.acommit(anchor: (Anchor | None) = None) -> None {
-    self.commit(anchor);
-}
-
-
-impl Session.on_commit(callback: Callable) -> None {
-    self._on_commit.append(callback);
-}
-
-
-impl Session._fire_on_commit -> None {
-    fired = self._on_commit;
-    self._on_commit = [];
-    for cb in fired {
-        try {
-            cb();
-        } except Exception as e {
-            logger.warning(f"on_commit callback failed: {type(e).__name__}: {e}");
         }
     }
 }
@@ -630,7 +518,7 @@ impl Session._raise_ro_retry -> None {
     if self.store is not None {
         try {
             self.store.rollback();
-        } except Exception { }
+        } except Exception {}
     }
     raise ReadOnlyRetry(anchor_id=_UUID(int=0), unit_key=last);
 }
@@ -714,7 +602,7 @@ impl Session.read_scope_exit -> None {
             );
             try {
                 self.store.rollback();
-            } except Exception { }
+            } except Exception {}
         }
         self._drop_snapshot_reads();
     }
@@ -736,7 +624,7 @@ impl Session.unit_exit -> None {
             } except WriteConflict {
                 try {
                     self.store.rollback();
-                } except Exception { }
+                } except Exception {}
                 raise;
             } except Exception as e {
                 logger.warning(
@@ -744,7 +632,7 @@ impl Session.unit_exit -> None {
                 );
                 try {
                     self.store.rollback();
-                } except Exception { }
+                } except Exception {}
             }
         } finally {
             if self._unit_stack {
@@ -777,7 +665,7 @@ impl Session._recover_conflict -> None {
     if self.store is not None {
         try {
             self.store.rollback();
-        } except Exception { }
+        } except Exception {}
     }
     for id in list(self._txn_changed) {
         if id in self.__mem__ {

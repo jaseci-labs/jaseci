@@ -19,21 +19,12 @@ import time;
 import from pathlib { Path }
 
 import from jaclang.scale.runtime.context.util { jac_executable }
+import from jaclang.scale.tests.support { get_free_port }
 
 
 glob _FIXTURES: Path = Path(__file__).parent.parent
          / "fixtures"
          / "microservice_port";
-
-
-"""A port nothing is listening on."""
-def _free_port -> int {
-    probe = socket.socket();
-    probe.bind(("127.0.0.1", 0));
-    chosen = probe.getsockname()[1];
-    probe.close();
-    return chosen;
-}
 
 
 """Run the fixture through the gateway path and return `(returncode, output)`."""
@@ -66,7 +57,7 @@ def _pump(stream: any, sink: list) {
         for line in iter(stream.readline, '') {
             sink.append(line);
         }
-    } except Exception { }
+    } except Exception {}
 }
 
 
@@ -74,13 +65,13 @@ def _pump(stream: any, sink: list) {
 def _kill_tree(proc: any) {
     try {
         os.killpg(os.getpgid(proc.pid), int(signal.SIGTERM));
-    } except Exception { }
+    } except Exception {}
     try {
         proc.`wait(timeout=10);
     } except Exception {
         try {
             os.killpg(os.getpgid(proc.pid), int(signal.SIGKILL));
-        } except Exception { }
+        } except Exception {}
     }
 }
 
@@ -190,7 +181,7 @@ test "the gateway announces a port that is actually listening" {
     # the fix the banner named the port that was *wanted*, which here is the one
     # the holder still owns, so asserting "announced is not the held port, and
     # something answers on it" fails on main and passes here.
-    wanted = _free_port();
+    wanted = get_free_port();
     holder = socket.socket();
     holder.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
     holder.bind(("0.0.0.0", wanted));
@@ -221,7 +212,7 @@ test "a free named port is bound and served, not refused" {
     # that port is taken; a free one has to come up on exactly that number. This
     # is also the check that handing the bind a retry budget of 0 did not break
     # the ordinary path.
-    free = _free_port();
+    free = get_free_port();
     (announced, reachable, output) = _serve_and_probe(
         ["--port", str(free)], str(_FIXTURES)
     );
