@@ -136,8 +136,21 @@ comptime SPEC_RUN: CommandSpec = CommandSpec(
                  `default=None,
                  short="",
                  help=(
-                     "Mobile dev: optional host/IP the device reaches this machine on. "
-                     "When omitted, jac auto-selects a LAN address."
+                     "Interface to bind (serving only; default [serve] host, 0.0.0.0). "
+                     "Use 127.0.0.1 to keep a dev server off the network. For mobile "
+                     "dev (--client mobile --dev) this is also the host the device "
+                     "reaches this machine on."
+                 )
+             ),
+             Arg.create(
+                 "workers",
+                 typ=str,
+                 `default=None,
+                 short="w",
+                 help=(
+                     "Worker processes to serve with (serving only; default [serve.workers] "
+                     "count, 1). 'auto' sizes from the CPU quota. Each worker is a full "
+                     "process with its own thread pool; the parent only supervises."
                  )
              ),
              Arg.create(
@@ -247,6 +260,7 @@ def run(
     platform: str | None = None,
     takeover: bool | None = None,
     fleet: bool = False,
+    workers: str | None = None,
     args: list[str] = []
 ) -> int;
 
@@ -262,7 +276,8 @@ def serve(
     platform: str = "",
     takeover: bool = False,
     fleet: bool = False,
-    app: str = ""
+    app: str = "",
+    workers: str = ""
 ) -> int;
 
 def debug(filename: str, main: bool = True, cache: bool = False) -> int;

@@ -410,7 +410,7 @@ Native code reaches the *client* by compiling to wasm.
 `jac build --native --target wasm32` (and the client bundler's `_emit_na_wasm`,
 which serves `/static/<stem>.wasm`) both route through
 `wasm_build.compile_to_wasm`: it sets the `wasm32-unknown-unknown` triple,
-compiles AOT, honors the project's `[gc]` settings (`default = "none"`
+compiles AOT, honors the project's `[memory]` settings (`profile = "nogc"`
 builds headerless and audits the IR for `__rc_*` machinery), runs `opt2`
 **without** `internalize` (so defined functions stay exported), and links
 with the pure-Jac `WasmLinker` (no wasm-ld/emscripten).

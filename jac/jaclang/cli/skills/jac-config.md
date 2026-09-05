@@ -23,11 +23,14 @@ description: The jac.toml control plane - every section ([project], [apps.<name>
 | `[check.lint]` | lint rule selection: `select = ["default"]` / `["all"]`, `ignore = ["combine-has"]`, `exclude = ["legacy/*"]` |
 | `[test]` | `jac test` defaults: `directory`, `filter`, `verbose`, `fail_fast`, `max_failures` |
 | `[build]` | `dir` (artifact root, default `.jac/` - holds `cache/`, `venv/`, `client/`, `data/`) |
-| `[gc]` / `[memory]` | native memory management: `default = "cycles"/"rc"/"none"` (mode when `--gc` not passed); `enforce.modules`/`enforce.grandfathered` glob patterns opt modules into zero-RC nogc enforcement (see `jac-native-memory`) |
+| `[memory]` | the memory profile: `profile = "managed"/"rc"/"nogc"` (overridable per build with `--memory`); `enforce`/`exempt` glob patterns hold modules to the zero-RC contract under a managed profile (see `jac-native-memory`) |
+| `[native]` | native build knobs: `target`, `opt`, `debug`, `threads` |
+| `[placement]` | `default = "native"/"server"` for markerless modules, beside `[placement.pins]` |
 | `[scripts]` | named command shortcuts run via `jac x <name>` |
 | `[environments]` / `[environment]` | per-profile overrides (below) |
 | `[byllm]` / `[byllm.model]` / `[byllm.call_params]` | AI settings: model identity, API keys, call params (see `jac-by-llm`) |
-| `[scale.*]` | serving/deployment settings: `[scale.server]`, `[scale.database]`, `[scale.kubernetes]`, `[scale.gateway]` (the fleet gateway: `colocate`, ports, timeouts, `cors`, `rate_limit`, `logs`, `shared_volumes`), ... (see `jac-sv-deploy`, `jac-sv-microservices`) |
+| `[serve]` | the server process: host, port, workers, TLS, proxy, limits, timeouts, access log, compression, auth (every key has a `JAC_SERVE_*` mirror) |
+| `[scale.*]` | deployment and scale features: `[scale.database]`, `[scale.kubernetes]`, `[scale.gateway]` (the fleet gateway: `colocate`, ports, `cors`, `rate_limit`, `logs`, `shared_volumes`), ... (see `jac-sv-deploy`, `jac-sv-microservices`) |
 | `[client]` | `framework` = `"react"` (default) / `"preact"` / `"solid"` (experimental) - which JS framework the client bundle uses; `[client.routing] auth_redirect = "/path"` for unauthenticated redirects; `[client.pwa]` (theme_color, cache_name, install_banner...) turns a web app into a PWA at build; `[client.react_native]` holds a mobile app's Expo/EAS knobs - see `jac-mobile-app` |
 | `[client.app_meta_data]` | served page's head/SEO config: `title`, `description`, `keywords`, `author`, `theme_color`, `icon` |
 | `[desktop]` / `[desktop.plugins]` | desktop app identity, `engine` (`"native"` OS webview or `"cef"`) + window geometry; per-capability OS-plugin gates (`fs`/`clipboard`/`shell` allow-lists) - see `jac-desktop-app` |

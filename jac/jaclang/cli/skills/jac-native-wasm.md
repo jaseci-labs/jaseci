@@ -24,7 +24,7 @@ What the one import does:
 
 - **Emission**: the client build compiles `kernel.jac` (a native dependency, so `pub` is its export marker) to
   `/static/kernel.wasm` (+ a `.wasm.imports.json` manifest). The module needs
-  no other importer; `jac.toml [gc]` settings apply (e.g. `default = "none"`
+  no other importer; `jac.toml [memory]` settings apply (e.g. `profile = "nogc"`
   for a zero-RC artifact).
 - **Binding**: each imported name becomes a generated async stub
   (`__na_bind` in `@jac/wasm_host`) that instantiates the module on first

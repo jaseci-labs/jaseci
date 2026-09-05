@@ -67,11 +67,11 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              ),
              KindSpec(
                  name="service-mesh",
-                 description="Jac microservice (server walkers; auto-starts providers)",
+                 description="Jac microservice (server walkers; colocates its service apps)",
                  `entry="main.jac",
                  action="serve",
                  verb="run",
-                 summary="Serve microservice consumer (auto-starts providers)",
+                 summary="Serve microservice consumer (colocates its service apps)",
                  has_server=True
              ),
              KindSpec(

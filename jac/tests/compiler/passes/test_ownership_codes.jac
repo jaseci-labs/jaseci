@@ -851,9 +851,9 @@ glob OWNERSHIP_CASES: list[tuple] = [
          ),
          (
              "view_derivation",
-             "stored views and outliving views are rejected; a two-candidate return ties to both",
+             "stored views are rejected; a two-candidate return ties to both borrows; a slice is a view, not a move",
              "view_escape_bad.jac",
-             ["E1301", "E1315"],
+             ["E1315"],
              True
          )
      ];

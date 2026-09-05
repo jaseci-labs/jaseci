@@ -187,6 +187,9 @@ impl TypeEvaluator._tuple_literal_index_type(
 impl TypeEvaluator._get_iterable_element_type(
     iterable_type: TypeBase, node_for_error: Expr | None = None
 ) -> TypeBase | None {
+    if iterable_type.is_any_instance() {
+        return iterable_type;
+    }
     if isinstance(iterable_type, AnyType) {
         return AnyType(is_foreign=iterable_type.is_foreign);
     }

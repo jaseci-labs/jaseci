@@ -1,6 +1,7 @@
 import from web.landing.Hero { Hero }
 import from web.landing.StatsBand { StatsBand }
 import from web.landing.WasmGame { WasmGame }
+import from web.landing.MobileShowcase { MobileShowcase }
 import from web.landing.WhyJac { WhyJac }
 import from web.landing.Showcase { Showcase }
 import from web.landing.Capabilities { Capabilities }
@@ -12,6 +13,7 @@ import from web.ui.SectionRail { SectionRail }
 
 glob HOME_NAV: list[dict] = [
          {"id": "h-arena", "label": "arena"},
+         {"id": "h-mobile", "label": "mobile"},
          {"id": "h-why", "label": "why jac"},
          {"id": "h-showcase", "label": "showcase"},
          {"id": "h-capabilities", "label": "capabilities"},
@@ -30,6 +32,9 @@ def:pub page -> JsxPage {
             <StatsBand/>
             <div id="h-arena" className="scroll-mt-24">
                 <WasmGame/>
+            </div>
+            <div id="h-mobile" className="scroll-mt-24">
+                <MobileShowcase/>
             </div>
             <div id="h-why" className="scroll-mt-24">
                 <WhyJac/>

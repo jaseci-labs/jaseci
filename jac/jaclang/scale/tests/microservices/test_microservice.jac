@@ -9,7 +9,7 @@ import from jaclang { JacRuntime as Jac }
 import from jaclang.compiler.frontend.constant { Constants as Con }
 import from jaclang.server { sv_client as __jac_sv }
 import from jaclang.testing.testkit { ServingTestClient as TestClient }
-import from jaclang.scale.server.serve { JacAPIServer }
+import from jaclang.server.server { JacAPIServer }
 
 glob FIXTURES: Path = Path(__file__).parent.parent / "fixtures" / "microservice";
 
@@ -21,18 +21,11 @@ def build_service(mod: str, tmp: str) -> tuple[TestClient, JacAPIServer] {
         del sys.modules[mod];
     }
     Jac.jac_import(target=mod, base_path=tmp, lng="jac");
-    srv = JacAPIServer(module_name=mod, port=0, base_path=tmp);
+    srv = JacAPIServer(module_name=mod, port=0, base_path=tmp, extensions=[]);
     srv.load_module();
-    srv.register_health_endpoint();
-    srv.register_walkers_endpoints();
-    srv.register_functions_endpoints();
-    srv.register_auth_endpoints();
-    user_manager = srv.user_manager;
-    assert user_manager is not None;
-    user_manager.create_internal_user(Con.GUEST.value, '__no_password__');
-    server_impl = srv.server;
-    assert server_impl is not None;
-    client = TestClient(server_impl.app, raise_server_exceptions=False);
+    srv._ensure_internal_users();
+    app = srv.build_app();
+    client = TestClient(app, raise_server_exceptions=False);
     __jac_sv.register_test_client(mod, client);
     return (client, srv);
 }
@@ -319,7 +312,10 @@ test "sv boundary: private function rejects malformed token (401)" {
 test "sv boundary: private function rejects expired token (401)" {
     import from datetime { datetime, UTC, timedelta }
     import from jaclang.server.serving.authcrypt { jwt_encode }
-    import from jaclang.scale.identity.user_manager { jwt_secret, jwt_algorithm }
+    import from jaclang.server.identity.config {
+        signing_algorithm as jwt_algorithm,
+        signing_secret as jwt_secret
+    }
 
     tmp = setup_env();
     try {
@@ -444,9 +440,7 @@ test "sv-to-sv over the wire: a sibling peer's JAC_APP url is used as given" {
         (_prov_client, prov_srv) = build_service("notify_service", tmp);
         __jac_sv._test_clients.pop("notify_service", None);
         __jac_sv.unregister("notify_service");
-        provider_impl = prov_srv.server;
-        assert provider_impl is not None;
-        wire = ServingServer(app=provider_impl.app, host="127.0.0.1", port=0);
+        wire = ServingServer(app=prov_srv.require_app(), host="127.0.0.1", port=0);
         stop_provider = wire.serve_background();
         base = f"http://127.0.0.1:{wire.bound_port}";
         os.environ[url_key] = base;
@@ -471,6 +465,53 @@ test "sv-to-sv over the wire: a sibling peer's JAC_APP url is used as given" {
                 os.environ[k] = v;
             }
         }
+        done(tmp);
+    }
+}
+
+
+test "sv-to-sv: a bridged streaming call is awaited and forwarded frame by frame" {
+    # #8982 follow-up to the jac-sv-streaming skill: the bridge stub for a
+    # generator-returning def:pub is a coroutine; awaiting it yields the live
+    # generator, and the consumer's own stream re-yields it as SSE.
+    tmp = setup_env();
+    try {
+        prov = make_server("narrator_service", tmp);
+        assert "text/event-stream"
+            in prov.post("/function/narrate", json={"n": 2}).headers.get(
+                "Content-Type", ""
+            );
+        cons = make_server("story_service", tmp);
+        resp = cons.post("/function/story", json={"n": 3});
+        assert resp.status_code == 200 , f"status {resp.status_code}: {resp.text}";
+        assert "text/event-stream" in resp.headers.get("Content-Type", "") , resp.text;
+        for i in range(3) {
+            assert f'data: "CHUNK {i}"' in resp.text , resp.text;
+        }
+        assert "event: end" in resp.text;
+    } finally {
+        done(tmp);
+    }
+}
+
+
+test "sv-to-sv: a colocated streaming provider streams exactly like a remote one" {
+    tmp = setup_env();
+    try {
+        make_server("narrator_service", tmp);
+        provider_mod = sys.modules["narrator_service"];
+        __jac_sv.clear_test_clients();
+        __jac_sv.register_local("narrator_service", provider_mod);
+        try {
+            cons = make_server("story_service", tmp);
+            resp = cons.post("/function/story", json={"n": 2});
+            assert resp.status_code == 200 , f"status {resp.status_code}: {resp.text}";
+            assert "text/event-stream" in resp.headers.get("Content-Type", "") , resp.text;
+            assert 'data: "CHUNK 0"' in resp.text and 'data: "CHUNK 1"' in resp.text , resp.text;
+        } finally {
+            __jac_sv.unregister_local("narrator_service");
+        }
+    } finally {
         done(tmp);
     }
 }

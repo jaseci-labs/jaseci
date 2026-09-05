@@ -624,6 +624,27 @@ def get_type_of_binary_operation(
             return False;
         }
 
+        def bridged_spawn_type(side: Expr, t: TypeBase) -> TypeBase | None {
+            if not (isinstance(side, FuncCall) and evaluator._is_sv_async_call(side)) {
+                return None;
+            }
+            if not (
+                isinstance(t, ClassType)
+                and t.is_builtin("Coroutine")
+                and t.private.type_args
+                and is_walker_instance(t.private.type_args[-1])
+            ) {
+                return None;
+            }
+            return t;
+        }
+        for (side, side_type) in ((expr.left, left_type), (expr.right, right_type)) {
+            bridged = bridged_spawn_type(side, side_type);
+            if bridged is not None {
+                return bridged;
+            }
+        }
+
         left_unknown = left_type.is_any_type() or isinstance(left_type, UnknownType);
         right_unknown = right_type.is_any_type() or isinstance(right_type, UnknownType);
         left_walker = is_walker_instance(left_type);

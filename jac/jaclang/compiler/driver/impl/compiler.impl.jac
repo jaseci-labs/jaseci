@@ -250,7 +250,9 @@ impl JacCompiler.get_bytecode(
         }
         if is_internal {
             note_compiler_source_failure(
-                full_target, module_scoped_failure_details(full_target, actual_program)
+                full_target,
+                module_scoped_failure_details(full_target, actual_program)
+                    or bootstrap_tier_failure_details(full_target)
             );
         }
         return None;
@@ -1304,10 +1306,11 @@ impl JacCompiler.compile(
                 raise CompilerSourceError(
                     f"compiling {file_path} re-entered it: a pass imported "
                     f"'{_re_entered}' while Python was still executing that "
-                    "module, so the name is not bound yet. A pass's run-time "
-                    "imports must be pre-imported while the schedule loads "
-                    "(see get_ir_gen_sched / get_symtab_ir_sched), never "
-                    "reached for the first time during a compile."
+                    "module, so the name is not bound yet. A module a pass "
+                    "reaches at run time belongs in the schedule's dependency "
+                    "list (IR_SCHED_DEPS in jaclang.compiler.driver.schedules), "
+                    "which the loader pre-imports and which puts any compile "
+                    "nested in its import on the bootstrap tier."
                 ) from _crash;
             }
         }

@@ -851,7 +851,7 @@ Notes on the enforced world:
 
 ### RC coverage stats
 
-Compiling with `JAC_RC_STATS=1` prints a per-module line to stderr reporting the retain/release call sites emitted versus the reference-count operations elided by move-lowering:
+`jac explain memory <file.jac>` prints a per-module line reporting the retain/release call sites emitted versus the reference-count operations elided by move-lowering:
 
 ```text
 rc-stats [mod.jac] gc=cycles retains=1 releases=10 elided=3 coverage=21.4%

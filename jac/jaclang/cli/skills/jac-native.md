@@ -11,8 +11,8 @@ jac build --native app.jac -o app   # standalone zero-dependency binary - forces
 ./app x --flag
 ```
 
-- `jac build --native` compiles a **plain `.jac`**, coercing the whole module native - anything that cannot lower is a loud compile error, never a demotion. `jac build --as native` is the project-level equivalent; `CompileOptions(force_codespace='native')` the programmatic one.
-- Under `[build] default_codespace = "native"` (the default), `jac run` executes a verdict-passing module natively; a module using walkers/PyPI/async just runs on Python, with a dim `note:` when a native-preferring module had to demote. Set `default_codespace = "server"` to opt a project out.
+- `jac build --native` compiles a **plain `.jac`**, coercing the whole module native - anything that cannot lower is a loud compile error, never a demotion. `CompileOptions(force_codespace='native')` is the programmatic one.
+- Under `[placement] default = "native"` (the default), `jac run` executes a verdict-passing module natively; a module using walkers/PyPI/async just runs on Python, with a dim `note:` when a native-preferring module had to demote. Set `[placement] default = "server"` to opt a project out.
 - A standalone binary REQUIRES `with entry { }` - otherwise: *"No entry point found."*
 - `jac build --native --target wasm32|windows|macos` cross-targets; `--lib` builds a C-ABI library (see the sibling skills); `--memory managed|rc|none` picks the memory-management runtime (see `jac-native-memory`).
 - **Native placement is inferred - at two granularities.** Whole markerless modules: the placement solver (blocker scan + import-closure fixpoint) compiles a module native when it can lower, demoting to server with a note otherwise. Within mixed files: an import whose braces declare C-ABI functions (`import from raylib { def InitWindow(w: i32, h: i32, title: str) -> None; }`) is an FFI surface only the native backend can satisfy, so it seeds native placement and the declarations using it follow (see `jac-codespaces`). Consuming a native *module* (`import from mymod { fast_fn }`) is not a signal. When native must be mandatory, force it: `jac build --native`, `jac build --as native`, or the explicit `na` markers.
@@ -168,6 +168,6 @@ with entry {
 ## Debugging
 
 - `JAC_DUMP_IR=/tmp/out.ll jac build --native app.jac` writes the optimized LLVM IR to a readable `.ll` file.
-- Stale behavior after moving/regenerating files: use `jac build --native --scrub` (or `jac run --no-cache`) to wipe the native IR cache, which lives in the module's cache dir (`.jac/cache/native/`, or the global `~/.cache/jac/jir/` for installed sources).
-- Memory: reference counting by default, with emit-time modes - `jac build --native --memory managed|rc|none` - and an opt-in ownership/borrow surface (`own`, `&`/`&mut`, `imm`, `Region` arenas opened with `in r { }`, `def drop`) that scales to fully RC-free binaries (`--memory nogc`). `JAC_RC_STATS=1` prints per-module RC coverage. Any `E13xx`/`E14xx` diagnostic, leak, or refcount question: see `jac-native-memory`.
+- Stale behavior after moving/regenerating files: use `jac clean --cache` (or `jac run --no-cache`) to wipe the native IR cache, which lives in the module's cache dir (`.jac/cache/native/`, or the global `~/.cache/jac/jir/` for installed sources).
+- Memory: reference counting by default, with memory profiles - `jac build --native --memory managed|rc|nogc` - and an opt-in ownership/borrow surface (`own`, `&`/`&mut`, `imm`, `Region` arenas opened with `in r { }`, `def drop`) that scales to fully RC-free binaries (`--memory nogc`). `jac explain memory <file>` prints per-module RC coverage and the inferred ownership facts. Any `E13xx`/`E14xx` diagnostic, leak, or refcount question: see `jac-native-memory`.
 - Run native test files with `jac test <file>`. See `jac-testing` and `jac-debugging`.

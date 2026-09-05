@@ -148,7 +148,7 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E0013",
          Category.SYNTAX,
          "'{keyword}' is a keyword and cannot be used as a {context} name",
-         help="The backtick escape is a prefix, not a pair. Put one backtick immediately before the keyword, with nothing after the name."
+         help="Choose another name, or keep this one with the backtick escape: a prefix, not a pair, so one backtick immediately before the word and nothing after it, as in `match or `exit. After a dot no escape is needed (sys.exit, re.match). The reserved words are listed in the language reference under Foundation > Keywords."
      ),
      E0014 = _err(
          "E0014",
@@ -454,8 +454,10 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.TYPE,
          "Expected {expected}, but got {actual} -- this call returns a coroutine "
          "that was not awaited",
-         help="Add 'await' to the call, e.g. 'await foo()'. 'sv import' (server) "
-         "functions are async RPC stubs on the client and always need 'await'."
+         help="Add 'await' to the call, e.g. 'await foo()'. A call that crosses an "
+         "app boundary (a walker or def:pub owned by another app of the workspace) "
+         "is an async bridge stub, in server code as in client code, and always "
+         "needs 'await'."
      ),
      E1043 = _err(
          "E1043",

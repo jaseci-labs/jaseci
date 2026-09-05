@@ -4,7 +4,7 @@
 
 In this tutorial you will explore a fully playable chess engine written in idiomatic Jac, run it on the native compilation pathway, and compile it to a standalone binary. Along the way you will learn:
 
-- How the **native-by-default codespace** infers native execution for compatible `.jac` files (and how `[build] default_codespace = "sv"` opts out)
+- How the **native-by-default codespace** infers native execution for compatible `.jac` files (and how `[placement] default = "server"` opts out)
 - How **`jac build --native`** produces a standalone binary with no external toolchain
 - How **`sys.argv`** enables command-line argument parsing in native programs
 - How **declaration/implementation separation** keeps large native programs organized

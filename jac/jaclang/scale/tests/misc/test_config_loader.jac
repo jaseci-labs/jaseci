@@ -49,7 +49,6 @@ test "get_gateway_config preserves all sections (regression guard)" {
         "gateway": {
             "colocate": False,
             "gateway_port": 9000,
-            "drain_timeout_seconds": 15,
             "http_forward_timeout": 60,
             "replicas": 2,
             "ingress": {"enabled": False}
@@ -60,7 +59,6 @@ test "get_gateway_config preserves all sections (regression guard)" {
         "colocate",
         "gateway_port",
         "gateway_host",
-        "drain_timeout_seconds",
         "http_forward_timeout",
         "replicas",
         "rate_limit",
