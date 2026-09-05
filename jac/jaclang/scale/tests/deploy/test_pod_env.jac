@@ -26,6 +26,7 @@ import from jaclang.scale.runtime.gateway.service_registry {
     ServiceEntry
 }
 import from jaclang.server.sv_client { peer_url_env_key }
+import from jaclang.scale.config.config_loader { reset_scale_config }
 
 
 glob _K8S_E2E_FIXTURE: Path = Path(__file__).parents[1] / "fixtures" / "k8s_e2e",
@@ -564,6 +565,45 @@ test "user env cannot point a pod at an arbitrary service file" {
 }
 
 
+test "build_env never bakes a direct peer URL for an HTTP-activated (scale-to-zero) peer" {
+    # A baked JAC_SV_<PEER>_URL would let sv_client.peer_url_from_env's
+    # env-var override (runtime_resolver.jac::resolve_peer_route) win over
+    # the interceptor route on every call, sending traffic straight at a
+    # Service with no live endpoints instead of through the KEDA HTTP
+    # interceptor that can wake it.
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    builder = ManifestBuilder(
+        k8s_config=cfg,
+        microservices_config={
+            "routes": {"app": "/", "worker": "/worker"},
+            "services": {
+                "worker": {
+                    "http_activation": {
+                        "enabled": True,
+                        "target_port": 8000,
+                        "concurrency_target": 1,
+                        "rules": [{"hosts": ["worker.ns.local"]}]
+                    }
+                }
+            }
+        }
+    );
+    env = {e["name"]: e["value"] for e in builder._build_env("app", {})};
+    assert "JAC_SV_WORKER_URL" not in env , env;
+}
+
+
+test "build_env still bakes a direct peer URL for a peer without http_activation" {
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    builder = ManifestBuilder(
+        k8s_config=cfg,
+        microservices_config={"routes": {"app": "/", "worker": "/worker"}}
+    );
+    env = {e["name"]: e["value"] for e in builder._build_env("app", {})};
+    assert "JAC_SV_WORKER_URL" in env , env;
+}
+
+
 test "a single-file full-stack app still gets its client bundle built" {
     import tempfile;
     import os;
@@ -607,6 +647,7 @@ def _peer_env_restore(saved: dict[str, str | None]) {
             os.environ[key] = value;
         }
     }
+    reset_scale_config();
 }
 
 
@@ -615,6 +656,10 @@ def _peer_env_isolate {
         os.environ.pop(peer_url_env_key(name), None);
     }
     os.environ["POD_NAMESPACE"] = _PEER_NS;
+    # build_k8s_registry now consults scale config (for http_activation
+    # awareness); reset so no earlier test's cached, possibly
+    # activation-enabled config leaks into these naming-convention checks.
+    reset_scale_config();
 }
 
 
