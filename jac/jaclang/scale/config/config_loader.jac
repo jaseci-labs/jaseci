@@ -39,12 +39,14 @@ def load_microservices_config -> dict[str, any];
 
 glob _scale_config_instance: JacScaleConfig | None = None,
      _placeholder_jwt_secret_warned: bool = False,
-     _minted_jwt_secret_announced: bool = False;
+     _minted_jwt_secret_announced: bool = False,
+     _prometheus_namespace_warned: bool = False;
 
 def _warn_placeholder_jwt_secret -> None;
 def _announce_minted_jwt_secret(path: str) -> None;
 
 def sanitize_prometheus_namespace(name: str) -> str;
+def _resolve_prometheus_namespace(configured: str | None, k8s_namespace: str) -> str;
 def _ws_positive(ws_config: dict, key: str, fallback: (int | float)) -> float;
 def get_scale_config(project_dir: Path | None = None) -> JacScaleConfig;
 def peek_scale_config -> JacScaleConfig | None;

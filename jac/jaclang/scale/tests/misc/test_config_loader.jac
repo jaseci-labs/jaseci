@@ -1,5 +1,6 @@
 import os;
 import shutil;
+import subprocess;
 import tempfile;
 import from pathlib { Path }
 import from jaclang.comptime { fields }
@@ -249,6 +250,109 @@ test "get_scale_config raises on a different project_dir instead of silently reu
         shutil.rmtree(dir_a, ignore_errors=True);
         shutil.rmtree(dir_b, ignore_errors=True);
     }
+}
+
+
+"""Load a jac.toml with the given [scale.monitoring] body and return the namespace."""
+def _monitoring_namespace(monitoring_body: str) -> str {
+    reset_scale_config();
+    project_dir = tempfile.mkdtemp(prefix="jac-cfg-ns-");
+    try {
+        (Path(project_dir) / "jac.toml").write_text(
+            f'[project]\nname = "repro"\n\n{monitoring_body}'
+        );
+        cfg = get_scale_config(project_dir=Path(project_dir));
+        return cfg.get_monitoring_config()["namespace"];
+    } finally {
+        reset_scale_config();
+        shutil.rmtree(project_dir, ignore_errors=True);
+    }
+}
+
+
+test "a configured monitoring namespace is sanitized before it reaches Prometheus" {
+    got = _monitoring_namespace('[scale.monitoring]\nnamespace = "jac--shop"\n');
+    assert got == "jac_shop";
+}
+
+
+test "a configured monitoring namespace that is already valid is left alone" {
+    got = _monitoring_namespace('[scale.monitoring]\nnamespace = "myapp_prod"\n');
+    assert got == "myapp_prod";
+}
+
+
+test "a configured monitoring namespace with nothing usable falls back to the default" {
+    got = _monitoring_namespace('[scale.monitoring]\nnamespace = "---"\n');
+    assert got == "jaclang_scale";
+}
+
+
+test "an empty monitoring namespace still derives from the kubernetes namespace" {
+    got = _monitoring_namespace(
+        '[scale.kubernetes]\nnamespace = "jac-shop-prod"\n\n[scale.monitoring]\nnamespace = ""\n'
+    );
+    assert got == "jac_shop_prod";
+}
+
+
+test "a rewritten monitoring namespace warns, so the metric rename is not silent" {
+    import from jaclang.scale.runtime.context.util { jac_executable }
+    project_dir = tempfile.mkdtemp(prefix="jac-cfg-warn-");
+    try {
+        (Path(project_dir) / "jac.toml").write_text(
+            '[project]\nname = "repro"\nentry-point = "main.jac"\n\n[scale.monitoring]\nnamespace = "jac--shop"\n'
+        );
+        (Path(project_dir) / "main.jac").write_text(
+            'import from jaclang.scale.config.config_loader { get_scale_config }\n'
+            'with entry { print(get_scale_config().get_monitoring_config()["namespace"]); }\n'
+        );
+        result = subprocess.run(
+            [jac_executable(), "run", "main.jac"],
+            capture_output=True,
+            text=True,
+            cwd=str(project_dir),
+            timeout=300
+        );
+    } finally {
+        shutil.rmtree(project_dir, ignore_errors=True);
+    }
+    combined = result.stdout + result.stderr;
+    assert result.returncode == 0 , f"jac run failed:\n{combined}";
+    assert "jac_shop" in result.stdout , f"namespace was not sanitized:\n{combined}";
+    assert "jac--shop" in combined and "dashboards" in combined , (
+        f"no warning that the configured namespace was rewritten:\n{combined}"
+    );
+}
+
+
+"""Load a project with the given monitoring namespace and return what was logged."""
+def _namespace_load_logs(configured: str) -> str {
+    import io;
+    import logging;
+    stream = io.StringIO();
+    handler = logging.StreamHandler(stream);
+    root_logger = logging.getLogger();
+    previous_level = root_logger.level;
+    root_logger.addHandler(handler);
+    root_logger.setLevel(logging.WARNING);
+    try {
+        _monitoring_namespace(f'[scale.monitoring]\nnamespace = "{configured}"\n');
+    } finally {
+        root_logger.removeHandler(handler);
+        root_logger.setLevel(previous_level);
+    }
+    return stream.getvalue();
+}
+
+
+test "the namespace warning fires again for the next project in the same process" {
+    first = _namespace_load_logs("jac--shop");
+    second = _namespace_load_logs("jac--depot");
+    assert "jac--shop" in first , f"the first rewritten namespace did not warn:\n{first}";
+    assert "jac--depot" in second , (
+        f"a second project loaded in the same process was renamed silently:\n{second}"
+    );
 }
 
 
