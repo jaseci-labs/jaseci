@@ -98,6 +98,7 @@ obj NaIRGenRefcount(NaIRGenState) {
     ) -> (ir.Value | None);
 
     def _nogc_type_arg_mangles(expr: uni.UniNode | None) -> list;
+    def _drop_hook_for(type_name: str) -> (ir.Function | None);
     def _nogc_drop_fn_for(
         ptr_ty: ir.PointerType, self_type: str = ""
     ) -> (ir.Function | None);

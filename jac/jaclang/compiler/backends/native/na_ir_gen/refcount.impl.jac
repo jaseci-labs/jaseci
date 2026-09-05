@@ -1468,17 +1468,19 @@ impl NaIRGenRefcount._emit_nogc_field_drops(
     b: ir.IRBuilder, type_name: str, _dobj: ir.Value
 ) -> None {
     i8p = ir.IntType(8).as_pointer();
-    _hook = self.struct_drop_hooks.get(type_name)
-        or self.func_symtab.get(f"{type_name}.drop");
+    _hook = self._drop_hook_for(type_name);
     if _hook is not None {
-        self.struct_drop_hooks[type_name] = _hook;
         b.call(_hook, [_dobj]);
     }
     field_types = self.struct_field_types.get(type_name, {});
     field_indices = self.struct_field_indices.get(type_name, {});
     foreign_fields = self.struct_field_foreign.get(type_name, set());
+    borrow_fields = self.struct_field_borrow.get(type_name, set());
     i32 = ir.IntType(32);
     for (fname, ftype) in field_types.items() {
+        if fname in borrow_fields {
+            continue;
+        }
         if fname in self.struct_field_inline.get(type_name, set()) {
             _in_idx = field_indices.get(fname, -1);
             _in_name = getattr(ftype, "name", "") or "";
@@ -1524,6 +1526,35 @@ impl NaIRGenRefcount._emit_nogc_field_drops(
         fv_i8 = b.bitcast(fv, i8p, name=f"drop.{fname}.i8");
         b.call(_fld_drop, [fv_i8]);
     }
+}
+
+impl NaIRGenRefcount._drop_hook_for(type_name: str) -> (ir.Function | None) {
+    _hook = self.struct_drop_hooks.get(type_name)
+        or self.func_symtab.get(f"{type_name}.drop");
+    if _hook is not None {
+        self.struct_drop_hooks[type_name] = _hook;
+        return _hook;
+    }
+    _arch = self.arch_ast_map.get(type_name);
+    if _arch is None or _arch.body is None {
+        return None;
+    }
+    for _ab in _arch.get_all_sub_nodes(uni.Ability) {
+        if _ab.find_parent_of_type(uni.Archetype) is not _arch
+            or _ab.name_ref is None {
+            continue;
+        }
+        if _ab.name_ref.sym_name != "drop" {
+            continue;
+        }
+        self._forward_declare_method(type_name, _ab);
+        _hook = self.func_symtab.get(f"{type_name}.drop");
+        if _hook is not None {
+            self.struct_drop_hooks[type_name] = _hook;
+        }
+        return _hook;
+    }
+    return None;
 }
 
 impl NaIRGenRefcount._nogc_drop_fn_for(
@@ -2317,10 +2348,8 @@ impl NaIRGenRefcount._emit_struct_release_fn(arch_name: str) -> None {
     i8 = ir.IntType(8);
     (b, done_bb) = self._emit_rc_destructor_preamble(release_fn, struct_ptr_type);
 
-    _hook = self.struct_drop_hooks.get(arch_name)
-        or self.func_symtab.get(f"{arch_name}.drop");
+    _hook = self._drop_hook_for(arch_name);
     if _hook is not None {
-        self.struct_drop_hooks[arch_name] = _hook;
         b.call(_hook, [release_fn.args[0]]);
     }
 

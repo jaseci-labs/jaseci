@@ -1,3 +1,4 @@
+import from jaclang.compiler.expr_keys { type_tag_borrows }
 impl NaIRGenObjects._devirt_closed_world(arch_name: str) -> bool {
     arch = self.arch_ast_map.get(arch_name);
     if arch is None {
@@ -492,6 +493,12 @@ impl NaIRGenObjects._codegen_archetype(nd: uni.Archetype) -> None {
         fname = finfo.name;
         var = finfo.decl_node;
         ftype: ir.Type = ir.IntType(64);
+        if isinstance(var, uni.HasVar) and type_tag_borrows(var.type_tag) {
+            if arch_name not in self.struct_field_borrow {
+                self.struct_field_borrow[arch_name] = set();
+            }
+            self.struct_field_borrow[arch_name].add(fname);
+        }
         if isinstance(var, uni.TypeParam) {
             ftype = self._resolve_jac_type(var.bound);
         } elif var is not None and var.type_tag is not None {
@@ -3995,7 +4002,8 @@ impl NaIRGenObjects._codegen_field_assign(
         );
     }
 
-    if isinstance(ftype, ir.PointerType) and not _vt_struct {
+    _borrow_field = field_name in self.struct_field_borrow.get(type_name, set());
+    if isinstance(ftype, ir.PointerType) and not _vt_struct and not _borrow_field {
         self._emit_take_ref(
             value,
             op="field_set",
@@ -4013,7 +4021,10 @@ impl NaIRGenObjects._codegen_field_assign(
         );
     }
     _fs_opt = self._opt_payload_of(ftype);
-    if _fs_opt is not None and isinstance(_fs_opt, ir.PointerType) and not _vt_struct {
+    if _fs_opt is not None
+        and isinstance(_fs_opt, ir.PointerType)
+        and not _vt_struct
+        and not _borrow_field {
         _fs_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{target.loc.first_line
             if target.loc
             else 0}";

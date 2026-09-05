@@ -1,3 +1,4 @@
+import from jaclang.compiler.expr_keys { type_tag_borrows }
 impl NaIRGenTypes._lower_type(t: any) -> (ir.Type | None) {
     if t is None {
         return None;
@@ -681,6 +682,29 @@ impl NaIRGenTypes._elem_spec_of(expr: (uni.UniNode | None)) -> (str | None) {
     return "i64";
 }
 
+impl NaIRGenTypes._lower_view_container(t: any) -> (ir.Type | None) {
+    try {
+        import from jaclang.compiler.types.types { ClassType as _VcClassType }
+    } except ImportError {
+        return None;
+    }
+    if not isinstance(t, _VcClassType) or t._shared is None {
+        return None;
+    }
+    if t.shared.class_name not in ("list", "Sequence") {
+        return None;
+    }
+    _args = t.private.type_args or [];
+    if not _args {
+        return None;
+    }
+    _elem = self._elem_storage_llvm(_args[0]);
+    if _elem is None {
+        return None;
+    }
+    return self._lower_list_for_elem(_elem);
+}
+
 impl NaIRGenTypes._lower_class_type(t: any) -> (ir.Type | None) {
     cname = t.shared.class_name;
     if cname in self.type_map {
@@ -1013,6 +1037,12 @@ impl NaIRGenTypes._resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type 
                 return _structural;
             }
             return self._emit_unlowerable_type(type_expr, None);
+        }
+        if type_tag_borrows(type_expr) {
+            _view = self._lower_view_container(type_expr.type);
+            if _view is not None {
+                return _view;
+            }
         }
         lowered = self._lower_type(type_expr.type);
         if lowered is not None {

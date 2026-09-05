@@ -58,6 +58,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         struct_field_erased_tv: dict[str, dict] = {},
         arch_type_params: dict[str, list] = {},
         struct_field_inline: dict[str, set] = {},
+        struct_field_borrow: dict[str, set] = {},
         method_funcs: dict[str, ir.Function] = {},
         static_methods: dict[str, bool] = {},
         static_fields: dict[str, object] = {},

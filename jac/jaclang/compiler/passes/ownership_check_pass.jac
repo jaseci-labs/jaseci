@@ -80,7 +80,12 @@ obj BorrowMeta {
     has name: str,
         owner: (SymId | None) = None,
         is_mut: bool = False,
+        extra_owners: list[SymId] postinit,
         field: str = "";
+
+    def postinit {
+        self.extra_owners = [];
+    }
 }
 
 walker OwnershipCheckPass(Transform) {
@@ -107,7 +112,9 @@ walker OwnershipCheckPass(Transform) {
         view_elision_fns: dict[int, int] = {},
         nogc_prov: (str | None) = None,
         receiver_modes: dict[int, OwnershipKind] = {},
-        receiver_probe: set[int] = set();
+        receiver_probe: set[int] = set(),
+        view_archs: set[str] = set(),
+        arch_view_syms: set[SymId] = set();
 
     static has PROVIDES: tuple = ('ownership', ),
         REQUIRES: tuple = ('CfgSucc', 'TypeOf'),
@@ -126,6 +133,12 @@ walker OwnershipCheckPass(Transform) {
     def _sym_is_param(sym_id: SymId) -> bool;
     def _view_of_expr(expr: Expr | None) -> (SymId | None);
     def _stamp_view_borrows -> None;
+    def _compute_view_archs -> None;
+    def _is_view_expr(expr: Expr | None) -> bool;
+    def _view_ctor_owners(expr: Expr | None) -> (list[SymId] | None);
+    def _derivation_root(base: Name) -> (SymId | None);
+    def _stamp_arch_view_bindings -> None;
+    def _borrow_owners_of(borrow_id: SymId) -> list[SymId];
     def _stamp_view_call_results(scope: UniNode, seen_ids: set[int]) -> None;
     def _view_call_owner(call: FuncCall) -> (SymId | None);
     def _emit_view_diagnostics -> None;

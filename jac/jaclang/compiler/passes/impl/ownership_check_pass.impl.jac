@@ -103,12 +103,16 @@ impl OwnershipCheckPass._run_impl(ir_in: Module) -> Module {
     ir_in.own_move_sites = set();
     self.receiver_modes = {};
     self.receiver_probe = set();
+    self.view_archs = set();
+    self.arch_view_syms = set();
 
     self._build_index(ir_in);
+    self._compute_view_archs();
     self._stamp_receiver_modes();
     self._stamp_ownership();
     self._stamp_loop_borrows();
     self._stamp_region_borrows();
+    self._stamp_arch_view_bindings();
     self._process_partition_sugar();
     self._nogc_setup();
     if not self.owned_decl
@@ -775,7 +779,11 @@ impl OwnershipCheckPass._borrow_assign_kill_gen(
         if target is not None {
             borrow_id = self._name_sym_id(target);
             kill.add(borrow_id);
-            if self._borrow_source_owner(nd) is not None {
+            if self._borrow_source_owner(nd) is not None
+                or (
+                    borrow_id in self.arch_view_syms
+                    and self.borrow_created_at.get(borrow_id) is nd
+                ) {
                 gen.add(borrow_id);
             }
         }
@@ -1263,7 +1271,9 @@ impl OwnershipCheckPass._emit_receiver_diagnostics -> None {
             self._emit_imm_mutation(sid, call, self.imm_decl.get(sid));
             continue;
         }
-        if sid in self.borrow_meta and not self._borrow_is_mut_of(sid) {
+        if sid in self.borrow_meta
+            and sid not in self.view_syms
+            and not self._borrow_is_mut_of(sid) {
             owner_id = self._borrow_owner_of(sid);
             self.emit(
                 E1318,
@@ -1284,7 +1294,7 @@ impl OwnershipCheckPass._emit_receiver_diagnostics -> None {
             continue;
         }
         for borrow_id in self._active_borrows_at(cfg) {
-            if self._borrow_owner_of(borrow_id) == owner_id
+            if owner_id in self._borrow_owners_of(borrow_id)
                 and not self._borrow_is_mut_of(borrow_id) {
                 borrow_site = self.borrow_created_at.get(borrow_id);
                 borrow_name = self._borrow_display_name(borrow_id, "");
@@ -1375,6 +1385,23 @@ impl OwnershipCheckPass._owned_name(sym_id: SymId, fallback: str) -> str {
         return decl.sym_name;
     }
     return fallback;
+}
+
+impl OwnershipCheckPass._borrow_owners_of(borrow_id: SymId) -> list[SymId] {
+    meta = self.borrow_meta.get(borrow_id);
+    if meta is None {
+        return [];
+    }
+    out: list[SymId] = [];
+    if meta.owner is not None {
+        out.append(meta.owner);
+    }
+    for extra in meta.extra_owners {
+        if extra not in out {
+            out.append(extra);
+        }
+    }
+    return out;
 }
 
 impl OwnershipCheckPass._borrow_owner_of(borrow_id: SymId) -> (SymId | None) {
@@ -1528,7 +1555,7 @@ impl OwnershipCheckPass._emit_move_while_borrowed(cfg_nodes: list[UniCFGNode]) -
                 continue;
             }
             for borrow_id in active {
-                if self._borrow_owner_of(borrow_id) == owner_id
+                if owner_id in self._borrow_owners_of(borrow_id)
                     and borrow_id not in self.e1304_borrow_ids {
                     borrow_site = self.borrow_created_at.get(borrow_id);
                     borrow_name = self._borrow_display_name(borrow_id, "");
@@ -1626,7 +1653,7 @@ impl OwnershipCheckPass._emit_borrow_diagnostics -> None {
             active = self._active_borrows_at(cfg);
             for borrow_id in active {
                 if (
-                    self._borrow_owner_of(borrow_id) == tgt_owner_id
+                    tgt_owner_id in self._borrow_owners_of(borrow_id)
                     and not self._borrow_is_mut_of(borrow_id)
                     and self._fields_overlap(
                         self._borrow_field_of(borrow_id), self._single_field_of(tgt)

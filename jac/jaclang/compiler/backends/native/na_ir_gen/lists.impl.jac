@@ -1,3 +1,4 @@
+import from jaclang.compiler.expr_keys { type_tag_borrows }
 impl NaIRGenLists._emit_list_helpers(elem_type_name: str, elem_type: ir.Type) -> None {
     if elem_type_name in self.list_helpers {
         return;
@@ -334,7 +335,11 @@ impl NaIRGenLists._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
             _empty_new = self._rc_call_with_ctx(
                 helpers["new"], [], op="new", loc=_empty_loc, name="list.empty"
             );
-            self._nogc_stamp_elem_drops(_empty_new, self._nogc_type_arg_mangles(nd));
+            if not self._container_is_view(nd) {
+                self._nogc_stamp_elem_drops(
+                    _empty_new, self._nogc_type_arg_mangles(nd)
+                );
+            }
             return _empty_new;
         }
         return None;
@@ -417,7 +422,9 @@ impl NaIRGenLists._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
     list_val = self._rc_call_with_ctx(
         helpers["new"], [], op="new", loc=_list_new_loc, name="list.new"
     );
-    self._nogc_stamp_elem_drops(list_val, self._nogc_type_arg_mangles(nd));
+    if not self._container_is_view(nd) {
+        self._nogc_stamp_elem_drops(list_val, self._nogc_type_arg_mangles(nd));
+    }
 
     _linit_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
         if nd.loc
@@ -922,4 +929,16 @@ impl NaIRGenLists._aos_elem_struct(type_key: str) -> (ir.Type | None) {
     }
     _h = self.list_helpers.get(type_key);
     return _h["elem_struct"] if _h is not None else None;
+}
+
+
+impl NaIRGenLists._container_is_view(nd: uni.UniNode) -> bool {
+    _p = nd.parent;
+    while isinstance(_p, (uni.CfgExpr, uni.IfElseExpr)) {
+        _p = _p.parent;
+    }
+    if isinstance(_p, (uni.Assignment, uni.HasVar)) and _p.type_tag is not None {
+        return type_tag_borrows(_p.type_tag);
+    }
+    return False;
 }

@@ -101,3 +101,16 @@ test "a self: own method consumes and drops its receiver exactly once" {
     out = assert_native_identity(_fixture("own_self_method.jac"));
     assert out.splitlines() == ["drop counter 2", "22", "done"] , out;
 }
+
+test "views over a borrowed list never own its elements" {
+    out = assert_native_identity(_fixture("view_cursor.jac"));
+    assert out.splitlines()
+        == [
+            "drop item 1",
+            "drop item 2",
+            "drop item 3",
+            "drop item 4",
+            "123406",
+            "done"
+        ] , out;
+}
