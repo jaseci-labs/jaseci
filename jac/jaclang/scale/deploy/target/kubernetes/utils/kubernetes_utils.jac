@@ -16,6 +16,8 @@ import from jaclang.scale._optdeps.kubernetes {
 import from jaclang.scale.deploy.target.kubernetes.cluster_provider { ClusterProvider }
 import from requests.exceptions { RequestException, SSLError }
 
+def default_cluster_key -> str;
+
 glob COMPANION_DEFS: list = [
          ("", "Jaseci App", False),
          ("-redis", "Redis", False),

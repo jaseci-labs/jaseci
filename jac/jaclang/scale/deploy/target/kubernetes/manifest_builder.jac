@@ -9,14 +9,21 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 }
 import from jaclang.scale.deploy.autoscale.autoscaler {
     DEFAULT_CPU_UTILIZATION_TARGET,
-    DEFAULT_MEMORY_UTILIZATION_TARGET
+    DEFAULT_MEMORY_UTILIZATION_TARGET,
+    RESOURCE_ONLY_TRIGGER_TYPES
 }
+import from jaclang.scale.deploy.autoscale.http_activation_config {
+    build_http_activation_spec
+}
+import from jaclang.scale.runtime.context.service_routing {
+    resolve_http_activation_config
+}
+import from enum { StrEnum }
 
 
 glob GATEWAY_NAME: str = "__gateway__",
      CONFIG_REVISION_ANNOTATION: str = "jac-scale.config-revision",
      _UVICORN_EXIT_CUSHION_S: int = 5,
-     _RFC1123_MAX_LEN: int = 253,
      _CLIENT_BUILD_ATTEMPTS: int = 3,
      _CLIENT_BUILD_RETRY_PAUSE_S: int = 3,
      _DEP_INSTALL_TIMEOUT_S: int = 900,
@@ -53,28 +60,145 @@ def _is_transient_client_build_failure(output: str) -> bool {
 }
 
 
+enum ScalingMode(StrEnum) {
+    NONE = "none",
+    METRIC = "metric",
+    HTTP_ACTIVATION = "http_activation"
+}
+
+
+def _membership_diagnosis(output: str, base: any, excluded: any) -> str {
+    import re;
+    import from pathlib { Path }
+    base_prefix = str(base).replace("\\", "/").rstrip("/") + "/";
+    lines: list[str] = [];
+    seen: set[str] = set();
+    tried: set[str] = set();
+    for token in re.findall(r"[\w.\\/-]+", output) {
+        cand = token.replace("\\", "/").rstrip(".");
+        if cand.startswith(base_prefix) {
+            cand = cand[len(base_prefix):];
+        }
+        if cand in tried {
+            continue;
+        }
+        tried.add(cand);
+        variants = [cand];
+        if "/" not in cand and "." in cand and not cand.startswith(".") {
+            stem = cand.replace(".", "/");
+            variants.extend([f"{stem}.jac", f"{stem}.py", stem]);
+        }
+        for variant in variants {
+            if not variant or variant.startswith("/") or ".." in variant.split("/") {
+                continue;
+            }
+            rel = Path(variant);
+            if rel.name == "jac.toml" or rel.as_posix() in seen {
+                continue;
+            }
+            if not (base / rel).exists() or not excluded.excludes(rel) {
+                continue;
+            }
+            if excluded.is_build_tree(rel) {
+                continue;
+            }
+            seen.add(rel.as_posix());
+            lines.append(f"  - {rel.as_posix()}: {excluded.exclusion_reason(rel)}");
+            break;
+        }
+    }
+    if not lines {
+        return "";
+    }
+    shown = lines[:_MEMBERSHIP_DIAGNOSIS_SHOWN];
+    if len(lines) > _MEMBERSHIP_DIAGNOSIS_SHOWN {
+        shown.append(f"  ... and {len(lines) - _MEMBERSHIP_DIAGNOSIS_SHOWN} more");
+    }
+    return (
+        "\nThe client build ran on the bundle's staged sources, and these "
+        "files named in its output never ship:\n" + "\n".join(shown) + "\nDrop the exclusion or remove the reference. Values the client "
+        "needs at build time belong under [client.vite.define] in jac.toml; "
+        "secrets stay server-side in [scale.secrets] or pod env and never "
+        "reach the client."
+    );
+}
+
+
+def _vite_env_keys(base: any) -> dict[str, list[str]] {
+    import from pathlib { Path }
+    found: dict[str, list[str]] = {};
+    for name in _VITE_BUILD_ENV_FILES {
+        env_file: Path = Path(base, name);
+        if not env_file.is_file() {
+            continue;
+        }
+        keys: list[str] = [];
+        text: str = env_file.read_text(encoding="utf-8", errors="replace");
+        for raw in text.splitlines() {
+            line: str = raw.strip();
+            if line.startswith("export ") {
+                line = line[len("export "):].lstrip();
+            }
+            if not line or line.startswith("#") or "=" not in line {
+                continue;
+            }
+            key = line.split("=", 1)[0].strip();
+            if key.startswith("VITE_") and key not in keys {
+                keys.append(key);
+            }
+        }
+        if keys {
+            found[name] = keys;
+        }
+    }
+    return found;
+}
+
+
 def k8s_safe_name(svc_name: str) -> str {
     if svc_name == GATEWAY_NAME {
         return "gateway";
     }
-    import re;
-    if "${" in svc_name {
-        raise ValueError(
-            f"'{svc_name}' still contains an unresolved ${{...}} placeholder, so "
-            f"the environment variable it names was not set where this deploy "
-            f"ran. Export it, or replace it with a literal name."
-        );
+    import from jaclang.scale.runtime.context.util { k8s_safe_service_name }
+    return k8s_safe_service_name(svc_name);
+}
+
+
+def pdb_spec(
+    replica_floor: int, max_unavailable: int, min_available: (int | None) = None
+) -> dict[str, any] | None {
+    if min_available is not None {
+        return {"minAvailable": min_available};
     }
-    safe = re.sub(r"[^a-z0-9.-]", "-", svc_name.lower().replace("_", "-"));
-    safe = re.sub(r"^[^a-z0-9]+|[^a-z0-9]+$", "", safe)[:_RFC1123_MAX_LEN];
-    safe = re.sub(r"[^a-z0-9]+$", "", safe);
-    if not safe {
-        raise ValueError(
-            f"'{svc_name}' has no characters usable in a Kubernetes name; names "
-            f"must contain at least one letter or digit."
-        );
+    if max_unavailable >= replica_floor {
+        return None;
     }
-    return safe;
+    return {"maxUnavailable": max_unavailable};
+}
+
+
+def is_scale_to_zero_eligible(
+    autoscaler_cfg: dict[str, any] | None, engine: str
+) -> bool {
+    if not isinstance(autoscaler_cfg, dict) {
+        return False;
+    }
+    if int(autoscaler_cfg.get("min", 1)) > 0 {
+        return False;
+    }
+    if str(engine or "hpa") != "keda" {
+        return False;
+    }
+    triggers = autoscaler_cfg.get("triggers", []);
+    if not isinstance(triggers, list) {
+        return False;
+    }
+
+    return any(
+        str(dict(t).get("type", "")) not in RESOURCE_ONLY_TRIGGER_TYPES
+        for t in triggers
+        if isinstance(t, dict)
+    );
 }
 
 
@@ -160,7 +284,8 @@ obj ManifestBuilder {
         _bundle_object_key: str = "",
         _toolchain_object_key: str = "",
         microservices_config: (dict[str, any] | None) = None,
-        dry_run: bool = False;
+        dry_run: bool = False,
+        _bundle_services_cache: (dict[str, str] | None) = None;
 
     def _ms_cfg -> dict[str, any] {
         if self.microservices_config is not None {
@@ -169,9 +294,57 @@ obj ManifestBuilder {
             );
         }
         try {
-            return get_scale_config().get_microservices_config();
+            ms_cfg = get_scale_config().get_microservices_config();
         } except Exception {
             return {};
+        }
+        return self._with_implicit_solo_route(ms_cfg);
+    }
+
+    def _with_implicit_solo_route(ms_cfg: dict[str, any]) -> dict[str, any] {
+        import from jaclang.scale.runtime.discovery.route_policy {
+            resolve_routes,
+            guard_route_name,
+            derive_route_prefix
+        }
+        try {
+            if resolve_routes(ms_cfg) {
+                return ms_cfg;
+            }
+            name = str(self.k8s_config.app_name or "");
+            if not name {
+                return ms_cfg;
+            }
+            guard_route_name(name);
+            synthesized = dict(ms_cfg);
+            synthesized["routes"] = {name: derive_route_prefix(name)};
+            entry_file = self._solo_entry_file();
+            if entry_file {
+                services = dict(synthesized.get("services", {}));
+                solo_cfg = dict(services.get(name, {}));
+                solo_cfg["file"] = entry_file;
+                services[name] = solo_cfg;
+                synthesized["services"] = services;
+            }
+            return synthesized;
+        } except Exception {
+            return ms_cfg;
+        }
+    }
+
+    def _solo_entry_file(app_config: (AppConfig | None) = None) -> str {
+        if app_config is not None and app_config.file_name {
+            return app_config.file_name;
+        }
+        if not self.project_dir {
+            return "";
+        }
+        try {
+            import from jaclang.scale.injector.bundle { entry_module_rel }
+            rel = entry_module_rel(self.project_dir);
+            return rel.as_posix() if rel is not None else "";
+        } except Exception {
+            return "";
         }
     }
 
@@ -330,32 +503,33 @@ obj ManifestBuilder {
 
     def generate_manifests(app_config: AppConfig, image: str) -> dict[str, any] {
         self.project_dir = self.project_dir or app_config.code_folder;
+        self._bundle_services(app_config);
         injector = self._prepare_injector(app_config);
         self._bundle_object_key = injector._object_key;
 
         pod_specs = self.generate_service_pod_specs(app_config, image);
         deployments: dict[str, dict[str, any]] = {};
         services: dict[str, dict[str, any]] = {};
-        autoscalers: dict[str, dict[str, any]] = {};
+        scaling: dict[str, dict[str, any]] = {};
         pdbs: dict[str, dict[str, any]] = {};
 
         for (svc_name, pod_spec) in pod_specs.items() {
             deployments[svc_name] = self._build_deployment_manifest(svc_name, pod_spec);
             services[svc_name] = self._build_service_manifest(svc_name);
-            autoscaler_cfg = self._get_autoscaler_config(svc_name);
-            if autoscaler_cfg is not None {
-                autoscalers[svc_name] = autoscaler_cfg;
-            }
-            pdb = self._build_pdb_manifest(svc_name);
+            scaling[svc_name] = self._resolve_scaling(
+                svc_name, deployments[svc_name], services[svc_name]
+            );
+            pdb = self._build_pdb_manifest(svc_name, scaling[svc_name].get("mode"));
             if pdb is not None {
                 pdbs[svc_name] = pdb;
             }
         }
+        self._validate_http_activation_rules(scaling);
 
         bundle: dict[str, any] = {
             "deployments": deployments,
             "services": services,
-            "autoscalers": autoscalers,
+            "scaling": scaling,
             "pdbs": pdbs,
             "pod_specs": pod_specs
         };
@@ -445,7 +619,7 @@ obj ManifestBuilder {
             services = dict(ms_cfg.get("services", {}));
             solo_name = list(routes.keys())[0];
             solo_cfg = dict(services.get(solo_name, {}));
-            solo_cfg["file"] = app_config.file_name;
+            solo_cfg["file"] = self._solo_entry_file(app_config);
             services[solo_name] = solo_cfg;
             ms_cfg["services"] = services;
             ms_cfg["routes"] = routes;
@@ -485,6 +659,37 @@ obj ManifestBuilder {
         return {name: derive_route_prefix(name)};
     }
 
+    def _solo_aware_ms_cfg(app_config: AppConfig) -> dict[str, any] {
+        if self.microservices_config is not None {
+            return self._ms_cfg();
+        }
+        import from jaclang.scale.runtime.discovery.route_policy { resolve_routes }
+        try {
+            ms_cfg = dict(get_scale_config().get_microservices_config());
+        } except Exception {
+            return self._ms_cfg();
+        }
+        if resolve_routes(ms_cfg) {
+            return self._ms_cfg();
+        }
+        routes = self._solo_route(app_config);
+        entry_file = self._solo_entry_file(app_config);
+        services = dict(ms_cfg.get("services", {}));
+        solo_name = list(routes.keys())[0];
+        solo_cfg = dict(services.get(solo_name, {}));
+        solo_cfg["file"] = entry_file;
+        services[solo_name] = solo_cfg;
+
+        main_cfg = dict(services.get("main", {}));
+        if not main_cfg.get("file") {
+            main_cfg["file"] = entry_file;
+            services["main"] = main_cfg;
+        }
+        ms_cfg["services"] = services;
+        ms_cfg["routes"] = routes;
+        return ms_cfg;
+    }
+
     def _drain_timeout -> int {
         try {
             ms_cfg = self._ms_cfg();
@@ -501,6 +706,38 @@ obj ManifestBuilder {
         } except Exception {
             return {};
         }
+    }
+
+    def _bundle_services(app_config: (AppConfig | None) = None) -> dict[str, str] {
+        if self._bundle_services_cache is None {
+            self._bundle_services_cache = {};
+        }
+        return self._bundle_services_cache;
+    }
+
+    def _client_entry_setting -> tuple[str, str, bool] {
+        import from jaclang.scale.config.config_loader {
+            get_scale_config,
+            normalize_microservices_config
+        }
+        if self.microservices_config is not None {
+            raw = self.microservices_config;
+        } else {
+            raw = get_scale_config().load().get("microservices", {}) or {};
+        }
+        declared = dict(raw.get("client", {}) or {}).get("entry", None);
+        resolved = normalize_microservices_config(raw, env_routes_fallback=False)[
+            "client"
+        ]["entry"];
+        return (
+            str(resolved or "").strip(),
+            declared.strip() if isinstance(declared, str) else "",
+            declared is False
+        );
+    }
+
+    def _declared_client_entry -> str {
+        return self._client_entry_setting()[1];
     }
 
     def _client_entry -> str {
@@ -733,7 +970,11 @@ obj ManifestBuilder {
             if peer_name == GATEWAY_NAME {
                 continue;
             }
-            key = f"JAC_SV_{peer_name.upper()}_URL";
+            if self._get_http_activation_config(peer_name) is not None {
+                continue;
+            }
+            import from jaclang.runtimelib { sv_client }
+            key = sv_client.peer_url_env_key(peer_name);
             if key in seen_peer_keys {
                 continue;
             }
@@ -758,18 +999,23 @@ obj ManifestBuilder {
         return env;
     }
 
+    def _resolved_memory_request(svc_cfg: dict[str, any], is_gateway: bool) -> str {
+        val = svc_cfg.get("memory_request");
+        if val is None {
+            val = self.k8s_config.memory_request;
+        }
+        if val is None {
+            val = "2Gi" if is_gateway else "1Gi";
+        }
+        return str(val) if val else "";
+    }
+
     def _build_resources(
         svc_cfg: dict[str, any], is_gateway: bool = False
     ) -> dict[str, any] {
         cfg = self.k8s_config;
 
-        memory_request_val = svc_cfg.get("memory_request");
-        if memory_request_val is None {
-            memory_request_val = cfg.memory_request;
-        }
-        if memory_request_val is None {
-            memory_request_val = "2Gi" if is_gateway else "1Gi";
-        }
+        memory_request_val = self._resolved_memory_request(svc_cfg, is_gateway);
         memory_limit_val = svc_cfg.get("memory_limit");
         if memory_limit_val is None {
             memory_limit_val = cfg.memory_limit;
@@ -813,14 +1059,24 @@ obj ManifestBuilder {
         return out;
     }
 
-    def _build_readiness_probe -> dict[str, any] {
+    def _build_readiness_probe(svc_name: str) -> dict[str, any] {
         cfg = self.k8s_config;
+        period = cfg.readiness_period;
+        failure_threshold = 3;
+        initial_delay = cfg.readiness_initial_delay;
+        if self._replica_floor(svc_name) == 0 {
+            period = max(1, cfg.readiness_period_scale_to_zero);
+            budget = max(1, cfg.readiness_period) * failure_threshold;
+            failure_threshold = max(1, budget // period);
+
+            initial_delay = 0;
+        }
         return {
             "httpGet": {"path": "/healthz/ready", "port": cfg.container_port},
-            "initialDelaySeconds": cfg.readiness_initial_delay,
-            "periodSeconds": cfg.readiness_period,
+            "initialDelaySeconds": initial_delay,
+            "periodSeconds": period,
             "timeoutSeconds": 3,
-            "failureThreshold": 3
+            "failureThreshold": failure_threshold
         };
     }
 
@@ -837,11 +1093,12 @@ obj ManifestBuilder {
 
     def _build_startup_probe -> dict[str, any] {
         cfg = self.k8s_config;
+        period = max(1, cfg.startup_probe_period);
         return {
             "httpGet": {"path": "/healthz/live", "port": cfg.container_port},
-            "periodSeconds": 10,
+            "periodSeconds": period,
             "timeoutSeconds": 3,
-            "failureThreshold": 90
+            "failureThreshold": max(1, 900 // period)
         };
     }
 
@@ -935,6 +1192,127 @@ obj ManifestBuilder {
         };
     }
 
+    def _resolve_scaling(
+        svc_name: str, deployment: dict[str, any], service: dict[str, any]
+    ) -> dict[str, any] {
+        """Resolve a service's single, mutually-exclusive scaling decision.
+
+        The one place a service's scaling mode is decided. The scale-target
+        name is read from the Deployment manifest just built (never rebuilt
+        from svc_name), so build, apply, and `jac plan` can never disagree on
+        it. The gateway is forced out of HTTP_ACTIVATION here: it is the
+        ingress entry point and must stay warm, so it must never inherit the
+        shared scale-to-zero default.
+        """;
+        scale_target: str = deployment["metadata"]["name"];
+        service_name: str = service["metadata"]["name"];
+        http: dict[str, any] | None = self._get_http_activation_config(svc_name);
+        if http is not None and svc_name == GATEWAY_NAME {
+            if self.logger {
+                self.logger.warn(
+                    "Ignoring http_activation for the gateway: it is the ingress "
+                    "entry point and must stay warm. Set http_activation "
+                    "per-service instead of relying on the shared default."
+                );
+            }
+            http = None;
+        }
+        if http is not None {
+            try {
+                build_http_activation_spec(
+                    http, scale_target, self.k8s_config.namespace, service_name
+                );
+            } except ValueError as e {
+                raise ValueError(f"[service '{svc_name}'] {e}") from e;
+            }
+            return {
+                "mode": ScalingMode.HTTP_ACTIVATION,
+                "scale_target_name": scale_target,
+                "service_name": service_name,
+                "autoscaler": {},
+                "http_activation": http
+            };
+        }
+        metric: dict[str, any] | None = self._get_autoscaler_config(svc_name);
+        if metric is not None {
+            return {
+                "mode": ScalingMode.METRIC,
+                "scale_target_name": scale_target,
+                "service_name": service_name,
+                "autoscaler": metric,
+                "http_activation": {}
+            };
+        }
+        return {
+            "mode": ScalingMode.NONE,
+            "scale_target_name": scale_target,
+            "service_name": service_name,
+            "autoscaler": {},
+            "http_activation": {}
+        };
+    }
+
+    def _canonical_rules_fingerprint(rules: list[dict[str, any]]) -> str {
+        """A rules fingerprint that ignores list ordering, so two services
+        with the same match criteria collide in _validate_http_activation_rules
+        even when `hosts`/`paths`/`headers`, or the rules themselves, are
+        written in a different order -- fields within a rule are AND'd and
+        separate rules are OR'd, so reordering never changes what a rule set
+        actually matches.
+        """;
+        import json;
+        canonical_rules = [];
+        for rule in rules {
+            headers = [
+                (str(h.get("name", "")), str(h.get("value", "")))
+                for h in rule.get("headers", [])
+            ];
+            canonical_rules.append(
+                {
+                    "hosts": sorted(str(h) for h in rule.get("hosts", [])),
+                    "paths": sorted(str(p) for p in rule.get("paths", [])),
+                    "headers": sorted(headers)
+                }
+            );
+        }
+        canonical_rules.sort(key=lambda (r) { json.dumps(r, sort_keys=True); });
+        return json.dumps(canonical_rules, sort_keys=True);
+    }
+
+    def _validate_http_activation_rules(scaling: dict[str, dict[str, any]]) {
+        """Two services sharing the top-level http_activation default with no
+        per-service override resolve to identical routing rules; the interceptor
+        then has no way to tell which target a matching request belongs to.
+        """;
+        by_rules: dict[str, list[str]] = {};
+        for (svc_name, plan) in scaling.items() {
+            if plan.get("mode") != ScalingMode.HTTP_ACTIVATION {
+                continue;
+            }
+            rules = plan.get("http_activation", {}).get("rules", []);
+            if not rules {
+                continue;
+            }
+            fingerprint = self._canonical_rules_fingerprint(rules);
+            by_rules.setdefault(fingerprint, []).append(svc_name);
+        }
+        for svc_names in by_rules.values() {
+            if len(svc_names) > 1 {
+                names = ", ".join(sorted(svc_names));
+                raise ValueError(
+                    f"[http_activation] {names} resolve to identical routing "
+                    f"rules, most likely all inheriting "
+                    f"[scale.kubernetes.http_activation]'s rules unchanged. The "
+                    f"KEDA HTTP Add-on interceptor can't tell which target a "
+                    f"matching request belongs to when two InterceptorRoutes "
+                    f"share the same match criteria. Set a distinct "
+                    f"[services.NAME.http_activation.rules] for at least all "
+                    f"but one of these services."
+                );
+            }
+        }
+    }
+
     def _get_autoscaler_config(svc_name: str) -> dict[str, any] | None {
         svc: dict[str, any] = self._service_config(svc_name);
 
@@ -948,6 +1326,16 @@ obj ManifestBuilder {
                 raw_triggers.append(dict(item));
             }
         }
+        behavior = hpa.get("behavior", {});
+        if not isinstance(behavior, dict) {
+            if self.logger {
+                self.logger.warning(
+                    f"Ignoring malformed hpa.behavior for '{svc_name}': expected "
+                    f"a table, got {type(behavior).__name__}"
+                );
+            }
+            behavior = {};
+        }
         return {
             "min": int(hpa.get("min", 1)),
             "max": int(hpa.get("max", 3)),
@@ -955,8 +1343,43 @@ obj ManifestBuilder {
             "memory_target": int(
                 hpa.get("memory_target", DEFAULT_MEMORY_UTILIZATION_TARGET)
             ),
-            "triggers": raw_triggers
+            "has_memory_request": bool(
+                self._resolved_memory_request(svc, svc_name == GATEWAY_NAME)
+            ),
+            "triggers": raw_triggers,
+            "behavior": dict(behavior)
         };
+    }
+
+    def autoscaler_config_for_deployment(
+        deployment_name: str
+    ) -> dict[str, any] | None {
+        return self._get_autoscaler_config(
+            self._service_key_for_deployment(deployment_name)
+        );
+    }
+
+    def _service_key_for_deployment(deployment_name: str) -> str {
+        suffix = "-deployment";
+        if not deployment_name.endswith(suffix) {
+            return deployment_name;
+        }
+        k8s_name = deployment_name[:-len(suffix)];
+        ms_cfg = self._ms_cfg();
+        candidates: list[str] = list(ms_cfg.get("routes", {}).keys());
+        candidates.append(GATEWAY_NAME);
+        for key in candidates {
+            if k8s_safe_name(str(key)) == k8s_name {
+                return str(key);
+            }
+        }
+        return k8s_name;
+    }
+
+    def _get_http_activation_config(svc_name: str) -> dict[str, any] | None {
+        return resolve_http_activation_config(
+            dict(self.k8s_config.http_activation), self._ms_cfg(), svc_name
+        );
     }
 
     def _build_ingress_manifest(ingress_cfg: dict[str, any]) -> dict[str, any] | None {
@@ -1039,13 +1462,55 @@ obj ManifestBuilder {
         };
     }
 
-    def _build_pdb_manifest(svc_name: str) -> dict[str, any] | None {
+    def _replica_floor(svc_name: str) -> int {
+        svc_cfg = self._service_config(svc_name);
+        hpa: dict[str, any] = dict(svc_cfg.get("hpa", {}));
+        if hpa.get("enabled", True) {
+            return int(hpa.get("min", 1));
+        }
+        return int(svc_cfg.get("replicas", 1));
+    }
+
+    def _build_pdb_manifest(
+        svc_name: str, mode: (ScalingMode | None) = None
+    ) -> dict[str, any] | None {
         cfg: dict[str, any] = self._service_config(svc_name).get("pdb", {});
         if not cfg.get("enabled", True) {
             return None;
         }
+        if mode == ScalingMode.HTTP_ACTIVATION {
+            if self.logger and cfg {
+                self.logger.warn(
+                    f"No PodDisruptionBudget emitted for '{svc_name}': it is "
+                    f"HTTP-activated and legitimately scales to zero replicas, "
+                    f"so a floor-based budget (pdb.max_unavailable / "
+                    f"min_available) doesn't apply. Disable it explicitly with "
+                    f"pdb.enabled = false to silence this warning."
+                );
+            }
+            return None;
+        }
+        floor = self._replica_floor(svc_name);
+        raw_min = cfg.get("min_available", None);
+        spec = pdb_spec(
+            floor,
+            int(cfg.get("max_unavailable", 1)),
+            None if raw_min is None else int(raw_min)
+        );
+        if spec is None {
+            if self.logger and cfg {
+                self.logger.warn(
+                    f"No PodDisruptionBudget emitted for '{svc_name}': "
+                    f"max_unavailable={int(cfg.get('max_unavailable', 1))} at a "
+                    f"replica floor of {floor} would permit evicting every "
+                    f"replica, so the budget would protect nothing. Raise "
+                    f"hpa.min, or set pdb.min_available to refuse voluntary "
+                    f"disruption instead."
+                );
+            }
+            return None;
+        }
         k8s_name = k8s_safe_name(svc_name);
-        max_u: int = int(cfg.get("max_unavailable", 1));
         return {
             "apiVersion": "policy/v1",
             "kind": "PodDisruptionBudget",
@@ -1054,10 +1519,7 @@ obj ManifestBuilder {
                 "namespace": self.k8s_config.namespace,
                 "labels": {"app": k8s_name, "managed": "jac-scale"}
             },
-            "spec": {
-                "maxUnavailable": max_u,
-                "selector": {"matchLabels": {"app": k8s_name}}
-            }
+            "spec": {** spec, "selector": {"matchLabels": {"app": k8s_name}}}
         };
     }
 
@@ -1102,7 +1564,7 @@ obj ManifestBuilder {
             "args": entry["args"],
             "env": env_list,
             "ports": [{"containerPort": self.k8s_config.container_port}],
-            "readinessProbe": self._build_readiness_probe(),
+            "readinessProbe": self._build_readiness_probe(svc_name),
             "livenessProbe": self._build_liveness_probe(),
             "lifecycle": {"preStop": self._build_prestop_hook()}
         };
@@ -1142,6 +1604,9 @@ obj ManifestBuilder {
         if sa_name {
             spec["serviceAccountName"] = sa_name;
         }
+
+        import from jaclang.scale.injector.pvc_injector { LOADER_GID }
+        spec["securityContext"] = {"fsGroup": LOADER_GID};
         spec["volumes"] = list(shared_vols);
         spec["initContainers"] = list(self.deploy_context.init_containers);
 
@@ -1163,10 +1628,32 @@ obj ManifestBuilder {
         }
         spec["initContainers"].append(
             build_bootstrap_init_container(
-                self.k8s_config, self.k8s_config.python_image
+                self.k8s_config,
+                self.k8s_config.python_image,
+                resolved_specs=self._resolved_python_specs()
             )
         );
         return spec;
+    }
+
+    def _resolved_python_specs -> list[str] | None {
+        if not self.project_dir {
+            return None;
+        }
+        import from pathlib { Path }
+        import from jaclang.project.config { JacConfig }
+        import from jaclang.project.providers { get_python_provider, resolve_plan }
+        jac_toml = Path(self.project_dir) / "jac.toml";
+        if not jac_toml.exists() {
+            return None;
+        }
+        try {
+            app_config = JacConfig.load(jac_toml);
+            python_deps = resolve_plan(app_config).for_ecosystem("python");
+            return get_python_provider().specs_for(python_deps);
+        } except Exception {
+            return None;
+        }
     }
 
     def _build_service_pod_spec(svc_name: str, image: str) -> dict[str, any] {

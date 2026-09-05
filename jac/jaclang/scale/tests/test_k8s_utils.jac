@@ -8,6 +8,7 @@ import from jaclang.runtimelib.test { parametrize }
 import from jaclang.scale.deploy.target.kubernetes.utils { kubernetes_utils as utils }
 import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     check_pods_restarted,
+    default_cluster_key,
     ensure_pvc_exists,
     load_env_variables,
     parse_cpu_quantity,
@@ -149,6 +150,15 @@ test "ensure pvc exists creates when missing" {
     assert body["spec"]["accessModes"] == ["ReadWriteOnce"];
     assert body["spec"]["resources"]["requests"]["storage"] == "10Gi";
     assert body["spec"]["storageClassName"] == "fast";
+}
+
+test "default_cluster_key returns a non-empty string without a loaded kubeconfig" {
+    # KEDAAutoscaler._get_cluster_key and AutoscalerObserverRegistry both
+    # delegate to this one shared implementation so their cluster-identity
+    # logic can't silently drift apart.
+    key = default_cluster_key();
+    assert isinstance(key, str);
+    assert key;
 }
 
 test "cluster type detects aws by provider" {

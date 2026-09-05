@@ -1,6 +1,10 @@
 import unittest.mock;
+import kubernetes;
+import from typing { cast }
+import from types { SimpleNamespace }
 import from kubernetes.client.exceptions { ApiException }
 import from kubernetes.config.config_exception { ConfigException }
+import from jaclang.scale.models.resource_status { ResourceStatus }
 import from jaclang.scale.config.app_config { AppConfig }
 import from jaclang.scale.deploy.target.factory { DeploymentTargetFactory }
 import from jaclang.scale.deploy.autoscale.factory { AutoscalerFactory }
@@ -12,6 +16,8 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 import from jaclang.scale.deploy.target.kubernetes { kubernetes_target as kt_module }
+import from jaclang.scale.deploy.target.kubernetes.manifest_builder { ManifestBuilder }
+import from jaclang.scale.config.config_loader { get_scale_config, reset_scale_config }
 
 test "deployment target factory creates kubernetes target" {
     config = {"app_name": "test-app", "namespace": "default", "container_port": 8000};
@@ -23,7 +29,7 @@ test "deployment target factory creates kubernetes target" {
     assert hasattr(target, "destroy");
     assert hasattr(target, "get_status");
     assert hasattr(target, "scale");
-    assert target.k8s_config.app_name == "test-app";
+    assert cast(any, target).k8s_config.app_name == "test-app";
 }
 
 test "kubernetes target creation auto-syncs missing deploy tooling globally" {
@@ -267,44 +273,74 @@ test "hpa autoscaler build manifests produces correct dict" {
         triggers=[Trigger(type="cpu", metadata={"averageUtilization": "70"})]
     );
     result = HPAAutoscaler()._build_manifests(spec);
-    expected = {
-        "apiVersion": "autoscaling/v2",
-        "kind": "HorizontalPodAutoscaler",
-        "metadata": {
-            "name": "my-service-hpa",
-            "namespace": "default",
-            "labels": {"app": "my-service-deployment", "managed": "jac-scale"}
-        },
-        "spec": {
-            "scaleTargetRef": {
-                "apiVersion": "apps/v1",
-                "kind": "Deployment",
-                "name": "my-service-deployment"
+    expected = [
+        {
+            "apiVersion": "autoscaling/v2",
+            "kind": "HorizontalPodAutoscaler",
+            "metadata": {
+                "name": "my-service-hpa",
+                "namespace": "default",
+                "labels": {"app": "my-service-deployment", "managed": "jac-scale"}
             },
-            "minReplicas": 1,
-            "maxReplicas": 3,
-            "metrics": [
-                {
-                    "type": "Resource",
-                    "resource": {
-                        "name": "cpu",
-                        "target": {"type": "Utilization", "averageUtilization": 70}
-                    }
-                }
-            ],
-            "behavior": {
-                "scaleUp": {
-                    "stabilizationWindowSeconds": 60,
-                    "policies": [{"type": "Pods", "value": 2, "periodSeconds": 60}]
+            "spec": {
+                "scaleTargetRef": {
+                    "apiVersion": "apps/v1",
+                    "kind": "Deployment",
+                    "name": "my-service-deployment"
                 },
-                "scaleDown": {
-                    "stabilizationWindowSeconds": 300,
-                    "policies": [{"type": "Percent", "value": 50, "periodSeconds": 60}]
+                "minReplicas": 1,
+                "maxReplicas": 3,
+                "metrics": [
+                    {
+                        "type": "Resource",
+                        "resource": {
+                            "name": "cpu",
+                            "target": {"type": "Utilization", "averageUtilization": 70}
+                        }
+                    }
+                ],
+                "behavior": {
+                    "scaleUp": {
+                        "stabilizationWindowSeconds": 60,
+                        "policies": [{"type": "Pods", "value": 2, "periodSeconds": 60}]
+                    },
+                    "scaleDown": {
+                        "stabilizationWindowSeconds": 300,
+                        "policies": [
+                            {"type": "Percent", "value": 50, "periodSeconds": 60}
+                        ]
+                    }
                 }
             }
         }
-    };
+    ];
     assert result == expected;
+}
+
+test "hpa autoscaler build manifests applies behavior_overlay onto the default shape" {
+    spec = AutoscalerSpec(
+        scale_target_name="my-service-deployment",
+        autoscaler_name="my-service-hpa",
+        namespace="default",
+        min_replicas=1,
+        max_replicas=3,
+        triggers=[Trigger(type="cpu", metadata={"averageUtilization": "70"})],
+        behavior_overlay={
+            "scaleDown": {
+                "stabilizationWindowSeconds": 600,
+                "selectPolicy": "Min",
+                "policies": [{"type": "Pods", "value": 2, "periodSeconds": 300}]
+            }
+        }
+    );
+    result = HPAAutoscaler()._build_manifests(spec)[0];
+    behavior = result["spec"]["behavior"];
+    assert behavior["scaleDown"]["stabilizationWindowSeconds"] == 600;
+    assert behavior["scaleDown"]["selectPolicy"] == "Min";
+    assert behavior["scaleDown"]["policies"] == [
+        {"type": "Pods", "value": 2, "periodSeconds": 300}
+    ];
+    assert behavior["scaleUp"]["stabilizationWindowSeconds"] == 60;
 }
 
 test "autoscaler factory creates keda autoscaler for engine=keda" {
@@ -420,4 +456,203 @@ test "kubernetes_target falls back to in-cluster config when kubeconfig is unava
     # The except ConfigException clause must catch and reach the in-cluster fallback.
     fake_cfg.load_kube_config.assert_called_once();
     fake_cfg.load_incluster_config.assert_called_once();
+}
+
+def _status_apis(replicas: int, ready: int) -> tuple {
+    apps = unittest.mock.MagicMock();
+    apps.read_namespaced_deployment.return_value = SimpleNamespace(
+        spec=SimpleNamespace(replicas=replicas),
+        status=SimpleNamespace(ready_replicas=ready)
+    );
+    core = unittest.mock.MagicMock();
+    return (apps, core);
+}
+
+def _seed_ms_config(ms_toml: str) -> str {
+    # get_status's own call site builds ManifestBuilder(k8s_config=..., logger=...)
+    # with no microservices_config kwarg, so _ms_cfg() always falls back to
+    # get_scale_config().get_microservices_config(). Point that at a real
+    # seeded jac.toml -- the same pattern test_plan.jac uses -- so get_status
+    # drives a real ManifestBuilder end to end instead of one told what to
+    # answer. That seam (autoscaler_config_for_deployment mocked outright) is
+    # what let a broken _service_key_for_deployment or a type-blind
+    # is_scale_to_zero_eligible through with every test green.
+    import tempfile;
+    import from pathlib { Path }
+    project_dir = tempfile.mkdtemp(prefix="jac-status-test-");
+    toml_body = (
+        "[project]\nname = \"status-test\"\nentry-point = \"main.jac\"\n" + ms_toml
+    );
+    (Path(project_dir) / "jac.toml").write_text(toml_body);
+    reset_scale_config();
+    get_scale_config(project_dir=Path(project_dir));
+    return project_dir;
+}
+
+def _teardown_ms_config(project_dir: str) {
+    import shutil;
+    reset_scale_config();
+    shutil.rmtree(project_dir, ignore_errors=True);
+}
+
+def _get_status(target: any, ms_toml: str, replicas: int, ready: int) -> any {
+    (apps, core) = _status_apis(replicas, ready);
+    project_dir = _seed_ms_config(ms_toml);
+    try {
+        with unittest.mock.patch.object(
+            kubernetes.client, "AppsV1Api", return_value=apps
+        ) {
+            with unittest.mock.patch.object(
+                kubernetes.client, "CoreV1Api", return_value=core
+            ) {
+                with unittest.mock.patch.object(target, "_load_cluster_config") {
+                    return target.get_status("order-service-deployment");
+                }
+            }
+        }
+    } finally {
+        _teardown_ms_config(project_dir);
+    }
+}
+
+def _hpa_toml(trigger_type: str | None) -> str {
+    triggers = (
+        f"\n[[scale.microservices.services.order-service.triggers]]\ntype = \"{trigger_type}\"\n"
+    )
+        if trigger_type
+        else "";
+    return (
+        "[scale.microservices.routes]\n"
+        "order-service = \"/orders\"\n"
+        "\n[scale.microservices.services.order-service.hpa]\n"
+        "min = 0\n"
+        "max = 3\n" + triggers
+    );
+}
+
+test "get_status resolves zero-replica eligibility through a real ManifestBuilder: a real trigger parks under keda, a cpu-only or missing trigger still fails, and the plain HPA engine never parks" {
+    keda_target = DeploymentTargetFactory.create(
+        "kubernetes",
+        {"app_name": "order-service", "namespace": "ns", "autoscaler_engine": "keda"}
+    );
+    hpa_target = DeploymentTargetFactory.create(
+        "kubernetes", {"app_name": "order-service", "namespace": "ns"}
+    );
+
+    info = _get_status(keda_target, _hpa_toml("cron"), replicas=0, ready=0);
+    assert info.status == ResourceStatus.STOPPED , (
+        f"a real non-cpu/memory trigger under keda must resolve through the "
+        f"real service-key lookup and park at zero, got {info.status}"
+    );
+    assert not info.is_ready() , "a parked-at-zero deployment is not ready to serve";
+
+    info = _get_status(hpa_target, _hpa_toml("cron"), replicas=0, ready=0);
+    assert info.status == ResourceStatus.FAILED , (
+        f"the plain HPA engine cannot scale to zero by design: {info.status}"
+    );
+
+    info = _get_status(keda_target, _hpa_toml("cpu"), replicas=0, ready=0);
+    assert info.status == ResourceStatus.FAILED , (
+        f"a cpu-only trigger can never reach zero, so this must still be a "
+        f"real failure, not STOPPED: {info.status}"
+    );
+
+    info = _get_status(keda_target, _hpa_toml(None), replicas=0, ready=0);
+    assert info.status == ResourceStatus.FAILED , (
+        f"no configured trigger at all must still be a real failure: {info.status}"
+    );
+}
+
+test "get_status reports FAILED, not UNKNOWN and not a raised exception, when the real hpa config cannot be parsed" {
+    keda_target = DeploymentTargetFactory.create(
+        "kubernetes",
+        {"app_name": "order-service", "namespace": "ns", "autoscaler_engine": "keda"}
+    );
+    # hpa.min must be int()-able; a real project can absolutely get this
+    # wrong (a stray quoted value, an env-var placeholder left unresolved).
+    # autoscaler_config_for_deployment must not be allowed to take a
+    # read-only status check down over it.
+    malformed_toml = (
+        "[scale.microservices.routes]\n"
+        "order-service = \"/orders\"\n"
+        "\n[scale.microservices.services.order-service.hpa]\n"
+        "min = \"banana\"\n"
+        "max = 3\n"
+    );
+
+    info = _get_status(keda_target, malformed_toml, replicas=0, ready=0);
+
+    assert info.status == ResourceStatus.FAILED , (
+        f"a config the real chain cannot parse must resolve to the same "
+        f"FAILED verdict as any other non-eligible zero-replica deployment, "
+        f"not UNKNOWN: {info.status}"
+    );
+}
+
+test "get_status resolves scale-to-zero eligibility for a single-app deploy with no declared routes at all" {
+    # No [scale.microservices.routes]: the project never cuts itself into
+    # microservices, so the only service is the implicit "solo" one
+    # generate_service_pod_specs names after the app itself. The app_name
+    # deliberately has an underscore: the real k8s Deployment is always
+    # named via k8s_safe_name (order-service-deployment, hyphen), so this
+    # only passes if the implicit route is resolved from the real app_name
+    # ("order_service") rather than coincidentally matching the mangled
+    # k8s name, the same real-name-mangling case
+    # autoscaler_config_for_deployment is already tested against below.
+    keda_target = DeploymentTargetFactory.create(
+        "kubernetes",
+        {"app_name": "order_service", "namespace": "ns", "autoscaler_engine": "keda"}
+    );
+    solo_toml = (
+        "[scale.microservices.services.order_service.hpa]\n"
+        "min = 0\n"
+        "max = 3\n"
+        "\n[[scale.microservices.services.order_service.triggers]]\n"
+        "type = \"cron\"\n"
+    );
+
+    info = _get_status(keda_target, solo_toml, replicas=0, ready=0);
+
+    assert info.status == ResourceStatus.STOPPED , (
+        f"a real trigger under keda must resolve through the implicit solo "
+        f"route the same way a declared route does, and park at zero, got "
+        f"{info.status}"
+    );
+}
+
+test "autoscaler_config_for_deployment resolves a service's real k8s Deployment name back to its config key" {
+    mb = ManifestBuilder(
+        k8s_config=KubernetesConfig(app_name="jac-shop", namespace="ns"),
+        microservices_config={
+            "routes": {"order_service": "/orders", "cart_service": "/cart"},
+            "services": {
+                "order_service": {
+                    "hpa": {"min": 0, "max": 2},
+                    "triggers": [{"type": "cron", "metadata": {}}]
+                }
+            }
+        }
+    );
+
+    cfg = mb.autoscaler_config_for_deployment("order-service-deployment");
+
+    assert cfg is not None and cfg["min"] == 0 , (
+        f"the real k8s Deployment name (with its '_' -> '-' k8s_safe_name "
+        f"mangling and '-deployment' suffix) must resolve back to the "
+        f"'order_service' config key, not fall back to defaults: {cfg}"
+    );
+}
+
+test "autoscaler_config_for_deployment resolves the gateway's deployment name" {
+    mb = ManifestBuilder(
+        k8s_config=KubernetesConfig(app_name="jac-shop", namespace="ns"),
+        microservices_config={"routes": {"order_service": "/orders"}}
+    );
+
+    # No per-service config for the gateway means hpa defaults (min=1), but the
+    # key resolution itself must not raise and must not collide with a real
+    # service -- this only proves the gateway's synthetic name resolves at all.
+    cfg = mb.autoscaler_config_for_deployment("gateway-deployment");
+
+    assert cfg is not None and cfg["min"] == 1;
 }

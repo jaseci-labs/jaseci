@@ -1,3 +1,135 @@
+def _http_activation_nested_schema -> dict[str, any] {
+    """The `nested` fields shared verbatim by [scale.kubernetes.http_activation]
+    and [scale.microservices.services.NAME.http_activation] -- factored out so
+    the two call sites (top-level default, per-service override) can't drift
+    out of sync on a field's type/default the way two independent copies
+    would.
+    """;
+    return {
+        "enabled": {
+            "type": "bool",
+            "default": False,
+            "description": "Master switch. Off by default."
+        },
+        "min_replicas": {
+            "type": "int",
+            "default": 0,
+            "description": "Replica floor while inactive. 0 enables true scale-to-zero."
+        },
+        "max_replicas": {
+            "type": "int",
+            "default": 1,
+            "description": "Replica ceiling once activated."
+        },
+        "polling_interval": {
+            "type": "int",
+            "default": 30,
+            "description": "How often KEDA evaluates the HTTP scaling metric, in seconds."
+        },
+        "cooldown_period": {
+            "type": "int",
+            "default": 300,
+            "description": "Seconds of inactivity before scaling back to min_replicas."
+        },
+        "target_port": {
+            "type": "int",
+            "default": None,
+            "description": "Container port on the target's own generated Service. Exactly one of target_port/target_port_name must be set when enabled."
+        },
+        "target_port_name": {
+            "type": "string",
+            "default": None,
+            "description": "Named container port on the target's own generated Service, as an alternative to target_port."
+        },
+        "concurrency_target": {
+            "type": "int",
+            "default": None,
+            "description": "In-flight-request concurrency target. Exactly one of concurrency_target/request_rate_target must be set when enabled."
+        },
+        "request_rate_target": {
+            "type": "int",
+            "default": None,
+            "description": "Requests-per-window target, as an alternative to concurrency_target."
+        },
+        "request_rate_window": {
+            "type": "string",
+            "default": "1m",
+            "description": "Window duration for request_rate_target."
+        },
+        "request_rate_granularity": {
+            "type": "string",
+            "default": "1s",
+            "description": "Sampling granularity for request_rate_target."
+        },
+        "cold_start_status_code": {
+            "type": "int",
+            "default": 503,
+            "description": "HTTP status the interceptor returns while the target cold-starts, if a placeholder response is configured."
+        },
+        "cold_start_body": {
+            "type": "string",
+            "default": None,
+            "description": "Static placeholder response body served while the target cold-starts."
+        },
+        "cold_start_body_config_map": {
+            "type": "dict",
+            "default": None,
+            "description": "ConfigMap reference to source the placeholder response body from, as an alternative to cold_start_body."
+        },
+        "cold_start_headers": {
+            "type": "dict",
+            "default": {},
+            "description": "Extra headers on the placeholder response."
+        },
+        "cold_start_fallback_service": {
+            "type": "string",
+            "default": None,
+            "description": "Service name to forward requests to while the target cold-starts, as an alternative to a static placeholder response."
+        },
+        "cold_start_fallback_port": {
+            "type": "int",
+            "default": None,
+            "description": "Port on cold_start_fallback_service."
+        },
+        "timeout_readiness": {
+            "type": "string",
+            "default": None,
+            "description": "Duration (e.g. \"30s\") the interceptor waits for the target to become ready after scaling up."
+        },
+        "timeout_request": {
+            "type": "string",
+            "default": None,
+            "description": "Duration the interceptor waits for the forwarded request to complete."
+        },
+        "timeout_response_header": {
+            "type": "string",
+            "default": None,
+            "description": "Duration the interceptor waits for response headers from the target."
+        },
+        "scale_target_kind": {
+            "type": "string",
+            "default": "Deployment",
+            "description": "Kind of the scale target. Deployment/StatefulSet work directly; other kinds require scale_target_plural."
+        },
+        "scale_target_api_version": {
+            "type": "string",
+            "default": "apps/v1",
+            "description": "apiVersion of the scale target, used when scale_target_plural is set for a custom-resource target."
+        },
+        "scale_target_plural": {
+            "type": "string",
+            "default": None,
+            "description": "Plural resource name for a custom-resource scale target (e.g. \"rollouts\"), enabling existence validation before writing anything."
+        },
+        "rules": {
+            "type": "list",
+            "default": [],
+            "description": "[[...rules]] array-of-tables. Each entry: hosts (list[str]), paths (list[str]), headers (list of {name, value?}). Fields within one rule are AND'd; separate rules are OR'd. At least one rule is required -- leaving this empty raises an error at build time, since no traffic would ever match and the target would never wake. Use hosts = [\"*\"] for an explicit catch-all."
+        }
+    };
+}
+
+
 class JacScalePluginConfig {
     static def get_plugin_metadata -> dict[str, any] {
         return {
@@ -226,7 +358,227 @@ class JacScalePluginConfig {
                             "default": [],
                             "description": "(KEDA only) Additional KEDA trigger dicts applied to every service. Each entry: `type` (str), `metadata` (dict[str,str]), optional `name` (str), optional `auth.secret_refs` (dict). For per-service triggers use [[scale.microservices.services.NAME.triggers]] instead."
                         },
-
+                        "postgres_storage_size": {
+                            "type": "string",
+                            "default": "2Gi",
+                            "description": "PVC size for the provisioned Postgres StatefulSet (k8s target)"
+                        },
+                        "cpu_request": {
+                            "type": "string",
+                            "default": None,
+                            "description": "Container CPU request for the app pod (e.g. '100m')"
+                        },
+                        "cpu_limit": {
+                            "type": "string",
+                            "default": None,
+                            "description": "Container CPU limit for the app pod (e.g. '1000m')"
+                        },
+                        "memory_request": {
+                            "type": "string",
+                            "default": None,
+                            "description": "Container memory request for the app pod (e.g. '128Mi')"
+                        },
+                        "memory_limit": {
+                            "type": "string",
+                            "default": None,
+                            "description": "Container memory limit for the app pod (e.g. '1Gi')"
+                        },
+                        "readiness_initial_delay": {
+                            "type": "int",
+                            "default": 10,
+                            "description": "Readiness probe initialDelaySeconds"
+                        },
+                        "readiness_period": {
+                            "type": "int",
+                            "default": 20,
+                            "description": "Readiness probe periodSeconds"
+                        },
+                        "readiness_period_scale_to_zero": {
+                            "type": "int",
+                            "default": 2,
+                            "description": "Readiness probe periodSeconds for a service whose replica floor is 0 (hpa.min == 0), overriding readiness_period so a woken pod isn't left waiting on a stale poll interval"
+                        },
+                        "liveness_initial_delay": {
+                            "type": "int",
+                            "default": 10,
+                            "description": "Liveness probe initialDelaySeconds"
+                        },
+                        "liveness_period": {
+                            "type": "int",
+                            "default": 20,
+                            "description": "Liveness probe periodSeconds"
+                        },
+                        "liveness_failure_threshold": {
+                            "type": "int",
+                            "default": 80,
+                            "description": "Liveness probe failureThreshold"
+                        },
+                        "startup_probe_period": {
+                            "type": "int",
+                            "default": 2,
+                            "description": "Startup probe periodSeconds for no-image pods; failureThreshold scales automatically to preserve the ~900s total startup budget"
+                        },
+                        "health_check_path": {
+                            "type": "string",
+                            "default": "/docs",
+                            "description": "HTTP path used for readiness/liveness probes"
+                        },
+                        "python_image": {
+                            "type": "string",
+                            "default": "",
+                            "description": "Base container image for app pods; empty resolves the default jac image"
+                        },
+                        "wait_image": {
+                            "type": "string",
+                            "default": "busybox",
+                            "description": "Image used by init/wait containers"
+                        },
+                        "bundle_storage_class": {
+                            "type": "string",
+                            "default": "",
+                            "description": "StorageClass for the code-bundle PVC; empty uses the cluster default"
+                        },
+                        "bundle_access_mode": {
+                            "type": "string",
+                            "default": "ReadWriteMany",
+                            "description": "Access mode for the code-bundle PVC"
+                        },
+                        "resource_deletion_wait": {
+                            "type": "int",
+                            "default": 5,
+                            "description": "Seconds to wait between resource deletions on destroy"
+                        },
+                        "aws_nlb_wait": {
+                            "type": "int",
+                            "default": 60,
+                            "description": "Seconds to wait for an AWS NLB to become reachable"
+                        },
+                        "app_mount_path": {
+                            "type": "string",
+                            "default": "/app",
+                            "description": "Mount path for the application volume inside pods"
+                        },
+                        "code_mount_path": {
+                            "type": "string",
+                            "default": "/code",
+                            "description": "Mount path for the code bundle volume inside pods"
+                        },
+                        "workspace_path": {
+                            "type": "string",
+                            "default": "/code/workspace",
+                            "description": "Working directory for the app inside pods"
+                        },
+                        "additional_packages": {
+                            "type": "list",
+                            "default": [],
+                            "description": "Extra pip packages installed into app pods at startup"
+                        },
+                        "loki_enabled": {
+                            "type": "bool",
+                            "default": False,
+                            "description": "Deploy the Loki + Alloy log pipeline (see [scale.microservices.logs])"
+                        },
+                        "tracing_enabled": {
+                            "type": "bool",
+                            "default": False,
+                            "description": "Deploy the tracing stack (see [scale.microservices.tracing])"
+                        },
+                        "ingress_node_port": {
+                            "type": "int",
+                            "default": 30080,
+                            "description": "NodePort used when exposing the app without a LoadBalancer"
+                        },
+                        "shared_ingress": {
+                            "type": "bool",
+                            "default": False,
+                            "description": "Join a cluster-shared ingress instead of provisioning a dedicated one"
+                        },
+                        "shared_ingress_class": {
+                            "type": "string",
+                            "default": "nginx",
+                            "description": "IngressClass used when shared_ingress is enabled"
+                        },
+                        "shared_ingress_annotations": {
+                            "type": "dict",
+                            "default": {},
+                            "description": "Extra annotations applied to the shared ingress"
+                        },
+                        "shared_ingress_tls": {
+                            "type": "bool",
+                            "default": False,
+                            "description": "Enable TLS on the shared ingress"
+                        },
+                        "shared_ingress_skip_reachability": {
+                            "type": "bool",
+                            "default": False,
+                            "description": "Skip the post-deploy reachability probe for the shared ingress"
+                        },
+                        "ingress_limit_rps": {
+                            "type": "int",
+                            "default": 20,
+                            "description": "Ingress rate limit: requests per second per client"
+                        },
+                        "ingress_limit_burst_multiplier": {
+                            "type": "int",
+                            "default": 5,
+                            "description": "Ingress rate limit burst multiplier"
+                        },
+                        "ingress_limit_connections": {
+                            "type": "int",
+                            "default": 20,
+                            "description": "Ingress concurrent connection limit per client"
+                        },
+                        "ingress_session_affinity": {
+                            "type": "bool",
+                            "default": True,
+                            "description": "Enable cookie-based session affinity on the ingress"
+                        },
+                        "domain": {
+                            "type": "string",
+                            "default": "",
+                            "description": "Public domain for the deployment (enables host-based ingress rules)"
+                        },
+                        "cert_manager_email": {
+                            "type": "string",
+                            "default": "",
+                            "description": "Email used for cert-manager ACME registration when TLS is enabled"
+                        },
+                        "service_account_name": {
+                            "type": "string",
+                            "default": "",
+                            "description": "ServiceAccount assigned to app pods; empty uses the namespace default"
+                        },
+                        "ops_console": {
+                            "type": "bool",
+                            "default": False,
+                            "description": "Deploy the experimental ops console"
+                        },
+                        "ops_console_mutations": {
+                            "type": "bool",
+                            "default": False,
+                            "description": "Allow mutating operations from the ops console"
+                        },
+                        "kube_context": {
+                            "type": "string",
+                            "default": "",
+                            "description": "kubectl context to deploy with; empty uses the active context"
+                        },
+                        "kubeconfig": {
+                            "type": "string",
+                            "default": "",
+                            "description": "Path to an explicit kubeconfig file; empty uses the default resolution"
+                        },
+                        "labels": {
+                            "type": "dict",
+                            "default": {},
+                            "description": "Extra labels applied to every generated Kubernetes resource"
+                        },
+                        "http_activation": {
+                            "type": "dict",
+                            "default": {},
+                            "description": "KEDA HTTP Add-on scale-to-zero activation for the monolith app (or shared defaults inherited by microservices unless overridden per-service). Requires the KEDA HTTP Add-on installed separately from core KEDA. For per-service activation use [scale.microservices.services.NAME.http_activation] instead.",
+                            "nested": _http_activation_nested_schema()
+                        }
                     }
                 },
                 "secrets": {
@@ -279,7 +631,7 @@ class JacScalePluginConfig {
                         "drain_timeout_seconds": {
                             "type": "float",
                             "default": 10.0,
-                            "description": "Graceful shutdown window (seconds). On SIGTERM, gateway + services flip a drain flag (503s on new requests) and wait up to this many seconds for in-flight requests to finish before uvicorn force-closes. Mirrors K8s `terminationGracePeriodSeconds`."
+                            "description": "Graceful shutdown window (seconds). On SIGTERM, gateway + services flip a drain flag (503s on new requests) and wait up to this many seconds for in-flight requests to finish before the server force-closes; the serving core mirrors K8s `terminationGracePeriodSeconds`."
                         },
                         "http_forward_timeout": {
                             "type": "float",
@@ -299,7 +651,129 @@ class JacScalePluginConfig {
                         "services": {
                             "type": "dict",
                             "default": {},
-                            "description": "Per-service overrides keyed by module name. Subkeys (all optional): `rpc_timeout` (float, default 10s, inter-service sv-import calls), `http_forward_timeout` (float, default 30s, gateway-to-service forward), `replicas` (int, default 1, K8s Deployment.spec.replicas), `cpu_request` / `cpu_limit` (str, e.g. \"100m\", K8s container resources), `memory_request` / `memory_limit` (str, e.g. \"128Mi\"), `env` (dict[str,str], extra container env vars merged with auto-set JAC_SV_NAME), `image_tag` (str, override global image tag for canary), and nested `hpa` / `pdb` sub-tables. `hpa` keys: `enabled` (bool, default true), `min` (int, default 1), `max` (int, default 3), `cpu_target` (int percent, default 70), `memory_target` (int percent of memory request, default 80). `pdb` keys: `enabled` (bool, default true), `max_unavailable` (int, default 1). `deployment_overlay` (table): a raw Deployment-manifest fragment merged into the generated manifest at build time - maps merge recursively, lists whose members all carry `name` (containers, volumes, env, initContainers, volumeMounts) merge by that name, anything else replaces; identity fields (metadata.name/namespace, selector, the app/managed template labels) are reasserted after the merge. The main container's `name` is the k8s-safe service name (e.g. `builder-sv`; gateway is `gateway`). Use it for nodeSelector, probe tuning, extra volumes/env/init containers - anything the schema has no first-class key for - so pods are right on the FIRST rollout instead of being kubectl-patched into a second one. Overlays add and override only: there is no delete directive (setting a key to null stores null rather than removing the generated field). Gateway uses the `__gateway__` key. `[[services.NAME.triggers]]` array (KEDA only): per-service event-driven triggers; each entry has `type` (str), `metadata` (dict[str,str]), optional `name` (str), optional `auth.secret_refs` (dict). Requires `autoscaler_engine = \"keda\"` in [scale.kubernetes]. Example: [scale.microservices.services.llm_app] rpc_timeout = 120.0, replicas = 2, cpu_limit = \"2000m\", memory_limit = \"4Gi\", env = { LOG_LEVEL = \"DEBUG\" }, [scale.microservices.services.llm_app.hpa] max = 20, cpu_target = 60"
+                            "description": "Per-service overrides keyed by module name. Subkeys (all optional): `file` (str, the service's entry file relative to the project root; default `<name>.jac`), `rpc_timeout` (float, default 10s, inter-service RPC calls), `http_forward_timeout` (float, default 30s, gateway-to-service forward), `replicas` (int, default 1, K8s Deployment.spec.replicas), `cpu_request` / `cpu_limit` (str, e.g. \"100m\", K8s container resources), `memory_request` / `memory_limit` (str, e.g. \"128Mi\"), `env` (dict[str,str], extra container env vars merged with auto-set JAC_SV_NAME), and nested `hpa` / `pdb` sub-tables. `hpa` keys: `enabled` (bool, default true), `min` (int, default 1), `max` (int, default 3), `cpu_target` (int percent, default 50), `memory_target` (int percent of memory request, default 80), `behavior` (table, default `{}`): a raw HPA `behavior` fragment (`scaleUp`/`scaleDown`, each with `stabilizationWindowSeconds`/`policies`/`selectPolicy`) deep-merged over the generated scale-rate defaults - same merge semantics as `deployment_overlay` (maps merge recursively, the `policies` list has no `name` key so it replaces wholesale rather than merging by entry); applies to both \"hpa\" and \"keda\" engines since both route through the same `Autoscaler._build_behavior` (for keda it only governs scaling above zero replicas - the drop to zero remains controlled by `autoscaler_cooldown`, the ScaledObject's cooldownPeriod). Use it to slow scale-down for connection-heavy services (e.g. `[services.NAME.hpa.behavior.scaleDown] stabilizationWindowSeconds = 600, selectPolicy = 'Min', policies = [{ type = 'Pods', value = 2, periodSeconds = 300 }]`) without imposing the same rate limit on every service via the app-global `autoscaler_cooldown`. `pdb` keys: `enabled` (bool, default true), `max_unavailable` (int, default 1; no PDB is emitted when it is at or above the service's replica floor, since such a budget permits evicting every replica), `min_available` (int, default unset; wins over `max_unavailable` and is the only way to ask for a budget that holds at one replica). `deployment_overlay` (table): a raw Deployment-manifest fragment merged into the generated manifest at build time - maps merge recursively, lists whose members all carry `name` (containers, volumes, env, initContainers, volumeMounts) merge by that name, anything else replaces; identity fields (metadata.name/namespace, selector, the app/managed template labels) are reasserted after the merge. The main container's `name` is the k8s-safe service name (e.g. `builder-sv`; gateway is `gateway`). Use it for nodeSelector, probe tuning, extra volumes/env/init containers - anything the schema has no first-class key for - so pods are right on the FIRST rollout instead of being kubectl-patched into a second one. Overlays add and override only: there is no delete directive (setting a key to null stores null rather than removing the generated field). Gateway uses the `__gateway__` key. `[[services.NAME.triggers]]` array (KEDA only): per-service event-driven triggers; each entry has `type` (str), `metadata` (dict[str,str]), optional `name` (str), optional `auth.secret_refs` (dict). Requires `autoscaler_engine = \"keda\"` in [scale.kubernetes]. `http_activation` sub-table (KEDA HTTP Add-on only): per-service HTTP scale-to-zero activation, same keys as [scale.kubernetes.http_activation] (`enabled`, `min_replicas`, `max_replicas`, `target_port`/`target_port_name`, `concurrency_target`/`request_rate_target`, `[[rules]]`, cold-start and timeout keys, `scale_target_kind`/`scale_target_api_version`/`scale_target_plural`); the target Service is always the service's own generated Service, never user-set. Falls back to [scale.kubernetes.http_activation]'s values for any key left unset. Example: [scale.microservices.services.llm_app] rpc_timeout = 120.0, replicas = 2, cpu_limit = \"2000m\", memory_limit = \"4Gi\", env = { LOG_LEVEL = \"DEBUG\" }, [scale.microservices.services.llm_app.hpa] max = 20, cpu_target = 60",
+                            "nested_each": {
+                                "file": {
+                                    "type": "string",
+                                    "default": None,
+                                    "description": "Service entry file relative to the project root; default <name>.jac"
+                                },
+                                "rpc_timeout": {
+                                    "type": "float",
+                                    "default": 10.0,
+                                    "description": "Inter-service RPC call timeout in seconds"
+                                },
+                                "http_forward_timeout": {
+                                    "type": "float",
+                                    "default": 30.0,
+                                    "description": "Gateway-to-service forward timeout in seconds"
+                                },
+                                "replicas": {
+                                    "type": "int",
+                                    "default": 1,
+                                    "description": "K8s Deployment.spec.replicas"
+                                },
+                                "cpu_request": {
+                                    "type": "string",
+                                    "default": None,
+                                    "description": "K8s container CPU request, e.g. '100m'"
+                                },
+                                "cpu_limit": {
+                                    "type": "string",
+                                    "default": None,
+                                    "description": "K8s container CPU limit, e.g. '2000m'"
+                                },
+                                "memory_request": {
+                                    "type": "string",
+                                    "default": None,
+                                    "description": "K8s container memory request, e.g. '128Mi'"
+                                },
+                                "memory_limit": {
+                                    "type": "string",
+                                    "default": None,
+                                    "description": "K8s container memory limit, e.g. '4Gi'"
+                                },
+                                "env": {
+                                    "type": "dict",
+                                    "default": {},
+                                    "description": "Extra container env vars merged with auto-set JAC_SV_NAME"
+                                },
+                                "hpa": {
+                                    "type": "dict",
+                                    "default": {},
+                                    "description": "Per-service autoscaler settings",
+                                    "nested": {
+                                        "enabled": {
+                                            "type": "bool",
+                                            "default": True,
+                                            "description": "Emit an HPA/ScaledObject for this service"
+                                        },
+                                        "min": {
+                                            "type": "int",
+                                            "default": 1,
+                                            "description": "Minimum replicas"
+                                        },
+                                        "max": {
+                                            "type": "int",
+                                            "default": 3,
+                                            "description": "Maximum replicas"
+                                        },
+                                        "cpu_target": {
+                                            "type": "int",
+                                            "default": 50,
+                                            "description": "CPU utilization target percent"
+                                        },
+                                        "memory_target": {
+                                            "type": "int",
+                                            "default": 80,
+                                            "description": "Memory utilization target percent (of the memory request)"
+                                        },
+                                        "behavior": {
+                                            "type": "dict",
+                                            "default": {},
+                                            "description": "Raw HPA behavior fragment deep-merged over generated defaults"
+                                        }
+                                    }
+                                },
+                                "pdb": {
+                                    "type": "dict",
+                                    "default": {},
+                                    "description": "Per-service PodDisruptionBudget settings",
+                                    "nested": {
+                                        "enabled": {
+                                            "type": "bool",
+                                            "default": True,
+                                            "description": "Emit a PDB for this service"
+                                        },
+                                        "max_unavailable": {
+                                            "type": "int",
+                                            "default": 1,
+                                            "description": "PDB maxUnavailable. A budget that permits evicting every replica protects nothing, so no PDB is emitted when this is at or above the service's replica floor (hpa.min, or replicas when the HPA is off)."
+                                        },
+                                        "min_available": {
+                                            "type": "int",
+                                            "default": None,
+                                            "description": "PDB minAvailable. Set it to keep a floor of healthy pods through voluntary disruption; it wins over max_unavailable. min_available = 1 on a single-replica service refuses node drains until the service is scaled up, which is the trade for never going to zero."
+                                        }
+                                    }
+                                },
+                                "deployment_overlay": {
+                                    "type": "dict",
+                                    "default": {},
+                                    "description": "Raw Deployment-manifest fragment merged into the generated manifest"
+                                },
+                                "triggers": {
+                                    "type": "list",
+                                    "default": [],
+                                    "description": "(KEDA only) Per-service event-driven trigger dicts"
+                                },
+                                "http_activation": {
+                                    "type": "dict",
+                                    "default": {},
+                                    "description": "(KEDA HTTP Add-on only) Per-service HTTP scale-to-zero activation. Same keys as [scale.kubernetes.http_activation]; the target Service is always this service's own generated Service, never user-set. Falls back to [scale.kubernetes.http_activation]'s values for any key left unset.",
+                                    "nested": _http_activation_nested_schema()
+                                }
+                            }
                         },
                         "rate_limit": {
                             "type": "dict",

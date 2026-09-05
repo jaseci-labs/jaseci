@@ -9,6 +9,7 @@ import os;
 import sys;
 import tempfile;
 import shutil;
+import hashlib;
 import from pathlib { Path }
 import from unittest.mock { MagicMock, patch }
 
@@ -216,7 +217,96 @@ test "ensure_venv ensurepip missing" {
     }
 }
 
+# ===== Project venv interpreter selection =====
+def _make_fused_venv_stub(project_dir: Path) -> Path {
+    # Stub a venv whose bin/python resolves to sys.executable (fused-like).
+    config = JacConfig.load(project_dir / "jac.toml");
+    venv_dir = config.get_venv_dir();
+    bin_dir = venv_dir / "bin";
+    bin_dir.mkdir(parents=True, exist_ok=True);
+    py = bin_dir / "python";
+    try {
+        py.symlink_to(Path(sys.executable));
+    } except OSError {
+        py.write_text(sys.executable);
+    }
+    (venv_dir / "pyvenv.cfg").write_text("home = /usr/bin\nversion = 3.14.0\n");
+    return venv_dir;
+}
+
+test "bundled runtime python is None outside standalone" {
+    with patch.dict(os.environ, {}, clear=False) {
+        os.environ.pop("JAC_STANDALONE", None);
+        assert _bundled_runtime_python() is None;
+    }
+}
+
+test "ensure_venv keeps symlinked python venv outside standalone" {
+    # In pip-install mode venv/bin/python symlinks to sys.executable; that must
+    # not trigger the fused-venv recreation path reserved for standalone.
+    reset_config();
+    (tmp, project_dir) = make_temp_project();
+    try {
+        venv_dir = _make_fused_venv_stub(project_dir);
+        assert _is_fused_venv(venv_dir);
+        with patch.dict(os.environ, {}, clear=False) {
+            os.environ.pop("JAC_STANDALONE", None);
+            with patch("shutil.rmtree") as rm, patch(
+                "venv.EnvBuilder"
+            ) as mock_builder_class {
+                mock_builder = MagicMock();
+                mock_builder_class.return_value = mock_builder;
+                ensure_venv(venv_dir, verbose=False);
+                rm.assert_not_called();
+                mock_builder.create.assert_not_called();
+            }
+        }
+    } finally {
+        shutil.rmtree(tmp, ignore_errors=True);
+        reset_config();
+    }
+}
+
+test "ensure_venv recreates fused jac-as-python venvs" {
+    reset_config();
+    (tmp, project_dir) = make_temp_project();
+    try {
+        venv_dir = _make_fused_venv_stub(project_dir);
+        assert _is_fused_venv(venv_dir);
+        with patch.dict(os.environ, {"JAC_STANDALONE": "1"}, clear=False), patch(
+            "shutil.rmtree"
+        ) as rm, patch("subprocess.run") as run, patch(
+            "jaclang.project.pyvenv.run_pip", return_value=(0, "", "")
+        ), patch(
+            "jaclang.project.pyvenv._bundled_runtime_python",
+            return_value="/fake/rt/python/bin/python3.14"
+        ) {
+            run.return_value = MagicMock(returncode=0, stdout="", stderr="");
+            ensure_venv(venv_dir, verbose=False);
+            rm.assert_called_once_with(venv_dir);
+            assert run.call_count == 2 , (
+                "bundled venv create should run venv then ensurepip"
+            );
+            assert run.call_args_list[0].args[0]
+                == ["/fake/rt/python/bin/python3.14", "-m", "venv", str(venv_dir), ];
+            assert "--with-pip" not in run.call_args_list[0].args[0];
+            ensurepip_cmd = run.call_args_list[1].args[0];
+            assert ensurepip_cmd[-3:] == ["-m", "ensurepip", "--upgrade"];
+        }
+    } finally {
+        shutil.rmtree(tmp, ignore_errors=True);
+        reset_config();
+    }
+}
+
 # ===== PythonProvider install/uninstall =====
+# _venv_deps_stale (a marker written into the venv, hashed over the resolved
+# specs, mirroring client_deps_stale on the npm side) has no dedicated unit
+# tests: the two tests below already drive it for real in both directions --
+# "success" proves the stale/write-marker path by asserting the marker's
+# real hash content, "skips pip when the venv marker matches" proves the
+# not-stale path by pre-seeding a real matching marker -- so a separate hash
+# compare would only re-assert what these already prove end to end.
 test "PythonProvider install_specs success" {
     reset_config();
     (tmp, project_dir) = make_temp_project();
@@ -238,6 +328,104 @@ test "PythonProvider install_specs success" {
             assert "--upgrade" in call_args;
             assert "requests>=2.28.0" in call_args;
             assert "--target" not in call_args;
+            # A successful install must leave a marker behind so the next
+            # call can skip a needless pip pass.
+            marker = config.get_venv_dir() / ".jac-deps-hash";
+            assert marker.exists();
+            expected_hash = hashlib.sha256(
+                "\n".join(sorted(["requests>=2.28.0"])).encode()
+            ).hexdigest();
+            assert marker.read_text(encoding="utf-8").strip() == expected_hash;
+        }
+    } finally {
+        shutil.rmtree(tmp, ignore_errors=True);
+        reset_config();
+    }
+}
+
+test "PythonProvider install_specs skips pip when the venv marker matches" {
+    reset_config();
+    (tmp, project_dir) = make_temp_project();
+    try {
+        config = JacConfig.load(project_dir / "jac.toml");
+        python = PythonProvider();
+        specs = ["requests>=2.28.0"];
+
+        venv_dir = config.get_venv_dir();
+        venv_dir.mkdir(parents=True, exist_ok=True);
+        current = hashlib.sha256("\n".join(sorted(specs)).encode()).hexdigest();
+        (venv_dir / ".jac-deps-hash").write_text(current, encoding="utf-8");
+
+        with patch("jaclang.project.providers.ensure_venv") as _ev, patch.object(
+            PythonProvider, "_run_project_pip"
+        ) as mock_pip {
+            result = python.install_specs(config, specs, InstallContext());
+            assert result is True;
+            assert mock_pip.call_count == 0;
+        }
+    } finally {
+        shutil.rmtree(tmp, ignore_errors=True);
+        reset_config();
+    }
+}
+
+test "PythonProvider install_specs folds image_identity into the marker hash" {
+    reset_config();
+    (tmp, project_dir) = make_temp_project();
+    try {
+        config = JacConfig.load(project_dir / "jac.toml");
+        python = PythonProvider();
+        specs = ["requests>=2.28.0"];
+
+        with patch("jaclang.project.providers.ensure_venv") as _ev, patch.object(
+            PythonProvider, "_run_project_pip"
+        ) as mock_pip {
+            mock_pip.return_value = (0, "Successfully installed", "");
+            result = python.install_specs(
+                config, specs, InstallContext(image_identity="repo@sha256:deadbeef")
+            );
+            assert result is True;
+            marker = config.get_venv_dir() / ".jac-deps-hash";
+            expected_hash = hashlib.sha256(
+                ("repo@sha256:deadbeef\n" + "\n".join(sorted(specs))).encode()
+            ).hexdigest();
+            assert marker.read_text(encoding="utf-8").strip() == expected_hash;
+        }
+    } finally {
+        shutil.rmtree(tmp, ignore_errors=True);
+        reset_config();
+    }
+}
+
+test "PythonProvider install_specs treats a marker from a different image identity as stale" {
+    reset_config();
+    (tmp, project_dir) = make_temp_project();
+    try {
+        config = JacConfig.load(project_dir / "jac.toml");
+        python = PythonProvider();
+        specs = ["requests>=2.28.0"];
+
+        # A marker written for the same specs but a different base image (the
+        # shape a restored venv-cache entry can leave behind once #8695's
+        # venv cache is keyed on the image): must not be trusted just because
+        # the specs match, or a wrong-ABI venv would be silently kept.
+        venv_dir = config.get_venv_dir();
+        venv_dir.mkdir(parents=True, exist_ok=True);
+        stale_marker = hashlib.sha256(
+            ("repo@sha256:oldimage\n" + "\n".join(sorted(specs))).encode()
+        ).hexdigest();
+        (venv_dir / ".jac-deps-hash").write_text(stale_marker, encoding="utf-8");
+
+        with patch("jaclang.project.providers.ensure_venv") as _ev, patch.object(
+            PythonProvider, "_run_project_pip"
+        ) as mock_pip {
+            mock_pip.return_value = (0, "Successfully installed", "");
+            result = python.install_specs(
+                config, specs, InstallContext(image_identity="repo@sha256:newimage")
+            );
+            assert result is True;
+            # A real pip pass ran instead of trusting the other image's marker.
+            assert mock_pip.call_count == 3;
         }
     } finally {
         shutil.rmtree(tmp, ignore_errors=True);

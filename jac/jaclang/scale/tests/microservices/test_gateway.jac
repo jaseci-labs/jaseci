@@ -7,6 +7,8 @@ import from jaclang.scale.runtime.gateway.service_registry {
     ServiceStatus
 }
 import from jaclang.scale.runtime.gateway.microservice_gateway { MicroserviceGateway }
+import from jaclang.scale.runtime.gateway.process_gateway { ProcessGateway }
+import from jaclang.jac0core.runtime { JacRuntime as Jac }
 
 test "resolve strips prefix and preserves walker path" {
     reg = ServiceRegistry();
@@ -189,7 +191,7 @@ test "health endpoint returns service summary" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get("/health");
     assert resp.status_code == 200;
@@ -204,7 +206,7 @@ test "/healthz/live returns 200 always (liveness, no drain check)" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     try {
         resp = client.get("/healthz/live");
@@ -226,7 +228,7 @@ test "/healthz/ready returns 200 normally, 503 during drain (readiness)" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     try {
         resp = client.get("/healthz/ready");
@@ -253,7 +255,7 @@ test "healthz returns 200 from gateway, not 404 from builtin passthrough" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get("/healthz");
     assert resp.status_code == 200 , (
@@ -279,7 +281,7 @@ test "unmatched path returns 404" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get("/api/unknown/walker/thing");
     assert resp.status_code == 404;
@@ -295,7 +297,7 @@ test "browser navigation to a client route gets the SPA index (history fallback)
     gw = MicroserviceGateway(registry=reg, client_dist_dir=str(dist));
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
 
     resp = client.get("/littlex", headers={"Accept": "text/html"});
@@ -378,7 +380,7 @@ test "/graph/data merges the graph fragments of every healthy service" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     try {
         resp = client.get("/graph/data");
@@ -428,7 +430,7 @@ test "/graph/data still answers when one service is down (partial merge)" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     try {
         resp = client.get("/graph/data");
@@ -437,6 +439,93 @@ test "/graph/data still answers when one service is down (partial merge)" {
         assert node_ids == {"r"};
     } finally {
         srv_a.shutdown();
+    }
+}
+
+"""Serves `payload` as JSON on every GET and records the Host header each
+request actually carried, so a test can verify the header genuinely reached
+the wire -- not just that a headers dict was built correctly in memory."""
+def _serve_capturing(payload: dict) -> tuple {
+    import http.server;
+    import json;
+    import threading;
+
+    body = json.dumps(payload).encode();
+    observed_hosts: list[str] = [];
+
+    def _do_get(handler_self: any) {
+        observed_hosts.append(handler_self.headers.get("Host", ""));
+        handler_self.send_response(200);
+        handler_self.send_header("Content-Type", "application/json");
+        handler_self.send_header("Content-Length", str(len(body)));
+        handler_self.end_headers();
+        handler_self.wfile.write(body);
+    }
+
+    def _log_quiet(handler_self: any, fmt: str, *args: any) { }
+
+    handler_cls = type(
+        "_CapturingHandler",
+        (http.server.BaseHTTPRequestHandler, ),
+        {"do_GET": _do_get, "log_message": _log_quiet}
+    );
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler_cls);
+    t = threading.Thread(target=srv.serve_forever, daemon=True);
+    t.start();
+    return (srv, srv.server_address[1], observed_hosts);
+}
+
+# Two ServiceEntry's share one backing URL (simulating "both point at the
+# shared KEDA interceptor proxy") but carry different host_override values.
+# If the Host header genuinely
+# reaches the socket -- not just a headers dict built in memory -- the real
+# loopback server behind that one URL must observe two distinct Host values,
+# one per service, exactly the mechanism the interceptor relies on to tell
+# which HTTP-activated target a request is actually for.
+test "forwarded requests carry each service's own host_override as the wire Host header" {
+    frag = {"version": "1.0", "nodes": [{"id": "r", "label": "root"}], "edges": []};
+    (srv, port, observed_hosts) = _serve_capturing(frag);
+
+    reg = ServiceRegistry();
+    reg.register(
+        ServiceEntry(
+            name="orders_app",
+            file="orders_app.jac",
+            prefix="/orders",
+            port=port,
+            url=f"http://127.0.0.1:{port}",
+            host_override="orders-app-service.shop.svc.cluster.local",
+            status=ServiceStatus.HEALTHY
+        )
+    );
+    reg.register(
+        ServiceEntry(
+            name="cart_app",
+            file="cart_app.jac",
+            prefix="/cart",
+            port=port,
+            url=f"http://127.0.0.1:{port}",
+            host_override="cart-app-service.shop.svc.cluster.local",
+            status=ServiceStatus.HEALTHY
+        )
+    );
+    gw = MicroserviceGateway(registry=reg);
+    gw.setup();
+
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
+    client = TestClient(gw.app);
+    try {
+        resp = client.get("/graph/data");
+        assert resp.status_code == 200;
+        assert set(observed_hosts) == {
+            "orders-app-service.shop.svc.cluster.local",
+            "cart-app-service.shop.svc.cluster.local"
+        } , (
+            f"expected the wire Host header to carry each service's own "
+            f"host_override, observed: {observed_hosts}"
+        );
+    } finally {
+        srv.shutdown();
     }
 }
 
@@ -462,7 +551,7 @@ test "gateway /metrics returns Prometheus exposition after a request" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
 
     client.get("/health");
@@ -492,7 +581,7 @@ test "service-down returns standardized envelope with SERVICE_UNAVAILABLE + Retr
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get("/api/orders/walker/list");
 
@@ -521,7 +610,7 @@ test "service-timeout returns GATEWAY_TIMEOUT (502) without Retry-After" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get("/api/orders/walker/list");
 
@@ -537,7 +626,7 @@ test "unmatched path returns NOT_FOUND envelope" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get("/this/does/not/match");
 
@@ -554,7 +643,7 @@ test "error envelope carries the request's trace id for correlation" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get(
         "/this/does/not/match", headers={"X-Trace-Id": "trace-for-error-corr"}
@@ -589,7 +678,7 @@ test "gateway /docs returns Swagger HTML pointing at /openapi.json" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get("/docs");
     assert resp.status_code == 200;
@@ -613,7 +702,7 @@ test "gateway /openapi.json returns a minimal doc when no services reachable" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get("/openapi.json");
     assert resp.status_code == 200;
@@ -639,7 +728,7 @@ test "gateway /openapi.json is its own route - not proxied to a service" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get("/openapi.json");
 
@@ -662,7 +751,7 @@ test "gateway /metrics is its own route - not proxied to a service" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get("/metrics");
 
@@ -685,7 +774,7 @@ test "unhealthy service returns 503" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get("/api/orders/walker/list");
     assert resp.status_code == 503;
@@ -706,7 +795,7 @@ test "stopped service returns 503" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get("/api/orders/walker/list");
     assert resp.status_code == 503;
@@ -717,127 +806,10 @@ test "empty registry returns 404" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get("/api/anything/walker/test");
     assert resp.status_code == 404;
-}
-
-test "serve static returns file with correct mime type" {
-    tmp = tempfile.mkdtemp();
-    assets_dir = Path(tmp) / "assets";
-    assets_dir.mkdir();
-    js_file = assets_dir / "app.js";
-    js_file.write_text("console.log('hello');");
-
-    reg = ServiceRegistry();
-    gw = MicroserviceGateway(registry=reg, client_dist_dir=tmp);
-
-    resp = gw.serve_static("assets/app.js");
-    assert resp is not None;
-    assert "javascript" in resp.media_type;
-    assert b"hello" in resp.body;
-
-    import shutil;
-    shutil.rmtree(tmp);
-}
-
-test "serve static returns none for missing file" {
-    tmp = tempfile.mkdtemp();
-
-    reg = ServiceRegistry();
-    gw = MicroserviceGateway(registry=reg, client_dist_dir=tmp);
-
-    resp = gw.serve_static("nonexistent.js");
-    assert resp is None;
-
-    import shutil;
-    shutil.rmtree(tmp);
-}
-
-test "serve static blocks path traversal" {
-    tmp = tempfile.mkdtemp();
-
-    reg = ServiceRegistry();
-    gw = MicroserviceGateway(registry=reg, client_dist_dir=tmp);
-
-    resp = gw.serve_static("../../etc/passwd");
-    assert resp is None;
-
-    import shutil;
-    shutil.rmtree(tmp);
-}
-
-test "serve static css file returns text content type" {
-    tmp = tempfile.mkdtemp();
-    css_file = Path(tmp) / "style.css";
-    css_file.write_text("body { color: red; }");
-
-    reg = ServiceRegistry();
-    gw = MicroserviceGateway(registry=reg, client_dist_dir=tmp);
-
-    resp = gw.serve_static("style.css");
-    assert resp is not None;
-    assert resp.media_type == "text/css";
-
-    import shutil;
-    shutil.rmtree(tmp);
-}
-
-test "serve_extra_static serves a file from a configured local dir" {
-    tmp = tempfile.mkdtemp();
-    assets = Path(tmp) / "assets";
-    assets.mkdir();
-    (assets / "logo.png").write_bytes(b"PNG_DATA");
-
-    reg = ServiceRegistry();
-    gw = MicroserviceGateway(registry=reg, client_dist_dir=tmp);
-
-    resp = gw.serve_extra_static(str(assets), "logo.png");
-    assert resp is not None;
-    assert b"PNG_DATA" in resp.body;
-    assert "image/png" in resp.media_type;
-
-    import shutil;
-    shutil.rmtree(tmp);
-}
-
-test "serve_extra_static returns None when local_dir is empty" {
-    reg = ServiceRegistry();
-    gw = MicroserviceGateway(registry=reg);
-
-    resp = gw.serve_extra_static("", "anything.txt");
-    assert resp is None;
-}
-
-test "serve_extra_static returns None for missing file" {
-    tmp = tempfile.mkdtemp();
-    reg = ServiceRegistry();
-    gw = MicroserviceGateway(registry=reg);
-
-    resp = gw.serve_extra_static(tmp, "nonexistent.png");
-    assert resp is None;
-
-    import shutil;
-    shutil.rmtree(tmp);
-}
-
-test "serve_extra_static blocks path traversal escape" {
-    tmp = tempfile.mkdtemp();
-    assets = Path(tmp) / "assets";
-    assets.mkdir();
-
-    secret = Path(tmp) / "secret.txt";
-    secret.write_text("classified");
-
-    reg = ServiceRegistry();
-    gw = MicroserviceGateway(registry=reg);
-
-    resp = gw.serve_extra_static(str(assets), "../secret.txt");
-    assert resp is None;
-
-    import shutil;
-    shutil.rmtree(tmp);
 }
 
 test "static_mounts wins over dist_dir for matching URL" {
@@ -859,7 +831,7 @@ test "static_mounts wins over dist_dir for matching URL" {
     );
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
 
     resp = client.get("/static/assets/logo.png");
@@ -884,7 +856,7 @@ test "static_mounts dispatch falls through to dist_dir for non-matching URL" {
     );
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
 
     resp = client.get("/vendor.js");
@@ -913,7 +885,7 @@ test "matched static_mount with missing file does not fall back to dist" {
     );
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
 
     resp = client.get("/static/assets/logo.png");
@@ -962,7 +934,7 @@ test "gateway serves static files for unmatched paths" {
     gw = MicroserviceGateway(registry=reg, client_dist_dir=tmp);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get("/assets/app.js");
     assert resp.status_code == 200;
@@ -980,7 +952,7 @@ test "gateway serves spa fallback for html navigation" {
     gw = MicroserviceGateway(registry=reg, client_dist_dir=tmp);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get("/dashboard", headers={"Accept": "text/html"});
     assert resp.status_code == 200;
@@ -997,7 +969,7 @@ test "gateway returns 404 for missing static and no spa" {
     gw = MicroserviceGateway(registry=reg, client_dist_dir=tmp);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get("/nonexistent.js");
     assert resp.status_code == 404;
@@ -1015,7 +987,7 @@ test "Gateway serves index.html for GET / regardless of Accept" {
     gw = MicroserviceGateway(registry=reg, client_dist_dir=tmp);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
 
     resp = client.get("/", headers={"Accept": ""});
@@ -1041,7 +1013,7 @@ test "Gateway returns 404 for GET / when no index.html exists" {
     gw = MicroserviceGateway(registry=reg, client_dist_dir=tmp);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get("/", headers={"Accept": ""});
     assert resp.status_code == 404;
@@ -1097,6 +1069,11 @@ test "serve admin asset spa fallback for unknown route" {
     resp = gw.serve_admin_asset("users/list");
     assert resp is not None;
     assert b"Admin SPA" in resp.body;
+    cache = resp.headers.get("Cache-Control") or "";
+    assert cache == "no-cache" , (
+        "the admin shell must never be cached, so a redeploy's hashed bundles "
+        f"are never served stale from an hour-old cached shell; got Cache-Control: {cache}"
+    );
 
     import shutil;
     shutil.rmtree(tmp);
@@ -1117,6 +1094,28 @@ test "serve admin asset blocks path traversal" {
     shutil.rmtree(tmp);
 }
 
+test "serve admin asset responses go through the shared asset_response policy" {
+    tmp = tempfile.mkdtemp();
+    admin_dir = Path(tmp) / "admin";
+    assets = admin_dir / "assets";
+    assets.mkdir(parents=True);
+    (assets / "admin.js").write_text("var admin = true;");
+
+    reg = ServiceRegistry();
+    gw = MicroserviceGateway(registry=reg, admin_dist_dir=str(admin_dir));
+
+    resp = gw.serve_admin_asset("assets/admin.js");
+    assert resp is not None;
+    cache = resp.headers.get("Cache-Control") or "";
+    assert "must-revalidate" in cache , (
+        "admin assets must be built through the shared asset_response so the "
+        f"one response policy holds everywhere; got Cache-Control: {cache}"
+    );
+
+    import shutil;
+    shutil.rmtree(tmp);
+}
+
 test "admin redirect via testclient" {
     tmp = tempfile.mkdtemp();
     admin_dir = Path(tmp) / "admin";
@@ -1127,7 +1126,7 @@ test "admin redirect via testclient" {
     gw = MicroserviceGateway(registry=reg, admin_dist_dir=str(admin_dir));
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app, follow_redirects=False);
     resp = client.get("/admin");
     assert resp.status_code == 302;
@@ -1149,7 +1148,7 @@ test "admin index served at /admin/" {
 
     gw.server = None;
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get("/admin/");
     assert resp.status_code == 200;
@@ -1174,7 +1173,7 @@ test "api request to unreachable service returns 502" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
 
     resp = client.get("/api/orders/walker/list");
@@ -1186,7 +1185,7 @@ test "health endpoint does not require auth" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
 
     resp = client.get("/health");
@@ -1205,7 +1204,7 @@ test "gateway drain 503s new requests with Retry-After + envelope" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
 
     resp = client.get("/health");
@@ -1237,7 +1236,7 @@ test "gateway drain does not burn metrics labels on 503d requests" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
 
     start_drain(5.0);
@@ -1300,7 +1299,7 @@ test "CORS disabled when allow_origins is empty" {
     }
     gw = _with_cors_config({"allow_origins": []}, build);
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get("/health", headers={"Origin": "http://example.com"});
     assert resp.status_code == 200;
@@ -1328,7 +1327,7 @@ test "CORS preflight returns Allow-Origin + Allow-Methods when configured" {
     };
     gw = _with_cors_config(cors, build);
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.options(
         "/health",
@@ -1362,7 +1361,7 @@ test "CORS simple request echoes Allow-Origin on the response" {
     };
     gw = _with_cors_config(cors, build);
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     resp = client.get("/health", headers={"Origin": "http://app.example.com"});
     assert resp.status_code == 200;
@@ -1388,7 +1387,7 @@ test "CORS preflight still responds during drain (headers reachable on 503)" {
     };
     gw = _with_cors_config(cors, build);
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     reset_drain();
     start_drain(5.0);
@@ -1505,7 +1504,7 @@ test "bare /jobs (create + list) is forwarded as a built-in route, not 404'd" {
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
 
     resp_list = client.get("/jobs");
@@ -1523,4 +1522,23 @@ test "bare /jobs (create + list) is forwarded as a built-in route, not 404'd" {
 
     resp_one = client.get("/jobs/abc123");
     assert resp_one.status_code == 503;
+}
+
+test "ProcessGateway.setup resolves base_path from the Jac context, not the '.' default" {
+    # No project markers above /tmp, so find_project_root falls back to this dir
+    # (same fallback asset_base_path relies on in test_static_fallback.jac).
+    project_root = tempfile.mkdtemp();
+    Jac.get_context().base_path_dir = project_root;
+
+    gw = ProcessGateway(registry=ServiceRegistry());
+    gw.setup();
+
+    assert gw._gateway is not None;
+    assert gw._gateway.base_path == project_root , (
+        "local `jac start` must resolve base_path the same way every other "
+        f"asset consumer does, not fall back to '.'; got {gw._gateway.base_path}"
+    );
+
+    import shutil;
+    shutil.rmtree(project_root);
 }

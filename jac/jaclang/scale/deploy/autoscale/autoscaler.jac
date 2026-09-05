@@ -1,6 +1,8 @@
 glob DEFAULT_CPU_UTILIZATION_TARGET: int = 50,
      DEFAULT_MEMORY_UTILIZATION_TARGET: int = 80;
 
+glob RESOURCE_ONLY_TRIGGER_TYPES: set[str] = {"cpu", "memory"};
+
 obj TriggerAuth {
     has secret_refs: dict[str, dict[str, str]] = {};
 }
@@ -26,7 +28,41 @@ obj AutoscalerSpec {
         cooldown_period: int = 300,
         initial_cooldown_period: int = 0,
         scale_up_stabilization: int = 60,
-        scale_up_max_pods: int = 2;
+        scale_up_max_pods: int = 2,
+        behavior_overlay: dict[str, any] = {};
+}
+
+enum AutoscalerState {
+    INACTIVE = "inactive",
+    ACTIVATING = "activating",
+    ACTIVE = "active",
+    DEACTIVATING = "deactivating",
+    DEGRADED = "degraded",
+    UNKNOWN = "unknown",
+}
+
+obj AutoscalerRuntimeStatus {
+    has state: str,
+        desired_replicas: int,
+        current_replicas: int,
+        ready_replicas: int,
+        trigger_active: (bool | None) = None,
+        scaler_ready: (bool | None) = None,
+        conditions: list[dict[str, any]] = [],
+        resource_version: (str | None) = None,
+        message: (str | None) = None;
+}
+
+obj AutoscalerTransition {
+    has autoscaler_name: str,
+        scale_target_name: str,
+        namespace: str,
+        previous_state: (str | None),
+        state: str,
+        observed_at: str,
+        resource_version: str,
+        reason: (str | None) = None,
+        message: (str | None) = None;
 }
 
 
@@ -36,7 +72,7 @@ class Autoscaler {
     }
 
     static def _build_behavior(spec: AutoscalerSpec) -> dict[str, any] {
-        return {
+        default: dict[str, any] = {
             "scaleUp": {
                 "stabilizationWindowSeconds": min(
                     3600, max(0, spec.scale_up_stabilization)
@@ -54,6 +90,21 @@ class Autoscaler {
                 "policies": [{"type": "Percent", "value": 50, "periodSeconds": 60}]
             }
         };
+        if not spec.behavior_overlay {
+            return default;
+        }
+        import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
+            merge_manifest_overlay
+        }
+        return merge_manifest_overlay(`default, spec.behavior_overlay);
+    }
+
+    def _build_manifests(
+        self: Autoscaler, spec: AutoscalerSpec
+    ) -> list[dict[str, any]] {
+        raise NotImplementedError(
+            "_build_manifests() must be implemented by a concrete Autoscaler subclass"
+        );
     }
 
     def apply(self: Autoscaler, spec: AutoscalerSpec) -> bool {
@@ -62,7 +113,7 @@ class Autoscaler {
         );
     }
 
-    def destroy(self: Autoscaler, autoscaler_name: str, namespace: str) {
+    def destroy(self: Autoscaler, app_name: str, namespace: str) {
         raise NotImplementedError(
             "destroy() must be implemented by a concrete Autoscaler subclass"
         );
@@ -81,6 +132,14 @@ class Autoscaler {
     def resource_name_for(self: Autoscaler, target: str) -> str {
         raise NotImplementedError(
             "resource_name_for() must be implemented by a concrete Autoscaler subclass."
+        );
+    }
+
+    def get_runtime_status(
+        self: Autoscaler, autoscaler_name: str, scale_target_name: str, namespace: str
+    ) -> AutoscalerRuntimeStatus {
+        raise NotImplementedError(
+            "get_runtime_status() must be implemented by a concrete Autoscaler subclass"
         );
     }
 }

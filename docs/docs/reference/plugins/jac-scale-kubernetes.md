@@ -331,15 +331,17 @@ memory_limit = "2Gi"
 
 ### Health Probes
 
-Kubernetes uses readiness and liveness probes to decide when a pod is ready to serve traffic and when to restart it. Both probes hit `GET <health_check_path>` on the container.
+Kubernetes uses startup, readiness, and liveness probes to decide when a pod has finished its first boot, when it is ready to serve traffic, and when to restart it. All three hit `GET <health_check_path>` on the container.
 
 **Defaults:**
 
 | TOML Key | Default | Description |
 |----------|---------|-------------|
-| `health_check_path` | `"/docs"` | Endpoint probed by both readiness and liveness checks |
+| `health_check_path` | `"/docs"` | Endpoint probed by all three checks |
+| `startup_probe_period` | `2` | Seconds between startup checks. Startup polling gates readiness/liveness: neither runs until the app first answers, so this controls how quickly a fresh boot is noticed. `failureThreshold` scales with the period to keep a fixed ~900s total budget for a slow first boot (compiling and installing dependencies), so tightening the period doesn't shrink that budget. |
 | `readiness_initial_delay` | `10` | Seconds to wait before first readiness check |
 | `readiness_period` | `20` | Seconds between readiness checks |
+| `readiness_period_scale_to_zero` | `2` | Overrides `readiness_period` for services with a replica floor of 0 (an HPA/KEDA `min` of `0`, i.e. scale-to-zero). A woken scale-to-zero pod otherwise waits out up to one full `readiness_period` of detection lag on top of the startup probe's own lag; this only tightens that for services actually configured to idle at zero, so a normally-scaled service's steady-state probe traffic is unaffected. `failureThreshold` scales with the period the same way the startup probe's does. |
 | `liveness_initial_delay`  | `10` | Seconds to wait before first liveness check |
 | `liveness_period`  | `20` | Seconds between liveness checks |
 | `liveness_failure_threshold` | `80` | Consecutive failures before the pod is restarted |
@@ -348,15 +350,19 @@ Kubernetes uses readiness and liveness probes to decide when a pod is ready to s
 
 ```toml
 [scale.kubernetes]
-health_check_path = "/health"
+health_check_path = "/healthz/ready"
+startup_probe_period = 5
 readiness_initial_delay = 15
 readiness_period = 10
+readiness_period_scale_to_zero = 3
 liveness_initial_delay = 30
 liveness_period = 30
 liveness_failure_threshold = 5
 ```
 
-> **Tip:** Set `health_check_path = "/health"` to use the built-in liveness and readiness endpoints - see [Health Checks](#health-checks).
+> **Tip:** The scale server ships built-in probe endpoints at `/healthz/live` and `/healthz/ready` - see [Health Checks](#health-checks). Microservice deployments use them automatically; for single-app deployments, point `health_check_path` at one of them to probe something cheaper than the default `/docs` page.
+>
+> **Tip: KEDA scale-to-zero wake latency.** A woken scale-to-zero pod's biggest cost is usually reinstalling dependencies from scratch (see [Dependency Install Caching](#dependency-install-caching)); `startup_probe_period` and `readiness_period_scale_to_zero` address the smaller, Kubernetes-side cost on top of that, the polling lag between the app actually answering and Kubernetes noticing.
 
 ---
 
@@ -392,8 +398,29 @@ cpu_utilization_target = 70   # Scale out when average CPU exceeds 70%
 
 The `"keda"` engine creates a `ScaledObject` custom resource instead of an HPA. It supports the full [KEDA trigger catalogue](https://keda.sh/docs/latest/scalers/) (Prometheus, Redis, RabbitMQ, Kafka, HTTP, and more) and enables scale-to-zero.
 
+!!! note "`min_replicas` / `hpa.min` of `0` requires a real trigger"
+    Setting `min_replicas` (or a per-service `hpa.min`) to `0` is only valid under `autoscaler_engine = "keda"` with at least one configured trigger other than `cpu` or `memory` -- CPU and memory utilization cannot be measured with zero running pods, so those triggers alone can never scale back up from zero. `jac scale deploy --dry-run` rejects a `min` of `0` that does not meet this, naming the service and explaining which condition is missing. A deployment that legitimately settles at zero replicas under this rule is not treated as failed: the deploy rollout does not wait out its timeout on it, and `resource_status()` reports it as `stopped` rather than `failed` (see [`ScaleClient`](#scaleclient) below).
+
 !!! note
     KEDA must be installed on the cluster before using this engine. If KEDA CRDs are absent at deploy time, jac-scale emits an install warning with a link to the [KEDA installation docs](https://keda.sh/docs/latest/deploy/) and falls back to static replicas rather than failing the deploy.
+
+!!! note "HTTP-activated workloads also require the KEDA HTTP Add-on"
+    Workloads scaled via `apply_http_activation` (HTTP request-driven scale-to-zero) require the [KEDA HTTP Add-on](https://keda.sh/docs/latest/deploy/#http-add-on) in addition to core KEDA. Call `KEDAAutoscaler.discover_capabilities()` to check both together: it returns a `KEDACapabilities` object that distinguishes a missing core install from a missing or outdated HTTP Add-on, an RBAC-denied check from a genuinely absent API, and a missing external-scaler or interceptor-proxy Service, each with its own diagnostic. Results are cached per cluster; pass `refresh=True` or call `invalidate_capabilities()` to force a recheck. `apply_http_activation` calls `discover_capabilities()` automatically and raises when the Add-on is installed but broken, instead of deploying a workload that will never receive traffic. If the Add-on is simply absent, it logs a warning and skips activation rather than failing the deploy.
+
+    Install both with Helm:
+    ```bash
+    helm repo add kedacore https://kedacore.github.io/charts
+    helm repo update
+    helm install keda kedacore/keda -n keda --create-namespace --wait
+    helm install http-add-on kedacore/keda-add-ons-http -n keda --wait
+    ```
+
+    Upgrading an older HTTP Add-on install (pre-0.14, `HTTPScaledObject` only) to the current `InterceptorRoute` API:
+    ```bash
+    helm upgrade http-add-on kedacore/keda-add-ons-http -n keda --wait
+    ```
+
+    Chart names, flags, and required values can change over time, so every install/upgrade command surfaced by `discover_capabilities()` also links to the current getting-started guide as the authoritative fallback: [https://keda.sh/http-add-on/0.15/getting-started/](https://keda.sh/http-add-on/0.15/getting-started/).
 
 **Switching between engines is safe.** Each engine removes the other engine's resource (`ScaledObject` or `HPA`) on apply, so two autoscalers never compete for `spec.replicas` on the same Deployment.
 
@@ -453,6 +480,136 @@ metadata = { queueName = "orders", mode = "QueueLength", value = "50", protocol 
 [scale.kubernetes.extra_triggers.auth.secret_refs]
 host = { name = "rabbitmq-secret", key = "host" }
 ```
+
+#### Runtime Status and Live Observation
+
+Both engines expose the same normalized status shape, so callers never need to branch on `autoscaler_engine`.
+
+**One-shot query:**
+
+```jac
+with entry {
+    status = autoscaler.get_runtime_status(autoscaler_name, scale_target_name, namespace);
+    # status.state: "inactive" | "activating" | "active" | "deactivating" | "degraded" | "unknown"
+    # status.desired_replicas / current_replicas / ready_replicas
+    # status.trigger_active, status.scaler_ready  (None when the engine doesn't report one)
+}
+```
+
+`inactive` is the intentional, healthy scale-to-zero resting state, not an error -- a plain HPA target (see [HPA Engine](#hpa-engine-default)) never reports it, since `minReplicas` is always at least 1 under that engine.
+
+!!! note "Live updates, not polling"
+    `AutoscalerObserverRegistry.get_or_create(namespace, cluster_key=None)` hands back one shared watcher per `(cluster, namespace)` -- every caller that asks for the same namespace gets the same observer instance, so N callers never open N Kubernetes watch connections. Subscribe with `observer.subscribe(scale_target_name=...)` and pull updates with `subscription.poll(timeout_seconds=...)`, which returns an `AutoscalerTransition` (`previous_state`, `state`, `resource_version`, `observed_at`) only when the normalized state actually changes -- a watch reconnect never re-announces a state nothing actually left. `observed_at` is when this process saw the change, not a durable record of when it happened; persist that yourself if you need history across an observer restart.
+
+    Each `get_or_create` call increments a reference count for that `(cluster, namespace)`; call `AutoscalerObserverRegistry.release(namespace, cluster_key=None)` once you're done with it. The watcher's threads stop only when the count reaches zero, so other callers still watching that namespace are unaffected. `shutdown_all()` bypasses reference counting entirely and stops every watcher process-wide -- reserve it for process shutdown or test teardown.
+
+    ```jac
+    with entry {
+        observer = AutoscalerObserverRegistry.get_or_create(namespace);
+        subscription = observer.subscribe(scale_target_name=scale_target_name);
+        transition = subscription.poll(timeout_seconds=30.0);
+        if transition {
+            print(f"{transition.previous_state} -> {transition.state}");
+        }
+        AutoscalerObserverRegistry.release(namespace);
+    }
+    ```
+
+    For HTTP-activated workloads (`apply_http_activation`, see the KEDA HTTP Add-on note above), `activating` distinguishes "KEDA has requested more replicas" from `active` ("the target Deployment is actually ready to receive traffic") -- watch for `active`, not just a desired-replica bump, before routing a request through.
+
+#### HTTP Add-on Activation (Scale-to-Zero on Request)
+
+The KEDA engine above scales on CPU, memory, or any KEDA trigger, but none of those triggers can wake a workload from zero replicas in response to an incoming HTTP request itself. There is nothing listening on the Service to observe traffic when replicas are at zero. The [KEDA HTTP Add-on](https://keda.sh/http-add-on/0.15/) closes that gap: it intercepts HTTP traffic bound for the target, holds the request while a zero-replica workload starts, and forwards it only once the workload is ready.
+
+!!! note
+    The KEDA HTTP Add-on installs separately from KEDA core. It ships as its own Helm chart:
+    ```bash
+    helm repo add kedacore https://kedacore.github.io/charts
+    helm repo update
+    helm install keda kedacore/keda -n keda --create-namespace --wait
+    helm install http-add-on kedacore/keda-add-ons-http -n keda --wait
+    ```
+    If the HTTP Add-on's CRDs are missing at deploy time, jac-scale logs a warning and skips creating the `InterceptorRoute`/`ScaledObject` rather than failing the deploy, matching the `"keda"` engine's own preflight fallback above.
+
+**Prerequisites**
+
+- KEDA core is installed on the cluster, as described above for the `"keda"` engine.
+- The KEDA HTTP Add-on is installed, per the note above.
+- The scale target exposes Kubernetes' `/scale` subresource. A `Deployment` or `StatefulSet` works out of the box; a standalone `Pod` is rejected with an error explaining the `/scale` requirement. A custom resource such as a `Rollout` also works, but only once `scale_target_plural` is set, so jac-scale can confirm it exists before applying anything.
+- The target's Deployment or StatefulSet, and its Service, already exist. This feature manages the `InterceptorRoute` and `ScaledObject` around an existing workload; it does not create the workload or the Service.
+- Exactly one of `target_port` or `target_port_name` is set, and at least one of `concurrency_target` or `request_rate_target` is set. Both are validated up front with an error that names the offending `jac.toml` key.
+
+**Interaction with the base autoscaler:** a target with `http_activation.enabled = true` is scaled entirely by its `ScaledObject` (min/max replicas, scale-to-zero). `jac scale deploy` skips creating the base HPA/KEDA autoscaler for that same target automatically -- KEDA's admission webhook rejects a `ScaledObject` for a workload already managed by an HPA (or another `ScaledObject`), so both can't coexist on one target. This also means the deploy's usual post-deploy HTTP reachability check is skipped for that target (it may legitimately be sitting at 0 replicas with nothing to reach); a crash-loop check on the pods runs instead.
+
+**HTTP activation configuration (`[scale.kubernetes.http_activation]`):**
+
+| TOML Key | Default | Description |
+|----------|---------|-------------|
+| `enabled` | `false` | Master switch. Off by default. |
+| `min_replicas` | `0` | Replica floor while inactive. `0` enables true scale-to-zero. |
+| `max_replicas` | `1` | Replica ceiling once activated. |
+| `polling_interval` | `30` | Seconds between HTTP metric evaluations. |
+| `cooldown_period` | `300` | Seconds of inactivity before scaling back to `min_replicas`. |
+| `target_port` / `target_port_name` | `null` | Container port on the app's Service. Set exactly one. |
+| `concurrency_target` | `null` | In-flight-request concurrency target. Set this or `request_rate_target`. |
+| `request_rate_target` | `null` | Requests-per-window target, as an alternative to `concurrency_target`. |
+| `request_rate_window` / `request_rate_granularity` | `"1m"` / `"1s"` | Window and sampling granularity for `request_rate_target`. |
+| `[[rules]]` | `[]` | Routing rules: `hosts` (list), `paths` (list), `headers` (list of `{name, value}`, `value` omitted matches any). Fields within one rule are AND'd; separate rules are OR'd. **Leaving this empty means no traffic matches** -- the interceptor never forwards anything and the target never wakes. At least one rule is required; use `hosts = ["*"]` for an explicit catch-all. |
+| `cold_start_status_code` / `cold_start_body` / `cold_start_headers` | `503` / `null` / `{}` | Static placeholder response served while the target cold-starts. |
+| `cold_start_fallback_service` / `cold_start_fallback_port` | `null` | Service to forward to while cold-starting, as an alternative to a static placeholder. |
+| `timeout_readiness` / `timeout_request` / `timeout_response_header` | `null` | Duration strings (e.g. `"30s"`) the interceptor waits at each stage. |
+| `scale_target_kind` / `scale_target_api_version` / `scale_target_plural` | `"Deployment"` / `"apps/v1"` / `null` | Only needed when activating a non-Deployment/StatefulSet target. |
+
+**To configure in `jac.toml` (monolith deploy):**
+
+```toml
+[scale.kubernetes.http_activation]
+enabled = true
+target_port = 8000
+concurrency_target = 10
+min_replicas = 0
+max_replicas = 3
+cooldown_period = 300
+
+[[scale.kubernetes.http_activation.rules]]
+hosts = ["app.example.com"]
+```
+
+**Per-service, in microservice mode:** the same keys apply under `[scale.microservices.services.<name>.http_activation]`. The target Service is always the service's own generated Service; it is never user-set. Any key left unset falls back to `[scale.kubernetes.http_activation]`'s value.
+
+```toml
+[scale.microservices.services.jac_coder_sv.http_activation]
+enabled = true
+target_port = 8000
+concurrency_target = 5
+min_replicas = 0
+
+[[scale.microservices.services.jac_coder_sv.http_activation.rules]]
+paths = ["/coder"]
+```
+
+**Traffic topology**
+
+```mermaid
+graph TD
+    Client["Client"] -->|"HTTP request"| Interceptor["HTTP Add-on Interceptor<br/>(matches InterceptorRoute rules)"]
+    Interceptor -->|"pending request count"| Scaler["External Scaler"]
+    Scaler -->|"external-push metric"| Operator["KEDA Operator"]
+    Operator -->|"scale 0 to 1"| Target["Deployment (0 replicas)"]
+    Target -->|"pod Ready"| Interceptor
+    Interceptor -->|"forward held request"| Target
+    Target -->|"response"| Client
+```
+
+jac-scale always reconciles the `InterceptorRoute` before the `ScaledObject`, because the external scaler resolves the target Service and scaling metric from the route when KEDA evaluates the trigger. Reconciling in the other order would leave the `ScaledObject` unable to find its metric source.
+
+!!! note "Interceptor routing is automatic"
+    Once `http_activation.enabled = true` for a service, jac-scale routes traffic to it through the interceptor automatically -- both gateway-forwarded requests (the Ingress path) and sv-to-sv RPC calls (walker/function invocations from another service) resolve the interceptor's proxy address instead of the app's own Service, with a `Host` header set to the service's own Service DNS name so the interceptor's `InterceptorRoute` can tell which target a request is for. No manual Ingress or gateway rewiring is required. The Ingress itself still points at the gateway's own Service, unchanged: the gateway is exempt from `http_activation` and always stays warm, so it never needs to be woken.
+
+    Two paths remain outside this: a deploy-time-baked peer URL env var (`JAC_SV_<PEER>_URL`) still resolves the app's own Service directly -- it is only ever used as a fallback when the live registry has no entry, which should not happen in ordinary operation -- and WebSocket connections proxied through the gateway are not yet routed through the interceptor.
+
+!!! note "Programmatic API for dynamic activation"
+    A control-plane process that creates and tears down workloads on demand (for example, an IDE-preview orchestrator spinning up a per-session preview) has no fixed target to put in `jac.toml`. For that case, `HTTPActivationSpec` (`jaclang.scale.deploy.autoscale.http_activation`) and `KEDAAutoscaler.apply_http_activation` / `destroy_http_activation` (`jaclang.scale.deploy.autoscale.keda_autoscaler`) remain available as a direct API, unchanged by the `jac.toml` surface above. Use whichever entry point matches your workload's lifecycle: `jac.toml` for a known, standing service; the programmatic API for one created and destroyed at runtime.
 
 ---
 
@@ -544,6 +701,9 @@ additional_packages = ["xz-utils", "zstd"]
 
 When using `--experimental` mode, the Jaseci plugin packages (byllm and friends) are installed from the GitHub repository instead of PyPI. Pin a specific branch or commit for reproducible builds. (The jaclang runtime itself -- which includes the `scale` subsystem -- always comes from the pod's `jac` binary base image, so it is never installed from PyPI in either mode.)
 
+- **Runtime**: pin `[project] jac-version` in `jac.toml` (stable channel), use the `[dev]` / `[experimental]` stanzas, or ship an exact binary via `JAC_SCALE_BINARY_PATH`. See [Runtime Binary](#runtime-binary).
+- **Project dependencies** (PyPI/npm): pinned in `jac.toml` as usual; the bootstrap init container runs `jac install` against the shipped, sanitized `jac.toml`, so the pod resolves exactly what you pinned. See [Dependency Install Caching](#dependency-install-caching) for how this stays cheap across repeated boots.
+
 **Defaults:**
 
 | TOML Key  | Default | Description |
@@ -582,6 +742,16 @@ another_plugin        = "none"    # Skip installation entirely
 ```
 
 > Scale, the frontend/client framework, byLLM, and the MCP server are all part of `jaclang` core and arrive with the `jac` binary in the pod image, so there is no `jac_scale`, `jac_byllm`, or `jac_mcp` package to pin here -- those subsystems are built into the binary. Use `plugin_versions` only for genuine third-party plugins that are still distributed as separate PyPI packages.
+
+---
+
+### Dependency Install Caching
+
+The bootstrap init container's `jac install` pass is skipped when nothing has changed: a marker file inside the venv records a hash of the resolved dependency specs plus the resolved base image, and a matching marker on the next boot means the venv is already correct, so no `pip install` runs at all. The marker hashes the same tuple as the cache key below, so a venv carried in from anywhere -- a fresh install this boot or a restored cache entry -- can never be trusted for the wrong interpreter.
+
+On a scale-to-zero wake this pass would otherwise reinstall every dependency from scratch on every boot, since the venv lives under `/app`, an `emptyDir` wiped on every pod restart. To survive that wipe, the venv is also restored from a dependency-hash-keyed cache on the bundle PVC before `jac install` runs, and saved back to it afterward. The cache key hashes the resolved base image alongside the dependency specs, so a `python_image` change can never restore a venv built for an incompatible interpreter. It is capped at 2GB per app: crossing that cap evicts individual cache entries, oldest first, until back under it -- the entry currently being restored or published is never a candidate, and the cache root itself is never touched -- and it lives alongside the pip cache already on the same PVC.
+
+This applies to every deploy automatically; there is nothing to enable. See the [Health Probes](#health-probes) tip on scale-to-zero wake latency for the other half of that fix.
 
 ---
 
@@ -1855,6 +2025,18 @@ reachable at call time).
 | `resource_status(app_name, namespace)` | `ResourceStatusInfo{status, replicas, ready_replicas}` |
 | `service_url(app_name, namespace)` | externally reachable URL or `None` |
 | `scale(app_name, namespace, replicas)` | resizes the app deployment |
+
+`ResourceStatusInfo.status` is one of:
+
+| Status | Meaning |
+|---|---|
+| `pending` | Some replicas are ready, but not all of them yet. |
+| `running` | All replicas are ready. |
+| `stopped` | The deployment is at 0 replicas and eligible for KEDA scale-to-zero (see the [note above](#keda-engine-event-driven-autoscaling)) -- parked on purpose, not broken. |
+| `failed` | At 0 replicas without being scale-to-zero eligible, or any other unready state. |
+| `unknown` | The status check itself errored (e.g. the deployment does not exist, or the cluster is unreachable); `message` carries the error. |
+
+`is_ready()` is `True` only for `running` with every replica ready.
 
 `ScaleClient(kube_context=..., logger=...)` sets a default cluster context for
 every call and an optional custom logger. When `deploy` is given `on_event`,

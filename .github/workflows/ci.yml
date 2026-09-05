@@ -302,11 +302,8 @@ jobs:
         # Pins mirror jac/jaclang/project/capabilities.jac.
         run: |
           jac install \
-            "fastapi>=0.121.3,<0.122.0" "uvicorn[standard]>=0.38.0,<0.39.0" \
-            "pyjwt>=2.10.1,<2.11.0" "fastapi-sso>=0.21.0,<1.0.0" \
-            "python-multipart>=0.0.21,<1.0.0" "bcrypt>=4.0.0,<5.0.0" \
-            "aiohttp>=3.9.0,<4.0.0" "sqlalchemy>=2.0.0,<3.0.0" \
-            "email-validator>=2.3.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
+            "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
+            "bcrypt>=4.0.0,<5.0.0" \
             "pymongo>=4.15.4,<5.0.0" "redis>=7.1.0,<8.0.0" \
             "prometheus-client>=0.21.0,<1.0.0" \
             "opentelemetry-sdk>=1.27.0,<2.0.0" \
@@ -601,11 +598,8 @@ jobs:
       # Pins mirror jac/jaclang/project/capabilities.jac.
       run: |
         jac install \
-          "fastapi>=0.121.3,<0.122.0" "uvicorn[standard]>=0.38.0,<0.39.0" \
-          "pyjwt>=2.10.1,<2.11.0" "fastapi-sso>=0.21.0,<1.0.0" \
-          "python-multipart>=0.0.21,<1.0.0" "bcrypt>=4.0.0,<5.0.0" \
-          "aiohttp>=3.9.0,<4.0.0" "sqlalchemy>=2.0.0,<3.0.0" \
-          "email-validator>=2.3.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
+          "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
+          "bcrypt>=4.0.0,<5.0.0" \
           --global
         jac test -vv jac/tests/runtimelib/client/test_inprocess_dispatch.jac
 
@@ -811,11 +805,8 @@ jobs:
       # Pins mirror jac/jaclang/project/capabilities.jac.
       run: |
         jac install \
-          "fastapi>=0.121.3,<0.122.0" "uvicorn[standard]>=0.38.0,<0.39.0" \
-          "pyjwt>=2.10.1,<2.11.0" "fastapi-sso>=0.21.0,<1.0.0" \
-          "python-multipart>=0.0.21,<1.0.0" "bcrypt>=4.0.0,<5.0.0" \
-          "aiohttp>=3.9.0,<4.0.0" "sqlalchemy>=2.0.0,<3.0.0" \
-          "email-validator>=2.3.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
+          "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
+          "bcrypt>=4.0.0,<5.0.0" \
           "pymongo>=4.15.4,<5.0.0" "redis>=7.1.0,<8.0.0" \
           "prometheus-client>=0.21.0,<1.0.0" \
           "opentelemetry-sdk>=1.27.0,<2.0.0" \
@@ -879,17 +870,17 @@ jobs:
         # Pins mirror jac/jaclang/project/capabilities.jac.
         run: |
           jac install \
-            "fastapi>=0.121.3,<0.122.0" "uvicorn[standard]>=0.38.0,<0.39.0" \
-            "pyjwt>=2.10.1,<2.11.0" "fastapi-sso>=0.21.0,<1.0.0" \
-            "python-multipart>=0.0.21,<1.0.0" "bcrypt>=4.0.0,<5.0.0" \
-            "aiohttp>=3.9.0,<4.0.0" "sqlalchemy>=2.0.0,<3.0.0" \
-            "email-validator>=2.3.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
+            "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
+            "bcrypt>=4.0.0,<5.0.0" \
             "pymongo>=4.15.4,<5.0.0" "redis>=7.1.0,<8.0.0" \
             "kubernetes>=34.1.0,<35.0.0" "docker>=7.1.0,<8.0.0" \
             --global
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
 
       # MicroK8s (not kind): hostpath-storage binds the ReadWriteMany bundle PVC.
       - name: Set up MicroK8s (RWX-capable hostpath storage)
@@ -907,6 +898,23 @@ jobs:
           kubectl get storageclass
           kubectl get nodes -o wide
 
+      - name: Install KEDA core
+        if: matrix.group == 'deploy-core'
+        env:
+          # Pinned so a new KEDA release can't silently change what this e2e
+          # validates against; bump deliberately, alongside the matching
+          # --version hint in keda_gateway_correlation_real_e2e.sh's preflight
+          # failure message.
+          KEDA_CHART_VERSION: "2.20.2"
+        run: |
+          set -euxo pipefail
+          helm repo add kedacore https://kedacore.github.io/charts
+          helm repo update
+          helm install keda kedacore/keda --namespace keda --create-namespace --wait \
+            --version "${KEDA_CHART_VERSION}"
+          helm install http-add-on kedacore/keda-add-ons-http --namespace keda --wait
+          kubectl get pods -n keda
+
       - name: Run K8 tests (deploy-core)
         if: matrix.group == 'deploy-core'
         env:
@@ -915,6 +923,36 @@ jobs:
           jac test jac/jaclang/scale/tests/test_pod_env.jac -x
           jac test jac/jaclang/scale/tests/test_k8s_utils.jac -x
           jac test jac/jaclang/scale/tests/test_deploy_k8s.jac -x -f "not (early and exit)"
+          # get_status()'s scale-to-zero verdict against a genuine zero-replica
+          # Deployment -- the real status.replicas/readyReplicas shape at zero
+          # is what's under test, not a hand-built fake of it. No KEDA
+          # controller involved: it only ever creates a plain Deployment.
+          jac test jac/jaclang/scale/tests/deploy/test_scale_to_zero_status_e2e.jac -x
+
+      - name: Run KEDA gateway correlation e2e
+        if: matrix.group == 'deploy-core'
+        env:
+          CLUSTER_TYPE: microk8s
+          # Ship the jac built from this checkout to the pods (channel LOCAL),
+          # so the e2e validates the code under test rather than a published
+          # release.
+          JAC_SCALE_BINARY_PATH: ${{ github.workspace }}/jac/zig-out/bin/jac
+        run: |
+          bash jac/jaclang/scale/tests/deploy/keda_gateway_correlation_real_e2e.sh
+
+      - name: Run KEDA HTTP-activation e2e
+        if: matrix.group == 'deploy-core'
+        env:
+          # Ship the jac built from this checkout to the pods (channel LOCAL),
+          # so the e2e validates the code under test rather than a published
+          # release.
+          JAC_SCALE_BINARY_PATH: ${{ github.workspace }}/jac/zig-out/bin/jac
+          # This lane's hostpath-storage addon is RWX-capable, but the bundle
+          # PVC no longer trusts a cluster default silently; name it.
+          BUNDLE_STORAGE_CLASS: microk8s-hostpath
+        run: |
+          bash jac/jaclang/scale/tests/deploy/keda_http_activation_real_e2e.sh \
+            jac/jaclang/scale/tests/fixtures/keda_http_activation_e2e
 
       - name: Run K8 tests (failure-path)
         if: matrix.group == 'failure-path'
@@ -969,11 +1007,8 @@ jobs:
       # Pins mirror jac/jaclang/project/capabilities.jac.
       run: |
         jac install \
-          "fastapi>=0.121.3,<0.122.0" "uvicorn[standard]>=0.38.0,<0.39.0" \
-          "pyjwt>=2.10.1,<2.11.0" "fastapi-sso>=0.21.0,<1.0.0" \
-          "python-multipart>=0.0.21,<1.0.0" "bcrypt>=4.0.0,<5.0.0" \
-          "aiohttp>=3.9.0,<4.0.0" "sqlalchemy>=2.0.0,<3.0.0" \
-          "email-validator>=2.3.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
+          "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
+          "bcrypt>=4.0.0,<5.0.0" \
           "requests>=2.32.0,<3.0.0" \
           --global
 
@@ -1180,11 +1215,8 @@ jobs:
         # Pins mirror jac/jaclang/project/capabilities.jac.
         run: |
           jac install \
-            "fastapi>=0.121.3,<0.122.0" "uvicorn[standard]>=0.38.0,<0.39.0" \
-            "pyjwt>=2.10.1,<2.11.0" "fastapi-sso>=0.21.0,<1.0.0" \
-            "python-multipart>=0.0.21,<1.0.0" "bcrypt>=4.0.0,<5.0.0" \
-            "aiohttp>=3.9.0,<4.0.0" "sqlalchemy>=2.0.0,<3.0.0" \
-            "email-validator>=2.3.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
+            "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
+            "bcrypt>=4.0.0,<5.0.0" \
             "pymongo>=4.15.4,<5.0.0" "redis>=7.1.0,<8.0.0" \
             "kubernetes>=34.1.0,<35.0.0" "docker>=7.1.0,<8.0.0" "humanize>=4.0.0" \
             --global

@@ -7,10 +7,34 @@ import from pathlib { Path }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.jac0core.constant { Constants as Con }
 import from jaclang.runtimelib { sv_client as __jac_sv }
-import from starlette.testclient { TestClient }
+import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
 import from jaclang.scale.server.serve { JacAPIServer }
 
 glob FIXTURES: Path = Path(__file__).parent.parent / "fixtures" / "microservice";
+
+def write_service(tmp: str, name: str, src: str) {
+    (Path(tmp) / f"{name}.jac").write_text(src);
+}
+
+def build_service(mod: str, tmp: str) -> tuple[TestClient, JacAPIServer] {
+    if mod in Jac.loaded_modules {
+        del Jac.loaded_modules[mod];
+    }
+    if mod in sys.modules {
+        del sys.modules[mod];
+    }
+    Jac.jac_import(target=mod, base_path=tmp, lng="jac");
+    srv = JacAPIServer(module_name=mod, port=0, base_path=tmp);
+    srv.load_module();
+    srv.register_health_endpoint();
+    srv.register_walkers_endpoints();
+    srv.register_functions_endpoints();
+    srv.register_auth_endpoints();
+    srv.user_manager.create_internal_user(Con.GUEST.value, '__no_password__');
+    client = TestClient(srv.server.app, raise_server_exceptions=False);
+    __jac_sv.register_test_client(mod, client);
+    return (client, srv);
+}
 
 def make_server(mod: str, tmp: str) -> TestClient {
     if mod in Jac.loaded_modules {
@@ -27,7 +51,6 @@ def make_server(mod: str, tmp: str) -> TestClient {
     srv.register_functions_endpoints();
     srv.register_auth_endpoints();
     srv.user_manager.create_internal_user(Con.GUEST.value, '__no_password__');
-    srv.server.create_server();
     client = TestClient(srv.server.app, raise_server_exceptions=False);
     __jac_sv.register_test_client(mod, client);
     return client;
@@ -252,6 +275,134 @@ test "sv-to-sv: sv-imported walker does not load provider in-process" {
         disp_mod = Jac.loaded_modules["dispatcher_service"];
         notify_mod = sys.modules.get("notify_service");
         assert notify_mod is None or disp_mod.Greet is not notify_mod.Greet;
+    } finally {
+        done(tmp);
+    }
+}
+
+glob _SECURE_PROVIDER_SRC: str = '"""Secure downstream provider fixture.\n\n`report_status` (function) and `PrivateAudit` (walker) carry NO :pub marker,\nso the scale serve layer treats them as auth-required. A cross-service caller\nthat reaches these endpoints without a valid token is rejected by the real\ndownstream enforcement in serve.endpoints (requires_auth).\n"""\n\nobj AuditEntry {\n    has actor: str = "",\n        action: str = "",\n        allowed: bool = False;\n}\n\ndef report_status(actor: str) -> AuditEntry {\n    return AuditEntry(actor=actor, action="status", allowed=True);\n}\n\nwalker PrivateAudit {\n    has action: str;\n\n    can run with Root entry {\n        report AuditEntry(actor="downstream", action=self.action, allowed=True);\n    }\n}\n';
+
+def _mint_user_token(srv: JacAPIServer, username: str) -> tuple[str, str] {
+    user = srv.user_manager.create_internal_user(username, "pw-secret-123");
+    uid = user.get("user_id", username);
+    return (uid, srv.user_manager.create_jwt_token(uid));
+}
+
+def _secure_provider(tmp: str) -> tuple[TestClient, JacAPIServer] {
+    write_service(tmp, "secure_service", _SECURE_PROVIDER_SRC);
+    return build_service("secure_service", tmp);
+}
+
+test "sv boundary: private function rejects call with NO token (401)" {
+    tmp = setup_env();
+    try {
+        (prov, _srv) = _secure_provider(tmp);
+        resp = prov.post("/function/report_status", json={"actor": "attacker"});
+        assert resp.status_code == 401;
+        body = resp.json();
+        assert body["ok"] is False;
+        assert body["error"]["code"] == "UNAUTHORIZED";
+    } finally {
+        done(tmp);
+    }
+}
+
+test "sv boundary: private function rejects malformed token (401)" {
+    tmp = setup_env();
+    try {
+        (prov, _srv) = _secure_provider(tmp);
+        resp = prov.post(
+            "/function/report_status",
+            json={"actor": "attacker"},
+            headers={"Authorization": "Bearer not.a.real.jwt"}
+        );
+        assert resp.status_code == 401;
+        assert resp.json()["error"]["code"] == "UNAUTHORIZED";
+    } finally {
+        done(tmp);
+    }
+}
+
+test "sv boundary: private function rejects expired token (401)" {
+    import from datetime { datetime, UTC, timedelta }
+    import from jaclang.runtimelib.serving.authcrypt { jwt_encode }
+    import from jaclang.scale.identity.user_manager { JWT_SECRET, JWT_ALGORITHM }
+
+    tmp = setup_env();
+    try {
+        (prov, srv) = _secure_provider(tmp);
+        (uid, _valid) = _mint_user_token(srv, "expired_user_fn");
+        past = datetime.now(UTC) - timedelta(days=2);
+        expired = jwt_encode(
+            {
+                "sub": uid,
+                "user_id": uid,
+                "exp": past,
+                "iat": (past - timedelta(minutes=1)).timestamp()
+            },
+            JWT_SECRET,
+            algorithm=JWT_ALGORITHM
+        );
+        resp = prov.post(
+            "/function/report_status",
+            json={"actor": "attacker"},
+            headers={"Authorization": f"Bearer {expired}"}
+        );
+        assert resp.status_code == 401;
+        assert resp.json()["error"]["code"] == "UNAUTHORIZED";
+    } finally {
+        done(tmp);
+    }
+}
+
+test "sv boundary: private function accepts valid token (200)" {
+    tmp = setup_env();
+    try {
+        (prov, srv) = _secure_provider(tmp);
+        (_uid, token) = _mint_user_token(srv, "valid_user_fn");
+        resp = prov.post(
+            "/function/report_status",
+            json={"actor": "svc-a"},
+            headers={"Authorization": f"Bearer {token}"}
+        );
+        assert resp.status_code == 200;
+        body = resp.json();
+        assert body["ok"] is True;
+        assert body["data"]["result"]["actor"] == "svc-a";
+        assert body["data"]["result"]["allowed"] is True;
+    } finally {
+        done(tmp);
+    }
+}
+
+test "sv boundary: private walker rejects call with NO token (401)" {
+    tmp = setup_env();
+    try {
+        (prov, _srv) = _secure_provider(tmp);
+        resp = prov.post("/walker/PrivateAudit", json={"action": "login"});
+        assert resp.status_code == 401;
+        assert resp.json()["error"]["code"] == "UNAUTHORIZED";
+    } finally {
+        done(tmp);
+    }
+}
+
+test "sv boundary: private walker accepts valid token (200)" {
+    tmp = setup_env();
+    try {
+        (prov, srv) = _secure_provider(tmp);
+        (_uid, token) = _mint_user_token(srv, "valid_user_wlk");
+        resp = prov.post(
+            "/walker/PrivateAudit",
+            json={"action": "login"},
+            headers={"Authorization": f"Bearer {token}"}
+        );
+        assert resp.status_code == 200;
+        body = resp.json();
+        assert body["ok"] is True;
+        rpt = body["data"]["reports"][0];
+        assert rpt["action"] == "login";
+        assert rpt["allowed"] is True;
     } finally {
         done(tmp);
     }

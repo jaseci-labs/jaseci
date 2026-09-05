@@ -39,26 +39,31 @@ impl HPAAutoscaler._build_manifests{
             }
         );
     }
-    return {
-        "apiVersion": "autoscaling/v2",
-        "kind": "HorizontalPodAutoscaler",
-        "metadata": {
-            "name": hpa_name,
-            "namespace": spec.namespace,
-            "labels": {"app": spec.scale_target_name, ** Autoscaler._managed_labels()}
-        },
-        "spec": {
-            "scaleTargetRef": {
-                "apiVersion": "apps/v1",
-                "kind": "Deployment",
-                "name": spec.scale_target_name
+    return [
+        {
+            "apiVersion": "autoscaling/v2",
+            "kind": "HorizontalPodAutoscaler",
+            "metadata": {
+                "name": hpa_name,
+                "namespace": spec.namespace,
+                "labels": {
+                    "app": spec.scale_target_name,
+                    ** Autoscaler._managed_labels()
+                }
             },
-            "minReplicas": spec.min_replicas,
-            "maxReplicas": spec.max_replicas,
-            "metrics": metrics,
-            "behavior": Autoscaler._build_behavior(spec)
+            "spec": {
+                "scaleTargetRef": {
+                    "apiVersion": "apps/v1",
+                    "kind": "Deployment",
+                    "name": spec.scale_target_name
+                },
+                "minReplicas": spec.min_replicas,
+                "maxReplicas": spec.max_replicas,
+                "metrics": metrics,
+                "behavior": Autoscaler._build_behavior(spec)
+            }
         }
-    };
+    ];
 }
 
 impl HPAAutoscaler.apply{
@@ -70,7 +75,7 @@ impl HPAAutoscaler.apply{
             );
         }
     }
-    manifest = self._build_manifests(spec);
+    manifest = self._build_manifests(spec)[0];
     name = manifest["metadata"]["name"];
     namespace = manifest["metadata"]["namespace"];
 
@@ -111,7 +116,7 @@ impl HPAAutoscaler.destroy{
     autoscaling_v2 = AutoscalingV2Api();
     delete_if_exists(
         autoscaling_v2.delete_namespaced_horizontal_pod_autoscaler,
-        autoscaler_name,
+        self.resource_name_for(app_name),
         namespace,
         'HorizontalPodAutoscaler'
     );
@@ -158,4 +163,74 @@ impl HPAAutoscaler.destroy_collection{
 
 impl HPAAutoscaler.resource_name_for{
     return f"{target}-hpa";
+}
+
+impl HPAAutoscaler._normalize_hpa_status{
+    if hpa is None {
+        return AutoscalerRuntimeStatus(
+            state=AutoscalerState.UNKNOWN.value,
+            desired_replicas=0,
+            current_replicas=0,
+            ready_replicas=0,
+            message="HorizontalPodAutoscaler not found"
+        );
+    }
+
+    status = hpa.get("status", {});
+    current = status.get("current_replicas", 0) or 0;
+    desired = status.get("desired_replicas", 0) or 0;
+    conditions = status.get("conditions", []);
+    resource_version = hpa.get("metadata", {}).get("resource_version");
+    cond_by_type = {c["type"]: c for c in conditions};
+    scaling_active = cond_by_type.get("ScalingActive");
+
+    if scaling_active is None {
+        return AutoscalerRuntimeStatus(
+            state=AutoscalerState.UNKNOWN.value,
+            desired_replicas=desired,
+            current_replicas=current,
+            ready_replicas=current,
+            conditions=conditions,
+            resource_version=resource_version,
+            message="ScalingActive condition missing from HorizontalPodAutoscaler status"
+        );
+    }
+
+    scaler_ready = scaling_active.get("status") == "True";
+    if not scaler_ready {
+        return AutoscalerRuntimeStatus(
+            state=AutoscalerState.DEGRADED.value,
+            desired_replicas=desired,
+            current_replicas=current,
+            ready_replicas=current,
+            scaler_ready=False,
+            conditions=conditions,
+            resource_version=resource_version,
+            message=scaling_active.get("message") or scaling_active.get("reason")
+        );
+    }
+
+    return AutoscalerRuntimeStatus(
+        state=AutoscalerState.ACTIVE.value,
+        desired_replicas=desired,
+        current_replicas=current,
+        ready_replicas=current,
+        scaler_ready=True,
+        conditions=conditions,
+        resource_version=resource_version
+    );
+}
+
+impl HPAAutoscaler.get_runtime_status{
+    try {
+        hpa = AutoscalingV2Api().read_namespaced_horizontal_pod_autoscaler(
+            name=autoscaler_name, namespace=namespace
+        );
+    } except ApiException as e {
+        if e.status in [404, 422] {
+            return self._normalize_hpa_status(None);
+        }
+        raise;
+    }
+    return self._normalize_hpa_status(hpa.to_dict());
 }

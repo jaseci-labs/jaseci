@@ -1,9 +1,12 @@
 import logging;
-import mimetypes;
-import uvicorn;
 import from pathlib { Path }
-import from fastapi { FastAPI, Request }
-import from fastapi.responses { HTMLResponse, JSONResponse, Response }
+import from jaclang.runtimelib.serving.app { ServingApp }
+import from jaclang.runtimelib.serving.datatypes { Request }
+import from jaclang.runtimelib.serving.datatypes {
+    HTMLResponse,
+    JSONResponse,
+    Response
+}
 import from jaclang.scale.runtime.gateway.service_registry {
     ServiceRegistry,
     ServiceEntry,
@@ -16,6 +19,7 @@ import from jaclang.scale.runtime.context.util {
     DEFAULT_GATEWAY_HOST,
     DEFAULT_CLIENT_DIST_DIR
 }
+import from jaclang.runtimelib.serving.static_assets { AssetRoot }
 
 import from jaclang.scale.admin.admin_portal { JacAPIServerAdmin }
 import from jaclang.scale.admin.workloads { JacAPIServerWorkloads }
@@ -38,7 +42,7 @@ glob logger = logging.getLogger(__name__),
 
 obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloads, JacAPIServerLogs, JacAPIServerTraces, JacAPIServerOps, JacAPIServerDeployHealth, JacAPIServerNetwork, JacAPIServerPodEnv, JacAPIServerLLMTelemetry) {
     has registry: ServiceRegistry,
-        app: FastAPI | None = None,
+        app: any = None,
         port: int = DEFAULT_GATEWAY_PORT,
         host: str = DEFAULT_GATEWAY_HOST,
         client_dist_dir: str = DEFAULT_CLIENT_DIST_DIR,
@@ -52,9 +56,11 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
         _metrics: any = None,
         base_path: str = ".",
         route_table: ServiceRouteTable = ServiceRouteTable(),
-        _routes_refreshed_at: float = 0.0;
+        _routes_refreshed_at: float = 0.0,
+        _asset_table: list[AssetRoot] | None = None;
 
-    def setup -> FastAPI;
+    def setup -> ServingApp;
+    def _get_asset_table -> list[AssetRoot];
     def resolve_target_url(service_entry: ServiceEntry, path: str, query: str) -> str;
     def handle_health -> Response;
     def handle_health_live -> Response;
@@ -79,9 +85,6 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
     async def handle_openapi -> Response;
     def handle_docs -> Response;
     def build_forward_headers(request: Request) -> dict[str, str];
-    def serve_static(file_path: str) -> Response | None;
-    def serve_extra_static(local_dir: str, file_path: str) -> Response | None;
-    def serve_project_static(rest: str) -> Response | None;
     def serve_spa_fallback -> Response | None;
     def bootstrap_admin_ui -> None;
     def _install_admin_api -> None;

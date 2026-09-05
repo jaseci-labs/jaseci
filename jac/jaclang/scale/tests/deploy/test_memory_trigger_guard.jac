@@ -1,0 +1,312 @@
+import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
+    ManifestBuilder,
+    GATEWAY_NAME
+}
+import from jaclang.scale.deploy.target.kubernetes.target { KubernetesTarget }
+import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
+    KubernetesConfig
+}
+
+
+def _builder(
+    services: dict, k8s_config: KubernetesConfig | None = None
+) -> ManifestBuilder {
+    return ManifestBuilder(
+        k8s_config=k8s_config or KubernetesConfig(app_name="t", namespace="t-ns"),
+        microservices_config={"services": services},
+        dry_run=True
+    );
+}
+
+
+def _triggers(cfg: dict, k8s_config: KubernetesConfig | None = None) -> list[str] {
+    target = KubernetesTarget(
+        config=k8s_config or KubernetesConfig(app_name="t", namespace="t-ns")
+    );
+    return [t.type for t in target._resolve_service_triggers("billing_ops", cfg)];
+}
+
+
+test "builder resolves has_memory_request from service, global, and defaults" {
+    b = _builder({"billing_ops": {}});
+    assert b._get_autoscaler_config("billing_ops")["has_memory_request"];
+    assert b._get_autoscaler_config(GATEWAY_NAME)["has_memory_request"];
+
+    b = _builder({"billing_ops": {"memory_request": ""}});
+    assert not b._get_autoscaler_config("billing_ops")["has_memory_request"];
+
+    b = _builder(
+        {"billing_ops": {}, "orders_ops": {"memory_request": "512Mi"}},
+        k8s_config=KubernetesConfig(app_name="t", namespace="t-ns", memory_request="")
+    );
+    assert not b._get_autoscaler_config("billing_ops")["has_memory_request"];
+    assert b._get_autoscaler_config("orders_ops")["has_memory_request"];
+}
+
+test "_get_autoscaler_config surfaces the per-service hpa.behavior fragment" {
+    b = _builder(
+        {
+            "billing_ops": {
+                "hpa": {
+                    "behavior": {
+                        "scaleDown": {
+                            "stabilizationWindowSeconds": 600,
+                            "policies": [
+                                {"type": "Pods", "value": 2, "periodSeconds": 300}
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    );
+    cfg = b._get_autoscaler_config("billing_ops");
+    assert cfg["behavior"]["scaleDown"]["stabilizationWindowSeconds"] == 600;
+}
+
+test "_get_autoscaler_config defaults behavior to an empty dict when unset" {
+    b = _builder({"billing_ops": {}});
+    cfg = b._get_autoscaler_config("billing_ops");
+    assert cfg["behavior"] == {};
+}
+
+test "hpa.behavior on one service does not leak onto another" {
+    b = _builder(
+        {
+            "billing_ops": {
+                "hpa": {"behavior": {"scaleDown": {"selectPolicy": "Min"}}}
+            },
+            "orders_ops": {}
+        }
+    );
+    assert b._get_autoscaler_config("billing_ops")["behavior"] == {
+        "scaleDown": {"selectPolicy": "Min"}
+    };
+    assert b._get_autoscaler_config("orders_ops")["behavior"] == {};
+}
+
+test "hpa.enabled false still short-circuits before behavior is considered" {
+    b = _builder(
+        {
+            "billing_ops": {
+                "hpa": {
+                    "enabled": False,
+                    "behavior": {"scaleDown": {"selectPolicy": "Min"}}
+                }
+            }
+        }
+    );
+    assert b._get_autoscaler_config("billing_ops") is None;
+}
+
+test "memory triggers are seeded or skipped based on the resolved request" {
+    assert _triggers({}) == ["cpu", "memory"];
+    assert _triggers({"has_memory_request": False}) == ["cpu"];
+
+    explicit = {
+        "has_memory_request": False,
+        "triggers": [
+            {"type": "memory", "metadata": {"averageUtilization": "80"}},
+            {"type": "prometheus", "metadata": {"threshold": "100"}}
+        ]
+    };
+    assert _triggers(explicit) == ["prometheus"];
+
+    gw_k8s = KubernetesConfig(
+        app_name="t",
+        namespace="t-ns",
+        extra_triggers=[
+            {"type": "memory", "metadata": {"averageUtilization": "80"}},
+            {"type": "cpu", "metadata": {"averageUtilization": "50"}}
+        ]
+    );
+    gw_target = KubernetesTarget(config=gw_k8s);
+    gw_types = [
+        t.type
+        for t in gw_target._resolve_service_triggers(
+            GATEWAY_NAME, {"has_memory_request": False}
+        )
+    ];
+    assert gw_types == ["cpu"];
+}
+
+test "hpa.behavior works for the gateway via the __gateway__ service key" {
+    b = _builder(
+        {GATEWAY_NAME: {"hpa": {"behavior": {"scaleDown": {"selectPolicy": "Min"}}}}}
+    );
+    assert b._get_autoscaler_config(GATEWAY_NAME)["behavior"] == {
+        "scaleDown": {"selectPolicy": "Min"}
+    };
+}
+
+test "malformed hpa.behavior warns and falls back to the empty fragment" {
+    import unittest.mock;
+
+    logger = unittest.mock.MagicMock();
+    b = ManifestBuilder(
+        k8s_config=KubernetesConfig(app_name="t", namespace="t-ns"),
+        microservices_config={
+            "services": {"billing_ops": {"hpa": {"behavior": "gentle"}}}
+        },
+        dry_run=True,
+        logger=logger
+    );
+    cfg = b._get_autoscaler_config("billing_ops");
+    assert cfg["behavior"] == {};
+    logger.warning.assert_called_once();
+    assert "billing_ops" in logger.warning.call_args[0][0];
+}
+
+
+# ===== startup probe =====
+# _build_startup_probe hardcoded periodSeconds: 10 while its siblings
+# (_build_readiness_probe / _build_liveness_probe) already read from
+# KubernetesConfig -- these follow the field the same way.
+
+test "_build_startup_probe defaults to the KubernetesConfig period" {
+    b = _builder({});
+    probe = b._build_startup_probe();
+    assert probe["periodSeconds"] == KubernetesConfig().startup_probe_period;
+}
+
+test "_build_startup_probe honors an explicit period, scaling failureThreshold to keep the same total budget" {
+    b = _builder(
+        {},
+        k8s_config=KubernetesConfig(
+            app_name="t", namespace="t-ns", startup_probe_period=2
+        )
+    );
+    probe = b._build_startup_probe();
+    assert probe["periodSeconds"] == 2;
+    # The pre-existing hardcoded pair (10 x 90) was a deliberate ~900s budget
+    # for a slow no-image cold compile, not an arbitrary choice -- a tighter
+    # period must scale failureThreshold to preserve that ceiling, not just
+    # poll more often within a much shorter one.
+    assert probe["periodSeconds"] * probe["failureThreshold"] == 900;
+    assert probe["failureThreshold"] == 450;
+}
+
+test "_build_startup_probe clamps a non-positive period instead of crashing" {
+    # startup_probe_period is user-settable via jac.toml; 0 (or a negative
+    # value from a typo) must not reach the failureThreshold division raw,
+    # or it either raises ZeroDivisionError and aborts manifest generation,
+    # or produces a negative/zero failureThreshold Kubernetes rejects.
+    b = _builder(
+        {},
+        k8s_config=KubernetesConfig(
+            app_name="t", namespace="t-ns", startup_probe_period=0
+        )
+    );
+    probe = b._build_startup_probe();
+    assert probe["periodSeconds"] == 1;
+    assert probe["failureThreshold"] == 900;
+}
+
+test "_build_startup_probe floors failureThreshold at 1 for a period longer than the budget" {
+    b = _builder(
+        {},
+        k8s_config=KubernetesConfig(
+            app_name="t", namespace="t-ns", startup_probe_period=1000
+        )
+    );
+    probe = b._build_startup_probe();
+    assert probe["periodSeconds"] == 1000;
+    assert probe["failureThreshold"] == 1;
+}
+
+test "_build_startup_probe defaults to a period that actually shaves the measured wake cost" {
+    # The issue measured ~5.3s of Kubernetes-side polling lag directly from
+    # periodSeconds: 10. Making the field configurable is not the fix by
+    # itself -- a default that still resolves to the original hardcoded
+    # pair (10, 90) ships zero improvement out of the box, and every
+    # scale-to-zero deployment pays the full original cost unless an
+    # operator manually overrides startup_probe_period in jac.toml.
+    b = _builder({});
+    probe = b._build_startup_probe();
+    assert probe["periodSeconds"] <= 2;
+    assert probe["periodSeconds"] * probe["failureThreshold"] == 900;
+}
+
+
+# ===== readiness probe on zero-scaled services =====
+# _build_readiness_probe hardcoded periodSeconds: 20 (readiness_period) for
+# every service. Readiness polling is disabled until the startup probe
+# first succeeds, so a zero-scaled service pays up to one more full
+# readiness period of pure Kubernetes-side lag on top of an already-woken,
+# already-serving pod -- the same class of cost the startup probe fix
+# addresses, just on the sibling probe. A normally-scaled service's
+# readiness probe runs for the pod's entire lifetime, so the tighter
+# period only applies when the service's replica floor is 0.
+
+test "a rendered Deployment tightens probes for a min=0 service but not its min=1 sibling in the same fleet" {
+    # Through the real top-level path (_build_service_pod_spec, what
+    # generate_manifests actually calls), not the private probe builders
+    # directly -- proves the wiring from a service's own hpa.min into its
+    # own container's probe fields, not just that the builders compute the
+    # right numbers in isolation.
+    b = _builder({"zerosvc": {"hpa": {"min": 0}}, "onesvc": {"hpa": {"min": 1}}});
+    zero_probe = b._build_service_pod_spec("zerosvc", "python:3.12-slim")["containers"][
+        0
+    ]["readinessProbe"];
+    one_probe = b._build_service_pod_spec("onesvc", "python:3.12-slim")["containers"][0][
+        "readinessProbe"
+    ];
+    assert zero_probe["periodSeconds"] == KubernetesConfig().readiness_period_scale_to_zero;
+    assert one_probe["periodSeconds"] == KubernetesConfig().readiness_period;
+    assert one_probe["failureThreshold"] == 3;
+}
+
+test "a rendered pod spec joins the bundle loader's group instead of relying on a world-writable cache" {
+    import from jaclang.scale.injector.pvc_injector { LOADER_GID }
+    b = _builder({"onesvc": {}});
+    spec = b._build_service_pod_spec("onesvc", "python:3.12-slim");
+    assert spec["securityContext"]["fsGroup"] == LOADER_GID;
+}
+
+test "_build_readiness_probe tightens the period for a service with replica floor 0" {
+    b = _builder({"worksvc": {"hpa": {"min": 0}}});
+    probe = b._build_readiness_probe("worksvc");
+    assert probe["periodSeconds"] == KubernetesConfig().readiness_period_scale_to_zero;
+    # The default hardcoded pair (20 x 3) was a deliberate 60s tolerance for
+    # transient unhealthiness, not an arbitrary choice -- a tighter period
+    # must scale failureThreshold to preserve that ceiling, not just poll
+    # more often within a much shorter one.
+    assert probe["periodSeconds"] * probe["failureThreshold"] == 60;
+}
+
+test "_build_readiness_probe leaves a service with hpa disabled and replicas=0 tightened too" {
+    b = _builder({"worksvc": {"hpa": {"enabled": False}, "replicas": 0}});
+    probe = b._build_readiness_probe("worksvc");
+    assert probe["periodSeconds"] == KubernetesConfig().readiness_period_scale_to_zero;
+}
+
+test "_build_readiness_probe zeroes initialDelaySeconds for replica floor 0 but not a normally-scaled service" {
+    # The startup probe (delay=0, its own tight period) already gates the
+    # pod until the app answers once; readiness only starts polling after
+    # that succeeds. A separate readiness_initial_delay floor on top of
+    # that (default 10s) is pure dead time on the wake path this fix
+    # exists to shrink for a scale-to-zero service -- it isn't waiting for
+    # anything the startup probe hasn't already confirmed. A normally-
+    # scaled service (readiness live for the pod's whole lifetime, no
+    # startup-probe handoff to piggyback on) keeps the configured delay.
+    zero_b = _builder({"worksvc": {"hpa": {"min": 0}}});
+    zero_probe = zero_b._build_readiness_probe("worksvc");
+    assert zero_probe["initialDelaySeconds"] == 0;
+
+    one_b = _builder({"worksvc": {"hpa": {"min": 1}}});
+    one_probe = one_b._build_readiness_probe("worksvc");
+    assert one_probe["initialDelaySeconds"]
+        == KubernetesConfig().readiness_initial_delay;
+}
+
+test "_build_readiness_probe honors a custom readiness_period_scale_to_zero" {
+    b = _builder(
+        {"worksvc": {"hpa": {"min": 0}}},
+        k8s_config=KubernetesConfig(
+            app_name="t", namespace="t-ns", readiness_period_scale_to_zero=5
+        )
+    );
+    probe = b._build_readiness_probe("worksvc");
+    assert probe["periodSeconds"] == 5;
+    assert probe["failureThreshold"] == 12;
+}

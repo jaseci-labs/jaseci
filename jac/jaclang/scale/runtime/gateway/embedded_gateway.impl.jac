@@ -1,6 +1,3 @@
-import uvicorn;
-
-
 impl EmbeddedGateway._service_prefixes -> list[str] {
     return [e.prefix for e in self.registry.entries.values()];
 }
@@ -61,24 +58,29 @@ impl EmbeddedGateway._call_member(
 }
 
 
-impl EmbeddedGateway._serve_static(path: str, accept: str) -> Response {
-    dist = Path(self.client_dist_dir);
-    rel: str = path.lstrip("/");
-    if rel {
-        candidate = dist / rel;
-        try {
-            resolved = candidate.resolve();
+impl EmbeddedGateway._get_asset_table -> list[AssetRoot] {
+    if self._asset_table is None {
+        import from jaclang.runtimelib.serving.static_assets { asset_root_table }
+        self._asset_table = asset_root_table(
+            Path(self.base_path), Path(self.client_dist_dir), self.static_mounts
+        );
+    }
+    return self._asset_table;
+}
 
-            if resolved.is_relative_to(dist.resolve()) and resolved.is_file() {
-                ctype: str = mimetypes.guess_type(str(resolved))[0]
-                or "application/octet-stream";
-                return Response(content=resolved.read_bytes(), media_type=ctype);
-            }
-        } except OSError {
-            ;
-        }
+impl EmbeddedGateway._serve_static(path: str, accept: str) -> Response {
+    import from jaclang.runtimelib.serving.static_assets {
+        resolve_asset,
+        asset_response
+    }
+    hit = resolve_asset(self._get_asset_table(), path);
+    if hit is not None {
+        (target, _) = hit;
+        return asset_response(target);
     }
 
+    dist = Path(self.client_dist_dir);
+    rel: str = path.lstrip("/");
     index_file = dist / "index.html";
     if (rel == "" or "text/html" in accept) and index_file.is_file() {
         return Response(
@@ -105,7 +107,7 @@ impl EmbeddedGateway.dispatch(request: Request) -> Response {
         remainder: str = path[len(decision.service):];
         payload: dict[str, any] = {};
         try {
-            body: bytes = await request.body();
+            body: bytes = request.body;
             if body {
                 import json;
                 payload = json.loads(body.decode("utf-8"));
@@ -118,22 +120,23 @@ impl EmbeddedGateway.dispatch(request: Request) -> Response {
             return resp;
         }
     }
-    accept: str = request.headers.get("accept", "");
+    accept: str = str(request.headers.get("accept") or "");
     return self._serve_static(path, accept);
 }
 
 
 impl EmbeddedGateway.setup -> None {
-    app = FastAPI(title="Jac Embedded Gateway");
+    app = ServingApp(title="Jac Embedded Gateway");
     gw = self;
 
-    @app.middleware("http")
     async def dispatcher(request: Request, call_next: object) -> Response {
         return await gw.dispatch(request);
     }
 
+    app.add_middleware(dispatcher);
     self.middleware.install(app);
 
+    self._get_asset_table();
     self.app = app;
 }
 
@@ -143,7 +146,7 @@ impl EmbeddedGateway.serve -> None {
         self.setup();
     }
     _logger.info(f"Embedded gateway serving in-process on {self.host}:{self.port}");
-    config = uvicorn.Config(getattr(self, "app"), host=self.host, port=self.port);
-    server = uvicorn.Server(config);
-    server.run();
+    import from jaclang.runtimelib.serving.server { ServingServer }
+    serving = ServingServer(app=self.app, host=self.host, port=self.port);
+    serving.run();
 }

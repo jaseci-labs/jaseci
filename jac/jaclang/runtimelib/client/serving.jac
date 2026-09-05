@@ -1,18 +1,12 @@
 import hashlib;
 import html;
 import json;
-import mimetypes;
-import types;
-import from http.server { BaseHTTPRequestHandler }
+import re;
 import from pathlib { Path }
-import from typing { Any, Literal, TypeAlias }
-import from jaclang.runtimelib.runtime { JacRuntime as Jac }
+import from typing { Any }
+import from jaclang.jac0core.runtime { JacRuntime as Jac }
 import from jaclang.runtimelib.server { ModuleIntrospector }
 
-glob JsonValue: TypeAlias = None | str | int | float | bool | list['JsonValue'] | dict[
-         (str, 'JsonValue')
-     ],
-     StatusCode: TypeAlias = Literal[(200, 201, 400, 401, 404, 503)];
 
 obj HeaderBuilder {
     has meta_data: dict,
@@ -39,12 +33,6 @@ obj HeaderBuilder {
 }
 
 class JacClient {
-    static def send_static_file(
-        handler: BaseHTTPRequestHandler,
-        file_path: Path,
-        content_type: (str | None) = None
-    ) -> None;
-
     static def render_page(
         introspector: ModuleIntrospector,
         function_name: str,
