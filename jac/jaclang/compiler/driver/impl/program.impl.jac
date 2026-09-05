@@ -30,6 +30,19 @@ impl JacProgram.hub_cache_stamp(self: JacProgram, resolved_path: str) -> None {
     self.hub.stamp(resolved_path);
 }
 
+impl JacProgram.install_module(
+    self: JacProgram, resolved_path: str, mod: uni.Module
+) -> None {
+    displaced = self.hub.install(resolved_path, mod);
+    if displaced is None {
+        return;
+    }
+    te = self.type_evaluator;
+    if te is not None {
+        te.forget_module(resolved_path);
+    }
+}
+
 impl JacProgram.is_hub_entry_fresh(self: JacProgram, resolved_path: str) -> bool {
     return self.hub.is_fresh(resolved_path);
 }
@@ -102,7 +115,8 @@ impl JacProgram.load_dependency_module(
     self: JacProgram,
     source_path: str,
     importer_path: (str | None) = None,
-    use_str: (str | None) = None
+    use_str: (str | None) = None,
+    need_tree: bool = False
 ) -> uni.Module {
     import from pathlib { Path }
 
@@ -155,8 +169,8 @@ impl JacProgram.load_dependency_module(
             ).ir_out;
             mod.stub_only = True;
 
-            target_hub[resolved_path] = mod;
-            target_program.hub_cache_stamp(resolved_path);
+            target_program.install_module(resolved_path, mod);
+            compiler.note_stub_tree_served(resolved_path, self);
             compiler.resolve_absorb_imports(mod, self);
             run_pass(SymTabBuildPass, mod, self);
         } else {
@@ -166,22 +180,29 @@ impl JacProgram.load_dependency_module(
             mod = self.compile(
                 source_path,
                 use_str=use_str,
-                options=_DepOpts(no_cgen=True, symtab_ir_only=True, iface_ok=True)
+                options=(
+                    _DepOpts(no_cgen=True, symtab_ir_only=True, need_full_ast=True)
+                        if need_tree
+                        else _DepOpts(no_cgen=True, symtab_ir_only=True, iface_ok=True)
+                )
             );
         }
         if not hasattr(mod, "cat_kids") {
-            target_hub[resolved_path] = mod;
-            target_program.hub_cache_stamp(resolved_path);
+            target_program.install_module(resolved_path, mod);
         }
     }
 
     if importer_path is not None {
         self.record_dependency(importer_path, resolved_path);
+        if need_tree {
+            importer = self.find_module(JacProgram.hub_key(importer_path));
+            if importer is not None and resolved_path not in importer.ct_file_deps {
+                importer.ct_file_deps.append(resolved_path);
+            }
+        }
     }
     try {
-        if not compiler.selfhost.is_selfhost(self) {
-            self.iface_registry().note_dep(resolved_path);
-        }
+        self.iface_registry().note_dep(resolved_path);
     } except Exception {}
     return mod;
 }
@@ -316,10 +337,11 @@ impl JacProgram.release_compile_closure(
     self.type_evaluator = None;
     self.diags.clear();
     self.scratch.clear();
+    self.analysis.analyses_run.clear();
     if self._iface is not None {
         self._iface.on_closure_release();
     }
-    if collect {
+    if collect and unit_collect_budget.due() {
         import gc;
         gc.collect();
     }
@@ -371,6 +393,12 @@ impl JacProgram.get_bytecode(
     self: JacProgram, full_target: str
 ) -> (types.CodeType | None) {
     return self._get_compiler().get_bytecode(full_target, self);
+}
+
+impl JacProgram.get_client_artifact(
+    self: JacProgram, full_target: str
+) -> (ClientArtifact | None) {
+    return self._get_compiler().get_client_artifact(full_target, self);
 }
 
 impl JacProgram.parse_str(

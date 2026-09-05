@@ -113,7 +113,10 @@ test "sv-to-sv: relative sv import generates HTTP stubs (#6507)" {
     # It must instead emit the sv-to-sv client machinery, keyed on the BARE
     # module name (no leading dot) so the runtime can resolve the provider.
     assert "import sv_client as __jac_sv_client" in py;
-    assert "_declare_consumer_provider(__name__, 'sv_relative_provider')" in py;
+    assert (
+        "_declare_consumer_provider('sv_relative_consumer', 'sv_relative_provider', '/sv-relative')"
+        in py
+    );
     assert "'.sv_relative_provider'" not in py , (
         "stubs must key the provider on the bare module name, not the dotted form"
     );
@@ -140,10 +143,11 @@ test "sv-to-sv: typed archetype return is rehydrated, not a raw dict (#6710)" {
     # The function stub must wrap the remote call in the return type's
     # `_from_wire`, not hand the wire dict straight back.
     assert (
-        "AnalyticsReport._from_wire(__jac_sv_client.call('sv_relative_provider', "
+        "AnalyticsReport._from_wire(await __jac_sv_client.call('sv_relative_provider', "
         "'analyze'"
     )
         in py , "sv->sv typed return must be rehydrated via <RetType>._from_wire(...)";
+    assert "async def analyze(" in py , "sv->sv function stubs are typed-async";
     # The imported archetype must lower to a boundary stub *class* (carrying
     # `_from_wire`), never a function stub that would RPC the type name itself.
     assert "class AnalyticsReport:" in py , (

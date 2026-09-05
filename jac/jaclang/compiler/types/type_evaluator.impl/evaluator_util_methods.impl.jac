@@ -320,6 +320,29 @@ impl TypeEvaluator._typeddict_as_dict(base_type: ClassType) -> ClassType | None 
     return self._convert_to_instance(dict_type);
 }
 
+impl TypeEvaluator._scope_has_fields(tab: any) -> bool {
+    if tab is None {
+        return False;
+    }
+    if isinstance(tab, Archetype) and tab.get_has_vars() {
+        return True;
+    }
+    if not hasattr(tab, "cat_kind") {
+        return False;
+    }
+    import from jaclang.compiler.frontend.constant { SymbolType }
+    for sym in (getattr(tab, "names_in_scope", {}) or {}).values() {
+        try {
+            if sym.sym_type == SymbolType.HAS_VAR {
+                return True;
+            }
+        } except Exception {
+            continue;
+        }
+    }
+    return False;
+}
+
 impl TypeEvaluator._create_dataclass_init_method(
     class_type: ClassType
 ) -> FunctionType {
@@ -1038,6 +1061,13 @@ impl TypeEvaluator._is_unbound_method_call(expr: FuncCall) -> bool {
                         return False;
                     }
 
+                    import from jaclang.compiler.types.stubcat.format {
+                        SYMF_INSTANCE_METHOD
+                    }
+                    prov: any = member.symbol.provider;
+                    if int(getattr(prov, "symbits", 0) or 0) & SYMF_INSTANCE_METHOD {
+                        return True;
+                    }
                     if not isinstance(node_, Ability) or not node_.is_method {
                         return False;
                     }

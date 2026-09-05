@@ -1,15 +1,39 @@
 [project]
 name = "jaclang_org"
-entry-point = "main.jac"
-kind = "web-app"
-jac-version = "0.35.0"
+default-app = "web"
+jac-version = "==0.37.3"
 
 # Makes this site scaffoldable as a template: `jac create <name> --awesome`
 # dumps it (the payload bundles this tree as awesome_template beside the
 # jaclang package). The section never reaches a scaffolded project's jac.toml.
 [jacpack]
 name = "awesome"
-description = "The full jaclang.org site: landing, live docs, leaderboard, socialize, and a wasm game in one Jac program"
+description = "The full jaclang.org workspace: a web app, a mobUI mobile app, and a CLI over one shared core, with live docs, the leaderboard, socialize, and a wasm game"
+
+# The workspace. Anything under core/ belongs to no app and is shared; the
+# two file-rooted service apps own exactly their entry files. An app
+# boundary is structural (it always compiles and type-checks as a cut);
+# whether the service apps share the web server's process or run as their
+# own is a profile: `jac run --serve` colocates, `--fleet` splits.
+[apps.web]
+kind = "web-app"
+path = "web"
+
+[apps.mobile]
+kind = "mobile"
+path = "mobile"
+
+[apps.cli]
+kind = "cli"
+path = "cli"
+
+[apps.social_graph]
+kind = "service"
+entry-point = "core/social_graph.jac"
+
+[apps.scoring]
+kind = "service"
+entry-point = "core/scoring_service.jac"
 
 [dev]
 jaclang_source = "../.."
@@ -18,18 +42,26 @@ jaclang_source = "../.."
 typecheck = true
 
 [test]
-directories = ["socialize", "leaderboard", "shared", "docs"]
+directories = ["core", "web", "mobile", "cli"]
+
+# `jac test cli` / `jac test mobile` run one app; a bare `jac test` targets the
+# default app (web) and so runs the workspace list above.
+[apps.cli.test]
+directories = ["."]
+
+[apps.mobile.test]
+directories = ["."]
 
 [check.lint]
 select = ["all", "strip-comments", "strip-docstrings"]
 exclude = [
     ".jac/*",
-    "examples/*",
-    "source/FloatingSource.jac",
-    "landing/Reveal.jac",
-    "game/webgl_host.jac",
-    "shared/async_utils.jac",
-    "leaderboard/format.jac",
+    "web/examples/*",
+    "web/source/FloatingSource.jac",
+    "web/landing/Reveal.jac",
+    "web/game/webgl_host.jac",
+    "core/async_utils.jac",
+    "core/leaderboard/format.jac",
 ]
 
 [gc]
@@ -46,6 +78,8 @@ font = "geist"
 radius = "default"
 menuAccent = "subtle"
 menuColor = "default"
+components_dir = "web/ui"
+utils_path = "core/utils.jac"
 
 [dependencies]
 [dependencies.npm]
@@ -65,28 +99,33 @@ motion = "latest"
 mermaid = "^11"
 lucide-react = "^0.469.0"
 
-[client.vite]
+[apps.cli.check.lint]
+ignore = ["no-print"]
+
+[apps.mobile.dependencies.npm]
+react-native-web = "^0.19.13"
+
+[apps.mobile.dependencies.npm.native]
+lucide-react-native = "^0.469.0"
+react-native-svg = "^15.13.0"
+
+# identity.jac is pure client helpers over the social graph's wire shapes;
+# without JSX of its own the solver cannot see that, so pin it.
+[apps.web.placement.pins]
+"web.socialize.identity" = "client"
+
+[apps.web.client.vite]
 plugins = ["tailwindcss()"]
 lib_imports = ["import tailwindcss from '@tailwindcss/vite'"]
 
-[serve]
-base_route_app = "app"
-
-# Keeps local `jac run` single-process (vite dev + HMR) while the routes table
-# below still declares the deployed service cut. The deprecation warning says
-# to delete this, but without it `jac run` enters local microservice mode,
-# which serves no web app (see _planning/site_qa_jac_issues.md).
-[scale.microservices]
-enabled = false
-
-[client.assets]
+[apps.web.client.assets]
 custom_extensions = [
     ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico",
     ".woff", ".woff2", ".ttf", ".otf", ".eot", ".mp4", ".webm", ".mp3",
     ".wav", ".css", ".js", ".json",
 ]
 
-[client.app_meta_data]
+[apps.web.client.app_meta_data]
 title = "The Jac Programming Language"
 description = "One language, one compiler, the whole stack. No glue. AI, graphs, persistence, APIs, UIs, and cloud deployment as language features."
 keywords = "jac, jaclang, programming language, jaseci, object-spatial programming, by llm, full-stack"
@@ -101,12 +140,3 @@ og_site_name = "jaclang.org"
 og_image = "https://jaclang.org/static/assets/og-card.png"
 twitter_card = "summary_large_image"
 twitter_image = "https://jaclang.org/static/assets/og-card.png"
-
-# The service cut: scoring runs as its own process, routed by the gateway,
-# and the socialize section's social graph is its own service the same way.
-[scale.microservices.routes]
-"scoring_service" = "/scoring_service"
-"social_graph" = "/social_graph"
-
-[scale.microservices.services.social_graph]
-file = "socialize/social_graph.jac"

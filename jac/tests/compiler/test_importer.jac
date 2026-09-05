@@ -468,7 +468,7 @@ test "resolve_import_source_module never compiles pyi stubs" {
 
 """A cache newer than its source is not thereby valid: the mtime covers the
 source bytes only, so every environment input the module key folds in (the node
-schema, the codegen fingerprint, the placement/cut/codespace facts) must be
+schema, the analysis fingerprint, the placement/cut/codespace facts) must be
 compared before the mtime fast path can accept the file.  #8181 shortened a
 NODE_SPECS entry by one field, which a fresh-mtime cache written under the old
 schema would then be decoded against, position by position."""
@@ -509,12 +509,30 @@ test "fresh mtime does not admit a cache written under a different environment" 
             "restoring the compiler digest should restore validity"
         );
 
+        prev_tgt = os.environ.get("JAC_NATIVE_TARGET");
+        try {
+            os.environ["JAC_NATIVE_TARGET"] = "wasm32-unknown-unknown";
+            assert not is_module_cache_valid(jac_file, cache_path) , (
+                "a fresh mtime served a cache written under a different "
+                "analysis fingerprint"
+            );
+        } finally {
+            if prev_tgt is None {
+                os.environ.pop("JAC_NATIVE_TARGET", None);
+            } else {
+                os.environ["JAC_NATIVE_TARGET"] = prev_tgt;
+            }
+        }
+        assert is_module_cache_valid(jac_file, cache_path) , (
+            "restoring the analysis fingerprint should restore validity"
+        );
+
         prev_opt = os.environ.get("JAC_OPT_LEVEL");
         try {
             os.environ["JAC_OPT_LEVEL"] = "0" if prev_opt != "0" else "1";
-            assert not is_module_cache_valid(jac_file, cache_path) , (
-                "a fresh mtime served a cache written under a different "
-                "codegen fingerprint"
+            assert is_module_cache_valid(jac_file, cache_path) , (
+                "a native-only codegen knob (opt level) must not invalidate "
+                "a bytecode cache"
             );
         } finally {
             if prev_opt is None {
@@ -523,9 +541,6 @@ test "fresh mtime does not admit a cache written under a different environment" 
                 os.environ["JAC_OPT_LEVEL"] = prev_opt;
             }
         }
-        assert is_module_cache_valid(jac_file, cache_path) , (
-            "restoring the codegen fingerprint should restore validity"
-        );
     } finally {
         os.unlink(jac_file);
         cache_path2 = get_module_cache_path(jac_file);
@@ -626,9 +641,18 @@ test "stub module cache key is source focused" {
         assert stub_key == module_cache_key(stub_file) , (
             "module_cache_key should use stub key for .pyi"
         );
-        jac_key = compute_module_key(stub_file);
+        jac_probe = stub_file[:-4] + ".jac";
+        with open(jac_probe, "w") as jac_tmp {
+            jac_tmp.write("class KeyProbe:\n    k: int\n");
+        }
+        try {
+            jac_key = compute_module_key(jac_probe);
+        } finally {
+            os.unlink(jac_probe);
+        }
         assert stub_key != jac_key , (
-            "stub cache key should not include placement/client config"
+            "a project module's key folds in placement/client config; "
+            "a stub's key must not"
         );
     } finally {
         os.unlink(stub_file);

@@ -30,6 +30,10 @@ import os;
 import sys;
 
 obj NaIRGenObjects(NaIRGenState) {
+    def _emit_heap_object_alloc(
+        nd: uni.UniNode, type_name: str, size: ir.Value, headerless: bool
+    ) -> ir.Value;
+
     def _erased_sig_typevars(nd: uni.Archetype) -> dict;
     def _reject_scalar_type_args(nd: uni.UniNode, type_name: str) -> bool;
     def _emit_scalar_type_arg_refusal(
@@ -56,6 +60,8 @@ obj NaIRGenObjects(NaIRGenState) {
         nd: uni.Archetype, arch_name: str, block: uni.ModuleCode
     ) -> None;
 
+    def _jc_abi_offsets(field_types: list) -> tuple;
+    def _build_jc_layout -> str;
     def _register_one_class_const(
         arch_name: str,
         fname: str,
@@ -85,6 +91,7 @@ obj NaIRGenObjects(NaIRGenState) {
 
     def _method_slot_name(method: uni.Ability, field: (uni.HasVar | None)) -> str;
     def _accessor_slot_of(type_name: str, field_name: str, kind: str) -> (str | None);
+    def _own_accessor_result(result: ir.Value) -> ir.Value;
     def _codegen_accessor_call(
         obj_val: ir.Value, type_name: str, slot: str, args: list[ir.Value]
     ) -> (ir.Value | None);

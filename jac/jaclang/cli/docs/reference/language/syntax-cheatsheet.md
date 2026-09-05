@@ -1408,7 +1408,7 @@ node Secret { has value: str; }
 
 
 # ============================================================
-# jac.toml placement + service tables
+# jac.toml placement + app tables
 # ============================================================
 # (TOML, shown here for adjacency)
 #
@@ -1416,11 +1416,14 @@ node Secret { has value: str; }
 #   "main.API_KEY" = "server"     #   keep a glob out of the JS bundle
 #   "kernels.*"    = "native"     #   whole-module performance mandate
 #
-#   [scale.microservices.routes]  # the service cut -- each key runs as
-#   orders_app = "/api/orders"    #   its own service; imports of it
-#   math_service = ""             #   lower to RPC stubs ("" derives
-#                                 #   the route prefix)
-#   (written by `jac scale split <module>`)
+#   [apps.web]                    # a workspace: one table per app
+#   kind = "web-app"              #   dir-rooted at web/
+#   path = "web"
+#   [apps.orders]                 # a file-rooted service app: owns
+#   kind = "service"              #   exactly its entry file; imports of
+#   entry-point = "core/orders.jac"   # its walkers from other apps lower
+#                                 #   to typed-async bridge stubs (await)
+#   (scaffold with `jac create --app orders --kind service`)
 
 
 # ============================================================

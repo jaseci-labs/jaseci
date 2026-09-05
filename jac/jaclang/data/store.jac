@@ -11,8 +11,9 @@ import from jaclang.runtime.exceptions { WriteConflict }
 glob logger = logging.getLogger(__name__),
      SCHEMA_VERSION = 1,
      SCHEMA_STAMP_KEY = 'schema_fingerprint',
-     _schema_ready: set[str] = set(),
+     _schema_ready: dict[str, str] = {},
      _schema_gate = threading.Lock(),
+     _schema_extensions: dict[str, list[str]] = {},
      __all__ = [
          'AnchorRow',
          'Store',
@@ -21,8 +22,17 @@ glob logger = logging.getLogger(__name__),
          'TxnIsolation',
          'SCHEMA_VERSION',
          'SCHEMA_STAMP_KEY',
-         'SessionConflictError'
+         'SessionConflictError',
+         'register_schema_extension'
      ];
+
+def register_schema_extension(name: str, statements: list[str]) {
+    _schema_extensions[name] = list(statements);
+}
+
+def _schema_extension_key -> str {
+    return ",".join(sorted(_schema_extensions));
+}
 
 
 enum TxnIsolation(StrEnum) {

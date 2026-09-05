@@ -1004,7 +1004,7 @@ impl TypeEvaluator._get_type_of_expression_core(
                             );
 
                             has_any_has_vars = any(
-                                len(cls.shared.symbol_table.get_has_vars()) > 0
+                                self._scope_has_fields(cls.shared.symbol_table)
                                 for cls in base_type.shared.mro
                                 if cls.shared.class_name != "object"
                             );
@@ -3241,7 +3241,8 @@ impl TypeEvaluator.is_none_type(ty: TypeBase) -> bool {
         return False;
     }
     return (
-        isinstance(ty, ClassType) and ty.shared == self.prefetch.none_type_class.shared
+        isinstance(ty, ClassType)
+        and ty.shared.same_class(self.prefetch.none_type_class.shared)
     );
 }
 
@@ -3879,9 +3880,6 @@ impl TypeEvaluator._is_sv_async_call(expr: FuncCall) -> bool {
     if not isinstance(tgt, Name) or tgt.sym is None {
         return False;
     }
-    if not expr.in_client_context() {
-        return False;
-    }
     mod = expr.find_parent_of_type(Module);
     if mod is None {
         return False;
@@ -3891,6 +3889,8 @@ impl TypeEvaluator._is_sv_async_call(expr: FuncCall) -> bool {
     if syms is None {
         syms = set();
         import from jaclang.compiler.driver.boundary_classify {
+            CrossAppKind,
+            classify_cross_app_import,
             is_client_native_edge_import
         }
         import from jaclang.compiler.symbol_utils {
@@ -3898,34 +3898,18 @@ impl TypeEvaluator._is_sv_async_call(expr: FuncCall) -> bool {
             classify_client_import_item,
             decl_has_access,
             import_target_pinned_server,
-            is_client_boundary_import,
             resolve_import_source_module
         }
         for imp in mod.get_all_sub_nodes(Import) {
-            is_boundary = is_client_boundary_import(imp);
-            if not is_boundary and imp.in_client_context() {
-                try {
-                    is_boundary = (
-                        not imp.is_service_import
-                        and not imp.is_typed
-                        and not imp.is_virtual_jac
-                        and imp.from_loc is not None
-                        and bool(imp.items)
-                        and str(imp.from_loc.resolve_relative_path()).endswith('.jac')
-                    );
-                } except Exception {
-                    is_boundary = False;
-                }
-            }
-            if not (
-                imp.is_service_import
-                or is_client_native_edge_import(imp, self.program)
-                or is_boundary
-            ) {
-                continue;
-            }
-
-            if imp.is_service_import and not imp.in_client_context() {
+            kind = classify_cross_app_import(imp, None);
+            is_service = kind == CrossAppKind.SERVICE_BRIDGE;
+            is_boundary = kind == CrossAppKind.CLIENT_BRIDGE;
+            is_native_edge = (
+                not is_service
+                and not is_boundary
+                and is_client_native_edge_import(imp, self.program)
+            );
+            if not (is_service or is_boundary or is_native_edge) {
                 continue;
             }
             source_mod = (
@@ -3937,15 +3921,28 @@ impl TypeEvaluator._is_sv_async_call(expr: FuncCall) -> bool {
                     isinstance(item, ModuleItem)
                     and isinstance(item.name, Name)
                     and item.name.sym is not None
-                    and item.name.sym.sym_type == SymbolType.ABILITY
                 ) {
                     continue;
                 }
-                if (
-                    is_boundary
-                    and not imp.is_service_import
-                    and not is_client_native_edge_import(imp, self.program)
-                ) {
+                sym_kind = item.name.sym.sym_type;
+                if sym_kind != SymbolType.ABILITY {
+                    facts = imp.boundary_facts;
+                    is_bridged_walker = (
+                        is_service
+                        and facts is not None
+                        and item.name.value in facts.sv_walkers
+                    );
+                    if not is_bridged_walker and is_service {
+                        decl = resolved_decl_of(item.name.sym);
+                        owner = decl.name_of if decl is not None else None;
+                        is_bridged_walker = (
+                            isinstance(owner, Archetype) and owner.arch_kind == 'walker'
+                        );
+                    }
+                    if not is_bridged_walker {
+                        continue;
+                    }
+                } elif is_boundary {
                     if source_mod is None {
                         continue;
                     }
@@ -5656,7 +5653,7 @@ impl TypeEvaluator._union_contains_none(union_type: TypeBase) -> bool {
     }
     none_shared = self.prefetch.none_type_class.shared;
     for t in union_type.types {
-        if isinstance(t, ClassType) and t.shared == none_shared {
+        if isinstance(t, ClassType) and t.shared.same_class(none_shared) {
             return True;
         }
     }
@@ -6229,9 +6226,21 @@ impl TypeEvaluator._intern_shared(shared: ClassDetailsShared) -> ClassDetailsSha
     src = shared.symbol_table?.loc?.orig_src;
     key = (site, src.hash if src is not None else "");
     found = self._shared_intern.get(key);
-    if found is not None {
-        return found;
+    if found is None {
+        self._shared_intern[key] = shared;
+        return shared;
     }
-    self._shared_intern[key] = shared;
-    return shared;
+    if found.symbol_table is not shared.symbol_table
+        and self._scope_is_current(shared.symbol_table) {
+        found.symbol_table = shared.symbol_table;
+    }
+    return found;
+}
+
+impl TypeEvaluator._scope_is_current(scope: UniScopeNode) -> bool {
+    mod = scope if isinstance(scope, Module) else scope.find_parent_of_type(Module);
+    if mod is None or mod.loc is None or not mod.loc.mod_path {
+        return False;
+    }
+    return self.program.find_module(self.program.hub_key(mod.loc.mod_path)) is mod;
 }

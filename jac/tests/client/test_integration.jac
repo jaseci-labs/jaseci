@@ -256,7 +256,7 @@ def _get_generate_host_source -> object {
     import sys;
     # The installed package has precompiled bytecode. If the module is already
     # loaded (it was imported when the desktop target was loaded), use it directly.
-    mod_name = "jaclang.client.targets.desktop.native_desktop_target";
+    mod_name = "jaclang.client.targets.desktop._host_bootstrap";
     if mod_name in sys.modules {
         return sys.modules[mod_name]._generate_host_source;
     }
@@ -997,7 +997,7 @@ structure using the known format.
 """
 test "generated host source contains required elements" {
     import sys;
-    mod_name = "jaclang.client.targets.desktop.native_desktop_target";
+    mod_name = "jaclang.client.targets.desktop._host_bootstrap";
     if mod_name not in sys.modules {
         return;  # Skip: module not loaded in this test runner
     }
@@ -1042,7 +1042,7 @@ test "generated host source contains required elements" {
 """_generate_host_source with empty plugin_configs still produces valid host."""
 test "generated host source with no plugins" {
     import sys;
-    mod_name = "jaclang.client.targets.desktop.native_desktop_target";
+    mod_name = "jaclang.client.targets.desktop._host_bootstrap";
     if mod_name not in sys.modules {
         return;  # Skip: module not loaded in this test runner
     }
@@ -1393,7 +1393,7 @@ runtime host_boot module from the bundled jaclang tree -- no transpiled .py
 staged beside the binary, no behavior baked into generated strings."""
 test "build pipeline wires the runtime-imported bootstrap" {
     import sys;
-    mod_name = "jaclang.client.targets.desktop.native_desktop_target";
+    mod_name = "jaclang.client.targets.desktop._host_bootstrap";
     if mod_name not in sys.modules {
         return;  # Skip: module not loaded in this test runner
     }

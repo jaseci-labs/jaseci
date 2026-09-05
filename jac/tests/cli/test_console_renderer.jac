@@ -10,7 +10,7 @@ surface, the renderer owns the drawing primitives, and the live console
 delegates to a real renderer.
 """
 
-import from jaclang.cli.console { JacConsole, ConsoleRenderer, console }
+import from jaclang.cli.console { JacConsole, ConsoleRenderer, Span, console }
 
 
 # Every public method of the console surface. Each must live on the facade.
@@ -79,4 +79,34 @@ test "the live console delegates to a real renderer" {
     assert isinstance(c._renderer, ConsoleRenderer) , f"expected a ConsoleRenderer, got {type(
         c._renderer
     ).__name__}";
+}
+
+
+obj _RecordingStatus {
+    has cleared: int = 0;
+
+    def update(text: str = '') -> None {
+        return;
+    }
+
+    def clear {
+        self.cleared += 1;
+    }
+}
+
+
+test "an emit while a status line is live clears that line first" {
+    # A warning printed mid-compile used to land on the spinner's line; every
+    # emit now wipes the live status line, and the spinner redraws after it.
+    import io;
+    renderer = ConsoleRenderer();
+    live = _RecordingStatus();
+    renderer._active_status = live;
+    out = io.StringIO();
+    renderer.emit([Span("hello", None)], out);
+    renderer.emit_raw(["world"], out, None, {});
+    assert live.cleared == 2 , (
+        f"emit and emit_raw must each clear the live status line, saw {live.cleared}"
+    );
+    assert "hello" in out.getvalue() and "world" in out.getvalue();
 }

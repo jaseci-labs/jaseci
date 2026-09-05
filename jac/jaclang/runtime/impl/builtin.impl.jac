@@ -102,6 +102,7 @@ impl __getattr__(name: str) -> object {
         name
         in (
             'Region',
+            'region_of',
             '_jac_region_open',
             '_jac_region_close',
             '_jac_region_register',
@@ -111,6 +112,7 @@ impl __getattr__(name: str) -> object {
         import jaclang.runtime.region as _region_mod;
         _region_map = {
             'Region': 'JacRegion',
+            'region_of': 'region_of',
             '_jac_region_open': 'open_region',
             '_jac_region_close': 'close_region',
             '_jac_region_register': 'register_drop',

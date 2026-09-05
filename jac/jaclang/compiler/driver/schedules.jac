@@ -103,6 +103,7 @@ def get_ir_gen_sched(
     _tok = _ir_sched_loading.set(True);
     try {
         import jaclang.compiler.types.type_evaluator;
+        import jaclang.compiler.types.stubcat.modiface;
         import jaclang.compiler.backends.es.framework_backend;
         import jaclang.compiler.passes.pyast_load_pass;
         import from jaclang.compiler.passes.cfg_build_pass { CFGBuildPass }
@@ -116,7 +117,7 @@ def get_ir_gen_sched(
         import jaclang.compiler.passes.layout_pass;
         import jaclang.compiler.type_registry;
         import jaclang.compiler.intrinsic_registry;
-        import jaclang.project.client_kind;
+        import jaclang.project.mobui_scope;
 
         passes: list[type[Transform]] = [
             ASTValidationPass,
@@ -198,19 +199,25 @@ def get_analysis_sched -> list[type[Transform]] {
         import jaclang.compiler.frontend.diagnostic_utils;
         import jaclang.compiler.driver.modresolver;
         import jaclang.project.tomlio;
-        import jaclang.project.client_kind;
+        import jaclang.project.mobui_scope;
         import jaclang.project.config;
         import from jaclang.compiler.passes.static_analysis_pass { StaticAnalysisPass }
         import from jaclang.compiler.passes.access_check_pass { AccessCheckPass }
+        import from jaclang.compiler.passes.variant_agreement_pass {
+            VariantAgreementPass
+        }
         import from jaclang.compiler.passes.capability_check_pass {
             ClientCapabilityCheckPass,
             NativeCapabilityCheckPass,
             PortabilityWarnPass
         }
         import from jaclang.compiler.passes.ownership_check_pass { OwnershipCheckPass }
+        import from jaclang.compiler.passes.region_infer_pass { RegionInferPass }
         import from jaclang.compiler.tools.jac_auto_lint_pass { JacLintCheckPass }
         return validate_schedule(
             [
+                RegionInferPass,
+                VariantAgreementPass,
                 TypeCheckPass,
                 StaticAnalysisPass,
                 AccessCheckPass,
@@ -352,15 +359,4 @@ def get_format_sched(auto_lint: bool = False) -> list[type[Transform]] {
 def get_lint_sched -> list[type[Transform]] {
     import from jaclang.compiler.tools.jac_auto_lint_pass { JacLintCheckPass }
     return validate_schedule([JacLintCheckPass], origin='lint schedule');
-}
-
-def _jsx_intrinsic_guard_pass_type -> (type | None) {
-    try {
-        import from jaclang.compiler.passes.jsx_intrinsic_guard_pass {
-            JsxIntrinsicGuardPass
-        }
-        return JsxIntrinsicGuardPass;
-    } except ImportError {
-        return None;
-    }
 }
