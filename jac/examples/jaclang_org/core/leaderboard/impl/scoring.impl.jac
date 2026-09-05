@@ -14,7 +14,7 @@ impl analyze(files: dict[str, str]) -> RepoAnalysis {
             if "by llm" in text {
                 an.features.ai = True;
             }
-            if re.search(r"\bJsx(Element|Page)\b|(?m)^\s*return\s+<[A-Za-z]", text) {
+            if re.search(r"(?m)\bJsx(Element|Page)\b|^\s*return\s+<[A-Za-z]", text) {
                 an.features.cl = True;
             }
             if low.endswith(".sv.jac")
