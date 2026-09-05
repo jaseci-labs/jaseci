@@ -178,6 +178,43 @@ test "missing await on a SERVICE_BRIDGE stub is E1042" {
     );
 }
 
+test "a generator-returning SERVICE_BRIDGE stub is a coroutine until awaited" {
+    # The bridge stub is `async def` whatever the provider returns, so a
+    # streaming provider is reached as `await narrate(...)`; iterating the
+    # un-awaited call is a type error, not a runtime TypeError.
+    (prog, mod) = compile_fixture(fixture("web", "stream_no_await.jac"));
+    msgs = [str(e) for e in prog.errors_had];
+    assert any("Coroutine" in m and "not iterable" in m for m in msgs) , (
+        f"iterating an un-awaited bridge stub checked clean: {msgs}"
+    );
+    (prog, mod) = compile_fixture(fixture("web", "stream_awaited.jac"), cgen=True);
+    assert not prog.errors_had , [str(e) for e in prog.errors_had];
+    assert "await __jac_sv_client.call('social', 'narrate'" in mod.gen.py , mod.gen.py;
+}
+
+test "spawning a bridged walker types as the stub's coroutine, not E1114" {
+    # A `cli` app has no server, so its import of a service walker bridges and
+    # the stub's constructor is the remote spawn. Codegen lowers
+    # `root spawn Stub(...)` to the stub call alone, so the checker types the
+    # spawn as that coroutine: awaited it is the walker, un-awaited it is E1042.
+    (prog, mod) = compile_fixture(fixture("cli_spawn.jac"), cgen=True);
+    found = codes(prog);
+    assert "E1114" not in found , f"{[str(e) for e in prog.errors_had]}";
+    unawaited = [
+        e
+        for e in prog.errors_had
+        if e.code and e.code.code == "E1042"
+    ];
+    assert len(unawaited) == 1 and unawaited[0].loc.first_line == 13 , (
+        f"{[str(e) for e in prog.errors_had]}"
+    );
+    assert len(prog.errors_had) == 1 , [str(e) for e in prog.errors_had];
+    import re;
+    assert re.search(r"(?<![\w.])spawn\(", mod.gen.py) is None , (
+        "the runtime spawn must not wrap a bridged stub:\n" + mod.gen.py
+    );
+}
+
 test "a bridged obj imported alone mirrors as a boundary type, not an RPC stub" {
     (prog, mod) = compile_fixture(fixture("web", "only_profile.jac"), cgen=True);
     assert not prog.errors_had , [str(e) for e in prog.errors_had];

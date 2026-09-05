@@ -460,8 +460,10 @@ obj ManifestBuilder {
             }
             console.print(
                 f"No client entry is declared and '{client_entry}' does not "
-                f"exist; skipping the client build. Give the served app a "
-                f"client target ([apps.<name>] client) to build one."
+                f"exist; skipping the client build. Give the served app a client "
+                f"by making its kind one that ships a client (web-app, "
+                f"web-static, desktop, or mobile under [project] or "
+                f"[apps.<name>]) to build one."
             );
             return;
         }

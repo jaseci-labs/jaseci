@@ -109,9 +109,9 @@ The fused neovim editor (`jac ninja`) and the built-in terminal coding agent (`j
 
 ### A keyword is never an identifier, and stray backticks are errors ([#8315](https://github.com/jaseci-labs/jac/pull/8315), unreleased)
 
-The rule is now uniform: a keyword token is never an identifier, and the backtick escape is the only way to use one as a name. Every binding position (archetype, ability, enum, global, field, parameter) reports one `E0013` naming the keyword and the escape, so `has skip: int` becomes ``has `skip: int``, and member access is covered too (`x.test` becomes ``x.`test``). The reverse is also checked: a backtick on a name that is not a keyword is `E0014` ("remove the backtick"). Exempt because they are not identifiers competing with keywords: the eight special references (`self`, `super`, `root`, `here`, `visitor`, `props`, `init`, `postinit`) and the builtin type names (`int`, `str`, `list`, `type`, `i8` ... `f64`).
+The rule is now uniform: a keyword token is never an identifier, and the backtick escape is the only way to use one as a name. Every binding position (archetype, ability, enum, global, field, parameter) reports one `E0013` naming the keyword and the escape, so `has skip: int` becomes ``has `skip: int``. Member access is not a binding position: after a dot a keyword is always an attribute, so `x.test` and `sys.exit(0)` parse unescaped (the escaped spelling still works). The reverse is also checked: a backtick on a name that is not a keyword is `E0014` ("remove the backtick"). Exempt because they are not identifiers competing with keywords: the eight special references (`self`, `super`, `root`, `here`, `visitor`, `props`, `init`, `postinit`) and the builtin type names (`int`, `str`, `list`, `type`, `i8` ... `f64`).
 
-**Impact:** code that bound a bare keyword (`has skip: int`, `for match in xs`, `x.test`) now gets a single actionable `E0013` -- add the backtick. Existing escaped spellings are untouched.
+**Impact:** code that bound a bare keyword (`has skip: int`, `for match in xs`) now gets a single actionable `E0013` -- add the backtick. Existing escaped spellings are untouched. The complete reserved-word list is in [Foundation > Keywords](../reference/language/foundation.md#5-keywords).
 
 ---
 

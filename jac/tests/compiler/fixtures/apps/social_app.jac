@@ -1,5 +1,7 @@
 """File-rooted `social` service app: the provider side of every bridge below."""
 
+import from typing { Generator }
+
 obj Profile {
     has name: str,
         score: int = 0;
@@ -23,4 +25,10 @@ def hidden(name: str) -> str {
 
 node Post {
     has text: str = "";
+}
+
+def:pub narrate(n: int) -> Generator[str, None, None] {
+    for i in range(n) {
+        yield f"chunk {i}";
+    }
 }
