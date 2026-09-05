@@ -7,7 +7,7 @@ foreign `jac build`, which then fails with "bundle not found" because the
 foreign project's dist was never populated.
 
 These tests drive the real helpers against real on-disk sealed layouts, and
-the end-to-end case runs a real `jac build --client web` subprocess from a
+the end-to-end case runs a real `jac build --as client` subprocess from a
 project nested under a decoy sealed root; no mocks."""
 
 import json;
@@ -134,7 +134,7 @@ test "jac build inside a sealed host builds the nested project's bundle" {
         project = os.path.join(staging, "todo");
 
         built = subprocess.run(
-            [*jac_cmd, "build", "main.jac", "--client", "web"],
+            [*jac_cmd, "build", "--as", "client", "main.jac"],
             cwd=project,
             capture_output=True,
             text=True,

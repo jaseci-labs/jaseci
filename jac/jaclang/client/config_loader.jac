@@ -1,5 +1,8 @@
+import from jaclang.project.config { JacConfig }
 import from pathlib { Path }
 import from jaclang.project.plugin_config { PluginConfigBase }
+
+def _app_effective_config(jac_config: JacConfig) -> JacConfig;
 
 class JacClientConfig(PluginConfigBase) {
     override def get_plugin_name(self: JacClientConfig) -> str;
@@ -24,6 +27,5 @@ class JacClientConfig(PluginConfigBase) {
     def get_paths_config(self: JacClientConfig) -> dict[str, str];
     def get_pwa_config(self: JacClientConfig) -> dict[str, any];
     def is_pwa_enabled(self: JacClientConfig) -> bool;
-    def get_mobile_config(self: JacClientConfig) -> dict[str, any];
     def get_react_native_config(self: JacClientConfig) -> dict[str, any];
 }

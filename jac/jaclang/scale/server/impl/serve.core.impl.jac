@@ -33,6 +33,7 @@ impl JacAPIServerCore._make_user_manager -> CoreUserManager {
 }
 
 impl JacAPIServerCore.postinit -> None {
+    get_scale_config().get_jwt_config();
     super.postinit();
 
     if self.server is None {
@@ -184,11 +185,14 @@ impl JacAPIServerCore.start(
     no_client: bool = False,
     on_ready: Callable[..., None] | None = None
 ) -> None {
+    import from jaclang.server.outbox { start_worker_if_bridging }
     self.introspector.load();
+    self.introspector.dev_mode = dev;
     if self.introspector.has_client_route('/docs') {
         self.server.app.docs_url = None;
     }
     self._ensure_sv_siblings();
+    start_worker_if_bridging();
 
     if not dev and not no_client {
         client_exports = self.introspector._client_manifest.get('exports', []);
@@ -521,6 +525,7 @@ impl JacAPIServerCore._register_endpoints -> None {
 
     self.register_walkers_endpoints();
     self.register_functions_endpoints();
+    self.register_colocated_provider_endpoints();
     self.register_webhook_endpoints();
     self.register_websocket_endpoints();
 

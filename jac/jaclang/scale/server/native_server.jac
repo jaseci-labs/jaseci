@@ -124,9 +124,7 @@ obj NativeJServer {
             }
             if not tracing_installed() {
                 import from jaclang.scale.config.config_loader { get_scale_config }
-                _trc_cfg = get_scale_config().get_microservices_config().get(
-                    "tracing", {}
-                );
+                _trc_cfg = get_scale_config().get_gateway_config().get("tracing", {});
                 install_tracing(
                     enabled=_trc_cfg.get("enabled", False),
                     endpoint=_trc_cfg.get("endpoint"),
@@ -177,12 +175,13 @@ obj NativeJServer {
                 return response;
             } finally {
                 try {
-                    JacRuntime.reset_request_context(req_token);
                     ctx.close();
                 } except Exception as e {
                     logger.warning(
-                        f"Failed to clear request context: {e}", exc_info=True
+                        f"Failed to close request context: {e}", exc_info=True
                     );
+                } finally {
+                    JacRuntime.reset_request_context(req_token);
                 }
                 try {
                     reset_current_auth(auth_token);
@@ -239,8 +238,8 @@ obj NativeJServer {
                 server_cfg.get('suppress_health_check_logs', False)
             )
         );
-        ms_cfg = get_scale_config().get_microservices_config();
-        drain_timeout = float(ms_cfg.get("drain_timeout_seconds", 10));
+        gw_cfg = get_scale_config().get_gateway_config();
+        drain_timeout = float(gw_cfg.get("drain_timeout_seconds", 10));
         ws_cfg = get_scale_config().get_websocket_config();
         self.serving = ServingServer(
             app=self.app,

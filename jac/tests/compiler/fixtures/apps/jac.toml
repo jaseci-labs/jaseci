@@ -1,0 +1,23 @@
+[project]
+name = "apps-fixture"
+
+[apps.web]
+kind = "web-app"
+path = "web"
+
+[apps.social]
+kind = "service"
+entry-point = "social_app.jac"
+route = "/api/social"
+
+[apps.cli]
+kind = "cli"
+entry-point = "cli_app.jac"
+
+[apps.cycle_a]
+kind = "service"
+entry-point = "cycle_a.jac"
+
+[apps.cycle_b]
+kind = "service"
+entry-point = "cycle_b.jac"

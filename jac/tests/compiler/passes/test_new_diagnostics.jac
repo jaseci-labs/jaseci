@@ -140,6 +140,40 @@ test "W0100: each invalid escape warns once" {
 # ══════════════════════════════════════════════════════════════════
 
 # ── E0025: JS arrow function syntax (=>) ───────────────────────────
+test "E0013: keyword as a field name carries prefix help" {
+    (prog, _) = parse_with_prog("obj X { has match: int = 1; }");
+    assert has_diagnostic_code(prog, "E0013");
+    hlp = [
+        a.help_text
+        for a in prog.errors_had
+        if a.code is not None and a.code.code == "E0013"
+    ];
+    assert hlp[0] is not None;
+    assert "prefix" in hlp[0];
+    assert "{" not in hlp[0];
+}
+
+test "E0013: message no longer advertises a closing backtick" {
+    (prog, _) = parse_with_prog("obj X { has match: int = 1; }");
+    msgs = [
+        a.msg
+        for a in prog.errors_had
+        if a.code is not None and a.code.code == "E0013"
+    ];
+    assert "`match)" not in msgs[0];
+}
+
+test "E0014: a backtick on a non-keyword still errors" {
+    (prog, _) = parse_with_prog("obj X { has `total: int = 1; }");
+    assert has_diagnostic_code(prog, "E0014");
+}
+
+test "kwesc: the prefix form parses clean" {
+    (prog, had_error) = parse_with_prog("obj X { has `match: int = 1; }");
+    assert not had_error;
+    assert len(prog.errors_had) == 0;
+}
+
 test "E0025: js arrow in jsx attribute slot" {
     src = 'cl { def:pub Foo() -> JsxElement {'
         + ' return <button onClick={e => doThing(e)}>Click</button>; } }';
@@ -374,24 +408,26 @@ test "E1042: calling an async function without await" {
     f"errors={[str(e) for e in prog.errors_had]}";
 }
 
-test "E1042: missing await on sv-imported call (issue #6236)" {
-    # `sv import` functions are async RPC stubs on the client; calling one
-    # without `await` assigns a coroutine to a typed field and crashes at
-    # runtime. `jac check` must flag it.
+test "E1042: missing await on a bridged server call (issue #6236)" {
+    # Server functions imported into client context (a CLIENT_BRIDGE) are
+    # async RPC stubs; calling one without `await` assigns a coroutine to a
+    # typed field and crashes at runtime. `jac check` must flag it.
     (prog, _) = compile_and_check("type_E1042_sv_missing_await.jac");
-    assert has_diagnostic_code(prog, "E1042") , f"expected E1042 for the un-awaited sv import call; "
+    assert has_diagnostic_code(prog, "E1042") , f"expected E1042 for the un-awaited bridged call; "
     f"errors={[str(e) for e in prog.errors_had]}";
 }
 
-test "E1042: sv->sv import call is synchronous, not an awaitable coroutine" {
-    # An sv->sv import (a server consuming another server) lowers to a
-    # synchronous `def` stub, so binding its result to a concrete type
-    # without `await` is correct and must NOT raise E1042. Uses the SAME
-    # provider as the cl->sv fixture above, which still must raise it --
-    # the check is sensitive to the importing module's context, not just
-    # the `sv import` keyword.
+test "E1042: a same-app server->server call is synchronous, not a coroutine" {
+    # A server module importing another server module of the same app is a
+    # LOCAL import (no app boundary, no bridge), so binding its result to a
+    # concrete type without `await` is correct and must NOT raise E1042.
+    # Uses the SAME provider as the client fixture above, which still must
+    # raise it -- the check is sensitive to the importing module's context,
+    # not to the shape of the import statement. The cross-app server case
+    # (SERVICE_BRIDGE, which IS a coroutine) is covered in
+    # tests/compiler/test_cross_app_import.jac.
     (prog, _) = compile_and_check("type_E1042_sv_sync_call_server.jac");
-    assert count_diagnostic_code(prog, "E1042") == 0 , f"sv->sv call must not be flagged as a missing-await coroutine; "
+    assert count_diagnostic_code(prog, "E1042") == 0 , f"same-app server call must not be flagged as a missing-await coroutine; "
     f"errors={[str(e) for e in prog.errors_had]}";
 }
 

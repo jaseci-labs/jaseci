@@ -85,7 +85,8 @@ glob logger = getLogger(__name__),
      _default_full_target_path: list = [None],
      _shared_root_resolver: list = [None, None];
 
-glob _scale_provider_cache: list = [];
+glob _scale_provider_cache: list = [],
+     _scale_provider_error: list = [None];
 
 glob _persistent_memory_provider: list = [None];
 
@@ -97,9 +98,15 @@ def _scale_provider -> any {
     try {
         import from jaclang.scale.plugin { JacScalePlugin }
         result = JacScalePlugin;
-    } except ImportError {}
+    } except ImportError as e {
+        _scale_provider_error[0] = e;
+    }
     _scale_provider_cache.append(result);
     return result;
+}
+
+def scale_provider_error -> any {
+    return _scale_provider_error[0];
 }
 
 def _all_grant(anchor: Anchor) -> AccessLevel {
@@ -237,6 +244,7 @@ class JacAccessValidation {
         to: Anchor, min_level: AccessLevel, operation: str
     ) -> bool;
 
+    static def _is_shared_root(to: Anchor) -> bool;
     static def allow_root(
         archetype: Archetype,
         root_id: UUID,
@@ -454,12 +462,6 @@ class JacServe {
     ) -> ClientBundle;
 
     static def get_api_server_class -> type;
-    static def ensure_sv_service(module_name: str, base_path: str) -> None;
-    static def sv_service_call(module_name: str, func_name: str, args: dict) -> any;
-    static def sv_walker_call(
-        module_name: str, walker_name: str, args: dict, stub_cls: any
-    ) -> any;
-
     static def get_sv_registry -> dict[str, str];
     static def create_server(
         jac_server: JacServer, host: str, port: int, max_retries: int = 10
@@ -550,6 +552,7 @@ class JacRuntime(JacRuntimeInterface) {
     static def get_full_target_path -> (str | None);
     static def set_base_path(base_path: (str | None)) -> None;
     static def set_full_target_path(target_path: (str | None)) -> None;
+    static def shared_root_id -> (UUID | None);
     static def get_shared_root -> Root;
     static def set_shared_root_resolver(
         resolver: (Callable[([], (str | None))] | None)

@@ -17,6 +17,7 @@ import from jaclang.compiler.backends.es.scoped_styles {
 }
 import from jaclang.compiler.backends.es.framework_backend { FrameworkBackend }
 import from jaclang.compiler.backends.es.free_ident_audit {
+    FreeIdentifier,
     RUNTIME_PRELUDE_GLOBALS,
     client_ambient_globals,
     free_identifiers
@@ -42,7 +43,8 @@ import from jaclang.compiler.frontend.diagnostics {
     E5085,
     E5086,
     E5099,
-    E5101
+    E5101,
+    E5103
 }
 
 glob _T = TypeVar('_T', bound=es.Node),
@@ -330,6 +332,7 @@ walker EsastGenPass(BaseAstGenPass[es.Statement]) {
         nd: uni.BinaryExpr, left_expr: es.Expression, right_expr: es.Expression
     ) -> (SpawnCallParts | None);
 
+    def _import_item_named(name: str) -> (uni.ModuleItem | None);
     def _build_spawn_runtime_call(
         nd: uni.BinaryExpr, parts: SpawnCallParts
     ) -> es.AwaitExpression;
@@ -399,6 +402,10 @@ walker EsastGenPass(BaseAstGenPass[es.Statement]) {
 
     can exit_module with uni.Module exit;
     def _audit_free_identifiers(nd: uni.Module, program: es.Program) -> None;
+    def _free_ident_site(
+        names: list[uni.Name], free: FreeIdentifier
+    ) -> (uni.Name | None);
+
     def populate_client_manifest(nd: uni.Module) -> None;
     can exit_sub_tag with uni.SubTag exit;
     can exit_import with uni.Import exit;
@@ -408,6 +415,8 @@ walker EsastGenPass(BaseAstGenPass[es.Statement]) {
     ) -> None;
 
     def _sv_import_item_is_type(nd: uni.Import, item: uni.ModuleItem) -> bool;
+    def _is_service_bridge_import(nd: uni.Import) -> bool;
+    def _sv_provider_options(nd: uni.Import) -> (es.Expression | None);
     def _record_sv_backend(nd: uni.Import) -> None;
     def _generate_na_import_binding(nd: uni.Import) -> None;
     def _is_client_native_import(nd: uni.Import) -> bool;
