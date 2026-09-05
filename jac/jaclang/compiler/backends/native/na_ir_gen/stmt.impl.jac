@@ -72,7 +72,11 @@ impl NaIRGenStmt._emit_last_use_releases(stmt: uni.UniNode) -> None {
         }
         slot_ty = alloca.type?.pointee;
         _lu_ptr = isinstance(slot_ty, ir.PointerType) and slot_ty?.pointee;
-        if not _lu_ptr and self._opt_ptr_payload_of(slot_ty) is None {
+        if not _lu_ptr
+            and (
+                self._opt_ptr_payload_of(slot_ty) is None
+                or not self._nogc_opt_slots_owned()
+            ) {
             continue;
         }
         if name in self.region_handle_vars {
@@ -81,7 +85,7 @@ impl NaIRGenStmt._emit_last_use_releases(stmt: uni.UniNode) -> None {
         if name in self.closure_cell_handles {
             continue;
         }
-        val = self.builder.load(alloca, name=f"lu.{name}");
+        val = self._rc_unwrap_optional(self.builder.load(alloca, name=f"lu.{name}"));
         self._emit_rc_release_typed(val, op="last_use", loc="");
         self.builder.store(ir.Constant(slot_ty, None), alloca);
     }

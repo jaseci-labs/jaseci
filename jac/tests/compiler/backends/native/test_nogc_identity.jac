@@ -69,7 +69,30 @@ test "a borrow of a list element returned under -> &T reads the element" {
     assert out.strip() == "9" , out;
 }
 
-test "a generic over a borrowed list returns the element" {
+test "a generic over a borrowed list returns a borrow of the element" {
     out = assert_native_identity(_fixture("generic_elem.jac"));
-    assert out.strip() == "7" , out;
+    assert out.strip() == "77" , out;
+}
+
+test "pop, insert, del, index-assign and extend on a list of owned elements" {
+    out = assert_native_identity(_fixture("owned_list_ops.jac"));
+    assert out.splitlines()
+        == [
+            "popped 1 -> 0,2,3,4",
+            "drop 1",
+            "inserted -> 9,0,2,3,4",
+            "drop 2",
+            "deleted -> 9,0,3,4",
+            "drop 9",
+            "assigned -> 7,0,3,4",
+            "extended -> 7,0,3,4,11,12",
+            "drop 7",
+            "drop 0",
+            "drop 3",
+            "drop 4",
+            "drop 11",
+            "drop 12",
+            "6",
+            "done"
+        ] , out;
 }

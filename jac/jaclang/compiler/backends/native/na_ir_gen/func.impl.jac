@@ -34,7 +34,7 @@ impl NaIRGenFunc._apply_ownership_param_attrs(
 }
 
 impl NaIRGenFunc._nogc_owned_param(p: uni.ParamVar) -> bool {
-    if not self._nogc_headerless() or p.type_tag is None {
+    if not self._nogc_owned_world() or p.type_tag is None {
         return False;
     }
     return p.type_tag.ownership == OwnershipKind.OWN;

@@ -2079,6 +2079,7 @@ impl NaIRGenObjects._codegen_instantiation(
                 name=f"field.{key_name}"
             );
             self._store_inline_field(type_name, key_name, _inl_fp, val, False);
+            self._nogc_consume_local(init_expr);
             set_fields.add(key_name);
             continue;
         }
@@ -2109,6 +2110,7 @@ impl NaIRGenObjects._codegen_instantiation(
             name=f"field.{key_name}"
         );
         self.builder.store(val, field_ptr);
+        self._nogc_consume_local(init_expr);
         set_fields.add(key_name);
     }
 
@@ -2810,7 +2812,7 @@ impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) 
 
             self._clear_rc_ctx();
             if result is not None {
-                if method_name == "insert" {
+                if method_name == "insert" and not self._nogc_headerless() {
                     self._release_owned_args(_orig_args, op="list_method_arg");
                 }
                 return result;

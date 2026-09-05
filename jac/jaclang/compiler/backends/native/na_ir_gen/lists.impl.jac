@@ -749,10 +749,11 @@ impl NaIRGenLists._emit_aos_list_helpers(tname: str) -> ir.Type {
     );
     b.ret(_selfp);
 
-    append_fn = self._define_function(
-        f"__list_append_aos_{tname}", ir.FunctionType(ir.VoidType(), [_stp, _tp])
+    push_fn = self._define_function(
+        f"__list_push_aos_{tname}", ir.FunctionType(ir.VoidType(), [_stp, _tp])
     );
-    append_fn.linkage = "private";
+    push_fn.linkage = "private";
+    append_fn = push_fn;
     _a_entry = append_fn.append_basic_block("entry");
     _a_grow = append_fn.append_basic_block("grow");
     _a_store = append_fn.append_basic_block("store");
@@ -795,8 +796,16 @@ impl NaIRGenLists._emit_aos_list_helpers(tname: str) -> ir.Type {
             _a_szT
         ]
     );
-    b.call(_free, [b.bitcast(append_fn.args[1], i8p, name="a.shell8")]);
     b.store(b.add(_a_len, ir.Constant(i64, 1), name="a.len1"), _a_len_p);
+    b.ret_void();
+
+    append_fn = self._define_function(
+        f"__list_append_aos_{tname}", ir.FunctionType(ir.VoidType(), [_stp, _tp])
+    );
+    append_fn.linkage = "private";
+    b = ir.IRBuilder(append_fn.append_basic_block("entry"));
+    b.call(push_fn, [append_fn.args[0], append_fn.args[1]]);
+    b.call(_free, [b.bitcast(append_fn.args[1], i8p, name="a.shell8")]);
     b.ret_void();
 
     get_fn = self._define_function(
@@ -896,10 +905,21 @@ impl NaIRGenLists._emit_aos_list_helpers(tname: str) -> ir.Type {
     self.list_helpers[_spec] = {
         "new": new_fn,
         "append": append_fn,
+        "push": push_fn,
         "get": get_fn,
         "set": set_fn,
         "len": len_fn,
-        "elem_type": _tp
+        "elem_type": _tp,
+        "elem_struct": _t_struct,
+        "drop_fields": _d_fields
     };
     return st;
+}
+
+impl NaIRGenLists._aos_elem_struct(type_key: str) -> (ir.Type | None) {
+    if not type_key.startswith("aos.") {
+        return None;
+    }
+    _h = self.list_helpers.get(type_key);
+    return _h["elem_struct"] if _h is not None else None;
 }

@@ -1005,6 +1005,16 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " Move it out explicitly with `take({place})`, which leaves None behind,"
          " or borrow it with `&{place}` if the destination only needs to read it."
      ),
+     E1317 = _err(
+         "E1317",
+         Category.SEMANTIC,
+         "Cannot move '{name}' out of the element '{place}'",
+         help="the elements of an owned list are owned by the list, so reading"
+         " one into an owning destination (an `own` binding, an owned field, an"
+         " `own` parameter, or an owned return) would leave two owners of one"
+         " value. Move it out with `pop()` or `pop(i)`, or borrow it in place"
+         " with `&{place}`."
+     ),
      W1310 = _warn(
          "W1310",
          Category.LINT,

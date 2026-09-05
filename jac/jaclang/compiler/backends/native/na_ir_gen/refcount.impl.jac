@@ -1258,6 +1258,21 @@ impl NaIRGenRefcount._emit_rc_retain(
     self._clear_rc_ctx();
 }
 
+impl NaIRGenRefcount._nogc_owned_world -> bool {
+    if not self._nogc_headerless() {
+        return False;
+    }
+    _opts = self.prog.options;
+    if bool(getattr(_opts, "kernel_unit", False)) {
+        return False;
+    }
+    try {
+        return bool(_opts.nogc_enforced_for(self.ir_in.name));
+    } except Exception {
+        return False;
+    }
+}
+
 impl NaIRGenRefcount._rc_unwrap_optional(val: ir.Value) -> ir.Value {
     if isinstance(val.type, ir.PointerType) {
         return val;
@@ -1268,10 +1283,19 @@ impl NaIRGenRefcount._rc_unwrap_optional(val: ir.Value) -> ir.Value {
     return self.builder.extract_value(val, 1, name="rc.opt.pv");
 }
 
+impl NaIRGenRefcount._nogc_drop_op_active(op: str) -> bool {
+    if op not in _NOGC_CONTAINER_DROP_OPS {
+        return False;
+    }
+    if op == "field_set" {
+        return self._nogc_owned_world();
+    }
+    return True;
+}
+
 impl NaIRGenRefcount._emit_rc_release_simple(
     ptr: ir.Value, op: str = "", loc: str = ""
 ) -> None {
-    ptr = self._rc_unwrap_optional(ptr);
     _rls_owned = self._is_owned(ptr);
     if self._str_desc_ty is not None and ptr.type == self._str_desc_ty {
         ptr = self.builder.extract_value(ptr, 0, name="rc.desc.root");
@@ -1279,7 +1303,7 @@ impl NaIRGenRefcount._emit_rc_release_simple(
     if self._nogc_headerless() {
         if not self._nogc_osp_skip(ptr)
             and not (
-                op in _NOGC_CONTAINER_DROP_OPS
+                self._nogc_drop_op_active(op)
                 and self._nogc_emit_drop(ptr, op=op, loc=loc)
             ) {
             if _rls_owned
@@ -1322,7 +1346,6 @@ impl NaIRGenRefcount._emit_rc_release_simple(
 impl NaIRGenRefcount._emit_rc_release_typed(
     val: ir.Value, op: str = "", loc: str = ""
 ) -> None {
-    val = self._rc_unwrap_optional(val);
     _rlt_owned = self._is_owned(val);
     if self._str_desc_ty is not None and val.type == self._str_desc_ty {
         val = self.builder.extract_value(val, 0, name="rc.desc.root");
@@ -1330,7 +1353,7 @@ impl NaIRGenRefcount._emit_rc_release_typed(
     if self._nogc_headerless() {
         if not self._nogc_osp_skip(val)
             and not (
-                op in _NOGC_CONTAINER_DROP_OPS
+                self._nogc_drop_op_active(op)
                 and self._nogc_emit_drop(val, op=op, loc=loc)
             ) {
             if _rlt_owned
@@ -1476,6 +1499,9 @@ impl NaIRGenRefcount._emit_nogc_field_drops(
             continue;
         }
         _opt_payload = self._opt_ptr_payload_of(ftype);
+        if _opt_payload is not None and not self._nogc_owned_world() {
+            continue;
+        }
         _ptr_ty = _opt_payload if _opt_payload is not None else ftype;
         if not isinstance(_ptr_ty, ir.PointerType) {
             continue;
@@ -1903,7 +1929,12 @@ impl NaIRGenRefcount._is_move_site(expr: uni.UniNode | None) -> bool {
     return _eid in self.ir_in.own_move_sites or _eid in self.ir_in.rc_move_in;
 }
 
-impl NaIRGenRefcount._nogc_consume_local(expr: uni.UniNode | None) -> bool {
+impl NaIRGenRefcount._nogc_consume_local(
+    expr: uni.UniNode | None, owned_only: bool = True
+) -> bool {
+    if owned_only and not self._nogc_owned_world() {
+        return False;
+    }
     if not self._nogc_headerless() or not self._is_move_site(expr) {
         return False;
     }
@@ -1934,7 +1965,7 @@ impl NaIRGenRefcount._nogc_elem_prep(
         if self._is_owned(val) or isinstance(expr, uni.FString) {
             return val;
         }
-        if self._nogc_consume_local(expr) {
+        if self._nogc_consume_local(expr, owned_only=False) {
             return val;
         }
         if self.str_new_fn is None {
@@ -1962,7 +1993,7 @@ impl NaIRGenRefcount._nogc_elem_prep(
             and isinstance(expr, uni.Name)
             and expr.sym_name in self.local_vars
             and expr.sym_name not in self.param_vars
-            and not self._nogc_consume_local(expr) {
+            and not self._nogc_consume_local(expr, owned_only=False) {
             self.nogc_no_free_vars.add(expr.sym_name);
         }
         return val;
@@ -1981,7 +2012,7 @@ impl NaIRGenRefcount._nogc_elem_prep(
             return val;
         }
     }
-    if self._nogc_consume_local(expr) {
+    if self._nogc_consume_local(expr, owned_only=False) {
         return val;
     }
     return self._rc_strdup(val, name="elem.copy");
@@ -2056,6 +2087,10 @@ impl NaIRGenRefcount._nogc_osp_skip(val: ir.Value) -> bool {
     return lay is not None and lay.is_osp;
 }
 
+impl NaIRGenRefcount._nogc_opt_slots_owned -> bool {
+    return not self._nogc_headerless() or self._nogc_owned_world();
+}
+
 impl NaIRGenRefcount._emit_scope_cleanup(
     skip_var: (str | None) = None, ret_val: object = None, loc: str = ""
 ) -> None {
@@ -2104,8 +2139,10 @@ impl NaIRGenRefcount._emit_scope_cleanup(
             and self._opt_ptr_payload_of(alloca.type.pointee) is not None {
             if var_name == skip_var {
                 self.builder.store(ir.Constant(alloca.type.pointee, None), alloca);
-            } else {
-                val = self.builder.load(alloca, name=f"cleanup.{var_name}");
+            } elif self._nogc_opt_slots_owned() {
+                val = self._rc_unwrap_optional(
+                    self.builder.load(alloca, name=f"cleanup.{var_name}")
+                );
                 self._emit_rc_release_simple(val, op="scope_exit", loc=loc);
                 self.builder.store(ir.Constant(alloca.type.pointee, None), alloca);
             }
@@ -2176,9 +2213,13 @@ impl NaIRGenRefcount._emit_loop_iter_cleanup(body_locals: list, loc: str = "") -
         }
         if isinstance(alloca.type, ir.PointerType)
             and self._opt_ptr_payload_of(alloca.type.pointee) is not None {
-            val = self.builder.load(alloca, name=f"iter.cleanup.{var_name}");
-            self._emit_rc_release_simple(val, op="iter_end", loc=loc);
-            self.builder.store(ir.Constant(alloca.type.pointee, None), alloca);
+            if self._nogc_opt_slots_owned() {
+                val = self._rc_unwrap_optional(
+                    self.builder.load(alloca, name=f"iter.cleanup.{var_name}")
+                );
+                self._emit_rc_release_simple(val, op="iter_end", loc=loc);
+                self.builder.store(ir.Constant(alloca.type.pointee, None), alloca);
+            }
             continue;
         }
         if (

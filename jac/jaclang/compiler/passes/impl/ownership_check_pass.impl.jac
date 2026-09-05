@@ -1,6 +1,7 @@
 import from jaclang.compiler.frontend.diagnostics {
     E1301,
     E1316,
+    E1317,
     E1302,
     E1303,
     E1304,
@@ -909,14 +910,46 @@ impl OwnershipCheckPass._place_text(expr: Expr) -> str {
     return f"{base.sym_name}.{field}" if field else base.sym_name;
 }
 
+impl OwnershipCheckPass._owned_index_of(expr: Expr | None) -> (Name | None) {
+    if not (isinstance(expr, AtomTrailer) and isinstance(expr.right, IndexSlice)) {
+        return None;
+    }
+    if expr.right.is_range {
+        return None;
+    }
+    base = self._place_of(expr);
+    if base is None or base.sym is None {
+        return None;
+    }
+    if not self._nogc_is_container_expr(expr.target) {
+        return None;
+    }
+    if self._expr_scalar_typed(expr) or self._nogc_str_elem_ok(expr, idx_ctx=True) {
+        return None;
+    }
+    if not self._nogc_expr_type_is_heap(expr) {
+        return None;
+    }
+    if base.sym.ownership == OwnershipKind.OWN or self.nogc_prov is not None {
+        return base;
+    }
+    return None;
+}
+
 impl OwnershipCheckPass._emit_place_move(expr: Expr) -> None {
     field = self._owned_field_of(expr);
-    if field is None {
+    if field is not None {
+        self.emit(
+            E1316, node_override=expr, name=field.sym_name, place=self._place_text(expr)
+        );
         return;
     }
-    self.emit(
-        E1316, node_override=expr, name=field.sym_name, place=self._place_text(expr)
-    );
+    base = self._owned_index_of(expr);
+    if base is not None {
+        self.emit(
+            E1317, node_override=expr, name=base.sym_name, place=f"{base.sym_name}[...]"
+        );
+    }
 }
 
 impl OwnershipCheckPass._callee_own_param_names(call: FuncCall) -> (set[str] | None) {

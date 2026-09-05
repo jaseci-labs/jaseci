@@ -323,6 +323,19 @@ impl OwnershipCheckPass._nogc_is_container_expr(expr: Expr | None) -> bool {
     return False;
 }
 
+impl OwnershipCheckPass._nogc_is_list_expr(expr: Expr | None) -> bool {
+    if not isinstance(expr, Expr) or expr.type is None {
+        return False;
+    }
+    _tk = "";
+    try {
+        _tk = expr.type.mangle();
+    } except Exception {
+        return False;
+    }
+    return _tk == "list" or _tk.startswith("list[");
+}
+
 impl OwnershipCheckPass._nogc_container_grow_method(call: FuncCall) -> (str | None) {
     _tgt = call.target;
     if not isinstance(_tgt, AtomTrailer) or not _tgt.is_attr {
@@ -340,10 +353,7 @@ impl OwnershipCheckPass._nogc_container_grow_method(call: FuncCall) -> (str | No
 
 impl OwnershipCheckPass._nogc_module_enforced(mod_name: str) -> bool {
     opts = self.prog?.options;
-    if opts is not None and getattr(opts, "nogc_enforce_all", False) {
-        return True;
-    }
-    if opts is not None and getattr(opts, "nogc_cli_target", "") == mod_name {
+    if opts is not None and opts.nogc_enforced_for(mod_name) {
         return True;
     }
     _pats = list(getattr(opts, "nogc_enforce_modules", []) or []) if opts else [];
@@ -765,6 +775,10 @@ impl OwnershipCheckPass._emit_enforcement_diagnostics -> None {
                 and self._nogc_is_container_expr(_tgt.target)
                 and nd.value is not None
                 and not self._nogc_str_elem_ok(nd.value)
+                and not (
+                    self._nogc_is_list_expr(_tgt.target)
+                    and self._nogc_fresh_arch_elem(nd.value)
+                )
                 and self._nogc_local_shape_expr_heap(nd.value) {
                 self.emit(
                     E1406,

@@ -205,6 +205,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         _clib_symbol_lib: dict[str, str] = {},
         _native_emit_ctx_class: (type | None) = None,
         _lowered_type_cache: dict[str, ir.Type] = {},
+        _subclassed_arch_names: (set[str] | None) = None,
         di_file: object = None,
         di_cu: object = None,
         _di_current_sp: object = None,
@@ -1174,6 +1175,9 @@ obj NaIRGenState(ModuleCodegenPass) {
     def _codegen_float_floor_mod(left: ir.Value, right: ir.Value) -> ir.Value abst;
     def _elem_storage_llvm(t: any) -> (ir.Type | None) abst;
     def _aos_elem_of(type_expr: uni.UniNode | None) -> (str | None) abst;
+    def _aos_elem_name(t: any) -> (str | None) abst;
+    def _aos_elem_struct(type_key: str) -> (ir.Type | None) abst;
+    def _program_has_subclasses(arch_name: str) -> bool abst;
     def _infer_type_name(val: ir.Value) -> (str | None) abst;
     def _infer_list_elem_type(val: ir.Value) -> (str | None) abst;
     def _infer_compr_elem_struct(compr: object) -> (str | None) abst;

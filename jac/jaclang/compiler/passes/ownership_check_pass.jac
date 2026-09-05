@@ -134,6 +134,7 @@ walker OwnershipCheckPass(Transform) {
     def _nogc_expr_type_is_heap(expr: Expr | None) -> bool;
     def _expr_scalar_typed(expr: Expr | None) -> bool;
     def _nogc_is_container_expr(expr: Expr | None) -> bool;
+    def _nogc_is_list_expr(expr: Expr | None) -> bool;
     def _nogc_container_grow_method(call: FuncCall) -> (str | None);
     def _nogc_module_enforced(mod_name: str) -> bool;
     def _nogc_check_call(call: FuncCall, prov: str) -> None;
@@ -152,6 +153,7 @@ walker OwnershipCheckPass(Transform) {
     def _stamp_overwrite_consumed -> None;
     def _stamp_move_sites -> None;
     def _owned_field_of(expr: Expr | None) -> (Name | None);
+    def _owned_index_of(expr: Expr | None) -> (Name | None);
     def _place_text(expr: Expr) -> str;
     def _emit_place_move(expr: Expr) -> None;
     def _callee_own_param_names(call: FuncCall) -> (set[str] | None);
