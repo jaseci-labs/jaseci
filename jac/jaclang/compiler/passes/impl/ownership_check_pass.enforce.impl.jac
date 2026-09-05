@@ -926,66 +926,70 @@ impl OwnershipCheckPass._is_view_expr(expr: Expr | None) -> bool {
 }
 
 impl OwnershipCheckPass._compute_view_archs -> None {
-    _mods: list = [];
-    try {
-        _mods = list(self.prog.mod.hub.values());
-    } except Exception {
-        _mods = [];
+    self.view_archs = set();
+    self.view_arch_memo = {};
+}
+
+impl OwnershipCheckPass._is_view_arch(arch: Archetype | None) -> bool {
+    if arch is None or arch.name is None {
+        return False;
     }
-    if self.ir_in not in _mods {
-        _mods.append(self.ir_in);
+    key = id(arch);
+    if key in self.view_arch_memo {
+        return self.view_arch_memo[key];
     }
-    _archs: dict[str, Archetype] = {};
-    for _mod in _mods {
-        for _arch in _mod.get_all_sub_nodes(Archetype) {
-            if _arch.name is not None {
-                _archs[_arch.name.value] = _arch;
-            }
+    self.view_arch_memo[key] = False;
+    local_archs: dict[str, Archetype] = {};
+    for other in self.ir_in.get_all_sub_nodes(Archetype) {
+        if other.name is not None {
+            local_archs[other.name.value] = other;
         }
     }
-    views: set[str] = set();
-    changed = True;
-    while changed {
-        changed = False;
-        for (_name, _arch) in _archs.items() {
-            if _name in views {
+    result = False;
+    for hv in arch.get_all_sub_nodes(HasVar) {
+        if hv.find_parent_of_type(Archetype) is not arch or hv.type_tag is None {
+            continue;
+        }
+        if type_tag_borrows(hv.type_tag) {
+            result = True;
+            break;
+        }
+        for nm in hv.type_tag.get_all_sub_nodes(Name) {
+            if not isinstance(nm, Name) {
                 continue;
             }
-            for hv in _arch.get_all_sub_nodes(HasVar) {
-                if hv.find_parent_of_type(Archetype) is not _arch
-                    or hv.type_tag is None {
-                    continue;
-                }
-                if type_tag_borrows(hv.type_tag) {
-                    views.add(_name);
-                    changed = True;
-                    break;
-                }
-                for nm in hv.type_tag.get_all_sub_nodes(Name) {
-                    if isinstance(nm, Name) and nm.sym_name in views {
-                        views.add(_name);
-                        changed = True;
-                        break;
-                    }
-                }
-                if _name in views {
-                    break;
-                }
+            inner = local_archs.get(nm.value);
+            if inner is not None and inner is not arch and self._is_view_arch(inner) {
+                result = True;
+                break;
             }
         }
+        if result {
+            break;
+        }
     }
-    self.view_archs = views;
+    self.view_arch_memo[key] = result;
+    if result {
+        self.view_archs.add(arch.name.value);
+    }
+    return result;
+}
+
+impl OwnershipCheckPass._view_arch_of_call(call: FuncCall) -> (Archetype | None) {
+    tgt = call.target;
+    if not isinstance(tgt, Name) or tgt.sym is None or tgt.sym.decl is None {
+        return None;
+    }
+    decl = tgt.sym.decl;
+    arch = decl if isinstance(decl, Archetype) else decl.find_parent_of_type(Archetype);
+    if arch is None or arch.name is None or arch.name.value != tgt.sym_name {
+        return None;
+    }
+    return arch if self._is_view_arch(arch) else None;
 }
 
 impl OwnershipCheckPass._view_ctor_owners(expr: Expr | None) -> (list[SymId] | None) {
-    if not isinstance(expr, FuncCall) {
-        return None;
-    }
-    tgt = expr.target;
-    if not isinstance(tgt, Name) {
-        return None;
-    }
-    if tgt.sym_name not in self.view_archs or not self._seal_arch_ctor(expr) {
+    if not isinstance(expr, FuncCall) or self._view_arch_of_call(expr) is None {
         return None;
     }
     owners: list[SymId] = [];

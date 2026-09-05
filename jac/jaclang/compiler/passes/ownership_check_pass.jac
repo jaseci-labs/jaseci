@@ -114,6 +114,7 @@ walker OwnershipCheckPass(Transform) {
         receiver_modes: dict[int, OwnershipKind] = {},
         receiver_probe: set[int] = set(),
         view_archs: set[str] = set(),
+        view_arch_memo: dict[int, bool] = {},
         arch_view_syms: set[SymId] = set();
 
     static has PROVIDES: tuple = ('ownership', ),
@@ -134,6 +135,8 @@ walker OwnershipCheckPass(Transform) {
     def _view_of_expr(expr: Expr | None) -> (SymId | None);
     def _stamp_view_borrows -> None;
     def _compute_view_archs -> None;
+    def _is_view_arch(arch: Archetype | None) -> bool;
+    def _view_arch_of_call(call: FuncCall) -> (Archetype | None);
     def _is_view_expr(expr: Expr | None) -> bool;
     def _view_ctor_owners(expr: Expr | None) -> (list[SymId] | None);
     def _derivation_root(base: Name) -> (SymId | None);

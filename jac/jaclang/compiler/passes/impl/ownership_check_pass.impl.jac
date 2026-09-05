@@ -104,6 +104,7 @@ impl OwnershipCheckPass._run_impl(ir_in: Module) -> Module {
     self.receiver_modes = {};
     self.receiver_probe = set();
     self.view_archs = set();
+    self.view_arch_memo = {};
     self.arch_view_syms = set();
 
     self._build_index(ir_in);
@@ -1208,6 +1209,12 @@ impl OwnershipCheckPass._receiver_mode(ability: Ability | None) -> OwnershipKind
     if explicit is not None {
         self.receiver_modes[key] = explicit;
         return explicit;
+    }
+    if ability.find_parent_of_type(Module) is not self.ir_in {
+        stamped = ability.receiver_mode;
+        mode = stamped if stamped != OwnershipKind.NONE else OwnershipKind.BORROW;
+        self.receiver_modes[key] = mode;
+        return mode;
     }
     if key in self.receiver_probe {
         return OwnershipKind.BORROW;

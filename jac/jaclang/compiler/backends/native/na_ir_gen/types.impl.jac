@@ -946,6 +946,11 @@ impl NaIRGenTypes._aos_elem_name(t: any) -> (str | None) {
 
 impl NaIRGenTypes._program_has_subclasses(arch_name: str) -> bool {
     if self._subclassed_arch_names is None {
+        _cached = getattr(self.prog, "_na_subclassed_arch_names", None);
+        if isinstance(_cached, set) {
+            self._subclassed_arch_names = _cached;
+            return arch_name in _cached;
+        }
         _names: set[str] = set();
         _mods: list = [];
         try {
@@ -967,6 +972,9 @@ impl NaIRGenTypes._program_has_subclasses(arch_name: str) -> bool {
             }
         }
         self._subclassed_arch_names = _names;
+        try {
+            self.prog._na_subclassed_arch_names = _names;
+        } except Exception {}
     }
     return arch_name in self._subclassed_arch_names;
 }
