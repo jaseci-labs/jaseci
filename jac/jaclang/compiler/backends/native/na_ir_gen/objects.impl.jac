@@ -3641,16 +3641,26 @@ impl NaIRGenObjects._codegen_field_access(
     if _getter is not None {
         return self._codegen_accessor_call(obj_val, type_name, _getter, []);
     }
-    idx = field_indices[field_name];
+    field_ptr = self._field_slot_ptr(obj_val, field_name, type_name);
+    if field_name in self.struct_field_inline.get(type_name, set()) {
+        return field_ptr;
+    }
+    return self.builder.load(field_ptr, name=f"field.{field_name}");
+}
+
+impl NaIRGenObjects._field_slot_ptr(
+    obj_val: ir.Value, field_name: str, type_name: str
+) -> ir.Value {
+    idx = self.struct_field_indices[type_name][field_name];
     field_ptr: (ir.Value | None) = None;
-    _fa_struct_t = self.struct_types.get(type_name);
+    _struct_t = self.struct_types.get(type_name);
     if (
-        _fa_struct_t is not None
-        and idx < len(_fa_struct_t.elements)
+        _struct_t is not None
+        and idx < len(_struct_t.elements)
         and field_name not in self.struct_field_inline.get(type_name, set())
     ) {
         field_ptr = self._emit_dispatched_field_ptr(
-            obj_val, type_name, field_name, _fa_struct_t.elements[idx]
+            obj_val, type_name, field_name, _struct_t.elements[idx]
         );
     }
     if field_ptr is None {
@@ -3660,10 +3670,47 @@ impl NaIRGenObjects._codegen_field_access(
             name=f"field.{field_name}.ptr"
         );
     }
-    if field_name in self.struct_field_inline.get(type_name, set()) {
-        return field_ptr;
+    return field_ptr;
+}
+
+impl NaIRGenObjects._codegen_place_ptr(expr: uni.Expr) -> (ir.Value | None) {
+    if isinstance(expr, uni.Name) {
+        return self.local_vars.get(expr.sym_name);
     }
-    return self.builder.load(field_ptr, name=f"field.{field_name}");
+    if not (isinstance(expr, uni.AtomTrailer) and expr.is_attr) {
+        return None;
+    }
+    field_name = self._get_name(expr.right);
+    if field_name is None {
+        return None;
+    }
+    obj_val = self._codegen_expr(expr.target);
+    if obj_val is None {
+        return None;
+    }
+    obj_val = self._opt_unwrap_attr(obj_val);
+    type_name = self._struct_name_of(expr.target);
+    if type_name is None {
+        type_name = self._infer_type_name(obj_val);
+    }
+    if type_name is None {
+        return None;
+    }
+    field_indices = self.struct_field_indices.get(type_name);
+    if field_indices is None or field_name not in field_indices {
+        return None;
+    }
+    if field_name in self.struct_field_inline.get(type_name, set()) {
+        return None;
+    }
+    if self._accessor_slot_of(type_name, field_name, "property") is not None {
+        return None;
+    }
+    _recv = self._narrow_receiver_ptr(obj_val, type_name);
+    if _recv is None {
+        return None;
+    }
+    return self._field_slot_ptr(_recv, field_name, type_name);
 }
 
 impl NaIRGenObjects._hasvar_is_own(var: uni.UniNode) -> bool {
@@ -3761,7 +3808,10 @@ impl NaIRGenObjects._codegen_field_aug_assign(
 }
 
 impl NaIRGenObjects._codegen_field_assign(
-    target: uni.AtomTrailer, value: ir.Value, skip_narrow_coerce: bool = False
+    target: uni.AtomTrailer,
+    value: ir.Value,
+    skip_narrow_coerce: bool = False,
+    value_node: (uni.Expr | None) = None
 ) -> None {
     _fa_errs = len(self.errors_had);
     field_name = self._get_name(target.right);
@@ -3898,6 +3948,7 @@ impl NaIRGenObjects._codegen_field_assign(
             name=f"field.{field_name}.ptr"
         );
         self._store_inline_field(type_name, field_name, _inl_fp, value, True);
+        self._nogc_consume_local(value_node);
         return;
     }
 
@@ -3959,6 +4010,7 @@ impl NaIRGenObjects._codegen_field_assign(
         self._emit_rc_release_simple(_fs_old_pv, op="field_set", loc=_fs_loc);
     }
     self.builder.store(value, field_ptr);
+    self._nogc_consume_local(value_node);
 }
 
 impl NaIRGenObjects._receiver_routed_method_fn(

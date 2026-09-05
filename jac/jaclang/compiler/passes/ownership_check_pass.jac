@@ -96,7 +96,6 @@ walker OwnershipCheckPass(Transform) {
         in_reaching_borrows: dict[int, set[SymId]] = {},
         consumed_at: dict[SymId, UniNode] = {},
         borrow_created_at: dict[SymId, UniNode] = {},
-        loop_depth_flagged_names: set[int] = set(),
         idx_assignments: list[Assignment] = [],
         idx_names: list[Name] = [],
         idx_params: list[ParamVar] = [],
@@ -151,6 +150,13 @@ walker OwnershipCheckPass(Transform) {
     def _build_index(tree: UniNode) -> None;
     def _stamp_ownership -> None;
     def _stamp_overwrite_consumed -> None;
+    def _stamp_move_sites -> None;
+    def _owned_field_of(expr: Expr | None) -> (Name | None);
+    def _place_text(expr: Expr) -> str;
+    def _emit_place_move(expr: Expr) -> None;
+    def _callee_own_param_names(call: FuncCall) -> (set[str] | None);
+    def _emit_place_move_diagnostics -> None;
+    def _call_consumes_args(call: FuncCall) -> bool;
     def _has_region_blocks -> bool;
     def _emit_region_escape_diagnostics -> None;
     def _emit_sendability_diagnostics -> None;
@@ -219,8 +225,6 @@ walker OwnershipCheckPass(Transform) {
     def _run_reaching_borrows(cfg_nodes: list[UniCFGNode]) -> None;
     def _active_borrows_at(cfg: UniCFGNode) -> set[SymId];
     def _is_ancestor(ancestor: UniNode, nd: UniNode) -> bool;
-    def _loop_depth(nd: UniNode) -> int;
-    def _emit_loop_move_diagnostics -> None;
     def _emit_diagnostics -> None;
     def _earlier_move_in_node(nd: Name, sid: SymId) -> (Name | None);
     def _emit_borrow_diagnostics -> None;

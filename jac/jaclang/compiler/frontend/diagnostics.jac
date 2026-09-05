@@ -995,6 +995,16 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " stepped slice (`s[a:b:1]`) where the value must escape.",
          blocks_codegen=True
      ),
+     E1316 = _err(
+         "E1316",
+         Category.SEMANTIC,
+         "Cannot move '{name}' out of '{place}' without take()",
+         help="'{place}' is an owned slot inside another value, so reading it into"
+         " an owning destination (an `own` binding, an owned field, an `own`"
+         " parameter, or an owned return) would leave two owners of one value."
+         " Move it out explicitly with `take({place})`, which leaves None behind,"
+         " or borrow it with `&{place}` if the destination only needs to read it."
+     ),
      W1310 = _warn(
          "W1310",
          Category.LINT,
