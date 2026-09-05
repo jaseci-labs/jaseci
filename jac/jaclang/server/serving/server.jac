@@ -650,22 +650,23 @@ obj ServingServer {
             }
             return (b''.join(chunks), None);
         }
-        if length is None or length == 0 {
+        size: int = length if length is not None else 0;
+        if size <= 0 {
             return (b'', None);
         }
-        if length > limits.max_body_bytes {
+        if size > limits.max_body_bytes {
             raise ProtocolError(status=413, reason='Payload Too Large');
         }
         sink = self._spool_sink(headers);
         if sink is None {
             data: bytes = await asyncio.wait_for(
-                reader.readexactly(length), timeout=body_timeout
+                reader.readexactly(size), timeout=body_timeout
             );
             return (data, None);
         }
-        remaining = length;
+        remaining: int = size;
         while remaining > 0 {
-            step = min(65536, remaining);
+            step: int = min(65536, remaining);
             piece: bytes = await asyncio.wait_for(
                 reader.readexactly(step), timeout=body_timeout
             );

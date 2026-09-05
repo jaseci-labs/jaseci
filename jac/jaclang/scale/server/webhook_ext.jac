@@ -100,17 +100,21 @@ obj WebhookExtension(ServerExtension) {
                 return _fail('UNAUTHORIZED', 'Missing X-API-Key header', 401);
             }
             key_doc = keys().resolve_key(api_key);
-            user_id = key_doc.get('user_id') if key_doc else None;
+            if key_doc is None {
+                return _fail('UNAUTHORIZED', 'Invalid or expired API key', 401);
+            }
+            user_id: str = str(key_doc.get('user_id') or '');
             if not user_id or not server.user_manager.user_exists(user_id) {
                 return _fail('UNAUTHORIZED', 'Invalid or expired API key', 401);
             }
-            allowed_walkers = key_doc.get('allowed_walkers') or [];
+            allowed_walkers: list[str] = list(key_doc.get('allowed_walkers') or []);
             if allowed_walkers and walker_name not in allowed_walkers {
                 return _fail(
                     'FORBIDDEN', 'API key is not permitted to call this webhook', 403
                 );
             }
-            if not keys().check_rate_limit(key_doc.get('api_key_id', ''), rate_limit) {
+            api_key_id: str = str(key_doc.get('api_key_id') or '');
+            if not keys().check_rate_limit(api_key_id, rate_limit) {
                 return _fail('RATE_LIMITED', 'Rate limit exceeded', 429);
             }
             raw_body = request.body;
@@ -140,7 +144,7 @@ obj WebhookExtension(ServerExtension) {
                         'UNAUTHORIZED', 'Webhook timestamp outside allowed window', 401
                     );
                 }
-                signing_secret = key_doc.get('signing_secret');
+                signing_secret: str = str(key_doc.get('signing_secret') or '');
                 if not signing_secret {
                     return _fail('UNAUTHORIZED', 'Invalid webhook signature', 401);
                 }
@@ -170,12 +174,12 @@ obj WebhookExtension(ServerExtension) {
                 }
             }
             result = await server.execution_manager.spawn_walker(
-                server.get_walkers()[walker_name], walker_kwargs, str(user_id)
+                server.get_walkers()[walker_name], walker_kwargs, user_id
             );
-            if 'error' in result {
+            if isinstance(result, dict) and 'error' in result {
                 logger.error(
                     f"Webhook walker '{walker_name}' failed: "
-                    f"{result.get('error')} {result.get('traceback', '')}"
+                    f"{result.get('error')} {result.get('traceback') or ''}"
                 );
                 return _fail('EXECUTION_ERROR', 'Webhook processing failed', 500);
             }

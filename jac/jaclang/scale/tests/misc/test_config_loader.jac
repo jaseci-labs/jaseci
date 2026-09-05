@@ -50,7 +50,6 @@ test "get_microservices_config preserves all sections (regression guard)" {
         "microservices": {
             "enabled": True,
             "gateway_port": 9000,
-            "drain_timeout_seconds": 15,
             "http_forward_timeout": 60,
             "routes": {"orders_app": "/api/orders"},
             "services": {"orders_app": {"replicas": 2}},
@@ -62,7 +61,6 @@ test "get_microservices_config preserves all sections (regression guard)" {
         "enabled",
         "gateway_port",
         "gateway_host",
-        "drain_timeout_seconds",
         "http_forward_timeout",
         "routes",
         "services",

@@ -4,6 +4,7 @@ import from jaclang.server.identity.audit { client_ip, emit as audit }
 import from jaclang.server.identity.auth_models {
     AddIdentityRequest,
     LoginRequest,
+    MeIdentity,
     MeResponse,
     RegisterRequest,
     ResetPasswordRequest,
@@ -198,24 +199,23 @@ def register_auth_endpoints(server: EndpointHost) {
         if not user {
             return fail('NOT_FOUND', 'User not found', 404);
         }
-        identities_out: list[dict[str, any]] = [];
+        identities_out: list[MeIdentity] = [];
         for ident in user.get('identities', []) {
-            identity_out: dict[str, any] = {
-                'type': ident.get('type'),
-                'verified': ident.get('verified', False),
-                'is_recovery': ident.get('is_recovery', False)
-            };
-            if ident.get('type') == 'sso' {
-                identity_out['provider'] = ident.get('provider');
-            } else {
-                identity_out['value'] = ident.get('value_raw');
-            }
-            identities_out.append(identity_out);
+            kind = str(ident.get('type') or '');
+            identities_out.append(
+                MeIdentity(
+                    type=kind,
+                    verified=bool(ident.get('verified', False)),
+                    is_recovery=bool(ident.get('is_recovery', False)),
+                    value=None if kind == 'sso' else ident.get('value_raw'),
+                    provider=ident.get('provider') if kind == 'sso' else None
+                )
+            );
         }
         me = MeResponse(
-            user_id=user.get('user_id'),
-            role=user.get('role', 'user'),
-            status=user.get('status', 'active'),
+            user_id=str(user.get('user_id') or ''),
+            role=str(user.get('role') or 'user'),
+            status=str(user.get('status') or 'active'),
             identities=identities_out,
             profile=user.get('profile') or {},
             created_at=user.get('created_at'),

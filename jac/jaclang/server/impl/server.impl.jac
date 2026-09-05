@@ -1324,10 +1324,9 @@ impl ModuleIntrospector.walker_protocol(walker_name: str) -> str {
     if walker_name not in walkers {
         return APIProtocol.HTTP;
     }
-    walker_cls = walkers[walker_name];
-    restspec = walker_cls.restspec if walker_cls?.restspec else None;
+    restspec: any = target_restspec(walkers[walker_name]);
     if restspec?.protocol {
-        return restspec.protocol;
+        return str(restspec.protocol);
     }
     return APIProtocol.HTTP;
 }
@@ -1337,10 +1336,9 @@ impl ModuleIntrospector.function_protocol(func_name: str) -> str {
     if func_name not in functions {
         return APIProtocol.HTTP;
     }
-    func_obj = functions[func_name];
-    restspec = func_obj.restspec if func_obj?.restspec else None;
+    restspec: any = target_restspec(functions[func_name]);
     if restspec?.protocol {
-        return restspec.protocol;
+        return str(restspec.protocol);
     }
     return APIProtocol.HTTP;
 }
@@ -1363,7 +1361,7 @@ def _warm_persistence {
 
 
 impl JacAPIServer.postinit -> None {
-    import from jaclang.server.identity.config { configure_identity }
+    import from jaclang.server.identity.config { configure_identity, signing_secret }
     import from jaclang.server.task_scheduler { Scheduler }
     if self.settings is None {
         overrides: dict[str, any] = {};
@@ -1375,6 +1373,7 @@ impl JacAPIServer.postinit -> None {
     }
     self.port = self.settings.port;
     configure_identity(self.settings.auth, self.base_path);
+    signing_secret();
     _warm_persistence();
     self.user_manager = UserManager(
         base_path=self.base_path, provision_unknown_users=self.is_sv_sibling
@@ -1413,33 +1412,28 @@ impl JacAPIServer.identity -> UserManager {
     return self.user_manager;
 }
 
-impl JacAPIServer.add_endpoint(ep: JEndPoint) -> None {
+impl JacAPIServer.require_app -> ServingApp {
     if self.app is None {
-        raise RuntimeError('build_app() has not run; endpoints attach to the app');
+        raise RuntimeError('build_app() has not run');
     }
+    return self.app;
+}
+
+impl JacAPIServer.add_endpoint(ep: JEndPoint) -> None {
     self._endpoints.append(ep);
-    self.app.add_endpoint(ep);
+    self.require_app().add_endpoint(ep);
 }
 
 impl JacAPIServer.add_ws_endpoint(path: str, handler: Callable[..., any]) -> None {
-    if self.app is None {
-        raise RuntimeError('build_app() has not run; endpoints attach to the app');
-    }
-    self.app.add_ws_endpoint(WSEndPoint(path=path, handler=handler));
+    self.require_app().add_ws_endpoint(WSEndPoint(path=path, handler=handler));
 }
 
 impl JacAPIServer.add_middleware(fn: Callable[..., any]) -> None {
-    if self.app is None {
-        raise RuntimeError('build_app() has not run; middleware attaches to the app');
-    }
-    self.app.add_middleware(fn);
+    self.require_app().add_middleware(fn);
 }
 
 impl JacAPIServer.add_shutdown_hook(fn: Callable[..., any]) -> None {
-    if self.app is None {
-        raise RuntimeError('build_app() has not run; hooks attach to the app');
-    }
-    self.app.add_shutdown_hook(fn);
+    self.require_app().add_shutdown_hook(fn);
 }
 
 impl JacAPIServer._install_middleware -> None {
@@ -1535,7 +1529,7 @@ impl JacAPIServer.register_endpoints -> None {
     }
     import from jaclang.server.serving.health { register_health_endpoints }
     settings = self.resolved_settings();
-    register_health_endpoints(self.app, self.drain);
+    register_health_endpoints(self.require_app(), self.drain);
     register_diagnostics_endpoints(self);
     register_auth_endpoints(self);
     register_introspection_endpoints(self);
@@ -1548,10 +1542,8 @@ impl JacAPIServer.register_endpoints -> None {
 }
 
 impl JacAPIServer._configure_openapi_security -> None {
-    if self.app is None {
-        return;
-    }
-    self.app.openapi_security = {
+    app = self.require_app();
+    app.openapi_security = {
         'BearerAuth': {
             'type': 'http',
             'scheme': 'bearer',
@@ -1559,7 +1551,7 @@ impl JacAPIServer._configure_openapi_security -> None {
             'description': "Enter your JWT token (without 'Bearer ' prefix)"
         }
     };
-    self.app.openapi_cache = None;
+    app.openapi_cache = None;
 }
 
 impl JacAPIServer.enable_hmr(hot_reloader: any) -> None {
@@ -1577,7 +1569,8 @@ impl JacAPIServer._refresh_dev_endpoints -> None {
     if self.app is None {
         return;
     }
-    self.app.clear_routes();
+    app = self.require_app();
+    app.clear_routes();
     self._endpoints = [];
     import from jaclang.server.serving.openapi { register_docs_endpoints }
     self.register_endpoints();
@@ -1585,7 +1578,7 @@ impl JacAPIServer._refresh_dev_endpoints -> None {
         ext.register(self);
     }
     self._configure_openapi_security();
-    register_docs_endpoints(self.app);
+    register_docs_endpoints(app);
 }
 
 impl JacAPIServer.load_module(force_reload: bool = False) -> None {
@@ -1747,12 +1740,9 @@ impl JacAPIServer._register_scheduled_tasks -> None {
             );
         }
     }
-    store: any = None;
-    try {
-        store = self.user_manager._identity_storage.store;
-    } except Exception {
-        store = None;
-    }
+    import from jaclang.server.identity.identity_storage { PgIdentityStorage }
+    storage = self.user_manager._identity_storage;
+    store: any = storage.store if isinstance(storage, PgIdentityStorage) else None;
     if store is not None {
         _store: any = store;
         def _lease(key: str, ttl: int) -> bool {
@@ -1849,7 +1839,7 @@ impl JacAPIServer._worker_main(
 ) -> int {
     settings = self.resolved_settings();
     serving = ServingServer(
-        app=self.app,
+        app=self.require_app(),
         settings=settings,
         drain=self.drain,
         sock=handle.listener if handle is not None else None,

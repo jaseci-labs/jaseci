@@ -374,5 +374,4 @@ test "embedder overrides survive normalization" {
     cfg = b._ms_cfg();
     assert cfg["gateway_port"] == 9001;
     assert cfg["client"]["entry"] == "";
-    assert cfg["drain_timeout_seconds"] == 10.0;
 }

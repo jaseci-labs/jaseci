@@ -36,7 +36,7 @@ glob _FIXTURE: str = str(Path(__file__).parent / "fixtures" / "inprocess_app.jac
 """True when the in-process backend (jaclang.scale) is importable."""
 def _backend_available -> bool {
     try {
-        import jaclang.scale.server.serve;
+        import jaclang.scale.server.inprocess;
         return True;
     } except ImportError {
         return False;

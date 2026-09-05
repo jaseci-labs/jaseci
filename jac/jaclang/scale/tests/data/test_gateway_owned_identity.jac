@@ -12,11 +12,12 @@ import uuid;
 import from datetime { UTC, datetime, timedelta }
 import from jaclang.server.serving.authcrypt { jwt_encode }
 import from jaclang.scale.config.config_loader { normalize_microservices_config }
-import from jaclang.server.identity.user_manager {
-    jwt_algorithm,
-    jwt_secret,
-    UserManager
+import from jaclang.server.identity.config {
+    signing_algorithm as jwt_algorithm,
+    signing_secret as jwt_secret
 }
+import from jaclang.server.identity.user_manager { UserManager }
+import from jaclang.scale.server.extensions { fleet_provisions_unknown_users }
 
 glob _SV_ENV: str = "JAC_SV_NAME";
 
@@ -39,7 +40,9 @@ def _manager(sv_name: str) -> (UserManager | None) {
         del os.environ[_SV_ENV];
     }
     try {
-        return UserManager(base_path=".");
+        return UserManager(
+            base_path=".", provision_unknown_users=fleet_provisions_unknown_users(sv_name)
+        );
     } except Exception as e {
         print(f"[skip] embedded postgres unavailable: {e}");
         return None;

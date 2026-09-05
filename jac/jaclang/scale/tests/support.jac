@@ -203,3 +203,26 @@ def stop_server(server: subprocess.Popen | None) {
     time.sleep(0.2);
     gc.collect();
 }
+
+
+import from jaclang.server.identity.user_manager { UserManager }
+import from jaclang.server.server { EndpointHost }
+import from jaclang.server.serving.endpoint { JEndPoint }
+
+
+"""An endpoint host that only records what gets registered on it."""
+obj RecordingHost(EndpointHost) {
+    has _endpoints: list[JEndPoint] = [],
+        users: (UserManager | None) = None;
+
+    def add_endpoint(ep: JEndPoint) {
+        self._endpoints.append(ep);
+    }
+
+    def identity -> UserManager {
+        if self.users is None {
+            raise RuntimeError("RecordingHost has no user manager attached");
+        }
+        return self.users;
+    }
+}

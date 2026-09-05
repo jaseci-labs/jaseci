@@ -95,7 +95,7 @@ def prepare_inprocess_runtime(
         );
         server.load_module();
         server._ensure_internal_users();
-        server.build_app();
+        app = server.build_app();
         if setup_background_services {
             server._register_scheduled_tasks();
             server.scheduler.start_if_pending();
@@ -103,7 +103,7 @@ def prepare_inprocess_runtime(
                 ext.on_worker_start(server);
             }
         }
-        client = ServingTestClient(app=server.app, raise_server_exceptions=False);
+        client = ServingTestClient(app=app, raise_server_exceptions=False);
         return PreparedInProcessRuntime(
             server=server,
             transport_kind=transport_kind,

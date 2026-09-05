@@ -238,8 +238,8 @@ obj WebSocketExtension(ServerExtension) {
     ) -> Callable {
         ws_manager = self.ws_manager(server);
         ws_cfg = get_scale_config().get_websocket_config();
-        restspec = target.restspec if target?.restspec else None;
-        is_broadcast = bool(restspec.broadcast) if restspec?.broadcast else False;
+        restspec: any = target.restspec if target?.restspec else None;
+        is_broadcast: bool = bool(restspec.broadcast) if restspec?.broadcast else False;
         user_manager = server.user_manager;
         settings = server.resolved_settings();
         max_bytes = settings.websocket.max_message_bytes

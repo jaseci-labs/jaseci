@@ -35,6 +35,38 @@ import from jaclang.scale.server.websocket_ext { WebSocketExtension }
 glob logger: logging.Logger = logging.getLogger(__name__);
 
 
+def validate_events_url(url: (str | None)) {
+    if url and not str(url).startswith(('postgres://', 'postgresql://')) {
+        raise ValueError(
+            f"Unknown [scale.events].url scheme: {url!r}. The event stream rides "
+            "Postgres; expected a postgresql:// URL (or unset, to fall back to "
+            "[scale.database].url / JAC_DB_URL)."
+        );
+    }
+}
+
+
+def fleet_provisions_unknown_users(sv_name: str) -> bool {
+    if not sv_name or sv_name == '__gateway__' {
+        return False;
+    }
+    identity_cfg = dict(
+        get_scale_config().get_microservices_config().get('identity', {})
+    );
+    return bool(identity_cfg.get('gateway_owned', True));
+}
+
+
+obj FleetIdentityExtension(ServerExtension) {
+    def register(server: JacAPIServer) {
+        import os;
+        server.user_manager.provision_unknown_users = fleet_provisions_unknown_users(
+            os.environ.get('JAC_SV_NAME', '').strip()
+        );
+    }
+}
+
+
 obj ObservabilityExtension(ServerExtension) {
     def register(server: JacAPIServer) {
         import from jaclang.scale.runtime.context.auth_ctx {
@@ -138,9 +170,17 @@ obj MetricsExtension(ServerExtension) {
                 } except Exception {
                     return False;
                 }
-                (name, _, secret) = decoded.partition(':');
-                return hmac.compare_digest(name, admin_username)
-                    and hmac.compare_digest(secret, scrape_password);
+                parts: list[str] = decoded.split(':', 1);
+                name: str = parts[0];
+                secret: str = parts[1] if len(parts) > 1 else '';
+                return bool(
+                    hmac.compare_digest(name.encode('utf-8'), admin_username.encode('utf-8'))
+                )
+                    and bool(
+                        hmac.compare_digest(
+                            secret.encode('utf-8'), scrape_password.encode('utf-8')
+                        )
+                    );
             }
             return False;
         }
@@ -268,9 +308,9 @@ obj RecoveryMailExtension(ServerExtension) {
             if auth_err is not None {
                 return auth_err;
             }
-            identity = body_data.identity.model_dump(mode='json');
-            raw_value = identity.get('value', '') or '';
-            normalized = raw_value.lower().strip();
+            identity: dict[str, any] = body_data.identity.model_dump(mode='json');
+            raw_value: str = str(identity.get('value', '') or '');
+            normalized: str = raw_value.lower().strip();
             if not normalized {
                 return _fail('VALIDATION_ERROR', 'Identity value is required', 400);
             }
@@ -360,8 +400,8 @@ obj RecoveryMailExtension(ServerExtension) {
                     'message': 'If that account exists, a reset link has been sent.'
                 }
             );
-            identity = body_data.identity.model_dump(mode='json');
-            normalized = (identity.get('value', '') or '').lower().strip();
+            identity: dict[str, any] = body_data.identity.model_dump(mode='json');
+            normalized: str = str(identity.get('value', '') or '').lower().strip();
             if not normalized {
                 return ok_response;
             }
@@ -460,13 +500,7 @@ obj EventsExtension(ServerExtension) {
             return;
         }
         url = cfg.get('url') or scale_db_url();
-        if url and not str(url).startswith(('postgres://', 'postgresql://')) {
-            raise ValueError(
-                f"Unknown [scale.events].url scheme: {url!r}. The event stream rides "
-                "Postgres; expected a postgresql:// URL (or unset, to fall back to "
-                "[scale.database].url / JAC_DB_URL)."
-            );
-        }
+        validate_events_url(url);
         if url {
             import from jaclang.scale.events.streams.postgres { PgEventStream }
             broker_cfg = dict(cfg);
@@ -550,6 +584,7 @@ obj AdminExtension(ServerExtension, JacAPIServerAdmin, JacAPIServerLLMTelemetry,
 
 def scale_extensions -> list[ServerExtension] {
     return [
+        FleetIdentityExtension(),
         ObservabilityExtension(),
         MetricsExtension(),
         RecoveryMailExtension(),

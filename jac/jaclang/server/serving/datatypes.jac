@@ -261,7 +261,7 @@ class Response {
         self.status_code = status_code;
         self.media_type = media_type;
         self.headers = _normalize_headers(headers);
-        self.stream = None;
+        self.stream: any = None;
     }
 
     def body_bytes(self: Response) -> bytes {

@@ -56,6 +56,16 @@ obj RequestMetrics {
 def observe_read_tier_retry(metrics: any, unit_key: str) -> None;
 
 
+def target_restspec(target: any) -> any {
+    return target.restspec if target?.restspec else None;
+}
+
+
+def target_schedule_spec(target: any) -> any {
+    return target.schedule_spec if target?.schedule_spec else None;
+}
+
+
 obj ExecutionManager {
     has base_path: str,
         user_manager: UserManager,
@@ -184,6 +194,7 @@ obj JacAPIServer(EndpointHost) {
     def postinit -> None;
     def resolved_settings -> ServeSettings;
     def identity -> UserManager;
+    def require_app -> ServingApp;
     def add_endpoint(ep: JEndPoint) -> None;
     def add_ws_endpoint(path: str, handler: Callable[..., any]) -> None;
     def add_middleware(fn: Callable[..., any]) -> None;

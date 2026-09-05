@@ -114,16 +114,17 @@ obj JobsExtension(ServerExtension) {
             body = body_data.model_dump(mode='python');
             name = body.get('walker_or_function', '');
             (spec, spec_err) = _build_spec(body);
-            if spec_err is not None or spec is None {
-                return spec_err;
+            if spec is None {
+                return spec_err or _fail('INVALID_REQUEST', 'Invalid schedule', 400);
             }
-            target = server.get_walkers().get(name) or server.get_functions().get(name);
+            target: any = server.get_walkers().get(name)
+                or server.get_functions().get(name);
             if target is None {
                 return _fail(
                     'NOT_FOUND', f'Walker or function "{name}" not found', 404
                 );
             }
-            schedule_spec = target.schedule_spec if target?.schedule_spec else None;
+            schedule_spec: any = target.schedule_spec if target?.schedule_spec else None;
             if schedule_spec is None {
                 return _fail(
                     'INVALID_REQUEST',
@@ -218,8 +219,8 @@ obj JobsExtension(ServerExtension) {
                 return auth_err;
             }
             (spec, spec_err) = _build_spec(body_data.model_dump(mode='python'));
-            if spec_err is not None or spec is None {
-                return spec_err;
+            if spec is None {
+                return spec_err or _fail('INVALID_REQUEST', 'Invalid schedule', 400);
             }
             try {
                 acting_as = None if _is_admin(str(user_id)) else str(user_id);

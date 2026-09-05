@@ -9,7 +9,7 @@ import from jaclang { JacRuntime as Jac }
 import from jaclang.compiler.frontend.constant { Constants as Con }
 import from jaclang.server { sv_client as __jac_sv }
 import from jaclang.testing.testkit { ServingTestClient as TestClient }
-import from jaclang.scale.server.serve { JacAPIServer }
+import from jaclang.server.server { JacAPIServer }
 
 glob FIXTURES: Path = Path(__file__).parent.parent / "fixtures" / "microservice";
 
@@ -21,18 +21,11 @@ def build_service(mod: str, tmp: str) -> tuple[TestClient, JacAPIServer] {
         del sys.modules[mod];
     }
     Jac.jac_import(target=mod, base_path=tmp, lng="jac");
-    srv = JacAPIServer(module_name=mod, port=0, base_path=tmp);
+    srv = JacAPIServer(module_name=mod, port=0, base_path=tmp, extensions=[]);
     srv.load_module();
-    srv.register_health_endpoint();
-    srv.register_walkers_endpoints();
-    srv.register_functions_endpoints();
-    srv.register_auth_endpoints();
-    user_manager = srv.user_manager;
-    assert user_manager is not None;
-    user_manager.create_internal_user(Con.GUEST.value, '__no_password__');
-    server_impl = srv.server;
-    assert server_impl is not None;
-    client = TestClient(server_impl.app, raise_server_exceptions=False);
+    srv._ensure_internal_users();
+    app = srv.build_app();
+    client = TestClient(app, raise_server_exceptions=False);
     __jac_sv.register_test_client(mod, client);
     return (client, srv);
 }
@@ -319,7 +312,10 @@ test "sv boundary: private function rejects malformed token (401)" {
 test "sv boundary: private function rejects expired token (401)" {
     import from datetime { datetime, UTC, timedelta }
     import from jaclang.server.serving.authcrypt { jwt_encode }
-    import from jaclang.server.identity.user_manager { jwt_secret, jwt_algorithm }
+    import from jaclang.server.identity.config {
+        signing_algorithm as jwt_algorithm,
+        signing_secret as jwt_secret
+    }
 
     tmp = setup_env();
     try {

@@ -1244,18 +1244,18 @@ impl _parse_toml_data(
             );
             on_conflict = "retry";
         }
-        workers_data = serve_data.get("workers", {});
-        if not isinstance(workers_data, dict) {
-            workers_data = {"count": workers_data};
-        }
-        tls_data = serve_data.get("tls", {}) or {};
-        proxy_data = serve_data.get("proxy", {}) or {};
-        limits_data = serve_data.get("limits", {}) or {};
-        timeouts_data = serve_data.get("timeouts", {}) or {};
-        access_data = serve_data.get("access_log", {}) or {};
-        compression_data = serve_data.get("compression", {}) or {};
-        ws_data = serve_data.get("websocket", {}) or {};
-        auth_data = serve_data.get("auth", {}) or {};
+        workers_raw = serve_data.get("workers", {});
+        workers_data: dict[str, any] = (
+            workers_raw if isinstance(workers_raw, dict) else {"count": workers_raw}
+        );
+        tls_data: dict[str, any] = serve_data.get("tls", {}) or {};
+        proxy_data: dict[str, any] = serve_data.get("proxy", {}) or {};
+        limits_data: dict[str, any] = serve_data.get("limits", {}) or {};
+        timeouts_data: dict[str, any] = serve_data.get("timeouts", {}) or {};
+        access_data: dict[str, any] = serve_data.get("access_log", {}) or {};
+        compression_data: dict[str, any] = serve_data.get("compression", {}) or {};
+        ws_data: dict[str, any] = serve_data.get("websocket", {}) or {};
+        auth_data: dict[str, any] = serve_data.get("auth", {}) or {};
         cors_raw = serve_data.get("cors_origins", ["*"]);
         config.serve = ServeConfig(
             host=str(serve_data.get("host", "0.0.0.0")),
