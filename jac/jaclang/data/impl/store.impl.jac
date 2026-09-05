@@ -501,6 +501,7 @@ impl PgStore.ensure_schema(promotions: dict[str, list[str]]) -> None {
 
 
 impl PgStore.ensure_schema_once(promotions: dict[str, list[str]]) -> None {
+    self._ensure_ready();
     ns = _store_ns(self.conninfo);
     key = _schema_extension_key();
     if _schema_ready.get(ns) == key {

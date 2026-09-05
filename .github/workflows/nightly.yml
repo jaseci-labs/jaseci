@@ -35,7 +35,7 @@ jobs:
     - name: Build notes-app example
       run: |
         cd jac/examples/notes-app
-        jac build
+        jac build   # [project] kind = "desktop", [desktop] engine = "cef"
 
     - name: Bundle existence audit
       working-directory: jac/examples/notes-app

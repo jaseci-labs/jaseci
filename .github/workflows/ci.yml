@@ -433,6 +433,19 @@ jobs:
             exit 1
           fi
 
+      - name: Block duplicate diagnostic codes
+        # Two branches each take the next free code and the merge keeps both;
+        # the registry refuses at import, which here means the kit fails to
+        # build. Reading the source names the collision in seconds instead.
+        # Mirrors tests/compiler/test_diagnostic_registry.jac.
+        run: |
+          dupes=$(grep -Pzo '\b[EW]\d{4} = _(?:err|warn)\(\s*"\K[EW]\d{4}' \
+            jac/jaclang/compiler/frontend/diagnostics.jac | tr '\0' '\n' | sort | uniq -d)
+          if [ -n "$dupes" ]; then
+            echo "::error::diagnostic code(s) claimed more than once in diagnostics.jac: $(echo $dupes)"
+            exit 1
+          fi
+
       - name: Check Release Notes Updated
         if: |
           github.event_name == 'pull_request' &&
