@@ -1015,6 +1015,15 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " value. Move it out with `pop()` or `pop(i)`, or borrow it in place"
          " with `&{place}`."
      ),
+     E1318 = _err(
+         "E1318",
+         Category.SEMANTIC,
+         "Cannot call mutating method '{method}' through a shared borrow of '{name}'",
+         help="'{method}' writes to its receiver (it assigns a field, grows a"
+         " container field, or calls another mutating method), so it needs an"
+         " exclusive receiver. Take the borrow with `&mut`, or call it on the"
+         " owner directly."
+     ),
      W1310 = _warn(
          "W1310",
          Category.LINT,
@@ -1229,7 +1238,11 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E2015",
          Category.SEMANTIC,
          "Explicit 'self' parameter is not allowed in {arch_type} method '{name}' — "
-         "'self' is implicit in obj, node, edge, and walker methods."
+         "'self' is implicit in obj, node, edge, and walker methods.",
+         help="write `self` explicitly only to declare the receiver mode:"
+         " `self: own T` consumes the receiver, `self: &mut T` mutates it,"
+         " `self: &T` reads it. Without a mode the receiver is inferred from the"
+         " body."
      ),
      E2016 = _err(
          "E2016",

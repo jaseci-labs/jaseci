@@ -96,3 +96,8 @@ test "pop, insert, del, index-assign and extend on a list of owned elements" {
             "done"
         ] , out;
 }
+
+test "a self: own method consumes and drops its receiver exactly once" {
+    out = assert_native_identity(_fixture("own_self_method.jac"));
+    assert out.splitlines() == ["drop counter 2", "22", "done"] , out;
+}

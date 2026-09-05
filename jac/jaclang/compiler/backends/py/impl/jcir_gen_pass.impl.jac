@@ -2326,6 +2326,13 @@ impl JcirGenPass.exit_func_signature with FuncSignature exit {
     posonlyargs = [self.val(i) for i in here.posonly_params];
     vararg = self.val(here.varargs) if here.varargs else None;
     kwarg = self.val(here.kwargs) if here.kwargs else None;
+    _first = list(here.posonly_params) + list(here.params);
+    _explicit_self = (
+        bool(_first)
+        and isinstance(_first[0], ParamVar)
+        and _first[0].name is not None
+        and _first[0].name.sym_name == "self"
+    );
     params = [self.nod('arg', ['arg', 'annotation'], ['cls', None])]
         if (
             (abl := here.parent)
@@ -2342,6 +2349,7 @@ impl JcirGenPass.exit_func_signature with FuncSignature exit {
                 and not here.is_static
                 and not abl.is_cls_method
                 and not here.is_in_py_class
+                and not _explicit_self
             )
             else [];
     if posonlyargs {

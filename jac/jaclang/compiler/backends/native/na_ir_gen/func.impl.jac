@@ -441,6 +441,7 @@ impl NaIRGenFunc._codegen_ability(nd: uni.Ability) -> None {
         self.region_open_stack = [];
         self.closure_cell_vars = set();
         self.closure_cell_handles = {};
+        self._self_owned = False;
 
         self._attach_di_subprogram(
             func, name, self._func_loc.get(name, nd.loc.first_line if nd.loc else 0)
@@ -474,6 +475,8 @@ impl NaIRGenFunc._codegen_ability(nd: uni.Ability) -> None {
                 self._emit_rc_retain(arg_val, op="param_promote", loc=name);
             } elif not self._nogc_owned_param(p) {
                 self.param_vars.add(param_name);
+            } elif param_name == "self" {
+                self._self_owned = True;
             }
         }
 

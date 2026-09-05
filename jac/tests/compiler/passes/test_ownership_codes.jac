@@ -19,6 +19,55 @@ import from tests.ownership_helpers { compile_fixture, expect_ownership_codes }
 
 # (group, case name, fixture, expected E13xx codes, [enforce nogc])
 glob OWNERSHIP_CASES: list[tuple] = [
+         # -- receiver_modes ---------------------------------------------------
+         (
+             "receiver_modes",
+             "E1303: a mutating method call while a shared borrow is live",
+             "method_mut_while_borrowed.jac",
+             ["E1303"]
+         ),
+         (
+             "receiver_modes",
+             "reading methods through a live shared borrow are clean",
+             "method_read_while_borrowed_ok.jac",
+             []
+         ),
+         (
+             "receiver_modes",
+             "E1303: mutation reached through a self-method chain is still a write",
+             "method_mut_via_helper_chain.jac",
+             ["E1303"]
+         ),
+         (
+             "receiver_modes",
+             "E1318: a mutating method through a shared borrow parameter",
+             "method_mut_through_shared_borrow.jac",
+             ["E1318"]
+         ),
+         (
+             "receiver_modes",
+             "a mutating method through a &mut parameter is clean",
+             "method_mut_through_mut_borrow_ok.jac",
+             []
+         ),
+         (
+             "receiver_modes",
+             "E1309: a mutating method on an imm binding",
+             "method_mut_on_imm.jac",
+             ["E1309"]
+         ),
+         (
+             "receiver_modes",
+             "E1301: reading a binding after a `self: own` method consumed it",
+             "method_consumes_self.jac",
+             ["E1301"]
+         ),
+         (
+             "receiver_modes",
+             "a `self: own` method as the last use is clean",
+             "method_consumes_self_ok.jac",
+             []
+         ),
          # -- affine_walkers --------------------------------------------------
          (
              "affine_walkers",

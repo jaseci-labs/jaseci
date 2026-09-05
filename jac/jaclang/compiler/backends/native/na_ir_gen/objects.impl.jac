@@ -1009,23 +1009,27 @@ impl NaIRGenObjects._codegen_method(
 
     _is_static = method.is_static or method.is_classmethod;
     _base = 0;
-    if not _is_static {
-        self_alloca = self.builder.alloca(func.args[0].type, name="self");
-        self.builder.store(func.args[0], self_alloca);
-        self.local_vars["self"] = self_alloca;
-        self.param_vars.add("self");
-        _base = 1;
-    }
-
     sig = method.signature;
     _body_params = sig.get_parameters() if sig is not None else [];
+    _self_param: (uni.ParamVar | None) = None;
     if (
         not _is_static
         and _body_params
         and _body_params[0].name
         and _body_params[0].name.value == "self"
     ) {
+        _self_param = _body_params[0];
         _body_params = _body_params[1:];
+    }
+    self._self_owned = _self_param is not None and self._nogc_owned_param(_self_param);
+    if not _is_static {
+        self_alloca = self.builder.alloca(func.args[0].type, name="self");
+        self.builder.store(func.args[0], self_alloca);
+        self.local_vars["self"] = self_alloca;
+        if not self._self_owned {
+            self.param_vars.add("self");
+        }
+        _base = 1;
     }
     if (
         method.is_classmethod
@@ -2416,6 +2420,18 @@ impl NaIRGenObjects._unregistered_class_target(target: uni.UniNode) -> (str | No
 }
 
 impl NaIRGenObjects._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
+    result = self._codegen_method_call_inner(nd);
+    if result is not None
+        and nd.callee_decl is not None
+        and nd.callee_decl.receiver_mode == OwnershipKind.OWN
+        and isinstance(nd.target, uni.AtomTrailer)
+        and not self.builder.block.is_terminated {
+        self._nogc_consume_local(nd.target.target);
+    }
+    return result;
+}
+
+impl NaIRGenObjects._codegen_method_call_inner(nd: uni.FuncCall) -> (ir.Value | None) {
     trailer = nd.target;
     if not isinstance(trailer, uni.AtomTrailer) or not trailer.is_attr {
         return None;

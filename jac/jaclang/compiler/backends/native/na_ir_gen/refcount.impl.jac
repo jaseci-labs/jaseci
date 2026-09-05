@@ -2100,7 +2100,7 @@ impl NaIRGenRefcount._emit_scope_cleanup(
     self._emit_region_leaves(len(self.region_open_stack));
     _region_handles: list = [];
     for (var_name, alloca) in self.local_vars.items() {
-        if var_name == "self" {
+        if var_name == "self" and not self._self_owned {
             continue;
         }
 

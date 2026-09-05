@@ -1071,6 +1071,7 @@ node Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBlo
 
     def postinit -> None;
 
+    has receiver_mode: OwnershipKind = OwnershipKind.NONE;
     has is_method: bool { getter; }
     has is_cls_method: bool { getter; }
     has is_def: bool { getter; }

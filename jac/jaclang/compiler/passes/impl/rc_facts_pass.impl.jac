@@ -246,7 +246,7 @@ impl RcFactsPass._collect_last_use(
             sym = nm.sym;
             if sym is None
                 or sym.na_escapes
-                or nm.sym_name == "self"
+                or (nm.sym_name == "self" and sym.ownership != OwnershipKind.OWN)
                 or not self._last_use_tracked(sym) {
                 continue;
             }

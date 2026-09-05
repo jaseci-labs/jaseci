@@ -105,7 +105,9 @@ walker OwnershipCheckPass(Transform) {
         imm_decl: dict[SymId, Name] = {},
         view_syms: set[SymId] = set(),
         view_elision_fns: dict[int, int] = {},
-        nogc_prov: (str | None) = None;
+        nogc_prov: (str | None) = None,
+        receiver_modes: dict[int, OwnershipKind] = {},
+        receiver_probe: set[int] = set();
 
     static has PROVIDES: tuple = ('ownership', ),
         REQUIRES: tuple = ('CfgSucc', 'TypeOf'),
@@ -152,6 +154,15 @@ walker OwnershipCheckPass(Transform) {
     def _stamp_ownership -> None;
     def _stamp_overwrite_consumed -> None;
     def _stamp_move_sites -> None;
+    def _receiver_mode(ability: Ability | None) -> OwnershipKind;
+    def _explicit_receiver_mode(ability: Ability) -> (OwnershipKind | None);
+    def _method_writes_self(ability: Ability) -> bool;
+    def _self_method_callees(ability: Ability) -> list[Ability];
+    def _stamp_receiver_modes -> None;
+    def _is_consuming_receiver(nd: Name) -> bool;
+    def _method_call_receiver(call: FuncCall) -> (Name | None);
+    def _method_call_mode(call: FuncCall) -> OwnershipKind;
+    def _emit_receiver_diagnostics -> None;
     def _owned_field_of(expr: Expr | None) -> (Name | None);
     def _owned_index_of(expr: Expr | None) -> (Name | None);
     def _place_text(expr: Expr) -> str;

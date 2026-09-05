@@ -163,6 +163,7 @@ obj NaIRGenObjects(NaIRGenState) {
     ) -> (ir.Value | None);
 
     def _codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None);
+    def _codegen_method_call_inner(nd: uni.FuncCall) -> (ir.Value | None);
     def _unregistered_class_target(target: uni.UniNode) -> (str | None);
     def _emit_obj_str(val: ir.Value) -> (ir.Value | None);
     def _emit_default_obj_repr(val: ir.Value, type_name: str) -> ir.Value;

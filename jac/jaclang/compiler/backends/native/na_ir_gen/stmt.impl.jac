@@ -60,7 +60,7 @@ impl NaIRGenStmt._emit_last_use_releases(stmt: uni.UniNode) -> None {
         return;
     }
     for name in names {
-        if name == "self" or name in self.param_vars {
+        if (name == "self" and not self._self_owned) or name in self.param_vars {
             continue;
         }
         if name in self.nogc_no_free_vars {
