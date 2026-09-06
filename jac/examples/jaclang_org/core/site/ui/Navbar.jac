@@ -2,7 +2,6 @@ import from core.brand.theme { useTheme }
 import from .button { buttonVariants }
 import from core.utils { cn }
 import from "@jac/runtime" { Link }
-import from react { useEffect }
 import from core.install { ensure_install }
 import from "@hugeicons/react" { HugeiconsIcon }
 import from "@hugeicons/core-free-icons" { GithubIcon, Moon01Icon, Sun01Icon }
@@ -15,17 +14,9 @@ def:pub Navbar -> JsxElement {
         document.documentElement.classList.toggle("dark", dark);
     }
 
-    async def freshen_installer {
+    async can with entry {
         _ = await ensure_install();
     }
-
-    useEffect(
-        lambda {
-            _ = freshen_installer();
-            return lambda {};
-        },
-        []
-    );
 
     return
         <header

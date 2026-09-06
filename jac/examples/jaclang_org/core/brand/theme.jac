@@ -1,5 +1,4 @@
 import from "@jac/runtime" { __getLocalStorage, __setLocalStorage }
-import from react { useEffect }
 import from .tokens { Colors, dark_palette, light_palette }
 
 glob listeners: list[Callable[[bool], None]] = [];
@@ -15,17 +14,14 @@ def:pub useTheme -> Theme {
     def changed(value: bool) -> None {
         dark = value;
     }
-    useEffect(
-        lambda {
-            listeners.append(changed);
-            return lambda { listeners = [
-                listener
-                for listener in listeners
-                if listener != changed
-            ]; };
-        },
-        []
-    );
+    can with entry {
+        listeners.append(changed);
+        return lambda { listeners = [
+            listener
+            for listener in listeners
+            if listener != changed
+        ]; };
+    }
     def toggle -> None {
         value = not dark;
         __setLocalStorage("jac-theme", "dark" if value else "light");

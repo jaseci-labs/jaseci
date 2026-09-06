@@ -1,7 +1,6 @@
 import from core.site.ui.badge { Badge }
 import from core.site.ui.button { Button }
 import from .Reveal { Reveal }
-import from react { useEffect }
 import from "@hugeicons/react" { HugeiconsIcon }
 import from "@hugeicons/core-free-icons" { GameController01Icon, PlayIcon }
 
@@ -12,13 +11,12 @@ def:pub WasmGame -> JsxElement {
 
     def launch(_e: MouseEvent);
 
-    useEffect(
-        lambda { return lambda { if stopRef.current {
+    can with exit {
+        if stopRef.current {
             stopRef.current();
             stopRef.current = None;
-        }}; },
-        []
-    );
+        }
+    }
 
     return
         <section

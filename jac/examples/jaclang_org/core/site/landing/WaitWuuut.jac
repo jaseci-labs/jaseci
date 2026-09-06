@@ -1,4 +1,3 @@
-import from react { useEffect }
 import from core.site.ui.badge { Badge }
 import from core.site.ui.SectionRail { SectionRail }
 import from core.site.landing.Reveal { Reveal }

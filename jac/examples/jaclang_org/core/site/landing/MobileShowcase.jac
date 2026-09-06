@@ -75,7 +75,7 @@ def:pub MobileShowcase -> JsxElement {
                             Live. Sign up, post, follow, join a channel.
                         </p>
                     </Reveal>
-                    <Reveal delay={200}>
+                    <Reveal delay={200} className="min-w-0">
                         <div className="pt-2">
                             <CodeSpotlight
                                 path="core/site/landing/MobileShowcase.jac"
