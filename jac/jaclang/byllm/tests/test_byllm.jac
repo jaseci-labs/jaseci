@@ -1360,6 +1360,32 @@ test "async streaming works on MockLLM" {
 }
 
 
+# The chain a user actually hits: codegen -> Jac.acall_llm -> ainvoke ->
+# adispatch_streaming. The tests above call adispatch_streaming directly, and
+# "async by llm() end-to-end with mocked acall_llm" stops short of the dispatch.
+glob _surface_8932 = FakeLLM(
+         model_name="fake-8932", replies=[say("streamed reply")]
+     );
+
+
+async def _ask_8932(topic: str) -> str by _surface_8932(stream=True);
+
+
+async def _run_surface_8932 -> str {
+    stream: any = await _ask_8932("anything");
+    out: list[object] = [];
+    async for chunk in stream {
+        out.append(chunk);
+    }
+    return "".join([str(c) for c in out]);
+}
+
+
+test "async def by llm(stream=True) streams end to end" {
+    assert asyncio.run(_run_surface_8932()) == "streamed reply";
+}
+
+
 test "model_call_with_stream_async raises and logs RateLimitError" {
     log_output = io.StringIO();
     _loguru_logger.remove();
