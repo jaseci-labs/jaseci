@@ -1668,9 +1668,11 @@ impl JacCompiler._compile_pipeline(
 
     if not options.symtab_ir_only and not had_blocking_errors {
         import from jaclang.compiler.placement.placement_solver {
-            solve_program_placement
+            solve_program_placement,
+            refresh_placement_module
         }
         try {
+            refresh_placement_module(mod_targ, actual_program);
             solve_program_placement(mod_targ, actual_program);
         } except Exception {}
     }
