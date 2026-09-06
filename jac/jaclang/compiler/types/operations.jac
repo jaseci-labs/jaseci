@@ -194,7 +194,7 @@ def get_pow_result_type(
     left_node: Expr | None = None,
     diag_node: UniNode | None = None
 ) -> (TypeBase | None) {
-    import from jaclang.compiler.backends.py.const_fold { fold_const }
+    import from jaclang.compiler.frontend.const_fold { fold_const }
     float_class = evaluator.prefetch.float_class;
     if float_class is None or not both_numeric(left_type, right_type) {
         return None;
@@ -622,6 +622,27 @@ def get_type_of_binary_operation(
                 return all(is_archetype_target(m) for m in t.types);
             }
             return False;
+        }
+
+        def bridged_spawn_type(side: Expr, t: TypeBase) -> TypeBase | None {
+            if not (isinstance(side, FuncCall) and evaluator._is_sv_async_call(side)) {
+                return None;
+            }
+            if not (
+                isinstance(t, ClassType)
+                and t.is_builtin("Coroutine")
+                and t.private.type_args
+                and is_walker_instance(t.private.type_args[-1])
+            ) {
+                return None;
+            }
+            return t;
+        }
+        for (side, side_type) in ((expr.left, left_type), (expr.right, right_type)) {
+            bridged = bridged_spawn_type(side, side_type);
+            if bridged is not None {
+                return bridged;
+            }
         }
 
         left_unknown = left_type.is_any_type() or isinstance(left_type, UnknownType);

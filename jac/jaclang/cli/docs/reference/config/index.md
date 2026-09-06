@@ -451,15 +451,24 @@ Defaults for `jac test`:
 ```toml
 [test]
 directory = ""          # Scopes no-argument `jac test` discovery (empty = walk project root)
+directories = []        # Several discovery roots; takes precedence over `directory`
+isolate = []            # Glob patterns of test files that each get a dedicated worker process
+serial = []             # Glob patterns of test files that run one at a time after the parallel phase
 filter = ""             # Filter pattern
 verbose = false         # Verbose output
 fail_fast = false       # Stop on first failure
 max_failures = 0        # Max failures (0 = unlimited)
 ```
 
-When `directory` is set, `jac test` with no file argument collects tests only
-from that directory (resolved against the project root), so application modules
-whose top-level `with entry` runs on import are not pulled into test collection.
+When `directory` (or the list form `directories`) is set, `jac test` with no
+file argument collects tests only from those directories (resolved against the
+project root), so application modules whose top-level `with entry` runs on
+import are not pulled into test collection. Every path in `directories` must
+exist. `isolate` names test files that must not share a worker process with
+any other file (servers, sockets, module-level config); `serial` names files
+that additionally run one after another once the parallel phase is done, for
+suites that share one on-disk resource. Both take glob patterns relative to the
+project root.
 
 ---
 
@@ -762,6 +771,16 @@ Switching frameworks automatically adjusts the installed npm packages and the ge
 ```
 
 Defines custom import aliases applied to Vite `resolve.alias`, TypeScript `compilerOptions.paths`, and the Jac module resolver. See [jac-client Import Path Aliases](../plugins/jac-client.md#import-path-aliases) for details.
+
+**Asset Directory (jac-client):**
+
+```toml
+[client.assets]
+dir = "core/site/assets"        # default: the app's own assets/
+custom_extensions = [".pdf"]    # extra file types to copy into the bundle
+```
+
+Files in the assets directory are served at `/static/assets/<path>` and compiled into the client bundle. In a workspace each app defaults to its own `assets/`; apps that share one UI point `dir` at the shared directory, relative to the project root. Like every client section it overlays per app under `[apps.<name>.client.assets]`.
 
 **NPM Registry Configuration (jac-client):**
 

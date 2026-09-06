@@ -342,7 +342,7 @@ parameter lowers to `i8*`. A clib declaration with a *body* is an error
 |-------|------|----------------|
 | **Declaration model** | `compiler/backends/native/foreign.jac` | What the user declared: scalar sizes (`FOREIGN_SCALARS`), C struct layout (`foreign_struct_layout` -- byte offsets, alignment, tail padding, nested-by-value flattening) |
 | **psABI classifier** | `compiler/backends/native/abi.jac` | Pure calling-convention logic: `classify_struct` dispatches on the triple -- `aarch64`/`arm64` → AAPCS, else System V AMD64 |
-| **Backend marshaller** | `na_ir_gen/clib_abi.impl.jac` | Emits the actual call: applies the plan, builds the parallel `.cabi` LLVM type, copies between Jac and C layouts |
+| **Backend marshaller** | `na_ir_gen_pass.impl/clib_abi.impl.jac` | Emits the actual call: applies the plan, builds the parallel `.cabi` LLVM type, copies between Jac and C layouts |
 
 ### How structs cross
 
@@ -731,10 +731,10 @@ RPC to the backend). It is the matrix in miniature.
 |---------|-------|
 | Boundary discovery | `compiler/passes/impl/boundary_analysis_pass.impl.jac`; `BoundaryAnalysisPass`; [`codeinfo.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/frontend/codeinfo.jac) (`InteropBinding`, `InteropManifest`) |
 | Context split / coercion | [`compiler.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/driver/compiler.jac) (`_coerce_module`); `constant.jac` (`CodeContext`) |
-| `cl → sv` | `compiler/backends/es/impl/esast_gen_pass.impl.jac` (`__jacSpawn`/`__jacCallFunction`); `client/impl/client_runtime.impl.jac`; `jac/jaclang/scale/server/impl/serve.endpoints.impl.jac` |
-| `sv → cl` | `client/impl/{compiler,vite_bundler}.impl.jac`; `server/impl/server.impl.jac`; `passes/ast_gen/impl/jsx_processor.impl.jac` |
+| `cl → sv` | `compiler/backends/es/esast_gen_pass.impl/{calls,osp}.impl.jac` (`__jacSpawn`/`__jacCallFunction`); `client/impl/client_runtime.impl.jac`; `jac/jaclang/scale/server/impl/serve.endpoints.impl.jac` |
+| `sv → cl` | `client/impl/{compiler,vite_bundler}.impl.jac`; `server/impl/server.impl.jac`; `backends/es/impl/jsx_processor.impl.jac` |
 | `sv ↔ na` | `runtime/interop_bridge.jac`; `backends/py/impl/jcir_gen_pass.impl.jac` (`_gen_native_interop_stubs`, `_generate_sv_to_sv_stubs`); `backends/native/impl/na_compile_pass.impl.jac` |
-| `na ↔ C` | `compiler/backends/native/{foreign,abi}.jac`; `backends/native/na_ir_gen/{clib_abi,clib_vtable}.impl.jac` |
+| `na ↔ C` | `compiler/backends/native/{foreign,abi}.jac`; `backends/native/na_ir_gen_pass.impl/{clib_abi,clib_vtable}.impl.jac` |
 | `na → C host` | `cli/commands/impl/nacompile.impl.jac` (`_inject_shared_init`); `backends/native/impl/{elf,macho,pe}_linker.impl.jac` |
 | `na ↔ cl` (wasm) | `backends/native/{wasm_build,wasm_linker}.jac`; `client/impl/compiler.impl.jac` |
 | Python interop | [`meta_importer.py`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/meta_importer.py); `_jac_finder.py` (launcher `BOOT_SRC`); `backends/py/impl/jcir_gen_pass.impl.jac` (`exit_import`, `exit_py_inline_code`) |

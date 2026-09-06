@@ -37,8 +37,8 @@ import from jaclang.compiler.frontend.unitree {
     YieldExpr
 }
 import from jaclang.compiler.passes.transform { Transform }
-import from jaclang.compiler.backends.py.module_codegen_pass {
-    ModuleCodegenPass,
+import from jaclang.compiler.frontend.module_facts {
+    ModuleFacts,
     client_capability_violations
 }
 import from jaclang.compiler.frontend.constant { SymbolType }

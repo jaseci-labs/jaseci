@@ -267,7 +267,7 @@ impl native_capability_violations(
     out: list[tuple[(UniNode, str, str, (str | None))]] = [];
     _stdlib_help: (str | None) = None;
 
-    _native_stmts: list[ElementStmt] = ModuleCodegenPass.iter_context_stmts(
+    _native_stmts: list[ElementStmt] = ModuleFacts.iter_context_stmts(
         mod, CodeContext.NATIVE
     );
     _runtime_used: set = set();
@@ -295,8 +295,8 @@ impl native_capability_violations(
     _base_dir = os.path.dirname(os.path.abspath(mod.loc.mod_path))
         if (mod?.loc and mod.loc.mod_path)
         else '.';
-    for stmt in ModuleCodegenPass.iter_module_imports(mod, CodeContext.NATIVE)
-        + ModuleCodegenPass.iter_nested_imports(mod, CodeContext.NATIVE) {
+    for stmt in ModuleFacts.iter_module_imports(mod, CodeContext.NATIVE)
+        + ModuleFacts.iter_nested_imports(mod, CodeContext.NATIVE) {
         if stmt.clib_decls or not stmt.items {
             continue;
         }
