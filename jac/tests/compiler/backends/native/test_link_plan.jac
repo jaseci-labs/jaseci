@@ -575,3 +575,57 @@ test "object emission preserves the native record without an existing disk entry
     assert warm.dep_digests == prior.dep_digests;
     assert warm.bitcode == prior.bitcode;
 }
+
+test "isolated cross-target units preserve source identity and prepared interfaces" {
+    import from unittest.mock { patch }
+    import jaclang.compiler.driver.nativecache as cache;
+    import from jaclang.compiler.driver.compile_options {
+        push_native_target,
+        pop_native_target
+    }
+    root_dir = _diamond_copy();
+    opts = _opts();
+    opts.native_target = "aarch64-unknown-linux-gnu";
+    prev = push_native_target(opts.native_target);
+    try {
+        prog = JacProgram();
+        plan = build_link_plan(prog, [os.path.join(root_dir, "top.jac")], opts);
+        registry = prog.native_units();
+        top = plan.root_unit().path;
+        prior = dict(registry.entries[top].dep_digests);
+        driver = cache._UNIT_CHILD_DRIVER.replace(
+            "ent = reg.compile_unit(",
+            "from jaclang.compiler.driver.nativecache import NativeUnitRegistry\n"
+                + "NativeUnitRegistry._module_jir = lambda self, path: None\n"
+                + "ent = reg.compile_unit("
+        );
+        with patch.object(cache, "_UNIT_CHILD_DRIVER", driver), patch.dict(
+            os.environ, {cache.UNIT_ISOLATE_ENV: "1", cache.UNIT_CHILD_DEPTH_ENV: "0"}
+        ) {
+            ent = registry.compile_unit_detached(top, opts);
+        }
+        assert ent is not None , registry.failures;
+        assert ent.dep_digests == prior;
+    } finally {
+        pop_native_target(prev);
+    }
+}
+
+test "native build CLI reuses warm artifacts under each memory profile" {
+    import from tests.support { native_build, native_run, NATIVE_MEMORY_PROFILES }
+    with tempfile.TemporaryDirectory(prefix="jac-native-cli-reuse-") as tmp {
+        src = os.path.join(tmp, "main.jac");
+        output = os.path.join(tmp, "program");
+        Path(src).write_text("with entry { print(7); }\n");
+        for memory in NATIVE_MEMORY_PROFILES {
+            cold = native_build(src, output, memory=memory);
+            assert "Recompiled 0 unit(s)" not in cold , cold;
+            assert native_run(output).strip() == "7";
+            warm = native_build(src, output, memory=memory);
+            assert "Recompiled 0 unit(s)" in warm , warm;
+            assert "Up to date:" in warm , warm;
+        }
+        native_build(src, output, extra=["--link-mode", "bitcode"]);
+        assert native_run(output).strip() == "7";
+    }
+}

@@ -33,6 +33,13 @@ impl NaIRGenPass._apply_ownership_param_attrs(
     }
 }
 
+impl NaIRGenPass._nogc_owned_param(p: uni.ParamVar) -> bool {
+    if not self._nogc_owned_world() or p.type_tag is None {
+        return False;
+    }
+    return p.type_tag.ownership == OwnershipKind.OWN;
+}
+
 impl NaIRGenPass._maybe_declare_ability(nd: uni.ElementStmt) -> None {
     if not isinstance(nd, uni.Ability) {
         return;
@@ -442,6 +449,7 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
         self.region_open_stack = [];
         self.closure_cell_vars = set();
         self.closure_cell_handles = {};
+        self._self_owned = False;
 
         self._attach_di_subprogram(
             func, name, self._func_loc.get(name, nd.loc.first_line if nd.loc else 0)
@@ -473,8 +481,10 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
             if isinstance(arg_val.type, ir.PointerType)
                 and bool(p.name?.sym?.param_rebound) {
                 self._emit_rc_retain(arg_val, op="param_promote", loc=name);
-            } else {
+            } elif not self._nogc_owned_param(p) {
                 self.param_vars.add(param_name);
+            } elif param_name == "self" {
+                self._self_owned = True;
             }
         }
 
@@ -1546,51 +1556,25 @@ impl NaIRGenPass._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
     self._record_export("__jac_rt_probe", _probe_fn.name, "probe");
 
     if not self._nogc_headerless() {
-        _getenv_fn = self._get_or_declare_extern("getenv", _i8p, [_i8p]);
-        _nogc_str = self._get_snprintf_fmt("JAC_NO_GC");
-        _nogc_ptr = self.builder.gep(
-            _nogc_str,
-            [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), 0)],
-            name="nogc.key"
+        _gc_is_off = self.builder.call(
+            self._emit_rc_gc_env_off_fn(), [], name="gc.is.off"
         );
-        _nogc_val = self.builder.call(_getenv_fn, [_nogc_ptr], name="nogc.env");
-        _nogc_null = ir.Constant(_i8p, None);
-        _nogc_set = self.builder.icmp_unsigned(
-            "!=", _nogc_val, _nogc_null, name="nogc.set"
-        );
-        _nogc_then = _probe_fn.append_basic_block("nogc_disable");
-        _nogc_cont = _probe_fn.append_basic_block("nogc_cont");
-        self.builder.cbranch(_nogc_set, _nogc_then, _nogc_cont);
-        b_nogc = ir.IRBuilder(_nogc_then);
+        _gc_off = _probe_fn.append_basic_block("gc_off");
+        _gc_on = _probe_fn.append_basic_block("gc_on");
+        _gc_cont = _probe_fn.append_basic_block("gc_cont");
+        self.builder.cbranch(_gc_is_off, _gc_off, _gc_on);
         if self.rc_alloc_fn is None {
             self._emit_rc_helpers();
         }
-        b_nogc.call(self.rc_gc_disable_fn, []);
-        b_nogc.branch(_nogc_cont);
-        self._builder = ir.IRBuilder(_nogc_cont);
-    }
-
-    if self._gc_mode() == "cycles" {
-        _cyc_str = self._get_snprintf_fmt("JAC_GC_CYCLES");
-        _cyc_ptr = self.builder.gep(
-            _cyc_str,
-            [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), 0)],
-            name="cyc.key"
-        );
-        _cyc_val = self.builder.call(_getenv_fn, [_cyc_ptr], name="cyc.env");
-        _cyc_set = self.builder.icmp_unsigned(
-            "!=", _cyc_val, ir.Constant(_i8p, None), name="cyc.set"
-        );
-        _cyc_then = _probe_fn.append_basic_block("cyc_enable");
-        _cyc_cont = _probe_fn.append_basic_block("cyc_cont");
-        self.builder.cbranch(_cyc_set, _cyc_then, _cyc_cont);
-        b_cyc = ir.IRBuilder(_cyc_then);
-        if self.rc_alloc_fn is None {
-            self._emit_rc_helpers();
+        b_off = ir.IRBuilder(_gc_off);
+        b_off.call(self.rc_gc_disable_fn, []);
+        b_off.branch(_gc_cont);
+        b_on = ir.IRBuilder(_gc_on);
+        if self._gc_mode() == "cycles" {
+            b_on.call(self.rc_cycles_enable_fn, []);
         }
-        b_cyc.call(self.rc_cycles_enable_fn, []);
-        b_cyc.branch(_cyc_cont);
-        self._builder = ir.IRBuilder(_cyc_cont);
+        b_on.branch(_gc_cont);
+        self._builder = ir.IRBuilder(_gc_cont);
     }
     self.builder.ret_void();
     self._builder = _entry_builder;
@@ -1632,4 +1616,47 @@ impl NaIRGenPass._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
     self._finalize_di_locations(func, entry_line);
     self.has_native_code = True;
     self._builder = None;
+}
+
+impl NaIRGenPass._emit_rc_gc_env_off_fn -> ir.Function {
+    _existing = self.func_symtab.get("__rc_gc_env_off");
+    if _existing is not None {
+        return _existing;
+    }
+    _i8p = ir.IntType(8).as_pointer();
+    _i32 = ir.IntType(32);
+    _i1 = ir.IntType(1);
+    fn = self._define_function("__rc_gc_env_off", ir.FunctionType(_i1, []));
+    fn.linkage = "private";
+    self.func_symtab["__rc_gc_env_off"] = fn;
+    entry_bb = fn.append_basic_block("entry");
+    check_bb = fn.append_basic_block("gc_env_check");
+    b = ir.IRBuilder(entry_bb);
+    _getenv_fn = self._get_or_declare_extern("getenv", _i8p, [_i8p]);
+    _strcmp_fn = self._get_or_declare_extern("strcmp", _i32, [_i8p, _i8p]);
+    _gc_key = b.gep(
+        self._get_snprintf_fmt("JAC_GC"),
+        [ir.Constant(_i32, 0), ir.Constant(_i32, 0)],
+        name="gc.key"
+    );
+    _gc_val = b.call(_getenv_fn, [_gc_key], name="gc.env");
+    _gc_set = b.icmp_unsigned("!=", _gc_val, ir.Constant(_i8p, None), name="gc.set");
+    unset_bb = fn.append_basic_block("gc_unset");
+    b.cbranch(_gc_set, check_bb, unset_bb);
+    b_un = ir.IRBuilder(unset_bb);
+    b_un.ret(ir.Constant(_i1, 0));
+    b_chk = ir.IRBuilder(check_bb);
+    _off_lit = b_chk.gep(
+        self._get_snprintf_fmt("off"),
+        [ir.Constant(_i32, 0), ir.Constant(_i32, 0)],
+        name="gc.off.lit"
+    );
+    _is_off = b_chk.icmp_signed(
+        "==",
+        b_chk.call(_strcmp_fn, [_gc_val, _off_lit]),
+        ir.Constant(_i32, 0),
+        name="gc.is.off"
+    );
+    b_chk.ret(_is_off);
+    return fn;
 }

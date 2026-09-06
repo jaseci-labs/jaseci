@@ -2228,8 +2228,11 @@ impl Module.postinit -> None {
     self.ct_file_deps = [];
     self.ct_body_deps = [];
     self.rc_last_use = {};
+    self.rc_scope_cleanup = {};
     _rc_move_in: set[int] = set();
     self.rc_move_in = _rc_move_in;
+    _own_move_sites: set[int] = set();
+    self.own_move_sites = _own_move_sites;
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=self.name);
 }
@@ -2728,6 +2731,8 @@ impl Enum.postinit -> None {
 
 
 impl Ability.postinit -> None {
+    _raises: list[str] = [];
+    self.raises = _raises;
     UniNode.postinit(self);
     if (self.name_ref is None) {
         first_tok = self.kid[0]

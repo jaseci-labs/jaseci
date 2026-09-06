@@ -48,29 +48,31 @@ obj RunConfig {
         diagnostics: str = "error";
 }
 
-obj NativeBuildConfig {
-    has opt_level: int = 2,
-        dump_ir: str = "",
+obj NativeConfig {
+    has link_mode: str = "objects",
         target: str = "",
+        opt: int = 2,
         debug: bool = False,
-        rc_debug_codegen: bool = False;
+        threads: int = 4;
 }
 
-obj GcEnforceConfig {
-    has modules: list[str] = [],
-        grandfathered: list[str] = [];
+obj MemoryConfig {
+    has profile: str = "managed",
+        enforce: list[str] = [],
+        exempt: list[str] = [];
+
+    def gc_mode -> str {
+        return {"managed": "cycles", "rc": "rc", "nogc": "none"}[self.profile];
+    }
 }
 
-obj GcConfig {
-    has `default: str = "cycles",
-        enforce: GcEnforceConfig = GcEnforceConfig();
+obj PlacementConfig {
+    has default_codespace: str = "native";
 }
 
 obj BuildConfig {
     has dir: str = ".jac",
-        default_codespace: str = "native",
-        native_closure_cap: int = 256,
-        native: NativeBuildConfig = NativeBuildConfig();
+        native_closure_cap: int = 256;
 }
 
 obj TestConfig {
@@ -250,7 +252,9 @@ obj JacConfig {
     has project: ProjectConfig = ProjectConfig(),
         run: RunConfig = RunConfig(),
         build: BuildConfig = BuildConfig(),
-        gc: GcConfig = GcConfig(),
+        native: NativeConfig = NativeConfig(),
+        memory: MemoryConfig = MemoryConfig(),
+        placement: PlacementConfig = PlacementConfig(),
         `test: TestConfig = TestConfig(),
         serve: ServeConfig = ServeConfig(),
         format: FormatConfig = FormatConfig(),

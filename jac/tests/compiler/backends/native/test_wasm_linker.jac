@@ -12,6 +12,10 @@ and the indirect-call table.
 """
 
 import os;
+import from jaclang.compiler.driver.compile_options {
+    push_native_target,
+    pop_native_target
+}
 import subprocess;
 import sys;
 import shutil;
@@ -40,8 +44,7 @@ glob FIXTURES = os.path.join(
 # ─── helpers ─────────────────────────────────────────────────────────────────
 """Compile a fixture to a relocatable wasm object the way `nacompile` does."""
 def emit_wasm_object(fixture: str) -> bytes {
-    prev = os.environ.get("JAC_NATIVE_TARGET", None);
-    os.environ["JAC_NATIVE_TARGET"] = WASM_TRIPLE;
+    prev = push_native_target(WASM_TRIPLE);
     try {
         prog = JacProgram();
         ir = prog.compile(
@@ -68,11 +71,7 @@ def emit_wasm_object(fixture: str) -> bytes {
         pb.getModulePassManager().run(mod, pb);
         relobj = tm.emit_object(mod);
     } finally {
-        if prev is None {
-            os.environ.pop("JAC_NATIVE_TARGET", None);
-        } else {
-            os.environ["JAC_NATIVE_TARGET"] = prev;
-        }
+        pop_native_target(prev);
     }
     return relobj;
 }
@@ -224,8 +223,9 @@ test "nacompile --target wasm32 writes a valid module via the CLI" {
             sys.executable,
             "-m",
             "jaclang",
-            "nacompile",
-            "--target",
+            "build",
+            "--native",
+            "--target-triple",
             "wasm32",
             os.path.join(FIXTURES, FIXTURE),
             "-o",

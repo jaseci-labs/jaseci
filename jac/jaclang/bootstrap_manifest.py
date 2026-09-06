@@ -50,6 +50,7 @@ SEED_PATHS: tuple[str, ...] = (
     "compiler/passes/uni_pass.jac",
     "compiler/tools/treeprinter.jac",
     "runtime/runtime.jac",
+    "runtime/region.jac",
     "runtime/archetype.jac",
     "runtime/constructs.jac",
     "runtime/graph_query.jac",

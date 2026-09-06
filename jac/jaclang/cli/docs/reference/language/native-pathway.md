@@ -25,7 +25,7 @@
 Jac's native codespace compiles code to **machine-code via LLVM** -- the same Jac syntax, but running as native instructions instead of on the Python runtime. You can use it in two ways:
 
 1. **Inline native sections** -- drop native-compiled functions into any Jac application alongside Python-backed code; extern C declarations seed native placement and a `"native"` pin in `[placement.pins]` forces it. The compiler generates the interop layer automatically.
-2. **Standalone binaries** -- compile an entire program to a self-contained binary with `jac nacompile`, which forces the whole module native. No Python runtime, no external compiler, no external linker -- the entire toolchain from source to executable runs within Jac itself.
+2. **Standalone binaries** -- compile an entire program to a self-contained binary with `jac build --native`, which forces the whole module native. No Python runtime, no external compiler, no external linker -- the entire toolchain from source to executable runs within Jac itself.
 
 Native compilation is ideal for:
 
@@ -38,7 +38,7 @@ Native compilation is ideal for:
 ## Quick Reference
 
 Native placement is **inferred, never spelled in the filename**. Under
-`[build] default_codespace = "native"` (the default), the placement
+`[placement] default = "native"` (the default), the placement
 solver decides each module's codespace: `scan_native_blockers` plus an
 import-closure fixpoint determine whether the module can lower natively.
 A module that can, goes native; one that prefers native but cannot lower
@@ -50,23 +50,23 @@ use it -- always land native, just as JSX and npm imports infer the client
 codespace. `pub` elements anchor a *standalone* module to the server
 (endpoint semantics); a module pulled in as a native dependency may still
 use `pub` freely as its C-ABI export marker. To *force* native -- so
-lowering problems stay loud errors instead of demoting -- use `jac
-nacompile`, `jac build --as native`, or
-`CompileOptions(force_codespace='native')` programmatically:
+lowering problems stay loud errors instead of demoting -- use `jac build
+<file> --native`, or `CompileOptions(force_codespace='native')`
+programmatically:
 
 | Aspect | Details |
 |--------|---------|
 | **Inline section** | native-placed declarations in any `.jac` file (extern-decl seeds or a `"native"` pin) |
-| **Whole module** | Inferred by the placement solver; forced with `jac nacompile` / `jac build --as native` |
+| **Whole module** | Inferred by the placement solver; forced with `jac build <file> --native` |
 | **Entry point** | `with entry { }` (standalone binaries only) |
-| **CLI command** | `jac nacompile <file> [-o output] [--shared]` |
+| **CLI command** | `jac build --native <file> [-o output] [--lib]` |
 | **Backend** | LLVM IR via llvmlite |
 | **Platforms** | Linux (x86_64, aarch64), macOS (x86_64, arm64), Windows (x86_64) |
 | **External toolchain** | None -- entire pipeline is self-contained |
 | **C interop (in)** | `import from libname` (logical) or `import from "path"` (explicit) |
-| **C interop (out)** | `jac nacompile --shared` exports `:pub` symbols as a `.so`/`.dylib`/`.dll` |
+| **C interop (out)** | `jac build --native --lib` exports `:pub` symbols as a `.so`/`.dylib`/`.dll` |
 | **Std library** | `import math` / `time` / `sys` / `os` / `random` (Python-congruent subset) |
-| **Memory model** | Emit-time `--gc` modes: `cycles` (RC + cycle collector, default), `rc`, `none`; ownership-checked zero-RC builds via `--enforce-nogc` + `--assert-no-rc` |
+| **Memory model** | `[memory] profile`: `managed` (RC + cycle collector, default), `rc`, `nogc` (borrow-checked, no runtime); one-off override with `--memory` |
 | **Testing** | `test "description" { }` blocks compile native and run via `jac test` |
 
 ---
@@ -183,11 +183,11 @@ The compiler links imported native modules at the IR level -- no dynamic library
 
 ## Standalone Native Binaries
 
-For programs that should run without Python entirely, compile a `.jac` file with `jac nacompile`, which forces the whole program into the native codespace.
+For programs that should run without Python entirely, compile a `.jac` file with `jac build --native`, which forces the whole program into the native codespace.
 
 ### Writing a Standalone Program
 
-A nacompiled module is entirely native -- every function, object, and expression compiles to machine code. A `with entry {}` block serves as the program's entry point.
+A module built with `jac build --native` is entirely native -- every function, object, and expression compiles to machine code. A `with entry {}` block serves as the program's entry point.
 
 ```jac
 # hello.jac
@@ -204,7 +204,7 @@ with entry {
 ### Compiling
 
 ```bash
-jac nacompile <filename> [-o <output>]
+jac build --native <filename> [-o <output>]
 ```
 
 | Option | Description | Default |
@@ -213,7 +213,7 @@ jac nacompile <filename> [-o <output>]
 | `-o <output>` | Output binary name | Input filename without extension |
 
 ```bash
-$ jac nacompile hello.jac -o hello
+$ jac build --native hello.jac -o hello
 
 === Compilation Stats ===
 Object size:   4,832 bytes
@@ -227,7 +227,7 @@ Hello, World!
 The output is a fully linked, self-contained executable. No external compiler (gcc, clang) or linker (ld, lld) is invoked -- Jac's built-in compilation pipeline handles everything from LLVM IR generation through to the final binary format for your platform.
 
 !!! info "Forcing vs. inference"
-    Under the default `[build] default_codespace = "native"`, `jac run` already infers native placement -- but a module that cannot lower quietly demotes to the server codespace with a note. `jac nacompile` (like `jac build --as native`) instead *coerces* the module native, so anything that cannot lower is a loud compile error rather than a demotion.
+    Under the default `[placement] default = "native"`, `jac run` already infers native placement -- but a module that cannot lower quietly demotes to the server codespace with a note. `jac build <file> --native` instead *coerces* the module native, so anything that cannot lower is a loud compile error rather than a demotion.
 
 ### Compilation Pipeline
 
@@ -248,12 +248,12 @@ graph LR
 
 ## Shared Libraries (C ABI)
 
-Where `import from "lib.so" { ... }` lets native Jac *call into* C libraries, `jac nacompile --shared` does the inverse: it packages a `.jac` module as a **C-ABI shared library** that any C/C++/Python/Rust host can load and call. The same self-contained pipeline emits an ELF `.so`, a Mach-O `.dylib`, or a PE `.dll` -- no system linker required.
+Where `import from "lib.so" { ... }` lets native Jac *call into* C libraries, `jac build --native --lib` does the inverse: it packages a `.jac` module as a **C-ABI shared library** that any C/C++/Python/Rust host can load and call. The same self-contained pipeline emits an ELF `.so`, a Mach-O `.dylib`, or a PE `.dll` -- no system linker required.
 
 ```bash
-jac nacompile mathlib.jac --shared          # -> ./libmathlib.so   (host platform)
-jac nacompile mathlib.jac --shared --target macos     # -> ./libmathlib.dylib
-jac nacompile mathlib.jac --shared --target windows   # -> ./libmathlib.dll
+jac build --native mathlib.jac --lib          # -> ./libmathlib.so   (host platform)
+jac build --native mathlib.jac --lib --target macos     # -> ./libmathlib.dylib
+jac build --native mathlib.jac --lib --target windows   # -> ./libmathlib.dll
 ```
 
 ### Choosing what to export
@@ -644,7 +644,7 @@ non-deterministic, but each reader is congruent with its CPython counterpart.
 | `sys.platform` | e.g. `"linux"` / `"darwin"` |
 
 `sys.argv` works both with `jac run` under a native default codespace and standalone binaries
-compiled via `jac nacompile`.
+compiled via `jac build --native`.
 
 #### `os` and `os.path` -- Operating System
 
@@ -717,7 +717,7 @@ with entry {
 ```
 
 ```bash
-$ jac nacompile cli_tool.jac -o cli_tool
+$ jac build --native cli_tool.jac -o cli_tool
 $ ./cli_tool hello --verbose world
 argc: 4
 arg: hello
@@ -818,52 +818,54 @@ The platform and architecture are auto-detected at compile time. The correct bin
 
 ## Memory Management
 
-Native Jac manages heap values (objects, strings, lists, dicts, sets) with **automatic reference counting** by default -- and how much memory-management machinery ends up in the artifact is an emit-time choice. `jac nacompile --gc <mode>` selects the runtime the backend emits (the default comes from [`jac.toml [gc]`](../config/index.md#gc), else `cycles`):
+Native Jac manages heap values (objects, strings, lists, dicts, sets) according to the project's **memory profile**, `[memory] profile` in `jac.toml` (one-off override: `jac build <file> --native --memory ...`):
 
-| Mode | What is emitted |
-|------|-----------------|
-| `cycles` (default) | Reference counting plus the Bacon-Rajan cycle collector (trace functions, roots buffer). Automatic cycle collection is switched on at runtime by setting `JAC_GC_CYCLES` in the environment; `__rc_collect_cycles()` triggers a collection explicitly. |
-| `rc` | Plain reference counting. No collector functions, trace functions, roots buffer, or `JAC_GC_CYCLES` entry probe are emitted; objects that die as members of a reference cycle are never reclaimed. |
-| `none` | No retain/release call sites at all -- the compile-time analogue of the `JAC_NO_GC` runtime switch. Without ownership coverage, heap memory is never reclaimed; in a nogc-enforced module (below), frees are inserted statically instead. |
+| Profile | What is emitted |
+|---------|-----------------|
+| `managed` (default) | Reference counting plus the Bacon-Rajan cycle collector (trace functions, roots buffer). Collection runs automatically; a built binary can switch it off for leak debugging with `JAC_GC=off`. |
+| `rc` | Plain reference counting. No collector functions, trace functions, or roots buffer are emitted; objects that die in a cycle leak. |
+| `nogc` | No runtime at all. Every module is held to the ownership contract, drops are placed statically, errors propagate through a hidden error slot instead of an unwinder, and the emitted IR is proven free of RC machinery on every build. |
 
-Under the managed modes (`cycles`, `rc`) a heap value carries a reference count that is incremented on copy and decremented when a reference goes out of scope; the value is freed when its count reaches zero, and its destructor releases field and element references in turn. A [`def drop` hook](ownership-borrowing.md#the-drop-hook) is invoked from the reference-count destructor -- for a uniquely-owned value at the same last-use point a zero-RC build drops at, so program output is identical across gc modes. Setting `JAC_NO_GC` in the environment disables reclamation in a managed-mode binary at runtime (memory is then never freed; useful for isolating memory-management bugs).
+Under the managed profiles (`managed`, `rc`) a heap value carries a reference count that is incremented on copy and decremented when a reference goes out of scope; the object is freed when the count reaches zero.
 
-There is a third allocation lane alongside reference counting and headerless owned codegen: objects, nodes, and edges constructed while an [`in <handle> { }` region open](ownership-borrowing.md#regions-first-class-region-handles-and-in-opens) is active on the current thread bump-allocate into the handle's arena and are reclaimed wholesale -- one LIFO dtor-log walk plus a single bulk free -- at the handle's drop point. Every heap construction reads the thread's current region (one thread-local load) and takes the arena arm when one is open; `managed(T(...))` skips that read. The arena itself is an ordinary native unit, `runtime/region_native.jac`, whose `:pub` `__jac_region_*` functions are the C ABI the emitter declares; a dependency edge carries it into the link plan like the OSP units. Arena-allocated values carry sentinel-stamped headers that make the managed modes' retain/release call sites inert on them, so regions and reference counting compose safely in the same module.
+There is a third allocation lane alongside reference counting and headerless owned codegen: objects, nodes, and edges constructed while an [`in <handle> { }` region](ownership-borrowing.md#regions-first-class-region-handles-and-in-opens) is open are bump-allocated into that region and freed together when it closes.
+
+The arena runtime, `runtime/region_native.jac`, is a native unit carried into the link plan by dependency edges. Its `:pub` `__jac_region_*` functions provide the C ABI used by generated code.
 
 ### Zero-RC ownership compilation
 
 For a module written against the [ownership and borrow-checking surface](ownership-borrowing.md), memory management compiles to what Rust would emit: an allocation at construction, a free at a statically determined drop point, and **no reference counting or collector in the binary at all** -- and the absence of that machinery is checkable in the artifact. Three pieces turn this into a compile-time contract rather than a best-effort optimization:
 
-- **nogc enforcement** (`jac nacompile --enforce-nogc`, or per-module patterns in [`jac.toml [gc.enforce]`](../config/index.md#gc)). In an enforced module, every heap-typed contract position -- parameter, return type, `has` field -- must live in the owned world (`own`, `&`, `&mut`, `imm`); locals infer ownership from a fresh right-hand side. Anything the contract cannot prove is a hard error ([`E1401`-`E1406`](../diagnostics.md#zero-rc-enforcement-errors)) that blocks codegen.
-- **Headerless owned codegen** (under `--gc none`). Owned payloads are bare `malloc` allocations with no reference-count header, and each free is a direct call to the statically inserted `__drop_<T>` at the value's drop point -- after its last use, NLL-style (see [drop timing](ownership-borrowing.md#the-drop-hook)). User `def drop` hooks run from that same static call.
-- **`--assert-no-rc`** proves the result: it scans the emitted IR and fails the build if any RC/collector machinery is present -- `__rc_*` helpers, trace functions, roots-buffer globals, or entry-point GC env probes. A build that passes is observably RC-free.
+- **nogc enforcement** (`[memory] profile = "nogc"`, `jac build <file> --native --memory nogc`, or per-module `[memory] enforce` patterns under a managed profile, see [`[memory]`](../config/index.md#memory)). In an enforced module, every heap-typed contract position -- parameter, return type, `has` field -- must live in the owned world (`own`, `&`, `&mut`, `imm`); an unmarked local infers its state from its right-hand side (fresh values are `own`, string literals `imm`, field and element reads borrow their root; see [local inference](ownership-borrowing.md#local-inference-under-enforcement)). Anything the contract cannot prove is a hard error ([`E1401`-`E1406`](../diagnostics.md#zero-rc-enforcement-errors)) that blocks codegen.
+- **Headerless owned codegen** (under `--memory nogc`). Owned payloads are bare `malloc` allocations with no reference-count header, and each free is a direct call to the statically inserted `__drop_<T>` at the value's drop point -- after its last use, NLL-style (see [drop timing](ownership-borrowing.md#the-drop-hook)). User `def drop` hooks run from that same static call.
+- **The RC-free invariant** is checked on every `nogc` build: the emitted IR is scanned for `__rc_*` helpers, trace functions, roots buffers, and run-time collector probes, and a hit is a compiler bug rather than a user error.
 
 ```bash
-jac nacompile service.jac --gc none --enforce-nogc --assert-no-rc
+jac build --native service.jac --memory nogc
 ```
 
 Notes on the enforced world:
 
-- **The `managed()` membrane.** In an enforced module compiled under a managed gc mode, a heap value may cross out to unenforced (reference-counted) code only through the explicit `managed(x)` builtin at the boundary -- an implicit crossing is `E1403`, and sealing an owned value into managed storage is `E1402`. Under `--gc none` the artifact has no reference-counted side to cross into, so `managed()` of a heap value is itself rejected (`E1406`). Scalars and `imm` values cross freely everywhere, and on the Python backend `managed()` is the identity function.
-- **Region opens are legal under enforcement.** An [`in <handle> { }` region open](ownership-borrowing.md#regions-first-class-region-handles-and-in-opens) is legal inside a nogc-enforced module: arena-resident values keep the arena header (which is how a statically placed `__drop_<T>` recognises a region-owned value and leaves it to the region), teardown at the handle's drop point is the same LIFO dtor-log walk plus one bulk free the managed modes observe, and the artifact stays `--assert-no-rc`-clean because the region kernel uses no reference counts.
-- **Unhandled exceptions abort.** In a nogc-enforced module, a `raise` with no local handler prints a diagnostic line and calls `abort()` rather than unwinding -- unwinding would require the managed runtime.
-- **Grandfathering.** `[gc.enforce] grandfathered` patterns exempt matching modules from enforcement so a codebase can adopt the contract incrementally.
+- **The `managed()` membrane.** In an enforced module compiled under a managed gc mode, a heap value may cross out to unenforced (reference-counted) code only through the explicit `managed(x)` builtin at the boundary -- an implicit crossing is `E1403`, and sealing an owned value into managed storage is `E1402`. Under `--memory nogc` the artifact has no reference-counted side to cross into, so `managed()` of a heap value is itself rejected (`E1406`). Scalars and `imm` values cross freely everywhere, and on the Python backend `managed()` is the identity function.
+- **Region opens are legal under enforcement.** An [`in <handle> { }` region open](ownership-borrowing.md#regions-first-class-region-handles-and-in-opens) is legal inside a nogc-enforced module: arena-resident values keep the arena header (which is how a statically placed `__drop_<T>` recognises a region-owned value and leaves it to the region), teardown at the handle's drop point is the same LIFO dtor-log walk plus one bulk free the managed modes observe, and the artifact stays RC-free because the region kernel uses no reference counts.
+- **Errors propagate without an unwinder.** In a nogc-enforced module `raise`, `try`, and `except` lower to a hidden error slot: a raising function returns to a checking caller, owned locals on the error path drop at their static points, `finally` runs, and an entry block that does not handle a raising call is [`E1407`](../diagnostics.md#zero-rc-enforcement-errors) at compile time (see [Errors without unwinding](ownership-borrowing.md#errors-without-unwinding)).
+- **Exemptions.** `[memory] exempt` patterns exclude matching modules from enforcement so a codebase can adopt the contract incrementally.
 
 ### RC coverage stats
 
-Compiling with `JAC_RC_STATS=1` prints a per-module line to stderr reporting the retain/release call sites emitted versus the reference-count operations elided by move-lowering:
+`jac explain memory <file.jac>` prints a per-module line reporting the retain/release call sites emitted versus the reference-count operations elided by move-lowering:
 
 ```text
 rc-stats [mod.jac] gc=cycles retains=1 releases=10 elided=3 coverage=21.4%
 ```
 
-A module with zero emitted retains and releases is tagged `rc-free` at the end of the line -- the same condition `--assert-no-rc` checks structurally in the IR.
+A module with zero emitted retains and releases is tagged `rc-free` at the end of the line -- the same condition the nogc invariant checks structurally in the IR.
 
 When any owned locals were stack-promoted (an `own` local whose only escaping-looking uses are checked frame-local borrows or scalar field reads allocates on the stack instead of the heap, under every gc mode), the line also reports `promoted=N`.
 
 ### Reserved `__rc_*` runtime hooks
 
-Five names are **reserved intrinsics** on the native pathway: `__rc_debug_enable()`, `__rc_debug_disable()`, `__rc_gc_disable()`, `__rc_gc_enable()`, and `__rc_collect_cycles()`. A call to any of them is dispatched by name to the corresponding runtime helper *before* normal call classification and symbol resolution -- ahead of builtins, module functions, and locals. You therefore cannot define or import your own function under one of these names in native code and expect it to be called; the name is claimed by the RC runtime (defining one would also collide with the runtime's own emitted symbol). The dispatch lives in a single table in the native code generator (`_codegen_rc_intrinsic`). `__rc_debug_enable()` toggles tracing only in binaries compiled with `JAC_RC_DEBUG_CODEGEN=1` in the compiler's environment; in a default build the trace machinery is compiled out, `__rc_debug_disable()` is a no-op, and `__rc_debug_enable()` prints a one-line notice to stderr instead.
+Five names are **reserved intrinsics** on the native pathway: `__rc_debug_enable()`, `__rc_debug_disable()`, `__rc_gc_disable()`, `__rc_gc_enable()`, and `__rc_collect_cycles()`. A call to any of them is dispatched by name to the corresponding runtime helper *before* normal call classification and symbol resolution -- ahead of builtins, module functions, and locals. You therefore cannot define or import your own function under one of these names in native code and expect it to be called; the name is claimed by the RC runtime (defining one would also collide with the runtime's own emitted symbol). The dispatch lives in a single table in the native code generator (`_codegen_rc_intrinsic`). `__rc_debug_enable()` toggles tracing only in binaries compiled with `[native] debug = true` (or `--debug`) in the compiler's environment; in a default build the trace machinery is compiled out, `__rc_debug_disable()` is a no-op, and `__rc_debug_enable()` prints a one-line notice to stderr instead.
 
 These hooks exist only in native code. On the Python backend they have no runtime implementation, and a call surfaces an unresolved-type diagnostic at check time rather than silently type-checking.
 
@@ -917,35 +919,26 @@ Assert messages in native tests are limited to string literals: `assert cond, "m
 
 ## Build Options and Artifact Identity
 
-The single authority for codegen-affecting build options is the compile-options object (`CompileOptions` in `jaclang/compiler/driver/compile_options.jac`). It is constructed once at the CLI/program boundary and threaded to every compiler pass through the program; each option resolves as explicit argument, then environment override, then `jac.toml`, then built-in default. No compiler pass reads the environment directly; a source-scan test over `jaclang/compiler/passes/` enforces this.
+The single authority for codegen-affecting build options is the compile-options object (`CompileOptions` in `jaclang/compiler/driver/compile_options.jac`). It is constructed once at the CLI/program boundary and threaded to every compiler pass through the program; each option resolves as explicit argument, then `jac.toml`, then built-in default. No compiler pass reads the environment directly; a source-scan test over `jaclang/compiler/passes/` enforces this.
 
 The codegen options carry a canonical identity string and a short hash of it, the codegen fingerprint. The identity participates in artifact identity: every native section of a module's JIR (`SEC_NIFACE`, `SEC_NOBJ`, `SEC_NBITCODE`) is stamped with the compiler digest, the codegen identity and the target triple of the compile that produced it, and the native reader treats a section under any other stamp as absent, so flipping any codegen option rebuilds the unit and a stale product is never linked. The link plan's digest folds every unit's stamp, so an artifact records exactly which identity built it.
 
 ### Codegen options (part of the fingerprint)
 
-| Environment override | `jac.toml` key | Effect |
+| `jac.toml` key | One-build override | Effect |
 |---|---|---|
-| `JAC_NATIVE_TARGET` | `[build.native] target` | Cross-compilation target triple; also selects OS-specific source variants (`.linux.jac`, `.darwin.jac`, `.windows.jac`). |
-| `JAC_OPT_LEVEL` | `[build.native] opt_level` | LLVM optimization level, 0 through 3 (default 2). |
-| `JAC_NATIVE_DEBUG` | `[build.native] debug` | Emits DWARF debug info and runs the JIT path unoptimized. |
-| `JAC_RC_DEBUG_CODEGEN` | `[build.native] rc_debug_codegen` | Compiles the RC trace machinery (`RC MALLOC` / `RC FREE` lines behind `__rc_debug_enable()`) into the binary. |
-| (none) | `[gc] default` | GC mode `cycles` / `rc` / `none`; `jac nacompile --gc` overrides. |
-| (none) | `[gc.enforce] modules`, `grandfathered` | Zero-RC enforcement patterns. |
+| `[memory] profile` | `jac build <file> --native --memory managed\|rc\|nogc` | The memory profile: reference counting plus the cycle collector, reference counting only, or no runtime with every module held to the ownership contract. |
+| `[memory] enforce`, `exempt` | (none) | Zero-RC enforcement patterns under a managed profile; ignored, with a warning, under `nogc`. |
+| `[native] target` | `--target-triple` | Cross-compilation target triple; also selects OS-specific source variants (`.linux.jac`, `.darwin.jac`, `.windows.jac`). |
+| `[native] opt` | (none) | LLVM optimization level, 0 through 3 (default 2). |
+| `[native] debug` | `--debug` | Emits DWARF debug info, runs the JIT path unoptimized, and compiles the RC trace machinery (`RC MALLOC` / `RC FREE` lines behind `__rc_debug_enable()`) into the binary. |
+| `[native] threads` | run time: `JAC_THREADS` | The `flow for` width compiled into the binary (default 4). |
 
-### Diagnostic options (read into the options object, outside the fingerprint)
-
-| Environment override | `jac.toml` key | Effect |
-|---|---|---|
-| `JAC_DUMP_IR` | `[build.native] dump_ir` | Writes the final optimized IR to the given path. |
-| `JAC_DEBUG_IR` | (none) | Saves each module's generated IR as `<stem>.ll` in the module cache's `native-debug` dir. |
-| `JAC_RC_STATS` | (none) | Prints the per-module rc-stats line to stderr. |
-| `JAC_NOGC_DEBUG` | (none) | Verbose ownership-enforcement logging to stderr. |
-| `JAC_NA_DEBUG` | (none) | Explains every native demotion: `NA_DEBUG demote <Type>.<method>` followed by the full diagnostics that made the method un-lowerable, and `NA_DEBUG raise <Type>.<method>` plus a Python traceback when the emitter raised. Forces the "native seam" warning on regardless of `[check] warn_native_seams`. |
-| `JAC_SYMMAP` | (none) | Writes a `<binary>.symmap` symbol map beside a linked ELF executable. |
+No compile-time environment variable sets behavior. The diagnostic surfaces that used to hide behind environment variables are verbs: `jac explain ir <file>` writes the final optimized IR beside the source and prints the symbol map, `jac explain memory <file>` prints the inferred ownership facts, move sites, and release points, and `jac explain placement <file>` prints every element's codespace with the evidence that decided it.
 
 ### The native unit model
 
-The module is the native unit. Every native-locked module's JIR carries two
+The module is the native unit. Every native-locked module's JIR carries
 native sections beside its bytecode and type interface: `SEC_NIFACE`, the
 unit's native interface (exports with their link symbols, class layouts,
 initializer, demoted symbols, C library needs, direct native dependencies;
@@ -974,8 +967,8 @@ package), walks the native edges recorded in `SEC_NDEPS` dependencies
 first, compiles each stale unit in a child `jac` process (so a plan over
 many units keeps the parent's memory flat and an import cycle nests only
 inside the child that meets it), checks that every unit's recorded
-dependency digests agree with the plan and recompiles the ones that do
-not until they settle, orders initializers topologically, synthesizes one
+dependency digests agree with the plan and recompiles affected strongly connected
+components until their interfaces settle, rejecting repeated inconsistent states, orders initializers topologically, synthesizes one
 glue object holding `jac_entry` / `__jac_shared_init`, the platform entry
 point and the `jac_retain` / `jac_release` / `jac_str_new` wrappers (each
 wrapper only when a unit defines its target), and links. Two modes read different
@@ -983,8 +976,8 @@ sections of the same entries: `objects`, the incremental default, links the
 units' relocatable objects; `bitcode` links every unit's bitcode into one
 LLVM module and optimizes it whole-program before a single codegen (the
 release lane; also what the in-process JIT, PE and wasm targets use).
-Select it per build with `jac nacompile --link-mode bitcode` or
-`JAC_NATIVE_LINK_MODE=bitcode`. The plan writes a digest over every unit's
+Select it per build with `jac build --native --link-mode bitcode` or
+`[native] link_mode = "bitcode"` in `jac.toml`. The plan writes a digest over every unit's
 keys and stamps beside the artifact and into the `<lib>.layout.json`
 sidecar, which is the merge of the units' class layouts.
 
@@ -1013,7 +1006,7 @@ startup error.
 
 Toolchain location variables are read through the same boundary module, never inside passes: `JAC_LLVM_SHIM`, `JAC_LLVM_TYPED_POINTERS` (with `LLVMLITE_ENABLE_IR_LAYER_TYPED_POINTERS` honored as a fallback), `JAC_NATIVE_WASM_LIBC_DIR`, `JAC_NATIVE_MUSL_DIR`, `JAC_NATIVE_FLOOR_DIR`, `JAC_NATIVE_CA_BUNDLE`.
 
-`JAC_NO_GC` and `JAC_GC_CYCLES` are runtime switches read by the compiled binary itself, not by the compiler; the Memory Management section above describes them.
+The compiled binary uses `JAC_GC` for runtime collector diagnostics.
 
 ---
 
@@ -1024,17 +1017,17 @@ Toolchain location variables are read through the same boundary module, never in
 Set the `JAC_DUMP_IR` environment variable to write the generated LLVM IR to a file:
 
 ```bash
-JAC_DUMP_IR=/tmp/output.ll jac nacompile program.jac
+JAC_DUMP_IR=/tmp/output.ll jac build --native program.jac
 ```
 
 This produces a human-readable `.ll` file that can be inspected with any text editor or processed with LLVM tools (`llc`, `opt`, `llvm-dis`).
 
 ### Explaining a demotion
 
-A method the backend cannot lower is *demoted*: it falls back to its Python implementation while the rest of its class stays native. The build prints a one-line `⚠ native seam -- demoting ...` warning for each. `JAC_NA_DEBUG=1` turns that line into the full story:
+A method the backend cannot lower is *demoted*: it falls back to its Python implementation while the rest of its class stays native. The build prints a one-line `⚠ native seam -- demoting ...` warning for each. `jac explain placement <file>` turns that line into the full story:
 
 ```bash
-JAC_NA_DEBUG=1 jac nacompile program.jac
+JAC_NA_DEBUG=1 jac build --native program.jac
 ```
 
 Each demotion emits `NA_DEBUG demote <Type>.<method>` followed by every diagnostic that made the method un-lowerable, with source context. When the emitter raised outright rather than reporting a diagnostic, the line is `NA_DEBUG raise <Type>.<method>` followed by the Python traceback pointing at the codegen site. The flag also forces the seam warning on when `[check] warn_native_seams = false` would otherwise silence it.
@@ -1201,7 +1194,7 @@ with entry {
 ```
 
 ```bash
-$ jac nacompile greeter.jac -o greeter
+$ jac build --native greeter.jac -o greeter
 $ ./greeter World --shout
 HELLO, WORLD!
 ```

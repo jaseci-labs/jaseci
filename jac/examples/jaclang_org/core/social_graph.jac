@@ -1,3 +1,4 @@
+import from core.jacyac.validation { valid_post }
 import re;
 import base64;
 import datetime;
@@ -5,6 +6,10 @@ import logging;
 import from core.timefmt { now_iso, seconds_since }
 import from core.github { parse_repo_url }
 import from core.scoring_service { ScoredPayload, fetch_and_score }
+import from core.leaderboard.scoring { ScoreBreakdown }
+import from core.leaderboard.board { BoardHub, RepoEntry, OnBoard }
+import from core.jacyac.github.auth { users }
+import from core.jacyac.github.repos { verified_owner }
 
 def _now -> str {
     return datetime.datetime.now(datetime.UTC).replace(tzinfo=None).isoformat() + "Z";
@@ -123,6 +128,9 @@ node Avatar {
 
 node Project {
     has full: str = "",
+        owner_verified: bool = False,
+        legacy_import: bool = False,
+        breakdown: ScoreBreakdown = ScoreBreakdown(),
         owner: str = "",
         name: str = "",
         owner_username: str = "",
@@ -268,57 +276,46 @@ def find_profile_by_username(username: str) -> Profile | None {
     return None;
 }
 
-def _field(source: any, key: str, fallback: any) -> any {
-    if source is None {
-        return fallback;
-    }
-    if isinstance(source, dict) {
-        value = source.get(key, fallback);
-    } else {
-        value = getattr(source, key, fallback);
-    }
-    return fallback if value is None else value;
-}
-
-def apply_score(proj: Project, payload: any) {
-    if not _field(payload, "ok", False) {
+def apply_score(proj: Project, payload: ScoredPayload) {
+    if not payload.ok {
         proj.status = "error";
-        proj.error = str(_field(payload, "error", "internal") or "internal");
+        proj.error = payload.error or "internal";
         return;
     }
-    meta = _field(payload, "meta", None);
-    an = _field(payload, "an", None);
-    breakdown = _field(payload, "breakdown", None);
-    proj.owner = str(_field(meta, "owner", "") or proj.owner);
-    proj.name = str(_field(meta, "name", "") or proj.name);
+    meta = payload.meta;
+    an = payload.an;
+    proj.owner = meta.owner or proj.owner;
+    proj.name = meta.name or proj.name;
     proj.full = proj.owner + "/" + proj.name;
-    proj.description = str(_field(meta, "description", ""));
-    proj.avatar_url = str(_field(meta, "avatar_url", ""));
-    proj.html_url = str(
-        _field(meta, "html_url", "") or ("https://github.com/" + proj.full)
-    );
-    proj.stars = int(_field(meta, "stars", 0));
-    proj.forks = int(_field(meta, "forks", 0));
-    proj.topics = [str(t) for t in (_field(meta, "topics", []) or [])];
-    proj.jac_files = int(_field(an, "jac_files", 0));
-    proj.jac_lines = int(_field(an, "jac_lines", 0));
-    jac_bytes = int(_field(an, "jac_bytes", 0));
-    other_bytes = int(_field(an, "other_code_bytes", 0));
-    denom = jac_bytes + other_bytes;
-    if denom > 0 {
-        proj.jac_pct = int(round(100.0 * jac_bytes / denom));
-    } else {
-        proj.jac_pct = 100 if proj.jac_files > 0 else 0;
-    }
-    feats = _field(an, "features", None);
+    proj.description = meta.description;
+    proj.avatar_url = meta.avatar_url;
+    proj.html_url = meta.html_url or ("https://github.com/" + proj.full);
+    proj.stars = meta.stars;
+    proj.forks = meta.forks;
+    proj.topics = meta.topics;
+    proj.jac_files = an.jac_files;
+    proj.jac_lines = an.jac_lines;
+    denom = an.jac_bytes + an.other_code_bytes;
+    proj.jac_pct = int(round(100.0 * an.jac_bytes / denom))
+        if denom > 0
+        else (100 if an.jac_files > 0 else 0);
+    flags: dict[str, bool] = {
+        "osp": an.features.osp,
+        "ai": an.features.ai,
+        "cl": an.features.cl,
+        "sv": an.features.sv,
+        "na": an.features.na,
+        "tests": an.features.tests
+    };
     proj.features = [
-        k
-        for k in FEATURE_KEYS
-        if bool(_field(feats, k, False))
+        key
+        for key in FEATURE_KEYS
+        if flags[key]
     ];
-    proj.score = int(_field(breakdown, "total", 0));
-    proj.belt = str(_field(breakdown, "belt", "white") or "white");
-    proj.scored_sha = str(_field(payload, "sha", ""));
+    proj.score = payload.breakdown.total;
+    proj.breakdown = payload.breakdown;
+    proj.belt = payload.breakdown.belt;
+    proj.scored_sha = payload.sha;
     proj.scored_at = now_iso();
     proj.status = "scored";
     proj.error = "";
@@ -514,12 +511,85 @@ walker:pub get_all_profiles {
     }
 }
 
+def import_legacy {
+    for archive_root in allroots() {
+        entries = [archive_root-->[?:BoardHub]->:OnBoard:->[?:RepoEntry]];
+        if not entries {
+            continue;
+        }
+        profiles = [archive_root-->[?:Profile, username=="ninja_scores_archive"]];
+        archive = profiles[0]
+            if profiles
+            else (
+                archive_root ++> Profile(
+                    username="ninja_scores_archive",
+                    display_name="Ninja Scores archive",
+                    bio="Historical public submissions. Original submitters were not recorded.",
+                    created_at=now_iso()
+                )
+            );
+        grant(archive, level=AccessLevel.READ);
+        for item in entries {
+            existing = [archive->:Owns:->[?:Project, full==item.full]];
+            if existing {
+                continue;
+            }
+            flags = item.features;
+            features: list[str] = [];
+            if flags.osp {
+                features.append("osp");
+            }
+            if flags.ai {
+                features.append("ai");
+            }
+            if flags.cl {
+                features.append("cl");
+            }
+            if flags.sv {
+                features.append("sv");
+            }
+            if flags.na {
+                features.append("na");
+            }
+            if flags.tests {
+                features.append("tests");
+            }
+            project = archive +>:Owns():+> Project(
+                full=item.full,
+                owner=item.owner,
+                name=item.name,
+                owner_username=archive.username,
+                description=item.description,
+                html_url=item.html_url,
+                avatar_url=item.avatar_url,
+                stars=item.stars,
+                forks=item.forks,
+                topics=item.topics,
+                features=features,
+                jac_files=item.jac_files,
+                jac_lines=item.jac_lines,
+                jac_pct=item.jac_pct,
+                score=item.score,
+                belt=item.belt,
+                breakdown=item.breakdown,
+                scored_sha=item.scored_sha,
+                status="scored",
+                added_at=item.submitted_at,
+                scored_at=item.scored_at,
+                legacy_import=True
+            );
+            grant(project, level=AccessLevel.READ);
+        }
+    }
+}
+
 walker:pub get_all_projects {
     has results: list[Project] = [],
         seen: dict[str, bool] = {},
         reports: list[list[Project]] = [];
 
     can run with Root entry {
+        import_legacy();
         for r in allroots() {
             for p in [r-->[?:Profile]] {
                 for proj in p.projects() {
@@ -531,6 +601,16 @@ walker:pub get_all_projects {
                 }
             }
         }
+        current = [
+            p.full.lower()
+            for p in self.results
+            if not p.legacy_import
+        ];
+        self.results = [
+            p
+            for p in self.results
+            if not p.legacy_import or p.full.lower() not in current
+        ];
         self.results.sort(key=lambda (p: Project) { (-p.score, p.added_at); });
         report self.results;
     }
@@ -538,6 +618,7 @@ walker:pub get_all_projects {
 
 async walker add_project {
     has url: str = "",
+        session_token: str = "",
         reports: list[ProjectResult] = [];
 
     can run with Root entry {
@@ -568,6 +649,13 @@ async walker add_project {
             added_at=now_iso()
         );
         grant(proj, level=AccessLevel.READ);
+        if self.session_token {
+            manager = users();
+            user_id = manager.validate_jwt_token(self.session_token) or "";
+            if user_id and manager.get_root_id(user_id) == jid(root) {
+                proj.owner_verified = verified_owner(full, self.session_token);
+            }
+        }
         await score_project(proj);
         if proj.status == "error" and proj.error not in RETRYABLE_SCORE_ERRORS {
             reason = proj.error;
@@ -731,6 +819,9 @@ walker create_tweet {
     has content: str;
 
     can run with Root entry {
+        if not valid_post(self.content) {
+            return;
+        }
         visit [-->[?:Profile]];
     }
 
@@ -852,6 +943,9 @@ walker add_comment(find_tweet) {
     has content: str = "";
 
     can act with Tweet entry {
+        if not valid_post(self.content) {
+            return;
+        }
         if jid(here) == self.tweet_id {
             comment = {
                 "username": self.actor,
@@ -920,6 +1014,9 @@ walker create_channel_tweet(find_channel) {
     has content: str = "";
 
     can act with Channel entry {
+        if not valid_post(self.content) {
+            return;
+        }
         if jid(here) == self.channel_id {
             me = [root-->[?:Profile]][0];
             if [edge me->:Member:->here] {

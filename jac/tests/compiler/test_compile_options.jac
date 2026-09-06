@@ -1,7 +1,7 @@
 """Compile-options identity and boundary tests (#7871 workstream G).
 
 CompileOptions is the single authority for codegen-affecting build options:
-env vars are read once at options construction, the codegen fingerprint is
+project settings are read once at options construction, the codegen fingerprint is
 part of artifact identity (folded into the JIR module key), and no compiler
 pass reads os.environ directly (source-scan gate below).
 """
@@ -20,11 +20,10 @@ import from jaclang.compiler.driver.jir { compute_module_key }
 
 def _pinned_opts(**overrides: any) -> CompileOptions {
     base: dict = {
-        "na_gc_mode": "cycles",
+        "memory_profile": "managed",
         "nogc_enforce_all": False,
-        "nogc_cli_target": "",
-        "nogc_enforce_modules": [],
-        "nogc_grandfathered": [],
+        "memory_enforce": [],
+        "memory_exempt": [],
         "rc_debug_codegen": False,
         "native_target": "",
         "native_debug": False,
@@ -42,16 +41,16 @@ test "identical codegen options produce an identical fingerprint" {
 test "every codegen option flip changes the fingerprint" {
     base_fp = _pinned_opts().codegen_fingerprint();
     flips: list = [
-        _pinned_opts(na_gc_mode="none"),
-        _pinned_opts(na_gc_mode="rc"),
+        _pinned_opts(memory_profile="nogc"),
+        _pinned_opts(memory_profile="rc"),
         _pinned_opts(nogc_enforce_all=True),
-        _pinned_opts(nogc_cli_target="mainmod"),
-        _pinned_opts(nogc_enforce_modules=["svc*"]),
-        _pinned_opts(nogc_grandfathered=["legacy*"]),
+        _pinned_opts(memory_enforce=["svc*"]),
+        _pinned_opts(memory_exempt=["legacy*"]),
         _pinned_opts(rc_debug_codegen=True),
         _pinned_opts(native_target="wasm32-unknown-unknown"),
         _pinned_opts(native_debug=True),
-        _pinned_opts(opt_level=0)
+        _pinned_opts(opt_level=0),
+        _pinned_opts(native_threads=7)
     ];
     seen: set = {base_fp};
     for flipped in flips {
@@ -98,13 +97,13 @@ test "JAC_NA_DEBUG enters the options object at construction" {
 
 test "clone_for_native_import carries the full codegen identity" {
     parent = _pinned_opts(
-        na_gc_mode="rc",
+        memory_profile="rc",
         rc_debug_codegen=True,
         native_target="x86_64-unknown-linux-gnu",
         native_debug=True,
         opt_level=1,
-        nogc_enforce_modules=["svc*"],
-        nogc_grandfathered=["legacy*"]
+        memory_enforce=["svc*"],
+        memory_exempt=["legacy*"]
     );
     child = parent.clone_for_native_import();
     assert child.skip_native_engine and child.aot_mode;
@@ -118,7 +117,7 @@ test "clone_for_native_import carries the full codegen identity" {
 
 test "link_fingerprint_mismatches names every non-matching participant" {
     current = _pinned_opts().codegen_fingerprint();
-    other = _pinned_opts(na_gc_mode="none").codegen_fingerprint();
+    other = _pinned_opts(memory_profile="nogc").codegen_fingerprint();
     got = link_fingerprint_mismatches(
         [("a.jac", current), ("b.jac", other), ("c.jac", "")], current
     );
@@ -126,66 +125,52 @@ test "link_fingerprint_mismatches names every non-matching participant" {
     assert link_fingerprint_mismatches([("a.jac", current)], current) == [];
 }
 
-test "env overrides enter the options object at construction" {
-    saved = os.environ.pop("JAC_RC_DEBUG_CODEGEN", None);
-    try {
-        assert CompileOptions().rc_debug_codegen == False;
-        os.environ["JAC_RC_DEBUG_CODEGEN"] = "1";
-        assert CompileOptions().rc_debug_codegen == True;
-        assert CompileOptions(rc_debug_codegen=False).rc_debug_codegen == False;
-    } finally {
-        if saved is None {
-            os.environ.pop("JAC_RC_DEBUG_CODEGEN", None);
-        } else {
-            os.environ["JAC_RC_DEBUG_CODEGEN"] = saved;
-        }
-    }
+test "native debug enters the options object from the option, not the environment" {
+    assert CompileOptions().rc_debug_codegen == False;
+    assert CompileOptions(native_debug=True).rc_debug_codegen == True;
+    assert CompileOptions(native_debug=True, rc_debug_codegen=False).rc_debug_codegen
+        == False;
+    assert CompileOptions(memory_profile="nogc").na_gc_mode == "none";
+    assert CompileOptions(memory_profile="nogc").nogc_enforce_all == True;
+    assert CompileOptions(memory_profile="rc").na_gc_mode == "rc";
+    assert CompileOptions().na_gc_mode == "cycles";
 }
 
-test "JIR module key follows analysis env flags, not native-only codegen flags" {
-    saved_rc = os.environ.pop("JAC_RC_DEBUG_CODEGEN", None);
-    saved_tgt = os.environ.pop("JAC_NATIVE_TARGET", None);
-    try {
-        with tempfile.TemporaryDirectory() as tmp {
-            src = os.path.join(tmp, "modkey_probe.jac");
-            with open(src, "w") as f {
-                f.write("with entry { print(1); }\n");
-            }
-            base_key = compute_module_key(src);
-            assert base_key == compute_module_key(src);
-            os.environ["JAC_RC_DEBUG_CODEGEN"] = "1";
-            rc_key = compute_module_key(src);
-            os.environ.pop("JAC_RC_DEBUG_CODEGEN", None);
-            os.environ["JAC_NATIVE_TARGET"] = "wasm32-unknown-unknown";
+test "JIR module key follows the target override, not native-only codegen flags" {
+    import from jaclang.compiler.driver.compile_options {
+        push_native_target,
+        pop_native_target
+    }
+    with tempfile.TemporaryDirectory() as tmp {
+        src = os.path.join(tmp, "modkey_probe.jac");
+        with open(src, "w") as f {
+            f.write("with entry { print(1); }\n");
+        }
+        base_key = compute_module_key(src);
+        assert base_key == compute_module_key(src);
+        prev = push_native_target("wasm32-unknown-unknown");
+        try {
             tgt_key = compute_module_key(src);
-            os.environ.pop("JAC_NATIVE_TARGET", None);
-            assert rc_key == base_key , (
-                "JAC_RC_DEBUG_CODEGEN is a native-only codegen knob and must "
-                "not change a bytecode module key"
-            );
-            assert tgt_key != base_key , "JAC_NATIVE_TARGET flip kept the key";
-            assert compute_module_key(src) == base_key;
+        } finally {
+            pop_native_target(prev);
         }
-    } finally {
-        if saved_rc is not None {
-            os.environ["JAC_RC_DEBUG_CODEGEN"] = saved_rc;
-        }
-        if saved_tgt is not None {
-            os.environ["JAC_NATIVE_TARGET"] = saved_tgt;
-        }
+        assert tgt_key != base_key , "native target flip kept the key";
+        assert compute_module_key(src) == base_key;
     }
 }
 
-test "effective fingerprint tracks the process env" {
+test "the codegen fingerprint tracks the native debug option, not the environment" {
+    base = CompileOptions().codegen_fingerprint();
+    assert CompileOptions(native_debug=True).codegen_fingerprint() != base;
     saved = os.environ.pop("JAC_RC_DEBUG_CODEGEN", None);
     try {
-        base = effective_codegen_fingerprint();
         os.environ["JAC_RC_DEBUG_CODEGEN"] = "1";
-        assert effective_codegen_fingerprint() != base;
+        assert CompileOptions().codegen_fingerprint() == base , (
+            "a compile-time environment variable must not enter the options"
+        );
     } finally {
-        if saved is None {
-            os.environ.pop("JAC_RC_DEBUG_CODEGEN", None);
-        } else {
+        os.environ.pop("JAC_RC_DEBUG_CODEGEN", None);
+        if saved is not None {
             os.environ["JAC_RC_DEBUG_CODEGEN"] = saved;
         }
     }
@@ -700,4 +685,44 @@ test "no consumer-site NULL guards on string operands" {
         "optional unwrap must be emitted by exactly one site "
         f"(_coerce_type_inner in types.impl.jac); found: {unwrap_sites}"
     );
+}
+
+
+test "native import handoff preserves memory policy and generated thread defaults" {
+    import json;
+    parent = CompileOptions(
+        memory_profile="nogc",
+        memory_enforce=["app.*"],
+        memory_exempt=["app.legacy"],
+        native_threads=7,
+        native_link_mode="bitcode",
+        native_target="aarch64-unknown-linux-gnu"
+    );
+    detached = CompileOptions.from_native_import_env(
+        json.loads(json.dumps(parent.native_import_env()))
+    );
+    for child in [parent.clone_for_native_import(), detached] {
+        assert child.codegen_identity() == parent.codegen_identity();
+        assert child.analysis_identity() == parent.analysis_identity();
+        assert child.memory_profile == "nogc" and child.nogc_enforce_all;
+        assert child.native_threads == 7;
+        assert child.native_link_mode == "bitcode";
+        assert child.memory_enforce == ["app.*"];
+        assert child.memory_exempt == ["app.legacy"];
+    }
+}
+
+test "native link mode uses project configuration without changing unit codegen" {
+    import from unittest.mock { patch }
+    import from jaclang.project.config { JacConfig }
+    cfg = JacConfig.from_toml_str('[native]\nlink_mode = "bitcode"\n');
+    with patch(
+        "jaclang.compiler.driver.compile_options._project_config", return_value=cfg
+    ) {
+        configured = CompileOptions();
+        explicit = CompileOptions(native_link_mode="objects");
+        assert configured.native_link_mode == "bitcode";
+        assert explicit.native_link_mode == "objects";
+        assert configured.codegen_identity() == explicit.codegen_identity();
+    }
 }

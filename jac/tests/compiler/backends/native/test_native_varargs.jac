@@ -79,7 +79,8 @@ def na_run(fixture: str) -> str {
             sys.executable,
             "-m",
             "jaclang",
-            "nacompile",
+            "build",
+            "--native",
             os.path.join(FIXTURES, fixture),
             "-o",
             out_bin
@@ -350,7 +351,8 @@ test "a generic pack at a by-value type argument is refused, not lowered" {
             sys.executable,
             "-m",
             "jaclang",
-            "nacompile",
+            "build",
+            "--native",
             os.path.join(FIXTURES, "varargs_generic_scalar.jac"),
             "-o",
             out_bin

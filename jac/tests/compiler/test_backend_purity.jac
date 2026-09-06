@@ -148,7 +148,9 @@ glob FORBIDDEN: dict[str, str] = {
              "stamped Expr.ct_value"
          ),
          ("native/na_ir_gen_pass.impl/calls.impl.jac", "symbol_utils"): (
-             2,
+             3,
+             "resolved_callee consumes the resolved call declaration for "
+             "ownership transfer and raises-effect lowering. "
              "classify_call as the shadowing-aware builtin test for the "
              "`type(None)` isinstance argument form (#6957) - consuming the "
              "central classification instead of re-implementing name "

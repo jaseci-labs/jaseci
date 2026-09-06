@@ -1,4 +1,8 @@
 import os;
+import from jaclang.compiler.driver.compile_options {
+    push_native_target,
+    pop_native_target
+}
 import struct;
 import subprocess;
 import sys;
@@ -57,7 +61,7 @@ def _musl_ok(triple: str) -> bool {
 
 def _link_static(relobj: bytes, triple: str, out: str) -> bool {
     # Static-link against vendored musl (libc.a + libzigc.a + compiler-rt + crt),
-    # exactly as `jac nacompile` does. Returns False if the musl runtime is not
+    # exactly as `jac build --native` does. Returns False if the musl runtime is not
     # vendored in this environment (callers skip the link/run in that case).
     musl = collect_musl_static([relobj], triple);
     if musl is None {

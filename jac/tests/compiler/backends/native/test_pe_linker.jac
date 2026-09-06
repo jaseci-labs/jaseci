@@ -14,6 +14,10 @@ requires a Windows host (or WSL interop) and is not assumed here.
 """
 
 import os;
+import from jaclang.compiler.driver.compile_options {
+    push_native_target,
+    pop_native_target
+}
 import struct;
 import subprocess;
 import sys;
@@ -38,8 +42,7 @@ glob FIXTURES = os.path.join(
 """Compile a fixture to a relocatable COFF object the way nacompile does:
 the plan's whole-program IR carries the PE entry (main + _jac_win_start)."""
 def emit_coff_object(fixture: str) -> bytes {
-    prev = os.environ.get("JAC_NATIVE_TARGET", None);
-    os.environ["JAC_NATIVE_TARGET"] = WIN_TRIPLE;
+    prev = push_native_target(WIN_TRIPLE);
     try {
         src = program_ir(fixture, WIN_TRIPLE);
         llvm.initialize_all_targets();
@@ -62,11 +65,7 @@ def emit_coff_object(fixture: str) -> bytes {
         mpm.run(mod, pb);
         relobj = tm.emit_object(mod);
     } finally {
-        if prev is None {
-            os.environ.pop("JAC_NATIVE_TARGET", None);
-        } else {
-            os.environ["JAC_NATIVE_TARGET"] = prev;
-        }
+        pop_native_target(prev);
     }
     return relobj;
 }
@@ -292,8 +291,9 @@ test "nacompile --target windows writes a valid PE via the CLI" {
             sys.executable,
             "-m",
             "jaclang",
-            "nacompile",
-            "--target",
+            "build",
+            "--native",
+            "--target-triple",
             "windows",
             os.path.join(FIXTURES, FIXTURE),
             "-o",

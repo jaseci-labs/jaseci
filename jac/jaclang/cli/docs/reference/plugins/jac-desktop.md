@@ -2,7 +2,7 @@
 
 The **desktop target** (historically the standalone `jac-desktop` plugin, now built
 into `jaclang` core) adds a Jac-native desktop build to full-stack Jac apps. A
-desktop app is **one `jac nacompile`d binary plus a web engine** - no Rust
+desktop app is **one `jac build --native`d binary plus a web engine** - no Rust
 toolchain, no PyInstaller, no separate process.
 
 It builds the same Vite frontend that the **jac-client** framework produces (the `cl`
@@ -232,7 +232,7 @@ notification = true
    - opens either an OS-native webview or a CEF browser window and navigates to
      that loopback origin. Walker and function calls are ordinary HTTP, exactly
      as in the browser; there is no second transport for the native window.
-3. `jac nacompile` lowers the host to a native binary via Jac's pure-Jac linker
+3. `jac build --native` lowers the host to a native binary via Jac's pure-Jac linker
    (no `cc`/`ld`), recording the renderer libraries with an `$ORIGIN` runpath.
 
 Each desktop app of a workspace builds under its own `.jac/client/<app>/desktop/`.

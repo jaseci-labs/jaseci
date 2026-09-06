@@ -50,7 +50,7 @@ with entry {
 }
 ```
 
-(A planned [`linear` marker](#imm-and-linear-markers) will make dropping an error -- a `linear` binding must be consumed exactly once, and leaking it will be `E1305`. `linear` is not yet implemented.)
+(A planned [`lin` marker](#imm-and-lin-markers) will make dropping an error -- a `linear` binding must be consumed exactly once, and leaking it will be `E1305`. `linear` is not yet implemented.)
 
 `own` also works on parameters (`def take(x: own Buffer) -> None`), and passing an owned local to a plain (non-`own`) parameter counts as a move.
 
@@ -74,7 +74,9 @@ Reading `h.ref` back yields an ordinary managed value, not an `own` binding -- t
 
 **Own-typed fields are not the membrane.** A field declared `has ref: own Buffer` keeps its value in the owned world, owned by the parent object: storing into it still consumes the source binding (it is a move, `E1301` applies to later reads), but under [nogc enforcement](native-pathway.md#zero-rc-ownership-compilation) it is *not* an `E1402` seal -- the parent frees the field at its own drop point, and overwriting the field drops the old value first, at the same program points under every gc mode. Only stores into *unannotated* fields (and subscripts, graph objects, or module `glob` state) cross the membrane into managed storage. This is what lets ownership extend from stack frames into heap aggregates: an owned struct of owned fields is a single ownership tree with one statically placed drop for the whole shape.
 
-Under headerless codegen (`--enforce-nogc --gc none`) the backend goes further and **flattens** own-typed fields of concrete, acyclic, non-OSP archetypes inline into the parent's allocation: the parent's LLVM struct embeds the field by value (no pointer slot, no separate `malloc`), a store copies the payload in and frees the source shell, reads yield the interior address, and the parent's drop tears the field down in place. Managed modes keep pointer fields; program output is identical either way.
+Under headerless codegen (`--memory nogc`) the backend goes further and **flattens** own-typed fields of concrete, acyclic, non-OSP archetypes inline into the parent's allocation: the parent's LLVM struct embeds the field by value (no pointer slot, no separate `malloc`), a store copies the payload in and frees the source shell, reads yield the interior address, and the parent's drop tears the field down in place. Managed modes keep pointer fields; program output is identical either way.
+
+The same rule decides the element layout of an owned list, and it is a decision about the **element type**, never about the annotation. A `list[T]` in a nogc-enforced module stores its elements inline when `T` is a closed-world leaf archetype (no archetype anywhere in the program derives from it), is not an OSP archetype, and has no heap-typed slots of its own; otherwise the list stores pointers. Because the type system erases `own`, `list[own T]` and `list[T]` are one type and lower to one layout, so a `&list[T]` parameter, a generic body instantiated at `T`, and a borrow return all agree with their caller. Subclass instances therefore never lose fields in a base-typed list, and `pop()`, `pop(i)`, `insert`, `del xs[i]`, and `extend` move payloads by value: `pop` reboxes the element into a fresh allocation the receiver owns, the tail shifts with one `memmove`, and `extend` from another owned list moves its elements in and retires the consumed source. `remove(x)` is not lowered for by-value elements, since identity equality has no meaning there.
 
 ## Borrowing
 
@@ -162,6 +164,84 @@ with entry {
 }
 ```
 
+## Moving out of places: `take` and `swap`
+
+An owned slot inside another value -- an own field, an optional own field, an element of an owned list -- is owned by that value. Reading it into an *owning* destination (an `own` binding, an own field, an `own` parameter, or an owned return) would leave two owners of one payload, so the checker rejects it: [`E1316`](../diagnostics.md#ownership-borrow-errors) for a field, [`E1317`](../diagnostics.md#ownership-borrow-errors) for a list element. Reading the same place into a borrow is always fine.
+
+Two builtins are the sanctioned exits. `take(place)` moves the value out of an optional owned place and leaves `None` behind, which is what every linked structure is made of; `swap(&mut a, &mut b)` exchanges two places of one type in place, without a temporary that would have to own one of them. Both are ordinary calls, per the rule that the exit from a state is a call, and both lower on every backend (a read-then-clear on Python, a load-then-store on native):
+
+```jac
+obj Node { has v: int = 0, next: own Node | None = None; }
+obj List { has head: own Node | None = None; }
+
+def push_front(l: &mut List, v: int) {
+    l.head = Node(v=v, next=take(l.head));   # take moves the old head out
+}
+
+def reverse(l: &mut List) {
+    prev: own Node | None = None;
+    cur: own Node | None = take(l.head);
+    while cur is not None {
+        nxt = take(cur.next);
+        cur.next = prev;
+        prev = cur;
+        cur = nxt;
+    }
+    l.head = prev;
+}
+
+def exchange(a: &mut List, b: &mut List) { swap(&mut a.head, &mut b.head); }
+```
+
+List elements are moved out with `pop()` or `pop(i)`, which hand the element to the receiver; `take` and `swap` address locals and attributes. `take` requires optional storage, and `swap` requires two explicit mutable borrows with the same storage type; invalid places are E1319. Each field receiver is evaluated once, from left to right. `swap` returns `None`.
+
+### Containers take ownership
+
+A container store is a move. Appending or inserting a named `own` archetype binding into a list, storing one as a dict value (by subscript or in a literal), or placing one in a list literal moves it into the container, which drops it with its other elements; the source binding is consumed, so a later read is `E1301`. Strings are the exception: a named owned `str` is copied in and stays live. Taking an element back out (`pop()`, or a dict `pop(key)`) hands ownership to the receiver; overwriting a dict value or `del` on a key drops the old value at that point.
+
+```jac
+obj Box { has tag: int = 0; def drop { print("drop", self.tag); } }
+
+def run -> int {
+    xs: list[own Box] = [];
+    b: own Box = Box(tag=1);
+    xs.append(b);                 # b is moved; `b.tag` here would be E1301
+    d: dict[str, own Box] = {};
+    d["k"] = Box(tag=2);
+    d["k"] = Box(tag=3);          # prints "drop 2"
+    got: own Box = d.pop("k");    # the receiver now owns tag 3
+    return xs[0].tag + got.tag;   # xs drops tag 1; got drops tag 3
+}
+```
+
+Sets of archetypes stay outside this rule (they hash by identity), and a borrowed value or a field read cannot enter a container; both remain `E1406` under enforcement.
+
+## Receiver modes
+
+A method reads, writes, or consumes its receiver, and the checker knows which. The mode is **inferred from the body**: a method that assigns a field of `self`, grows or mutates a container field of `self` (`append`, `insert`, `pop`, `remove`, `clear`, `extend`, `update`, `sort`, ...), takes `&mut self`, uses `take` on a field, or calls another method that mutates `self` or one of its fields is `&mut self`; every other method is `&self`. Methods that call each other resolve to the least mode consistent with their bodies, so a cycle of read-only methods stays `&self`. The inferred mode is stamped on the method as a fact editors can show.
+
+The **explicit form** reuses the typed `self` parameter the grammar already accepts. Writing `self` in an `obj`, `node`, `edge`, or `walker` method is admitted only to declare a mode: `self: own T` consumes the receiver, `self: &mut T` and `self: &T` pin the inferred modes. A consuming receiver cannot be inferred from intent, which is why it is the one worth writing:
+
+```jac
+obj Counter {
+    has n: int = 0;
+
+    def inc { self.n += 1; }                                    # inferred &mut self
+    def get -> int { return self.n; }                           # inferred &self
+    def into_total(self: own Counter) -> int { return self.n; } # consumes
+}
+
+def run -> int {
+    c: own Counter = Counter();
+    v = &c;
+    c.inc();              # error[E1303]: cannot mutate 'c' while a shared borrow of it is live
+    total = c.into_total();
+    return c.get();       # error[E1301]: use of 'c' after it was moved
+}
+```
+
+A mutating call is a write: [`E1303`](../diagnostics.md#ownership-borrow-errors) while a shared borrow of the receiver is live, [`E1309`](../diagnostics.md#ownership-borrow-errors) on an `imm` binding, and [`E1318`](../diagnostics.md#ownership-borrow-errors) when the call goes through a shared `&` borrow (take the borrow with `&mut`, or call on the owner). The builtin container mutators (`append`, `insert`, `pop`, `remove`, `clear`, `extend`, `update`, `sort`, ...) are `&mut self` methods under the same rule, so `c.tags.append(1)` through `c: &Cfg`, or through a local that borrowed `c.tags`, is `E1318` as well. A `self: own` call moves the receiver exactly like passing it to an `own` parameter: the binding is dead afterwards, and under headerless codegen the method owns and drops it.
+
 ## Views and zero-copy: current state and direction
 
 Two pieces of the immutable-view design (#7857 Phase C) are live today: a function may return a borrow it received as a parameter (the passthrough rule above -- the single-input case of Rust's lifetime elision, with no lifetime syntax), and `str` slices never consume their source. Slices are currently *owned copies* on every backend: the native string representation is a NUL-terminated buffer whose length-carrying variant (a fat `(data, len)` pointer that `print`, `len`, and the str runtime all honor) is the prerequisite for representing a mid-string view, so zero-copy slices of `imm`/borrowed receivers are deliberately fenced until that representation lands. The semantic direction is fixed and documented here so the fence is a representation gap, not a design gap: views of deep-frozen data need only extent-keeping (RC on the managed floor, owner-outlives under enforcement), never a named lifetime.
@@ -235,7 +315,7 @@ def work -> int {
 
 The loop variable is checked as a borrow of the iterated owner: storing it into a field or otherwise escaping the loop is `E1306`. Element mutation through the `&mut` form is visible after the loop at identical program points under every gc mode, including enforced headerless builds.
 
-## `imm` and `linear` markers
+## `imm` and `lin` markers
 
 Two further binding markers refine `own` at either end of the strictness spectrum.
 
@@ -251,24 +331,95 @@ with entry {
 }
 ```
 
-!!! warning "`linear` is planned, not implemented"
-    The `linear` marker described below **does not parse yet** -- there is no
-    `linear` keyword, no checker support, and `E1305` is a reserved code that
-    is not registered. It is tracked as a follow-up to the ownership-endgame
-    plan ([#7453](https://github.com/jaseci-labs/jac/issues/7453)); this
-    section documents the intended design.
-
-`linear` will declare a **must-use** resource: move-checked exactly like `own`, but where `own` is affine (dropping is fine), a `linear` binding must be consumed -- moved to its final owner, passed on, or sealed into managed storage -- exactly once before its scope ends. Never consuming it will be `E1305` (reserved); consuming it twice is the usual use-after-move `E1301`:
+`lin` declares a **must-consume** resource. A `lin` binding is an `own` binding in every other respect (it moves, it borrows, it drops, and it lowers identically on every backend), but where `own` is affine (dropping an unconsumed value is fine), a `lin` binding must be consumed on every path before its scope ends: passed to an `own` parameter, stored in an owned place, or returned. A path that lets it go out of scope unconsumed is [`E1305`](../diagnostics.md#ownership-borrow-errors); consuming it twice is the usual use-after-move `E1301`. `lin` is accepted wherever `own` is, and the must-consume check covers locals and parameters:
 
 <!-- jac-skip -->
 ```jac
-obj File { has fd: int = 0; }
+obj File { has fd: int = 0; def drop { close_fd(self.fd); } }
 
-with entry {
-    f: linear File = File();
-    print("done");   # error[E1305]: linear resource 'f' is never consumed
+def finish(f: own File) -> None { print("closing", f.fd); }
+
+def run(flag: bool) -> None {
+    f: lin File = File(fd=3);
+    if flag {
+        finish(f);
+    }                 # error[E1305]: Linear binding 'f' is never consumed (the `flag == False` path)
+}
+
+def ok -> None {
+    g: lin File = File(fd=4);
+    finish(g);        # consumed exactly once: clean
 }
 ```
+
+The check is a must-analysis over the control-flow graph: a `lin` value consumed inside a loop body or on one arm of a branch is not consumed on the paths that skip it, so those paths report. Pair `lin` with a [`drop` hook](#the-drop-hook) when the resource must be released explicitly rather than by falling out of scope.
+
+## Local inference under enforcement
+
+Contract positions stay explicit in every module: a parameter, return type or `has` field that holds heap data is written `own`, `&`, `&mut`, `imm` or `lin`, enforced or not. What an enforced module adds is how far an unmarked local infers, so the wall a developer meets is not the locals inside a function:
+
+| Right-hand side | Inferred state |
+|---|---|
+| a call, constructor, container literal, f-string, concatenation (`a + b`, `s * n`, `fmt % x`) or `own <expr>` copy | `own` |
+| a string literal | `imm` (a literal that is later rebound, `s = ""; s = s + x`, is `own`) |
+| a field or element read of a place (`c.name`, `xs[i]`, `self.head`) | a borrow of the root: `&mut` when the root is owned or `&mut` and the local is written through, `&` otherwise |
+| `&place` / `&mut place` | that borrow |
+| another borrow | a reborrow tied to the same owner |
+| a conditional whose arms agree | the arms' state |
+
+```jac
+obj Cfg { has name: str = "svc", tags: list[int] = []; }
+
+def summarize(c: &Cfg, flag: bool) -> int {        # contract: written
+    lit = "a,b,c";                                 # imm str
+    cat = "a" + str(1);                            # own str
+    label = "y" if flag else "n";                  # imm str
+    n = c.name;                                    # &str, borrows c
+    t = c.tags;                                    # &list[int], borrows c
+    return len(lit) + len(cat) + len(label) + len(n) + len(t);
+}
+
+def rename_first(xs: &mut list[Item]) {
+    it = xs[0];                                    # &mut Item: the root is &mut and `it` is written through
+    it.name = "z";
+}
+```
+
+A conditional whose arms disagree (`s = "lit" if f else build()`) has no single state and stays [`E1401`](../diagnostics.md#zero-rc-enforcement-errors): write the binding out. An inferred borrow obeys every borrow rule, so mutating through a borrow of a shared root, or returning it as `own`, is rejected the same way an explicit `&` local would be. The inlay hints below show every inferred state.
+
+## Seeing what was inferred
+
+The profile leans on inference, so the editor shows it. The language server publishes inlay hints for every inferred fact: the ownership state of a local that carries no marker (`: own`, `: &`, `: &mut`, `: imm`, `: lin`), a binding that is a view over a borrow (`view`), the receiver mode of a method that names no `self` (`(&self)`, `(&mut self)`, `(own self)`), and the raises effect of a function (`raises ValueError`). The same facts drive the diagnostics, so a hint and an error never disagree.
+
+## Errors without unwinding
+
+Under the nogc profile there is no unwinder, so `raise`, `try`, and `except` keep their syntax and change their lowering. Every function carries an inferred *raises* effect: the exception types it raises itself outside a handling `try`, plus those of the functions it calls without handling them. A raising function returns through a hidden error slot; the caller checks the slot after the call and either dispatches to its own `except` clause, runs its `finally` and propagates, or, with no handler, drops its owned locals at their static points and returns. Nothing about this is written in the source; `jac check` reports the inferred effect through the language server's inlay hints.
+
+An entry block has no caller to propagate to, so a raising call it does not handle is a compile-time error, [`E1407`](../diagnostics.md#ownership-borrow-errors):
+
+```jac
+def parse_port(s: &str) -> int {          # raises ValueError
+    if len(s) == 0 { raise ValueError("empty port"); }
+    return int(s);
+}
+
+def load(cfg: &Cfg) -> int {              # raises ValueError, propagated from parse_port
+    g: own Guard = Guard();               # dropped on both the value path and the error path
+    return parse_port(&cfg.port_text) + 1;
+}
+
+def load_or_default(cfg: &Cfg) -> int {   # raises nothing
+    try { return load(cfg); } except ValueError { return 8080; }
+}
+
+with entry {
+    c: own Cfg = Cfg();
+    print(load_or_default(&c));           # clean
+    print(load(&c));                      # error[E1407]: 'load' raises ValueError, and the entry block does not handle it
+}
+```
+
+Managed and `rc` builds keep the setjmp-based runtime; the identity contract holds, so a program prints the same output under every profile, including the order of `drop` hooks on the error path.
 
 ## Regions: first-class `Region` handles and `in` opens
 
@@ -441,7 +592,7 @@ that could jump the close point declines the inference and the graph stays
 managed -- conservative-only is the contract, so a declined graph is never
 wrong, just unoptimized. Because the inference produces an ordinary open
 in the tree, it is portable: the Python backend runs the same `drop` hooks
-LIFO at the close. Traversals under `--enforce-nogc` still wait on the
+LIFO at the close. Traversals under `--memory nogc` still wait on the
 walker engine's zero-RC factoring.
 
 Only payloads that are statically race-free may cross a `flow`/`wait`/`thread_run` boundary: a deep-immutable `imm` value, or an `own` value that is *moved* into the boundary (a planned `linear` value will cross the same way). Sending a live `&`/`&mut` borrow is [`E1308`](../diagnostics.md#ownership-borrow-errors):
@@ -509,21 +660,19 @@ with entry {
 }
 ```
 
-Execution: in a **zero-RC enforced native build** (`--enforce-nogc --gc
-none`), `flow for` runs genuinely parallel -- the body is outlined and
+Execution: in a **zero-RC enforced native build** (`--memory nogc`), `flow for` runs genuinely parallel -- the body is outlined and
 element ranges fan out over pthreads, joining at the closing brace
-(`JAC_FLOW_THREADS` sets the width, default 4). This placement is the
-point, not a limitation: an `--assert-no-rc` binary provably contains no
+(`[native] threads` sets the width, default 4; `JAC_THREADS` overrides it at run time). This placement is the
+point, not a limitation: a `nogc` binary provably contains no
 refcount operations and no shared runtime kernel, and the checker bans
 every unsound capture, so threads are unconditionally safe --
-parallelism arrives exactly where machinery absence is proven. `--gc
-rc` builds fan out the same way: retain and release are atomic (the
+parallelism arrives exactly where machinery absence is proven. `--memory rc` builds fan out the same way: retain and release are atomic (the
 free decision consumes the atomic RMW's returned old count, so racing
 releases cannot double-free or leak), which makes values crossing task
 boundaries safe at zero added single-thread cost -- the baseline
 already paid the RMW on every retain/release. Measured ~7x on 8
 threads for an element-map kernel hammering one shared string's
-header. `--gc cycles` keeps the sequential lowering (the cycle
+header. `--memory managed` keeps the sequential lowering (the cycle
 collector's global roots and color state are unsynchronized), as do
 the Python backend and wasm, so post-join state is byte-identical
 everywhere by the disjointness rule. A named follow-up: the chunked
@@ -586,10 +735,10 @@ obj Res {
 }
 ```
 
-`drop` fires under every native gc mode, at the same program point for a uniquely-owned value:
+`drop` fires under every native memory profile, at the same program point for a uniquely-owned value:
 
-- **[Enforced headerless modules](native-pathway.md#zero-rc-ownership-compilation)** (`--enforce-nogc --gc none`): the compiler calls the hook from the statically inserted `__drop_<T>` at each drop point.
-- **Managed modes** (`rc` and the default `cycles`): the hook is invoked by the object's reference-count destructor when the last reference dies. For an unaliased local that is the same point the headerless build drops at, so program output is identical across modes.
+- **[Enforced headerless modules](native-pathway.md#zero-rc-ownership-compilation)** (`--memory nogc`): the compiler calls the hook from the statically inserted `__drop_<T>` at each drop point.
+- **Reference-counted profiles** (`rc` and the default `managed`): the hook is invoked by the object's reference-count destructor when the last reference dies. For an unaliased local that is the same point the headerless build drops at, so program output is identical across modes.
 
 **Drops happen after last use, and no later than scope exit.** Drops are scheduled by liveness: a binding whose value the program will never read again can be reclaimed early -- a value whose last use is its own initialization is dropped right away, before later statements run. This eager case is observable through `drop`:
 
@@ -601,18 +750,20 @@ def run {
 # prints 7, then "alive" -- r's last use is its declaration, so it drops first
 ```
 
-The current native backend does not yet place every drop at the *statement* granularity a full non-lexical-lifetime scheme would: a binding that is read partway through a frame is observed to drop at frame exit rather than immediately after that last read. Rely on the guarantee the compiler actually provides today -- a uniquely-owned value drops after its last use and no later than scope exit, at the same program point under every native gc mode -- rather than on exact statement-level timing.
+The current native backend does not yet place every drop at the *statement* granularity a full non-lexical-lifetime scheme would: a binding that is read partway through a frame is observed to drop at frame exit rather than immediately after that last read. Rely on the guarantee the compiler actually provides today -- a uniquely-owned value drops after its last use and no later than scope exit, at the same program point under every native memory profile -- rather than on exact statement-level timing.
+
+At scope exit, remaining owned bindings are released in reverse declaration order. List destruction releases elements from the last index to the first on both native and Python backends. Explicit `del` invokes an archetype's drop hook once, even when graph metadata keeps the object reachable.
 
 Two caveats:
 
-- Under `cycles`, objects that die as members of a reference cycle are destroyed by the collector; each member's `drop` still runs, but the order within the cycle is unspecified and sibling objects may already be gone -- don't traverse other heap objects from a cyclic `drop`.
+- Under `managed`, objects that die as members of a reference cycle are destroyed by the collector; each member's `drop` still runs, but the order within the cycle is unspecified and sibling objects may already be gone -- don't traverse other heap objects from a cyclic `drop`.
 - There is no resurrection: `drop` must not store `self` anywhere; the object is freed as soon as the hook returns.
 
 Outside regions, the Python backend does not invoke `def drop` automatically yet -- rely on it only in native modules. Values allocated under an [`in <handle> { }` open](#regions-first-class-region-handles-and-in-opens) are the exception: their hooks fire at portable points on both backends -- LIFO at the closing brace for an anonymous open, at the handle's death for a named one. (Named-handle timing on the Python backend rides CPython reference death, which approximates but does not exactly equal the native static drop point; the anonymous case is exactly portable.)
 
 ## Zero-RC native builds
 
-On the native backend, full ownership coverage is what lets the memory-management runtime disappear from the artifact entirely. A **nogc-enforced** module (`jac nacompile --enforce-nogc`, or `jac.toml [gc.enforce]` patterns) must keep every heap-typed contract position -- parameter, return type, `has` field -- in the owned world, with violations reported as hard [`E1401`-`E1406`](../diagnostics.md#zero-rc-enforcement-errors) errors that block codegen. Compiled with `--gc none`, such a module gets **headerless owned codegen**: allocations and frees at statically determined points (a bare `malloc` at construction, a direct `__drop_<T>` call after last use), no reference counting, and no collector -- and `jac nacompile --assert-no-rc` fails the build if the emitted IR contains any RC/collector machinery, making the absence checkable in the binary. Heap values leave an enforced module only through the explicit `managed(...)` membrane builtin. The full model -- gc modes, the enforcement contract, and the `rc-stats` coverage report -- lives in [Zero-RC ownership compilation](native-pathway.md#zero-rc-ownership-compilation).
+On the native backend, full ownership coverage is what lets the memory-management runtime disappear from the artifact entirely. A **nogc-enforced** module (`jac build --native --memory nogc`, or `jac.toml [memory]` patterns) must keep every heap-typed contract position -- parameter, return type, `has` field -- in the owned world, with violations reported as hard [`E1401`-`E1406`](../diagnostics.md#zero-rc-enforcement-errors) errors that block codegen. Compiled with `--memory nogc`, such a module gets **headerless owned codegen**: allocations and frees at statically determined points (a bare `malloc` at construction, a direct `__drop_<T>` call after last use), no reference counting, and no collector -- and `jac build --native` fails the build if the emitted IR contains any RC/collector machinery, making the absence checkable in the binary. Heap values leave an enforced module only through the explicit `managed(...)` membrane builtin. The full model -- memory profiles, the enforcement contract, and the `rc-stats` coverage report -- lives in [Zero-RC ownership compilation](native-pathway.md#zero-rc-ownership-compilation).
 
 ## What `&x` compiles to
 
@@ -624,4 +775,4 @@ The native backend does hand the checked facts to the optimizer: heap-typed para
 
 - [Ownership Checker Specification](../../internals/ownership-checker-spec.md) -- the authoritative statement of what each `E13xx` code guarantees, the checker's symbol-level granularity, and the facts contract backends consume.
 - [Errors and Warnings](../diagnostics.md#ownership-borrow-errors) -- the full `E1301`-`E1309` code table (`E1305` is reserved for the planned `linear` marker and not yet registered).
-- [Native Compilation Reference](native-pathway.md#memory-management) -- the emit-time `--gc` modes, zero-RC ownership compilation, and how the native backend proves [reference-count elision](native-pathway.md#reference-count-elision) independently of this checker.
+- [Native Compilation Reference](native-pathway.md#memory-management) -- the `--memory` profiles, zero-RC ownership compilation, and how the native backend proves [reference-count elision](native-pathway.md#reference-count-elision) independently of this checker.

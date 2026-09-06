@@ -156,21 +156,34 @@ test "a kernel built elsewhere is accepted by its units' package identity" {
     );
 }
 
-test "application codegen environment does not change the compiler kernel" {
+test "application configuration does not change the compiler kernel" {
     import from unittest.mock { patch }
+    import from jaclang.project.config { JacConfig }
+    import from jaclang.compiler.driver.compile_options {
+        CompileOptions,
+        push_native_target,
+        pop_native_target
+    }
     before = kernel_options().codegen_identity();
-    with patch.dict(
-        os.environ,
-        {
-            "JAC_RC_DEBUG_CODEGEN": "1",
-            "JAC_NATIVE_DEBUG": "1",
-            "JAC_OPT_LEVEL": "0",
-            "JAC_NATIVE_TARGET": "aarch64-unknown-linux-gnu",
-            "JAC_DUMP_IR": "/tmp/application.ll"
+    cfg = JacConfig();
+    cfg.memory.profile = "nogc";
+    cfg.memory.enforce = ["*"];
+    cfg.native.debug = True;
+    cfg.native.opt = 0;
+    cfg.native.target = "aarch64-unknown-linux-gnu";
+    prev = push_native_target(cfg.native.target);
+    try {
+        with patch(
+            "jaclang.compiler.driver.compile_options._project_config", return_value=cfg
+        ) {
+            assert CompileOptions().codegen_identity() != before;
+            opts = kernel_options();
+            assert opts.codegen_identity() == before;
+            assert opts.memory_profile == "managed";
+            assert not opts.nogc_enforce_all;
+            assert opts.dump_ir_path == "";
         }
-    ) {
-        opts = kernel_options();
-        assert opts.codegen_identity() == before;
-        assert opts.dump_ir_path == "";
+    } finally {
+        pop_native_target(prev);
     }
 }

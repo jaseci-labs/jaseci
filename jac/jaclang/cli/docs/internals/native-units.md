@@ -92,7 +92,7 @@ moved is recompiled during the walk.
 
 ## The link plan
 
-One plan produces every artifact: `jac nacompile`, `jac build --as native`,
+One plan produces every artifact: `jac build --native`, native app builds,
 the kernel resolver, `jac precompile --seal` and the in-process JIT are all
 callers, and the plan knows nothing about any of them.
 
@@ -130,7 +130,7 @@ the GOT instead of through it.
 
 ### Incremental development builds
 
-`jac nacompile` enters through the link plan, so a warm entry module is not
+`jac build --native` enters through the link plan, so a warm entry module is not
 unconditionally parsed and lowered before the cache is consulted. A no-op
 objects build lowers no units. An ordinary body edit recompiles its unit;
 a changed source contract recompiles the affected consumers.
@@ -359,7 +359,7 @@ frontend, macOS arm64, September 2026:
 | `jac run chess.jac -b 1`, first compile | 1.9 s | 3.5 s |
 | same, warm | 1.7 s | 1.9 s |
 | `jac run chess.jac -b 20` | 4.2 s | 4.4 s |
-| `jac nacompile chess.jac`, warm units | 1.7 s, 102 KB | objects 1.5 s, 110 KB; bitcode 1.7 s, 101 KB |
+| `jac build --native chess.jac`, warm units | 1.7 s, 102 KB | objects 1.5 s, 110 KB; bitcode 1.7 s, 101 KB |
 | `./chess -b 20` | 2.93 s | 2.94 s (objects), 2.89 s (bitcode) |
 | kernel, parsing 14k lines four times | 1.73 s | 1.76 s |
 | kernel, cold derivation | about 3 min | about 5.5 min |

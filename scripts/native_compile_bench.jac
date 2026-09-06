@@ -29,7 +29,8 @@ def main -> None {
         parser.error("rounds and warmups must be positive");
     }
 
-    import from jaclang.cli.commands.nacompile { nacompile }
+    import from jaclang.cli.commands.native_build { native_build }
+    import from jaclang.compiler.driver.jir { scrub_cache_dirs }
     import from jaclang.compiler.native_compiler { ensure_loaded }
 
     kernel = ensure_loaded();
@@ -42,10 +43,9 @@ def main -> None {
         output = args.output or Path(directory) / "program";
         for round_number in range(-args.warmups, args.rounds) {
             gc.collect();
+            scrub_cache_dirs(str(args.source.resolve().parent));
             start = time.perf_counter();
-            result = nacompile(
-                str(args.source.resolve()), output=str(output), scrub=True
-            );
+            result = native_build(str(args.source.resolve()), output=str(output));
             elapsed = time.perf_counter() - start;
             if result {
                 raise RuntimeError(f"compile failed in round {round_number}");

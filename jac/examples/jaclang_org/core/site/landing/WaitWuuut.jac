@@ -1,4 +1,3 @@
-import from react { useEffect }
 import from core.site.ui.badge { Badge }
 import from core.site.ui.SectionRail { SectionRail }
 import from core.site.landing.Reveal { Reveal }
@@ -32,14 +31,14 @@ glob GROUPS: list[dict] = [
                  {
                      "tag": "apps, same trick",
                      "title": "One import crosses an app boundary",
-                     "body": "The same import that erases the client/server line erases the service line. jac.toml declares this workspace's apps, and core/social_graph.jac is one of them: a file-rooted service app that the web app, the mobile app, and the cli app all consume by importing it. The boundary is structural, so it compiles and type-checks as a cut no matter how it is deployed; the topology is a profile, so it shares one process under jac run and runs as its own process behind the gateway in the fleet. The scorer works the same way: submit a repo on the Ninja Scores page and its breakdown names the process that scored it.",
+                     "body": "The same import that erases the client/server line erases the service line. jac.toml declares this workspace's apps, and core/social_graph.jac is one of them: a file-rooted service app that the web app, the mobile app, and the cli app all consume by importing it. The boundary is structural, so it compiles and type-checks as a cut no matter how it is deployed; the topology is a profile, so it shares one process under jac run and runs as its own process behind the gateway in the fleet. The scorer works the same way: JacYac submits a repository to the scoring service and displays its typed score breakdown. The shared state module below is consumed by both the web and React Native renderers.",
                      "path": "jac.toml",
                      "needle": "[apps.social_graph]",
                      "hl": 3,
                      "before": 2,
                      "after": 8,
-                     "path2": "core/site/socialize/Socialize.jac",
-                     "needle2": "import from core.social_graph {",
+                     "path2": "core/jacyac/state.jac",
+                     "needle2": "    setup_profile,",
                      "hl2": 1,
                      "before2": 1,
                      "after2": 12,
@@ -74,7 +73,7 @@ glob GROUPS: list[dict] = [
                  },
                  {
                      "define": "substrate",
-                     "tag": "cl means client",
+                     "tag": "inferred client",
                      "title": "The highlighter is Jac too",
                      "body": "The syntax coloring in every window on this page happens in your browser, in Jac. Nothing marks this module as client code, and it lives in core/, outside every app; it compiles to JavaScript because client components import it, the same way the game module compiles to wasm. One language, three targets, decided by the edges of the import graph.",
                      "path": "core/jac_tokenizer.jac",
@@ -93,7 +92,7 @@ glob GROUPS: list[dict] = [
              "pre": "",
              "hot": "Topokinetic",
              "post": ": computation moves to the data",
-             "blurb": "The docs and the leaderboard are persistent graphs, and the code that serves them travels: walkers descend, fold, and climb the topology instead of querying it from a distance.",
+             "blurb": "The docs and JacYac projects are persistent graphs, and the code that serves them travels: walkers descend, fold, and climb the topology instead of querying it from a distance.",
              "define": "topokinetic",
              "sections": [
                  {
@@ -102,7 +101,7 @@ glob GROUPS: list[dict] = [
                      "title": "The URL walks a graph",
                      "body": "The docs on this site are not files behind a router; they are nodes in a persistent graph. A walker spawns at the root and descends, and because version and directory nodes share a supertype, one polymorphic ability handles every hop. Whatever the walker lands on becomes the response: the URL is a path through the graph, literally.",
                      "path": "core/docs/graph.jac",
-                     "needle": "can descend with DocContainer entry",
+                     "needle": "walker:pub doc_page {",
                      "hl": 1,
                      "before": 2,
                      "after": 12,
@@ -157,7 +156,7 @@ glob GROUPS: list[dict] = [
                      "title": "The type switch that walked away",
                      "body": "Deriving a page's URL used to be a function with an isinstance ladder inside. Now it is a walker spawned on the node that climbs the Contains edges upward: the type of wherever it lands picks the ability that runs, and the version node's empty ability is the stop condition, because a walker that does not visit simply halts.",
                      "path": "core/docs/graph.jac",
-                     "needle": "can climb_dir with DocDir entry",
+                     "needle": "walker trace_route {",
                      "hl": 1,
                      "before": 8,
                      "after": 10,
@@ -188,9 +187,9 @@ glob GROUPS: list[dict] = [
                  {
                      "tag": "queries are paths",
                      "title": "The lookup is one expression",
-                     "body": "Finding a repo on the leaderboard is not a loop with an if inside. The bracketed edge reference is a small query algebra: direction, edge type, node type, field predicate, one expression. Assign it to a variable and it is a query; hand it to visit and it is an itinerary.",
-                     "path": "core/leaderboard/impl/board.impl.jac",
-                     "needle": "[?:RepoEntry, full==full_name]",
+                     "body": "Importing historical Ninja Scores finds an existing project under its archive profile with one expression. The bracketed edge reference is a small query algebra: direction, edge type, node type, field predicate, one expression. Assign it to a variable and it is a query; hand it to visit and it is an itinerary.",
+                     "path": "core/social_graph.jac",
+                     "needle": "existing = [archive->:Owns:->[?:Project, full==item.full]];",
                      "hl": 1,
                      "before": 2,
                      "after": 6,
@@ -260,7 +259,7 @@ glob GROUPS: list[dict] = [
                  {
                      "tag": "decl vs impl",
                      "title": "The what and the how, apart",
-                     "body": "Any declaration can push its body into an impl file, and every directory of this site now keeps an impl folder holding its modules' implementations. The first window is the what: a one-line decl inside the component, ending in a semicolon. The second is the how, living in the impl folder next door. The compiler stitches them back together as one unit.",
+                     "body": "Any declaration can push its body into an impl file, and this site uses adjacent impl folders where separating the interface makes the code easier to read. The first window is the what: a one-line decl inside the component, ending in a semicolon. The second is the how, living in the impl folder next door. The compiler stitches them back together as one unit.",
                      "path": "core/site/landing/Showcase.jac",
                      "needle": "async def load_samples -> None;",
                      "hl": 1,
@@ -277,8 +276,8 @@ glob GROUPS: list[dict] = [
                      "tag": "the-kicker-anchor",
                      "title": "This page, reading itself",
                      "body": "Every section above is one entry in a list at the top of this page's own source, and the page is a loop over that list. This window resolved its own entry: the anchor it searched for is the tag printed beside this paragraph. Wait, wuuut.",
-                     "path": "web/pages/wait-wuuut.jac",
-                     "needle": "the-kicker-anchor",
+                     "path": "core/site/landing/WaitWuuut.jac",
+                     "needle": "\"tag\": \"the-kicker-anchor\"",
                      "hl": 1,
                      "before": 6,
                      "after": 10,
@@ -293,7 +292,7 @@ glob GROUPS: list[dict] = [
      ABSENT: list[dict] = [
          {
              "thing": "a database",
-             "why": "The docs and the leaderboard live in a persistent graph. root outlives every request with no schema, no connection string, no setup."
+             "why": "The docs and JacYac projects live in a persistent graph. root outlives every request with no schema, no connection string, no setup."
          },
          {
              "thing": "an ORM or migrations",
@@ -320,8 +319,8 @@ glob GROUPS: list[dict] = [
              "why": "The function signature is the schema. Arguments are typed and checked at the boundary."
          },
          {
-             "thing": "auth or session plumbing",
-             "why": "Every visitor gets an isolated root graph by default; root.shared is the one deliberately shared world."
+             "thing": "hand-written JWT signing",
+             "why": "Jac handles session tokens and per-user roots. Jac Scale provides the OAuth sessions used by GitHub sign-in."
          },
          {
              "thing": "a package.json",
@@ -329,7 +328,7 @@ glob GROUPS: list[dict] = [
          },
          {
              "thing": "webpack or vite config",
-             "why": "Bundling, code splitting, static assets, and the dev server all come out of jac start."
+             "why": "Bundling, code splitting, static assets, and the dev server all come out of jac run."
          },
          {
              "thing": "a wasm toolchain",

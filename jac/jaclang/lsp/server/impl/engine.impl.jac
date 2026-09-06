@@ -792,6 +792,37 @@ impl JacLangServer.get_node_info(sym_node: uni.AstSymbolNode) -> Optional[str] {
     return node_info.strip() if node_info else None;
 }
 
+impl JacLangServer.get_inlay_hints(
+    file_path: str, range: lspt.Range
+) -> list[lspt.InlayHint] {
+    import from jaclang.compiler.passes.ownership_hints { inferred_hints }
+    fs_path = _path_of(file_path);
+    mod = self.program.mod.hub.get(fs_path);
+    if mod is None {
+        return [];
+    }
+    out: list[lspt.InlayHint] = [];
+    for h in inferred_hints(mod) {
+        line = h.line - 1;
+        if line < range.start.line or line > range.end.line {
+            continue;
+        }
+        out.append(
+            lspt.InlayHint(
+                position=lspt.Position(line=line, character=h.col),
+                label=h.label,
+                kind=(
+                    lspt.InlayHintKind.Parameter
+                        if h.kind == "parameter"
+                        else lspt.InlayHintKind.Type
+                ),
+                padding_left=h.label.startswith("(") or h.label.startswith(" raises")
+            )
+        );
+    }
+    return out;
+}
+
 impl JacLangServer.get_hover_info(
     file_path: str, position: lspt.Position
 ) -> Optional[lspt.Hover] {

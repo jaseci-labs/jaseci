@@ -74,7 +74,7 @@ async def run_post(text: str) -> int {
         } else {
             print(
                 "posted nothing: the site found no profile for this identity "
-                    + "(open /socialize once to create one)"
+                    + "(open /jacyac once to create one)"
             );
         }
         return EXIT_OK;

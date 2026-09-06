@@ -131,7 +131,8 @@ import from jaclang.compiler.frontend.constant {
     CodeContext,
     EdgeDir,
     is_borrow_kind,
-    OwnershipKind
+    OwnershipKind,
+    SymbolStorage
 }
 import from jaclang.compiler.frontend.constant { Constants as Con }
 import from jaclang.compiler.frontend.constant { Tokens as Tok }
@@ -368,6 +369,10 @@ walker JcirGenPass(BaseAstGenPass[CgItem]) {
         cls_name: str, keys: list[str], vals: list, l1: int, c1: int, l2: int, c2: int
     ) -> CgNode;
 
+    def _move_release_stmts(stmt: CodeBlockStmt) -> list[CgNode];
+    def _release_name_stmt(name: str, source: UniNode) -> CgNode;
+    def _scope_cleanup_body(scope: UniNode, body: list[CgNode]) -> list[CgNode];
+    def _stmts_with_releases(stmts: list) -> list[CgItem];
     def call_node(
         func: CgNode, args: list, keywords: list, jac_node: (UniNode | None) = None
     ) -> CgNode;
@@ -585,6 +590,11 @@ walker JcirGenPass(BaseAstGenPass[CgItem]) {
     can exit_atom_trailer with AtomTrailer exit;
     can exit_atom_unit with AtomUnit exit;
     can exit_func_call with FuncCall exit;
+    def _place_parts(arg: UniNode) -> (tuple | None);
+    def _name_take_expr(owner: str) -> CgNode;
+    def _name_swap_expr(store_id: str, value: CgNode) -> CgNode;
+    def _lower_take(nd: FuncCall) -> (CgNode | None);
+    def _lower_swap(nd: FuncCall) -> (CgNode | None);
     def _exit_func_call_impl(nd: FuncCall) -> None;
     def _fold_sorted_traversal(nd: FuncCall) -> bool;
     def _order_term(
