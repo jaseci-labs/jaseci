@@ -150,6 +150,8 @@ def build_kernel(dst: str, prog: any = None, log: any = None) -> any {
         ArtifactKind,
         link_artifact
     }
+    import from jaclang.compiler.driver.nativecache { UNIT_ISOLATE_ENV }
+    os.environ[UNIT_ISOLATE_ENV] = "1";
     with _StoreParserSpan() {
         plan = kernel_plan(prog, mode=NATIVE_LINK_MODE_BITCODE);
         os.makedirs(os.path.dirname(os.path.abspath(dst)) or ".", exist_ok=True);
@@ -160,7 +162,7 @@ def build_kernel(dst: str, prog: any = None, log: any = None) -> any {
 class _KernelLock {
     def init(self: _KernelLock, path: str) {
         self.path = path + ".lock";
-        self.handle = None;
+        self.handle: any = None;
     }
 
     def acquire(self: _KernelLock) {
@@ -200,7 +202,7 @@ class _StoreParserSpan {
     }
 
     def __enter__(self: _StoreParserSpan) -> _StoreParserSpan {
-        self.prev = os.environ.get(KERNEL_LIB_ENV);
+        self.prev: (str | None) = os.environ.get(KERNEL_LIB_ENV);
         os.environ[KERNEL_LIB_ENV] = "off";
         return self;
     }
@@ -209,7 +211,7 @@ class _StoreParserSpan {
         if self.prev is None {
             os.environ.pop(KERNEL_LIB_ENV, None);
         } else {
-            os.environ[KERNEL_LIB_ENV] = self.prev;
+            os.environ[KERNEL_LIB_ENV] = str(self.prev);
         }
         return False;
     }
@@ -273,7 +275,8 @@ def _build_kernel_in_child(dst: str) {
         child_compiler_argv,
         child_compiler_env
     }
-    env = child_compiler_env({KERNEL_LIB_ENV: "off"});
+    import from jaclang.compiler.driver.nativecache { UNIT_ISOLATE_ENV }
+    env = child_compiler_env({KERNEL_LIB_ENV: "off", UNIT_ISOLATE_ENV: "1"});
     code = (
         "import sys\n"
         "sys.path.insert(0, sys.argv[-1])\n"

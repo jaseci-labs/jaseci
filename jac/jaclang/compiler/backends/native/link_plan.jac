@@ -332,12 +332,19 @@ def build_link_plan(
             );
         }
         import from jaclang.compiler.driver.jir { module_cache_key }
+        try {
+            modkey = module_cache_key(path);
+        } except OSError {
+            """A root compiled from a string has no file; its interface
+            digest is the only identity the plan can give it.""";
+            modkey = ent.digest;
+        }
         units[path] = LinkUnit(
             path=path,
             prefix=ent.iface.prefix,
             iface=ent.iface,
             digest=ent.digest,
-            modkey=module_cache_key(path),
+            modkey=modkey,
             is_root=(path in real_roots)
         );
         deps = sorted(os.path.realpath(d) for d in ent.iface.deps);

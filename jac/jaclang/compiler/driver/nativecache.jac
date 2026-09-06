@@ -55,7 +55,12 @@ def child_compiler_env(extra: (dict[str, str] | None) = None) -> dict[str, str] 
 
 glob _UNITS_IN_FLIGHT: set[str] = set(),
      UNIT_CHILD_DEPTH_ENV: str = "JAC_NATIVE_UNIT_DEPTH",
+     UNIT_ISOLATE_ENV: str = "JAC_NATIVE_UNIT_ISOLATE",
      UNIT_CHILD_MAX_DEPTH: int = 2;
+
+def unit_isolation_wanted -> bool {
+    return os.environ.get(UNIT_ISOLATE_ENV, "") not in ("", "0");
+}
 
 glob _UNIT_CHILD_DRIVER: str = (
          "import json, sys\n"
@@ -157,6 +162,11 @@ obj NativeUnitRegistry {
 
     def _entry_fresh(ent: NativeUnitEntry) -> bool {
         import from jaclang.compiler.driver.bccache { discover_annex_files }
+        if not os.path.exists(ent.path) {
+            """A module compiled from a string has no file that could be
+            newer than what was recorded.""";
+            return True;
+        }
         try {
             if os.path.getmtime(ent.path) > ent.loaded_at {
                 return False;
@@ -349,7 +359,10 @@ obj NativeUnitRegistry {
         resolved = os.path.realpath(path);
         base = options if options is not None else self._options();
         depth = int(os.environ.get(UNIT_CHILD_DEPTH_ENV, "0") or "0");
-        if depth >= UNIT_CHILD_MAX_DEPTH {
+        if depth >= UNIT_CHILD_MAX_DEPTH or not unit_isolation_wanted() {
+            """A program's few units compile in this process; a child per
+            unit is for the plans that compile the compiler itself, where
+            what each compile leaves behind adds up across dozens of units.""";
             return self.compile_unit(resolved, base);
         }
         child_env = child_compiler_env({UNIT_CHILD_DEPTH_ENV: str(depth + 1)});

@@ -3023,9 +3023,10 @@ test "cross module global arithmetic" {
 }
 
 # --- TestNativeCacheMarker ---
-test "cache marker non native file has no native section in jir" {
-    # Compiling a file without na blocks should NOT write any native section
-    # (SEC_NBITCODE / SEC_NIFACE / SEC_NOBJ) into the JIR cache.
+test "cache marker: a module that stays in Python has no native section in jir" {
+    # Placement promotes a module it can lower, and that module's products
+    # are cached as native sections; a module that cannot lower is compiled
+    # in the server codespace and must leave no native section behind.
     import tempfile;
     import time;
     import shutil;
@@ -3038,7 +3039,7 @@ test "cache marker non native file has no native section in jir" {
     }
 
     tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".jac", delete=False);
-    tmp.write("glob x = 1;\n");
+    tmp.write("with entry { exec(\"y = 2\"); }\n");
     tmp.flush();
     jac_file = tmp.name;
     tmp.close();
@@ -3064,7 +3065,7 @@ test "cache marker non native file has no native section in jir" {
         }
         for sec in NATIVE_SECTIONS {
             assert sec not in secs , (
-                f"Non-native file should not have native section {sec} in JIR cache"
+                f"a module compiled for Python must not cache native section {sec}"
             );
         }
     } except Exception as e {

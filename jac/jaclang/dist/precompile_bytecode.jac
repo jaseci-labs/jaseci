@@ -819,6 +819,8 @@ def seal_native(
         link_artifact
     }
     import from jaclang.compiler.backends.native.kernel_resolve { kernel_lib_name }
+    import from jaclang.compiler.driver.nativecache { UNIT_ISOLATE_ENV }
+    os.environ[UNIT_ISOLATE_ENV] = "1";
     import from jaclang.compiler.driver.jir {
         native_section_payload,
         read_section_bytes as _rsb
