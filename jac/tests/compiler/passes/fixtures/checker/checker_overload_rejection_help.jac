@@ -1,6 +1,5 @@
-"""Each call fails overload resolution for a different reason, which E1054 must
-name in its help text. The last one stays bare: it fails argument matching, so
-there is no rejection to report.
+"""Each call fails overload resolution for a different reason, which E1054 names.
+The last one stays bare: it fails argument matching, so there is nothing to name.
 """
 
 def opt_key(d: dict, extra: int = 0) -> dict {
