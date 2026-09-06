@@ -728,20 +728,26 @@ def link_wasm(
     );
 }
 
+def undefined_functions(mod: ModuleRef) -> list[str] {
+    names: list[str] = [];
+    mod_any: any = mod;
+    for fn in mod_any.functions {
+        if fn.is_declaration and not str(fn.name).startswith("llvm.") {
+            names.append(str(fn.name));
+        }
+    }
+    return sorted(names);
+}
+
 def jit_engine(plan: LinkPlan) -> ExecutionEngine {
     tm = _target_machine(plan, ArtifactKind.JIT);
     spec = plan.glue_spec(ArtifactKind.JIT, _platform_of(plan.triple), False);
     (merged, _exports) = whole_program_module(plan, spec);
     optimize_whole_program(plan, merged, ArtifactKind.JIT, tm);
     if env_na_debug() {
-        undefined = [
-            f.name
-            for f in merged.functions
-            if f.is_declaration and not f.name.startswith("llvm.")
-        ];
         sys.stderr.write(
             f"[jit] {len(plan.units)} unit(s), inits {plan.init_symbols()}, "
-            f"undefined: {sorted(undefined)}\n"
+            f"undefined: {undefined_functions(merged)}\n"
         );
     }
     for lib_path in plan.clib_paths() {

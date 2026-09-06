@@ -118,8 +118,11 @@ module built from the plan's unit records, never by pattern-matching linked
 IR: the `jac_entry` preamble (the root's runtime probe, every initializer in
 dependency order, the root's entry body), the platform entry point, the
 `__jac_shared_init` a shared library exports, the `jac_retain` /
-`jac_release` / `jac_str_new` C ABI wrappers, the `atexit` shim for glibc
-floors and the aarch64 outline-atomics helpers the C floor was built against.
+`jac_release` / `jac_str_new` C ABI wrappers, the `atexit` shim and the
+aarch64 outline-atomics helpers the C floor was built against. The shim is
+for glibc, which exports `__cxa_atexit` but keeps `atexit` in
+`libc_nonshared.a`: every ELF artifact that is not static against musl
+defines `atexit` over `__cxa_atexit`, or the loader refuses it.
 
 Two rules keep the glue honest about what the units define:
 
