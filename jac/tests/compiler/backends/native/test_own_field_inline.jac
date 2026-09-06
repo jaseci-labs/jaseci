@@ -9,6 +9,10 @@ stays byte-identical across all three gc modes.
 """
 
 import os;
+import from jaclang.compiler.driver.compile_options {
+    push_native_target,
+    pop_native_target
+}
 import subprocess;
 import sys;
 import tempfile;
@@ -27,8 +31,7 @@ glob FIXDIR = os.path.join(
      };
 
 def _compile_ir_headerless -> str {
-    prev = os.environ.get("JAC_NATIVE_TARGET", None);
-    os.environ["JAC_NATIVE_TARGET"] = "wasm32-unknown-unknown";
+    prev = push_native_target("wasm32-unknown-unknown");
     try {
         prog = JacProgram();
         ir = prog.compile(
@@ -39,11 +42,7 @@ def _compile_ir_headerless -> str {
         assert ir is not None and ir.gen.llvm_ir is not None;
         return str(ir.gen.llvm_ir);
     } finally {
-        if prev is None {
-            os.environ.pop("JAC_NATIVE_TARGET", None);
-        } else {
-            os.environ["JAC_NATIVE_TARGET"] = prev;
-        }
+        pop_native_target(prev);
     }
 }
 

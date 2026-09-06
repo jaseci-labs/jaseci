@@ -24,6 +24,10 @@ does, give each of its cases its own test.
 """
 
 import ctypes;
+import from jaclang.compiler.driver.compile_options {
+    push_native_target,
+    pop_native_target
+}
 import from _ctypes { CFuncPtr }
 import io;
 import os;
@@ -3200,10 +3204,10 @@ test "clib extensionless logical import produces extern declares (issue #6387)" 
 test "clib extensionless import resolves per platform (issue #6387)" {
     # The same source names the platform-correct filename off the target triple:
     # libraylib.so (ELF) / libraylib.dylib (Mach-O) / raylib.dll (PE). Cross-
-    # targets via JAC_NATIVE_TARGET, mirroring the AArch64 ABI test below.
+    # targets through push_native_target, mirroring the AArch64 ABI test below.
     import os as _os;
     import from jaclang.compiler.driver.compile_options { CompileOptions }
-    _saved = _os.environ.get("JAC_NATIVE_TARGET");
+    _saved = push_native_target("");
     _fix = str(os.path.join(FIXTURES, "clib_logical_import.jac"));
     try {
         for (tgt, want) in [
@@ -3213,18 +3217,14 @@ test "clib extensionless import resolves per platform (issue #6387)" {
             ("arm64-apple-darwin", "libraylib.dylib"),
             ("x86_64-pc-windows-msvc", "raylib.dll")
         ] {
-            _os.environ["JAC_NATIVE_TARGET"] = tgt;
+            push_native_target(tgt);
             prog = JacProgram();
             ir = prog.compile(_fix, options=CompileOptions());
             assert not prog.errors_had , f"{tgt}: {prog.errors_had}";
             assert list(ir.gen._clib_paths) == [want] , f"{tgt}: got {ir.gen._clib_paths}, want [{want}]";
         }
     } finally {
-        if _saved is None {
-            del _os.environ["JAC_NATIVE_TARGET"];
-        } else {
-            _os.environ["JAC_NATIVE_TARGET"] = _saved;
-        }
+        pop_native_target(_saved);
     }
 }
 
@@ -3234,21 +3234,17 @@ test "clib dotted logical import maps to origin-relative subdir (issue #6387)" {
     # $ORIGIN / @loader_path runpath from #6380.
     import os as _os;
     import from jaclang.compiler.driver.compile_options { CompileOptions }
-    _saved = _os.environ.get("JAC_NATIVE_TARGET");
+    _saved = push_native_target("");
     _fix = str(os.path.join(FIXTURES, "clib_logical_dotted.jac"));
     try {
-        _os.environ["JAC_NATIVE_TARGET"] = "x86_64-unknown-linux-gnu";
+        push_native_target("x86_64-unknown-linux-gnu");
         ir = JacProgram().compile(_fix, options=CompileOptions());
         assert list(ir.gen._clib_paths) == ["$ORIGIN/libs/libraylib.so"] , f"ELF: {ir.gen._clib_paths}";
-        _os.environ["JAC_NATIVE_TARGET"] = "arm64-apple-darwin";
+        push_native_target("arm64-apple-darwin");
         ir2 = JacProgram().compile(_fix, options=CompileOptions());
         assert list(ir2.gen._clib_paths) == ["@loader_path/libs/libraylib.dylib"] , f"Mach-O: {ir2.gen._clib_paths}";
     } finally {
-        if _saved is None {
-            del _os.environ["JAC_NATIVE_TARGET"];
-        } else {
-            _os.environ["JAC_NATIVE_TARGET"] = _saved;
-        }
+        pop_native_target(_saved);
     }
 }
 
@@ -3389,8 +3385,7 @@ test "clib AArch64 AAPCS ABI lowering" {
     # foreign-call ABI matches what clang produces under AAPCS (Phase 2 of #6353).
     import os as _os;
     import from jaclang.compiler.driver.compile_options { CompileOptions }
-    _saved = _os.environ.get("JAC_NATIVE_TARGET");
-    _os.environ["JAC_NATIVE_TARGET"] = "aarch64-unknown-linux-gnu";
+    _saved = push_native_target("aarch64-unknown-linux-gnu");
     try {
         prog = JacProgram();
         ir = prog.compile(
@@ -3416,11 +3411,7 @@ test "clib AArch64 AAPCS ABI lowering" {
         assert "byval" not in s , "AAPCS must not emit byval";
         assert 'sret(%"Cam.cabi")' in s , "Cam returned via sret";
     } finally {
-        if _saved is None {
-            del _os.environ["JAC_NATIVE_TARGET"];
-        } else {
-            _os.environ["JAC_NATIVE_TARGET"] = _saved;
-        }
+        pop_native_target(_saved);
     }
 }
 
@@ -4143,7 +4134,6 @@ test "aarch64 standalone binary runs (issue #6366)" {
         out_bin = os.path.join(tmpdir, "a64_roundtrip");
         # Step 1: cross-compile for aarch64.
         comp_env = dict(os.environ);
-        comp_env["JAC_NATIVE_TARGET"] = "aarch64-unknown-linux-gnu";
         comp = subprocess.run(
             [
                 sys.executable,
@@ -4151,6 +4141,8 @@ test "aarch64 standalone binary runs (issue #6366)" {
                 "jaclang",
                 "build",
                 "--native",
+                "--target-triple",
+                "aarch64-unknown-linux-gnu",
                 fixture,
                 "-o",
                 out_bin
@@ -4214,7 +4206,6 @@ test "aarch64 static-musl binary runs (cross vendor-musl, #7626 C1)" {
     with tempfile.TemporaryDirectory() as tmpdir {
         out_bin = os.path.join(tmpdir, "a64_static");
         comp_env = dict(os.environ);
-        comp_env["JAC_NATIVE_TARGET"] = "aarch64-unknown-linux-musl";
         comp = subprocess.run(
             [
                 sys.executable,
@@ -4222,6 +4213,8 @@ test "aarch64 static-musl binary runs (cross vendor-musl, #7626 C1)" {
                 "jaclang",
                 "build",
                 "--native",
+                "--target-triple",
+                "aarch64-unknown-linux-musl",
                 fixture,
                 "-o",
                 out_bin

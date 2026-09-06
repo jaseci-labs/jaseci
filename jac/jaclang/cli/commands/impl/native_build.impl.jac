@@ -325,23 +325,36 @@ impl native_build(
     console.print(f"Compiling {filename} to native binary");
 
     import from jaclang.compiler.driver.program { JacProgram }
-    import from jaclang.compiler.driver.compile_options { CompileOptions }
+    import from jaclang.compiler.driver.compile_options {
+        CompileOptions,
+        push_native_target,
+        pop_native_target
+    }
     import from jaclang.compiler.backends.native.na_compile_pass {
         native_linked_ir_text
     }
 
     try {
         prog = JacProgram();
-        options = CompileOptions(
-            aot_mode=True,
-            default_codespace=('native' if auto_promote else ''),
-            force_target_program=True,
-            memory_profile=memory,
-            native_target=(_triple or None),
-            native_debug=(True if debug else None),
-            no_ir_cache=debug
-        );
-        ir_module = prog.compile(file_path=os.path.abspath(filename), options=options);
+        _prev_target = push_native_target(_triple) if _triple else None;
+        try {
+            options = CompileOptions(
+                aot_mode=True,
+                default_codespace=('native' if auto_promote else ''),
+                force_target_program=True,
+                memory_profile=memory,
+                native_target=(_triple or None),
+                native_debug=(True if debug else None),
+                no_ir_cache=debug
+            );
+            ir_module = prog.compile(
+                file_path=os.path.abspath(filename), options=options
+            );
+        } finally {
+            if _triple {
+                pop_native_target(_prev_target);
+            }
+        }
     } except Exception as e {
         console.error(f"Jac compilation failed: {e}");
         import traceback;

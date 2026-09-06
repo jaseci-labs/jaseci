@@ -1781,7 +1781,7 @@ jac build filename.jac --native [-o OUTPUT] [--memory managed|rc|nogc] [--lib] [
 | `--target-triple` | `host`, `wasm32` for a browser `.wasm` module, or an LLVM triple | `[native] target`, else host |
 | `--debug` | DWARF debug info, symbol table, and the RC trace machinery, together | `[native] debug`, else off |
 
-A stale IR cache is cleared with `jac clean --cache`. Nothing at compile time reads the environment; a built binary reads only `JAC_GC=off` (disable collection for leak debugging) and `JAC_THREADS` (`flow for` width). `jac explain memory|placement|ir` shows what the compiler inferred.
+A stale IR cache is cleared with `jac clean --cache`. Nothing at compile time reads the environment; a built binary reads only `JAC_GC=off` (disable collection for leak debugging) and `JAC_THREADS` (`flow for` width). `jac explain memory|placement|ir` shows what the compiler inferred; `jac explain memory <file> --memory rc|nogc|managed` explains the module under a profile other than the project's, and prints the per-module RC coverage line (`rc-stats ... promoted=N`) on stderr.
 
 **What happens under the hood:**
 

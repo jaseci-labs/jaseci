@@ -16,6 +16,13 @@ comptime SPEC_EXPLAIN: CommandSpec = CommandSpec(
                  "filename", kind=ArgKind.POSITIONAL, help="The .jac file to explain"
              ),
              Arg.create(
+                 "memory",
+                 `default="",
+                 choices=["managed", "rc", "nogc"],
+                 short="",
+                 help="memory: compile under this profile instead of the project's [memory] profile"
+             ),
+             Arg.create(
                  "output",
                  `default="",
                  help="ir: where to write the .ll (defaults to <file>.ll beside the source)",
@@ -155,7 +162,7 @@ comptime SPEC_EXPLAIN: CommandSpec = CommandSpec(
          handler_name=ct_name(check)
      );
 
-def explain(topic: str, filename: str, output: str = "") -> int;
+def explain(topic: str, filename: str, output: str = "", memory: str = "") -> int;
 
 def check(
     paths: list,

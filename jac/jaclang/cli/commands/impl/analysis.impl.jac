@@ -1972,7 +1972,7 @@ def _should_ignore(file_path: str, ignore_patterns: list) -> bool {
     return path_matches_exclude(file_path, ignore_patterns);
 }
 
-impl explain(topic: str, filename: str, output: str = "") -> int {
+impl explain(topic: str, filename: str, output: str = "", memory: str = "") -> int {
     import os;
     import from jaclang.cli.console { console }
     import from jaclang.compiler.driver.program { JacProgram }
@@ -1986,7 +1986,10 @@ impl explain(topic: str, filename: str, output: str = "") -> int {
     if topic == "memory" {
         import from jaclang.compiler.passes.ownership_hints { inferred_hints }
         mod = prog.compile(
-            file_path=path, options=CompileOptions(rc_stats=True, nogc_debug=True)
+            file_path=path,
+            options=CompileOptions(
+                rc_stats=True, nogc_debug=True, memory_profile=(memory or None)
+            )
         );
         for err in prog.errors_had {
             console.print(err.pretty_print());

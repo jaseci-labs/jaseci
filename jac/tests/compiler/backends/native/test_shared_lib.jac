@@ -12,6 +12,10 @@ since those binaries cannot be executed on a Linux host.
 """
 
 import os;
+import from jaclang.compiler.driver.compile_options {
+    push_native_target,
+    pop_native_target
+}
 import struct;
 import sys;
 import tempfile;
@@ -49,8 +53,7 @@ wrappers (mirroring the nacompile CLI), and emit a PIC relocatable object.
 
 Returns (object_bytes, export_symbols)."""
 def emit_shared_object(fixture: str, triple: str) -> tuple {
-    prev = os.environ.get("JAC_NATIVE_TARGET", None);
-    os.environ["JAC_NATIVE_TARGET"] = triple;
+    prev = push_native_target(triple);
     try {
         prog = JacProgram();
         ir = prog.compile(
@@ -75,11 +78,7 @@ def emit_shared_object(fixture: str, triple: str) -> tuple {
         );
         relobj = tm.emit_object(mod);
     } finally {
-        if prev is None {
-            os.environ.pop("JAC_NATIVE_TARGET", None);
-        } else {
-            os.environ["JAC_NATIVE_TARGET"] = prev;
-        }
+        pop_native_target(prev);
     }
     return (relobj, exports);
 }

@@ -8,6 +8,10 @@ bindings, and non-scalar inner elements stay fenced (E1406).
 """
 
 import os;
+import from jaclang.compiler.driver.compile_options {
+    push_native_target,
+    pop_native_target
+}
 import subprocess;
 import sys;
 import tempfile;
@@ -25,8 +29,7 @@ glob OWNFIELD_DIR = os.path.join(
      };
 
 def _compile(path: str) -> tuple {
-    prev = os.environ.get("JAC_NATIVE_TARGET", None);
-    os.environ["JAC_NATIVE_TARGET"] = "wasm32-unknown-unknown";
+    prev = push_native_target("wasm32-unknown-unknown");
     try {
         prog = JacProgram();
         ir = prog.compile(
@@ -42,11 +45,7 @@ def _compile(path: str) -> tuple {
         text = str(ir.gen.llvm_ir) if ir is not None and ir.gen.llvm_ir else "";
         return (codes, text);
     } finally {
-        if prev is None {
-            os.environ.pop("JAC_NATIVE_TARGET", None);
-        } else {
-            os.environ["JAC_NATIVE_TARGET"] = prev;
-        }
+        pop_native_target(prev);
     }
 }
 

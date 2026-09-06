@@ -12,6 +12,10 @@ table cannot express.
 """
 
 import os;
+import from jaclang.compiler.driver.compile_options {
+    push_native_target,
+    pop_native_target
+}
 import subprocess;
 import sys;
 import tempfile;
@@ -29,8 +33,7 @@ glob FIXDIR = os.path.join(
      };
 
 def _enforced_codes(name: str) -> list[str] {
-    prev = os.environ.get("JAC_NATIVE_TARGET", None);
-    os.environ["JAC_NATIVE_TARGET"] = "wasm32-unknown-unknown";
+    prev = push_native_target("wasm32-unknown-unknown");
     try {
         prog = JacProgram();
         prog.compile(
@@ -46,11 +49,7 @@ def _enforced_codes(name: str) -> list[str] {
         codes.sort();
         return codes;
     } finally {
-        if prev is None {
-            os.environ.pop("JAC_NATIVE_TARGET", None);
-        } else {
-            os.environ["JAC_NATIVE_TARGET"] = prev;
-        }
+        pop_native_target(prev);
     }
 }
 
