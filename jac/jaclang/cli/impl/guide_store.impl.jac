@@ -8,7 +8,7 @@ glob _CODE_GUIDE_MAP: dict[str, str] = {
          "E0108": "jac-comptime",
          "E0109": "jac-comptime",
          "W0060": "jac-core-cheatsheet",
-         "W0061": "jac-sv-persistence",
+         "E1042": "jac-sv-microservices",
          "E1050": "jac-walker-patterns",
          "E1102": "jac-cl-components",
          "E1104": "jac-npm-packages",
@@ -34,8 +34,17 @@ glob _CODE_GUIDE_MAP: dict[str, str] = {
          "W1310": "jac-native-memory",
          "E2004": "jac-has-fields",
          "E2025": "jac-npm-packages",
+         "E2039": "jac-apps",
+         "E2040": "jac-apps",
+         "W2039": "jac-apps",
+         "W2040": "jac-apps",
          "W2075": "jac-sv-persistence",
          "W3037": "jac-types",
+         "E5104": "jac-apps",
+         "E5105": "jac-apps",
+         "E5106": "jac-apps",
+         "E5107": "jac-apps",
+         "E5108": "jac-apps",
 
      },
      _CATEGORY_GUIDE_MAP: dict[str, str] = {"type": "jac-types",};
@@ -52,7 +61,11 @@ glob GUIDE_GROUP_ORDER: list[str] = [
          "Other",
 
      ],
-     _START_HERE_ORDER: list[str] = ["jac-project-kinds", "jac-core-cheatsheet"],
+     _START_HERE_ORDER: list[str] = [
+         "jac-project-kinds",
+         "jac-apps",
+         "jac-core-cheatsheet"
+     ],
      _GUIDE_GROUP_MAP: dict[str, str] = {
          "jac-project-kinds": "Start here",
          "jac-core-cheatsheet": "Start here",
@@ -73,6 +86,7 @@ glob GUIDE_GROUP_ORDER: list[str] = [
          "jac-mobui": "Client & fullstack",
          "jac-scaffold": "Tooling & workflow",
          "jac-config": "Tooling & workflow",
+         "jac-apps": "Start here",
          "jac-testing": "Tooling & workflow",
          "jac-debugging": "Tooling & workflow",
          "jac-packaging": "Tooling & workflow",

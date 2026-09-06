@@ -4,6 +4,8 @@ import from .tokens {
     SourceLoc,
     SrcDiag,
     CommentData,
+    is_builtin_type_kind,
+    is_reserved_kind,
     is_special_var_kind
 }
 import from .lexer { tokenize_full }

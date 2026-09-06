@@ -1,11 +1,11 @@
 """Tests for A-05a's JacAPIServerLogs mixin. Verifies the 3 endpoint
-paths get registered correctly on the NativeJServer; the actual
+paths get registered correctly on the endpoint host; the actual
 handler bodies are integration-tested via the real-cluster e2e
 (scripts/k8s_microservice_real_e2e.sh) since they require a live
 Loki backend."""
 
 import from jaclang.scale.admin.logs { JacAPIServerLogs }
-import from jaclang.scale.server.native_server { NativeJServer }
+import from jaclang.scale.tests.support { RecordingHost }
 
 
 obj LogsHost(JacAPIServerLogs) {
@@ -15,7 +15,7 @@ obj LogsHost(JacAPIServerLogs) {
 
 test "register_logs_endpoints adds /admin/logs, /admin/logs/services, /admin/logs/trace/{id}" {
     host = LogsHost();
-    host.server = NativeJServer();
+    host.server = RecordingHost();
 
     host.register_logs_endpoints();
 
@@ -31,7 +31,7 @@ test "all logs endpoints are GET (read-only surface)" {
     import from jaclang.server.serving.endpoint { HTTPMethod }
 
     host = LogsHost();
-    host.server = NativeJServer();
+    host.server = RecordingHost();
     host.register_logs_endpoints();
 
     for ep in host.server._endpoints {
@@ -44,7 +44,7 @@ test "all logs endpoints are GET (read-only surface)" {
 
 test "logs endpoints are tagged 'Logs' so OpenAPI groups them" {
     host = LogsHost();
-    host.server = NativeJServer();
+    host.server = RecordingHost();
     host.register_logs_endpoints();
 
     for ep in host.server._endpoints {

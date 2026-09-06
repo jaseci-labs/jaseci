@@ -174,6 +174,32 @@ test "kwesc: the prefix form parses clean" {
     assert len(prog.errors_had) == 0;
 }
 
+
+test "E0013: a keyword after a dot is an attribute, no escape needed" {
+    # #8982 item 9: `sys.exit(0)` is the idiom every CLI ends with.
+    for src in [
+        "import sys; with entry { sys.exit(0); }",
+        "with entry { m = re.match; x = obj_.entry; y = cfg.default; }",
+        "with entry { z = a.b.node.edge.walker; }"
+    ] {
+        (prog, had_error) = parse_with_prog(src);
+        assert not had_error , src;
+        assert not has_diagnostic_code(prog, "E0013") , src;
+    }
+}
+
+test "E0013: a keyword still cannot bind a name, and names the escape" {
+    for src in [
+        "with entry { exit = 1; }",
+        "def f(match: int) {}",
+        "obj X { has entry: int = 1; }",
+        "def g(own: int, mut: int, imm: int, awaiting: int) {}"
+    ] {
+        (prog, _) = parse_with_prog(src);
+        assert has_diagnostic_code(prog, "E0013") , src;
+    }
+}
+
 test "E0025: js arrow in jsx attribute slot" {
     src = 'cl { def:pub Foo() -> JsxElement {'
         + ' return <button onClick={e => doThing(e)}>Click</button>; } }';

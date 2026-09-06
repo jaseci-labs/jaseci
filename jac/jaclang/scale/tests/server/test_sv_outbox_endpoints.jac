@@ -1,6 +1,6 @@
-"""Outbox receipt on the scale server: scoped replay, the bridge secret, the
-worker armed by start(), and the Postgres-backed OutboxStore on the embedded
-store. Servers are built in-process the way test_microservice does."""
+"""Outbox receipt on the server: scoped replay, the bridge secret, the worker
+armed for a bridging consumer, and the Postgres-backed OutboxStore on the
+embedded store. Servers are built in-process the way test_microservice does."""
 
 import os;
 import sys;
@@ -10,7 +10,6 @@ import time;
 import unittest.mock;
 import from pathlib { Path }
 import from jaclang { JacRuntime as Jac }
-import from jaclang.compiler.frontend.constant { Constants as Con }
 import from jaclang.server { sv_client }
 import from jaclang.server.outbox {
     LEASE_S,
@@ -25,9 +24,9 @@ import from jaclang.server.outbox {
     worker_running
 }
 import from jaclang.testing.testkit { ServingTestClient as TestClient }
-import from jaclang.scale.server.native_server { NativeJServer }
-import jaclang.scale.server.serve as serve_mod;
-import from jaclang.scale.server.serve { JacAPIServer }
+import from jaclang.server.endpoints.colocated { register_colocated_endpoints }
+import from jaclang.server.server { JacAPIServer }
+import from jaclang.server.serving.server { ServingServer }
 
 glob _PROVIDER_SRC: str = (
          "import uuid;\n"
@@ -75,17 +74,11 @@ def build_service(mod: str, tmp: str) -> tuple[TestClient, JacAPIServer] {
         del sys.modules[mod];
     }
     Jac.jac_import(target=mod, base_path=tmp, lng="jac");
-    srv = JacAPIServer(module_name=mod, port=0, base_path=tmp);
+    srv = JacAPIServer(module_name=mod, port=0, base_path=tmp, extensions=[]);
     srv.load_module();
-    srv.register_health_endpoint();
-    srv.register_walkers_endpoints();
-    srv.register_functions_endpoints();
-    user_manager = srv.user_manager;
-    assert user_manager is not None;
-    user_manager.create_internal_user(Con.GUEST.value, '__no_password__');
-    server_impl = srv.server;
-    assert server_impl is not None;
-    client = TestClient(server_impl.app, raise_server_exceptions=False);
+    srv._ensure_internal_users();
+    app = srv.build_app();
+    client = TestClient(app, raise_server_exceptions=False);
     sv_client.register_test_client(mod, client);
     return (client, srv);
 }
@@ -184,7 +177,7 @@ test "scale server: the colocated mount scopes replay per user and provider" {
             "mounted_service", Jac.loaded_modules["mounted_service"]
         );
         try {
-            host_srv.register_colocated_provider_endpoints();
+            register_colocated_endpoints(host_srv);
         } finally {
             sv_client.unregister_local("mounted_service");
         }
@@ -257,12 +250,15 @@ test "scale server: the bridge secret authenticates a service caller" {
 def _noop(*args: any, **kwargs: any) {}
 
 
-def _same_port(port: int, *args: any, **kwargs: any) -> int {
-    return port;
+def _fake_run(self: ServingServer, on_ready: any = None, port_retries: int = 0) -> int {
+    if on_ready is not None {
+        on_ready(self.port or 0);
+    }
+    return 0;
 }
 
 
-test "scale server: start arms the outbox worker for a bridging consumer" {
+test "scale server: a worker arms the outbox worker for a bridging consumer" {
     tmp = setup_env();
     stop_worker();
     store = SqliteOutboxStore(path=os.path.join(tmp, "outbox.sqlite"));
@@ -270,13 +266,8 @@ test "scale server: start arms the outbox worker for a bridging consumer" {
     saved_consumers = dict(sv_client._consumer_providers);
     sv_client.clear_consumer_providers();
     patches: list = [
-        unittest.mock.patch.object(JacAPIServer, "_register_endpoints", _noop),
-        unittest.mock.patch.object(JacAPIServer, "setup_emailer", _noop),
-        unittest.mock.patch.object(JacAPIServer, "_setup_scheduler", _noop),
-        unittest.mock.patch.object(JacAPIServer, "_setup_events", _noop),
-        unittest.mock.patch.object(JacAPIServer, "_print_startup_banner", _noop),
-        unittest.mock.patch.object(NativeJServer, "run_server", _noop),
-        unittest.mock.patch.object(serve_mod, "find_available_port", _same_port)
+        unittest.mock.patch.object(JacAPIServer, "_ensure_client_bundle", _noop),
+        unittest.mock.patch.object(ServingServer, "run", _fake_run)
     ];
     try {
         (prov, _prov_srv) = _provider(tmp, "armed_provider");
@@ -284,21 +275,22 @@ test "scale server: start arms the outbox worker for a bridging consumer" {
         for p in patches {
             p.start();
         }
-        ready: list[int] = [];
+        armed: list[bool] = [];
 
         def _on_ready(port: int) {
-            ready.append(port);
+            armed.append(worker_running());
         }
-        # Without a bridging consumer nothing is armed.
+        # Without a bridging consumer nothing is armed while the worker serves.
         cons_srv.start(no_client=True, on_ready=_on_ready);
-        assert ready , "start() never reached run_server";
-        assert not worker_running();
+        assert armed == [False] , "start() never reached the transport";
 
         sv_client._declare_consumer_provider(
             "armed_consumer", "armed_provider", "/api/armed_provider"
         );
         cons_srv.start(no_client=True, on_ready=_on_ready);
-        assert worker_running();
+        assert armed == [False, True];
+        # and the worker is released again once the transport returns
+        assert not worker_running();
     } finally {
         for p in patches {
             p.stop();

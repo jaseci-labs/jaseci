@@ -178,6 +178,43 @@ test "missing await on a SERVICE_BRIDGE stub is E1042" {
     );
 }
 
+test "a generator-returning SERVICE_BRIDGE stub is a coroutine until awaited" {
+    # The bridge stub is `async def` whatever the provider returns, so a
+    # streaming provider is reached as `await narrate(...)`; iterating the
+    # un-awaited call is a type error, not a runtime TypeError.
+    (prog, mod) = compile_fixture(fixture("web", "stream_no_await.jac"));
+    msgs = [str(e) for e in prog.errors_had];
+    assert any("Coroutine" in m and "not iterable" in m for m in msgs) , (
+        f"iterating an un-awaited bridge stub checked clean: {msgs}"
+    );
+    (prog, mod) = compile_fixture(fixture("web", "stream_awaited.jac"), cgen=True);
+    assert not prog.errors_had , [str(e) for e in prog.errors_had];
+    assert "await __jac_sv_client.call('social', 'narrate'" in mod.gen.py , mod.gen.py;
+}
+
+test "spawning a bridged walker types as the stub's coroutine, not E1114" {
+    # A `cli` app has no server, so its import of a service walker bridges and
+    # the stub's constructor is the remote spawn. Codegen lowers
+    # `root spawn Stub(...)` to the stub call alone, so the checker types the
+    # spawn as that coroutine: awaited it is the walker, un-awaited it is E1042.
+    (prog, mod) = compile_fixture(fixture("cli_spawn.jac"), cgen=True);
+    found = codes(prog);
+    assert "E1114" not in found , f"{[str(e) for e in prog.errors_had]}";
+    unawaited = [
+        e
+        for e in prog.errors_had
+        if e.code and e.code.code == "E1042"
+    ];
+    assert len(unawaited) == 1 and unawaited[0].loc.first_line == 13 , (
+        f"{[str(e) for e in prog.errors_had]}"
+    );
+    assert len(prog.errors_had) == 1 , [str(e) for e in prog.errors_had];
+    import re;
+    assert re.search(r"(?<![\w.])spawn\(", mod.gen.py) is None , (
+        "the runtime spawn must not wrap a bridged stub:\n" + mod.gen.py
+    );
+}
+
 test "a bridged obj imported alone mirrors as a boundary type, not an RPC stub" {
     (prog, mod) = compile_fixture(fixture("web", "only_profile.jac"), cgen=True);
     assert not prog.errors_had , [str(e) for e in prog.errors_had];
@@ -203,4 +240,33 @@ test "a bridged node imported alone is E5108" {
         if e.code is not None and e.code.code == "E5108"
     ][0];
     assert "Post" in msg and "node" in msg and "social" in msg , msg;
+}
+
+test "a provider's import of a shared pure helper is not an app edge" {
+    (prog, mod) = compile_fixture(fixture("portal", "main.jac"), cgen=True);
+    found = codes(prog);
+    assert "E5104" not in found , (
+        f"false cycle through a shared helper: {[str(e) for e in prog.errors_had]}"
+    );
+    import from jaclang.compiler.driver.boundary_classify {
+        symbol_linked_source_module
+    }
+    import from jaclang.compiler.passes.boundary_analysis_pass {
+        _parse_module_for_types
+    }
+    feed = _parse_module_for_types(fixture("feed_app.jac"));
+    assert feed is not None;
+    imp = import_of(feed, "shared_fmt");
+    assert symbol_linked_source_module(imp) is None , (
+        "a parsed-for-types module has unlinked import bindings; the importer itself"
+        + " is not their source module"
+    );
+    assert import_provider_app(imp) is None , (
+        "shared_fmt carries no walker, node or edge: importing it bridges nowhere"
+    );
+    ui = _parse_module_for_types(fixture("shared_ui.jac"));
+    assert ui is not None;
+    assert import_provider_app(import_of(ui, "feed_app")) == "feed" , (
+        "the walker import still bridges to its owner when the binding is unlinked"
+    );
 }

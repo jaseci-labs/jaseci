@@ -420,6 +420,10 @@ walker TypeEvaluator {
     ) -> (TypeBase | None);
 
     def _ts_decl_path(from_loc: ModulePath) -> (str | None);
+    def _jac_virtual_sibling_dts(
+        import_node: Import, from_mod_type: ModuleType
+    ) -> (str | None);
+
     def _ts_declared_type_from_file(
         dts_path: str, item_name: str
     ) -> (TypeBase | None);
@@ -744,6 +748,11 @@ walker TypeEvaluator {
         is_unbound_call: bool = False,
         is_constructor_call: bool = False
     ) -> dict[str, TypeBase];
+
+    def _call_receiver_type(expr: FuncCall) -> ClassType | None;
+    def _overload_accepts_receiver(
+        overload: FunctionType, receiver: TypeBase | None
+    ) -> bool;
 
     def _validate_jsx_props(
         expr: JsxElement, expected_type: TypeBase | None = None

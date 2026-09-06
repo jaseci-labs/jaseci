@@ -102,7 +102,6 @@ Infrastructure knobs live under `[scale.gateway]`; per-app knobs live under
 colocate = true                 # false: every `jac run` starts the fleet
 gateway_port = 8000
 gateway_host = "0.0.0.0"
-drain_timeout_seconds = 10      # SIGTERM drain window (gateway + apps)
 http_forward_timeout = 30       # gateway -> app forward timeout
 boot_health_timeout = 60        # per-app /healthz budget at boot
 boot_max_wait = 90              # whole-fleet boot window
@@ -115,7 +114,7 @@ gateway_owned = true            # apps provision users the gateway minted
 enabled = true
 per_ip_rpm = 600
 per_user_rpm = 120
-trusted_proxies = []
+shared = true                   # buckets in Postgres, one limit across replicas
 
 [scale.gateway.cors]
 allow_origins = ["https://app.example.com"]
@@ -277,7 +276,7 @@ shipped in the bundle.
 
 Every Deployment gets `RollingUpdate { maxSurge: 1, maxUnavailable: 0 }`,
 readiness on `/healthz/ready`, `terminationGracePeriodSeconds =
-drain_timeout_seconds + 5` and a `preStop` sleep. Together with the drain
+[serve.timeouts] drain + 5` and a `preStop` sleep. Together with the drain
 middleware, `kubectl rollout restart deployment/<app>-deployment` completes
 with zero non-2xx responses.
 
@@ -327,9 +326,17 @@ one (a gateway fronting service apps only) the gateway probes healthy apps:
 
 ### Graceful shutdown on SIGTERM
 
-`[scale.gateway] drain_timeout_seconds`: on SIGTERM (or `jac scale stop`)
-the gateway and every app flip a drain flag (new requests get `503` with
-`Retry-After: 2`) and wait up to the window for in-flight requests.
+```toml
+[serve.timeouts]
+drain = 10.0
+```
+
+On SIGTERM (or `jac scale stop`), the gateway and every app flip a drain flag
+(`/healthz/ready` answers 503, new requests get `503 SERVICE_UNAVAILABLE`
+with `Retry-After: 1`) and the transport waits up to `[serve.timeouts]
+drain` for in-flight requests to complete. Under `[serve.workers] count > 1`
+the supervisor fans SIGTERM out and every worker drains on the same budget.
+Mirrors K8s `terminationGracePeriodSeconds`.
 
 ### Per-app RPC timeout
 
@@ -360,9 +367,11 @@ preflights answer even during drain.
 ### Rate limiting
 
 `[scale.gateway.rate_limit]`: token bucket per IP plus an optional per-user
-tier. `X-Forwarded-For` is honored only from `trusted_proxies`; list your
-ingress there or every client shares one bucket. 429 responses carry the
-standard envelope and `Retry-After`.
+tier, kept in the project database (`shared = true`) so one limit holds
+across every gateway process and replica. The client address comes from the
+transport's proxy resolver: `X-Forwarded-For` is honored only from
+`[serve.proxy] trusted`, so list your ingress there or every client shares
+one bucket. 429 responses carry the standard envelope and `Retry-After`.
 
 ### Observability
 

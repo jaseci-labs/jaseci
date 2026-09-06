@@ -245,6 +245,12 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
         }
 
         for overload in caller_type.overloads {
+            if not is_unbound_call
+                and not self._overload_accepts_receiver(
+                    overload, self._call_receiver_type(expr)
+                ) {
+                continue;
+            }
             arg_param_match = self.match_args_to_params(
                 expr.params,
                 expr,
@@ -1098,6 +1104,63 @@ impl TypeEvaluator._find_overload_by_arg_count(
     return None;
 }
 
+impl TypeEvaluator._call_receiver_type(expr: FuncCall) -> ClassType | None {
+    if not (
+        isinstance(expr.target, AtomTrailer)
+        and isinstance(expr.target.target, Expr)
+        and expr.target.target.type is not None
+    ) {
+        return None;
+    }
+    recv = expr.target.target.type;
+    if not (
+        isinstance(recv, ClassType)
+        and recv._shared is not None
+        and recv.shared.class_name != "object"
+    ) {
+        return None;
+    }
+    if self._is_type_subscript(recv) {
+        inner = recv.private.type_args[0];
+        if isinstance(inner, ClassType)
+            and not self._member_is_metaclass_only(inner.clone_as_class(), expr) {
+            return self._convert_to_instance(inner);
+        }
+        return recv;
+    }
+    if not recv.is_instance() and recv.is_instantiable() {
+        if self._member_is_metaclass_only(recv, expr)
+            and self.prefetch.type_class is not None {
+            meta_self = self.prefetch.type_class.clone_as_instance();
+            meta_self.private.type_args = [recv.clone_as_instance()];
+            return meta_self;
+        }
+        return recv.clone_as_instance();
+    }
+    return recv;
+}
+
+impl TypeEvaluator._overload_accepts_receiver(
+    overload: FunctionType, receiver: TypeBase | None
+) -> bool {
+    if not overload.parameters {
+        return True;
+    }
+    first = overload.parameters[0];
+    declared = first.param_type;
+    if not first.is_self or not isinstance(declared, ClassType) {
+        return True;
+    }
+    if receiver is None or self.is_any_type(receiver) {
+        return True;
+    }
+    if not isinstance(receiver, ClassType) or not receiver.is_instance() {
+        return True;
+    }
+    return self.assign_type(receiver, self._convert_to_instance(declared));
+}
+
+
 impl TypeEvaluator._collect_type_var_bindings(
     method: FunctionType,
     expr: FuncCall,
@@ -1106,33 +1169,9 @@ impl TypeEvaluator._collect_type_var_bindings(
 ) -> dict[str, TypeBase] {
     bindings: dict[str, TypeBase] = {};
 
-    if isinstance(expr.target, AtomTrailer)
-        and isinstance(expr.target.target, Expr)
-        and expr.target.target.type is not None {
-        _recv_t = expr.target.target.type;
-        if isinstance(_recv_t, ClassType)
-            and _recv_t._shared is not None
-            and _recv_t.shared.class_name != "object" {
-            if self._is_type_subscript(_recv_t) {
-                _inner = _recv_t.private.type_args[0];
-                if isinstance(_inner, ClassType)
-                    and not self._member_is_metaclass_only(
-                        _inner.clone_as_class(), expr
-                    ) {
-                    _recv_t = self._convert_to_instance(_inner);
-                }
-            } elif not _recv_t.is_instance() and _recv_t.is_instantiable() {
-                if self._member_is_metaclass_only(_recv_t, expr)
-                    and self.prefetch.type_class is not None {
-                    _meta_self = self.prefetch.type_class.clone_as_instance();
-                    _meta_self.private.type_args = [_recv_t.clone_as_instance()];
-                    _recv_t = _meta_self;
-                } else {
-                    _recv_t = _recv_t.clone_as_instance();
-                }
-            }
-            bindings["Self"] = _recv_t;
-        }
+    receiver = self._call_receiver_type(expr);
+    if receiver is not None {
+        bindings["Self"] = receiver;
     }
 
     params = method.parameters.copy();

@@ -65,7 +65,8 @@ import type from jaclang.compiler.driver.selfhost { SelfHostCache }
 import type from jaclang.client.client_bundle { ClientBundle, ClientBundleBuilder }
 import type from jaclang.runtime.context { ExecutionContext }
 import type from jaclang.server.server { JacAPIServer as JacServer }
-import type from jaclang.server.server { ModuleIntrospector, UserManager }
+import type from jaclang.server.identity.user_manager { UserManager }
+import type from jaclang.server.server { ModuleIntrospector, ServerExtension }
 
 glob logger = getLogger(__name__),
      T = TypeVar('T'),
@@ -462,6 +463,7 @@ class JacServe {
     ) -> ClientBundle;
 
     static def get_api_server_class -> type;
+    static def get_server_extensions -> list[ServerExtension];
     static def get_sv_registry -> dict[str, str];
     static def create_server(
         jac_server: JacServer, host: str, port: int, max_retries: int = 10
@@ -561,4 +563,5 @@ class JacRuntime(JacRuntimeInterface) {
     static def set_context(context: ExecutionContext) -> None;
     static def push_request_context(context: ExecutionContext) -> any;
     static def reset_request_context(token: any) -> None;
+    static def after_fork_in_child -> None;
 }

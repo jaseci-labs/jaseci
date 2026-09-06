@@ -294,7 +294,7 @@ async def _loki_recent_count -> int {
 
 def _postgres_ping_blocking -> tuple[bool, str] {
     try {
-        import from jaclang.scale.persistence.pg {
+        import from jaclang.server.shared_store {
             NO_DATABASE_RESOLVED,
             shared_store,
             shared_store_failure

@@ -86,7 +86,8 @@ impl scratch_lease(base_path: str) -> ScratchLease {
         _scratch.append(
             ScratchState(
                 database=f"{SCRATCH_PREFIX}{os.getpid()}_{secrets.token_hex(3)}",
-                base_path=base
+                base_path=base,
+                owner_pid=os.getpid()
             )
         );
         atexit.register(drop_scratch_database);
@@ -101,6 +102,10 @@ impl scratch_lease(base_path: str) -> ScratchLease {
 
 impl drop_scratch_database -> None {
     if not _scratch {
+        return;
+    }
+    if _scratch[0].owner_pid != os.getpid() {
+        _scratch.clear();
         return;
     }
     state = _scratch.pop();
