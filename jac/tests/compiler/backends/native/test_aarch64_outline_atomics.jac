@@ -379,6 +379,7 @@ test "jac build --native itself registers a parser for its target (#8788)" {
             "jaclang",
             "build",
             "--native",
+            "--debug",
             "--target",
             "aarch64-unknown-linux-gnu",
             os.path.join(FIXTURES, "static_archive_crc32.jac"),

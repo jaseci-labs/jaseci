@@ -67,9 +67,9 @@ obj CompileOptions {
             );
         }
         if self.na_gc_mode is None {
-            self.na_gc_mode = {"managed": "cycles", "rc": "rc", "nogc": "none"}[
-                self.memory_profile
-            ];
+            modes: dict[str, str] = {"managed": "cycles", "rc": "rc", "nogc": "none"};
+            assert self.memory_profile is not None;
+            self.na_gc_mode = modes[self.memory_profile];
         }
         if self.nogc_enforce_all is None {
             self.nogc_enforce_all = self.memory_profile == "nogc";

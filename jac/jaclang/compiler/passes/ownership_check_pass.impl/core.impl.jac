@@ -609,8 +609,7 @@ impl OwnershipCheckPass._assign_kill_gen(
             }
         }
     }
-    # Assigning a field or element reads that place; it never moves the
-    # containing object. Owned-slot transfers are checked separately.
+
     val_owned = self._owned_sym_of(nd.value);
     if val_owned is not None {
         gen.add(val_owned);

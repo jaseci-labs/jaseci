@@ -552,7 +552,8 @@ impl RcFactsPass._stamp_scope_cleanup(ir_in: Module) -> None {
                     and decl.type_tag is not None {
                     owns = any(
                         [
-                            un.ownership == OwnershipKind.OWN
+                            isinstance(un, UnaryExpr)
+                                and un.ownership == OwnershipKind.OWN
                             for un in decl.type_tag.get_all_sub_nodes(UnaryExpr)
                         ]
                     );

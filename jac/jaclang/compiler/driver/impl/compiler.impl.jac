@@ -869,9 +869,12 @@ impl JacCompiler.stamp_native_import_facts(
     driver read left in a sealed pass. It now consumes a bool.
     """;
     import os;
+    import from jaclang.compiler.frontend.module_facts { ModuleFacts }
+    needs_native = mod.decided_codespace == 'native'
+        or ModuleFacts.has_native_context_stmts(mod);
     for imp in mod.get_all_sub_nodes(uni.Import) {
         target = native_only_import_target(imp, target_program);
-        imp.native_only_drop = mod.decided_codespace == 'native'
+        imp.native_only_drop = needs_native
             and target is not None
             and (os.sep + 'jaclang' + os.sep) not in os.path.abspath(target);
     }

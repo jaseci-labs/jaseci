@@ -124,6 +124,9 @@ impl OwnershipCheckPass._emit_place_intrinsic_diagnostics -> None {
                 continue;
             }
             nm = place if isinstance(place, Name) else place.right;
+            if not isinstance(nm, Name) {
+                continue;
+            }
             decl = nm.sym.decl if nm.sym is not None else None;
             owner = decl.parent if decl is not None else None;
             tag = owner.type_tag

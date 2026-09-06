@@ -1,5 +1,8 @@
 impl EsastGenPass._place_accessors(place: es.Expression) -> es.Expression | None {
     if isinstance(place, es.MemberExpression) {
+        if place.object is None or place.property is None {
+            return None;
+        }
         owner = es.Identifier(name="$jacOwner");
         key = es.Identifier(name="$jacKey");
         member = es.MemberExpression(
