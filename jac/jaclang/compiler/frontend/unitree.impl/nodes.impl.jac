@@ -1934,10 +1934,11 @@ impl ContextAwareNode.postinit -> None {}
 
 impl ContextAwareNode.code_context.getter -> CodeContext {
     found = [self->:PlacedIn:->];
-    target = found[0] if found else None;
-    return CodeContext(target.kind)
-        if isinstance(target, Codespace)
-        else CodeContext.SERVER;
+    if found {
+        target: Codespace = found[0];
+        return CodeContext(target.kind);
+    }
+    return CodeContext.SERVER;
 }
 
 impl ContextAwareNode.code_context.setter(code_context: CodeContext) {
@@ -1947,8 +1948,11 @@ impl ContextAwareNode.code_context.setter(code_context: CodeContext) {
 
 impl Module.decided_codespace.getter -> str {
     found = [self->:DecidedCodespace:->];
-    target = found[0] if found else None;
-    return target.kind if isinstance(target, Codespace) else "";
+    if found {
+        target: Codespace = found[0];
+        return target.kind;
+    }
+    return "";
 }
 
 impl Module.decided_codespace.setter(decided_codespace: str) {

@@ -8,6 +8,31 @@ import from jaclang.compiler.native_compiler { ensure_loaded }
 import from jaclang.compiler.passes.ast_validation_pass { ASTValidationPass }
 import from jaclang.compiler.passes.sym_tab_build_pass { SymTabBuildPass }
 
+test "native validation preserves client code context" {
+    kernel = ensure_loaded();
+    if kernel is not None {
+        assert kernel.supports_early;
+        for (context, expected) in [("client", 0), ("server", 1)] {
+            prog = JacProgram();
+            (mod, failed) = parse_woven(
+                "def f(`from: str) -> str { return `from; }",
+                "early_context.jac",
+                prog,
+                [],
+                early_context=context
+            );
+            assert not failed;
+            run_pass(ASTValidationPass, mod, prog);
+            errors = [
+                e
+                for e in prog.errors_had
+                if e.code and e.code.code == "E0067"
+            ];
+            assert len(errors) == expected;
+        }
+    }
+}
+
 glob SOURCE: str = """
 obj Item {
     has value: int = 0;

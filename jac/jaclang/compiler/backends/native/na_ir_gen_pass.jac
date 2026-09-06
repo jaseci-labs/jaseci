@@ -1341,6 +1341,7 @@ walker NaIRGenPass(Transform) {
     def _jc_reference_schema(
         ft: ir.Type, layouts: dict, semantic: object = None
     ) -> (dict | None);
+
     def _codegen_union_member(
         obj_val: ir.Value, field_name: str, nd: uni.AtomTrailer, parts: list[str]
     ) -> (ir.Value | None);

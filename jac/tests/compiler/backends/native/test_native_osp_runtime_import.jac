@@ -2,6 +2,19 @@
 
 import ctypes;
 import from tests.support { compile_native }
+import from jaclang.compiler.backends.common.kernel_units { kernel_unit_owner }
+
+test "runtime unit identity is independent of the compiler installation" {
+    assert kernel_unit_owner(
+        "/checkout/jaclang/runtime/osp_kernel.jac", "jaclang.runtime.osp_kernel"
+    )
+        == "osp_kernel";
+    assert kernel_unit_owner(
+        "/checkout/jaclang/runtime/osp_graph.jac", "jaclang.runtime.osp_graph"
+    )
+        == "osp_kernel";
+    assert kernel_unit_owner("/checkout/osp_kernel.jac", "app.osp_kernel") == "";
+}
 
 test "an imported walker operation acts on the active kernel" {
     (engine, _) = compile_native("osp_runtime_import.jac");

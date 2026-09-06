@@ -441,9 +441,6 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
                 and self?.jacval_type
                 and val.type == self.jacval_type
                 and not self._is_owned(val) {
-                # A boxed return still owns its reference payload. In
-                # particular, callers may release a temporary argument as
-                # soon as this function returns it through a union or any.
                 self._emit_elem_retain(self.builder, val.type, val);
                 self._mark_owned(val);
             }

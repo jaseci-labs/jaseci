@@ -738,7 +738,9 @@ impl NativeCompilePass._compile_and_link_native_imports(
         linked_modules[real_path] = None;
 
         import from jaclang.compiler.backends.common.kernel_units { kernel_unit_owner }
-        _kernel_owner = kernel_unit_owner(real_path);
+        _kernel_owner = kernel_unit_owner(
+            real_path, source_mod_path.replace(os.sep, ".")
+        );
         if _kernel_owner {
             manifest = module.gen.interop_manifest;
             if _kernel_owner not in manifest.native_transitive_sources {

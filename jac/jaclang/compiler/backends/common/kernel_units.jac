@@ -26,10 +26,13 @@ def _jaclang_dir -> str {
     return os.path.dirname(str(jaclang.__file__));
 }
 
-def kernel_unit_owner(path: str) -> str {
+def kernel_unit_owner(path: str, module_name: str = "") -> str {
     """Canonical native unit supplying a directly imported runtime source.""";
     resolved = os.path.realpath(path);
     for part in OSP_CORE_PARTS {
+        if module_name == "jaclang." + part[:-4].replace("/", ".") {
+            return "osp_kernel";
+        }
         if resolved == os.path.realpath(os.path.join(_jaclang_dir(), part)) {
             return "osp_kernel";
         }

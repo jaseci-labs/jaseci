@@ -44,7 +44,6 @@ obj DiagnosticPolicy {
     ) -> bool;
 }
 
-"""Diagnostics and timing from a pass already applied to an IR unit."""
 obj PassResult {
     has errors_had: list[Alert] = [],
         warnings_had: list[Alert] = [],

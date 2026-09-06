@@ -412,7 +412,7 @@ class NativeCompiler {
         return self._call_str2("jc_run", source, path);
     }
 
-    def prepare_early(self: NativeCompiler, context: str) -> None {
+    def prepare_early(self: NativeCompiler, context: str) {
         if self.supports_early {
             self.lib.jc_set_early(
                 {"server": 1, "client": 2, "native": 3}.get(context, 0)

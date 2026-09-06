@@ -634,7 +634,7 @@ impl NaIRGenPass._register_imported_struct_types -> None {
             continue;
         }
 
-        _kernel_owner = kernel_unit_owner(full_path);
+        _kernel_owner = kernel_unit_owner(full_path, mod_name);
         imported_mod = _load_native_osp_kernel_module() if _kernel_owner else None;
         if imported_mod is None {
             imported_mod = self.prog.mod.hub.get(full_path);

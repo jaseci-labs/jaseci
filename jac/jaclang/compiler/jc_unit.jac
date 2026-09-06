@@ -188,7 +188,7 @@ def _finish_unit(
                 break;
             }
         }
-        # Wildcard imports need the driver's dependency resolver before binding.
+
         if not has_absorb {
             symbols = SymTabBuildPass(ir_in=mod);
             _JC.completed = 3;

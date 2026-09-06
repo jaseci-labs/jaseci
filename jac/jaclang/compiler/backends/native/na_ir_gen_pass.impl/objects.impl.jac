@@ -1987,8 +1987,6 @@ impl NaIRGenPass._codegen_instantiation(
 
     _tt_idx = self.osp_type_tag_field.get(type_name);
     if _tt_idx is not None {
-        # Constructors may enter inherited walker methods in another module.
-        # Register this module's concrete descriptors before that can happen.
         if self._osp_ensure_fn is not None {
             self.builder.call(self._osp_ensure_fn, []);
         }

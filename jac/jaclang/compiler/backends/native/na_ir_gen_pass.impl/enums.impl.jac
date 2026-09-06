@@ -380,7 +380,7 @@ impl NaIRGenPass._codegen_enum_ctor(
         }
         i64 = ir.IntType(64);
         ordinal: ir.Value = ir.Constant(i64, -1);
-        # Reverse selection gives aliases the first declared member's ordinal.
+
         for member in reversed(lay.members) {
             text = self._make_global_string(
                 member.str_value or "", name_prefix=".enum.value"

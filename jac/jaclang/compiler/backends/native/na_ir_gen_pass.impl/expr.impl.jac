@@ -761,8 +761,6 @@ impl NaIRGenPass._codegen_kernel_spawn(
         _h["append"], [_starts, self._coerce_type(loc_val, i64)], op="append", loc=""
     );
 
-    # A base-class method can spawn a derived walker. Dispatch through the
-    # instance tag, just as node callbacks do, rather than its static type.
     _tag_slot = self.osp_type_tag_field.get(walker_name);
     if _tag_slot is None {
         return None;
@@ -795,7 +793,7 @@ impl NaIRGenPass._codegen_kernel_spawn(
         );
     }
     _rt = self.builder.load(self._osp_rt_global, name="spawn.rt");
-    self.builder.call(
+    _spawn_result = self.builder.call(
         osp_spawn_fn,
         [
             self._coerce_type(_rt, _argtys[0]),
@@ -804,6 +802,7 @@ impl NaIRGenPass._codegen_kernel_spawn(
             self._coerce_type(_starts, _argtys[3])
         ]
     );
+    self._emit_elem_release(self.builder, _spawn_result.type, _spawn_result);
     self._emit_rc_release_simple(_starts, op="spawn_starts", loc="");
     return walker_val;
 }

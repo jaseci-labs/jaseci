@@ -209,8 +209,7 @@ impl NaIRGenPass._osp_collect_slots(arch_name: str, is_entry: bool) -> list {
     if _model is None {
         return slots;
     }
-    # Match host event dispatch: merge base events in reverse MRO order,
-    # replacing overridden abilities without changing their dispatch position.
+
     merged: dict = {};
     layout = self._arch_layout(arch_name);
     order = layout.mro if layout is not None else [arch_name];
