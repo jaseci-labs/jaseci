@@ -1,10 +1,13 @@
 """Explicit runtime imports share the kernel used by native walker dispatch."""
 
 import ctypes;
-import from tests.support { compile_native }
+import os;
+import from tests.support { JAC_ROOT, compile_native }
 import from jaclang.compiler.backends.common.kernel_units { kernel_unit_owner }
 
 test "runtime unit identity is independent of the compiler installation" {
+    assert kernel_unit_owner(os.path.join(JAC_ROOT, "jaclang/runtime/osp_kernel.jac"))
+        == "osp_kernel";
     assert kernel_unit_owner(
         "/checkout/jaclang/runtime/osp_kernel.jac", "jaclang.runtime.osp_kernel"
     )

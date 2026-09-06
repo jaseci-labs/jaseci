@@ -429,7 +429,8 @@ class NativeCompiler {
             return out;
         }
         completed = self.lib.jc_completed();
-        for (pass_id, pass_cls) in [(1, ASTValidationPass), (2, SymTabBuildPass)] {
+        passes: list[tuple[int, type]] = [(1, ASTValidationPass), (2, SymTabBuildPass)];
+        for (pass_id, pass_cls) in passes {
             if not (completed & pass_id) {
                 continue;
             }

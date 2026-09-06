@@ -8,6 +8,7 @@ import from jaclang.compiler.frontend.unitree {
     BinaryExpr,
     BuiltinType,
     Enum,
+    Expr,
     FuncCall,
     FuncSignature,
     HasVar,
@@ -146,7 +147,7 @@ def layout_slot_count(lay: ArchetypeLayout) -> int {
     return top;
 }
 
-def declaring_module_path(base_expr: UniNode) -> str {
+def declaring_module_path(base_expr: Expr) -> str {
     import os;
     import from jaclang.compiler.types.types { ClassType }
     base_type = base_expr.type;
