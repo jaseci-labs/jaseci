@@ -1,6 +1,6 @@
 impl BaseAstGenPass._merge_module_bodies(nd: uni.Module) -> list {
     merged: list = [];
-    for (body, strip_impl_defs) in ModuleCodegenPass.iter_woven_segments(nd) {
+    for (body, strip_impl_defs) in ModuleFacts.iter_woven_segments(nd) {
         if strip_impl_defs {
             merged.extend(
                 [

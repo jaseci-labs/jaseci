@@ -1,7 +1,7 @@
 import from typing { TypeVar }
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.passes.uni_pass { UniPass }
-import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
+import from jaclang.compiler.frontend.module_facts { ModuleFacts }
 glob ChildPassT = TypeVar('ChildPassT', bound='BaseAstGenPass[Any]');
 
 walker BaseAstGenPass[AstNodeT](UniPass) {

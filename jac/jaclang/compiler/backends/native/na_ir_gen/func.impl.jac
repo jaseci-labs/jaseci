@@ -3,7 +3,7 @@ import from jaclang.compiler.frontend.constant { OwnershipKind }
 
 
 impl NaIRGenFunc._forward_declare_functions(module: uni.Module) -> None {
-    for stmt in ModuleCodegenPass.iter_context_stmts(module, CodeContext.NATIVE) {
+    for stmt in ModuleFacts.iter_context_stmts(module, CodeContext.NATIVE) {
         self._maybe_declare_ability(stmt);
     }
 }
@@ -439,7 +439,7 @@ impl NaIRGenFunc._codegen_ability(nd: uni.Ability) -> None {
             func, name, self._func_loc.get(name, nd.loc.first_line if nd.loc else 0)
         );
 
-        body = ModuleCodegenPass.unwrap_body(nd);
+        body = ModuleFacts.unwrap_body(nd);
         if body is not None {
             _scan_owner = nd.body if isinstance(nd.body, uni.ImplDef) else nd;
             self._scan_closure_escapes(_scan_owner, body);
@@ -639,7 +639,7 @@ impl NaIRGenFunc._codegen_nested_ability(nd: uni.Ability) -> None {
     if sig is not None and sig.return_type is not None {
         ret_type = self._resolve_jac_type(sig.return_type);
     }
-    body = ModuleCodegenPass.unwrap_body(nd);
+    body = ModuleFacts.unwrap_body(nd);
 
     _pre = self._nested_predecl.get(nd);
     if _pre is None {
@@ -809,7 +809,7 @@ impl NaIRGenFunc._predeclare_nested_siblings(nd: uni.Ability) -> None {
     if _frame is None or not isinstance(_frame, uni.Ability) {
         return;
     }
-    _fbody = ModuleCodegenPass.unwrap_body(_frame);
+    _fbody = ModuleFacts.unwrap_body(_frame);
     if not _fbody {
         return;
     }
@@ -1086,7 +1086,7 @@ impl NaIRGenFunc._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     };
     self._gen_ctx = gc;
 
-    _gen_scan_body = ModuleCodegenPass.unwrap_body(nd);
+    _gen_scan_body = ModuleFacts.unwrap_body(nd);
     if _gen_scan_body is not None {
         self._scan_closure_escapes(nd, _gen_scan_body);
     }
@@ -1113,7 +1113,7 @@ impl NaIRGenFunc._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     body_bb = resume_fn.append_basic_block("body");
     self.builder.position_at_end(body_bb);
 
-    body = ModuleCodegenPass.unwrap_body(nd);
+    body = ModuleFacts.unwrap_body(nd);
     if body is not None {
         _symtab_before = dict(self.func_symtab);
         self._codegen_body(body);

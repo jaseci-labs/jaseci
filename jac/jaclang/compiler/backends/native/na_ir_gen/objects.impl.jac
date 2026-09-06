@@ -10,7 +10,7 @@ impl NaIRGenObjects._devirt_closed_world(arch_name: str) -> bool {
 impl NaIRGenObjects._native_archetypes(module: uni.Module) -> list[uni.Archetype] {
     result: dict[(str, uni.Archetype)] = {};
 
-    for stmt in ModuleCodegenPass.iter_context_stmts(module, CodeContext.NATIVE) {
+    for stmt in ModuleFacts.iter_context_stmts(module, CodeContext.NATIVE) {
         if isinstance(stmt, uni.Archetype) {
             aname = stmt.name.value if stmt.name else "unknown";
             if aname not in result or stmt.body is not None {
@@ -19,7 +19,7 @@ impl NaIRGenObjects._native_archetypes(module: uni.Module) -> list[uni.Archetype
         }
     }
 
-    for arch in ModuleCodegenPass.shared_archetypes_for_context(
+    for arch in ModuleFacts.shared_archetypes_for_context(
         module, CodeContext.NATIVE
     ) {
         aname = arch.name.value if arch.name else "unknown";
@@ -1001,7 +1001,7 @@ impl NaIRGenObjects._codegen_method(
         func, full_name, method.loc.first_line if method.loc else 0
     );
 
-    _scan_body = ModuleCodegenPass.unwrap_body(method);
+    _scan_body = ModuleFacts.unwrap_body(method);
     if _scan_body is not None {
         _scan_owner = method.body if isinstance(method.body, uni.ImplDef) else method;
         self._scan_closure_escapes(_scan_owner, _scan_body);
@@ -1069,7 +1069,7 @@ impl NaIRGenObjects._codegen_method(
     _local_mark = len(self.errors_had);
 
     try {
-        body = ModuleCodegenPass.unwrap_body(method);
+        body = ModuleFacts.unwrap_body(method);
         if body is not None {
             self._codegen_body(body);
         }
@@ -1298,7 +1298,7 @@ impl NaIRGenObjects._codegen_no_sig_method(
         func, full_name, method.loc.first_line if method.loc else 0
     );
 
-    _scan_body = ModuleCodegenPass.unwrap_body(method);
+    _scan_body = ModuleFacts.unwrap_body(method);
     if _scan_body is not None {
         _scan_owner = method.body if isinstance(method.body, uni.ImplDef) else method;
         self._scan_closure_escapes(_scan_owner, _scan_body);
@@ -1309,7 +1309,7 @@ impl NaIRGenObjects._codegen_no_sig_method(
     self.local_vars["self"] = self_alloca;
     self.param_vars.add("self");
 
-    body = ModuleCodegenPass.unwrap_body(method);
+    body = ModuleFacts.unwrap_body(method);
     if body is not None {
         self._codegen_body(body);
     }
@@ -1636,7 +1636,7 @@ impl NaIRGenObjects._codegen_event_method(arch_name: str, method: uni.Ability) -
     self._attach_di_subprogram(
         func, full_name, method.loc.first_line if method.loc else 0
     );
-    _scan_body = ModuleCodegenPass.unwrap_body(method);
+    _scan_body = ModuleFacts.unwrap_body(method);
     if _scan_body is not None {
         _scan_owner = method.body if isinstance(method.body, uni.ImplDef) else method;
         self._scan_closure_escapes(_scan_owner, _scan_body);
@@ -1667,7 +1667,7 @@ impl NaIRGenObjects._codegen_event_method(arch_name: str, method: uni.Ability) -
             );
         }
     }
-    body = ModuleCodegenPass.unwrap_body(method);
+    body = ModuleFacts.unwrap_body(method);
     if body is not None {
         self._codegen_body(body);
     }

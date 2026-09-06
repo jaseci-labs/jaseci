@@ -3,7 +3,7 @@ import from jaclang.compiler.backends.native.na_ir_gen.state { NaIRGenState }
 import from jaclang.compiler.frontend.codeinfo { HDR_DTOR_OFF }
 import from jaclang.compiler.frontend.constant { CodeContext, Tokens as Tok }
 import from jaclang.compiler.frontend.diagnostics { E5092 }
-import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
+import from jaclang.compiler.frontend.module_facts { ModuleFacts }
 import jaclang.compiler.frontend.unitree as uni;
 import os;
 import sys;

@@ -36,7 +36,7 @@ impl NaIRGenGlobals._glob_native_use_exists(target: uni.UniNode) -> bool {
 }
 
 impl NaIRGenGlobals._register_globals(module: uni.Module) -> None {
-    for stmt in ModuleCodegenPass.iter_context_stmts(module, CodeContext.NATIVE) {
+    for stmt in ModuleFacts.iter_context_stmts(module, CodeContext.NATIVE) {
         if isinstance(stmt, uni.GlobalVars) {
             self._codegen_global_vars(stmt);
         }
@@ -46,7 +46,7 @@ impl NaIRGenGlobals._register_globals(module: uni.Module) -> None {
 impl NaIRGenGlobals._register_entry_globals(module: uni.Module) -> None {
     candidates: dict = {};
     dropped: set = set();
-    for stmt in ModuleCodegenPass.iter_context_stmts(module, CodeContext.NATIVE) {
+    for stmt in ModuleFacts.iter_context_stmts(module, CodeContext.NATIVE) {
         if not isinstance(stmt, uni.ModuleCode) {
             continue;
         }
@@ -118,7 +118,7 @@ impl NaIRGenGlobals._register_entry_globals(module: uni.Module) -> None {
 
 impl NaIRGenGlobals._codegen_global_vars(nd: uni.GlobalVars) -> None {
     for assign in nd.assignments {
-        if ModuleCodegenPass.is_erased_type_decl(assign) {
+        if ModuleFacts.is_erased_type_decl(assign) {
             continue;
         }
         targets = assign.target
@@ -245,7 +245,7 @@ impl NaIRGenGlobals._infer_global_init_type(
 impl NaIRGenGlobals._codegen_const_expr(
     nd: uni.UniNode, target_type: ir.Type
 ) -> (ir.Constant | None) {
-    import from jaclang.compiler.backends.py.const_fold { fold_const }
+    import from jaclang.compiler.frontend.const_fold { fold_const }
     if self?.jacval_type and target_type == self.jacval_type {
         return None;
     }
@@ -279,7 +279,7 @@ impl NaIRGenGlobals._codegen_const_expr(
 }
 
 impl NaIRGenGlobals._register_enums(module: uni.Module) -> None {
-    for stmt in ModuleCodegenPass.iter_context_stmts(module, CodeContext.NATIVE) {
+    for stmt in ModuleFacts.iter_context_stmts(module, CodeContext.NATIVE) {
         if isinstance(stmt, uni.Enum) {
             self._codegen_enum(stmt);
         }

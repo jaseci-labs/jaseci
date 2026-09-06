@@ -24,7 +24,7 @@ import from jaclang.compiler.frontend.constant { CodeContext, Tokens as Tok }
 import from jaclang.compiler.frontend.constant { OwnershipKind, SymbolAccess }
 import from jaclang.compiler.frontend.diagnostics { E5090, E5091, E5092 }
 import from jaclang.runtime.osp_model { stable_osp_tag }
-import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
+import from jaclang.compiler.frontend.module_facts { ModuleFacts }
 import jaclang.compiler.frontend.unitree as uni;
 import os;
 import sys;

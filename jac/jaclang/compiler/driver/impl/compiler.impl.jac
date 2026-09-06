@@ -1739,8 +1739,8 @@ impl JacCompiler._compile_pipeline(
         and not had_blocking_errors
         and actual_program.analysis.analyses_run.provides(mod_targ, 'TypeOf')
     ) {
-        import from jaclang.compiler.backends.py.module_codegen_pass {
-            ModuleCodegenPass as _PtyMcp
+        import from jaclang.compiler.frontend.module_facts {
+            ModuleFacts as _PtyMcp
         }
         if is_native_mod or _PtyMcp.has_native_context_stmts(mod_targ) {
             _parity_passes: list = [];
@@ -1860,11 +1860,11 @@ impl JacCompiler._compile_pipeline(
     ) {
         actual_program.options = options;
 
-        import from jaclang.compiler.backends.py.module_codegen_pass {
-            ModuleCodegenPass
+        import from jaclang.compiler.frontend.module_facts {
+            ModuleFacts
         }
         needs_native = is_native_mod
-            or ModuleCodegenPass.has_native_context_stmts(mod_targ);
+            or ModuleFacts.has_native_context_stmts(mod_targ);
 
         if needs_native
             and not actual_program.analysis.analyses_run.provides(mod_targ, 'TypeOf') {
@@ -2034,7 +2034,7 @@ impl JacCompiler._report_missing_native_ir(
         return;
     }
     import from jaclang.compiler.frontend.diagnostics { E5092 }
-    import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
+    import from jaclang.compiler.frontend.module_facts { ModuleFacts }
     import from jaclang.compiler.passes.transform { Alert }
     reason = native_schedule_failure();
     if not reason {
@@ -2045,7 +2045,7 @@ impl JacCompiler._report_missing_native_ir(
     }
     if reason {
         detail = f"the native codegen schedule could not be built ({reason})";
-    } elif not ModuleCodegenPass.has_native_context_stmts(mod) {
+    } elif not ModuleFacts.has_native_context_stmts(mod) {
         detail = "the module declares no native code for the backend to lower";
     } else {
         detail = (

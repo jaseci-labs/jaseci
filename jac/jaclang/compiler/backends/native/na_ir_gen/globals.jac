@@ -2,9 +2,9 @@ import from jaclang.compiler.backends.native.llvm { ir }
 import from jaclang.compiler.backends.native.na_ir_gen.state { NaIRGenState }
 import from jaclang.compiler.frontend.constant { CodeContext, Tokens as Tok }
 import from jaclang.compiler.frontend.diagnostics { E5026 }
-import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
+import from jaclang.compiler.frontend.module_facts { ModuleFacts }
 import jaclang.compiler.frontend.unitree as uni;
-import from jaclang.compiler.backends.py.const_fold { fold_const }
+import from jaclang.compiler.frontend.const_fold { fold_const }
 
 obj NaIRGenGlobals(NaIRGenState) {
     def _register_enums(module: uni.Module) -> None;

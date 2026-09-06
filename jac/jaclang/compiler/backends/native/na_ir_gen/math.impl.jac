@@ -1,4 +1,4 @@
-import from jaclang.compiler.backends.py.const_fold { fold_const }
+import from jaclang.compiler.frontend.const_fold { fold_const }
 
 glob _MATH_CONSTS: dict[str, float] = {
          "pi": 3.141592653589793,

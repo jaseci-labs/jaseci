@@ -7,7 +7,7 @@ import from jaclang.compiler.type_registry { JacTypeEntry }
 import from jaclang.compiler.backends.native.na_ir_gen.state { NaIRGenState }
 import from jaclang.compiler.frontend.constant { CodeContext }
 import from jaclang.compiler.frontend.diagnostics { E5060, E5090, E5092 }
-import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
+import from jaclang.compiler.frontend.module_facts { ModuleFacts }
 import jaclang.compiler.frontend.unitree as uni;
 import os;
 import sys;

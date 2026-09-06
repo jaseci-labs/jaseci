@@ -469,10 +469,12 @@ reference for `na → na`.
 
 ## Stage 5: Backend Code Generation
 
-`get_py_code_gen` returns the codegen schedule. All three backends share a
-common base class -- [`ModuleCodegenPass`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/module_codegen_pass.jac)
-(or `BaseAstGenPass` for AST-emitting passes) -- and **each pass only emits
-nodes whose `code_context` matches its target**. A node tagged `CLIENT` is
+`get_py_code_gen` returns the codegen schedule. All three backends read the
+same module facts -- [`ModuleFacts`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/frontend/module_facts.jac)
+(context-tagged statements, woven annex segments, erased type declarations)
+-- and the AST-emitting passes share
+[`BaseAstGenPass`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/common/ast_gen_base.jac).
+**Each pass only emits nodes whose `code_context` matches its target**. A node tagged `CLIENT` is
 invisible to the Python codegen and vice versa.
 
 ### Server backend
@@ -525,7 +527,7 @@ Key components of the client backend:
   is the small JS runtime that ships with every client bundle (signals,
   reactive state, JSX renderer, hash router, fetch helpers).
 - **JSX lowering** -- `EsJsxProcessor` in
-  [`compiler/passes/ast_gen/jsx_processor.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/ast_gen/jsx_processor.jac)
+  [`compiler/backends/es/jsx_processor.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/es/jsx_processor.jac)
   lowers JSX tags for the client lane. The server lane lowers the same tags
   itself, straight into `jaclib` JSX calls, so a tag compiles consistently
   regardless of where it appears.
@@ -570,7 +572,7 @@ flow through the interop bridge generated from `BoundaryAnalysisPass`.
 
 The two lowering backends (ECMAScript and native) implement the same
 abstract emitter interface, defined in
-[`compiler/primitives.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/primitives.jac).
+[`compiler/backends/common/primitives.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/common/primitives.jac).
 The server backend needs no emitters: it compiles to Python bytecode, so
 CPython itself provides the reference semantics the other backends must
 match. This is what makes "`'hello'.upper()` works in all three codespaces"
@@ -578,7 +580,7 @@ a guarantee rather than a convention.
 
 ```mermaid
 graph TD
-    subgraph "Abstract (compiler/primitives.jac)"
+    subgraph "Abstract (compiler/backends/common/primitives.jac)"
         INT[IntEmitter]
         STR[StrEmitter]
         LIST[ListEmitter]
@@ -777,7 +779,7 @@ A short index, organised by the role each file plays in the pipeline.
 - [`compiler/backends/es/primitives_es.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/es/primitives_es.jac)
 - [`compiler/backends/es/jac_runtime_js.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/es/jac_runtime_js.jac)
   -- in-browser runtime
-- [`compiler/passes/ast_gen/jsx_processor.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/passes/ast_gen/jsx_processor.jac)
+- [`compiler/backends/es/jsx_processor.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/es/jsx_processor.jac)
   -- JSX lowering
 
 **Native backend**

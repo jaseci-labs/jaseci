@@ -21,11 +21,7 @@ import from jaclang.compiler.frontend.constant {
     NATIVE_ERASED_TYPE_MARKERS,
     TYPE_PARAM_CONSTRUCTORS
 }
-import from jaclang.compiler.passes.transform { Transform }
-
-obj ModuleCodegenPass(Transform) {
-    has ir_in: Module;
-
+obj ModuleFacts {
     static def unwrap_body(nd: Archetype | Enum | Ability) -> (Sequence | None) {
         body = nd.body;
         if (isinstance(body, ImplDef) and isinstance(body.body, `list)) {
@@ -56,7 +52,7 @@ obj ModuleCodegenPass(Transform) {
         module: Module, ctx: (CodeContext | None) = None
     ) -> list[ElementStmt] {
         result: list[ElementStmt] = [];
-        for (body, _strip) in ModuleCodegenPass.iter_woven_segments(module) {
+        for (body, _strip) in ModuleFacts.iter_woven_segments(module) {
             for stmt in body {
                 if not isinstance(stmt, ElementStmt) {
                     continue;
@@ -83,7 +79,7 @@ obj ModuleCodegenPass(Transform) {
     ) -> list[Import] {
         return [
             stmt
-            for stmt in ModuleCodegenPass.iter_context_stmts(module, ctx)
+            for stmt in ModuleFacts.iter_context_stmts(module, ctx)
             if isinstance(stmt, Import)
         ];
     }
@@ -93,7 +89,7 @@ obj ModuleCodegenPass(Transform) {
     ) -> list[Import] {
         result: list[Import] = [];
         seen: set[int] = set();
-        for stmt in ModuleCodegenPass.iter_context_stmts(module, ctx) {
+        for stmt in ModuleFacts.iter_context_stmts(module, ctx) {
             if isinstance(stmt, Import) {
                 continue;
             }
@@ -108,7 +104,7 @@ obj ModuleCodegenPass(Transform) {
     }
 
     static def has_native_context_stmts(module: Module) -> bool {
-        return bool(ModuleCodegenPass.iter_context_stmts(module, CodeContext.NATIVE));
+        return bool(ModuleFacts.iter_context_stmts(module, CodeContext.NATIVE));
     }
 
     static def is_type_alias_decl(assign: Assignment) -> bool {
@@ -134,8 +130,8 @@ obj ModuleCodegenPass(Transform) {
     }
 
     static def is_erased_type_decl(assign: Assignment) -> bool {
-        return ModuleCodegenPass.is_type_alias_decl(assign)
-            or ModuleCodegenPass.is_type_param_decl(assign);
+        return ModuleFacts.is_type_alias_decl(assign)
+            or ModuleFacts.is_type_param_decl(assign);
     }
 
     static def archetype_refs(nd: UniNode) -> list[str] {
@@ -165,8 +161,8 @@ obj ModuleCodegenPass(Transform) {
             return [];
         }
         worklist: list[str] = [];
-        for stmt in ModuleCodegenPass.iter_context_stmts(module, ctx) {
-            worklist.extend(ModuleCodegenPass.archetype_refs(stmt));
+        for stmt in ModuleFacts.iter_context_stmts(module, ctx) {
+            worklist.extend(ModuleFacts.archetype_refs(stmt));
         }
         result: dict[(str, Archetype)] = {};
         visited: set[str] = set();
@@ -181,7 +177,7 @@ obj ModuleCodegenPass(Transform) {
                 continue;
             }
             result[name] = arch;
-            worklist.extend(ModuleCodegenPass.archetype_refs(arch));
+            worklist.extend(ModuleFacts.archetype_refs(arch));
         }
         return list(result.values());
     }
@@ -189,7 +185,7 @@ obj ModuleCodegenPass(Transform) {
 
 def client_capability_violations(mod: Module) -> list[tuple[(UniNode, str)]] {
     out: list[tuple[(UniNode, str)]] = [];
-    for _stmt in ModuleCodegenPass.iter_context_stmts(mod, CodeContext.CLIENT) {
+    for _stmt in ModuleFacts.iter_context_stmts(mod, CodeContext.CLIENT) {
         if isinstance(_stmt, ContextAwareNode) and _stmt.codespace_dual {
             continue;
         }

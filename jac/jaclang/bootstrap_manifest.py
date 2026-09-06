@@ -25,18 +25,18 @@ import os
 
 # Everything the jac0 tier compiles. Directory entries cover subtrees.
 # compiler/passes/ and compiler/backends/ are deliberately listed file by
-# file (or py/-subtree): their siblings (main/, ecmascript/, native/,
-# tool/) are full-compiler modules and must never join the seed set by
-# directory accident.
+# file (or py/-subtree): their siblings (backends/es/, backends/native/,
+# backends/common/primitives.jac, the analysis passes) are full-compiler
+# modules and must never join the seed set by directory accident.
 SEED_PATHS: tuple[str, ...] = (
     "compiler/frontend/",
     "compiler/driver/",
     "compiler/placement/",
     "compiler/backends/py/",
-    "compiler/backends/kernel_units.jac",
-    "compiler/backends/fmt_kernel.jac",
+    "compiler/backends/common/ast_gen_base.jac",
+    "compiler/backends/common/kernel_units.jac",
+    "compiler/backends/common/fmt_kernel.jac",
     "compiler/passes/annex_weave.jac",
-    "compiler/passes/ast_gen/",
     "compiler/passes/ast_validation_pass.jac",
     "compiler/passes/boundary_analysis_pass.jac",
     "compiler/passes/decl_impl_match_pass.jac",

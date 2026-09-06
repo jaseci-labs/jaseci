@@ -4,7 +4,7 @@ glob OSP_CORE_PARTS: list[str] = [
          "runtime/osp_kernel.jac",
          "runtime/osp_graph.jac"
      ],
-     FMT_KERNEL_PARTS: list[str] = ["compiler/backends/fmt_kernel.jac"],
+     FMT_KERNEL_PARTS: list[str] = ["compiler/backends/common/fmt_kernel.jac"],
      REGION_KERNEL_PARTS: list[str] = ["runtime/region_native.jac"],
      REGION_KERNEL_ABI: dict[str, tuple[bool, int]] = {
          "__jac_region_new": (True, 0),

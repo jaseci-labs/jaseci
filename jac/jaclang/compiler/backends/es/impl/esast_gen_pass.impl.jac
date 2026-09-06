@@ -3702,7 +3702,7 @@ impl EsastGenPass._match_arch_field_order(pat: uni.MatchArch) -> (list[str] | No
     if arch_node is None {
         return None;
     }
-    inner = self.unwrap_body(arch_node);
+    inner = ModuleFacts.unwrap_body(arch_node);
     if inner is None {
         return None;
     }
@@ -5169,7 +5169,7 @@ impl EsastGenPass._ref_forward_param(nd: uni.Ability) -> (uni.ParamVar | None) {
 }
 
 impl EsastGenPass._transform_to_useeffect(nd: uni.Ability) -> None {
-    inner = self.unwrap_body(nd);
+    inner = ModuleFacts.unwrap_body(nd);
     body_stmts = self._collect_stmt_body(inner);
     body_stmts = self._prepend_hoisted(nd, body_stmts);
 
@@ -5489,7 +5489,7 @@ impl EsastGenPass.exit_ability with uni.Ability exit {
                 )
         );
     }
-    inner = self.unwrap_body(here);
+    inner = ModuleFacts.unwrap_body(here);
     body_stmts = self._collect_stmt_body(inner);
     body_stmts = self._prepend_hoisted(here, body_stmts);
     block = self.sync_loc(
@@ -5657,7 +5657,7 @@ impl EsastGenPass._emit_osp_slot_method(nd: uni.Ability, osp: dict) -> None {
         self._osp_const_decl("here", here_init, nd),
         self._osp_const_decl("visitor", visitor_init, nd)
     ];
-    inner = self.unwrap_body(nd);
+    inner = ModuleFacts.unwrap_body(nd);
     body_stmts = self._collect_stmt_body(inner);
     body_stmts = self._prepend_hoisted(nd, body_stmts);
     block = self.sync_loc(es.BlockStatement(body=binds + body_stmts), jac_node=nd);
@@ -6527,7 +6527,7 @@ impl EsastGenPass.exit_enum with uni.Enum exit {
         }
     }
     properties: list[(es.Property | es.SpreadElement)] = [];
-    inner = self.unwrap_body(here);
+    inner = ModuleFacts.unwrap_body(here);
     next_auto = 1;
     if inner {
         for stmt in inner {
@@ -6597,7 +6597,7 @@ impl EsastGenPass.exit_archetype with uni.Archetype exit {
     }
     body_stmts: list[es.MethodDefinition | es.PropertyDefinition] = [];
     has_members: list[uni.ArchHas] = [];
-    inner = self.unwrap_body(here);
+    inner = ModuleFacts.unwrap_body(here);
     if inner {
         for stmt in inner {
             if isinstance(stmt, uni.ArchHas) {
@@ -6684,7 +6684,7 @@ impl EsastGenPass.exit_archetype with uni.Archetype exit {
         (here.name is not None) and (here.name.sym_name in self.shared_arch_names)
     );
     has_postinit = False;
-    for _stmt in (self.unwrap_body(here) or []) {
+    for _stmt in (ModuleFacts.unwrap_body(here) or []) {
         if (
             isinstance(_stmt, uni.Ability)
             and getattr(_stmt, 'sym_name', '') == '__post_init__'
@@ -8994,7 +8994,7 @@ impl EsastGenPass.enter_walk with uni.UniNode entry {
 impl EsastGenPass.before_pass -> None {
     import from jaclang.compiler.frontend.codeinfo { ClientManifest }
 
-    import from jaclang.compiler.backends.py.module_codegen_pass {
+    import from jaclang.compiler.frontend.module_facts {
         client_capability_violations
     }
     import from jaclang.compiler.frontend.diagnostics { E5096 }
@@ -9012,10 +9012,10 @@ impl EsastGenPass.before_pass -> None {
         self.ir_in.gen.interop_manifest.endpoint_effects
     );
 
-    import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
+    import from jaclang.compiler.frontend.module_facts { ModuleFacts }
     self.shared_arch_names: set[str] = {
         a.name.value
-        for a in ModuleCodegenPass.shared_archetypes_for_context(
+        for a in ModuleFacts.shared_archetypes_for_context(
             self.ir_in, CodeContext.CLIENT
         )
         if a.name is not None

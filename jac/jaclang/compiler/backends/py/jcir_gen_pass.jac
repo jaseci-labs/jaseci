@@ -144,7 +144,7 @@ import from jaclang.compiler.backends.py.jcir_facts {
     JCIR_BUILTIN_NAMES,
     jcir_is_test_path
 }
-import from jaclang.compiler.passes.ast_gen.base_ast_gen_pass { BaseAstGenPass }
+import from jaclang.compiler.backends.common.ast_gen_base { BaseAstGenPass }
 import from jaclang.compiler.frontend.diagnostics {
     E5001,
     E5002,

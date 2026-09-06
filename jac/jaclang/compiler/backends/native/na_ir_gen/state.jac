@@ -1,9 +1,11 @@
 import from jaclang.compiler.backends.native.llvm { ir }
 import from jaclang.runtime.scalars { ScalarShape }
 import jaclang.compiler.frontend.unitree as uni;
-import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
+import from jaclang.compiler.passes.transform { Transform }
 
-obj NaIRGenState(ModuleCodegenPass) {
+obj NaIRGenState(Transform) {
+    has ir_in: Module;
+
     has _llvm_module: (ir.Module | None) = None,
         _type_map: (dict[str, ir.Type] | None) = None,
         _complex_struct_type: (ir.Type | None) = None,

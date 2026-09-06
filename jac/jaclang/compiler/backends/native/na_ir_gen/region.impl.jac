@@ -1,4 +1,4 @@
-import from jaclang.compiler.backends.kernel_units { REGION_KERNEL_ABI }
+import from jaclang.compiler.backends.common.kernel_units { REGION_KERNEL_ABI }
 
 glob REGION_TLS_GLOBAL: str = "__jac_region_tls",
      REGION_TLS_GET: str = "__jac_region_tls_get",

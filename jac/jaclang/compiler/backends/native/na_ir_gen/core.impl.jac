@@ -136,7 +136,7 @@ impl NaIRGenCore._run_impl(ir_in: uni.Module) -> uni.Module {
     self._register_archetypes(self.ir_in);
 
     _entry_nodes: list = [];
-    for stmt in ModuleCodegenPass.iter_context_stmts(self.ir_in, CodeContext.NATIVE) {
+    for stmt in ModuleFacts.iter_context_stmts(self.ir_in, CodeContext.NATIVE) {
         if (
             isinstance(stmt, uni.Ability)
             and stmt.signature is not None
@@ -565,17 +565,17 @@ impl NaIRGenCore._register_imported_struct_types -> None {
 
     _native_ids: set = {
         id(_s)
-        for _s in ModuleCodegenPass.iter_context_stmts(self.ir_in, CodeContext.NATIVE)
+        for _s in ModuleFacts.iter_context_stmts(self.ir_in, CodeContext.NATIVE)
     };
     _has_native_code: bool = len(_native_ids) > 0;
-    _nested_native = ModuleCodegenPass.iter_nested_imports(
+    _nested_native = ModuleFacts.iter_nested_imports(
         self.ir_in, CodeContext.NATIVE
     );
     for _nested_imp in _nested_native {
         _native_ids.add(id(_nested_imp));
     }
     wq: list = [];
-    for imp in ModuleCodegenPass.iter_module_imports(self.ir_in) + _nested_native {
+    for imp in ModuleFacts.iter_module_imports(self.ir_in) + _nested_native {
         mod_name = self._extract_import_module_name(imp);
         if not mod_name {
             continue;
@@ -663,8 +663,8 @@ impl NaIRGenCore._register_imported_struct_types -> None {
         _src_keys[src_mod_str] = native_module_key(full_path);
 
         sub_base = os.path.dirname(os.path.abspath(full_path));
-        for sub_imp in ModuleCodegenPass.iter_module_imports(imported_mod)
-            + ModuleCodegenPass.iter_nested_imports(imported_mod, CodeContext.NATIVE) {
+        for sub_imp in ModuleFacts.iter_module_imports(imported_mod)
+            + ModuleFacts.iter_nested_imports(imported_mod, CodeContext.NATIVE) {
             sub_name = self._extract_import_module_name(sub_imp);
             if sub_name {
                 wq.append((sub_name, sub_base, abs_key));
@@ -680,7 +680,7 @@ impl NaIRGenCore._register_imported_struct_types -> None {
     ) {
         _has_own_code = any(
             not isinstance(s, uni.Import)
-            for s in ModuleCodegenPass.iter_context_stmts(imported_mod)
+            for s in ModuleFacts.iter_context_stmts(imported_mod)
         );
         if _has_own_code {
             _own_code_keys.add(_abs_key);
@@ -793,7 +793,7 @@ impl NaIRGenCore._extract_import_module_name(imp: uni.Import) -> (str | None) {
 }
 
 impl NaIRGenCore._walk_imported_module_type_names(imported_mod: uni.Module) -> None {
-    for stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
+    for stmt in ModuleFacts.iter_context_stmts(imported_mod) {
         if (
             isinstance(stmt, uni.ContextAwareNode)
             and stmt.code_context == CodeContext.CLIENT
@@ -819,7 +819,7 @@ impl NaIRGenCore._walk_imported_module_type_names(imported_mod: uni.Module) -> N
 }
 
 impl NaIRGenCore._walk_imported_module_types(imported_mod: uni.Module) -> None {
-    for stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
+    for stmt in ModuleFacts.iter_context_stmts(imported_mod) {
         if (
             isinstance(stmt, uni.ContextAwareNode)
             and stmt.code_context == CodeContext.CLIENT
@@ -904,7 +904,7 @@ impl NaIRGenCore._walk_imported_module_abilities(
         and _wl_jac_internal
     ) {
         _wl_all_fns: set = set();
-        for _wl_stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
+        for _wl_stmt in ModuleFacts.iter_context_stmts(imported_mod) {
             if (
                 isinstance(_wl_stmt, uni.Ability)
                 and _wl_stmt.name_ref
@@ -929,7 +929,7 @@ impl NaIRGenCore._walk_imported_module_abilities(
         _uv_self = _uv_os.path.realpath(self.ir_in.loc.mod_path);
         _uv_callee = _uv_os.path.realpath(imported_mod.loc.mod_path);
         _uv_names: set = set();
-        for _uv_stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
+        for _uv_stmt in ModuleFacts.iter_context_stmts(imported_mod) {
             if (
                 isinstance(_uv_stmt, uni.Ability)
                 and _uv_stmt.name_ref
@@ -960,7 +960,7 @@ impl NaIRGenCore._walk_imported_module_abilities(
             _uv_rec[_uv_callee] = set(_uv_rec.get(_uv_callee) or set()) | _uv_names;
         }
     }
-    for _imp_arch in ModuleCodegenPass.iter_context_stmts(imported_mod) {
+    for _imp_arch in ModuleFacts.iter_context_stmts(imported_mod) {
         if not isinstance(_imp_arch, uni.Archetype)
             or _imp_arch.body is None
             or _imp_arch.name is None {
@@ -993,7 +993,7 @@ impl NaIRGenCore._walk_imported_module_abilities(
             }
         }
     }
-    for stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
+    for stmt in ModuleFacts.iter_context_stmts(imported_mod) {
         if (
             isinstance(stmt, uni.ContextAwareNode)
             and stmt.code_context == CodeContext.CLIENT
@@ -1005,7 +1005,7 @@ impl NaIRGenCore._walk_imported_module_abilities(
         }
     }
 
-    for stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
+    for stmt in ModuleFacts.iter_context_stmts(imported_mod) {
         if (
             isinstance(stmt, uni.ContextAwareNode)
             and stmt.code_context == CodeContext.CLIENT
@@ -1072,7 +1072,7 @@ impl NaIRGenCore._register_imported_hierarchy(imported_mod: uni.Module) -> None 
         }
     }
 
-    for stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
+    for stmt in ModuleFacts.iter_context_stmts(imported_mod) {
         if (
             isinstance(stmt, uni.ContextAwareNode)
             and stmt.code_context == CodeContext.CLIENT
@@ -1286,7 +1286,7 @@ impl NaIRGenCore._imported_function_demotions(
 
     if `entry is None or isinstance(`entry, str) or `entry.gen.llvm_ir is None {
         _fd_all: set = set();
-        for _fd_stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
+        for _fd_stmt in ModuleFacts.iter_context_stmts(imported_mod) {
             if (
                 isinstance(_fd_stmt, uni.Ability)
                 and _fd_stmt.name_ref
@@ -1319,8 +1319,8 @@ impl NaIRGenCore._imported_function_demotions(
 }
 
 impl NaIRGenCore._process_clib_imports(module: uni.Module) -> None {
-    imports = ModuleCodegenPass.iter_module_imports(module)
-        + ModuleCodegenPass.iter_nested_imports(module, CodeContext.NATIVE);
+    imports = ModuleFacts.iter_module_imports(module)
+        + ModuleFacts.iter_nested_imports(module, CodeContext.NATIVE);
     for stmt in imports {
         if not stmt.clib_decls {
             if stmt.items {
