@@ -6,7 +6,7 @@ import from jaclang.compiler.frontend.codeinfo {
     native_layout_to_dict
 }
 
-glob NIFACE_FORMAT: int = 2,
+glob NIFACE_FORMAT: int = 3,
      NIFACE_HASH_LEN: int = 64,
      EXPORT_FUNCTION: str = "function",
      EXPORT_METHOD: str = "method",
@@ -55,27 +55,78 @@ obj NativeExport {
     }
 }
 
+obj NativeValueSchema {
+    has code: str,
+        class_name: str = "",
+        element: (NativeValueSchema | None) = None,
+        data_offset: int = 0,
+        key_offset: int = 0,
+        order_offset: int = 0;
+
+    def to_dict -> dict {
+        out: dict = {"code": self.code};
+        if self.code == "obj" {
+            out["class"] = self.class_name;
+        } elif self.code in ("list", "dict") {
+            if self.element is not None {
+                out["element"] = self.element.to_dict();
+            }
+            out["data_offset"] = self.data_offset;
+            if self.code == "dict" {
+                out["key_offset"] = self.key_offset;
+                out["order_offset"] = self.order_offset;
+            }
+        }
+        return out;
+    }
+
+    static def from_dict(d: dict) -> NativeValueSchema {
+        child = d.get("element");
+        return NativeValueSchema(
+            code=str(d["code"]),
+            class_name=str(d.get("class", "")),
+            element=(
+                NativeValueSchema.from_dict(child) if isinstance(child, dict) else None
+            ),
+            data_offset=int(d.get("data_offset", 0)),
+            key_offset=int(d.get("key_offset", 0)),
+            order_offset=int(d.get("order_offset", 0))
+        );
+    }
+}
+
 obj NativeFieldSlot {
     has index: int,
         offset: int,
         code: str,
-        aux: str = "";
+        aux: str = "",
+        schema: (NativeValueSchema | None) = None;
 
     def to_dict -> dict {
-        return {
+        out: dict = {
             "index": self.index,
             "offset": self.offset,
             "code": self.code,
             "aux": self.aux
         };
+        if self.schema is not None {
+            out["schema"] = self.schema.to_dict();
+        }
+        return out;
     }
 
     static def from_dict(d: dict) -> NativeFieldSlot {
+        schema = d.get("schema");
         return NativeFieldSlot(
             index=int(d.get("index", -1)),
             offset=int(d.get("offset", -1)),
             code=str(d.get("code", "opaque")),
-            aux=str(d.get("aux", ""))
+            aux=str(d.get("aux", "")),
+            schema=(
+                NativeValueSchema.from_dict(schema)
+                    if isinstance(schema, dict)
+                    else None
+            )
         );
     }
 }
