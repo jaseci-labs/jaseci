@@ -55,7 +55,7 @@ def _scope_rel -> set[str] {
     return {_pkg_rel(p) for p in native_scope_paths()};
 }
 
-test "the running image serves the scope and nothing but toolchain native units" {
+test "the running image serves the scope and only jaclang's own units" {
     native = _native_record();
     if native is None {
         return;
@@ -66,13 +66,16 @@ test "the running image serves the scope and nothing but toolchain native units"
     assert not missing , f"scope entries the image does not serve: {missing}";
     assert _pkg_rel(kernel_root_path()) in served , "the kernel root must be a served unit";
     pkg = jaclang_pkg_root();
+    # Beyond the scope, the plan links the toolchain units and the modules
+    # the scope's typed imports reach (the AST's data model and its types);
+    # every one of them is a jaclang module the plan compiled as a unit.
     strangers = sorted(
         rel
         for rel in served - scope
-        if not native_unit(os.path.join(pkg, rel), native_unit_compile=True)
+        if rel.startswith("..") or not os.path.isfile(os.path.join(pkg, rel))
     );
     assert not strangers , (
-        f"units the plan linked that are not toolchain native units: {strangers}"
+        f"units the plan linked that are not jaclang modules: {strangers}"
     );
     for (rel, unit) in native["units"].items() {
         assert isinstance(unit, dict) and unit.get("jir") , f"{rel}: no sealed JIR named";

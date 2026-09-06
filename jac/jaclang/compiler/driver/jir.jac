@@ -907,7 +907,7 @@ def sweep_stale_generations(cache_root: Path, keep: str) -> int {
         name = item.name;
         is_dir = item.is_dir();
         if is_dir {
-            if name == keep or not _is_generation_name(name) {
+            if name == keep or not (_is_generation_name(name) or name == "native") {
                 continue;
             }
         } elif not name.endswith(".jir") {
