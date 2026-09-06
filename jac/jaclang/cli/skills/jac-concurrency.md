@@ -68,8 +68,10 @@ Rule of thumb: blocking/synchronous functions you want overlapped → `flow`. An
 - `await` outside an `async def` is invalid - from `with entry`, drive async code with `asyncio.run(main())`.
 - On the client, **imported server-endpoint calls are async - always `await` them** or you get a `Promise`, not data (see `jac-fullstack-patterns`).
 - `wait` in a loop body that also contains the `flow` = accidental serial execution. Two passes: launch-all, then wait-all.
-- Ownership-annotated payloads must be **sendable** across `flow` (E1308): scalars, `imm`, or an `own` moved into the boundary - a live `&`/`&mut` borrow can't cross. Moving an `own Region` handle transfers its whole region subgraph zero-copy, legal only while no borrows of the handle are live. Unannotated code is unaffected. See `jac-native-memory`.
+- Ownership-annotated payloads must be **sendable** across `flow` (E1308): scalars, `imm`, or an `own` moved into the boundary - a live borrow crosses only through join-bounded lending: `h = flow f(&x); ... wait h;` in the same block, with no intervening owner access or side exit. Otherwise `&`/`&mut` is rejected. Moving an `own Region` handle transfers its whole region subgraph zero-copy, legal only while no borrows of the handle are live. Unannotated code is unaffected. See `jac-native-memory`.
 
 ## See also
 
 `jac-python-interop` (asyncio and other Python libs) · `jac-walker-patterns` (walkers, spawn) · `jac-sv-endpoints` (async server endpoints) · `jac-native-memory` (sendability rules, regions)
+
+Chunked lending uses `flow for c in &mut xs.chunks(n)` (or shared `&xs.chunks(n)`). Chunks stay local to the joined loop and may not grow or escape. `lin` payloads move like `own` but must be consumed on every path. For region partitions, freezing, view restrictions, and full borrowing rules, load `jac-native-memory`.
