@@ -714,20 +714,22 @@ impl strip_kernel_best_effort(site: str) {
     if not file_exists(manifest_path) {
         return;
     }
+    manifest: dict = {};
     with open(manifest_path, "r", encoding="utf-8") as f {
-        manifest = json.load(f);
+        manifest = dict(json.load(f));
     }
-    record = (manifest.get("native") or {}).get("artifact");
-    if not record {
+    native_rec: any = manifest.get("native") or {};
+    record: any = native_rec.get("artifact");
+    if not isinstance(record, dict) {
         return;
     }
-    lib = os.path.join(site, "jaclang", record["path"]);
+    lib: str = os.path.join(site, "jaclang", str(record["path"]));
     if not file_exists(lib) {
         return;
     }
     strip_best_effort(lib);
-    with open(lib, "rb") as f {
-        record["sha256"] = hashlib.sha256(f.read()).hexdigest();
+    with open(lib, "rb") as lf {
+        record["sha256"] = hashlib.sha256(lf.read()).hexdigest();
     }
     with open(manifest_path, "w", encoding="utf-8") as f {
         f.write(json.dumps(manifest, sort_keys=True, indent=1) + "\n");

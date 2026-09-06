@@ -628,11 +628,11 @@ def rebase_placement_section(raw: bytes, base: str) -> bytes {
 
     def _rebase(value: any) -> any {
         if isinstance(value, str) {
-            for root in roots {
-                if value == root {
+            for base_dir in roots {
+                if value == base_dir {
                     return PRECOMPILE_SENTINEL;
                 }
-                prefix = root + os.sep;
+                prefix = base_dir + os.sep;
                 if value.startswith(prefix) {
                     return (
                         PRECOMPILE_SENTINEL

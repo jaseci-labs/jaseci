@@ -309,7 +309,8 @@ impl JacCompiler._load_native_from_cache(
         return;
     }
     gen = CodeGenTarget();
-    gen.native_engine = engine;
+    engine_any: any = engine;
+    gen.native_engine = engine_any;
     py_func_table: dict = {};
     callbacks_list: list = [];
     gen.interop_py_funcs = py_func_table;

@@ -1,4 +1,3 @@
-import from collections.abc { Iterator }
 import jaclang.compiler.backends.native.llvm.binding as llvm;
 import type from jaclang.compiler.backends.native.llvm.binding {
     ModuleRef,

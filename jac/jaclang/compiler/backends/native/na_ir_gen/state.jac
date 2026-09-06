@@ -505,6 +505,7 @@ obj NaIRGenState(ModuleCodegenPass) {
     ) -> None abst;
 
     def _note_native_dep(path: str) -> None abst;
+    def _register_imported_hierarchy(imported_mod: uni.Module) -> None abst;
     def _dep_iface(imported_mod: uni.Module) -> any abst;
     def _load_native_unit_module(path: str) -> (uni.Module | None) abst;
     def _is_kernel_unit -> bool abst;

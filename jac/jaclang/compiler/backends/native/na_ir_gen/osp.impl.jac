@@ -35,7 +35,8 @@ impl NaIRGenOsp._register_osp_kernel_module -> None {
 impl NaIRGenOsp._osp_kernel_init_fns -> list[ir.Function] {
     import from jaclang.compiler.frontend.codeinfo { native_glob_init_name }
     out: list[ir.Function] = [];
-    for unit in (self._osp_kernel_mod, self._osp_graph_mod) {
+    for unit_mod in (self._osp_kernel_mod, self._osp_graph_mod) {
+        unit: any = unit_mod;
         if unit is None or not (unit?.loc and unit.loc.mod_path) {
             continue;
         }

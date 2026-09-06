@@ -107,7 +107,7 @@ obj NativeClassLayout {
             tag=int(d.get("tag", 0)),
             tag_offset=int(d.get("tag_offset", -1)),
             fields={
-                str(k): NativeFieldSlot.from_dict(v)
+                str(k): NativeFieldSlot.from_dict(dict(v))
                 for (k, v) in (d.get("fields") or {}).items()
             },
             bases=[str(x) for x in d.get("bases", [])],
@@ -193,11 +193,11 @@ obj NativeIface {
             module=str(d.get("module", "")),
             prefix=str(d.get("prefix", "")),
             exports={
-                str(k): NativeExport.from_dict(v)
+                str(k): NativeExport.from_dict(dict(v))
                 for (k, v) in (d.get("exports") or {}).items()
             },
             classes={
-                str(k): NativeClassLayout.from_dict(v)
+                str(k): NativeClassLayout.from_dict(dict(v))
                 for (k, v) in (d.get("classes") or {}).items()
             },
             enums={

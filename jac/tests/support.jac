@@ -196,7 +196,14 @@ def program_ir(fixture: str, triple: str, static_musl: bool = False) -> str {
             str(e) for e in prog.errors_had
         ]}";
         tl = triple.lower();
-        platform = "macho" if ("darwin" in tl or "apple" in tl) else "elf";
+        platform = "elf";
+        if "darwin" in tl or "apple" in tl {
+            platform = "macho";
+        } elif "windows" in tl or "msvc" in tl or "mingw" in tl {
+            platform = "pe";
+        } elif "wasm" in tl {
+            platform = "wasm";
+        }
         spec = plan.glue_spec(ArtifactKind.EXECUTABLE, platform, static_musl);
         (merged, _exports) = whole_program_module(plan, spec);
         return str(merged);

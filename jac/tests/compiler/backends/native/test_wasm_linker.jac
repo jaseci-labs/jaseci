@@ -52,9 +52,16 @@ def emit_wasm_object(fixture: str) -> bytes {
         assert not prog.errors_had , f"compile errors: {[
             str(e) for e in prog.errors_had
         ]}";
+        # The program the emitter sees: the unit merged with what it links
+        # and the glue that gives the host `__jac_glob_init` and bare names.
+        import from jaclang.compiler.backends.native.link_plan {
+            build_link_plan,
+            wasm_program_ir
+        }
+        plan = build_link_plan(prog, [ir.loc.mod_path], prog.options);
         llvm.initialize_all_targets();
         llvm.initialize_all_asmprinters();
-        mod = llvm.parse_assembly(str(ir.gen.llvm_ir));
+        mod = llvm.parse_assembly(wasm_program_ir(plan));
         mod.verify();
         tm = llvm.Target.from_triple(WASM_TRIPLE).create_target_machine(opt=2);
         pto = llvm.create_pipeline_tuning_options(speed_level=2);

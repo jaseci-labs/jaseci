@@ -421,7 +421,16 @@ def build_link_plan(
     }
 
     ordered = [units[p] for p in order];
-    ordered.sort(key=lambda (u: LinkUnit) { (1 if u.is_root else 0, ); });
+    """Toolchain units depend on nothing a program defines, so they lead
+    the order whatever path the walk reached them by; the root closes it.""";
+    import from jaclang.compiler.frontend.codeinfo { is_kernel_unit_path }
+    ordered.sort(
+        key=lambda (u: LinkUnit) { (
+            0 if is_kernel_unit_path(u.path) else 1,
+            1 if u.is_root else 0,
+
+        ); }
+    );
     check_pub_collisions(ordered);
     return LinkPlan(
         prog=prog,
@@ -513,6 +522,22 @@ def unit_objects(
         objs.append(object_bytes);
     }
     (glue_mod, exports) = _glue_module(plan, spec, tm);
+    dump_path = plan.options.dump_ir_path or "";
+    if dump_path {
+        """In objects mode the program is its units' objects plus the glue;
+        the dump is the glue module after every unit's own text, which is
+        what a reader of the finalized program expects to find.""";
+        with open(dump_path, "w") as df {
+            for u in ordered {
+                bc = registry.bitcode_for(u.path, plan.options);
+                if bc is not None {
+                    df.write(str(llvm.parse_bitcode(bc)));
+                    df.write("\n");
+                }
+            }
+            df.write(str(glue_mod));
+        }
+    }
     glue_obj = tm.emit_object(glue_mod);
     assert isinstance(glue_obj, bytes);
     objs.append(glue_obj);

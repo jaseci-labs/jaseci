@@ -311,6 +311,9 @@ impl nacompile(
     }
 
     file_size = os.path.getsize(output);
+    console.print(
+        f"  Object code emitted for {plan.triple}: {len(result.units)} unit(s)."
+    );
     if is_wasm {
         console.print(f"  Wasm module written to {output} ({file_size} bytes).");
         console.print(

@@ -1425,6 +1425,24 @@ impl NaIRGenCore._forward_declare_imported_ability(
             return;
         }
     }
+    _is_pub = bool(nd.access and nd.access.tag.name == Tok.KW_PUB);
+    _already = self.llvm_module.globals.get(self._symbol_for(name, _owner, _is_pub));
+    if isinstance(_already, ir.Function) {
+        """The module already declares this symbol (a kernel walk bound it
+        under its bare name without recording the owner): bind it, never
+        declare it twice.""";
+        if _owner_name {
+            self.func_symtab[f"{_owner_name}.{name}"] = _already;
+        }
+        if _existing is None {
+            self.func_symtab[name] = _already;
+            if _owner_name {
+                self._func_def_mod[name] = _owner_name;
+            }
+        }
+        self._record_linked_decl(_already, nd);
+        return;
+    }
     _prev_def_mod = self._func_def_mod.get(name);
     self._maybe_declare_ability(nd);
     self._record_linked_decl(self.func_symtab.get(name), nd);

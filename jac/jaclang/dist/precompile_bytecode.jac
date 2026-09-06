@@ -1217,7 +1217,7 @@ def run_precompile(
                 };
             }
             if jac_path in native_only_units {
-                jir_bytes = write_precompiled_jir(
+                jir_bytes: (bytes | None) = write_precompiled_jir(
                     None,
                     compute_precompile_module_key(jac_path),
                     FLAG_PRECOMPILED,
