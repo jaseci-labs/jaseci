@@ -269,8 +269,8 @@ def _accept_in_tree(lib_path: str) -> (ResolvedKernel | None) {
 
 def _build_kernel_in_child(dst: str) {
     import subprocess;
-    env = dict(os.environ);
-    env[KERNEL_LIB_ENV] = "off";
+    import from jaclang.compiler.driver.nativecache { child_compiler_env }
+    env = child_compiler_env({KERNEL_LIB_ENV: "off"});
     code = (
         "import sys\n"
         "from jaclang.compiler.backends.native.kernel_resolve import build_kernel\n"

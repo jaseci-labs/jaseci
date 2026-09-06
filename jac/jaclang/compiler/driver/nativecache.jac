@@ -18,6 +18,24 @@ import from jaclang.compiler.driver.jir {
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.driver.native_iface { NativeIface }
 
+def child_compiler_env(extra: (dict[str, str] | None) = None) -> dict[str, str] {
+    """The environment a child compiler process runs under: this process's
+environment plus the directory that holds the `jaclang` package on
+`PYTHONPATH`. A build boots its interpreter with `-I` and an explicit
+`sys.path`, which a child does not inherit; `import jaclang` registers the
+`.jac` importer itself, so the path is all the child needs.""";
+    import from jaclang.compiler.frontend.codeinfo { jaclang_pkg_root }
+    env = dict(os.environ);
+    pkg_parent = os.path.dirname(jaclang_pkg_root());
+    prior = env.get("PYTHONPATH", "");
+    parts = [pkg_parent] + ([prior] if prior else []);
+    env["PYTHONPATH"] = os.pathsep.join(parts);
+    if extra {
+        env.update(extra);
+    }
+    return env;
+}
+
 glob _UNITS_IN_FLIGHT: set[str] = set(),
      UNIT_CHILD_DEPTH_ENV: str = "JAC_NATIVE_UNIT_DEPTH",
      UNIT_CHILD_MAX_DEPTH: int = 2;
@@ -315,8 +333,7 @@ obj NativeUnitRegistry {
         if depth >= UNIT_CHILD_MAX_DEPTH {
             return self.compile_unit(resolved, base);
         }
-        child_env = dict(os.environ);
-        child_env[UNIT_CHILD_DEPTH_ENV] = str(depth + 1);
+        child_env = child_compiler_env({UNIT_CHILD_DEPTH_ENV: str(depth + 1)});
         env = json.dumps(base.clone_for_native_import().native_import_env());
         self._event("native_unit_compile_detached");
         try {
