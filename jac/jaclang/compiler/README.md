@@ -43,7 +43,7 @@ and reference-container layouts come from the backend's ABI metadata;
 Keep pass algorithms in `passes/`, and extend this shared boundary when another
 pass moves into the kernel.
 
-`scripts/native_compile_bench.py` at the repository root measures uncached AOT
+`scripts/native_compile_bench.jac` at the repository root measures uncached AOT
 application builds with a warm compiler. Set `JAC_COMPILER_LIB` to each built
 kernel when comparing revisions.
 
