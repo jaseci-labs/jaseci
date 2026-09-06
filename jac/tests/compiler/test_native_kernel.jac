@@ -29,7 +29,7 @@ def _shape_consulted_roles -> (set[str] | None) {
     }
     pat = re.compile(r"_role_shaped\(\s*(\w+)");
     found: set[str] = set();
-    for rel in ("unitree.impl/roles.impl.jac", "impl/unitree.impl.jac") {
+    for rel in ("unitree.impl/roles.impl.jac", "unitree.impl/nodes.impl.jac") {
         path = os.path.join(base, rel);
         if not os.path.isfile(path) {
             continue;

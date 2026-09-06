@@ -282,12 +282,12 @@ glob KERNEL_UNIT_REL: tuple[str, ...] = (
          "runtime/osp_kernel.jac",
          "runtime/osp_graph.jac",
          "runtime/region_native.jac",
-         "compiler/backends/fmt_kernel.jac"
+         "compiler/backends/common/fmt_kernel.jac"
      ),
      OSP_KERNEL_REL: str = "runtime/osp_kernel.jac",
      OSP_GRAPH_REL: str = "runtime/osp_graph.jac",
      REGION_KERNEL_REL: str = "runtime/region_native.jac",
-     FMT_KERNEL_REL: str = "compiler/backends/fmt_kernel.jac";
+     FMT_KERNEL_REL: str = "compiler/backends/common/fmt_kernel.jac";
 
 def jaclang_pkg_root -> str {
     import os;

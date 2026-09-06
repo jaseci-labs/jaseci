@@ -194,7 +194,7 @@ def get_pow_result_type(
     left_node: Expr | None = None,
     diag_node: UniNode | None = None
 ) -> (TypeBase | None) {
-    import from jaclang.compiler.backends.py.const_fold { fold_const }
+    import from jaclang.compiler.frontend.const_fold { fold_const }
     float_class = evaluator.prefetch.float_class;
     if float_class is None or not both_numeric(left_type, right_type) {
         return None;
