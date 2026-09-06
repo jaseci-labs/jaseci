@@ -313,7 +313,12 @@ impl NaIRGenPass._emit_rc_helpers -> None {
     );
 
     gc_dis_check_bb = retain_fn.append_basic_block("gc_dis_check");
-    b.cbranch(is_null, done_bb, gc_dis_check_bb);
+
+    if self._gc_mode() == "none" {
+        b.branch(done_bb);
+    } else {
+        b.cbranch(is_null, done_bb, gc_dis_check_bb);
+    }
 
     b = ir.IRBuilder(gc_dis_check_bb);
     gc_dis_flag_r = b.load(self.rc_gc_disabled_gv, name="gc.dis.r");
@@ -373,7 +378,11 @@ impl NaIRGenPass._emit_rc_helpers -> None {
         "==", release_fn.args[0], ir.Constant(i8_ptr, None), name="is.null"
     );
     gc_dis_check_bb_rel = release_fn.append_basic_block("gc_dis_check");
-    b.cbranch(is_null, done_bb, gc_dis_check_bb_rel);
+    if self._gc_mode() == "none" {
+        b.branch(done_bb);
+    } else {
+        b.cbranch(is_null, done_bb, gc_dis_check_bb_rel);
+    }
     b = ir.IRBuilder(gc_dis_check_bb_rel);
     gc_dis_flag_rel = b.load(self.rc_gc_disabled_gv, name="gc.dis.rel");
     magic_check_bb_rel = release_fn.append_basic_block("magic_check");

@@ -130,7 +130,17 @@ def kernel_options -> CompileOptions {
         force_target_program=True,
         native_unit=True,
         skip_native_engine=True,
-        native_target=""
+        native_target="",
+        na_gc_mode="cycles",
+        nogc_enforce_modules=[],
+        nogc_grandfathered=[],
+        rc_debug_codegen=False,
+        native_debug=False,
+        opt_level=2,
+        dump_ir_path="",
+        debug_ir=False,
+        rc_stats=False,
+        nogc_debug=False
     );
 }
 

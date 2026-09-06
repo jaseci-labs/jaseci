@@ -495,16 +495,24 @@ obj NativeUnitRegistry {
         return found;
     }
 
-    def products_blob(path: str, options: (CompileOptions | None) = None) -> bytes {
+    def _product_sections(
+        path: str, options: (CompileOptions | None) = None
+    ) -> dict[int, bytes] {
         resolved = os.path.realpath(path);
         ent = self.entries.get(resolved);
         if ent is None {
-            return b"";
+            return {};
         }
-        import from jaclang.compiler.driver.jir { SEC_NDEPS, native_deps_section }
+        import from jaclang.compiler.driver.jir {
+            SEC_NDEPS,
+            native_deps_section,
+            absolutize_ct_deps_section
+        }
         stamp = self.stamp_for(options);
         sections: dict[int, bytes] = {
-            SEC_NCTDEPS: stamp.pack(ent.compile_deps),
+            SEC_NCTDEPS: stamp.pack(
+                absolutize_ct_deps_section(ent.compile_deps, ent.compile_deps_base)
+            ),
             SEC_NIFACE: stamp.pack(ent.iface.to_bytes()),
             SEC_NDEPS: stamp.pack(native_deps_section(ent.dep_digests))
         };
@@ -514,7 +522,12 @@ obj NativeUnitRegistry {
         if ent.bitcode is not None {
             sections[SEC_NBITCODE] = stamp.pack(ent.bitcode);
         }
-        return write_sections(sections);
+        return sections;
+    }
+
+    def products_blob(path: str, options: (CompileOptions | None) = None) -> bytes {
+        sections = self._product_sections(path, options);
+        return write_sections(sections) if sections else b"";
     }
 
     def register_products_blob(
@@ -723,7 +736,7 @@ obj NativeUnitRegistry {
                 write_module_cache(
                     ent.path,
                     None,
-                    extra_sections={SEC_NOBJ: ent.stamp.pack(ent.object_bytes)}
+                    extra_sections=self._product_sections(ent.path, opts)
                 );
             }
         }

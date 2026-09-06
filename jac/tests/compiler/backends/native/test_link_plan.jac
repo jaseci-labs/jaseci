@@ -83,9 +83,11 @@ test "the plan holds every unit of the diamond, dependencies first" {
         if not is_kernel_unit_path(u.path)
     ];
     assert sorted(names) == sorted(UNITS) , names;
-    for t in toolchain {
-        assert plan.units.index(plan.unit(t))
-            < plan.units.index(plan.unit(os.path.join(root_dir, "base.jac"))) , f"{t} is a dependency of every unit and must come first";
+    assert toolchain;
+    for u in plan.units {
+        for dep in u.iface.deps {
+            assert plan.units.index(plan.unit(dep)) < plan.units.index(u) , f"{dep} must precede its consumer {u.path}";
+        }
     }
     assert names[-1] == "top.jac" , "the root_dir comes last";
     assert names.index("base.jac") < names.index("left.jac");
@@ -132,7 +134,7 @@ test "a no-op build lowers no units and preserves the linked artifact" {
         first = link_artifact(plan, output, ArtifactKind.EXECUTABLE);
         before = os.stat(output).st_mtime_ns;
         (warm_prog, warm_plan) = _plan_for(root_dir);
-        assert warm_prog.native_units().compiled_paths == [];
+        assert warm_prog.native_units().compiled_paths == [] , warm_prog.native_units().compiled_paths;
         second = link_artifact(warm_plan, output, ArtifactKind.EXECUTABLE);
         assert second.reused;
         assert second.sha256 == first.sha256;
@@ -365,6 +367,40 @@ test "a shared link exports only the C ABI" {
     }
 }
 
+test "shared retain and release helpers honor --gc none" {
+    if _can_link_host() {
+        import ctypes;
+        import from jaclang.compiler.frontend.codeinfo {
+            HDR_TOTAL,
+            HDR_ALLOC_ID_OFF,
+            HDR_MAGIC_SHIFT_BASE,
+            HDR_RC_OFF
+        }
+        root_dir = _diamond_copy();
+        prog = JacProgram();
+        opts = _opts();
+        opts.na_gc_mode = "none";
+        base = os.path.join(root_dir, "base.jac");
+        plan = build_link_plan(prog, [base], opts);
+        suffix = ".dylib" if sys.platform == "darwin" else ".so";
+        out = os.path.join(root_dir, "libbase" + suffix);
+        link_artifact(plan, out, ArtifactKind.SHARED);
+        lib = ctypes.CDLL(out);
+        storage = ctypes.create_string_buffer(HDR_TOTAL + 8);
+        ctypes.c_int64.from_buffer(storage, HDR_TOTAL + HDR_ALLOC_ID_OFF).value = HDR_MAGIC_SHIFT_BASE;
+        count = ctypes.c_int64.from_buffer(storage, HDR_TOTAL + HDR_RC_OFF);
+        count.value = 2;
+        ptr = ctypes.addressof(storage) + HDR_TOTAL;
+        for name in ("jac_retain", "jac_release") {
+            helper = getattr(lib, name);
+            helper.argtypes = [ctypes.c_void_p];
+            helper.restype = None;
+            helper(ptr);
+            assert count.value == 2 , f"--gc none {name} changed the reference count";
+        }
+    }
+}
+
 test "the glue supplies the region-death hook only when no unit does" {
     import from jaclang.compiler.backends.native.link_glue {
         REGION_DIED_HOOK,
@@ -471,4 +507,30 @@ test "a unit retains prepared dependency interfaces when disk products are unava
     }
     assert ent is not None , registry.failures;
     assert ent.dep_digests == prior;
+}
+
+test "object emission preserves the native record without an existing disk entry" {
+    import from jaclang.compiler.driver.jir {
+        get_module_cache_path,
+        ct_deps_section,
+        rebase_ct_deps_section
+    }
+    root_dir = _diamond_copy();
+    (prog, plan) = _plan_for(root_dir, NATIVE_LINK_MODE_BITCODE);
+    registry = prog.native_units();
+    path = plan.root_unit().path;
+    prior = registry.entries[path];
+    prior.compile_deps_base = root_dir;
+    prior.compile_deps = rebase_ct_deps_section(
+        ct_deps_section([os.path.join(root_dir, "base.jac")]), root_dir
+    );
+    get_module_cache_path(path).unlink();
+    assert registry.object_for(path, _opts()) is not None;
+    warm = JacProgram().native_units().ensure(
+        path, compile_on_miss=False, options=_opts()
+    );
+    assert warm is not None;
+    assert warm.digest == prior.digest;
+    assert warm.dep_digests == prior.dep_digests;
+    assert warm.bitcode == prior.bitcode;
 }

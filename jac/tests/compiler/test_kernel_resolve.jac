@@ -155,3 +155,22 @@ test "a kernel built elsewhere is accepted by its units' package identity" {
         "the source key is keyed on package identity, not on the build's paths"
     );
 }
+
+test "application codegen environment does not change the compiler kernel" {
+    import from unittest.mock { patch }
+    before = kernel_options().codegen_identity();
+    with patch.dict(
+        os.environ,
+        {
+            "JAC_RC_DEBUG_CODEGEN": "1",
+            "JAC_NATIVE_DEBUG": "1",
+            "JAC_OPT_LEVEL": "0",
+            "JAC_NATIVE_TARGET": "aarch64-unknown-linux-gnu",
+            "JAC_DUMP_IR": "/tmp/application.ll"
+        }
+    ) {
+        opts = kernel_options();
+        assert opts.codegen_identity() == before;
+        assert opts.dump_ir_path == "";
+    }
+}
