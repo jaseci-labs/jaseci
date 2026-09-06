@@ -547,6 +547,9 @@ def _find_lib -> (str | None) {
     if os.path.isfile(cand) and os.path.isfile(cand + ".layout.json") {
         return cand;
     }
+    if os.environ.get("JAC_DEV_SOURCE") {
+        return None;
+    }
     for p in sys.path {
         if not p {
             continue;

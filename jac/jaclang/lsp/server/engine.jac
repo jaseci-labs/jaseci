@@ -123,6 +123,7 @@ obj JacLangServer(LanguageServer) {
         file_path: str, auto_lint: bool = False
     ) -> list[lspt.TextEdit];
 
+    def get_inlay_hints(file_path: str, range: lspt.Range) -> list[lspt.InlayHint];
     def get_hover_info(
         file_path: str, position: lspt.Position
     ) -> Optional[lspt.Hover];

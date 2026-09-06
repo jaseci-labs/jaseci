@@ -647,7 +647,7 @@ impl JacCompiler.parse_str(
             raise ValueError(
                 f"{file_path}: the .na.jac marker was retired in 0.35 -- rename "
                 "the file to .jac; native placement is inferred (or forced by "
-                "'jac nacompile' / 'jac build --as native'). See 'jac guide "
+                "'jac build --native' / 'jac build --as native'). See 'jac guide "
                 "reference/language/native-pathway'."
             );
         }
@@ -880,9 +880,13 @@ impl JacCompiler.stamp_native_import_facts(
     driver read left in a sealed pass. It now consumes a bool.
     """;
     import os;
+    import from jaclang.compiler.frontend.module_facts { ModuleFacts }
+    needs_native = mod.decided_codespace == 'native'
+        or ModuleFacts.has_native_context_stmts(mod);
     for imp in mod.get_all_sub_nodes(uni.Import) {
         target = native_only_import_target(imp, target_program);
-        imp.native_only_drop = target is not None
+        imp.native_only_drop = needs_native
+            and target is not None
             and (os.sep + 'jaclang' + os.sep) not in os.path.abspath(target);
     }
 }
@@ -1543,15 +1547,10 @@ impl JacCompiler._compile_once(
 
     _prev_opts = actual_program.options;
     if _prev_opts is not None
-        and not (
-            options.nogc_enforce_all
-            or options.nogc_cli_target
-            or options.nogc_enforce_modules
-        ) {
+        and not (options.nogc_enforce_all or options.memory_enforce) {
         options.nogc_enforce_all = _prev_opts.nogc_enforce_all;
-        options.nogc_cli_target = _prev_opts.nogc_cli_target;
-        options.nogc_enforce_modules = _prev_opts.nogc_enforce_modules;
-        options.nogc_grandfathered = _prev_opts.nogc_grandfathered;
+        options.memory_enforce = _prev_opts.memory_enforce;
+        options.memory_exempt = _prev_opts.memory_exempt;
     }
     if _prev_opts is not None and not options.default_codespace {
         options.default_codespace = _prev_opts.default_codespace;

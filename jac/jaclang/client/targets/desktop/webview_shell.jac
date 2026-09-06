@@ -87,10 +87,17 @@ def _assemble_native_host(
     );
     (output_dir / "host.jac").write_text(host_src);
 
-    console.print("  Compiling native host (jac nacompile)...", style="muted");
+    console.print("  Compiling native host (jac build --native)...", style="muted");
     binary = output_dir / app_name;
     res = subprocess.run(
-        [_jac_bin(), "nacompile", str(output_dir / "host.jac"), "-o", str(binary)],
+        [
+            _jac_bin(),
+            "build",
+            "--native",
+            str(output_dir / "host.jac"),
+            "-o",
+            str(binary)
+        ],
         cwd=str(output_dir),
         env=_jac_subprocess_env()
     );

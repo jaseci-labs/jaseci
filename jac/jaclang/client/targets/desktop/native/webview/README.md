@@ -3,7 +3,7 @@
 The native foundation for the `desktop` target (issue #6436): a Jac
 binding to the OS web engine via the small cross-platform `webview` C library
 (WebKitGTK on Linux, WKWebView on macOS, WebView2 on Windows). A `na` host that
-imports this binding compiles - with `jac nacompile` and Jac's pure-Jac linker
+imports this binding compiles - with `jac build --native` and Jac's pure-Jac linker
 (no cc/ld) - to a single binary that owns an OS-native window.
 
 The `desktop` kind's client ([`desktop_target.jac`](../../desktop_target.jac))

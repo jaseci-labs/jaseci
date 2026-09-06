@@ -269,7 +269,7 @@ Its memory story is the point: `[gc] default = "none"` builds it headerless --
 no reference counting, no collector, static drops only -- and the build audits
 the emitted IR for `__rc_*` machinery, so a wasm that re-entered the RC world
 fails to build rather than shipping. The ownership checker's source-level
-zero-RC contract (`[gc.enforce]`, E140x hard errors) ships disarmed until a
+zero-RC contract (`[memory]`, E140x hard errors) ships disarmed until a
 release carries jaseci-labs/jac#7732 -- the 0.34.x checker misfires E1401 on
 arena's raylib extern decls; jac.toml says exactly when and how to re-arm
 it. Entity pools are index arenas (parallel
@@ -278,5 +278,5 @@ as an opaque handle; every update pass borrows it `&mut` down the call tree.
 The same source also builds headlessly:
 
 ```bash
-jac nacompile core/site/game/arena.jac --target wasm32 --enforce-nogc --gc none --assert-no-rc
+jac build --native core/site/game/arena.jac --target-triple wasm32 --memory nogc
 ```

@@ -79,7 +79,7 @@ remaining rows.
 | 10 | **`na → cl`** | Marshalled | wasm imports the host `env` object | wasm scalars; host-provided externs | `WasmLinker` import table + cl host shim |
 | 11 | **`sv/na ↔ py`** | Free | Literal Python import / meta-path finder | Live CPython objects | `JcirGenPass` (`import`→`ast.Import`) + `meta_importer` |
 | 12 | **`na ↔ C`** | Marshalled (ABI) | System V AMD64 / AAPCS calling convention | C scalars & structs (by value or pointer) | `NaIRGenPass` clib marshaller |
-| 13 | **`na → C host`** | Marshalled (ABI) | `--shared` C-ABI export | Scalars by value; Jac objects as opaque handles | `nacompile` `_inject_shared_init` + platform linkers |
+| 13 | **`na → C host`** | Marshalled (ABI) | `--lib` C-ABI export | Scalars by value; Jac objects as opaque handles | `nacompile` `_inject_shared_init` + platform linkers |
 
 The rest of the document is one section per group of rows.
 
@@ -384,7 +384,7 @@ the C runtime owns their lifetime.
 
 ## `na → C host`: shared libraries (row 13)
 
-The inverse of FFI-in. `jac nacompile mathlib.jac --shared` packages a
+The inverse of FFI-in. `jac build --native mathlib.jac --lib` packages a
 native module as a C-ABI `.so` / `.dylib` / `.dll` that any host (a C
 program, or Python via `ctypes`) can load across a process/module boundary.
 
@@ -399,7 +399,7 @@ program, or Python via `ctypes`) can load across a process/module boundary.
   handles**; the host must not dereference them. `@jac_retain` / `@jac_release`
   (public wrappers over the RC primitives) let the host manage their
   lifetime.
-- **Scalars** pass by value (`int → int64`, `float → double`). `--shared`
+- **Scalars** pass by value (`int → int64`, `float → double`). `--lib`
   forces PIC and skips `internalize` so the public symbols survive.
 
 ---
@@ -407,10 +407,10 @@ program, or Python via `ctypes`) can load across a process/module boundary.
 ## `na ↔ cl`: WebAssembly (rows 9, 10)
 
 Native code reaches the *client* by compiling to wasm.
-`jac nacompile --target wasm32` (and the client bundler's `_emit_na_wasm`,
+`jac build --native --target wasm32` (and the client bundler's `_emit_na_wasm`,
 which serves `/static/<stem>.wasm`) both route through
 `wasm_build.compile_to_wasm`: it sets the `wasm32-unknown-unknown` triple,
-compiles AOT, honors the project's `[gc]` settings (`default = "none"`
+compiles AOT, honors the project's `[memory]` settings (`profile = "nogc"`
 builds headerless and audits the IR for `__rc_*` machinery), runs `opt2`
 **without** `internalize` (so defined functions stay exported), and links
 with the pure-Jac `WasmLinker` (no wasm-ld/emscripten).
@@ -617,7 +617,7 @@ serialise and cannot cross.
 
 For `na`, an additional hard limit applies: the **native capability
 boundary**. `native_capability_violations` (the single authority behind
-`E5090`, run identically at `jac check` and `jac nacompile`) rejects
+`E5090`, run identically at `jac check` and `jac build --native`) rejects
 constructs the native backend cannot lower -- non-allowlisted imports
 (allowlist: `sys`, `math`, `time`, `os`, `random`), structural match
 patterns, generators (`yield`), inline Python (`::py::`), `by llm()`, and a
@@ -676,7 +676,7 @@ picks the shell it builds. There is no separate CLI verb -- the core
 | Layer | Codespace / tech | Role |
 |-------|------------------|------|
 | UI | `cl` (Vite/React bundle) | `DesktopTarget` subclasses `WebTarget`; reuses the standard `.jac/client/dist/` bundle |
-| Host binary | `na` (LLVM, pure-Jac linker) | A generated `host.jac`, compiled by `jac nacompile`; records `libwebview.so` as `DT_NEEDED` with an `$ORIGIN` runpath |
+| Host binary | `na` (LLVM, pure-Jac linker) | A generated `host.jac`, compiled by `jac build --native`; records `libwebview.so` as `DT_NEEDED` with an `$ORIGIN` runpath |
 | Window | C FFI → `libwebview` | OS-native webview: WebKitGTK (Linux), WKWebView (macOS), WebView2 (Windows) |
 | Local runtime | C FFI → `libpython` | Embedded CPython runs `inprocess_dispatch` (walker/function invokes) **and** a stdlib loopback HTTP broker (bundle + SSO/session) |
 | Backend | `sv` in-process | Walker/function calls route through the embedded runtime via `__jac_invoke`; a remote `api_base` is optional for external backends |

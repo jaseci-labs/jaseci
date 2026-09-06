@@ -69,7 +69,7 @@ def _ensure_libcef_dispatch(cef_dir: Path) -> Path {
         return lib;
     }
     console.print(
-        "  Building libcef_dispatch.so (jac nacompile --shared)...", style="muted"
+        "  Building libcef_dispatch.so (jac build --native --lib)...", style="muted"
     );
     return build_cef_dispatch(cef_dir);
 }
@@ -81,7 +81,7 @@ def _ensure_cef_subprocess(cef_dir: Path) -> Path {
     if not stale {
         return helper;
     }
-    console.print("  Building cef-subprocess (jac nacompile)...", style="muted");
+    console.print("  Building cef-subprocess (jac build --native)...", style="muted");
     return build_cef_subprocess(cef_dir);
 }
 
@@ -260,9 +260,9 @@ def cef_build(
     );
     (out_dir / "host.jac").write_text(host_src);
 
-    console.print("  Compiling CEF native host (jac nacompile)...", style="muted");
+    console.print("  Compiling CEF native host (jac build --native)...", style="muted");
     res = subprocess.run(
-        [_jac_bin(), "nacompile", "host.jac", "-o", app_name],
+        [_jac_bin(), "build", "--native", "host.jac", "-o", app_name],
         cwd=str(out_dir),
         env=_jac_subprocess_env(),
     );

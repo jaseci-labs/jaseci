@@ -23,7 +23,9 @@ description: The jac.toml control plane - every section ([project], [apps.<name>
 | `[check.lint]` | lint rule selection: `select = ["default"]` / `["all"]`, `ignore = ["combine-has"]`, `exclude = ["legacy/*"]` |
 | `[test]` | `jac test` defaults: `directory`, `filter`, `verbose`, `fail_fast`, `max_failures` |
 | `[build]` | `dir` (artifact root, default `.jac/` - holds `cache/`, `venv/`, `client/`, `data/`) |
-| `[gc]` / `[gc.enforce]` | native memory management: `default = "cycles"/"rc"/"none"` (mode when `--gc` not passed); `enforce.modules`/`enforce.grandfathered` glob patterns opt modules into zero-RC nogc enforcement (see `jac-native-memory`) |
+| `[memory]` | the memory profile: `profile = "managed"/"rc"/"nogc"` (overridable per build with `--memory`); `enforce`/`exempt` glob patterns hold modules to the zero-RC contract under a managed profile (see `jac-native-memory`) |
+| `[native]` | native build knobs: `target`, `opt`, `debug`, `threads` |
+| `[placement]` | `default = "native"/"server"` for markerless modules, beside `[placement.pins]` |
 | `[scripts]` | named command shortcuts run via `jac x <name>` |
 | `[environments]` / `[environment]` | per-profile overrides (below) |
 | `[byllm]` / `[byllm.model]` / `[byllm.call_params]` | AI settings: model identity, API keys, call params (see `jac-by-llm`) |

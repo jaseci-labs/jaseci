@@ -934,6 +934,11 @@ impl EsastGenPass._bind_client_value_refs(nd: uni.Module) -> list[es.Statement] 
 }
 
 impl EsastGenPass.exit_func_call with uni.FuncCall exit {
+    place_op = self._lower_place_builtin(here);
+    if place_op is not None {
+        here.gen.es_ast = place_op;
+        return;
+    }
     if (
         (here.callee_decl is not None and here.callee_decl.is_comptime)
         or (isinstance(here.target, uni.Name) and self._ct_only_name(here.target))

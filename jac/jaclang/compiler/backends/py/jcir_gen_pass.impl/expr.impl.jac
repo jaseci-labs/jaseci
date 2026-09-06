@@ -451,14 +451,7 @@ impl JcirGenPass.exit_unary_expr with UnaryExpr exit {
     }
     if here.op.name == Tok.BW_AND {
         if is_borrow_kind(here.ownership) {
-            self.set_out(
-                here,
-                [
-                    self.call_node(
-                        self.builtin_name('jref'), [self.val(here.operand)], []
-                    )
-                ]
-            );
+            self.set_out(here, [self.val(here.operand)]);
         } else {
             self._emit_jobj_ref(here);
         }
@@ -774,6 +767,13 @@ impl JcirGenPass.exit_dict_compr with DictCompr exit {
 
 impl JcirGenPass.exit_name with Name exit {
     if here.__class__ is not Name {
+        return;
+    }
+    if here.expr_ctx == ExprCtx.LOAD
+        and id(here) in self.ir_in.own_move_sites
+        and here.sym is not None
+        and here.sym.storage in (SymbolStorage.LOCAL, SymbolStorage.PARAM) {
+        self.set_out(here, [self._name_take_expr(self._py_name(here))]);
         return;
     }
     name = here.sym_name;

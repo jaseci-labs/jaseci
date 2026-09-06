@@ -76,6 +76,94 @@ impl NaIRGenPass._erased_generic_ctor(nd: uni.FuncCall) -> (str | None) {
     return self._erased_arch_base(_tk[5:-1]);
 }
 
+impl NaIRGenPass._transfer_own_args(
+    nd: uni.FuncCall,
+    func: (ir.Function | None),
+    args: list,
+    release_args: list,
+    offset: int = 0
+) -> list {
+    _hl = self._nogc_headerless();
+    if _hl and not self._nogc_owned_world() {
+        return release_args;
+    }
+    _is_ctor = isinstance(nd.target, uni.Name)
+        and (
+            nd.target.sym_name in self.arch_ast_map
+            or self._arch_alias_target(nd.target) in self.arch_ast_map
+        );
+    if _is_ctor and not _hl {
+        return release_args;
+    }
+    _sig = None if _is_ctor else self._callee_sig_of(nd, func);
+    _sig_params = _sig.get_parameters() if _sig is not None else [];
+    _own_idx: set = set();
+    if _is_ctor {
+        for _oi in range(len(release_args)) {
+            _own_idx.add(_oi);
+        }
+    } elif _sig is not None and len(_sig_params) + offset == len(release_args) {
+        for (_oi, _op) in enumerate(_sig_params) {
+            if _op.type_tag is not None
+                and _op.type_tag.ownership == OwnershipKind.OWN {
+                _own_idx.add(_oi + offset);
+            }
+        }
+    }
+    if not _own_idx {
+        return release_args;
+    }
+    _param_idx: dict = {};
+    for (_pi2, _p2) in enumerate(_sig_params) {
+        _param_idx[_p2.name.sym_name] = _pi2 + offset;
+    }
+    _pos = offset;
+    for _pa in (nd.params or []) {
+        _aidx = -1;
+        _anode: (uni.Expr | None) = None;
+        if isinstance(_pa, uni.KWPair) {
+            _anode = _pa.value;
+            _k = _pa.key.sym_name if _pa.key is not None else None;
+            if _k is not None and _k in _param_idx {
+                _aidx = _param_idx[_k];
+            }
+        } else {
+            _anode = _pa;
+            _aidx = _pos;
+            _pos += 1;
+        }
+        if not (_is_ctor or _aidx in _own_idx) or not isinstance(_anode, uni.Name) {
+            continue;
+        }
+        if not _hl and not self._is_move_site(_anode) {
+            continue;
+        }
+        _salloca = self.local_vars.get(_anode.sym_name);
+        if _salloca is None
+            or not isinstance(_salloca.type, ir.PointerType)
+            or not isinstance(_salloca.type.pointee, ir.PointerType) {
+            continue;
+        }
+        self.builder.store(ir.Constant(_salloca.type.pointee, None), _salloca);
+        if not _hl and 0 <= _aidx < len(args) {
+            self._mark_owned(args[_aidx]);
+        }
+    }
+    if not _hl {
+        return release_args;
+    }
+    return [
+        _rv
+        for (_ri, _rv) in enumerate(release_args)
+        if _ri not in _own_idx
+    ];
+}
+
+impl NaIRGenPass._callee_ability_of(nd: uni.FuncCall) -> (uni.Ability | None) {
+    import from jaclang.compiler.symbol_utils { resolved_callee }
+    return resolved_callee(nd);
+}
+
 impl NaIRGenPass._linked_callee_decl(
     func: (ir.Function | None)
 ) -> (uni.Ability | None) {
@@ -1425,6 +1513,14 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             return self._emit_new(nd);
         }
 
+        if func_name == "take" {
+            return self._emit_take(nd);
+        }
+
+        if func_name == "swap" {
+            return self._emit_swap(nd);
+        }
+
         if func_name == "Region" {
             import from jaclang.compiler.expr_keys { is_builtin_region_type }
             if is_builtin_region_type(nd.type) or "Region" not in self.struct_types {
@@ -2258,71 +2354,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             release_args.append(arg);
         }
     }
-    if self._nogc_headerless() {
-        _skip_own: set = set();
-        _is_ctor = isinstance(nd.target, uni.Name)
-            and (
-                nd.target.sym_name in self.arch_ast_map
-                or self._arch_alias_target(nd.target) in self.arch_ast_map
-            );
-        _sig = None if _is_ctor else self._callee_sig_of(nd, func);
-        _sig_params = _sig.get_parameters() if _sig is not None else [];
-        if _is_ctor {
-            for _oi in range(len(release_args)) {
-                _skip_own.add(_oi);
-            }
-        } elif _sig is not None and len(_sig_params) == len(release_args) {
-            for (_oi, _op) in enumerate(_sig_params) {
-                if _op.type_tag is not None
-                    and _op.type_tag.ownership == OwnershipKind.OWN {
-                    _skip_own.add(_oi);
-                }
-            }
-        }
-        if _skip_own {
-            _kept: list = [];
-            for (_ri, _rv) in enumerate(release_args) {
-                if _ri not in _skip_own {
-                    _kept.append(_rv);
-                }
-            }
-            release_args = _kept;
-            _param_idx: dict = {};
-            for (_pi2, _p2) in enumerate(_sig_params) {
-                _param_idx[_p2.name.sym_name] = _pi2;
-            }
-            _pos = 0;
-            for _pa in (nd.params or []) {
-                _aidx = -1;
-                _anode: (uni.Expr | None) = None;
-                if isinstance(_pa, uni.KWPair) {
-                    _anode = _pa.value;
-                    _k = _pa.key.sym_name if _pa.key is not None else None;
-                    if _k is not None and _k in _param_idx {
-                        _aidx = _param_idx[_k];
-                    }
-                } else {
-                    _anode = _pa;
-                    _aidx = _pos;
-                    _pos += 1;
-                }
-                if not (_is_ctor or _aidx in _skip_own) {
-                    continue;
-                }
-                if not isinstance(_anode, uni.Name) {
-                    continue;
-                }
-                _salloca = self.local_vars.get(_anode.sym_name);
-                if _salloca is not None
-                    and isinstance(_salloca.type, ir.PointerType)
-                    and isinstance(_salloca.type.pointee, ir.PointerType) {
-                    self.builder.store(
-                        ir.Constant(_salloca.type.pointee, None), _salloca
-                    );
-                }
-            }
-        }
-    }
+    release_args = self._transfer_own_args(nd, func, coerced, release_args);
     if _is_foreign {
         _actual_params = func.function_type.args;
         for (_ai, _av) in enumerate(coerced) {
@@ -2356,6 +2388,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     }
 
     self._release_owned_args(release_args, op="call_arg");
+    self._emit_err_check(self._callee_ability_of(nd) or self._linked_callee_decl(func));
 
     if func_name in self.clib_extern_names {
         for (sname, abi_type) in self.clib_struct_abi_types.items() {
@@ -3504,4 +3537,67 @@ impl NaIRGenPass._codegen_sized_builtin_call(
         return self._codegen_wrapping(nd, func_name);
     }
     return None;
+}
+
+
+impl NaIRGenPass._emit_take(nd: uni.FuncCall) -> (ir.Value | None) {
+    params_l = list(nd.params or []);
+    if len(params_l) != 1 or isinstance(params_l[0], uni.KWPair) {
+        self.emit(E5092, node_override=nd, kind="take() call", name="take");
+        return None;
+    }
+    _place = params_l[0];
+    _slot = self._codegen_place_ptr(_place);
+    if _slot is None {
+        self.emit(
+            E5092,
+            node_override=_place,
+            kind="take() place",
+            name=type(_place).__name__,
+            help_text="take() moves out of a local or an attribute of an archetype instance."
+        );
+        return None;
+    }
+    _val = self.builder.load(_slot, name="take.val");
+    self.builder.store(ir.Constant(_slot.type.pointee, None), _slot);
+    return _val;
+}
+
+impl NaIRGenPass._emit_swap(nd: uni.FuncCall) -> (ir.Value | None) {
+    params_l = list(nd.params or []);
+    if len(params_l) != 2 or any([isinstance(_p, uni.KWPair) for _p in params_l]) {
+        self.emit(E5092, node_override=nd, kind="swap() call", name="swap");
+        return None;
+    }
+    _slots: list = [];
+    for _p in params_l {
+        _place = _p.operand if isinstance(_p, uni.UnaryExpr) else _p;
+        _slot = self._codegen_place_ptr(_place, allow_inline=True);
+        if _slot is None {
+            self.emit(
+                E5092,
+                node_override=_place,
+                kind="swap() place",
+                name=type(_place).__name__,
+                help_text="swap() exchanges two locals or two attributes of archetype instances."
+            );
+            return None;
+        }
+        _slots.append(_slot);
+    }
+    if _slots[0].type != _slots[1].type {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="swap() operands",
+            name="swap",
+            help_text="swap() needs two places of the same type."
+        );
+        return None;
+    }
+    _a = self.builder.load(_slots[0], name="swap.a");
+    _b = self.builder.load(_slots[1], name="swap.b");
+    self.builder.store(_b, _slots[0]);
+    self.builder.store(_a, _slots[1]);
+    return ir.Constant(ir.IntType(64), 0);
 }

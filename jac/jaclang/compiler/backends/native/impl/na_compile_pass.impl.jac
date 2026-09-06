@@ -1429,7 +1429,7 @@ def _compile_fmt_kernel_ir -> (str | None) {
     }
 
     kernel_opts = _KernelOpts(
-        aot_mode=True, default_codespace='native', na_gc_mode='cycles'
+        aot_mode=True, default_codespace='native', memory_profile='managed'
     );
     cache_key = kernel_opts.codegen_fingerprint();
     if cache_key in _FMT_KERNEL_IR_CACHE {

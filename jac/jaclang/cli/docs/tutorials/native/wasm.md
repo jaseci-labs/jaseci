@@ -14,7 +14,7 @@ Compile Jac's native (`na`) subset to WebAssembly and run it in the browser at n
 
 ## 1. Write a native module
 
-The `na` codespace is the statically-compiled subset of Jac ([native pathway reference](../../reference/language/native-pathway.md)). Create `sum.jac` (compiling it with `jac nacompile` forces it native):
+The `na` codespace is the statically-compiled subset of Jac ([native pathway reference](../../reference/language/native-pathway.md)). Create `sum.jac` (compiling it with `jac build --native` forces it native):
 
 ```jac
 def:pub add(a: int, b: int) -> int {
@@ -25,7 +25,7 @@ def:pub add(a: int, b: int) -> int {
 ## 2. Compile to WebAssembly
 
 ```bash
-jac nacompile sum.jac --target wasm32 -o sum.wasm
+jac build --native sum.jac --target wasm32 -o sum.wasm
 ```
 
 ```
