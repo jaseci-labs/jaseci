@@ -953,9 +953,7 @@ impl NaIRGenPass._aos_elem_name(t: any) -> (str | None) {
     return _tn;
 }
 
-impl NaIRGenPass._decl_field_llvm_types(
-    arch_name: str
-) -> (dict[str, ir.Type] | None) {
+impl NaIRGenPass._decl_field_llvm_types(arch_name: str) -> (dict[str, ir.Type] | None) {
     if arch_name in self._aos_deciding {
         return None;
     }
@@ -968,7 +966,7 @@ impl NaIRGenPass._decl_field_llvm_types(
     try {
         for _f in _lay.fields {
             _var = _f.decl_node;
-            if _var is None or getattr(_var, "type", None) is None {
+            if _var is None or _var?.type is None {
                 return None;
             }
             out[_f.name] = self._resolve_field_type(_var);
@@ -981,7 +979,7 @@ impl NaIRGenPass._decl_field_llvm_types(
 
 impl NaIRGenPass._program_has_subclasses(arch_name: str) -> bool {
     if self._subclassed_arch_names is None {
-        _cached = getattr(self.prog, "_na_subclassed_arch_names", None);
+        _cached = self.prog?._na_subclassed_arch_names;
         if isinstance(_cached, set) {
             self._subclassed_arch_names = _cached;
             return arch_name in _cached;

@@ -609,9 +609,10 @@ impl OwnershipCheckPass._assign_kill_gen(
             }
         }
     }
-    val_owned = self._owned_sym_of_expr(nd.value);
-    if val_owned is not None
-        and (isinstance(nd.value, Name) or not self._expr_scalar_typed(nd.value)) {
+    # Assigning a field or element reads that place; it never moves the
+    # containing object. Owned-slot transfers are checked separately.
+    val_owned = self._owned_sym_of(nd.value);
+    if val_owned is not None {
         gen.add(val_owned);
     }
     return (kill, gen);

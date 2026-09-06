@@ -1,5 +1,3 @@
-# A place is represented by read/write closures. Member receivers and indices
-# are captured once, before either value is read; locals retain lexical scope.
 impl EsastGenPass._place_accessors(place: es.Expression) -> es.Expression | None {
     if isinstance(place, es.MemberExpression) {
         owner = es.Identifier(name="$jacOwner");

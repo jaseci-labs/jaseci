@@ -741,8 +741,6 @@ impl JcirGenPass.exit_return_stmt with ReturnStmt exit {
     );
 }
 
-# A moved or branch-local name may already be unbound. Delete each binding
-# independently so one absent name cannot suppress the remaining drops.
 impl JcirGenPass._scope_cleanup_body(
     scope: UniNode, body: list[CgNode]
 ) -> list[CgNode] {

@@ -61,8 +61,6 @@ impl OwnershipCheckPass._emit_imm_mutation(
     self.emit(E1309, node_override=site, name=name, related=related);
 }
 
-# Validate place operations before lowering, even in an otherwise unannotated
-# module. Declaration types matter here: flow narrowing cannot change storage.
 impl OwnershipCheckPass._emit_place_intrinsic_diagnostics -> None {
     import from jaclang.compiler.frontend.diagnostics { E1319 }
     import from jaclang.compiler.types.types { ClassType, TypeBase, UnionType }

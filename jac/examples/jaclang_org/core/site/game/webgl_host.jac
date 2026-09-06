@@ -3,8 +3,8 @@ import from "@jac/wasm_host" { set_na_env }
 import from .arena { init }
 
 obj Shim {
-    has canvas: HTMLCanvasElement;
-    has gl: any = None,
+    has canvas: HTMLCanvasElement,
+        gl: any = None,
         exports: any = None,
         game: int | None = None,
         mem: any = None,

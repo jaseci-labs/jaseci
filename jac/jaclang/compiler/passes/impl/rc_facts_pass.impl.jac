@@ -526,9 +526,6 @@ impl RcFactsPass.run_walk with Module entry {
     self.ir_out = self._run_impl(here);
 }
 
-# Keep owned destruction independent of an interpreter's frame clearing order.
-# Container element markers require the same cleanup even when the outer
-# binding is unmarked on the managed floor.
 impl RcFactsPass._stamp_scope_cleanup(ir_in: Module) -> None {
     out: dict[int, list[str]] = {};
     for ability in ir_in.get_all_sub_nodes(Ability) {
@@ -566,8 +563,6 @@ impl RcFactsPass._stamp_scope_cleanup(ir_in: Module) -> None {
             }
         }
         if names or borrows {
-            # Borrow aliases must release their interpreter references before
-            # owners are dropped; they must not extend an owner's lifetime.
             out[id(ability)] = list(reversed(borrows)) + list(reversed(names));
         }
     }

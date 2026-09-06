@@ -282,7 +282,6 @@ impl JcirGenPass._name_swap_expr(store_id: str, value: CgNode) -> CgNode {
     );
 }
 
-# Read before clearing the binding, without extending its lifetime in a helper.
 impl JcirGenPass._name_take_expr(owner: str) -> CgNode {
     moved = self.nod(
         'Tuple',

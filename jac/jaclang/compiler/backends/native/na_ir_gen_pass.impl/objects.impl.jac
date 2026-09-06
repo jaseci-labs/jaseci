@@ -536,9 +536,7 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
                     and isinstance(ftype, ir.PointerType) {
                     _fpn = getattr(ftype.pointee, "name", "") or "";
                     _fstruct = self.struct_types.get(_fpn);
-                    # Finalize acyclic owned dependencies before deciding their
-                    # layout. Imports can visit the same declarations in a
-                    # different order, but must agree on inline field storage.
+
                     if _fstruct is not None
                         and _fstruct.is_opaque
                         and _fpn != arch_name

@@ -106,7 +106,7 @@ def instrument_drops(cls: any) {
         register_drop(inst);
     }
     setattr(cls, "__init__", _region_init);
-    _orig_del: any = getattr(cls, "__del__", None);
+    _orig_del: any = cls?.__del__;
     def _drop_on_release(inst: any) {
         try {
             run_drop(inst);
@@ -123,7 +123,7 @@ def run_drop(item: any) {
     if getattr(item, "_jac_drop_done", False) {
         return;
     }
-    drop = getattr(item, "drop", None);
+    drop = item?.drop;
     if not callable(drop) {
         return;
     }

@@ -370,7 +370,9 @@ def get_py_code_gen(
         }
         passes.append(FreezeStructurePass);
         return validate_schedule(
-            passes, preprovided=provided, origin='codegen schedule'
+            passes,
+            preprovided={'CfgSucc'} if provided is None else provided,
+            origin='codegen schedule'
         );
     } except ImportError as e {
         fail_loud_on_compiler_source(e);

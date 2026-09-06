@@ -1105,7 +1105,7 @@ impl Parser.parse_ref -> Expr {
             target = self.parse_await_expr();
             kids.append(target);
             return UnaryExpr(
-                operand=target, op=op, ownership=OwnershipKind.BORROW, kid=kids
+                operand=target, op=op, ownership=OwnershipKind.NONE, kid=kids
             );
         }
 

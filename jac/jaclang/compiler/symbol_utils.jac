@@ -191,7 +191,6 @@ def intrinsic_registry_if_ready -> object | None {
     return INTRINSIC_REGISTRY;
 }
 
-"""Prefer the type checker's callee edge; resolve symbols for older IR."""
 def resolved_callee(nd: FuncCall) -> (Ability | None) {
     return nd.callee_decl or ability_of_symbol(resolve_expr_symbol(nd.target));
 }

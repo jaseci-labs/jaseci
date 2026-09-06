@@ -1,4 +1,3 @@
-# Portable pointer-sized TLS accessors shared by regions and exception state.
 impl NaIRGenPass._emit_tls_slot(
     slot_name: str, get_name: str, set_name: str, destructor: ir.Function | None = None
 ) -> tuple[ir.Function, ir.Function] {

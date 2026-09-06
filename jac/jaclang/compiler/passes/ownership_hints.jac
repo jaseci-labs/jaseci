@@ -52,7 +52,9 @@ def _explicit_self(ab: Ability) -> bool {
         return False;
     }
     params = sig.get_parameters();
-    return bool(params) and params[0].name is not None and params[0].name.sym_name == "self";
+    return bool(params)
+        and params[0].name is not None
+        and params[0].name.sym_name == "self";
 }
 
 def _end_of(nd: Name) -> tuple {
@@ -71,11 +73,14 @@ def inferred_hints(mod: Module) -> list[InferredHint] {
         if sym is None {
             continue;
         }
-        explicit = asg.type_tag is not None and asg.type_tag.ownership != OwnershipKind.NONE;
+        explicit = asg.type_tag is not None
+            and asg.type_tag.ownership != OwnershipKind.NONE;
         label = None if explicit else ownership_label(sym.ownership, sym.linear);
         (line, col) = _end_of(tgt);
         if label is not None {
-            hints.append(InferredHint(line=line, col=col, label=f": {label}", kind="type"));
+            hints.append(
+                InferredHint(line=line, col=col, label=f": {label}", kind="type")
+            );
         }
         if sym.is_view {
             hints.append(InferredHint(line=line, col=col, label=" view", kind="type"));
@@ -88,12 +93,17 @@ def inferred_hints(mod: Module) -> list[InferredHint] {
         (line, col) = _end_of(ab.name_ref);
         rlabel = receiver_label(ab.receiver_mode);
         if rlabel is not None and ab.is_method and not _explicit_self(ab) {
-            hints.append(InferredHint(line=line, col=col, label=f"({rlabel})", kind="parameter"));
+            hints.append(
+                InferredHint(line=line, col=col, label=f"({rlabel})", kind="parameter")
+            );
         }
         if ab.raises {
             hints.append(
                 InferredHint(
-                    line=line, col=col, label=" raises " + ", ".join(ab.raises), kind="type"
+                    line=line,
+                    col=col,
+                    label=" raises " + ", ".join(ab.raises),
+                    kind="type"
                 )
             );
         }

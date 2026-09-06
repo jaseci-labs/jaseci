@@ -1,10 +1,3 @@
-"""Borrow containment over resolved types, shared by ownership consumers.
-
-Follow declaration scopes rather than spelling: imported and inherited fields
-have the same meaning as local fields. Generic fields use the type solver's
-existing substitution, and recursive types are visited once per query.
-"""
-
 import from jaclang.compiler.expr_keys { type_tag_borrows }
 import from jaclang.compiler.frontend.unitree { Archetype, HasVar }
 import from jaclang.compiler.types.types { ClassType, TypeBase, UnionType }

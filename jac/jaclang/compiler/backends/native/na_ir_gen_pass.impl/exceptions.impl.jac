@@ -576,8 +576,6 @@ impl NaIRGenPass._slot_lowering_active -> bool {
         and self._gen_ctx is None;
 }
 
-# The context is one zero-initialized allocation per thread. Use the same
-# TLS accessors as regions so JIT, executables and shared libraries agree.
 impl NaIRGenPass._get_exception_context_fn -> ir.Function {
     if self._exc_context_fn is not None {
         return self._exc_context_fn;
@@ -671,8 +669,6 @@ impl NaIRGenPass._emit_err_propagate(loc: str = "") -> None {
 }
 
 impl NaIRGenPass._emit_err_check(callee: (uni.Ability | None)) -> None {
-    # Runtime checks (bounds, overflow, assertions) may raise even when there
-    # is no explicit source-level raise in the callee.
     if callee is None or not self._slot_lowering_active() {
         return;
     }
@@ -697,7 +693,7 @@ impl NaIRGenPass._codegen_raise_slot(
 ) -> None {
     i32 = ir.IntType(32);
     (tglob, oglob, mglob) = self._nogc_err_slot();
-    # Zero means success, including when the exception registry ID is zero.
+
     self.builder.store(ir.Constant(i32, type_id + 1), tglob);
     self.builder.store(payload, oglob);
     self.builder.store(msg, mglob);
@@ -849,12 +845,6 @@ impl NaIRGenPass._codegen_try_slot(nd: uni.TryStmt) -> None {
 }
 
 
-"""Emit cleanup for control transfers, from the innermost exited try outward.
-
-Temporarily remove the frame while emitting its body: a return/raise inside a
-finalizer replaces the pending transfer and must not re-enter that finalizer.
-Loop depth keeps a break in an inner loop from finalizing a surrounding try.
-"""
 impl NaIRGenPass._emit_finalizers(loop_depth: int = 0) -> bool {
     saved_finalizers = self._finally_stack;
     saved_handlers = self._slot_try_stack;
@@ -916,11 +906,6 @@ impl NaIRGenPass._exception_values(
     return (values[0], values[1], values[2]);
 }
 
-"""Catch exits from both the try body and its handlers before finalizing.
-
-The outer frame is necessary because an exception in an except/else body must
-skip sibling handlers while still executing this try's finally suite.
-"""
 impl NaIRGenPass._codegen_finally_guard(nd: uni.TryStmt) -> None {
     if self._exc_raise_fn is None {
         self._declare_exception_runtime();
