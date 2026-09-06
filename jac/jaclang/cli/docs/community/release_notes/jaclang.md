@@ -2,7 +2,13 @@
 
 This document provides a summary of new features, improvements, and bug fixes in each version of **Jaclang**. For details on changes that might require updates to your existing code, please refer to the [Breaking Changes](../breaking-changes.md) page.
 
-## jaclang 0.37.5 (Latest Release)
+## jaclang 0.37.6 (Latest Release)
+
+### Bug Fixes
+
+- **Fix: Starred tuple unpacking diagnostics**: Native-incompatible starred tuple and list assignment targets now produce diagnostics or use a supported fallback instead of silently dropping the assignment; ES output preserves starred rest targets.
+
+## jaclang 0.37.5
 
 ### Breaking Changes
 

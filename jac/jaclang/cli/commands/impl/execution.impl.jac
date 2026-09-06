@@ -1396,16 +1396,33 @@ impl serve(
                 import from jaclang.compiler.driver.pass_driver { compile_progress }
                 compiler = server.introspector._bundle_builder._get_compiler();
                 compiled: list[str] = [];
+                active: list[str] = [];
+                completed: list[int] = [0];
                 started = time.perf_counter();
                 with console.status("Compiling client...") as status {
                     def _on_module(file_path: str) {
                         compiled.append(file_path);
-                        status.update(
-                            "Compiling client: "
-                                + _client_display_path(Path(file_path), base)
-                        );
+                        active.append(file_path);
                     }
-                    with compile_progress.listen(_on_module) {
+                    def _on_finished(file_path: str) {
+                        active.remove(file_path);
+                        completed[0] += 1;
+                    }
+                    def _progress_text -> str {
+                        current = list(active);
+                        detail = (
+                            f"Compiling client: {completed[0]} completed"
+                            f" · {len(current)} active · {time.perf_counter()
+                                - started:.1f}s"
+                        );
+                        if current {
+                            detail += " · "
+                                + _client_display_path(Path(current[-1]), base);
+                        }
+                        return detail;
+                    }
+                    status.update(_progress_text);
+                    with compile_progress.listen(_on_module, _on_finished) {
                         compiler.compile(server.introspector._module, Path(filename));
                     }
                 }

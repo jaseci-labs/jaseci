@@ -37,6 +37,10 @@ impl JacProgram.install_module(
     if displaced is None {
         return;
     }
+    work = self.analysis.placement_state.get('work');
+    if work is not None {
+        work.forget(displaced);
+    }
     te = self.type_evaluator;
     if te is not None {
         te.forget_module(resolved_path);
@@ -58,6 +62,10 @@ impl JacProgram.transitive_dependents(self: JacProgram, target_path: str) -> set
 }
 
 impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None {
+    work = self.analysis.placement_state.get('work');
+    if work is not None {
+        work.forget_path(resolved_path);
+    }
     self.hub.evict(resolved_path);
     if resolved_path in self.analysis.placement_summaries {
         del self.analysis.placement_summaries[resolved_path];
@@ -265,6 +273,7 @@ impl JacProgram.get_type_evaluator(self: JacProgram) -> TypeEvaluator {
 }
 
 impl JacProgram.clear_type_system(self: JacProgram, clear_hub: bool = False) -> None {
+    self.analysis.placement_state.pop('work', None);
     self.type_evaluator = None;
     if clear_hub {
         self.mod.hub.clear();
@@ -353,6 +362,7 @@ impl JacProgram.release_compile_closure(
     self.diags.clear();
     self.scratch.clear();
     self.analysis.analyses_run.clear();
+    self.analysis.placement_state.pop('work', None);
     if self._iface is not None {
         self._iface.on_closure_release();
     }
