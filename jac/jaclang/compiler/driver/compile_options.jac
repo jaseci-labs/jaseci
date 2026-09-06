@@ -138,7 +138,7 @@ obj CompileOptions {
                 "nogc_mods=" + ",".join(sorted(self.nogc_enforce_modules or [])),
                 "nogc_grand=" + ",".join(sorted(self.nogc_grandfathered or [])),
                 f"rc_debug={int(bool(self.rc_debug_codegen))}",
-                f"target={self.native_target}",
+                f"target={self.effective_triple()}",
                 f"native_debug={int(bool(self.native_debug))}",
                 f"opt={self.opt_level}",
                 f"app={self.target_app}",
@@ -216,7 +216,10 @@ obj CompileOptions {
             "debug_ir": self.debug_ir,
             "rc_stats": self.rc_stats,
             "nogc_debug": self.nogc_debug,
-            "na_debug": self.na_debug
+            "na_debug": self.na_debug,
+            "nogc_cli_target": self.nogc_cli_target,
+            "target_app": self.target_app,
+            "app_kind": self.app_kind
         };
     }
 
@@ -240,7 +243,10 @@ obj CompileOptions {
             debug_ir=env.get("debug_ir"),
             rc_stats=env.get("rc_stats"),
             nogc_debug=env.get("nogc_debug"),
-            na_debug=env.get("na_debug")
+            na_debug=env.get("na_debug"),
+            nogc_cli_target=env.get("nogc_cli_target") or "",
+            target_app=env.get("target_app") or "",
+            app_kind=env.get("app_kind") or ""
         );
     }
 
