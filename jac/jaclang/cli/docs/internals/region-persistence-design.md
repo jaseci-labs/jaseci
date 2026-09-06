@@ -8,7 +8,7 @@ into the anchor store as a **storage segment** and load it back.
 
 ## 1. What exists today (the facts this design builds on)
 
-- **Connect-as-seal** (`ownership_check_pass.region.impl.jac`,
+- **Connect-as-seal** (`ownership_check_pass.impl/region.impl.jac`,
   `_seal_connect_handle`): a directed connect from a managed anchor into
   a region-local node, under an open on an owned named handle, consumes
   the handle and promotes the subgraph into the managed world. Pages
