@@ -257,6 +257,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         help_text: (str | None) = None,
         **kwargs: any
     ) -> bool;
+
     has complex_struct_type: ir.Type { getter; }
     has range_struct_type: ir.Type { getter; }
     has slice_struct_type: ir.Type { getter; }
