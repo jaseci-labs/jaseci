@@ -195,3 +195,120 @@ test "configured scripts reach the dev server index.html" {
         "title and meta tags"
     );
 }
+
+
+test "dev HTML and runtime aliases resolve in the selected workspace app" {
+    import re;
+    import tempfile;
+    import from jaclang.project.config { JacConfig, get_config, set_config }
+    import from jaclang.runtime.runtime { JacRuntime }
+    import from jaclang.client.vite_bundler { ViteBundler }
+
+    previous = get_config();
+    with tempfile.TemporaryDirectory() as tmp {
+        project = Path(tmp);
+        manifest = (
+            '[project]\nname = "dev-paths"\ndefault-app = "web"\n'
+            '[apps.web]\nkind = "web-app"\npath = "web"\n'
+            '[apps.desktop]\nkind = "desktop"\npath = "shell"\n'
+            '[apps.desktop.dependencies.npm]\nreact-native-web = "^0.19.13"\n'
+            '[client.pwa]\nenabled = true\n'
+            '[client.vite]\nplugins = ["tailwindcss()"]\n'
+            'lib_imports = ["import tailwindcss from \'@tailwindcss/vite\'"]\n'
+        );
+        (project / "jac.toml").write_text(manifest);
+        config = JacConfig.from_toml_str(manifest, project / "jac.toml");
+        try {
+            set_config(config);
+            for (app_name, app_path) in [("web", "web"), ("desktop", "shell")] {
+                target = project / app_path / "main.jac";
+                target.parent.mkdir();
+                with unittest.mock.patch.object(
+                    JacRuntime, "get_full_target_path", return_value=str(target)
+                ) {
+                    bundler = ViteBundler(target.parent);
+                    assert bundler.project_dir == project;
+                    build_dir = bundler._get_client_dir();
+                    compiled = build_dir / app_name / "compiled";
+                    compiled.mkdir(parents=True);
+                    for filename in [
+                        "_entry.js",
+                        "client_runtime.js",
+                        "client_mobui.js",
+                        "desktop_api.js",
+                        "wasm_host.js",
+                        "pwa_runtime.js"
+                    ] {
+                        (compiled / filename).write_text("export {};\n");
+                    }
+                    (compiled / "assets").mkdir();
+                    # Fullstack dev passes a build entry; client-only targets
+                    # pass Jac source. Both must resolve the compiled app.
+                    for entry_file in [build_dir / "build" / "main.js", target] {
+                        config_path = bundler.create_vite_config(
+                            entry_file,
+                            is_dev=True,
+                            for_desktop_dev=app_name == "desktop"
+                        );
+                        bundler._ensure_dev_index_html(build_dir);
+                        page = (build_dir / "index.html").read_text();
+                        imports = re.findall(r'import\("(/[^\"]*_entry.js)"\)', page);
+                        assert imports == [f"/{app_name}/compiled/_entry.js"] * 2;
+                        assert all(
+                            (build_dir / url.lstrip("/")).is_file() for url in imports
+                        );
+                        generated = config_path.read_text();
+                        assert '"react-native": "react-native-web"' in generated;
+                        assert "import tailwindcss from '@tailwindcss/vite'"
+                            in generated;
+                        assert "tailwindcss()" in generated;
+                        for filename in [
+                            "client_runtime.js",
+                            "client_mobui.js",
+                            "desktop_api.js",
+                            "wasm_host.js",
+                            "pwa_runtime.js",
+                            "assets"
+                        ] {
+                            assert f'path.resolve(buildDir, "{app_name}/compiled/{filename}")'
+                                in generated;
+                        }
+                        if app_name == "desktop" {
+                            assert 'const compiled = path.resolve(buildDir, "desktop/compiled")'
+                                in generated;
+                        }
+                    }
+                }
+            }
+        } finally {
+            set_config(previous);
+        }
+    }
+}
+
+
+test "single app dev keeps the unscoped compiled entry and aliases" {
+    import tempfile;
+    import from jaclang.project.config { JacConfig, get_config, set_config }
+    import from jaclang.client.vite_bundler { ViteBundler }
+
+    previous = get_config();
+    with tempfile.TemporaryDirectory() as tmp {
+        project = Path(tmp);
+        manifest = '[project]\nname = "single"\nkind = "web-app"\n';
+        (project / "jac.toml").write_text(manifest);
+        try {
+            set_config(JacConfig.from_toml_str(manifest, project / "jac.toml"));
+            bundler = ViteBundler(project);
+            build_dir = bundler._get_client_dir();
+            config_path = bundler.create_vite_config(project / "main.jac", is_dev=True);
+            bundler._ensure_dev_index_html(build_dir);
+            page = (build_dir / "index.html").read_text();
+            assert page.count('import("/compiled/_entry.js")') == 2;
+            assert 'path.resolve(buildDir, "compiled/client_runtime.js")'
+                in config_path.read_text();
+        } finally {
+            set_config(previous);
+        }
+    }
+}

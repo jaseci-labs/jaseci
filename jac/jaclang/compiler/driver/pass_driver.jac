@@ -184,12 +184,19 @@ obj _SetupProgress {
 glob setup_progress = _SetupProgress();
 
 obj CompileProgress {
-    has _listeners: list[Callable[[str], None]] postinit;
+    has _listeners: list[Callable[[str], None]] postinit,
+        _finished_listeners: list[Callable[[str], None]] postinit;
 
     def postinit -> None;
     def notify(file_path: str) -> None;
     @contextmanager
-    def listen(callback: Callable[[str], None]) -> Iterator[None];
+    def track(file_path: str) -> Iterator[None];
+
+    @contextmanager
+    def listen(
+        callback: Callable[[str], None],
+        on_finished: Callable[[str], None] | None = None
+    ) -> Iterator[None];
 }
 
 glob compile_progress = CompileProgress();
