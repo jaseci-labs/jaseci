@@ -96,7 +96,7 @@ def get_object_format(triple: any = None) -> object {
 """
     Create a TargetData instance for the given *layout* string.
     """
-def create_target_data(layout: any) -> object {
+def create_target_data(layout: str) -> TargetData {
     return TargetData(ffi.lib.LLVMPY_CreateTargetData(_encode_string(layout)));
 }
 

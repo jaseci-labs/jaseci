@@ -2,6 +2,30 @@
 
 import from jaclang.compiler.backends.native.abi { struct_layouts }
 import from jaclang.compiler.backends.native.llvm { binding, ir }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.program { JacProgram }
+
+test "target data retains its type through the context manager" {
+    source = """
+import from jaclang.compiler.backends.native.llvm.binding.targets { create_target_data }
+import from jaclang.compiler.backends.native.llvm.binding.value { ValueRef }
+
+def layout(value: ValueRef) -> tuple[list[int], int] {
+    with create_target_data("e-p:64:64") as data {
+        return data.get_global_struct_layout(value, 1);
+    }
+}
+""";
+    prog = JacProgram();
+    prog.compile(
+        use_str=source,
+        file_path="abi_type_contract.jac",
+        options=CompileOptions(
+            no_cgen=True, no_ir_cache=True, force_target_program=True
+        )
+    );
+    assert not prog.errors_had , str(prog.errors_had);
+}
 
 test "a nullable boolean does not add eight bytes of padding" {
     binding.initialize_native_target();
