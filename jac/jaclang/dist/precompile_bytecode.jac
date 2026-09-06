@@ -18,6 +18,9 @@ import from jaclang.compiler.driver.jir {
     HEADER_SIZE,
     SECTIONS_MAGIC,
     SEC_BYTECODE,
+    SEC_MODKEY,
+    parse_header,
+    read_sections,
     SEC_CTDEPS,
     SEC_DEBUG_SRC,
     NATIVE_SECTIONS,
@@ -865,6 +868,7 @@ def seal_native(
         if mod_entry is None {
             raise RuntimeError(f"native unit {rel} has no sealed JIR");
         }
+        _refresh_native_twin(out_dir / mod_entry["jir"], u.path);
         jir_bytes = (out_dir / mod_entry["jir"]).read_bytes();
         sealed_iface = NativeIface.read_digest(
             native_section_payload(_rsb(jir_bytes, SEC_NIFACE), stamp)
@@ -893,6 +897,43 @@ def seal_native(
             "mode": plan.mode
         }
     };
+}
+
+def _refresh_native_twin(twin: Path, jac_path: str) -> None {
+    """Carry a unit's native sections from the module cache into its sealed
+JIR twin. A dual module's twin was written by the compile pass, before the
+plan compiled the module as a native unit; the plan's products are what
+the artifact linked, so the twin takes them now.""";
+    fresh = _native_extra(jac_path);
+    if not fresh {
+        return;
+    }
+    data = twin.read_bytes();
+    header = parse_header(data[:HEADER_SIZE]);
+    if header is None {
+        return;
+    }
+    magic: any = SECTIONS_MAGIC;
+    pos = data.find(magic, HEADER_SIZE);
+    if pos < 0 {
+        return;
+    }
+    sections = read_sections(data, pos + len(magic));
+    changed = False;
+    for (sec, raw) in fresh.items() {
+        if sections.get(sec) != raw {
+            sections[sec] = raw;
+            changed = True;
+        }
+    }
+    if not changed {
+        return;
+    }
+    bytecode = sections.pop(SEC_BYTECODE, None);
+    module_key = (sections.pop(SEC_MODKEY, b"") or b"").decode("utf-8");
+    twin.write_bytes(
+        write_precompiled_jir(bytecode, module_key, header.flags, sections)
+    );
 }
 
 def _shared_suffix -> str {
