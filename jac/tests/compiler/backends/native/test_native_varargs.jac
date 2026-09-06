@@ -24,7 +24,14 @@ import os;
 import subprocess;
 import sys;
 import tempfile;
-import from tests.support { TESTS_DIR, compile_native, get_func, has_error_code, native_force_opts, unit_symbol }
+import from tests.support {
+    TESTS_DIR,
+    compile_native,
+    get_func,
+    has_error_code,
+    native_force_opts,
+    unit_symbol
+}
 import jaclang;
 
 import from jaclang.compiler.driver.program { JacProgram }
@@ -327,7 +334,9 @@ test "a generic pack slot is a native list, not the bare erased pointer" {
         f"a pack after a fixed parameter must lower too: {sorted(layout.methods)}"
     );
     text = str(ir.gen.llvm_ir);
-    assert f'define i8* @"{unit_symbol(ir, "Cell.get")}"(%"Cell"* %"self", %"List.ptr"* %"fallback")'
+    assert f'define i8* @"{unit_symbol(
+        ir, "Cell.get"
+    )}"(%"Cell"* %"self", %"List.ptr"* %"fallback")'
         in text , (
         "the pack slot must lay out as the pointer-flavoured native list; a bare "
         "i8* there is the erased element leaking into the pack's own slot"

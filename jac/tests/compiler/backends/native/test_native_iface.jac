@@ -12,7 +12,11 @@ import shutil;
 import tempfile;
 import from pathlib { Path }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
-import from jaclang.compiler.driver.jir { NativeStamp, SEC_NIFACE, native_section_payload }
+import from jaclang.compiler.driver.jir {
+    NativeStamp,
+    SEC_NIFACE,
+    native_section_payload
+}
 import from jaclang.compiler.driver.native_iface {
     NIFACE_HASH_LEN,
     NativeClassLayout,
@@ -101,7 +105,8 @@ test "a body edit keeps the digest; an export change moves it" {
     p_b = _scratch_copy("unit.jac", body_edit, scratch);
     assert _iface_of(p_b).digest() == digest_a , "a body edit must not move the digest";
 
-    private_helper = src + "\ndef:priv helper_only(v: int) -> int {\n    return v;\n}\n";
+    private_helper = src
+        + "\ndef:priv helper_only(v: int) -> int {\n    return v;\n}\n";
     p_c = _scratch_copy("unit.jac", private_helper, scratch);
     assert _iface_of(p_c).digest() == digest_a , "a private helper must not move the digest";
 
@@ -115,7 +120,10 @@ test "a body edit keeps the digest; an export change moves it" {
 }
 
 test "the section in the module JIR carries the stamp of its compile" {
-    import from jaclang.compiler.driver.jir { get_module_cache_path, read_section_bytes }
+    import from jaclang.compiler.driver.jir {
+        get_module_cache_path,
+        read_section_bytes
+    }
     path = os.path.join(FIXTURES, "base.jac");
     prog = JacProgram();
     opts = _native_opts();

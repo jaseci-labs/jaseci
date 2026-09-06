@@ -193,7 +193,8 @@ test "a consumer links the declaring module's constants rather than redefining t
     assert not prog.errors_had , f"{[str(e) for e in prog.errors_had]}";
     text = str(ir.gen.llvm_ir);
     for line in text.split("\n") {
-        if line.startswith(f'@"{unit_symbol(ir, "Unit.SCALE")}"') or line.startswith(f'@"{unit_symbol(ir, "Double.SCALE")}"') {
+        if line.startswith(f'@"{unit_symbol(ir, "Unit.SCALE")}"')
+            or line.startswith(f'@"{unit_symbol(ir, "Double.SCALE")}"') {
             assert "external global" in line , (
                 f"the consumer defined an imported class's constant, which "
                 f"gives the link two definitions of one symbol: {line.strip()}"

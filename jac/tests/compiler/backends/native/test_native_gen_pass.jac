@@ -30,7 +30,14 @@ import os;
 import subprocess;
 import sys;
 import tempfile;
-import from tests.support { JAC_ROOT, TESTS_DIR, compile_native, get_func, native_address, native_force_opts }
+import from tests.support {
+    JAC_ROOT,
+    TESTS_DIR,
+    compile_native,
+    get_func,
+    native_address,
+    native_force_opts
+}
 import jaclang;
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.runtime.runtime { JacRuntime }
@@ -5409,7 +5416,11 @@ test "transitive clib: clib paths of dep module reach the entry's link plan" {
     clib_paths = plan.clib_paths();
     assert clib_paths , "the link plan collected no clib paths";
     assert any("/libm" in p or "libm" in p for p in clib_paths) , f"libm not found in the plan's clib paths: {clib_paths}";
-    dep_unit = [u for u in plan.units if u.path.endswith("fix_clib_transitive_lib.jac")];
+    dep_unit = [
+        u
+        for u in plan.units
+        if u.path.endswith("fix_clib_transitive_lib.jac")
+    ];
     assert dep_unit , f"dep unit missing from the plan: {[u.path for u in plan.units]}";
     assert any("libm" in p for p in dep_unit[0].iface.clib_paths) , (
         f"dep interface does not record libm: {dep_unit[0].iface.clib_paths}"

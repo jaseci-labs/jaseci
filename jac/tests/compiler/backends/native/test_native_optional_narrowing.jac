@@ -15,7 +15,13 @@ proven uses emit none.
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR, compile_native, names_function, native_address, native_force_opts }
+import from tests.support {
+    TESTS_DIR,
+    compile_native,
+    names_function,
+    native_address,
+    native_force_opts
+}
 import jaclang;
 
 import from jaclang.runtime.runtime { JacRuntime }

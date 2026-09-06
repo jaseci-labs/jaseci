@@ -25,7 +25,12 @@ in the sealed native parser.
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR, compile_native, native_address, native_force_opts }
+import from tests.support {
+    TESTS_DIR,
+    compile_native,
+    native_address,
+    native_force_opts
+}
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "backends", "native", "fixtures"

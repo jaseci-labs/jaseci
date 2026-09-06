@@ -16,7 +16,13 @@ import ctypes;
 import importlib;
 import os;
 import sys;
-import from tests.support { TESTS_DIR, compile_native, native_address, native_force_opts, native_str_func }
+import from tests.support {
+    TESTS_DIR,
+    compile_native,
+    native_address,
+    native_force_opts,
+    native_str_func
+}
 
 import jaclang.compiler.frontend.unitree as uni;
 

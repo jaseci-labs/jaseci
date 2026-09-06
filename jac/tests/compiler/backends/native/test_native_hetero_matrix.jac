@@ -24,7 +24,12 @@ import os;
 import subprocess;
 import sys;
 import tempfile;
-import from tests.support { TESTS_DIR, native_address, native_force_opts, native_str_func }
+import from tests.support {
+    TESTS_DIR,
+    native_address,
+    native_force_opts,
+    native_str_func
+}
 import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURES = os.path.join(

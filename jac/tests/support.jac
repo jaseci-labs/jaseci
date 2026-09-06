@@ -169,7 +169,7 @@ def compile_native(fixture: str, fixture_dir: str = "") -> tuple {
 
 """Pin the compiled module's unit path and native interface on its engine,
 so `native_address` can map a Jac-level name to the unit's link symbol."""
-def remember_native_unit(eng: any, ir: any) -> None {
+def remember_native_unit(eng: any, ir: any) {
     try {
         setattr(eng, "_jac_unit_path", ir.loc.mod_path if ir.loc else "");
         setattr(eng, "_jac_native_iface", ir.gen.native_iface);
@@ -191,10 +191,11 @@ def native_symbol(eng: any, name: str) -> str {
         import from jaclang.compiler.frontend.codeinfo { native_glob_init_name }
         return native_glob_init_name(path);
     }
-    if name == "jac_entry" or name.startswith(("__jac_", "__rc_", "jac_", "__osp", "__mt_")) {
+    if name == "jac_entry"
+        or name.startswith(("__jac_", "__rc_", "jac_", "__osp", "__mt_")) {
         return name;
     }
-    iface = getattr(eng, "_jac_native_iface", None);
+    iface = eng?._jac_native_iface;
     if iface is not None {
         found = iface.symbol_of(name);
         if found is not None {
@@ -246,7 +247,9 @@ def names_function(line: str, name: str) -> bool {
 
 """Whether `text` defines or declares the global `name` under either spelling."""
 def names_global(text: str, name: str) -> bool {
-    return ('@"' + name + '"') in text or ("@" + name + " ") in text or ("." + name + '"') in text;
+    return ('@"' + name + '"') in text
+        or ("@" + name + " ") in text
+        or ("." + name + '"') in text;
 }
 
 """The address of a Jac-level name in the engine: the qualified symbol

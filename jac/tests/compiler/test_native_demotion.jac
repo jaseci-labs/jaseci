@@ -38,10 +38,7 @@ import from jaclang.compiler.driver.jir {
     write_module_cache
 }
 import from jaclang.compiler.driver.nativecache { read_native_verdict }
-import from jaclang.compiler.placement.placement {
-    PlacementSummary,
-    summary_to_bytes
-}
+import from jaclang.compiler.placement.placement { PlacementSummary, summary_to_bytes }
 import from jaclang.compiler.placement.placement_pins {
     effective_module_pin,
     effective_pin_for,
@@ -95,7 +92,9 @@ def forget_verdict(prog: (JacProgram | None), path: str) {
 """Persist a placement summary carrying a demotion verdict into the module
 cache of `path`, the way the compile driver does on its next persist."""
 def persist_verdict(path: str, code: str, detail: str) -> bool {
-    ps = PlacementSummary(mod_path=path, native_verdict=detail, native_verdict_code=code);
+    ps = PlacementSummary(
+        mod_path=path, native_verdict=detail, native_verdict_code=code
+    );
     return write_module_cache(
         path, None, extra_sections={SEC_PLACEMENT: summary_to_bytes(ps)}
     );

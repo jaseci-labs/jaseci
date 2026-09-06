@@ -78,13 +78,11 @@ test "the seal records the native unit and its artifact" {
         sidecar = json.loads(Path(str(lib) + ".layout.json").read_text());
         assert sidecar["plan_digest"] == artifact["plan_digest"];
         assert sidecar["layout_digest"] == artifact["layout_digest"];
-
         image = load_image(os.path.join(pkg, "_precompiled"));
         assert image is not None;
         image.verify_native();
         assert image.native_artifact()["path"] == artifact["path"];
         assert set(image.native_units().keys()) == {"fast.jac"};
-
         import ctypes;
         loaded = ctypes.CDLL(str(lib));
         assert loaded.triple(2) == 6 , "the :pub export is the C ABI";

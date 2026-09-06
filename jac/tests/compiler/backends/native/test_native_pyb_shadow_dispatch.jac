@@ -49,9 +49,7 @@ def _seams(fixture: str) -> list[str] {
     try {
         prog.compile(
             file_path=os.path.join(FIXTURES, fixture),
-            options=CompileOptions(
-                force_codespace='native', force_target_program=True
-            )
+            options=CompileOptions(force_codespace='native', force_target_program=True)
         );
     } finally {
         coverage = na_coverage_end();

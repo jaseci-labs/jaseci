@@ -11,7 +11,13 @@ concatenate correctly, and a cached character still reports length 1).
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR, names_function, native_address, native_force_opts, native_str_func }
+import from tests.support {
+    TESTS_DIR,
+    names_function,
+    native_address,
+    native_force_opts,
+    native_str_func
+}
 import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURES = os.path.join(

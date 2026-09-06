@@ -18,7 +18,12 @@ two ternary shapes which already lowered did not start paying for a box.
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR, names_function, native_address, native_force_opts }
+import from tests.support {
+    TESTS_DIR,
+    names_function,
+    native_address,
+    native_force_opts
+}
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.runtime.runtime { JacRuntime }
 import from jaclang.compiler.frontend.codeinfo {

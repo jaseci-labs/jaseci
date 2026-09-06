@@ -44,8 +44,8 @@ def _with_env(name: str, value: (str | None), fn: any) -> any {
 test "the off switch selects the store parser" {
     reset_loaded();
     try {
-        assert _with_env(KERNEL_LIB_ENV, "off", lambda () { resolve_kernel(); }) is None;
-        assert _with_env(KERNEL_LIB_ENV, "off", lambda () { ensure_loaded(); }) is None;
+        assert _with_env(KERNEL_LIB_ENV, "off", lambda() { resolve_kernel(); }) is None;
+        assert _with_env(KERNEL_LIB_ENV, "off", lambda() { ensure_loaded(); }) is None;
     } finally {
         reset_loaded();
     }
@@ -54,7 +54,8 @@ test "the off switch selects the store parser" {
 test "the catalog build never loads a kernel" {
     reset_loaded();
     try {
-        assert _with_env("JAC_STUBCAT_BUILDING", "1", lambda () { resolve_kernel(); }) is None;
+        assert _with_env("JAC_STUBCAT_BUILDING", "1", lambda() { resolve_kernel(); })
+            is None;
     } finally {
         reset_loaded();
     }
@@ -66,7 +67,7 @@ test "an explicit path must carry its sidecar" {
     Path(bogus).write_bytes(b"not a library");
     raised = False;
     try {
-        _with_env(KERNEL_LIB_ENV, bogus, lambda () { resolve_kernel(); });
+        _with_env(KERNEL_LIB_ENV, bogus, lambda() { resolve_kernel(); });
     } except KernelUnavailable {
         raised = True;
     }
@@ -98,7 +99,13 @@ test "an in-tree kernel is accepted by source key, without a plan" {
     lib = os.path.join(tmp, "libjac_compiler.dylib");
     Path(lib).write_bytes(b"not a real kernel");
     key = units_source_key([unit], kernel_options());
-    sidecar = {"classes": {}, "plan_digest": "p", "layout_digest": "l", "units": [unit], "source_key": key};
+    sidecar = {
+        "classes": {},
+        "plan_digest": "p",
+        "layout_digest": "l",
+        "units": [unit],
+        "source_key": key
+    };
     Path(lib + ".layout.json").write_text(json.dumps(sidecar));
     found = _accept_in_tree(lib);
     assert found is not None , "a matching source key accepts the kernel";

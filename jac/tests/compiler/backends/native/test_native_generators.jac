@@ -9,7 +9,14 @@ drop), and composition through the lazy adapters.
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR, compile_native, get_func, has_error_code, native_address, native_force_opts }
+import from tests.support {
+    TESTS_DIR,
+    compile_native,
+    get_func,
+    has_error_code,
+    native_address,
+    native_force_opts
+}
 import jaclang;
 
 import from jaclang.compiler.driver.program { JacProgram }

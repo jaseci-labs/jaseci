@@ -7,7 +7,12 @@ These exercise the sv↔na-congruent surface a binary parser needs:
   - `open(path, "rb").read()` returning that length-aware bytes buffer.
 """
 
-import from tests.support { compile_native, get_func, native_address, native_force_opts }
+import from tests.support {
+    compile_native,
+    get_func,
+    native_address,
+    native_force_opts
+}
 import ctypes;
 import os;
 import tempfile;

@@ -17,7 +17,12 @@ HIGH's ordinal) or past the end of the array (25, 40) -- a segfault -- and
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR, native_address, native_force_opts, native_str_func }
+import from tests.support {
+    TESTS_DIR,
+    native_address,
+    native_force_opts,
+    native_str_func
+}
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.runtime.runtime { JacRuntime }
 import from jaclang.compiler.backends.native.llvm.binding { ExecutionEngine }

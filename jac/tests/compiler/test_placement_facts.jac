@@ -158,7 +158,9 @@ test "placement_pins imports stay within the documented allowlist" {
 """A toolchain source path under the installed jaclang package."""
 def _pkg_path(*parts: str) -> str {
     import jaclang;
-    return os.path.join(os.path.dirname(os.path.abspath(str(jaclang.__file__))), *parts);
+    return os.path.join(
+        os.path.dirname(os.path.abspath(str(jaclang.__file__))), *parts
+    );
 }
 
 
@@ -205,5 +207,7 @@ test "native_unit follows native_only, the kernel roster and the native-unit com
     }
     # An ordinary toolchain module is not a native unit.
     assert not native_unit(_pkg_path("dist", "precompile_bytecode.jac"));
-    assert not native_unit(_pkg_path("dist", "precompile_bytecode.jac"), native_unit_compile=True);
+    assert not native_unit(
+        _pkg_path("dist", "precompile_bytecode.jac"), native_unit_compile=True
+    );
 }

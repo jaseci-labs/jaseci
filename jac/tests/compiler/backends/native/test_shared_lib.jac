@@ -87,9 +87,7 @@ def plan_shared(fixture: str, triple: str) -> tuple {
     opts = shared_opts(triple);
     prog = JacProgram();
     mod = prog.compile(file_path=path, options=opts);
-    assert not prog.errors_had , f"compile errors: {[
-        str(e) for e in prog.errors_had
-    ]}";
+    assert not prog.errors_had , f"compile errors: {[str(e) for e in prog.errors_had]}";
     assert mod.gen.native_iface is not None , f"{fixture} exported no native interface";
     plan = build_link_plan(prog, [path], opts);
     return (prog, plan, opts);

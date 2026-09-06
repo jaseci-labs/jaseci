@@ -23,7 +23,9 @@ import from jaclang.jac0core.sealed { _jaclang_image }
 def _pkg_rel(path: str) -> str {
     return os.path.relpath(
         os.path.realpath(path), os.path.realpath(jaclang_pkg_root())
-    ).replace(os.sep, "/");
+    ).replace(
+        os.sep, "/"
+    );
 }
 
 """The native record of the running image, or None when the package was

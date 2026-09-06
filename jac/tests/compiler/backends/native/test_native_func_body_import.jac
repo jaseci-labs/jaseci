@@ -14,7 +14,12 @@ import ctypes;
 import importlib;
 import os;
 import sys;
-import from tests.support { TESTS_DIR, compile_native, native_address, native_force_opts }
+import from tests.support {
+    TESTS_DIR,
+    compile_native,
+    native_address,
+    native_force_opts
+}
 import from jaclang.compiler.driver.program { JacProgram }
 
 glob FIXTURES = os.path.join(

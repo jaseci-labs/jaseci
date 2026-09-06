@@ -21,7 +21,12 @@ Refs #8039, #8052
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR, names_function, native_address, native_force_opts }
+import from tests.support {
+    TESTS_DIR,
+    names_function,
+    native_address,
+    native_force_opts
+}
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.runtime.runtime { JacRuntime }

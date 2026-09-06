@@ -74,11 +74,20 @@ def _can_link_host -> bool {
 test "the plan holds every unit of the diamond, dependencies first" {
     root_dir = _diamond_copy();
     (prog, plan) = _plan_for(root_dir);
-    toolchain = [u.path for u in plan.units if is_kernel_unit_path(u.path)];
-    names = [os.path.basename(u.path) for u in plan.units if not is_kernel_unit_path(u.path)];
+    toolchain = [
+        u.path
+        for u in plan.units
+        if is_kernel_unit_path(u.path)
+    ];
+    names = [
+        os.path.basename(u.path)
+        for u in plan.units
+        if not is_kernel_unit_path(u.path)
+    ];
     assert sorted(names) == sorted(UNITS) , names;
     for t in toolchain {
-        assert plan.units.index(plan.unit(t)) < plan.units.index(plan.unit(os.path.join(root_dir, "base.jac"))) , f"{t} is a dependency of every unit and must come first";
+        assert plan.units.index(plan.unit(t))
+            < plan.units.index(plan.unit(os.path.join(root_dir, "base.jac"))) , f"{t} is a dependency of every unit and must come first";
     }
     assert names[-1] == "top.jac" , "the root_dir comes last";
     assert names.index("base.jac") < names.index("left.jac");
@@ -87,9 +96,11 @@ test "the plan holds every unit of the diamond, dependencies first" {
     assert plan.root_unit().path == os.path.realpath(os.path.join(root_dir, "top.jac"));
     inits = plan.init_symbols();
     assert native_glob_init_name(os.path.join(root_dir, "base.jac")) in inits;
-    assert inits.index(native_glob_init_name(os.path.join(root_dir, "base.jac"))) < inits.index(native_glob_init_name(os.path.join(root_dir, "left.jac")));
+    assert inits.index(native_glob_init_name(os.path.join(root_dir, "base.jac")))
+        < inits.index(native_glob_init_name(os.path.join(root_dir, "left.jac")));
     assert inits[-1] == native_glob_init_name(os.path.join(root_dir, "top.jac"));
-    assert plan.root_unit().iface.entry_symbol == native_entry_name(os.path.join(root_dir, "top.jac"));
+    assert plan.root_unit().iface.entry_symbol
+        == native_entry_name(os.path.join(root_dir, "top.jac"));
     assert "diamond_abi_version" in plan.pub_exports();
 }
 
@@ -106,7 +117,8 @@ test "a body edit rewrites one object and keeps every interface" {
     (prog2, plan2) = _plan_for(root_dir);
     registry2 = prog2.native_units();
     assert registry2.object_for(str(left), _opts()) != obj_before , "left's object must be rebuilt";
-    assert registry2.object_for(os.path.join(root_dir, "base.jac"), _opts()) == base_obj_before , "base is untouched";
+    assert registry2.object_for(os.path.join(root_dir, "base.jac"), _opts())
+        == base_obj_before , "base is untouched";
     for u in plan2.units {
         prev = plan.unit(u.path);
         assert prev is not None and prev.digest == u.digest , f"{u.path} interface moved on a body edit";
@@ -118,7 +130,9 @@ test "an interface edit moves the dependents' recorded digests" {
     (prog, plan) = _plan_for(root_dir);
     base = Path(root_dir) / "base.jac";
     base_digest = plan.unit(str(base)).digest;
-    base.write_text(base.read_text() + "\ndef newly_exported(v: int) -> int {\n    return v;\n}\n");
+    base.write_text(
+        base.read_text() + "\ndef newly_exported(v: int) -> int {\n    return v;\n}\n"
+    );
     (prog2, plan2) = _plan_for(root_dir);
     assert plan2.unit(str(base)).digest != base_digest , "an export must move base's digest";
     for u in plan2.units {
@@ -246,7 +260,11 @@ test "the glue supplies the region-death hook only when no unit does" {
     gprog.compile(file_path=graph, options=opts);
     assert not gprog.errors_had , [str(e) for e in gprog.errors_had];
     gplan = build_link_plan(gprog, [graph], opts);
-    suppliers = [u.path for u in gplan.units if REGION_DIED_HOOK in u.iface.exports];
+    suppliers = [
+        u.path
+        for u in gplan.units
+        if REGION_DIED_HOOK in u.iface.exports
+    ];
     assert suppliers , [u.path for u in gplan.units];
     gspec = gplan.glue_spec(ArtifactKind.JIT, "jit", False);
     assert not gspec.needs_region_hook;

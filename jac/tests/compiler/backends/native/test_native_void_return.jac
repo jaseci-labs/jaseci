@@ -61,9 +61,7 @@ test "every `-> None` callable terminates with ret void" {
         }
     }
     for name in ("Box.touch", "Box.touch_call", "free_fn") {
-        assert names_global(text, name) , (
-            f"'{name}' is missing from the emitted IR"
-        );
+        assert names_global(text, name) , (f"'{name}' is missing from the emitted IR");
     }
 }
 
