@@ -18,15 +18,28 @@ import from jaclang.compiler.driver.jir {
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.driver.native_iface { NativeIface }
 
-def child_compiler_env(extra: (dict[str, str] | None) = None) -> dict[str, str] {
-    """The environment a child compiler process runs under: this process's
-environment plus the directory that holds the `jaclang` package on
-`PYTHONPATH`. A build boots its interpreter with `-I` and an explicit
-`sys.path`, which a child does not inherit; `import jaclang` registers the
-`.jac` importer itself, so the path is all the child needs.""";
+def compiler_package_parent -> str {
+    """The directory holding the `jaclang` package this process runs: what a
+child must put first on its path to run the same compiler. A build boots
+its interpreter with `-I` and an explicit `sys.path`, which a child does
+not inherit, and `python -c` would otherwise put the working directory
+first, where a checkout's own `jaclang` shadows the tree being built.""";
     import from jaclang.compiler.frontend.codeinfo { jaclang_pkg_root }
+    return os.path.dirname(jaclang_pkg_root());
+}
+
+def child_compiler_argv(code: str, args: list[str]) -> list[str] {
+    """The command line of a child compiler process: this interpreter, safe
+path mode so the working directory never joins `sys.path`, the driver
+code, its arguments, and the package parent for the driver to insert
+first. `import jaclang` registers the `.jac` importer itself.""";
+    import sys;
+    return [sys.executable, "-P", "-c", code] + list(args) + [compiler_package_parent()];
+}
+
+def child_compiler_env(extra: (dict[str, str] | None) = None) -> dict[str, str] {
     env = dict(os.environ);
-    pkg_parent = os.path.dirname(jaclang_pkg_root());
+    pkg_parent = compiler_package_parent();
     prior = env.get("PYTHONPATH", "");
     parts = [pkg_parent] + ([prior] if prior else []);
     env["PYTHONPATH"] = os.pathsep.join(parts);
@@ -42,6 +55,7 @@ glob _UNITS_IN_FLIGHT: set[str] = set(),
 
 glob _UNIT_CHILD_DRIVER: str = (
          "import json, sys\n"
+         "sys.path.insert(0, sys.argv[3])\n"
          "from jaclang.compiler.driver.program import JacProgram\n"
          "from jaclang.compiler.driver.compile_options import CompileOptions\n"
          "opts = CompileOptions.from_native_import_env(json.loads(sys.argv[2]))\n"
@@ -338,7 +352,7 @@ obj NativeUnitRegistry {
         self._event("native_unit_compile_detached");
         try {
             proc = subprocess.run(
-                [sys.executable, "-c", _UNIT_CHILD_DRIVER, resolved, env], env=child_env
+                child_compiler_argv(_UNIT_CHILD_DRIVER, [resolved, env]), env=child_env
             );
         } except OSError as exc {
             self.failures[resolved] = f"{type(exc).__name__}: {exc}";
