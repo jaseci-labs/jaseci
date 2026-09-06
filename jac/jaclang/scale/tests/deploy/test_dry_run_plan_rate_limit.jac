@@ -1,4 +1,4 @@
-"""`jac start --scale --dry-run` must show the rate limit the project asked
+"""`jac scale deploy --dry-run` must show the rate limit the project asked
 for. The plan renderer read `requests_per_minute`, a key the config loader
 never emits, so every configured limit rendered as no line at all and the
 dry run could not confirm a limit before the deploy that applies it. Real
@@ -18,7 +18,15 @@ def _project(rate_limit: str) -> Path {
     (project_dir / "jac.toml").write_text(
         '[project]\n'
         'name = "planratelimit"\n'
+        'default-app = "main"\n'
+        '\n'
+        '[apps.main]\n'
+        'kind = "web-app"\n'
         'entry-point = "main.jac"\n'
+        '\n'
+        '[apps.orders]\n'
+        'kind = "service"\n'
+        'entry-point = "orders.jac"\n'
         '\n'
         '[scale.kubernetes]\n'
         'app_name = "planratelimit"\n'
@@ -26,9 +34,6 @@ def _project(rate_limit: str) -> Path {
         # Without a storage class the RWX bundle PVC raises before the plan
         # is rendered.
         'bundle_storage_class = "standard"\n'
-        '\n'
-        '[scale.microservices.routes]\n'
-        'orders = "/orders"\n'
         '\n'
             + rate_limit,
         encoding="utf-8"
@@ -42,12 +47,12 @@ def _project(rate_limit: str) -> Path {
 def _dry_run_plan(rate_limit: str) -> tuple[int, str] {
     project_dir = _project(rate_limit);
     env = os.environ.copy();
-    for key in ["JAC_SV_SIBLING", "JAC_SV_NAME", "JAC_SV_ROUTES"] {
+    for key in ["JAC_SV_SIBLING", "JAC_SV_NAME", "JAC_SV_FLEET"] {
         env.pop(key, None);
     }
     try {
         result = subprocess.run(
-            [jac_executable(), "start", "--scale", "--dry-run", "main.jac"],
+            [jac_executable(), "scale", "deploy", "main.jac", "--dry-run"],
             capture_output=True,
             text=True,
             cwd=str(project_dir),
@@ -63,7 +68,7 @@ def _dry_run_plan(rate_limit: str) -> tuple[int, str] {
 
 test "a dry run shows the per-IP and per-user limits the project configured" {
     (rc, out) = _dry_run_plan(
-        '[scale.microservices.rate_limit]\n'
+        '[scale.gateway.rate_limit]\n'
         'enabled = true\n'
         'per_ip_rpm = 120\n'
         'per_user_rpm = 30\n'
@@ -76,7 +81,7 @@ test "a dry run shows the per-IP and per-user limits the project configured" {
 
 test "a dry run of a disabled rate limit shows no rate-limit line" {
     (rc, out) = _dry_run_plan(
-        '[scale.microservices.rate_limit]\n'
+        '[scale.gateway.rate_limit]\n'
         'enabled = false\n'
         'per_ip_rpm = 120\n'
         'per_user_rpm = 30\n'

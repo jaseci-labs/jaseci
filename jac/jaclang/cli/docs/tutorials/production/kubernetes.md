@@ -1,8 +1,8 @@
 # Kubernetes Deployment
 
-> **Concept:** [Scale invariance](../../reference/plugins/jac-scale.md#the-scale-invariance-contract): `--scale` changes where the program runs, never what it means.
+> **Concept:** [Scale invariance](../../reference/plugins/jac-scale.md#the-scale-invariance-contract): `jac scale deploy` changes where the program runs, never what it means.
 
-Moving from a local API server to a production Kubernetes deployment typically requires writing Dockerfiles, Kubernetes manifests, configuring databases, and setting up monitoring. Jac's built-in `scale` subsystem eliminates this boilerplate: `jac start --scale` generates and applies all the necessary Kubernetes resources automatically -- your application, a MongoDB instance for graph persistence, Redis for caching, and optionally Prometheus/Grafana for monitoring.
+Moving from a local API server to a production Kubernetes deployment typically requires writing Dockerfiles, Kubernetes manifests, configuring databases, and setting up monitoring. Jac's built-in `scale` subsystem eliminates this boilerplate: `jac scale deploy` generates and applies all the necessary Kubernetes resources automatically -- your application, a Postgres instance for graph persistence, and optionally Prometheus/Grafana for monitoring.
 
 This tutorial covers deploying to a local Kubernetes cluster (MicroK8s, minikube, or Docker Desktop), but the same command works for cloud providers (EKS, GKE, AKS) with `kubectl` properly configured.
 
@@ -11,7 +11,7 @@ This tutorial covers deploying to a local Kubernetes cluster (MicroK8s, minikube
 > - Completed: [Local API Server](local.md)
 > - Kubernetes cluster running (MicroK8s, minikube, Docker Desktop, or cloud provider)
 > - `kubectl` configured
-> - Deployment dependencies installed into your project: the `scale` subsystem ships with `jaclang`, but `jac start --scale` needs `kubernetes`/`docker` in the project venv. Configure `[scale.kubernetes]` in `jac.toml` (or just run the deploy once -- the first `--scale` run resolves them) and:
+> - Deployment dependencies installed into your project: the `scale` subsystem ships with `jaclang`, but `jac scale deploy` needs `kubernetes`/`docker` in the project venv. Configure `[scale.kubernetes]` in `jac.toml` (or just run the deploy once -- the first deploy resolves them) and:
 >
 >   ```bash
 >   jac install
@@ -23,10 +23,10 @@ This tutorial covers deploying to a local Kubernetes cluster (MicroK8s, minikube
 
 ## Overview
 
-`jac start --scale` handles everything automatically:
+`jac scale deploy` handles everything automatically:
 
 - Deploys your application to Kubernetes
-- Auto-provisions Redis (caching) and MongoDB (persistence)
+- Auto-provisions Postgres (persistence)
 - Creates all necessary Kubernetes resources
 - Exposes your application through the NGINX ingress NodePort (default `30080`)
 
@@ -37,11 +37,9 @@ graph TD
             P1["Pod: jac-app"]
         end
         subgraph data["Data Layer (Auto-Provisioned)"]
-            R["Redis<br/>Caching"]
-            M["MongoDB<br/>Persistence"]
+            PG["Postgres<br/>Persistence"]
         end
-        P1 --> R
-        P1 --> M
+        P1 --> PG
     end
     LB["Ingress NodePort :30080"] --> P1
 ```
@@ -85,10 +83,10 @@ walker:pub health {
 ### 2. Deploy to Kubernetes
 
 !!! note
-    `main.jac` is the default entry point for `jac start`. If your entry point has a different name (e.g., `app.jac`), pass it explicitly: `jac start app.jac --scale`.
+    `main.jac` is the default entry point for `jac run`. If your entry point has a different name (e.g., `app.jac`), pass it explicitly: `jac scale deploy app.jac`.
 
 ```bash
-jac start --scale
+jac scale deploy
 ```
 
 That's it. Your application is now running on Kubernetes.
@@ -105,7 +103,7 @@ That's it. Your application is now running on Kubernetes.
 ### Deploy
 
 ```bash
-jac start --scale
+jac scale deploy
 ```
 
 There is no image to build and no registry to configure. `jac-scale` packs your
@@ -116,7 +114,7 @@ against a local cluster and a remote one.
 ### Preview
 
 ```bash
-jac start --scale --dry-run
+jac scale deploy --dry-run
 ```
 
 Prints the manifests that would be applied and touches nothing: no cluster
@@ -191,8 +189,8 @@ If the URL host is a bare Kubernetes service name and the app deploys into a dif
 
 | Key | Description | Default |
 |----------|-------------|---------|
-| `[scale.jwt]` `secret` | JWT signing key | Testing-only default; set your own in production |
-| `[scale.jwt]` `exp_delta_days` | Token expiration (days) | `7` |
+| `[serve.auth]` `secret` | JWT signing key | Required in a cluster; `jac scale deploy` mints one into the app Secret when unset |
+| `[serve.auth]` `token_ttl_days` | Token expiration (days) | `7` |
 | `[scale.sso.google]` `client_id` | Google OAuth client ID | - |
 | `[scale.sso.google]` `client_secret` | Google OAuth secret | - |
 
@@ -228,11 +226,41 @@ autoscaler_initial_cooldown = 0    # default 0; seconds after deploy before scal
 
 For the full list of autoscaling options (including event triggers, polling intervals, cooldown tuning, and authenticated triggers), see the [Scale Reference](../../reference/plugins/jac-scale-kubernetes.md#autoscaling).
 
+### Scale to zero on an HTTP request
+
+The KEDA engine above scales on metrics or events. To instead wake a
+zero-replica workload on an incoming HTTP request, enable the KEDA HTTP
+Add-on activation:
+
+```toml
+[scale.kubernetes.http_activation]
+enabled = true
+target_port = 8000
+concurrency_target = 10
+min_replicas = 0            # true scale-to-zero
+max_replicas = 3
+
+[[scale.kubernetes.http_activation.rules]]
+hosts = ["app.example.com"]
+```
+
+This reconciles a KEDA `InterceptorRoute` and `ScaledObject` for the target,
+and works for both single-app and per-app (`[apps.<name>.scale.http_activation]`) deploys.
+
+!!! note
+    This needs the KEDA HTTP Add-on installed alongside KEDA core. With
+    `min_replicas = 0`, route inbound traffic through the KEDA HTTP interceptor
+    proxy: jac-scale does not yet rewire the gateway or Ingress to it, so a
+    request that reaches the app Service directly will not wake a scaled-to-zero
+    pod.
+
+See the [Scale Reference](../../reference/plugins/jac-scale-kubernetes.md#http-add-on-activation-scale-to-zero-on-request) for the full HTTP activation config (routing rules, cold-start response, timeouts).
+
 ---
 
 ## Local and Remote Clusters
 
-The same `jac start --scale` works against both, and neither needs a container
+The same `jac scale deploy` works against both, and neither needs a container
 registry. Because no application image is built, there is nothing to push and
 nothing for the cluster to pull: your source travels into the cluster as a
 bundle on a PVC, and pods boot from a stock base image.
@@ -278,10 +306,10 @@ action). If it is not published yet, the deploy falls back to `:dev`. An explici
 When two services need to read and write the same files (e.g. an IDE backend and a build worker that both touch a project workspace), declare a shared volume that gets mounted on both pods:
 
 ```toml
-[[scale.microservices.shared_volumes]]
+[[scale.gateway.shared_volumes]]
 name = "workspace"
 mount_path = "/data/workspace"
-services = ["builder_sv", "build_worker"]
+apps = ["builder", "build_worker"]
 
 # Cloud K8s (RWX storage class - EFS / Filestore / Azure Files):
 size = "10Gi"
@@ -355,7 +383,7 @@ jac scale destroy main.jac
 This removes:
 
 - Application deployments and pods
-- Redis and MongoDB StatefulSets
+- The Postgres StatefulSet
 - Services and persistent volumes
 - ConfigMaps and secrets
 
@@ -363,10 +391,10 @@ This removes:
 
 ## How It Works
 
-When you run `jac start --scale`, the following happens automatically:
+When you run `jac scale deploy`, the following happens automatically:
 
 1. **Namespace Setup** - Creates or uses the specified Kubernetes namespace
-2. **Database Provisioning** - Deploys Redis and MongoDB as StatefulSets with persistent storage (first run only)
+2. **Database Provisioning** - Deploys Postgres as a StatefulSet with persistent storage (first run only)
 3. **Application Deployment** - Creates a deployment for your Jac application
 4. **Service Exposure** - Exposes the application through the NGINX ingress NodePort
 
@@ -398,7 +426,7 @@ mkdir -p ~/.kube && microk8s config > ~/.kube/config
 chmod 600 ~/.kube/config
 ```
 
-The last two steps are required, not cosmetic: `jac start --scale` reads `~/.kube/config` to reach the cluster and shells out to a real `kubectl` binary to seed the source bundle. A shell alias (`alias kubectl='microk8s kubectl'`) is not enough because subprocesses cannot see it. You do not need the MicroK8s `ingress` addon -- the deploy ships its own NGINX ingress controller.
+The last two steps are required, not cosmetic: `jac scale deploy` reads `~/.kube/config` to reach the cluster and shells out to a real `kubectl` binary to seed the source bundle. A shell alias (`alias kubectl='microk8s kubectl'`) is not enough because subprocesses cannot see it. You do not need the MicroK8s `ingress` addon -- the deploy ships its own NGINX ingress controller.
 
 ### Option B: Docker Desktop
 
@@ -453,9 +481,8 @@ kubectl get statefulsets
 # Check persistent volumes
 kubectl get pvc
 
-# View database logs
-kubectl logs -l app=mongodb
-kubectl logs -l app=redis
+# View database logs (Postgres pods are labeled app=<app_name>-postgres)
+kubectl logs -l app=jaseci-postgres
 ```
 
 ### Pods stuck in Init
@@ -498,7 +525,7 @@ jac create todo --kind web-static
 cd todo
 
 # Deploy to Kubernetes
-jac start --scale
+jac scale deploy
 ```
 
 Access:

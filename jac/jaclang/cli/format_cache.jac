@@ -12,14 +12,14 @@ glob FORMAT_CACHE_SCHEMA_VERSION: str = "v1",
      ENTRY_TTL_SECONDS: float = 2592000.0,
      MAX_ENTRIES: int = 20000,
      _FORMATTER_PIPELINE_MODULES: tuple[str, ...] = (
-         "jaclang.compiler.passes.tool.jac_formatter_pass",
-         "jaclang.compiler.passes.tool.jac_auto_lint_pass",
-         "jaclang.compiler.passes.tool.doc_ir_gen_pass",
-         "jaclang.compiler.passes.tool.comment_injection_pass",
-         "jaclang.compiler.passes.tool.normalize_pass",
-         "jaclang.compiler.passes.tool.unparse_pass",
-         "jaclang.compiler.passes.tool.doc_ir",
-         "jaclang.jac0core.passes.transform",
+         "jaclang.compiler.tools.jac_formatter_pass",
+         "jaclang.compiler.tools.jac_auto_lint_pass",
+         "jaclang.compiler.tools.doc_ir_gen_pass",
+         "jaclang.compiler.tools.comment_injection_pass",
+         "jaclang.compiler.tools.normalize_pass",
+         "jaclang.compiler.tools.unparse_pass",
+         "jaclang.compiler.tools.doc_ir",
+         "jaclang.compiler.passes.transform",
 
      );
 
@@ -82,7 +82,7 @@ def canonical_logical_path(path: str, project_root: (str | None) = None) -> str 
             if not rel.startswith("..") {
                 return rel.replace(os.sep, "/");
             }
-        } except ValueError { }
+        } except ValueError {}
     }
     return norm.replace(os.sep, "/");
 }
@@ -211,13 +211,13 @@ obj FormatCache {
         if not data.startswith(_ENTRY_MARKER) {
             try {
                 path.unlink();
-            } except OSError { }
+            } except OSError {}
             return False;
         }
 
         try {
             os.utime(path, None);
-        } except OSError { }
+        } except OSError {}
         return True;
     }
 
@@ -236,7 +236,7 @@ obj FormatCache {
             } finally {
                 try {
                     tmp.unlink();
-                } except OSError { }
+                } except OSError {}
             }
         } except OSError {
             return;
@@ -254,7 +254,7 @@ obj FormatCache {
             if now - sentinel.stat().st_mtime < self.prune_interval {
                 return;
             }
-        } except OSError { }
+        } except OSError {}
         try {
             sentinel.touch();
         } except OSError {

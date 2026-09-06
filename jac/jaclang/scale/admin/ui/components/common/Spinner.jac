@@ -1,9 +1,9 @@
 """Loading spinner component."""
 
 def:pub Spinner(size: str = "md") -> JsxElement {
-    sizeClass = size == "sm"
-        and "w-4 h-4"
-        or (size == "lg" and "w-12 h-12" or "w-8 h-8");
+    sizeClass: str = "w-4 h-4"
+        if size == "sm"
+        else ("w-12 h-12" if size == "lg" else "w-8 h-8");
 
     <div
         className={"border-2 border-accent border-t-transparent rounded-full animate-spin "

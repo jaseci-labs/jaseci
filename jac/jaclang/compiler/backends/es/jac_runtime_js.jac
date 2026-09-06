@@ -1,0 +1,1996 @@
+glob JAC_RUNTIME_JS_OBJECT: str = r"""{
+  int: {
+    bit_length(n) {
+      if (n === 0) return 0;
+      return Math.floor(Math.log2(Math.abs(n))) + 1;
+    },
+    bit_count(n) {
+      let x = Math.abs(n);
+      let count = 0;
+      while (x) { count += x & 1; x >>= 1; }
+      return count;
+    },
+    to_bytes(n, length, byteorder) {
+      const bytes = [];
+      let val = n < 0 ? (1 << (length * 8)) + n : n;
+      for (let i = 0; i < length; i++) {
+        bytes.push(val & 0xff);
+        val >>= 8;
+      }
+      if (byteorder === "big") bytes.reverse();
+      return bytes;
+    },
+    from_bytes(bytes, byteorder) {
+      const b = byteorder === "big" ? bytes : [...bytes].reverse();
+      let result = 0;
+      for (const byte of b) result = (result << 8) | byte;
+      return result;
+    },
+    mod(a, b) { return ((a % b) + b) % b; }
+  },
+
+  float: {
+    as_integer_ratio(f) {
+      if (!isFinite(f)) throw new _jac.exc.ValueError("cannot convert " + f + " to integer ratio");
+      if (f === 0) return [0, 1];
+      let num = f, den = 1;
+      while (num !== Math.floor(num)) { num *= 2; den *= 2; }
+      const g = _jac.float._gcd(Math.abs(num), den);
+      return [num / g, den / g];
+    },
+    _gcd(a, b) { while (b) { [a, b] = [b, a % b]; } return a; },
+    hex(f) {
+      return f.toString(16);
+    },
+    fromhex(s) {
+      return parseFloat(s);
+    },
+    mod(a, b) { return ((a % b) + b) % b; }
+  },
+
+  complex: {
+    conjugate(c) { return {re: c.re, im: -c.im}; },
+    add(a, b) { return {re: a.re + b.re, im: a.im + b.im}; },
+    sub(a, b) { return {re: a.re - b.re, im: a.im - b.im}; },
+    mul(a, b) { return {re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re}; },
+    truediv(a, b) {
+      const d = b.re * b.re + b.im * b.im;
+      return {re: (a.re * b.re + a.im * b.im) / d, im: (a.im * b.re - a.re * b.im) / d};
+    },
+    pow(a, b) {
+      if (typeof b === "number") b = {re: b, im: 0};
+      if (typeof a === "number") a = {re: a, im: 0};
+      if (b.im === 0 && Number.isInteger(b.re)) {
+        let result = {re: 1, im: 0};
+        for (let i = 0; i < Math.abs(b.re); i++) result = _jac.complex.mul(result, a);
+        return b.re < 0 ? _jac.complex.truediv({re: 1, im: 0}, result) : result;
+      }
+      const r = Math.sqrt(a.re * a.re + a.im * a.im);
+      const theta = Math.atan2(a.im, a.re);
+      const lnr = Math.log(r);
+      const newR = Math.exp(lnr * b.re - theta * b.im);
+      const newTheta = lnr * b.im + theta * b.re;
+      return {re: newR * Math.cos(newTheta), im: newR * Math.sin(newTheta)};
+    },
+    eq(a, b) {
+      if (typeof b === "number") b = {re: b, im: 0};
+      if (typeof a === "number") a = {re: a, im: 0};
+      return a.re === b.re && a.im === b.im;
+    },
+    neg(a) { return {re: -a.re, im: -a.im}; },
+    pos(a) { return {re: +a.re, im: +a.im}; }
+  },
+
+  str: {
+    capitalize(s) {
+      if (s.length === 0) return s;
+      return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+    },
+    title(s) {
+      return s.replace(/\b\w/g, c => c.toUpperCase());
+    },
+    swapcase(s) {
+      return [...s].map(c => c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase()).join("");
+    },
+    count(s, sub, start, end) {
+      const t = s.slice(start || 0, end);
+      if (sub === "") return t.length + 1;
+      let count = 0, pos = 0;
+      while ((pos = t.indexOf(sub, pos)) !== -1) { count++; pos += sub.length; }
+      return count;
+    },
+    find(s, sub, start, end) {
+      const t = s.slice(start || 0, end);
+      const idx = t.indexOf(sub);
+      return idx === -1 ? -1 : idx + (start || 0);
+    },
+    rfind(s, sub, start, end) {
+      const t = s.slice(start || 0, end);
+      const idx = t.lastIndexOf(sub);
+      return idx === -1 ? -1 : idx + (start || 0);
+    },
+    index(s, sub, start, end) {
+      const idx = _jac.str.find(s, sub, start, end);
+      if (idx === -1) throw new _jac.exc.ValueError("substring not found");
+      return idx;
+    },
+    rindex(s, sub, start, end) {
+      const idx = _jac.str.rfind(s, sub, start, end);
+      if (idx === -1) throw new _jac.exc.ValueError("substring not found");
+      return idx;
+    },
+    startswith(s, prefix, start, end) {
+      return s.slice(start || 0, end).startsWith(prefix);
+    },
+    endswith(s, suffix, start, end) {
+      return s.slice(start || 0, end).endsWith(suffix);
+    },
+    replace(s, old, new_, count) {
+      if (count === undefined) return s.split(old).join(new_);
+      let result = s, n = 0;
+      while (n < count) {
+        const idx = result.indexOf(old);
+        if (idx === -1) break;
+        result = result.slice(0, idx) + new_ + result.slice(idx + old.length);
+        n++;
+      }
+      return result;
+    },
+    strip(s, chars) {
+      if (!chars) return s.trim();
+      let start = 0, end = s.length;
+      while (start < end && chars.indexOf(s[start]) !== -1) start++;
+      while (end > start && chars.indexOf(s[end - 1]) !== -1) end--;
+      return s.slice(start, end);
+    },
+    lstrip(s, chars) {
+      if (!chars) return s.trimStart();
+      let start = 0;
+      while (start < s.length && chars.indexOf(s[start]) !== -1) start++;
+      return s.slice(start);
+    },
+    rstrip(s, chars) {
+      if (!chars) return s.trimEnd();
+      let end = s.length;
+      while (end > 0 && chars.indexOf(s[end - 1]) !== -1) end--;
+      return s.slice(0, end);
+    },
+    removeprefix(s, prefix) {
+      return s.startsWith(prefix) ? s.slice(prefix.length) : s;
+    },
+    removesuffix(s, suffix) {
+      return (suffix && s.endsWith(suffix)) ? s.slice(0, -suffix.length) : s;
+    },
+    split(s, sep, maxsplit) {
+      if (sep === undefined || sep === null) {
+        const parts = s.trim().split(/\s+/);
+        if (maxsplit === undefined) return parts;
+        if (maxsplit <= 0) return [s];
+        return [...parts.slice(0, maxsplit), parts.slice(maxsplit).join(" ")].filter(x => x !== undefined);
+      }
+      if (maxsplit === undefined) return s.split(sep);
+      const parts = s.split(sep);
+      if (parts.length <= maxsplit + 1) return parts;
+      return [...parts.slice(0, maxsplit), parts.slice(maxsplit).join(sep)];
+    },
+    rsplit(s, sep, maxsplit) {
+      if (maxsplit === undefined) return _jac.str.split(s, sep);
+      const parts = s.split(sep);
+      if (parts.length <= maxsplit + 1) return parts;
+      const keep = parts.length - maxsplit;
+      return [parts.slice(0, keep).join(sep), ...parts.slice(keep)];
+    },
+    splitlines(s, keepends) {
+      const lines = s.split(/(\r\n|\r|\n)/);
+      const result = [];
+      for (let i = 0; i < lines.length; i += 2) {
+        const line = lines[i];
+        const sep = lines[i + 1] || "";
+        if (line || sep) result.push(keepends ? line + sep : line);
+      }
+      return result;
+    },
+    partition(s, sep) {
+      const idx = s.indexOf(sep);
+      if (idx === -1) return [s, "", ""];
+      return [s.slice(0, idx), sep, s.slice(idx + sep.length)];
+    },
+    rpartition(s, sep) {
+      const idx = s.lastIndexOf(sep);
+      if (idx === -1) return ["", "", s];
+      return [s.slice(0, idx), sep, s.slice(idx + sep.length)];
+    },
+    format(s, ...args) {
+      let i = 0;
+      return s.replace(/\{(\w*)\}/g, (match, key) => {
+        if (key === "") return args[i++];
+        if (!isNaN(key)) return args[parseInt(key)];
+        return args[0] && typeof args[0] === "object" ? args[0][key] : match;
+      });
+    },
+    format_map(s, mapping) {
+      return s.replace(/\{(\w+)\}/g, (match, key) => key in mapping ? mapping[key] : match);
+    },
+    center(s, width, fillchar) {
+      const fc = fillchar || " ";
+      if (s.length >= width) return s;
+      const total = width - s.length;
+      const left = Math.floor(total / 2);
+      return fc.repeat(left) + s + fc.repeat(total - left);
+    },
+    zfill(s, width) {
+      if (s.length >= width) return s;
+      const sign = (s[0] === "+" || s[0] === "-") ? s[0] : "";
+      const body = sign ? s.slice(1) : s;
+      return sign + "0".repeat(width - s.length) + body;
+    },
+    expandtabs(s, tabsize) {
+      const ts = tabsize === undefined ? 8 : tabsize;
+      let result = "", col = 0;
+      for (const c of s) {
+        if (c === "\t") { const sp = ts - (col % ts); result += " ".repeat(sp); col += sp; }
+        else if (c === "\n" || c === "\r") { result += c; col = 0; }
+        else { result += c; col++; }
+      }
+      return result;
+    },
+    isnumeric(s) {
+      if (s.length === 0) return false;
+      return [...s].every(c => /[\d\u00B2\u00B3\u00B9\u00BC-\u00BE\u2150-\u218F]/.test(c));
+    },
+    istitle(s) {
+      return s === _jac.str.title(s) && /[A-Za-z]/.test(s);
+    },
+    translate(s, table) {
+      return [...s].map(c => {
+        const code = c.charCodeAt(0);
+        if (code in table) {
+          const v = table[code];
+          if (v === null) return "";
+          if (typeof v === "number") return String.fromCharCode(v);
+          return v;
+        }
+        return c;
+      }).join("");
+    },
+    maketrans(...args) {
+      const table = {};
+      if (args.length === 1) {
+        const mapping = args[0];
+        for (const [k, v] of Object.entries(mapping)) {
+          table[typeof k === "string" ? k.charCodeAt(0) : k] = v;
+        }
+      } else if (args.length >= 2) {
+        const from_ = args[0], to_ = args[1];
+        for (let i = 0; i < from_.length; i++) {
+          table[from_.charCodeAt(i)] = to_.charCodeAt(i);
+        }
+        if (args[2]) {
+          for (const c of args[2]) table[c.charCodeAt(0)] = null;
+        }
+      }
+      return table;
+    },
+    mod(s, args) {
+      let i = 0;
+      const a = Array.isArray(args) ? args : [args];
+      return s.replace(/%([sd%])/g, (m, fmt) => {
+        if (fmt === "%") return "%";
+        return String(a[i++]);
+      });
+    }
+  },
+
+  // Runtime-polymorphic method dispatch, used when the codegen cannot prove
+  // the static type of a method-call receiver (e.g. a `dict`-typed prop, the
+  // result of `or` widening, or a comprehension over an untyped value) and so
+  // cannot pick a typed emitter. The compiler emits
+  // `_jac.poly.call(obj, "name", ...args)`; `call` resolves the *runtime* type
+  // of `obj` and applies the matching Python operation, forwards to a
+  // same-named method on a user-defined object, or raises AttributeError. The
+  // per-type tables below carry the trivial native-mapped methods inline and
+  // delegate the non-trivial ones to the shared `_jac.str/list/dict/set`
+  // helpers, so each operation has a single implementation and no Python
+  // method name can leak verbatim into the emitted JavaScript.
+  poly: {
+    _typename(o) {
+      if (o === null || o === undefined) return "NoneType";
+      if (Array.isArray(o)) return "list";
+      if (o instanceof Set) return "set";
+      if (o instanceof Map) return "dict";
+      if (o instanceof Uint8Array) return "bytes";
+      const t = typeof o;
+      if (t === "string") return "str";
+      if (t === "boolean") return "bool";
+      if (t === "number") return Number.isInteger(o) ? "int" : "float";
+      if (t === "bigint") return "int";
+      if (t === "object") return (o.constructor && o.constructor.name) || "object";
+      return t;
+    },
+    // --- per-runtime-type Python method tables (keyed by Python name) ---
+    // Trivial native-mapped ops are inline; non-trivial ones delegate to the
+    // shared `_jac.<type>` helpers (which the typed emitters also use), so the
+    // typed and polymorphic paths share one implementation.
+    _str: {
+      lower: (s) => s.toLowerCase(),
+      upper: (s) => s.toUpperCase(),
+      casefold: (s) => s.toLowerCase(),
+      strip: (s, chars) => {
+        if (chars === undefined) return s.trim();
+        let i = 0, j = s.length;
+        while (i < j && chars.indexOf(s[i]) !== -1) i++;
+        while (j > i && chars.indexOf(s[j - 1]) !== -1) j--;
+        return s.slice(i, j);
+      },
+      lstrip: (s, chars) => {
+        if (chars === undefined) return s.replace(/^\s+/, "");
+        let i = 0;
+        while (i < s.length && chars.indexOf(s[i]) !== -1) i++;
+        return s.slice(i);
+      },
+      rstrip: (s, chars) => {
+        if (chars === undefined) return s.replace(/\s+$/, "");
+        let j = s.length;
+        while (j > 0 && chars.indexOf(s[j - 1]) !== -1) j--;
+        return s.slice(0, j);
+      },
+      join: (s, parts) => Array.from(parts, x => String(x)).join(s)
+    },
+    _list: {
+      append: (a, x) => { a.push(x); return null; },
+      clear: (a) => { a.length = 0; return null; },
+      copy: (a) => a.slice(),
+      count: (a, x) => _jac.list.count(a, x),
+      extend: (a, b) => { for (const v of b) a.push(v); return null; },
+      index: (a, x, start, end) => _jac.list.index(a, x, start, end),
+      insert: (a, i, x) => { a.splice(i, 0, x); return null; },
+      pop: (a, i) => {
+        if (i === undefined) return a.pop();
+        const idx = i < 0 ? a.length + i : i;
+        return a.splice(idx, 1)[0];
+      },
+      remove: (a, x) => _jac.list.remove(a, x),
+      reverse: (a) => { a.reverse(); return null; },
+      sort: (a, key) => _jac.list.sort(a, key)
+    },
+    _dict: {
+      clear: (o) => _jac.dict.clear(o),
+      copy: (o) => ({ ...o }),
+      // Python `dict.get`: returns the stored value when the key is present
+      // (even if it is null), and the default only when the key is absent.
+      // A membership check is required — `o[key] ?? default_` would wrongly
+      // substitute the default for a present-but-null value. The default
+      // defaults to null so a miss is a real Jac None, never undefined.
+      get: (o, key, default_ = null) => _jac.dict.get(o, key, default_),
+      items: (o) => Object.entries(o),
+      keys: (o) => Object.keys(o),
+      pop: (o, key, default_) => _jac.dict.pop(o, key, default_),
+      popitem: (o) => _jac.dict.popitem(o),
+      setdefault: (o, key, default_) => _jac.dict.setdefault(o, key, default_),
+      update: (o, other) => {
+        if (other instanceof Map) { for (const [k, v] of other) o[k] = v; }
+        else if (Array.isArray(other)) { for (const [k, v] of other) o[k] = v; }
+        else if (other) { for (const k of Object.keys(other)) o[k] = other[k]; }
+        return null;
+      },
+      values: (o) => Object.values(o)
+    },
+    _set: {
+      add: (s, x) => { s.add(x); return null; },
+      clear: (s) => { s.clear(); return null; },
+      copy: (s) => new Set(s),
+      difference: (a, b) => _jac.set.difference(a, b),
+      difference_update: (s, o) => _jac.set.difference_update(s, o),
+      discard: (s, x) => { s.delete(x); return null; },
+      intersection: (a, b) => _jac.set.intersection(a, b),
+      intersection_update: (s, o) => _jac.set.intersection_update(s, o),
+      isdisjoint: (a, b) => _jac.set.isDisjointFrom(a, b instanceof Set ? b : new Set(b)),
+      issubset: (a, b) => _jac.set.isSubsetOf(a, b instanceof Set ? b : new Set(b)),
+      issuperset: (a, b) => _jac.set.isSupersetOf(a, b instanceof Set ? b : new Set(b)),
+      pop: (s) => _jac.set.pop(s),
+      remove: (s, x) => _jac.set.remove(s, x),
+      symmetric_difference: (a, b) => _jac.set.symmetricDifference(a, b),
+      symmetric_difference_update: (s, o) => _jac.set.symmetric_difference_update(s, o),
+      union: (a, b) => _jac.set.union(a, b),
+      update: (s, o) => _jac.set.update(s, o)
+    },
+    // Jac dicts compile to plain objects, but interop code may hand us a real
+    // Map; mirror the dict methods over the Map API for that case.
+    _map: {
+      clear: (m) => { m.clear(); return null; },
+      copy: (m) => new Map(m),
+      get: (m, key, default_ = null) => (m.has(key) ? m.get(key) : default_),
+      items: (m) => [...m.entries()],
+      keys: (m) => [...m.keys()],
+      pop: (m, key, default_) => {
+        if (m.has(key)) { const v = m.get(key); m.delete(key); return v; }
+        if (default_ !== undefined) return default_;
+        throw new _jac.exc.KeyError("KeyError: " + key);
+      },
+      popitem: (m) => {
+        if (m.size === 0) throw new _jac.exc.KeyError("dictionary is empty");
+        const key = [...m.keys()].pop();
+        const val = m.get(key);
+        m.delete(key);
+        return [key, val];
+      },
+      setdefault: (m, key, default_) => {
+        if (!m.has(key)) m.set(key, default_ === undefined ? null : default_);
+        return m.get(key);
+      },
+      update: (m, other) => {
+        if (other instanceof Map) { for (const [k, v] of other) m.set(k, v); }
+        else if (Array.isArray(other)) { for (const [k, v] of other) m.set(k, v); }
+        else if (other) { for (const k of Object.keys(other)) m.set(k, other[k]); }
+        return null;
+      },
+      values: (m) => [...m.values()]
+    },
+    // Single entry point. `obj.method(...args)` on a receiver whose static
+    // type is not provably primitive is compiled to
+    // `_jac.poly.call(obj, "method", ...args)`.
+    call(o, m, ...args) {
+      // 1. Genuine JS primitives get Python-semantic dispatch: a plain object
+      //    is a Python dict, an Array is a list, a Set/Map/string/number/bytes
+      //    maps to its Python counterpart. These are the types whose Python
+      //    method semantics differ from (or have no) native JS equivalent.
+      if (typeof o === "string") {
+        if (_jac.poly._str[m]) return _jac.poly._str[m](o, ...args);
+        if (_jac.str[m]) return _jac.str[m](o, ...args);
+      } else if (typeof o === "number") {
+        const ns = Number.isInteger(o) ? _jac.int : _jac.float;
+        if (ns && ns[m]) return ns[m](o, ...args);
+      } else if (Array.isArray(o)) {
+        if (_jac.poly._list[m]) return _jac.poly._list[m](o, ...args);
+      } else if (o instanceof Set) {
+        if (_jac.poly._set[m]) return _jac.poly._set[m](o, ...args);
+      } else if (o instanceof Map) {
+        if (_jac.poly._map[m]) return _jac.poly._map[m](o, ...args);
+      } else if (o instanceof Uint8Array) {
+        if (_jac.bytes[m]) return _jac.bytes[m](o, ...args);
+      } else if (
+        o !== null && o !== undefined && typeof o === "object"
+        && (Object.getPrototypeOf(o) === Object.prototype
+            || Object.getPrototypeOf(o) === null)
+      ) {
+        // A plain object is a Python dict literal.
+        if (_jac.poly._dict[m]) return _jac.poly._dict[m](o, ...args);
+      }
+      // 2. Otherwise forward to a same-named method the receiver carries
+      //    itself: a user-defined class instance, a host/framework object
+      //    (Headers, URLSearchParams, ...), a callable with attached methods,
+      //    or a Set/Map/Array method not mirrored above. This matches the
+      //    direct `obj.method(...)` that a typed call would have emitted.
+      if (o !== null && o !== undefined && typeof o[m] === "function") {
+        return o[m](...args);
+      }
+      // 3. Nothing applies: raise the Python-style error instead of leaking a
+      //    method name or silently returning a wrong value.
+      throw new _jac.exc.AttributeError(
+        "'" + _jac.poly._typename(o) + "' object has no attribute '" + m + "'");
+    },
+    // Backward-compatible named shims. The compiler now emits `call`, but a
+    // previously-built bundle may still reference a named helper; these route
+    // it through the same dispatcher (rest params preserve the arg count).
+    lower(s, ...r) { return _jac.poly.call(s, "lower", ...r); },
+    upper(s, ...r) { return _jac.poly.call(s, "upper", ...r); },
+    strip(s, ...r) { return _jac.poly.call(s, "strip", ...r); },
+    lstrip(s, ...r) { return _jac.poly.call(s, "lstrip", ...r); },
+    rstrip(s, ...r) { return _jac.poly.call(s, "rstrip", ...r); },
+    append(a, ...r) { return _jac.poly.call(a, "append", ...r); },
+    extend(a, ...r) { return _jac.poly.call(a, "extend", ...r); },
+    pop(a, ...r) { return _jac.poly.call(a, "pop", ...r); },
+    get(o, ...r) { return _jac.poly.call(o, "get", ...r); },
+    contains(c, x) {
+      // Python-equivalent membership for a value of unknown static type.
+      // string -> substring; array (list/tuple/range) -> element;
+      // Set/Map -> key/element; plain object (dict) -> own key.
+      if (typeof c === "string") return c.includes(x);
+      if (Array.isArray(c)) return c.includes(x);
+      if (c instanceof Set || c instanceof Map) return c.has(x);
+      if (c !== null && typeof c === "object") {
+        return Object.prototype.hasOwnProperty.call(c, x);
+      }
+      return false;
+    },
+    getitem(c, i) {
+      // Subscript read for a value of unknown static type. This is a faithful
+      // superset of a raw `c[i]`: it only adds Python's negative indexing for
+      // sequences (string/array) and otherwise preserves JS semantics exactly
+      // (mapping/object access, out-of-range -> `undefined`, no new throws).
+      if (typeof i === "number" && i < 0
+          && (typeof c === "string" || Array.isArray(c))) {
+        return c[c.length + i];
+      }
+      if (c instanceof Map) return c.get(i);
+      return c[i];
+    },
+    destroy(x) {
+      // `del` on a location: destroy every graph object the value holds, if
+      // an OSP runtime is loaded at all. Walks arrays, sets, map values and
+      // plain-object values, cycle-safe, and treats everything else as a leaf.
+      const core = globalThis.__jacOspCore;
+      if (!core) return 0;
+      const seen = new Set();
+      const stack = [x];
+      let n = 0;
+      while (stack.length) {
+        const v = stack.pop();
+        if (v === null || v === undefined || typeof v !== "object") continue;
+        const h = core.H.get(v);
+        if (h !== undefined) { n += core.osp_destroy(h); core.osp_forget(h); continue; }
+        if (seen.has(v)) continue;
+        if (Array.isArray(v) || v instanceof Set) { seen.add(v); for (const e of v) stack.push(e); }
+        else if (v instanceof Map) { seen.add(v); for (const e of v.values()) stack.push(e); }
+        else if (Object.getPrototypeOf(v) === Object.prototype) { seen.add(v); for (const e of Object.values(v)) stack.push(e); }
+      }
+      return n;
+    },
+    getslice(c, start, stop, step) {
+      // The elements `c[a:b:s]` denotes, read once before `del c[a:b:s]`.
+      if (!Array.isArray(c)) return [];
+      const n = c.length;
+      const st = (step === undefined || step === null) ? 1 : step;
+      if (st === 0) return [];
+      let lo = (start === undefined || start === null) ? (st > 0 ? 0 : n - 1) : start;
+      let hi = (stop === undefined || stop === null) ? (st > 0 ? n : -n - 1) : stop;
+      if (lo < 0) lo += n;
+      if (hi < 0) hi += n;
+      const out = [];
+      if (st > 0) { for (let k = Math.max(lo, 0); k < Math.min(hi, n); k += st) out.push(c[k]); }
+      else { for (let k = Math.min(lo, n - 1); k > Math.max(hi, -1); k += st) out.push(c[k]); }
+      return out;
+    },
+    delitem(c, i) {
+      // `del c[i]`. An array splices (Python removes the element rather than
+      // leaving a hole, which a raw `delete c[i]` would), a Map deletes, and
+      // any other object drops the property. Missing keys raise, as in Python.
+      if (Array.isArray(c)) {
+        const n = c.length;
+        const k = (typeof i === "number" && i < 0) ? n + i : i;
+        if (typeof k !== "number" || k < 0 || k >= n) {
+          throw new Error("list index out of range");
+        }
+        c.splice(k, 1);
+        return;
+      }
+      if (c instanceof Map) {
+        if (!c.has(i)) throw new Error("KeyError: " + String(i));
+        c.delete(i);
+        return;
+      }
+      if (c == null || !(i in Object(c))) throw new Error("KeyError: " + String(i));
+      delete c[i];
+    },
+    delslice(c, start, stop, step) {
+      // `del c[a:b:s]`. Only sequences support slice deletion; the indices
+      // that survive are compacted down in one pass so a strided delete costs
+      // the same as a contiguous one.
+      if (!Array.isArray(c)) throw new Error("object does not support slice deletion");
+      const n = c.length;
+      const st = (step === undefined || step === null) ? 1 : step;
+      if (st === 0) throw new Error("slice step cannot be zero");
+      let lo = (start === undefined || start === null) ? (st > 0 ? 0 : n - 1) : start;
+      let hi = (stop === undefined || stop === null) ? (st > 0 ? n : -n - 1) : stop;
+      if (lo < 0) lo += n;
+      if (hi < 0) hi += n;
+      const drop = new Set();
+      if (st > 0) {
+        for (let k = Math.max(lo, 0); k < Math.min(hi, n); k += st) drop.add(k);
+      } else {
+        for (let k = Math.min(lo, n - 1); k > Math.max(hi, -1); k += st) drop.add(k);
+      }
+      let w = 0;
+      for (let r = 0; r < n; r++) { if (!drop.has(r)) c[w++] = c[r]; }
+      c.length = w;
+    },
+    setitem(c, i, v) {
+      // Subscript assignment for a value of unknown/list static type. A
+      // negative index writes the array element counted from the end (a raw
+      // JS `c[-1] = v` would instead create a bogus "-1" property); every
+      // other case behaves like a plain `c[i] = v`.
+      if (typeof i === "number" && i < 0 && Array.isArray(c)) {
+        c[c.length + i] = v;
+        return v;
+      }
+      if (c instanceof Map) { c.set(i, v); return v; }
+      c[i] = v;
+      return v;
+    },
+    and_(a, bf) {
+      // Python `a and b`: returns `a` when it is falsy, else evaluates and
+      // returns `b`. `bf` is a thunk so the right operand keeps short-circuit
+      // (lazy) evaluation, and `a` is evaluated exactly once by the caller.
+      return _jac.builtin.bool(a) ? bf() : a;
+    },
+    or_(a, bf) {
+      // Python `a or b`: returns `a` when it is truthy, else `b`.
+      return _jac.builtin.bool(a) ? a : bf();
+    }
+  },
+
+  list: {
+    remove(arr, val) {
+      const i = arr.indexOf(val);
+      if (i === -1) throw new _jac.exc.ValueError("list.remove(x): x not in list");
+      arr.splice(i, 1);
+    },
+    index(arr, val, start, end) {
+      const s = start || 0;
+      const e = end === undefined ? arr.length : end;
+      for (let i = s; i < e; i++) {
+        if (arr[i] === val) return i;
+      }
+      throw new _jac.exc.ValueError(val + " is not in list");
+    },
+    count(arr, val) {
+      let c = 0;
+      for (const item of arr) { if (item === val) c++; }
+      return c;
+    },
+    sort(arr, key) {
+      if (key) {
+        arr.sort((a, b) => {
+          const ka = key(a), kb = key(b);
+          return ka < kb ? -1 : ka > kb ? 1 : 0;
+        });
+      } else {
+        arr.sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
+      }
+    },
+    repeat(arr, n) {
+      const result = [];
+      for (let i = 0; i < n; i++) result.push(...arr);
+      return result;
+    },
+    eq(a, b) { return _jac.fw.stringify(a) === _jac.fw.stringify(b); },
+    lt(a, b) {
+      for (let i = 0; i < Math.min(a.length, b.length); i++) {
+        if (a[i] < b[i]) return true;
+        if (a[i] > b[i]) return false;
+      }
+      return a.length < b.length;
+    },
+    gt(a, b) { return _jac.list.lt(b, a); },
+    le(a, b) { return _jac.list.eq(a, b) || _jac.list.lt(a, b); },
+    ge(a, b) { return _jac.list.eq(a, b) || _jac.list.gt(a, b); },
+    imul(arr, n) {
+      const orig = [...arr];
+      arr.length = 0;
+      for (let i = 0; i < n; i++) arr.push(...orig);
+      return arr;
+    }
+  },
+
+  dict: {
+    get(d, key, default_ = null) {
+      return Object.prototype.hasOwnProperty.call(d, key) ? d[key] : default_;
+    },
+    pop(d, key, default_) {
+      if (key in d) { const v = d[key]; delete d[key]; return v; }
+      if (default_ !== undefined) return default_;
+      throw new _jac.exc.KeyError("KeyError: " + key);
+    },
+    popitem(d) {
+      const keys = Object.keys(d);
+      if (keys.length === 0) throw new _jac.exc.KeyError("dictionary is empty");
+      const key = keys[keys.length - 1];
+      const val = d[key];
+      delete d[key];
+      return [key, val];
+    },
+    setdefault(d, key, default_) {
+      if (!(key in d)) d[key] = default_ === undefined ? null : default_;
+      return d[key];
+    },
+    clear(d) {
+      for (const key of Object.keys(d)) delete d[key];
+    },
+    fromkeys(keys, value) {
+      const d = {};
+      const v = value === undefined ? null : value;
+      for (const k of keys) d[k] = v;
+      return d;
+    },
+    eq(a, b) {
+      const ka = Object.keys(a), kb = Object.keys(b);
+      if (ka.length !== kb.length) return false;
+      for (const k of ka) {
+        if (!(k in b)) return false;
+        const va = a[k], vb = b[k];
+        if (va !== vb) {
+          if (typeof va === "object" && typeof vb === "object" && va !== null && vb !== null) {
+            if (_jac.fw.stringify(va) !== _jac.fw.stringify(vb)) return false;
+          } else return false;
+        }
+      }
+      return true;
+    }
+  },
+
+  set: {
+    remove(s, val) {
+      if (!s.has(val)) throw new _jac.exc.KeyError("KeyError: " + val);
+      s.delete(val);
+    },
+    pop(s) {
+      if (s.size === 0) throw new _jac.exc.KeyError("pop from an empty set");
+      const val = s.values().next().value;
+      s.delete(val);
+      return val;
+    },
+    update(s, other) { for (const v of other) s.add(v); },
+    intersection_update(s, other) {
+      const otherSet = other instanceof Set ? other : new Set(other);
+      for (const v of s) { if (!otherSet.has(v)) s.delete(v); }
+    },
+    difference_update(s, other) {
+      for (const v of other) s.delete(v);
+    },
+    symmetric_difference_update(s, other) {
+      for (const v of other) { if (s.has(v)) s.delete(v); else s.add(v); }
+    },
+    union(a, b) {
+      const r = new Set(a);
+      for (const v of b) r.add(v);
+      return r;
+    },
+    intersection(a, b) {
+      const bs = b instanceof Set ? b : new Set(b);
+      const r = new Set();
+      for (const v of a) { if (bs.has(v)) r.add(v); }
+      return r;
+    },
+    difference(a, b) {
+      const bs = b instanceof Set ? b : new Set(b);
+      const r = new Set();
+      for (const v of a) { if (!bs.has(v)) r.add(v); }
+      return r;
+    },
+    symmetricDifference(a, b) {
+      const r = new Set(a);
+      for (const v of b) { if (r.has(v)) r.delete(v); else r.add(v); }
+      return r;
+    },
+    isSubsetOf(a, b) {
+      if (a.size > b.size) return false;
+      for (const v of a) { if (!b.has(v)) return false; }
+      return true;
+    },
+    isSupersetOf(a, b) { return _jac.set.isSubsetOf(b, a); },
+    isDisjointFrom(a, b) {
+      for (const v of a) { if (b.has(v)) return false; }
+      return true;
+    },
+    is_proper_subset(a, b) {
+      if (a.size >= b.size) return false;
+      for (const v of a) { if (!b.has(v)) return false; }
+      return true;
+    },
+    is_proper_superset(a, b) { return _jac.set.is_proper_subset(b, a); },
+    eq(a, b) {
+      if (a.size !== b.size) return false;
+      for (const v of a) { if (!b.has(v)) return false; }
+      return true;
+    }
+  },
+
+  bytes: {
+    hex(b) {
+      return Array.from(b).map(x => x.toString(16).padStart(2, "0")).join("");
+    },
+    fromhex(s) {
+      const arr = [];
+      const clean = s.replace(/\s/g, "");
+      for (let i = 0; i < clean.length; i += 2) arr.push(parseInt(clean.substr(i, 2), 16));
+      return new Uint8Array(arr);
+    },
+    _indexOf(b, sub, start, end) {
+      const s = start || 0;
+      const e = end === undefined ? b.length : end;
+      const sl = sub.length;
+      if (sl === 0) return s;
+      for (let i = s; i <= e - sl; i++) {
+        let m = true;
+        for (let j = 0; j < sl; j++) { if (b[i + j] !== sub[j]) { m = false; break; } }
+        if (m) return i;
+      }
+      return -1;
+    },
+    _lastIndexOf(b, sub, start, end) {
+      const s = start || 0;
+      const e = end === undefined ? b.length : end;
+      const sl = sub.length;
+      if (sl === 0) return e;
+      for (let i = e - sl; i >= s; i--) {
+        let m = true;
+        for (let j = 0; j < sl; j++) { if (b[i + j] !== sub[j]) { m = false; break; } }
+        if (m) return i;
+      }
+      return -1;
+    },
+    count(b, sub) {
+      let c = 0, p = 0;
+      while (p <= b.length - sub.length) {
+        const idx = _jac.bytes._indexOf(b, sub, p);
+        if (idx === -1) break;
+        c++; p = idx + sub.length;
+      }
+      return c;
+    },
+    find(b, sub, start, end) { return _jac.bytes._indexOf(b, sub, start, end); },
+    rfind(b, sub, start, end) { return _jac.bytes._lastIndexOf(b, sub, start, end); },
+    index(b, sub, start, end) {
+      const idx = _jac.bytes._indexOf(b, sub, start, end);
+      if (idx === -1) throw new _jac.exc.ValueError("substring not found");
+      return idx;
+    },
+    rindex(b, sub, start, end) {
+      const idx = _jac.bytes._lastIndexOf(b, sub, start, end);
+      if (idx === -1) throw new _jac.exc.ValueError("substring not found");
+      return idx;
+    },
+    startswith(b, prefix, start, end) {
+      const s = start || 0;
+      if (prefix.length > b.length - s) return false;
+      for (let i = 0; i < prefix.length; i++) { if (b[s + i] !== prefix[i]) return false; }
+      return true;
+    },
+    endswith(b, suffix, start, end) {
+      const e = end === undefined ? b.length : end;
+      if (suffix.length > e) return false;
+      const off = e - suffix.length;
+      for (let i = 0; i < suffix.length; i++) { if (b[off + i] !== suffix[i]) return false; }
+      return true;
+    },
+    replace(b, old_, new_, count) {
+      const r = [];
+      let pos = 0, n = 0;
+      const max = count === undefined ? Infinity : count;
+      while (pos <= b.length) {
+        if (n < max) {
+          const idx = _jac.bytes._indexOf(b, old_, pos);
+          if (idx !== -1) {
+            for (let i = pos; i < idx; i++) r.push(b[i]);
+            for (let i = 0; i < new_.length; i++) r.push(new_[i]);
+            pos = idx + old_.length; n++;
+            continue;
+          }
+        }
+        for (let i = pos; i < b.length; i++) r.push(b[i]);
+        break;
+      }
+      return new Uint8Array(r);
+    },
+    _isWS(c) { return c === 32 || c === 9 || c === 10 || c === 13 || c === 11 || c === 12; },
+    strip(b, chars) {
+      let s = 0, e = b.length;
+      if (chars) { const cs = new Set(chars); while (s < e && cs.has(b[s])) s++; while (e > s && cs.has(b[e-1])) e--; }
+      else { while (s < e && _jac.bytes._isWS(b[s])) s++; while (e > s && _jac.bytes._isWS(b[e-1])) e--; }
+      return b.slice(s, e);
+    },
+    lstrip(b, chars) {
+      let s = 0;
+      if (chars) { const cs = new Set(chars); while (s < b.length && cs.has(b[s])) s++; }
+      else { while (s < b.length && _jac.bytes._isWS(b[s])) s++; }
+      return b.slice(s);
+    },
+    rstrip(b, chars) {
+      let e = b.length;
+      if (chars) { const cs = new Set(chars); while (e > 0 && cs.has(b[e-1])) e--; }
+      else { while (e > 0 && _jac.bytes._isWS(b[e-1])) e--; }
+      return b.slice(0, e);
+    },
+    removeprefix(b, prefix) {
+      if (_jac.bytes.startswith(b, prefix)) return b.slice(prefix.length);
+      return b.slice();
+    },
+    removesuffix(b, suffix) {
+      if (suffix.length > 0 && _jac.bytes.endswith(b, suffix)) return b.slice(0, b.length - suffix.length);
+      return b.slice();
+    },
+    split(b, sep, maxsplit) {
+      const parts = [];
+      let pos = 0, n = 0;
+      const max = maxsplit === undefined ? Infinity : maxsplit;
+      while (pos <= b.length) {
+        if (n >= max) { parts.push(b.slice(pos)); return parts; }
+        const idx = _jac.bytes._indexOf(b, sep, pos);
+        if (idx === -1) { parts.push(b.slice(pos)); return parts; }
+        parts.push(b.slice(pos, idx));
+        pos = idx + sep.length; n++;
+      }
+      if (pos <= b.length) parts.push(b.slice(pos));
+      return parts;
+    },
+    rsplit(b, sep, maxsplit) {
+      if (maxsplit === undefined) return _jac.bytes.split(b, sep);
+      const parts = [];
+      let end = b.length, n = 0;
+      while (end >= 0 && n < maxsplit) {
+        const idx = _jac.bytes._lastIndexOf(b, sep, 0, end);
+        if (idx === -1) break;
+        parts.unshift(b.slice(idx + sep.length, end));
+        end = idx; n++;
+      }
+      parts.unshift(b.slice(0, end));
+      return parts;
+    },
+    splitlines(b, keepends) {
+      const result = [];
+      let start = 0;
+      for (let i = 0; i < b.length; i++) {
+        if (b[i] === 10 || b[i] === 13) {
+          let eol = i + 1;
+          if (b[i] === 13 && i + 1 < b.length && b[i + 1] === 10) eol++;
+          result.push(keepends ? b.slice(start, eol) : b.slice(start, i));
+          start = eol;
+          if (eol > i + 1) i++;
+        }
+      }
+      if (start < b.length) result.push(b.slice(start));
+      return result;
+    },
+    join(sep, parts) {
+      if (parts.length === 0) return new Uint8Array(0);
+      const r = [];
+      for (let i = 0; i < parts.length; i++) {
+        if (i > 0) for (const x of sep) r.push(x);
+        for (const x of parts[i]) r.push(x);
+      }
+      return new Uint8Array(r);
+    },
+    partition(b, sep) {
+      const idx = _jac.bytes._indexOf(b, sep);
+      if (idx === -1) return [b.slice(), new Uint8Array(0), new Uint8Array(0)];
+      return [b.slice(0, idx), sep.slice(), b.slice(idx + sep.length)];
+    },
+    rpartition(b, sep) {
+      const idx = _jac.bytes._lastIndexOf(b, sep);
+      if (idx === -1) return [new Uint8Array(0), new Uint8Array(0), b.slice()];
+      return [b.slice(0, idx), sep.slice(), b.slice(idx + sep.length)];
+    },
+    _isUp(c) { return c >= 65 && c <= 90; },
+    _isLo(c) { return c >= 97 && c <= 122; },
+    _isAl(c) { return (c >= 65 && c <= 90) || (c >= 97 && c <= 122); },
+    _isDig(c) { return c >= 48 && c <= 57; },
+    capitalize(b) {
+      if (b.length === 0) return new Uint8Array(0);
+      const r = new Uint8Array(b.length);
+      r[0] = _jac.bytes._isLo(b[0]) ? b[0] - 32 : b[0];
+      for (let i = 1; i < b.length; i++) r[i] = _jac.bytes._isUp(b[i]) ? b[i] + 32 : b[i];
+      return r;
+    },
+    lower(b) {
+      const r = new Uint8Array(b.length);
+      for (let i = 0; i < b.length; i++) r[i] = _jac.bytes._isUp(b[i]) ? b[i] + 32 : b[i];
+      return r;
+    },
+    upper(b) {
+      const r = new Uint8Array(b.length);
+      for (let i = 0; i < b.length; i++) r[i] = _jac.bytes._isLo(b[i]) ? b[i] - 32 : b[i];
+      return r;
+    },
+    title(b) {
+      const r = new Uint8Array(b.length);
+      let prev = false;
+      for (let i = 0; i < b.length; i++) {
+        if (_jac.bytes._isAl(b[i])) {
+          r[i] = prev ? (_jac.bytes._isUp(b[i]) ? b[i] + 32 : b[i]) : (_jac.bytes._isLo(b[i]) ? b[i] - 32 : b[i]);
+          prev = true;
+        } else { r[i] = b[i]; prev = false; }
+      }
+      return r;
+    },
+    swapcase(b) {
+      const r = new Uint8Array(b.length);
+      for (let i = 0; i < b.length; i++) {
+        if (_jac.bytes._isUp(b[i])) r[i] = b[i] + 32;
+        else if (_jac.bytes._isLo(b[i])) r[i] = b[i] - 32;
+        else r[i] = b[i];
+      }
+      return r;
+    },
+    center(b, width, fb) {
+      const f = fb || 32;
+      if (b.length >= width) return b.slice();
+      const total = width - b.length;
+      const left = Math.floor(total / 2);
+      const r = new Uint8Array(width);
+      r.fill(f, 0, left); r.set(b, left); r.fill(f, left + b.length);
+      return r;
+    },
+    ljust(b, width, fb) {
+      const f = fb || 32;
+      if (b.length >= width) return b.slice();
+      const r = new Uint8Array(width);
+      r.set(b); r.fill(f, b.length);
+      return r;
+    },
+    rjust(b, width, fb) {
+      const f = fb || 32;
+      if (b.length >= width) return b.slice();
+      const r = new Uint8Array(width);
+      const off = width - b.length;
+      r.fill(f, 0, off); r.set(b, off);
+      return r;
+    },
+    zfill(b, width) {
+      if (b.length >= width) return b.slice();
+      const r = new Uint8Array(width);
+      let off = 0;
+      if (b.length > 0 && (b[0] === 43 || b[0] === 45)) { r[0] = b[0]; off = 1; }
+      const pad = width - b.length;
+      r.fill(48, off, off + pad);
+      for (let i = off; i < b.length; i++) r[pad + i] = b[i];
+      return r;
+    },
+    expandtabs(b, tabsize) {
+      const ts = tabsize === undefined ? 8 : tabsize;
+      const r = [];
+      let col = 0;
+      for (let i = 0; i < b.length; i++) {
+        if (b[i] === 9) { const sp = ts - (col % ts); for (let j = 0; j < sp; j++) r.push(32); col += sp; }
+        else if (b[i] === 10 || b[i] === 13) { r.push(b[i]); col = 0; }
+        else { r.push(b[i]); col++; }
+      }
+      return new Uint8Array(r);
+    },
+    translate(b, table, del_) {
+      const r = [];
+      const ds = del_ ? new Set(del_) : null;
+      for (let i = 0; i < b.length; i++) {
+        if (ds && ds.has(b[i])) continue;
+        r.push(table && table[b[i]] !== undefined ? table[b[i]] : b[i]);
+      }
+      return new Uint8Array(r);
+    },
+    maketrans(from_, to_) {
+      const t = new Uint8Array(256);
+      for (let i = 0; i < 256; i++) t[i] = i;
+      for (let i = 0; i < from_.length; i++) t[from_[i]] = to_[i];
+      return t;
+    },
+    isalnum(b) {
+      if (b.length === 0) return false;
+      for (let i = 0; i < b.length; i++) if (!_jac.bytes._isAl(b[i]) && !_jac.bytes._isDig(b[i])) return false;
+      return true;
+    },
+    isalpha(b) {
+      if (b.length === 0) return false;
+      for (let i = 0; i < b.length; i++) if (!_jac.bytes._isAl(b[i])) return false;
+      return true;
+    },
+    isascii(b) {
+      for (let i = 0; i < b.length; i++) if (b[i] > 127) return false;
+      return true;
+    },
+    isdigit(b) {
+      if (b.length === 0) return false;
+      for (let i = 0; i < b.length; i++) if (!_jac.bytes._isDig(b[i])) return false;
+      return true;
+    },
+    islower(b) {
+      let has = false;
+      for (let i = 0; i < b.length; i++) {
+        if (_jac.bytes._isUp(b[i])) return false;
+        if (_jac.bytes._isLo(b[i])) has = true;
+      }
+      return has;
+    },
+    isupper(b) {
+      let has = false;
+      for (let i = 0; i < b.length; i++) {
+        if (_jac.bytes._isLo(b[i])) return false;
+        if (_jac.bytes._isUp(b[i])) has = true;
+      }
+      return has;
+    },
+    isspace(b) {
+      if (b.length === 0) return false;
+      for (let i = 0; i < b.length; i++) if (!_jac.bytes._isWS(b[i])) return false;
+      return true;
+    },
+    istitle(b) {
+      let prev = false, has = false;
+      for (let i = 0; i < b.length; i++) {
+        if (_jac.bytes._isUp(b[i])) { if (prev) return false; prev = true; has = true; }
+        else if (_jac.bytes._isLo(b[i])) { if (!prev) return false; prev = true; has = true; }
+        else prev = false;
+      }
+      return has;
+    },
+    add(a, b) {
+      const r = new Uint8Array(a.length + b.length);
+      r.set(a); r.set(b, a.length);
+      return r;
+    },
+    mul(b, n) {
+      const r = new Uint8Array(b.length * n);
+      for (let i = 0; i < n; i++) r.set(b, i * b.length);
+      return r;
+    },
+    mod(b, args) {
+      const s = new TextDecoder().decode(b);
+      return new TextEncoder().encode(_jac.str.mod(s, args));
+    },
+    eq(a, b) {
+      if (a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+      return true;
+    },
+    lt(a, b) {
+      for (let i = 0; i < Math.min(a.length, b.length); i++) {
+        if (a[i] < b[i]) return true;
+        if (a[i] > b[i]) return false;
+      }
+      return a.length < b.length;
+    },
+    gt(a, b) { return _jac.bytes.lt(b, a); },
+    le(a, b) { return _jac.bytes.eq(a, b) || _jac.bytes.lt(a, b); },
+    ge(a, b) { return _jac.bytes.eq(a, b) || _jac.bytes.gt(a, b); },
+    contains(b, sub) { return _jac.bytes._indexOf(b, sub) !== -1; }
+  },
+
+  tuple: {
+    count(arr, val) { return _jac.list.count(arr, val); },
+    index(arr, val, start, end) { return _jac.list.index(arr, val, start, end); },
+    repeat(arr, n) { return _jac.list.repeat(arr, n); },
+    eq(a, b) { return _jac.list.eq(a, b); },
+    lt(a, b) { return _jac.list.lt(a, b); },
+    gt(a, b) { return _jac.list.gt(a, b); },
+    le(a, b) { return _jac.list.le(a, b); },
+    ge(a, b) { return _jac.list.ge(a, b); }
+  },
+
+  range: {
+    count(r, val) {
+      if (typeof r[Symbol.iterator] === "function") {
+        let c = 0;
+        for (const v of r) { if (v === val) c++; }
+        return c;
+      }
+      return 0;
+    },
+    index(r, val) {
+      let i = 0;
+      for (const v of r) { if (v === val) return i; i++; }
+      throw new _jac.exc.ValueError(val + " is not in range");
+    },
+    eq(a, b) {
+      if (a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i++) { if (a[i] !== b[i]) return false; }
+      return true;
+    },
+    contains(r, val) {
+      for (const v of r) { if (v === val) return true; }
+      return false;
+    }
+  },
+
+  // Builtin types as first-class values -- `map(int, xs)`, `key=str`,
+  // `f = int`, `[str, int]`.  In Python `int` is a single object playing two
+  // roles, so it lowers to a single object here too: a callable whose body is
+  // generated from the same emitters the direct-call path uses (so
+  // `f = int; f(x)` can never drift from `int(x)`), carrying the
+  // `__jac_type__` tag that isinstance/issubclass compare against.
+  types: __JAC_TYPES_RUNTIME__,
+
+  builtin: {
+    round(n, ndigits) {
+      if (ndigits === undefined) return Math.round(n);
+      const f = Math.pow(10, ndigits);
+      return Math.round(n * f) / f;
+    },
+    sum(iterable, start) {
+      let total = start || 0;
+      for (const v of iterable) total += v;
+      return total;
+    },
+    sorted(iterable, key, reverse) {
+      const arr = [..._jac.builtin.iter(iterable)];
+      if (key) {
+        arr.sort((a, b) => {
+          const ka = key(a), kb = key(b);
+          return ka < kb ? -1 : ka > kb ? 1 : 0;
+        });
+      } else {
+        arr.sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
+      }
+      if (reverse) arr.reverse();
+      return arr;
+    },
+    enumerate(iterable, start) {
+      iterable = _jac.builtin.iter(iterable);
+      const s = start || 0;
+      return [...iterable].map((v, i) => [s + i, v]);
+    },
+    zip(...iterables) {
+      const arrays = iterables.map(it => [...it]);
+      const len = Math.min(...arrays.map(a => a.length));
+      const result = [];
+      for (let i = 0; i < len; i++) {
+        result.push(arrays.map(a => a[i]));
+      }
+      return result;
+    },
+    map(fn, ...iterables) {
+      // Python hands the callback exactly one element per iterable, while JS's
+      // `Array.prototype.map` would also hand it (index, array) -- which a
+      // two-arity callable like `int(x, base)` reads as a radix.
+      if (iterables.length === 1) return [...iterables[0]].map((v) => fn(v));
+      const arrays = iterables.map(it => [...it]);
+      const len = Math.min(...arrays.map(a => a.length));
+      const result = [];
+      for (let i = 0; i < len; i++) {
+        result.push(fn(...arrays.map(a => a[i])));
+      }
+      return result;
+    },
+    filter(fn, iterable) {
+      return [...iterable].filter((v) => fn ? fn(v) : v);
+    },
+    // The Python type of a builtin-type value, as a tag string.  A builtin type
+    // reaches classinfo position in either of the two spellings the compiler
+    // emits: the runtime type object (`_jac.types.int`, which carries the tag)
+    // or the bare tag itself (an erased annotation, or `_typename` output).
+    _typeTag(t) {
+      return (t !== null && t !== undefined && t.__jac_type__) || t;
+    },
+    // Python subclass relation over builtin-type tags. `object` is the
+    // universal base and `bool` is a subclass of `int`; `tuple` and `frozenset`
+    // share JS representations with `list`/`set`, so fold those aliases to
+    // their runtime tag first. One source of truth so isinstance and issubclass
+    // can never disagree.
+    _tagSubclass(subTag, superTag) {
+      const fold = (t) => {
+        const tag = _jac.builtin._typeTag(t);
+        return tag === "tuple" ? "list" : tag === "frozenset" ? "set" : tag;
+      };
+      const sub = fold(subTag), sup = fold(superTag);
+      if (sup === "object") return true;
+      if (sub === sup) return true;
+      if (sup === "int" && sub === "bool") return true;
+      return false;
+    },
+    isinstance(o, classinfo) {
+      // isinstance(x, (A, B, ...)) -- the tuple of types lowers to a JS array;
+      // match if `o` is an instance of any member.
+      if (Array.isArray(classinfo)) {
+        for (const c of classinfo) {
+          if (_jac.builtin.isinstance(o, c)) return true;
+        }
+        return false;
+      }
+      // Builtin type: compare the value's runtime type against its tag via the
+      // shared subclass relation.  Checked before the constructor branch --
+      // a type object is a callable too, and `o instanceof int` is meaningless.
+      const tag = _jac.builtin._typeTag(classinfo);
+      if (typeof tag === "string") {
+        return _jac.builtin._tagSubclass(_jac.poly._typename(o), tag);
+      }
+      // User archetype / JS constructor.
+      if (typeof classinfo === "function") return o instanceof classinfo;
+      return false;
+    },
+    issubclass(cls, classinfo) {
+      if (Array.isArray(classinfo)) {
+        for (const c of classinfo) {
+          if (_jac.builtin.issubclass(cls, c)) return true;
+        }
+        return false;
+      }
+      // When either side names a builtin type, compare by the shared subclass
+      // relation (covers `object`, `bool` ⊂ `int`, and identity).
+      const subTag = _jac.builtin._typeTag(cls);
+      const supTag = _jac.builtin._typeTag(classinfo);
+      if (typeof subTag === "string" || typeof supTag === "string") {
+        return _jac.builtin._tagSubclass(subTag, supTag);
+      }
+      if (cls === classinfo) return true;
+      let proto = cls;
+      while (proto) {
+        if (proto === classinfo) return true;
+        proto = Object.getPrototypeOf(proto);
+      }
+      return false;
+    },
+    id(o) {
+      if (o === null || o === undefined) return 0;
+      if (typeof o === "number") return o;
+      return typeof o === "string" ? _jac.builtin._strHash(o) : 0;
+    },
+    _strHash(s) {
+      let h = 0;
+      for (let i = 0; i < s.length; i++) {
+        h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+      }
+      return h;
+    },
+    jid(obj) {
+      if (obj === null || obj === undefined) {
+        throw new _jac.exc.TypeError(
+          "jid() called on " + String(obj)
+          + " -- the server may have returned an error instead of a node."
+          + " Check that your endpoint returned successfully before using jid()."
+        );
+      }
+      if (obj._jac_id === undefined) {
+        throw new _jac.exc.TypeError(
+          "jid() expected a node or edge with graph identity, but received "
+          + (typeof obj === "object" ? JSON.stringify(Object.keys(obj)) : typeof obj)
+          + ". Only node and edge archetypes have a jid."
+        );
+      }
+      return obj._jac_id;
+    },
+    // unsafe_html(x) returns a sentinel object that the JSX flattener
+    // recognises and renders as raw HTML via dangerouslySetInnerHTML.
+    // Named "unsafe" so the security implication is visible at the use site.
+    unsafe_html(html) {
+      return { __jacUnsafeHtml: String(html == null ? "" : html) };
+    },
+    hash(obj) { return _jac.builtin.id(obj); },
+    repr(obj) { return _jac.fw.stringify(obj); },
+    pow(base, exp, mod) {
+      let result = Math.pow(base, exp);
+      if (mod !== undefined) result = ((result % mod) + mod) % mod;
+      return result;
+    },
+    next(iter, default_) {
+      const result = iter.next();
+      if (result.done) {
+        if (default_ !== undefined) return default_;
+        throw new _jac.exc.StopIteration("StopIteration");
+      }
+      return result.value;
+    },
+    vars(o) {
+      if (o === undefined) return {};
+      const result = {};
+      for (const [k, v] of Object.entries(o)) {
+        if (typeof v !== "function") result[k] = v;
+      }
+      return result;
+    },
+    dir(o) {
+      if (o === undefined) return [];
+      return Object.getOwnPropertyNames(o).sort();
+    },
+    open() { throw new _jac.exc.OSError("open() is not supported in client-side JavaScript"); },
+    format(value, format_spec) {
+      if (!format_spec) return String(value);
+      return String(value);
+    },
+    ascii(obj) {
+      if (typeof obj === "string") {
+        let r = "'";
+        for (const c of obj) {
+          const code = c.charCodeAt(0);
+          if (c === "\\") r += "\\\\";
+          else if (c === "'") r += "\\'";
+          else if (code >= 0x20 && code <= 0x7e) r += c;
+          else if (code < 0x100) r += "\\x" + code.toString(16).padStart(2, "0");
+          else r += "\\u" + code.toString(16).padStart(4, "0");
+        }
+        return r + "'";
+      }
+      return String(obj);
+    },
+    complex(re, im) { return {re: re || 0, im: im || 0}; },
+    bool(x) {
+      if (x === null || x === undefined || x === false || x === 0 || x === "" || Number.isNaN(x)) return false;
+      if (Array.isArray(x)) return x.length > 0;
+      if (x instanceof Set || x instanceof Map) return x.size > 0;
+      if (typeof x === "object") return Object.keys(x).length > 0;
+      return true;
+    },
+    float(x) {
+      if (typeof x === "bigint") return Number(x);
+      if (typeof x === "number") return x;
+      if (typeof x === "boolean") return x ? 1 : 0;
+      if (typeof x === "string") {
+        const s = x.trim().toLowerCase();
+        if (/^[+-]?(infinity|inf)$/.test(s)) return s[0] === "-" ? -Infinity : Infinity;
+        if (/^[+-]?nan$/.test(s)) return NaN;
+        const n = (s === "" || /[x]/.test(s)) ? NaN : Number(s);
+        if (Number.isNaN(n)) throw new _jac.exc.ValueError("could not convert string to float: '" + x + "'");
+        return n;
+      }
+      throw new _jac.exc.TypeError("float() argument must be a string or a real number, not '" + _jac.poly._typename(x) + "'");
+    },
+    int(x, base) {
+      if (base !== undefined && base !== null) {
+        if (typeof x !== "string") throw new _jac.exc.TypeError("int() can't convert non-string with explicit base");
+        let s = x.trim().toLowerCase();
+        let sign = 1;
+        if (s[0] === "+" || s[0] === "-") { if (s[0] === "-") sign = -1; s = s.slice(1); }
+        if (base === 16 && s.startsWith("0x")) s = s.slice(2);
+        if (base === 8 && s.startsWith("0o")) s = s.slice(2);
+        if (base === 2 && s.startsWith("0b")) s = s.slice(2);
+        const digits = "0123456789abcdefghijklmnopqrstuvwxyz".slice(0, base);
+        if (s === "" || [...s].some((c) => digits.indexOf(c) === -1)) {
+          throw new _jac.exc.ValueError("invalid literal for int() with base " + base + ": '" + x + "'");
+        }
+        return sign * parseInt(s, base);
+      }
+      if (typeof x === "number") return Math.trunc(x);
+      if (typeof x === "bigint") return Number(x);
+      if (typeof x === "boolean") return x ? 1 : 0;
+      if (typeof x === "string") {
+        const s = x.trim();
+        if (!/^[+-]?[0-9]+$/.test(s)) throw new _jac.exc.ValueError("invalid literal for int() with base 10: '" + x + "'");
+        return parseInt(s, 10);
+      }
+      throw new _jac.exc.TypeError("int() argument must be a string or a number, not '" + _jac.poly._typename(x) + "'");
+    },
+    iter(x) {
+      if (x === null || x === undefined) return [];
+      if (x instanceof Map) return Array.from(x.keys());
+      if (typeof x === "object" && !Array.isArray(x) && !(Symbol.iterator in Object(x))) {
+        return Object.keys(x);
+      }
+      return x;
+    },
+    dict(x) {
+      if (x === null || x === undefined) return {};
+      if (x instanceof Map) return Object.fromEntries(x);
+      if (typeof x === "object" && !Array.isArray(x) && !(Symbol.iterator in Object(x))) {
+        return {...x};
+      }
+      return Object.fromEntries(x);
+    },
+    len(x) {
+      if (x === null || x === undefined) throw new _jac.exc.TypeError("object has no len()");
+      if (typeof x === "string" || Array.isArray(x)) return x.length;
+      if (x instanceof Set || x instanceof Map) return x.size;
+      if (typeof x.length === "number") return x.length;
+      if (typeof x === "object") return Object.keys(x).length;
+      throw new _jac.exc.TypeError("object of type '" + typeof x + "' has no len()");
+    },
+    range(...args) {
+      let start, stop, step;
+      if (args.length === 1) { start = 0; stop = args[0]; step = 1; }
+      else if (args.length === 2) { start = args[0]; stop = args[1]; step = 1; }
+      else { start = args[0]; stop = args[1]; step = args[2]; }
+      if (step === 0) throw new _jac.exc.ValueError("range() arg 3 must not be zero");
+      const result = [];
+      if (step > 0) { for (let i = start; i < stop; i += step) result.push(i); }
+      else { for (let i = start; i > stop; i += step) result.push(i); }
+      return result;
+    },
+    slice(...args) {
+      if (args.length === 1) return { start: null, stop: args[0], step: null };
+      return { start: args[0] !== undefined ? args[0] : null, stop: args[1] !== undefined ? args[1] : null, step: args[2] !== undefined ? args[2] : null };
+    },
+    format(value, format_spec) {
+      if (!format_spec || format_spec === "") return String(value);
+      const m = format_spec.match(/^([<>^]?)(\d+)?(?:\.(\d+))?([dfseboxXn%]?)$/);
+      if (!m) return String(value);
+      const [, align, widthStr, precStr, ftype] = m;
+      let s;
+      const prec = precStr !== undefined ? parseInt(precStr) : undefined;
+      if (ftype === "f" || ftype === "") {
+        s = prec !== undefined ? Number(value).toFixed(prec) : String(value);
+      } else if (ftype === "d") {
+        s = String(Math.floor(Number(value)));
+      } else if (ftype === "b") {
+        s = Number(value).toString(2);
+      } else if (ftype === "o") {
+        s = Number(value).toString(8);
+      } else if (ftype === "x") {
+        s = Number(value).toString(16);
+      } else if (ftype === "X") {
+        s = Number(value).toString(16).toUpperCase();
+      } else if (ftype === "e") {
+        s = prec !== undefined ? Number(value).toExponential(prec) : Number(value).toExponential();
+      } else if (ftype === "%") {
+        s = (prec !== undefined ? (Number(value) * 100).toFixed(prec) : (Number(value) * 100).toFixed(6)) + "%";
+      } else if (ftype === "s" || ftype === "n") {
+        s = String(value);
+      } else {
+        s = String(value);
+      }
+      if (widthStr) {
+        const width = parseInt(widthStr);
+        if (s.length < width) {
+          const pad = " ".repeat(width - s.length);
+          if (align === "<") s = s + pad;
+          else if (align === "^") {
+            const left = Math.floor((width - s.length) / 2);
+            s = " ".repeat(left) + s + " ".repeat(width - s.length - left);
+          }
+          else s = pad + s;
+        }
+      }
+      return s;
+    }
+  },
+
+  fw: __JAC_FW_RUNTIME__,
+
+  exc: __JAC_EXC_RUNTIME__
+}""",
+     _JS_RESERVED_EXC_NAMES: set[str] = {"TypeError", "ReferenceError"};
+
+def _build_exc_runtime_js -> str {
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+    lines: list[str] = ["(() => {"];
+    exports: list[str] = [];
+    for (name, parent) in JAC_TYPE_REGISTRY.exception_entries() {
+        local = (name + "_") if name in _JS_RESERVED_EXC_NAMES else name;
+        parent_local = (
+            "Error"
+                if parent is None
+                else ((parent + "_") if parent in _JS_RESERVED_EXC_NAMES else parent)
+        );
+        lines.append(
+            "    class "
+                + local
+                + " extends "
+                + parent_local
+                + " { constructor(m) { super(m); this.name = '"
+                + name
+                + "'; } }"
+        );
+        exports.append(
+            (name + ": " + local) if name in _JS_RESERVED_EXC_NAMES else name
+        );
+    }
+    lines.append("    const _all = { " + ", ".join(exports) + " };");
+
+    lines.append("    function matches(e, name) {");
+    lines.append("      if (name === 'BaseException') return true;");
+    lines.append(
+        "      if (name === 'Exception') return (e instanceof _all.Exception) || !(e instanceof _all.BaseException);"
+    );
+    lines.append("      const cls = _all[name];");
+    lines.append("      return cls ? (e instanceof cls) : false;");
+    lines.append("    }");
+    lines.append("    return Object.assign(_all, { matches });");
+    lines.append("  })()");
+    return "\n".join(lines);
+}
+
+def _build_types_runtime_js -> str {
+    import from jaclang.compiler.frontend.constant { TOKEN_MAP }
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+    import from jaclang.compiler.backends.es.es_unparse { JSCodeGenerator }
+    import from jaclang.compiler.backends.es.primitives_es {
+        ESBuiltinEmitter,
+        ESEmitCtx
+    }
+    emitter = ESBuiltinEmitter();
+    ctx = ESEmitCtx(unparser=JSCodeGenerator());
+    entries: list[str] = [];
+    for (tok, name) in sorted(TOKEN_MAP.items()) {
+        if not tok.startswith("TYP_") {
+            continue;
+        }
+        emit_fn = getattr(emitter, "emit_" + name, None);
+        if emit_fn is None and not JAC_TYPE_REGISTRY.is_sized(name) {
+            continue;
+        }
+
+        bodies: list[(str | None)] = [];
+        for argv in ([], ["a[0]"], ["a[0]", "a[1]"]) {
+            try {
+                if emit_fn is None {
+                    bodies.append(emitter.emit_sized_cast(name, argv));
+                } else {
+                    bodies.append(emit_fn(ctx, argv));
+                }
+            } except Exception {
+                bodies.append(None);
+            }
+        }
+        supported = [
+            b
+            for b in bodies
+            if b is not None
+        ];
+        if not supported {
+            continue;
+        }
+        (zero, one, two) = (
+            bodies[0] or supported[0],
+            bodies[1] or supported[-1],
+            bodies[2] or (bodies[1] or supported[-1])
+        );
+        if zero == one and one == two {
+            body = "(" + one + ")";
+        } elif one == two {
+            body = "a.length === 0 ? (" + zero + ") : (" + one + ")";
+        } else {
+            body = (
+                "a.length === 0 ? ("
+                + zero
+                + ") : a.length === 1 ? ("
+                + one
+                + ") : ("
+                + two
+                + ")"
+            );
+        }
+        entries.append("    " + name + ': _t("' + name + '", (...a) => ' + body + ")");
+    }
+    import from jaclang.runtime.scalars { numeric_shapes }
+    sized_lines: list[str] = [];
+    for shape in numeric_shapes() {
+        if not shape.sized {
+            continue;
+        }
+        sized_lines.append(
+            "    T."
+                + shape.name
+                + ".wrap = (x) => _jac.fw.wrap('"
+                + shape.name
+                + "', x);"
+        );
+        if not shape.is_float {
+            sized_lines.append(
+                "    Object.defineProperties(T."
+                    + shape.name
+                    + ", { MIN: { get: () => _jac.fw.bounds('"
+                    + shape.name
+                    + "')[0] }, MAX: { get: () => _jac.fw.bounds('"
+                    + shape.name
+                    + "')[1] } });"
+            );
+        }
+    }
+    return "\n".join(
+        [
+            "(() => {",
+            "    const _t = (tag, fn) => Object.assign(fn, {",
+            "      __jac_type__: tag,",
+            "      toString: () => \"<class '\" + tag + \"'>\"",
+            "    });",
+            "    const T = {",
+            ",\n".join(entries),
+            "    };",
+            "\n".join(sized_lines),
+            "    return T;",
+            "  })()"
+        ]
+    );
+}
+
+def _build_fw_runtime_js -> str {
+    import from jaclang.runtime.scalars { numeric_shapes, range_of }
+    rows: list[str] = [];
+    for shape in numeric_shapes() {
+        if not shape.sized {
+            continue;
+        }
+        t = shape.name;
+        w = shape.width;
+        if shape.is_float {
+            rnd = "Math.fround" if w == 32 else "Number";
+            rows.append(f"    F.cast_{t} = (x) => {rnd}(Number(x));");
+            rows.append(f"    F.neg_{t} = (a) => {rnd}(-a);");
+            rows.append(f"    F.abs_{t} = (a) => {rnd}(Math.abs(a));");
+            rows.append(
+                f"    F.div_{t} = (a, b) => "
+                f"{{ if (b === 0) zdiv('float division by zero'); "
+                f"return {rnd}(a / b); }};"
+            );
+            rows.append(
+                f"    F.fdiv_{t} = (a, b) => "
+                f"{{ if (b === 0) zdiv('float floor division by zero'); "
+                f"return {rnd}(Math.floor(a / b)); }};"
+            );
+            rows.append(
+                f"    F.mod_{t} = (a, b) => "
+                f"{{ if (b === 0) zdiv('float modulo by zero'); "
+                f"return {rnd}(a - b * Math.floor(a / b)); }};"
+            );
+            rows.append(f"    F.pow_{t} = (a, b) => {rnd}(Math.pow(a, b));");
+            continue;
+        }
+        (lo, hi) = range_of(t);
+        big = w == 64;
+        sfx = "n" if big else "";
+        z = f"0{sfx}";
+        one = f"1{sfx}";
+        wn = f"{w}{sfx}";
+        rows.append(f"    const LO_{t} = {lo}{sfx}, HI_{t} = {hi}{sfx};");
+        rows.append(f"    F.c_{t} = (v) => (v >= LO_{t} && v <= HI_{t}) ? v : ovf();");
+        if big {
+            rows.append(
+                f"    F.big_{t} = (x) => F.c_{t}(typeof x === 'bigint' ? x "
+                f": (typeof x === 'string' ? BigInt(x) "
+                f": BigInt(Math.trunc(Number(x)))));"
+            );
+            rows.append(f"    F.cast_{t} = (x) => F.big_{t}(x);");
+            rows.append(f"    F.abs_{t} = (a) => F.c_{t}(a < {z} ? -a : a);");
+            rows.append(
+                f"    F.div_{t} = (a, b) => {{ if (b === {z}) "
+                f"zdiv('division by zero'); return Number(a) / Number(b); }};"
+            );
+            rows.append(
+                f"    F.fdiv_{t} = (a, b) => {{ if (b === {z}) "
+                f"zdiv('integer division or modulo by zero'); let q = a / b; "
+                f"if ((a % b) !== {z} && ((a < {z}) !== (b < {z}))) q -= {one}; "
+                f"return F.c_{t}(q); }};"
+            );
+            rows.append(
+                f"    F.mod_{t} = (a, b) => {{ if (b === {z}) "
+                f"zdiv('integer division or modulo by zero'); let r = a % b; "
+                f"if (r !== {z} && ((r < {z}) !== (b < {z}))) r += b; return r; }};"
+            );
+            rows.append(
+                f"    F.pow_{t} = (a, b) => {{ if (b < {z}) "
+                f"return Math.pow(Number(a), Number(b)); "
+                f"if ((a > {one} || a < -{one}) && b >= {wn}) ovf(); "
+                f"return F.c_{t}(a ** b); }};"
+            );
+            rows.append(
+                f"    F.shl_{t} = (a, b) => {{ const n = BigInt(b); "
+                f"if (n < {z} || n >= {wn}) shiftErr(); return F.c_{t}(a << n); }};"
+            );
+            rows.append(
+                f"    F.shr_{t} = (a, b) => {{ const n = BigInt(b); "
+                f"if (n < {z} || n >= {wn}) shiftErr(); return a >> n; }};"
+            );
+        } else {
+            rows.append(
+                f"    F.cast_{t} = (x) => {{ const v = Math.trunc(Number(x)); "
+                f"if (!Number.isFinite(v)) ovf(); return F.c_{t}(v || 0); }};"
+            );
+            rows.append(f"    F.abs_{t} = (a) => F.c_{t}(Math.abs(a));");
+            rows.append(
+                f"    F.div_{t} = (a, b) => {{ if (b === 0) "
+                f"zdiv('division by zero'); return a / b; }};"
+            );
+            rows.append(
+                f"    F.fdiv_{t} = (a, b) => {{ if (b === 0) "
+                f"zdiv('integer division or modulo by zero'); "
+                f"return F.c_{t}(Math.floor(a / b)); }};"
+            );
+            rows.append(
+                f"    F.mod_{t} = (a, b) => {{ if (b === 0) "
+                f"zdiv('integer division or modulo by zero'); "
+                f"return a - b * Math.floor(a / b); }};"
+            );
+            rows.append(
+                f"    F.pow_{t} = (a, b) => {{ if (b < 0) return Math.pow(a, b); "
+                f"if (Math.abs(a) >= 2 && b >= {w}) ovf(); "
+                f"return F.c_{t}(Math.pow(a, b)); }};"
+            );
+            rows.append(
+                f"    F.shl_{t} = (a, b) => {{ if (b < 0 || b >= {w}) shiftErr(); "
+                f"return F.c_{t}(a * Math.pow(2, b)); }};"
+            );
+            rows.append(
+                f"    F.shr_{t} = (a, b) => {{ if (b < 0 || b >= {w}) shiftErr(); "
+                f"return Math.floor(a / Math.pow(2, b)); }};"
+            );
+        }
+        rows.append(f"    F.neg_{t} = (a) => F.c_{t}(-a);");
+        if shape.signed {
+            rows.append(f"    F.inv_{t} = (a) => F.c_{t}(~a);");
+        } elif big {
+            rows.append(f"    F.inv_{t} = (a) => (~a) & HI_{t};");
+        } elif w == 32 {
+            rows.append(f"    F.inv_{t} = (a) => ((~a) >>> 0);");
+        } else {
+            rows.append(f"    F.inv_{t} = (a) => (~a) & HI_{t};");
+        }
+        rows.append(f"    B.{t} = [LO_{t}, HI_{t}];");
+        rows.append(f"    WBITS.{t} = {w}n;");
+        tail = (
+            f"return v >= (1n << {w - 1}n) ? v - m : v; }};"
+                if shape.signed
+                else "return v; };"
+        );
+        rows.append(
+            f"    W.{t} = (x) => {{ const m = 1n << {w}n; "
+            f"let v = (typeof x === 'bigint' ? x : BigInt(Math.trunc(Number(x)))) "
+            f"% m; if (v < 0n) v += m; "
+                + tail
+        );
+    }
+    return "\n".join(
+        [
+            "(() => {",
+            "    const ovf = () => { throw new _jac.exc.OverflowError("
+            "'integer overflow'); };",
+            "    const shiftErr = () => { throw new _jac.exc.OverflowError("
+            "'shift count out of range'); };",
+            "    const zdiv = (m) => { throw new _jac.exc.ZeroDivisionError(m); };",
+            "    const F = {}, B = {}, W = {}, WBITS = {};",
+            "\n".join(rows),
+            "    F.r_f32 = Math.fround;",
+            "    F.bounds = (name) => B[name];",
+            "    F.wrap = (name, x) => { const v = W[name](x); "
+            "return B[name][1] > Number.MAX_SAFE_INTEGER ? v : Number(v); };",
+            "    F.wrapping = (name, a, b, op) => {",
+            "      const A = BigInt(a);",
+            "      const Bv = b === undefined ? 0n : BigInt(b);",
+            "      let r;",
+            "      if (op === '+') r = A + Bv; else if (op === '-') r = A - Bv;",
+            "      else if (op === '*') r = A * Bv;",
+            "      else if (op === 'neg') r = -A;",
+            "      else if (op === '<<') r = A << (Bv & (WBITS[name] - 1n));",
+            "      else throw new _jac.exc.TypeError("
+            "'unsupported wrapping operator ' + op);",
+            "      return F.wrap(name, r);",
+            "    };",
+            "    const SAFE = 9007199254740991n;",
+            "    F.replacer = function (k, v) {",
+            "      if (typeof v !== 'bigint') return v;",
+            "      return (v >= -SAFE && v <= SAFE) ? Number(v) : v.toString();",
+            "    };",
+            "    F.stringify = (v, space) => JSON.stringify(v, F.replacer, space);",
+            "    if (typeof globalThis !== 'undefined')"
+            " globalThis.__jacFwReplacer__ = F.replacer;",
+            "    return F;",
+            "  })()"
+        ]
+    );
+}
+
+def build_jac_runtime_js -> str {
+    return JAC_RUNTIME_JS_OBJECT.replace(
+        "__JAC_EXC_RUNTIME__", _build_exc_runtime_js()
+    ).replace(
+        "__JAC_TYPES_RUNTIME__", _build_types_runtime_js()
+    ).replace(
+        "__JAC_FW_RUNTIME__", _build_fw_runtime_js()
+    );
+}
+
+glob _OSP_CORE_JS_CACHE: list[str] = [];
+
+def build_osp_core_js -> str {
+    if _OSP_CORE_JS_CACHE {
+        return _OSP_CORE_JS_CACHE[0];
+    }
+    import from jaclang.compiler.backends.common.kernel_units {
+        es_pass_fingerprint,
+        load_unit_artifact,
+        osp_core_unit_path,
+        store_unit_artifact
+    }
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.backends.es.esast_gen_pass { EsastGenPass }
+    import from jaclang.compiler.backends.es.es_unparse { es_to_js }
+    import from jaclang.compiler.backends.es { estree as es }
+    import from jaclang.compiler.driver.compile_options { CompileOptions }
+    fp = es_pass_fingerprint();
+    cl_copy = osp_core_unit_path('cl');
+    cached = load_unit_artifact(cl_copy, "mjs", fp);
+    if cached is not None {
+        _OSP_CORE_JS_CACHE.append(cached);
+        return cached;
+    }
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=cl_copy,
+        options=CompileOptions(force_codespace='client', no_cgen=True)
+    );
+    import from jaclang.compiler.driver.pass_driver { run_pass }
+    program = run_pass(EsastGenPass, ir, prog).ir_out.gen.es_ast;
+    kept: list = [];
+    if isinstance(program, es.Program) {
+        for stmt in program.body {
+            is_jac_rt = (
+                isinstance(stmt, es.VariableDeclaration)
+                and stmt.declarations
+                and isinstance(stmt.declarations[0].id, es.Identifier)
+                and (stmt.declarations[0].id.name == "_jac")
+            );
+            if is_jac_rt or isinstance(stmt, es.ExportNamedDeclaration) {
+                continue;
+            }
+            kept.append(stmt);
+        }
+    }
+    js = es_to_js(es.Program(body=kept));
+    store_unit_artifact(cl_copy, "mjs", fp, js);
+    _OSP_CORE_JS_CACHE.append(js);
+    return js;
+}
+
+def build_osp_driver_js -> str {
+    return r"""
+if (!globalThis.__jacOspCore) {
+  globalThis.__jacOspCore = {
+    O: [null], H: new Map(),
+    osp_conn, osp_conn_many, osp_refs, osp_refs_many, osp_refs_edge_pred,
+    osp_wrap1, osp_destroy, osp_is_dead,
+    osp_disconn_between, osp_disconn_between_many, osp_disconn_between_pred,
+    osp_edge_peer,
+    osp_spawn, osp_visit, osp_report, osp_disengage, osp_forget,
+    osp_register_type, osp_register_desc, osp_node_desc, osp_is_a,
+    WalkerDesc, NodeDesc, Slot, OspRuntime
+  };
+}
+var __ospC = globalThis.__jacOspCore;
+var __ospO = __ospC.O;
+var __ospH = __ospC.H;
+var __ospGenericEdge = globalThis.__jacOspGenericEdge ??= class __ospGenericEdge {};
+function __ospId(o) {
+  if (o == null) return 0;
+  let h = __ospH.get(o);
+  if (h === undefined) { h = __ospO.length; __ospO.push(o); __ospH.set(o, h); }
+  return h;
+}
+function __ospConnW(src, tgt, mkEdge, undirected, tag = -1) {
+  const srcs = Array.isArray(src) ? src : [src];
+  const tgts = Array.isArray(tgt) ? tgt : [tgt];
+  const sh = srcs.map(__ospId);
+  const th = tgts.map(__ospId);
+  const eh = [];
+  for (let i = 0; i < sh.length * th.length; i++) eh.push(__ospId(mkEdge()));
+  const r = __ospC.osp_conn_many(sh, th, eh, undirected ? 1 : 0, tag, 0, 0);
+  if (r < 0) throw new Error("cannot connect a destroyed node");
+  return tgts.length === 1 ? tgts[0] : tgts;
+}
+function __ospRefsW(origin, dir, tag = -1, edgesOnly = 0, pred = null) {
+  const oh = __ospId(origin);
+  if (pred === null) {
+    return __ospC.osp_refs(oh, dir, tag, edgesOnly ? 1 : 0).map((h) => __ospO[h]);
+  }
+  return __ospC.osp_refs_edge_pred(
+    [oh], dir, tag, edgesOnly ? 1 : 0, (eh) => !!pred(__ospO[eh])
+  ).map((h) => __ospO[h]);
+}
+function __ospRefsManyW(objs, dir, tag = -1, edgesOnly = 0, pred = null) {
+  const hs = [];
+  for (const o of objs) hs.push(__ospId(o));
+  if (pred === null) {
+    return __ospC.osp_refs_many(hs, dir, tag, edgesOnly ? 1 : 0).map((h) => __ospO[h]);
+  }
+  return __ospC.osp_refs_edge_pred(
+    hs, dir, tag, edgesOnly ? 1 : 0, (eh) => !!pred(__ospO[eh])
+  ).map((h) => __ospO[h]);
+}
+function __ospDestroyW(x, strict = false) {
+  // `del` on a value target: flatten through arrays, sets, map values and
+  // plain-object values and destroy every archetype found. Strict, as the
+  // Python backend's `destroy(..., strict=True)`: a leaf that is not a graph
+  // object raises before anything is destroyed.
+  const seen = new Set();
+  const stack = [x];
+  const found = [];
+  while (stack.length) {
+    const v = stack.pop();
+    if (v !== null && v !== undefined && typeof v === "object") {
+      const h = __ospH.get(v);
+      if (h !== undefined) { found.push(h); continue; }
+      if (seen.has(v)) continue;
+      if (Array.isArray(v) || v instanceof Set) { seen.add(v); for (const e of v) stack.push(e); continue; }
+      if (v instanceof Map) { seen.add(v); for (const e of v.values()) stack.push(e); continue; }
+      if (Object.getPrototypeOf(v) === Object.prototype) { seen.add(v); for (const e of Object.values(v)) stack.push(e); continue; }
+    }
+    if (strict) {
+      throw new TypeError("cannot destroy " + (v === null ? "None" : typeof v)
+        + ": a `del` value target must yield nodes, edges or archetypes");
+    }
+  }
+  let n = 0;
+  for (const h of found) { n += __ospC.osp_destroy(h); __ospC.osp_forget(h); }
+  return n;
+}
+function __ospLiveStarts(starts) {
+  for (const o of starts) {
+    if (__ospC.osp_is_dead(__ospId(o))) {
+      throw new Error("cannot spawn on a destroyed graph object");
+    }
+  }
+  return starts;
+}
+function __ospDiscBetweenW(a, b, dir, tag = -1) {
+  const as = Array.isArray(a) ? a : [a];
+  const bs = Array.isArray(b) ? b : [b];
+  return __ospC.osp_disconn_between_many(as.map(__ospId), bs.map(__ospId), dir, tag);
+}
+function __ospDiscBetweenPredW(a, b, dir, tag, pred) {
+  return __ospC.osp_disconn_between_pred(
+    __ospId(a), __ospId(b), dir, tag, (eh) => !!pred(__ospO[eh])
+  );
+}
+""";
+}

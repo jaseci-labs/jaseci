@@ -7,7 +7,7 @@ The Jac compiler uses a structured diagnostic code system. Every error, warning,
 Diagnostic codes follow the pattern `{severity}{category}{sequence}`:
 
 - **Severity**: `E` (error) or `W` (warning)
-- **Category digit**: `0` = syntax, `1` = type, `2` = semantic, `3` = lint, `4` = import, `5` = codegen, `9` = internal
+- **Category digit**: `0` = syntax, `1` = type, `2` = semantic, `3` = lint, `4` = import, `5` = codegen, `7` = dev loop / client runtime, `9` = internal
 - **Sequence**: Three-digit number within the category
 
 For example, `E1030` is a **type error** about attribute access, and `W3005` is a **lint warning** about empty parentheses.
@@ -94,6 +94,18 @@ Emitted by the parser and lexer during source code parsing.
 | `E0031` | Module-level 'with' blocks only support 'entry', not 'exit' |
 | `E0032` | Unexpected '{token}' -- must follow its parent statement (if/try/match/switch) |
 | `E0034` | Expected 'with' after 'can' ability name (use 'def' for function-style declarations) |
+
+### Compile-Time Evaluation
+
+Emitted at `comptime` sites; see [Compile-Time Evaluation](language/comptime.md) and `jac guide jac-comptime`.
+
+| Code | Message |
+|------|---------|
+| `E0033` | {what} is not known at compile time{reason} |
+| `E0108` | Compile-time evaluation failed: {reason} |
+| `E0109` | Compile-time assertion failed{message} |
+
+All three block code generation for the module that reports them.
 
 ### Block / Body Requirements
 
@@ -182,6 +194,18 @@ Emitted by the type checker and type evaluator.
 | `E1010` | Operator "{op}" not supported for type "{type}" |
 | `E1011` | Unsupported operand types for {op}: {left} and {right} |
 | `E1110` | Operator "{op}" not supported between types "{left}" and "{right}" (comparison operators) |
+| `E1124` | Membership test "{op}" over an operand with no static type ("{type}"); native code cannot answer it |
+| `E1126` | Integer literal {value} does not fit in {type} (range {min}..{max}) |
+| `E1127` | Cannot implicitly convert {src} to {dest}; the conversion is not value-preserving |
+| `E1128` | Operands of '{op}' have no common fixed-width type ({left} and {right}) |
+| `E1129` | Unary minus on unsigned type {type} |
+| `E1130` | Float literal {value} overflows {type} (largest finite magnitude {max}) |
+
+!!! tip "Fixing `E1126`-`E1130` (fixed-width numerics)"
+    The ten sized types (`i8`..`u64`, `f32`, `f64`) convert implicitly only along the value-preserving lattice (widening, unsigned into a strictly wider signed type, exactly-representable ints into `f32`, any int-kind into `f64`, `f32 -> f64`). `int` and `float` are in that lattice rather than beside it: `int` is the signed 64-bit machine integer and behaves as `i64`, `float` is binary64 and behaves as `f64`, so `u64 -> int` needs the same cast `u64 -> i64` does. `E1126`: the literal is out of range -- use a wider type or spell the modular result with `T.wrap(x)`. `E1127`: cast at the boundary with the checked `T(x)` (raises `OverflowError` out of range) or widen the destination; extern `i32`/`u64` parameters need the cast from a plain `int`. `E1128`: neither operand widens into the other -- cast one side so the operation's width and sign are explicit. `E1129`: negate in a signed type (`-i64(x)`) or use `wrapping_neg(x)`. `E1130`: the literal is past what the target float can represent and would arrive as `inf` -- widen the type or write a value it can hold; precision loss inside the range is accepted. See `jac guide jac-types` and [Fixed-width semantics](language/types-and-values.md#fixed-width-semantics).
+
+!!! tip "Fixing `E1124` (membership over an untyped operand)"
+    `E1124` fires on natively lowered code when the container operand of an `in` / `not in` comparison has no static type at all -- typed `any`, or left unannotated and never inferred. Every container answers `in` from its own layout, and native code has no dynamic-dispatch tier to fall back on, so the operand must carry a static type by the time the comparison is reached. Annotate the operand with the container it actually holds (`list[Tag]`, `dict[str, int]`, `set[str]`), or bind it to a directly-typed local first, so its layout reaches the comparison. The error blocks codegen.
 
 ### Iterability / Callable
 
@@ -273,14 +297,14 @@ Emitted by the type checker and type evaluator.
 
 ### mobUI-Project JSX Host Tags
 
-Emitted by `JsxIntrinsicGuardPass` when a `mobui` project (see [React Native target](plugins/jac-client.md#react-native-target-beta)) uses a raw HTML host tag in JSX. The guard resolves every tag name in the enclosing scope; only **unresolved lowercase names** are treated as HTML host elements and rejected. Uppercase components and lowercase components that resolve to an in-scope symbol are allowed. `.jac` web-boundary files (but not `.native.jac` files, which target React Native) and modules outside the project root are exempt; the client kind is discovered from each module's own project `jac.toml`, never the process cwd.
+Emitted by `JsxIntrinsicGuardPass` when a module of a `mobile` app (see [Mobile](plugins/jac-client.md#mobile)) uses a raw HTML host tag in JSX. The guard resolves every tag name in the enclosing scope; only **unresolved lowercase names** are treated as HTML host elements and rejected. Uppercase components and lowercase components that resolve to an in-scope symbol are allowed. `.jac` web-boundary files (but not `.native.jac` files, which target React Native) and modules outside the project root are exempt; the app's UI is an app fact stamped from the `[apps.<name>]` table that claims each module, never the process cwd.
 
 | Code | Message |
 |------|---------|
 | `E1105` | JSX tag '<{tag}>' is not in scope in a mobUI project; use {suggestion} instead |
 
 !!! tip "Fixing `E1105`"
-    `E1105` fires only in `mobui` projects (`[project] client_kind = "mobui"` in `jac.toml`). Replace the HTML tag with the suggested `@jac/mobui` primitive: `div`/`section`/`main` -> `View`, `span`/`p`/`h1`-`h6` -> `Text`, `button` -> `Pressable`, `input`/`textarea` -> `TextInput`, `img` -> `Image`, `ul`/`ol` -> `ScrollView`. If the lowercase name is meant to be a component, import it so it resolves in scope. Web projects (`client_kind` unset) are unaffected -- HTML tags remain valid there.
+    `E1105` fires only in the modules of a `mobile` app (`kind = "mobile"` on its `[apps.<name>]` table in `jac.toml`, or `[project] kind` in a single-app project). Replace the HTML tag with the suggested `@jac/mobui` primitive: `div`/`section`/`main` -> `View`, `span`/`p`/`h1`-`h6` -> `Text`, `button` -> `Pressable`, `input`/`textarea` -> `TextInput`, `img` -> `Image`, `ul`/`ol` -> `ScrollView`. If the lowercase name is meant to be a component, import it so it resolves in scope. Apps of every other kind are unaffected -- HTML tags remain valid there.
 
 ### Ownership / Borrow Errors
 
@@ -314,6 +338,19 @@ Emitted by `OwnershipCheckPass` only in **nogc-enforced** native modules (`jac n
 | `E1405` | Closure capture of '{name}' escapes its scope in a nogc-enforced module ({provenance}) |
 | `E1406` | '{name}' has retaining or aliasing semantics not supported in a nogc-enforced module ({provenance}) |
 
+### Type-Only Import Bindings
+
+| Code | Message |
+|------|---------|
+| `E1131` | '{name}' is a type-only export of '{module}'{scope} and must be imported with `import type` |
+| `E1132` | '{name}' was imported with `import type` and cannot be used as a value |
+
+!!! tip "Fixing `E1131` (a type-only export reached by a plain import)"
+    `E1131` asks whether the backend lowering *this* module leaves a runtime binding for the imported name. Two cases reach it. A TypeScript `interface` or `type` alias in a `.d.ts` (npm package or sibling declaration file) declares no runtime export in any codespace, so a plain import of one is always refused. A jac `type` alias is refused **only in client code**: the Python backend lowers an alias to a real runtime binding (a `TypeAliasType`, or a plain `UserId = int` for a distinct alias `type UserId := int`, which is what makes `UserId(raw)` a brand constructor), and only the client backend erases it -- so a plain import of an alias from a server module is correct and must stay that way. Where the error does fire, move the name to its own `import type from <module> { Name }` statement and leave the value imports from that module where they are. `declare class`, `declare enum`, and every jac archetype (`obj`, `class`, `node`, `edge`, `walker`, `enum`) have a runtime binding on both backends, so a plain import of one stays correct; a package with no declarations at all is a value import as before (`W1102` / `E1120`). The error blocks codegen. See [Type-Only Imports](language/types-and-values.md#type-only-imports-import-type).
+
+!!! tip "Fixing `E1132` (a type-only binding used as a value)"
+    An `import type` binding is registered with the checker and nothing else -- neither backend emits a runtime import for it -- so calling it, reading an attribute off it, passing it to `isinstance`/`issubclass`, decorating with it, inheriting from it, or assigning it reaches a name nothing binds. This holds on the server too: the `typing.TYPE_CHECKING` guard means a guarded `UserId(raw)` would be a `NameError`, not a brand. Annotations, `has` field types, return types, generic arguments, `as` casts, and `type` alias right-hand sides are type position and stay legal. If the name really is needed at runtime, import it with a plain `import from` instead, which requires that it actually has a runtime binding in the importing module's codespace. The error blocks codegen.
+
 ### Type Warnings
 
 | Code | Message |
@@ -337,8 +374,28 @@ Emitted by `OwnershipCheckPass` only in **nogc-enforced** native modules (`jac n
 | `W1102` | Imported name '{name}' from foreign-source module '{module}' typed as Any |
 | `E1120` | Import of '{name}' from untyped external module '{module}' (no type declarations found) |
 | `W1103` | '{name}' is ambient and does not need to be imported from '{module}' |
-| `W1104` | Use the lowercase `any` keyword instead of importing `Any` from typing |
 | `W1105` | Local module '{name}' shadows the npm package of the same name |
+
+---
+
+## Import Errors (E11xx)
+
+Emitted by `StaticAnalysisPass` for refused `import from` items. All three block codegen. Only the from-import item form is refused: the module form (`import typing;` then `typing.Any`) stays legal.
+
+| Code | Message |
+|------|---------|
+| `E1122` | 'Any' cannot be imported from 'typing' -- use jac's builtin `any` |
+| `E1123` | '{name}' cannot be imported from 'typing' -- use the builtin `{remedy}` |
+| `E1125` | '{name}' is ambient and cannot be imported from '{module}' |
+
+!!! tip "Fixing `E1122` (importing `Any` from typing)"
+    Jac has its own `any` and will not carry an aliased twin: the two spell the same type, so a second name for it is redundant. Drop `Any` from the import list (remove the import when it was the only name) and write the lowercase keyword instead -- `x: any`, `dict[str, any]`. If you need the runtime `typing.Any` object itself (reflection over annotations, not an annotation), reach it in module form: `import typing;` then `typing.Any`.
+
+!!! tip "Fixing `E1123` (deprecated typing aliases)"
+    Fires for the six deprecated typing aliases of builtins: `Dict` -> `dict`, `FrozenSet` -> `frozenset`, `List` -> `list`, `Set` -> `set`, `Tuple` -> `tuple`, `Type` -> `type`. The alias and the builtin spell the same type, and jac subscripts the builtin directly, so the alias buys nothing and costs an import. The `as`-renamed form (`List as L`) is refused too. Drop the name from the import list and write the builtin instead -- `list[int]`, not `List[int]`.
+
+!!! tip "Fixing `E1125` (importing an ambient name)"
+    Jac provides a curated set of typing constructs in every module's scope, so importing one is a second spelling of the same binding -- and when the source is `typing`, the import alone keeps the module off the native pathway. The ambient set (defined in `compiler/types/typing_ambient.pyi`) is: `Annotated`, `AsyncIterable`, `AsyncIterator`, `Awaitable`, `Callable`, `ClassVar`, `Coroutine`, `Generic`, `Iterable`, `Iterator`, `Literal`, `Mapping`, `MutableMapping`, `MutableSequence`, `Protocol`, `Sequence`, `TypeVar`. Each name is refused both from `typing` and from its real home module (`collections.abc` for the collection ABCs). Drop the name from the import list and keep writing it as before -- generated code re-imports ambient names automatically, so runtime annotation introspection still works. Binding a different local name on purpose stays legal: the `as`-alias form (`Callable as Cb`) is exempt. In the compiler's own bootstrap-compiled modules and the ambient-provider modules the finding downgrades to the advisory `W1103`.
 
 ---
 
@@ -383,6 +440,19 @@ obj Account {
 ([`property-to-native`](#lint-rules-w3xxx-e3xxx)). As with `W2006`/`W2007`, a
 Python-compat `class` is exempt. A cross-object `@Base.x.setter` extends a parent's
 property and has no direct native form, so it is not reported.
+
+### App Isolation and Shared Layering
+
+Emitted by `AccessCheckPass` from the app facts the driver stamps on every module (see [Workspaces & Apps](apps.md)). Like `E2038`/`W2038`, these follow `[check] enforce_access`: errors when access is enforced, warnings otherwise.
+
+| Code | Message |
+|------|---------|
+| `E2039` / `W2039` | '{name}' belongs to app '{app}'; app '{user_app}' may only use it through shared code or its bridge surface |
+| `E2040` / `W2040` | Shared module '{module}' imports '{name}' from app '{app}'; shared code may not depend on app modules |
+
+`E2039` fires when a module of one app reaches into another app's declarations. An app's **bridge surface** -- its walkers and `def:pub` functions -- is reachable from any consumer app, and imports of it compile to a call across the boundary rather than an in-process reference, so those do not fire. Anything else is private to the app: move the code both apps need into shared code (a module under no app root), or expose it as `pub`.
+
+`E2040` is the other direction of the same layering: shared code sits below every app and may not import from one. Move the shared module into the app that needs it, or move the imported declaration down into shared code.
 
 ### Declaration-Implementation Matching
 
@@ -429,8 +499,8 @@ Emitted by `jac check --lint`. Rules can be configured in [`jac.toml`](config/in
 | `W3008` | `simplify-ternary` | Ternary can be simplified | default |
 | `W3009` | `remove-future-annotations` | 'from \_\_future\_\_ import annotations' is unnecessary | default |
 | `W3010` | `fix-impl-signature` | Implementation signature does not match declaration | default |
-| `W3011` | `remove-import-semi` | Unnecessary semicolon after import | default |
 | `E3012` | `no-print` | Calling print() is disallowed by rule | all |
+| `W3013` | `remove-redundant-semi` | Unnecessary semicolon | default |
 | `W3020` | `unnecessary-pass` | Unnecessary 'pass' in non-empty body | default |
 | `W3021` | `unnecessary-else-after-return` | Unnecessary 'else' after 'return' | default |
 | `W3022` | `nested-if-to-elif` | Nested 'if' in 'else' can be 'elif' | default |
@@ -457,7 +527,9 @@ Emitted by `jac check --lint`. Rules can be configured in [`jac.toml`](config/in
 
 Emitted during code generation, formatting, and native compilation.
 
-### Python AST Generation
+### JCIR Generation
+
+Emitted while lowering the unitree into the compact codegen IR container (`JcirGenPass`) that the Python-bytecode backend compiles.
 
 | Code | Message |
 |------|---------|
@@ -524,7 +596,7 @@ Emitted during code generation, formatting, and native compilation.
 | `E5082` | Client code imports '{name}' from '{module}', but '{name}' has no client-side presence |
 | `E5084` | Client code uses '{name}' from bare import '{module}', which resolves to no client-reachable module |
 | `E5086` | Client code emits '{name}', which has no binding in the client bundle |
-| `E5087` | Project kind '{kind}' has no server, but '{name}' needs one ({reason}) |
+| `E5087` | App kind '{kind}' has no server, but '{name}' needs one ({reason}) |
 | `E5101` | Client codegen emitted '{name}', which the module never binds |
 
 `E5082` fires when a plain client import references a server symbol that does not bridge: server `def:pub` endpoints bridge automatically over RPC, so the fix is to make the symbol a `def:pub` endpoint, pin it (or its module) `"client"` via `[placement.pins]`, or move it into client code.
@@ -535,7 +607,31 @@ Emitted during code generation, formatting, and native compilation.
 
 `E5101` is the backstop under all of the above, and it checks the finished artifact rather than the reasoning that produced it. After the client module is emitted, every identifier it references is matched against the module's own declarations, its imports, its parameters, and the ambient surface a browser provides (the same `js_globals` / `dom_types` stubs `jac check` resolves client-tier names against). What is left over is then narrowed to names the compiler itself resolved in Jac: a name with a symbol, emitted with nothing to bind it, is a `ReferenceError` on first use with `jac check` green and the build exiting 0. Give the name client presence (declare it, import it, or make it a `def:pub` endpoint so it bridges); reach a host global the compiler does not know about through `globalThis` so the intent is explicit; and if neither applies, a lowering dropped a binding it owed, which is a compiler bug worth reporting with the source line. Declarations count wherever they appear in the module rather than per scope, so the check never fires on a name that is bound somewhere. A name that resolves to nothing in Jac either is still presumed to be an undeclared ambient global and is not reported here -- requiring those to be declared is tracked separately.
 
-`E5087` fires when a project kind with no server contains code that needs one: root access, an FFI extern, an inline `::py::` block, or a Python import whose bindings are used at value level. A `js-package` ships as an npm tarball with nothing serving `/function/<name>`, so server placement there could only fail at runtime inside a `fetch` that has no route to reach. Annotation-only and `import type` uses stay silent, on the same criterion `E5084` uses.
+`E5087` fires when an app whose kind has no server contains code that needs one: root access, an FFI extern, an inline `::py::` block, or a Python import whose bindings are used at value level. A `js-package` ships as an npm tarball with nothing serving `/function/<name>`, so server placement there could only fail at runtime inside a `fetch` that has no route to reach. Annotation-only and `import type` uses stay silent, on the same criterion `E5084` uses. Drop the server dependency, or give the app a `kind` that has a server.
+
+### Workspace Boundaries
+
+Emitted by the driver and the boundary passes from the app facts of a workspace (see [Workspaces & Apps](apps.md)). All but `E5105` block codegen.
+
+| Code | Message |
+|------|---------|
+| `E5107` | Server-placed shared module '{module}' has no single owner: reached by serving apps {apps}; declare it as a service app or pin an owner |
+| `E5104` | App dependency cycle: {cycle} |
+| `E5105` | Variant '{variant}' disagrees with '{base}' on '{name}': {detail} |
+| `E5106` | App '{consumer}' bridges to '{name}', which is not a pub element of app '{provider}' |
+| `E5108` | App '{consumer}' imports '{name}', a {kind} owned by app '{provider}'; nodes and edges never cross an app boundary |
+
+`E5107`: a shared module with server-placed elements runs on exactly one app's server so that every other app bridges to the same owner. With more than one serving app in the workspace the compiler cannot pick one. Give the module its own `[apps.<name>]` table (`kind = "service"`, `entry-point = "<path>"`), or pin it to an owner with `[apps.<owner>.placement.pins] "<module>" = "server"`. It is reported once per module.
+
+`E5104`: apps bridge to their providers over the wire and providers boot first, so the app graph has to be a DAG. It is reported on the import that closes the cycle. Break it by moving the code both apps need into a shared module, or by folding one of the apps into the other.
+
+`E5105`: a `.native.jac` variant stands in for its sibling module on a mobile app's native platforms (android / ios), so the two have to expose the same public surface -- the same names, the same kinds of declaration, the same parameters and annotations, the same `has` fields. Bring the variant's declaration in line with the base module, or remove it from both. Reported on the variant, once per disagreement.
+
+`E5106`: an app's bridge surface is its walkers and its `def:pub` functions; everything else is private to the app's own server. Make the element a walker or mark it `:pub` in the provider app, or move it into shared code if both apps need it in-process.
+
+`E5108`: a node or edge lives in the graph of the app that owns it, so another app cannot construct or hold one. Spawn one of the provider's walkers and work with what it reports, or move the type into shared code as an obj. An `obj` or `enum` imported across the boundary mirrors locally as a boundary type instead.
+
+A bridged call is a coroutine in every context -- server-to-app as much as client-to-server -- so a missing `await` at a cross-app seam is the ordinary `E1042`.
 
 ---
 
@@ -573,6 +669,57 @@ A `def:pub` function in a server-placed module is an HTTP endpoint whose argumen
 `W6007`: the value-flow generalization of `W6005`. A function reference that flows into client-side data (stored in a container, returned, or passed along as an argument) needs client presence. A `def:pub` endpoint gets that presence automatically, through a generated client-side forwarder, so this fires only where no forwarder is possible -- a function with no endpoint access, or one pinned server. Drop the pin, or restructure so the client stores data instead of the function. The build-time form of the same fact is `E5086`. See [Placement](placement.md) for the full model.
 
 `W6009`: the forwarder that gives a `def:pub` endpoint its client-side presence calls the endpoint over HTTP, so it is necessarily `async` and its result is a `Promise<T>` where the server function's is `T`. That is transparent where the result is awaited or ignored (a command handler, an event listener) and wrong where a plain value is required (a sort comparator, a reducer). Await the call, or drop `:pub` so the function is placed client-side and stays synchronous.
+
+---
+
+## Dev Loop and Client Runtime Errors (E7xxx)
+
+Emitted at run time, not by `jac check`. The dev loop (`jac run --dev`) and the
+`/cl/__error__` endpoint classify every failure the browser, the Vite dev server
+or the client build reports, resolve it back to a Jac location through the
+client source maps, and render it in the shape above. The 7-series is grouped by
+*channel* rather than by compiler phase, so `E7005` carries the `codegen`
+category while the rest carry `runtime`.
+
+| Code | Message |
+|------|---------|
+| `E7001` | The module '{module}' has no export named '{name}' |
+| `E7002` | Failed to resolve import '{name}' from '{importer}' |
+| `E7003` | Uncaught {kind} in client code: {message} |
+| `E7004` | Vite dev-server error: {message} |
+| `E7005` | Client build failed: {message} |
+| `E7006` | Client error could not be traced to Jac source: {message} |
+
+`E7001` is the link error the browser raises when a module loads and the name a
+value import asked for is not among its runtime exports. The usual cause is a
+type-only export -- a TypeScript interface or type alias that lives in the
+package's `.d.ts` and is erased before the module runs. Import it with
+`import type`, or check the package's exports for the name's real spelling. The
+location is the `.jac` import item itself, found through the compiled module's
+column map.
+
+`E7002` is a resolve failure the dev server raises before the browser ever runs
+the module. The primary location is the importing `.jac` line; when the missing
+name is a bare npm package, the diagnostic also carries a related location on
+the `jac.toml` `[dependencies.npm]` table -- the package's own line when it is
+declared, the table header when it is not, and the file itself when the table is
+absent. `W1106` is the build-time sibling for the same fact and owns the
+undeclared-package wording, which `E7002` reuses verbatim rather than
+duplicating.
+
+`E7003` is any error the browser threw with a stack. The topmost frame that maps
+into a `.jac` file is the reported location; the raw JavaScript stack is kept on
+the diagnostic so frames outside your sources are not lost.
+
+`E7005` covers the client build failures that reach the dev loop as a bare
+exception. Whenever the compiler emitted diagnostics of its own, those are
+reported instead, with their real codes and locations.
+
+`E7006` is the honest answer when nothing on disk claims the location the
+browser reported -- a browser extension, a dependency with no source map, or an
+artifact from a build that has since been replaced. The `file` field still names
+the best-known Jac owner and the diagnostic carries an explicit
+`unmapped_reason`; it is never silently empty.
 
 ---
 

@@ -109,7 +109,7 @@ def:pub app() -> JsxElement {
 }
 ```
 
-The import itself lives wherever its consumers live (here, the client bundle, as an RPC stub), while its target remains on the server. Between two server modules, the same import becomes a server-to-server microservice boundary when the target is listed in `[scale.microservices.routes]` (or its module is pinned `"server"`).
+The import itself lives wherever its consumers live (here, the client bundle, as an RPC stub), while its target remains on the server. Between two server modules, the same import becomes a server-to-server bridge when the target belongs to a different app of the workspace (a walker or `def:pub` owned by an `[apps.<name>]` service app); the stub is a coroutine and the call is awaited.
 
 ### What Is Shared
 
@@ -395,9 +395,9 @@ Lazy integer sequence, typically used in `for` loops.
 
 ---
 
-### Fixed-Width Types (Native Codespace)
+### Fixed-Width Types
 
-The native codespace adds fixed-width types for C interop. These types map directly to hardware registers and C ABI types:
+The fixed-width types are first-class on every lane -- server, client, and native alike -- and double as the vocabulary of C interop. They map directly to hardware registers and C ABI types:
 
 | Jac Type | Width | Signed | C Equivalent |
 |----------|-------|--------|--------------|
@@ -413,7 +413,7 @@ The native codespace adds fixed-width types for C interop. These types map direc
 | `f64` | 64-bit | -- | `double` |
 | `c_void` | -- | -- | `void*` |
 
-The compiler automatically coerces between Jac's standard types (`int` = `i64`, `float` = `f64`) and fixed-width types at call boundaries.
+Conversions follow one lattice on every lane: widening is implicit (`i8 -> i64 -> int`, `u8 -> i16`, `f32 -> f64 -> float`, `bool -> int`, `int -> float`), everything else is the checked cast `T(x)`, and sized arithmetic traps with `OverflowError` on overflow. The full contract is in [Fixed-width semantics](types-and-values.md#fixed-width-semantics).
 
 ---
 

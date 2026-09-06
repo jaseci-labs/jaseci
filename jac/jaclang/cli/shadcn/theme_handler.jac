@@ -105,7 +105,7 @@ glob _SHADCN_TAILWIND_CSS: str = """/* Vendored from shadcn v3.8.5 dist/tailwind
   }
 }""";
 
-glob _DEFAULTS: dict = {
+glob _DEFAULTS: dict[str, str] = {
          "style": "nova",
          "baseColor": "neutral",
          "theme": "neutral",
@@ -114,7 +114,7 @@ glob _DEFAULTS: dict = {
          "menuAccent": "subtle",
          "menuColor": "default"
      },
-     _SHADCN_KEYS: list = [
+     _SHADCN_KEYS: list[str] = [
          "style",
          "baseColor",
          "theme",
@@ -123,13 +123,13 @@ glob _DEFAULTS: dict = {
          "menuAccent",
          "menuColor"
      ],
-     RADII_MAP: dict = {
+     RADII_MAP: dict[str, str] = {
          "none": "0",
          "small": "0.45rem",
          "medium": "0.625rem",
          "large": "0.875rem"
      },
-     FONT_DATA: dict = {
+     FONT_DATA: dict[str, dict[str, str]] = {
          "geist": {
              "family": "'Geist Variable', sans-serif",
              "npm": "@fontsource-variable/geist"
@@ -179,7 +179,7 @@ glob _DEFAULTS: dict = {
              "npm": "@fontsource-variable/geist-mono"
          }
      },
-     THEME_INLINE_COLORS: list = [
+     THEME_INLINE_COLORS: list[str] = [
          "sidebar-ring",
          "sidebar-border",
          "sidebar-accent-foreground",
@@ -214,13 +214,21 @@ glob _DEFAULTS: dict = {
      ],
      _UTILS_CONTENT: str = 'import from "clsx" { clsx }\nimport from "tailwind-merge" { twMerge }\n\ndef:pub cn(*inputs: any) -> str {\n    return twMerge(clsx(inputs));\n}\n';
 
-def normalize_shadcn_config(raw: (dict | None)) -> dict {
-    cfg: dict = {};
+def _utils_source -> str {
+    src = _registry_dir() / "lib" / "utils.jac";
+    if src.is_file() {
+        return src.read_text();
+    }
+    return _UTILS_CONTENT;
+}
+
+def normalize_shadcn_config(raw: (dict | None)) -> dict[str, str] {
+    cfg: dict[str, str] = {};
     cfg.update(_DEFAULTS);
     if raw {
         for key in _SHADCN_KEYS {
             if raw.get(key) {
-                cfg[key] = raw[key];
+                cfg[key] = str(raw[key]);
             }
         }
     }
@@ -228,7 +236,8 @@ def normalize_shadcn_config(raw: (dict | None)) -> dict {
 }
 
 def load_themes -> list {
-    themes_path = _registry_dir() / "themes.json";
+    registry_dir: Path = _registry_dir();
+    themes_path = registry_dir / "themes.json";
     if themes_path.is_file() {
         with open(themes_path, "r") as f {
             return json_mod.load(f);
@@ -467,7 +476,7 @@ def _install_component(ui_dir: any, name: str, style: str) -> list {
 }
 
 def materialize_themed_starter(
-    project_root: any, project_name: str, shadcn_config: dict
+    project_root: any, project_name: str, shadcn_config: dict[str, str]
 ) -> bool {
     pr = Path(str(project_root));
     style = shadcn_config.get("style", "nova");
@@ -495,7 +504,7 @@ def materialize_themed_starter(
 
     lib_dir = pr / "lib";
     lib_dir.mkdir(parents=True, exist_ok=True);
-    (lib_dir / "utils.jac").write_text(_UTILS_CONTENT);
+    (lib_dir / "utils.jac").write_text(_utils_source());
 
     styles_dir = pr / "styles";
     styles_dir.mkdir(parents=True, exist_ok=True);
@@ -529,6 +538,16 @@ def materialize_themed_starter(
     return True;
 }
 
+def _theme_app_root(config: any, project_root: Path) -> Path {
+    try {
+        app = config.resolve_app("");
+    } except ValueError {
+        return project_root;
+    }
+    app_root = app.root_dir(str(project_root));
+    return Path(app_root) if app_root else project_root;
+}
+
 def retheme_project(config: any, overrides: dict) -> bool {
     if config is None or config.project_root is None {
         console.error(
@@ -544,20 +563,21 @@ def retheme_project(config: any, overrides: dict) -> bool {
     current = normalize_shadcn_config(raw);
     old_style = current.get("style", "nova");
 
-    merged: dict = {};
+    merged: dict[str, str] = {};
     merged.update(current);
     for key in _SHADCN_KEYS {
         if overrides.get(key) is not None {
-            merged[key] = overrides[key];
+            merged[key] = str(overrides[key]);
         }
     }
     new_style = merged.get("style", "nova");
 
     project_root = Path(str(config.project_root));
     toml_path = project_root / "jac.toml";
+    app_root = _theme_app_root(config, project_root);
 
     set_shadcn_section(toml_path, merged);
-    styles_dir = project_root / "styles";
+    styles_dir = app_root / "styles";
     styles_dir.mkdir(parents=True, exist_ok=True);
     (styles_dir / "global.css").write_text(
         generate_global_css(merged.get("font", "figtree"), resolve_css_vars(merged))
@@ -582,11 +602,15 @@ def retheme_project(config: any, overrides: dict) -> bool {
             + ")",
         style="bold cyan"
     );
-    console.print("  + styles/global.css", style="green");
+    css_label = "styles/global.css";
+    if app_root != project_root {
+        css_label = str((app_root / "styles" / "global.css").relative_to(project_root));
+    }
+    console.print("  + " + css_label, style="green");
 
     if new_style != old_style {
         restyled = 0;
-        ui_dir = project_root / "components" / "ui";
+        ui_dir = app_root / "components" / "ui";
         components_meta: dict = load_registry().get("components", {});
         stem_to_key: dict = {};
         for key in components_meta {

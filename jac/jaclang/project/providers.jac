@@ -267,7 +267,7 @@ obj PythonProvider(EcosystemProvider) {
         return [self.pip_spec(d) for d in deps];
     }
 
-    def _project_venv(config: JacConfig) -> Path {
+    def _project_venv(config: JacConfig | None) -> Path {
         if config is None {
             raise ValueError(
                 "No jac.toml found. Run 'jac create <name>' to create a project."
@@ -277,12 +277,14 @@ obj PythonProvider(EcosystemProvider) {
     }
 
     def _run_project_pip(
-        config: JacConfig, args: list[str], verbose: bool = False
+        config: JacConfig | None, args: list[str], verbose: bool = False
     ) -> tuple[int, str, str] {
         return run_pip(self._project_venv(config), args, verbose);
     }
 
-    def _snapshot_installed(config: JacConfig) -> tuple[bool, set[tuple[str, str]]] {
+    def _snapshot_installed(
+        config: JacConfig | None
+    ) -> tuple[bool, set[tuple[str, str]]] {
         import json;
         try {
             (rc, out, _) = self._run_project_pip(config, ["list", "--format=json"]);
@@ -292,12 +294,12 @@ obj PythonProvider(EcosystemProvider) {
                     {(p["name"].lower(), p["version"]) for p in json.loads(out)}
                 );
             }
-        } except Exception { }
+        } except Exception {}
         return (False, set());
     }
 
     def install_specs(
-        config: JacConfig, specs: list[str], ctx: InstallContext
+        config: JacConfig | None, specs: list[str], ctx: InstallContext
     ) -> bool {
         if not specs {
             return True;
@@ -636,7 +638,7 @@ def initialize_provider_registry -> None {
     registry = get_provider_registry();
 
     try {
-        import from jaclang.runtimelib.client.plugin_config { JacClientPluginConfig }
+        import from jaclang.client.plugin_config { JacClientPluginConfig }
     } except Exception {
         return;
     }
@@ -673,14 +675,23 @@ def capability_dependencies(
         resolve_closure,
         scale_intent_from_config
     }
-    import from jaclang.project.kinds { plan_project_run }
+    import from jaclang.project.kinds { plan_app_run }
     if config is None {
         return [];
     }
     if not action {
         proj_root = str(config.project_root) if config.project_root else ".";
-        plan = plan_project_run(config, proj_root);
-        action = plan.action if plan else "execute";
+        action = "execute";
+        for app in (list(config.apps.values()) or [config.resolve_app("")]) {
+            try {
+                if plan_app_run(config, proj_root, app).action == "serve" {
+                    action = "serve";
+                    break;
+                }
+            } except ValueError {
+                continue;
+            }
+        }
     }
     intent = scale_intent_from_config(config);
     if intent and action != "serve" {

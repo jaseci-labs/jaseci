@@ -24,9 +24,13 @@ import from jaclang.scale.injector.binary {
     download_release_binary,
     stage_admin_dist
 }
-import from jaclang.runtimelib.utils { host_arch }
+import from jaclang.runtime.graph_utils { host_arch }
 import from jaclang.scale.injector.binary_injector { BinaryInjector }
 import from jaclang.scale.injector.bundle { TOOLCHAIN_SUBDIR }
+import from jaclang.scale.injector.pvc_injector {
+    BUNDLE_MOUNT_PATH,
+    BUNDLE_VOLUME_NAME
+}
 import from jaclang.scale.deploy.target.kubernetes.runtime_bootstrap {
     build_runtime_install_commands,
     runtime_container_env,
@@ -161,6 +165,50 @@ test "first-boot install only runs jac install (no jir-seed adoption)" {
 }
 
 
+test "pod bootstrap always skips the npm closure" {
+    # Pods never build the client: the deploy ships the bundle built on the
+    # host or fails fast, so no pod - gateway included - needs npm deps.
+    script = str(
+        build_bootstrap_init_container(KubernetesConfig(), "python:3.12-slim")["args"][
+            0
+        ]
+    );
+    assert "export JAC_CLIENT_SKIP_NPM_INSTALL=1" in script;
+    assert script.index("JAC_CLIENT_SKIP_NPM_INSTALL") < script.index("jac install");
+}
+
+
+test "bootstrap points the pip cache at the shared bundle PVC, best-effort" {
+    ctr = build_bootstrap_init_container(KubernetesConfig(), "python:3.12-slim");
+    script = str(ctr["args"][0]);
+    assert f"PIP_CACHE_DIR={BUNDLE_MOUNT_PATH}/.cache/pip" in script;
+    # bun's cache is deliberately NOT shared: thousands of tiny files are
+    # pathological on EFS/NFS; it stays on the pod-local disk.
+    assert "BUN_INSTALL_CACHE_DIR" not in script;
+    # mkdir-guarded (unwritable PVC degrades to plain installs), size-bounded.
+    assert script.index("if mkdir") < script.index("PIP_CACHE_DIR");
+    assert "du -sm" in script;
+    assert script.index("PIP_CACHE_DIR") < script.index("jac install");
+    mounts = [m["name"] for m in ctr["volumeMounts"]];
+    assert BUNDLE_VOLUME_NAME in mounts;
+}
+
+test "shared pip cache is opened cross-uid, probed, with pod-local fallback" {
+    ctr = build_bootstrap_init_container(KubernetesConfig(), "python:3.12-slim");
+    script = str(ctr["args"][0]);
+    cache = f"{BUNDLE_MOUNT_PATH}/.cache";
+    # The creator opens the dirs so pods running other uids can still write.
+    assert f"chmod 0777 {cache} {cache}/pip" in script;
+    # A pod that cannot write the shared dir must not export it: pip would
+    # silently disable caching and rebuild sdists on every boot. It gets a
+    # pod-local cache instead.
+    assert f"if touch {cache}/pip/.writable" in script;
+    assert "export PIP_CACHE_DIR=/tmp/jac-pip-cache" in script;
+    # The wipe-and-rewarm path re-opens the recreated dir too.
+    assert script.count("chmod 0777") == 2;
+}
+
+
 test "runtime_container_env exposes HOME + PATH, no JAC_NO_PRECOMPILE" {
     names = [e["name"] for e in runtime_container_env()];
     assert "HOME" in names;
@@ -190,8 +238,13 @@ test "[dependencies.system] in jac.toml installs into the service container" {
         assert prefix.count("grep -q 'install ok installed'") == 2;
         assert prefix.index("ffmpeg") < prefix.index("git");
         assert "else export DEBIAN_FRONTEND=noninteractive && apt-get update" in prefix;
-        # Chains into app-start so a failed apt aborts the boot (no silent start).
-        assert prefix.endswith("fi && ");
+        # One complete statement. Chaining the next command onto this block
+        # with `&&` never aborted the boot: `set -e` exempts the left side of
+        # `&&`, so a failed install skipped that one command and carried on
+        # (jac#8935). A failed install is loud on its own instead.
+        assert prefix.endswith("fi; ");
+        assert "could not install system packages (ffmpeg git)" in prefix;
+        assert "&& " not in prefix.rsplit("fi; ", 1)[-1];
     }
 }
 
@@ -582,11 +635,16 @@ def _payload_response(payload: bytes, url: str) -> bytes {
 }
 
 
+def _as_any(value: any) -> any {
+    return value;
+}
+
+
 test "channel tags are pinned to the registry digest at deploy time" {
     d = _write_toml("[dev]\ntest_jobs = \"auto\"\n");
     payload = json.dumps({"digest": "sha256:" + ("ab" * 32)}).encode();
     saved = binary_mod._http_get_bytes;
-    binary_mod._http_get_bytes = functools.partial(_payload_response, payload);
+    binary_mod._http_get_bytes = _as_any(functools.partial(_payload_response, payload));
     try {
         image = binary_mod.resolve_pod_base_image(d, "");
         assert image == "jaseci/jaclang@sha256:" + ("ab" * 32);
@@ -599,8 +657,8 @@ test "channel tags are pinned to the registry digest at deploy time" {
 test "a hub response without a digest keeps the tag form" {
     d = _write_toml("[dev]\ntest_jobs = \"auto\"\n");
     saved = binary_mod._http_get_bytes;
-    binary_mod._http_get_bytes = functools.partial(
-        _payload_response, json.dumps({"name": "dev"}).encode()
+    binary_mod._http_get_bytes = _as_any(
+        functools.partial(_payload_response, json.dumps({"name": "dev"}).encode())
     );
     try {
         assert binary_mod.resolve_pod_base_image(d, "") == "jaseci/jaclang:dev";
@@ -614,7 +672,7 @@ test "experimental images stay in tag form (downstream keys on the tag)" {
     d = _write_toml("[experimental]\npr = 7494\n");
     payload = json.dumps({"digest": "sha256:" + ("cd" * 32)}).encode();
     saved = binary_mod._http_get_bytes;
-    binary_mod._http_get_bytes = functools.partial(_payload_response, payload);
+    binary_mod._http_get_bytes = _as_any(functools.partial(_payload_response, payload));
     try {
         image = binary_mod.resolve_pod_base_image(d, "");
         assert image == "jaseci/jaclang:experimental-7494";
@@ -628,7 +686,7 @@ test "explicit python_image is never rewritten" {
     d = _write_toml("[dev]\ntest_jobs = \"auto\"\n");
     payload = json.dumps({"digest": "sha256:" + ("ef" * 32)}).encode();
     saved = binary_mod._http_get_bytes;
-    binary_mod._http_get_bytes = functools.partial(_payload_response, payload);
+    binary_mod._http_get_bytes = _as_any(functools.partial(_payload_response, payload));
     try {
         image = binary_mod.resolve_pod_base_image(d, "my.registry/app:v1");
         assert image == "my.registry/app:v1";

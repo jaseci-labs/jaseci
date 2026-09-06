@@ -31,8 +31,9 @@ def statistics_py -> dict {
         empty_raises = 1;
     }
     one_stdev_raises = 0;
+    lone: list[float] = [3.0];
     try {
-        tmp2 = stdev([3.0]);
+        tmp2 = stdev(lone);
     } except ValueError {
         one_stdev_raises = 1;
     }
@@ -58,16 +59,21 @@ def statistics_cl -> dict {
 
 
 def statistics_na -> dict[str, any] {
-    times = [900, 100, 500];
+    times: list[int] = [900, 100, 500];
+    odd: list[int] = [5, 1, 9];
+    evens: list[int] = [1, 2, 3, 4];
+    fpair: list[float] = [1.5, 2.5];
+    spread: list[float] = [2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0];
+    triple: list[float] = [1.0, 2.0, 3.0];
     med_bare = int(statistics.median(times));
-    med_odd = int(median([5, 1, 9]));
-    med_even_x10 = int(median([1, 2, 3, 4]) * 10);
-    mean_x10 = int(mean([1, 2, 3, 4]) * 10);
-    fmean_x10 = int(fmean([1.5, 2.5]) * 10);
-    pstdev_x1000 = int(pstdev([2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]) * 1000);
-    stdev_x1000 = int(stdev([2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]) * 1000);
-    var_x1000 = int(variance([1.0, 2.0, 3.0]) * 1000);
-    pvar_x1000 = int(pvariance([1.0, 2.0, 3.0]) * 1000);
+    med_odd = int(median(odd));
+    med_even_x10 = int(median(evens) * 10);
+    mean_x10 = int(mean(evens) * 10);
+    fmean_x10 = int(fmean(fpair) * 10);
+    pstdev_x1000 = int(pstdev(spread) * 1000);
+    stdev_x1000 = int(stdev(spread) * 1000);
+    var_x1000 = int(variance(triple) * 1000);
+    pvar_x1000 = int(pvariance(triple) * 1000);
     empty_ints: list[int] = [];
     empty_raises = 0;
     try {
@@ -76,8 +82,9 @@ def statistics_na -> dict[str, any] {
         empty_raises = 1;
     }
     one_stdev_raises = 0;
+    lone: list[float] = [3.0];
     try {
-        tmp2 = stdev([3.0]);
+        tmp2 = stdev(lone);
     } except ValueError {
         one_stdev_raises = 1;
     }

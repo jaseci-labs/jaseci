@@ -16,6 +16,18 @@ on:
         description: "Release tag to upload assets to: canonical v<version>, or `dev` for the rolling prerelease."
         required: true
         type: string
+      commit:
+        # A tag is a mutable ref, and checking one out is how a release ends up
+        # building a tree nobody approved: re-cutting a version whose tag
+        # already existed rebuilt whatever that tag still pointed at, five days
+        # stale (#8793). The release resolves the commit under review and names
+        # it here, so the artifact is pinned to an immutable object while `tag`
+        # stays what it always was -- the upload target. Empty (the release
+        # event, workflow_dispatch) keeps the tag checkout.
+        description: "Immutable commit SHA to build. Empty = check out `tag`."
+        required: false
+        default: ""
+        type: string
       channel:
         description: "release: cold + glibc-pinned; dev: cached + host-native."
         required: false
@@ -25,13 +37,26 @@ on:
         # Diagnostic lane: build ONE leg instead of the whole matrix, so a
         # single red platform can be iterated on without burning three other
         # runners per attempt. Empty (the default) keeps the channel's full
-        # leg list. `plan` rejects a non-empty filter whenever `tag` is set,
-        # so a release can never ship a partial matrix by mistake -- that
-        # guard is what lets workflow_dispatch expose this too.
-        description: "Comma-separated platform filter (e.g. macos-aarch64). Empty = the channel's full leg list."
+        # leg list. With `tag` set, `plan` accepts the filter only when every
+        # selected leg is one no release is obliged to ship (the manual
+        # Intel-Mac lane: only=macos-x86_64) and refuses any blocking leg, so
+        # a release can never ship a partial matrix by mistake -- that guard
+        # is what lets workflow_dispatch expose this too.
+        description: "Comma-separated platform filter (e.g. macos-aarch64). Empty = the channel's full leg list. With `tag`, only non-required legs (e.g. macos-x86_64) may be selected."
         required: false
         default: ""
         type: string
+    outputs:
+      required_platforms:
+        # The one place a caller can learn what this run was obliged to
+        # produce. release.yml's `publish` used to carry its own copy of the
+        # platform list under a comment asking whoever edited one to remember
+        # the other; a leg dropped from the matrix would still have been
+        # demanded there, hanging the release on an asset nothing was
+        # building. `plan` derives this from the same array the matrix comes
+        # from, so the two can no longer disagree.
+        description: "Space-separated platforms whose assets a release must carry to publish; non-blocking legs are excluded."
+        value: ${{ jobs.plan.outputs.required }}
     # Called workflows do not see the caller's repo secrets unless passed
     # explicitly; without these the docker-image job skips its push steps.
     secrets:
@@ -60,7 +85,7 @@ on:
         type: choice
         options: [release, dev]
       only:
-        description: "Comma-separated platform filter (e.g. macos-aarch64). Empty = the channel's full leg list. Rejected when `tag` is set."
+        description: "Comma-separated platform filter (e.g. macos-aarch64). Empty = the channel's full leg list. With `tag`, only non-required legs may be selected: only=macos-x86_64 plus tag=v<version> is the manual Intel-Mac lane."
         required: false
         default: ""
         type: string
@@ -88,16 +113,31 @@ jobs:
   # release). macos-15-intel is GitHub's last Intel image (retires Fall
   # 2027).
   #
-  # The Intel-Mac leg is release-only: it exists to pin the macOS 12.0
-  # floor for versioned releases, and on the dev channel it was the
-  # critical path (~24 min/merge on the slow Intel runners) for a
-  # rolling prerelease Intel users don't consume. Versioned releases
-  # still ship macos-x86_64: inputs.channel is empty on the release event and
-  # defaults to `release` on dispatch, so those keep the full list.
+  # The Intel-Mac leg is `manual`: in no channel's default matrix, built only
+  # when `only` names it. It used to be a release-channel leg marked
+  # `optional` (its abort() on `jac --version`, #8805, could not veto
+  # publish), but `publish` still waits for the whole matrix, and the Intel
+  # runners finished ~25 min after the arm64 leg while shipping a binary
+  # nobody could run; 0.37.2 already went out without it. Two lanes replace
+  # the matrix slot: nightly.yml's weekly `intel-mac-probe` (artifact only,
+  # the leg's signal) and the manual release lane (dispatch this workflow
+  # with only=macos-x86_64 and tag=v<version> to attach that one asset to
+  # an already-published release).
+  #
+  # `optional` marks a leg that still builds but no longer gates: the matrix
+  # runs it under continue-on-error and it is left out of `required`, the list
+  # `publish` verifies before revealing a release. `manual` goes one further:
+  # the leg is left out of the default matrix too, and on the lane that exists
+  # to build it a failure is red (no continue-on-error). Each flag decides
+  # matrix membership and the required set together, so a platform can never
+  # be non-blocking in the matrix and mandatory at publish time. Everything
+  # here is one array: adding or dropping a platform is an edit to LEGS and
+  # nowhere else.
   plan:
     runs-on: ubuntu-latest
     outputs:
       include: ${{ steps.legs.outputs.include }}
+      required: ${{ steps.legs.outputs.required }}
     steps:
       - name: Select build legs for the channel
         id: legs
@@ -107,23 +147,18 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
+          # macos-x86_64 is `manual` (see the comment above this job): not in
+          # any channel's default matrix, built only when `only` names it,
+          # never required to publish, and not `optional`, so the lane that
+          # exists to build it goes red when it fails. Delete the flag when
+          # #8805 is fixed and the leg should carry a release again; that
+          # restores it as a blocking leg and a required asset in one edit.
           LEGS='[
             {"os": "ubuntu-latest",    "platform": "linux-x86_64",  "zig_target": "x86_64-linux-gnu.2.17"},
             {"os": "ubuntu-24.04-arm", "platform": "linux-aarch64", "zig_target": "aarch64-linux-gnu.2.17"},
             {"os": "macos-14",         "platform": "macos-aarch64"},
-            {"os": "macos-15-intel",   "platform": "macos-x86_64",  "zig_target": "x86_64-macos.12.0"}
+            {"os": "macos-15-intel",   "platform": "macos-x86_64",  "zig_target": "x86_64-macos.12.0", "manual": true}
           ]'
-          if [ "$CHANNEL" = "dev" ]; then
-            LEGS="$(jq -c 'map(select(.platform != "macos-x86_64"))' <<<"$LEGS")"
-          fi
-          # `only` is a diagnostic lane, never a release path: uploading a
-          # filtered matrix to a real tag would publish a release missing
-          # assets for the legs it dropped. workflow_call never pairs them;
-          # this guard is what makes the dispatch input safe to expose.
-          if [ -n "${ONLY:-}" ] && [ -n "${TAG:-}" ]; then
-            echo "::error::platform filter '$ONLY' cannot be combined with tag '$TAG': a filtered matrix would publish a release missing assets."
-            exit 1
-          fi
           if [ -n "${ONLY:-}" ]; then
             LEGS="$(jq -c --arg only "$ONLY" \
               '($only | split(",") | map(ltrimstr(" ") | rtrimstr(" "))) as $want
@@ -133,8 +168,42 @@ jobs:
               echo "::error::platform filter '$ONLY' matched no leg on channel '${CHANNEL:-release}'"
               exit 1
             }
+          else
+            # No filter: the channel's default matrix, which never holds a
+            # manual leg.
+            LEGS="$(jq -c 'map(select(.manual != true))' <<<"$LEGS")"
+          fi
+          # `only` with a tag uploads a filtered matrix's assets to a real
+          # release. That is the point of the manual lane for a leg no release
+          # is obliged to ship, and a mistake for any blocking leg: a release
+          # published from such a run would be missing assets. release.yml
+          # never passes `only`, so this refusal is what makes the dispatch
+          # input safe to expose.
+          if [ -n "${ONLY:-}" ] && [ -n "${TAG:-}" ]; then
+            BLOCKING="$(jq -r 'map(select(.optional != true and .manual != true)) | map(.platform) | join(" ")' <<<"$LEGS")"
+            if [ -n "$BLOCKING" ]; then
+              echo "::error::platform filter '$ONLY' cannot upload to tag '$TAG': it selects blocking leg(s) '$BLOCKING', and a filtered matrix would publish a release missing assets. Only non-required legs (e.g. macos-x86_64) may be built alone against a tag."
+              exit 1
+            fi
           fi
           echo "include=$(jq -c . <<<"$LEGS")" >> "$GITHUB_OUTPUT"
+
+          # The platforms a release is obliged to ship, read off the same array
+          # the matrix was. Absence of both flags means blocking, so a new leg
+          # is required until someone says otherwise.
+          REQUIRED="$(jq -r 'map(select(.optional != true and .manual != true)) | map(.platform) | join(" ")' <<<"$LEGS")"
+          # A release whose every leg is optional has nothing to verify, and
+          # publishing it would reveal whatever the draft happened to hold.
+          # Only the unfiltered matrix feeds a publish (release.yml); the
+          # `only` lane narrows to non-required legs on purpose and publishes
+          # nothing, so an empty required set is expected there.
+          if [ -z "$REQUIRED" ] && [ -n "${TAG:-}" ] && [ -z "${ONLY:-}" ]; then
+            echo "::error::no blocking platform left for tag '$TAG': every leg is marked optional, so a release would publish without checking anything."
+            exit 1
+          fi
+          echo "required=$REQUIRED" >> "$GITHUB_OUTPUT"
+          echo "Building: $(jq -r 'map(.platform) | join(" ")' <<<"$LEGS")"
+          echo "Required to publish: ${REQUIRED:-(none)}"
 
   build:
     needs: plan
@@ -143,19 +212,43 @@ jobs:
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.include) }}
     runs-on: ${{ matrix.os }}
+    # A leg `plan` marked optional builds, smoke-tests and uploads exactly as
+    # before and still goes red when it breaks; it just does not fail the job.
+    # That is what lets `admin-dist`, `docker-image` and release.yml's `publish`
+    # -- all of them `needs: build` -- run while one platform is down. Legs
+    # without the key resolve to false and keep vetoing as they always have.
+    continue-on-error: ${{ matrix.optional || false }}
     env:
       # -Dtarget flag for zig build: set on release-channel Linux legs, empty
       # (host-native) on the dev channel and macOS.
       DTARGET: ${{ inputs.channel != 'dev' && matrix.zig_target && format('-Dtarget={0}', matrix.zig_target) || '' }}
     steps:
-      # Check out the release tag (release channel) or the pushed commit (dev
+      # Check out the commit the release resolved (release channel, when the
+      # caller names one), else the release tag, else the pushed commit (dev
       # channel), so a recovery run after main advanced still builds the
       # release's own source. SHA-pinned: this job holds contents:write and
       # ships user-downloaded binaries, so a re-pointed tag on the action must
       # not reach it.
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ inputs.channel == 'dev' && github.sha || inputs.tag || github.event.release.tag_name }}
+          ref: ${{ inputs.channel == 'dev' && github.sha || inputs.commit || inputs.tag || github.event.release.tag_name }}
+
+      # The provenance line the v0.37.0 post-mortem had to reconstruct from a
+      # cache key. It is also the assertion: if the checkout ever resolves
+      # something other than the commit the release named, this leg stops
+      # instead of shipping it.
+      - name: Record the commit being built
+        shell: bash
+        env:
+          WANT: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          echo "Building ${HEAD_SHA}"
+          if [ -n "$WANT" ] && [ "$HEAD_SHA" != "$WANT" ]; then
+            echo "::error::checkout resolved ${HEAD_SHA}, but this release is cutting ${WANT}"
+            exit 1
+          fi
 
       # Dev channel only: reuse the read-mostly caches main seeds. The release
       # channel builds cold on purpose (a cached payload could ship stale
@@ -168,11 +261,11 @@ jobs:
         id: shim-cache
         uses: actions/cache@v4
         with:
-          path: jac/jaclang/compiler/passes/native/llvm/libjacllvm.*
-          key: jac-shim-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/native/**', 'jac/build.zig', 'jac/launcher/llvm_release.zig') }}
+          path: jac/jaclang/compiler/backends/native/llvm/libjacllvm.*
+          key: jac-shim-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/native/**', 'jac/build.zig', 'jac/bootstrap/pins.json') }}
 
-      # Keyed on llvm_release.zig to match the entries setup-jac seeds (the
-      # old release-dev key hashed payload.zig, so it never matched them and
+      # Keyed on bootstrap/pins.json to match the entries setup-jac seeds (the
+      # old release-dev key hashed the payload tool, so it never matched them and
       # duplicated the ~0.5 GB tree into the cache pool).
       - name: Restore cached LLVM (dev channel)
         if: inputs.channel == 'dev' && steps.shim-cache.outputs.cache-hit != 'true'
@@ -180,10 +273,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: jac/.llvm-build
-          key: llvm-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/llvm_release.zig') }}
+          key: llvm-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/bootstrap/pins.json') }}
 
       # Identity of the compiler this build runs, as git blob ids over the same
-      # file set jir.jac hashes for its module keys (jaclang.jac0core.jir:
+      # file set jir.jac hashes for its module keys (jaclang.compiler.driver.jir:
       # COMPILER_DIGEST_ROOTS, .jac/.py only, test material excluded). Same
       # rule as the step in .github/actions/setup-jac, which seeds the entries
       # this leg reads; keep the three in lockstep.
@@ -194,14 +287,20 @@ jobs:
         run: |
           list="$(git ls-tree -r HEAD -- \
             jac/jaclang/jac0.py \
+            jac/jaclang/bootstrap_manifest.py \
+            jac/jaclang/meta_importer.py \
             jac/jaclang/jac0core \
             jac/jaclang/compiler \
-            jac/jaclang/utils/precompile_bytecode.jac \
+            jac/jaclang/runtime \
+            jac/jaclang/lib \
+            jac/jaclang/cli/cli_boot.jac \
+            jac/jaclang/project/tomlio.jac \
+            jac/jaclang/dist/precompile_bytecode.jac \
             | grep -E '\.(jac|py)$' \
             | grep -vE '(^|/)(tests|test)/|\.test\.jac$' || true)"
           n="$(printf '%s\n' "$list" | grep -c . || true)"
           if [ "$n" -lt 100 ]; then
-            echo "::error::compiler fingerprint listed only $n file(s): the roots moved. Update this step and COMPILER_DIGEST_ROOTS in jaclang/jac0core/jir.jac together."
+            echo "::error::compiler fingerprint listed only $n file(s): the roots moved. Update this step and COMPILER_DIGEST_ROOTS in jaclang/compiler/driver/jir.jac together."
             exit 1
           fi
           fp="$(printf '%s\n' "$list" | git hash-object --stdin)"
@@ -236,14 +335,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: jac/.pbs-build
-          key: pbs-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/payload.zig') }}
+          key: pbs-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/bootstrap/pins.json') }}
 
       - name: Restore cached bun runtime (dev channel)
         if: inputs.channel == 'dev'
         uses: actions/cache@v4
         with:
           path: jac/.bun-build
-          key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/runtimelib/client/bun_installer.jac') }}
+          key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/client/bun_installer.jac') }}
 
       # The payload's compressed deps-layer frame (mkpayload --layer-cache):
       # content-addressed and verified by decompress + byte-compare before
@@ -254,7 +353,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: jac/.payload-layers
-          key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/editor/**', 'jac/jaclang/runtimelib/client/bun_installer.jac', 'jac/jaclang/compiler/passes/native/wasm_rt/**') }}
+          key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/bootstrap/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/jaclang/client/bun_installer.jac', 'jac/jaclang/compiler/backends/native/wasm_rt/**') }}
           restore-keys: |
             payload-layers-${{ runner.os }}-${{ runner.arch }}-
 
@@ -273,7 +372,7 @@ jobs:
         id: shim-fetch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SHIM_KEY: ${{ hashFiles('jac/native/**', 'jac/build.zig', 'jac/launcher/llvm_release.zig') }}
+          SHIM_KEY: ${{ hashFiles('jac/native/**', 'jac/build.zig', 'jac/bootstrap/pins.json') }}
         run: |
           set -euo pipefail
           EXT=so
@@ -293,15 +392,15 @@ jobs:
           fi
           echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
 
-      # The Zig package store (.zig-cache/p): the neovim fork + its transitive
-      # PUC Lua source off lua.org's FTP (the build's flakiest fetch), mini.nvim,
-      # tree-sitter-jac, etc. Content-addressed source packages -- immutable, so
-      # (unlike the payload-artifact caches above, kept dev-only to avoid
-      # shipping stale bits) this is safe on BOTH channels, and a release is
-      # exactly when a lua.org blip must not fail the build. Same key as
-      # setup-jac so the Linux-x86_64 leg reuses the entry main seeds; a cross
-      # -Dtarget build fetches the same source, so os/arch is the right axis.
-      - name: Cache the Zig package store (avoids re-fetching Lua/neovim deps)
+      # The Zig package store (.zig-cache/p): every git/tarball dependency
+      # `zig build` fetches, as pinned by build.zig.zon. Content-addressed
+      # source packages -- immutable, so (unlike the payload-artifact caches
+      # above, kept dev-only to avoid shipping stale bits) this is safe on BOTH
+      # channels, and a release is exactly when an upstream fetch blip must not
+      # fail the build. Same key as setup-jac so the Linux-x86_64 leg reuses the
+      # entry main seeds; a cross -Dtarget build fetches the same source, so
+      # os/arch is the right axis.
+      - name: Cache the Zig package store (avoids re-fetching zon deps)
         uses: actions/cache@v4
         with:
           path: .zig-cache/p
@@ -344,68 +443,15 @@ jobs:
         working-directory: jac
         run: zig build fetch-llvm $DTARGET --summary all
 
-      # Backstop, no longer the load-bearing fix. Each materializer crossing
-      # strands that crossing's native tree (the unitree parent/kid cycles
-      # defeat plain RC and the artifact collector is not yet multi-module-safe
-      # to arm, #8139), and while the seal compiled every NATIVE_SEAL_ROOTS
-      # entry in ONE process that accumulation summed over all thirteen roots
-      # into a peak no hosted Linux runner could hold: on cd049457a both Linux
-      # legs died mid-seal with "the runner has received a shutdown signal" and
-      # exit 143 -- no zig diagnostic, no failed command, the signature of a
-      # runner whose memory is gone. The seal now runs a worker process per
-      # root, so the stranded trees die with each worker and the peak is
-      # JAC_SEAL_JOBS times ONE root's high-water mark instead of the sum. This
-      # step stays because the seal must still survive JAC_SEAL_JOBS=1 (the
-      # documented sequential fallback) and because the stranded pages are cold
-      # -- written once, never read again -- so swap holds them for the price of
-      # the paging. Retire it when the crossing reclaims its tree in process.
-      - name: Swap headroom for the sealed precompile (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          set -euo pipefail
-          echo "--- before"
-          free -h
-          swapon --show || true
-          df -h
-          # Prefer the runner's scratch volume: the build stages the payload on
-          # the workspace volume, so a swapfile there competes with it.
-          WORK_DEV="$(df -P "$RUNNER_TEMP" | awk 'NR==2 {print $1}')"
-          MNT_DEV="$(df -P /mnt 2>/dev/null | awk 'NR==2 {print $1}' || true)"
-          if [ -n "$MNT_DEV" ] && [ "$MNT_DEV" != "$WORK_DEV" ]; then
-            SWAP_DIR=/mnt
-            RESERVE_GB=2
-          else
-            SWAP_DIR="$RUNNER_TEMP"
-            RESERVE_GB=25
-          fi
-          AVAIL_GB=$(( $(df -Pk "$SWAP_DIR" | awk 'NR==2 {print $4}') / 1048576 ))
-          SIZE_GB=$(( AVAIL_GB - RESERVE_GB ))
-          if [ "$SIZE_GB" -gt 24 ]; then
-            SIZE_GB=24
-          fi
-          if [ "$SIZE_GB" -lt 4 ]; then
-            echo "::error::$SWAP_DIR has ${AVAIL_GB}G free, too little to spare;" \
-                 "the seal needs swap headroom at this root count and would exhaust the runner"
-            exit 1
-          fi
-          SWAP_FILE="$SWAP_DIR/jac-seal-swap"
-          sudo fallocate -l "${SIZE_GB}G" "$SWAP_FILE" \
-            || sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$(( SIZE_GB * 1024 ))
-          sudo chmod 600 "$SWAP_FILE"
-          sudo mkswap "$SWAP_FILE"
-          sudo swapon "$SWAP_FILE"
-          echo "--- after"
-          free -h
-          swapon --show
-
-      # The seal loads every artifact it emits and calls into it, so a
-      # miscompiled artifact kills the worker in native code with nothing but a
-      # signal number (#8313). ReportCrash turns that into a symbolicated .ips
-      # report, which the on-failure step below prints -- but only if the agent
-      # is loaded, and the hosted image does not guarantee that. Best-effort and
+      # The shipped macOS binary's launcher stub is linked by Jac's own Mach-O
+      # linker, so a mislinked image dies in native code with nothing but a
+      # signal number (#8302, #8307, #8313, #8800 -- four release cycles spent
+      # on a bare exit 139). ReportCrash turns that into a symbolicated .ips,
+      # which the on-failure step below prints -- but only if the agent is
+      # loaded, and the hosted image does not guarantee that. Best-effort and
       # before the build, because a report is only written for a crash that
       # happens after the agent is up.
-      - name: Arm macOS crash reporting (so a native abort names itself)
+      - name: Arm macOS crash reporting (so a native fault names itself)
         if: runner.os == 'macOS'
         continue-on-error: true
         run: |
@@ -418,15 +464,6 @@ jobs:
 
       - name: Build the jac binary (one command)
         working-directory: jac
-        env:
-          # Size the seal's worker pool for a hosted runner. The auto-size
-          # divides free memory by a worker's budget and caps at the core
-          # count, which on a 16 GiB / 4 vCPU Linux runner lands at four; pin
-          # three so the fan-out leaves the runner its own headroom and the
-          # swapfile above stays a backstop rather than a working set. The
-          # macOS legs keep the auto-size (smaller memory, swap that grows on
-          # demand), which is what an empty value selects.
-          JAC_SEAL_JOBS: ${{ runner.os == 'Linux' && '3' || '' }}
         # On a dev-channel shim-cache hit, stage the shim outside its in-tree
         # place path: the build copies -Dshim-bin back there, and a self-copy
         # would read the file it is truncating. Mirrors setup-jac. The
@@ -435,145 +472,12 @@ jobs:
           SHIM_ARG=()
           if [ "${{ steps.shim-cache.outputs.cache-hit }}" = "true" ]; then
             mkdir -p .shim-build
-            cp jaclang/compiler/passes/native/llvm/libjacllvm.* .shim-build/
+            cp jaclang/compiler/backends/native/llvm/libjacllvm.* .shim-build/
             SHIM_ARG=(-Dshim-bin=".shim-build/$(ls .shim-build | head -1)")
           elif [ "${{ steps.shim-fetch.outputs.hit }}" = "true" ]; then
             SHIM_ARG=(-Dshim-bin="${{ steps.shim-fetch.outputs.file }}")
           fi
           zig build $DTARGET "${SHIM_ARG[@]}" --summary all
-
-      # A macOS leg that dies inside a sealed artifact must say WHERE. On any
-      # failure of the build above this (1) prints every crash report the OS
-      # wrote -- the .ips carries the aborting thread's frames plus dyld's or
-      # malloc's own message, neither of which reaches the worker's stderr on
-      # modern macOS -- and (2) reproduces the artifact load standalone under
-      # lldb for a symbolicated backtrace. Gated on failure(), so a green leg
-      # pays nothing. This stays after #8313 is closed: #8302, #8307 and #8313
-      # each cost a release cycle to a bare signal number, and the next one
-      # should name itself on the first red run.
-      - name: Name the native crash (macOS crash reports + lldb replay)
-        if: failure() && runner.os == 'macOS'
-        continue-on-error: true
-        working-directory: jac
-        run: |
-          set +e
-          # ReportCrash writes asynchronously; the failing step can beat it.
-          sleep 25
-
-          echo "::group::macOS crash reports"
-          FOUND=0
-          for d in "$HOME/Library/Logs/DiagnosticReports" /Library/Logs/DiagnosticReports; do
-            [ -d "$d" ] || continue
-            for f in "$d"/*; do
-              case "$f" in *.ips|*.crash) ;; *) continue ;; esac
-              [ -f "$f" ] || continue
-              FOUND=1
-              echo "===== $f"
-              cat "$f"
-              echo
-            done
-          done
-          if [ "$FOUND" = 0 ]; then
-            echo "(no crash report on this runner -- ReportCrash is not loaded on the image;"
-            echo " the lldb replay below is then the only naming mechanism)"
-          fi
-          echo "::endgroup::"
-
-          # python-build-standalone's interpreter is the one the seal worker
-          # runs, so the replay loads each artifact into the same process image
-          # the abort happened in. Not -type f: pbs ships bin/python3 as a
-          # symlink, and /usr/bin/python3 is SIP-protected -- lldb cannot debug
-          # it, so falling back to it silently turns the replay into a no-op.
-          PY="$(ls "$PWD"/.pbs-build/*/python/install/bin/python3.* 2>/dev/null | head -1)"
-          [ -n "$PY" ] || PY="$(ls "$PWD"/.pbs-build/*/python/install/bin/python3 2>/dev/null | head -1)"
-          [ -n "$PY" ] || PY=/usr/bin/python3
-          echo "replay interpreter: $PY"
-
-          cat > "$RUNNER_TEMP/jac-load-probe.py" <<'PROBE'
-          import ctypes, sys
-
-          path = sys.argv[1]
-          print("dlopen: %s" % path, flush=True)
-          lib = ctypes.CDLL(path)
-          print("dlopen ok", flush=True)
-          init = ctypes.cast(getattr(lib, "__jac_shared_init"), ctypes.c_void_p).value
-          print("calling __jac_shared_init", flush=True)
-          ctypes.CFUNCTYPE(None)(init)()
-          print("__jac_shared_init returned", flush=True)
-          try:
-              probe = ctypes.cast(getattr(lib, "jac_str_new"), ctypes.c_void_p).value
-          except AttributeError:
-              probe = 0
-          if probe:
-              print("calling jac_str_new", flush=True)
-              made = ctypes.CFUNCTYPE(
-                  ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int64
-              )(probe)(b"jac", 3)
-              print("jac_str_new -> %r" % (made,), flush=True)
-          print("LOAD PROBE OK", flush=True)
-          PROBE
-
-          echo "::group::lldb replay of every sealed artifact this build emitted"
-          find "$PWD" "$GITHUB_WORKSPACE/.zig-cache" -name 'libjac_*.dylib' -type f 2>/dev/null \
-            | sort -u > "$RUNNER_TEMP/jac-dylibs.txt"
-          if ! [ -s "$RUNNER_TEMP/jac-dylibs.txt" ]; then
-            echo "(no libjac_*.dylib on the runner: the seal died before it emitted one)"
-          fi
-          : > "$RUNNER_TEMP/jac-dylibs-bad.txt"
-          while IFS= read -r dl; do
-            [ -n "$dl" ] || continue
-            echo "===== $dl ($(wc -c < "$dl") bytes)"
-            # Plain run first: the artifact's own diagnostics (an uncaught
-            # native exception prints its message before aborting) reach this
-            # step's stdout directly, which the build tool's captured-stdio
-            # view of the seal never shows.
-            perl -e 'alarm 240; exec @ARGV' \
-              "$PY" "$RUNNER_TEMP/jac-load-probe.py" "$dl" 2>&1 | tail -40
-            rc="${PIPESTATUS[0]:-1}"
-            echo "----- exit: $rc"
-            [ "$rc" = 0 ] || echo "$dl" >> "$RUNNER_TEMP/jac-dylibs-bad.txt"
-            perl -e 'alarm 240; exec @ARGV' \
-              lldb --batch -o run -k "thread backtrace all" -k "image list -o -f" \
-                   -k quit -- "$PY" "$RUNNER_TEMP/jac-load-probe.py" "$dl" 2>&1 | tail -80
-          done < "$RUNNER_TEMP/jac-dylibs.txt"
-          echo "::endgroup::"
-          exit 0
-
-      # The .ips reports and a symbol dump per artifact, so an abort that the
-      # log only shows as an address can be symbolicated after the run.
-      - name: Collect the crash evidence
-        if: failure() && runner.os == 'macOS'
-        continue-on-error: true
-        run: |
-          set +e
-          OUT="$RUNNER_TEMP/jac-crash-evidence"
-          mkdir -p "$OUT"
-          for d in "$HOME/Library/Logs/DiagnosticReports" /Library/Logs/DiagnosticReports; do
-            [ -d "$d" ] && cp -f "$d"/*.ips "$d"/*.crash "$OUT"/ 2>/dev/null
-          done
-          while IFS= read -r dl; do
-            [ -n "$dl" ] || continue
-            nm -n "$dl" > "$OUT/$(basename "$dl").nm" 2>/dev/null
-            otool -l "$dl" > "$OUT/$(basename "$dl").otool" 2>/dev/null
-          done < "$RUNNER_TEMP/jac-dylibs.txt"
-          # The artifacts that actually failed their standalone load ride along
-          # whole: a miscompiled artifact is only diagnosable with its bytes,
-          # and the runner is gone by the time anyone reads this.
-          while IFS= read -r dl; do
-            [ -n "$dl" ] || continue
-            cp -f "$dl" "$OUT"/ 2>/dev/null
-          done < "$RUNNER_TEMP/jac-dylibs-bad.txt"
-          ls -la "$OUT"
-          exit 0
-
-      - name: Upload the crash evidence
-        if: failure() && runner.os == 'macOS'
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-crash-evidence-${{ matrix.platform }}
-          path: ${{ runner.temp }}/jac-crash-evidence
-          if-no-files-found: ignore
 
       # Launcher unit tests (`zig build test`) live in ci.yml's `test-launcher`
       # job so they gate every PR on Linux + macOS, not just release time. The
@@ -617,6 +521,88 @@ jobs:
           # User-supplied PYTHONPATH: passes through to children untouched.
           env -i HOME="$WORK" PATH=/usr/bin:/bin PYTHONPATH=/user/own "$BIN" run "$WORK/leak.jac" | grep -qx 'child /user/own'
 
+      # A macOS leg that dies in native code must say WHERE. On any failure
+      # above this: (1) print every crash report the OS wrote -- the .ips
+      # carries the faulting thread's frames plus dyld's own message, neither
+      # of which reaches the process's stderr on modern macOS; (2) dump the
+      # shipped binary's Mach-O header and load commands, which is what names a
+      # mislinked image; (3) replay `jac --version` under lldb for a
+      # symbolicated backtrace. Gated on failure(), so a green leg pays
+      # nothing.
+      - name: Name the macOS crash (crash reports + header dump + lldb replay)
+        if: failure() && runner.os == 'macOS'
+        continue-on-error: true
+        working-directory: jac
+        run: |
+          set +e
+          REPORTS="$HOME/Library/Logs/DiagnosticReports /Library/Logs/DiagnosticReports"
+
+          # ReportCrash writes asynchronously; poll rather than sleep blind.
+          for _ in $(seq 1 30); do
+            ls $REPORTS 2>/dev/null | grep -qE '\.(ips|crash)$' && break
+            sleep 1
+          done
+
+          echo "::group::macOS crash reports"
+          FOUND=0
+          for d in $REPORTS; do
+            [ -d "$d" ] || continue
+            for f in "$d"/*.ips "$d"/*.crash; do
+              [ -f "$f" ] || continue
+              FOUND=1
+              echo "===== $f"
+              cat "$f"
+              echo
+            done
+          done
+          [ "$FOUND" = 1 ] || echo "(no crash report -- ReportCrash is not loaded on this image)"
+          echo "::endgroup::"
+
+          BIN="$PWD/zig-out/bin/jac"
+          if [ -f "$BIN" ]; then
+            echo "::group::Mach-O header + load commands of the shipped binary"
+            otool -hv "$BIN"
+            otool -l "$BIN" | head -200
+            echo "::endgroup::"
+
+            echo "::group::lldb replay of jac --version"
+            WORK="$(mktemp -d)"
+            perl -e 'alarm 240; exec @ARGV' \
+              lldb --batch -o run -k "thread backtrace all" -k "image list -o -f" \
+                   -k quit -- "$BIN" --version 2>&1 | tail -80
+            echo "::endgroup::"
+          else
+            echo "(no zig-out/bin/jac: the build itself did not get that far)"
+          fi
+          exit 0
+
+      - name: Collect the macOS crash evidence
+        if: failure() && runner.os == 'macOS'
+        continue-on-error: true
+        run: |
+          set +e
+          OUT="$RUNNER_TEMP/jac-crash-evidence"
+          mkdir -p "$OUT"
+          for d in "$HOME/Library/Logs/DiagnosticReports" /Library/Logs/DiagnosticReports; do
+            [ -d "$d" ] && cp -f "$d"/*.ips "$d"/*.crash "$OUT"/ 2>/dev/null
+          done
+          BIN="$GITHUB_WORKSPACE/jac/zig-out/bin/jac"
+          if [ -f "$BIN" ]; then
+            otool -l "$BIN" > "$OUT/jac.otool" 2>/dev/null
+            nm -n "$BIN" > "$OUT/jac.nm" 2>/dev/null
+          fi
+          ls -la "$OUT"
+          exit 0
+
+      - name: Upload the macOS crash evidence
+        if: failure() && runner.os == 'macOS'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-crash-evidence-${{ matrix.platform }}
+          path: ${{ runner.temp }}/jac-crash-evidence
+          if-no-files-found: ignore
+
       # Guards #7082: neither the launcher nor the LLVMPY_* shim may reference
       # a glibc symbol newer than the zig_target floor. Release channel only:
       # dev binaries are host-native with no pinned floor.
@@ -639,20 +625,10 @@ jobs:
             fi
           }
           check zig-out/bin/jac
-          SHIM="jaclang/compiler/passes/native/llvm/libjacllvm.so"
+          SHIM="jaclang/compiler/backends/native/llvm/libjacllvm.so"
           [ -f "$SHIM" ] || zig build jacllvm -Dtarget=${{ matrix.zig_target }} --summary all
           [ -f "$SHIM" ] || SHIM="zig-out/lib/libjacllvm.so"
           check "$SHIM"
-          # Sealed AOT compiler artifacts (the materializer root carrying
-          # the parser, plus unitree): materialize the payload once, then
-          # hold EVERY shipped artifact to the same glibc floor. The sealed
-          # parser serves all parse trees with no bytecode fallback, so a
-          # missing artifact here is a broken binary.
-          WORK="$(mktemp -d)"
-          env -i HOME="$WORK" PATH=/usr/bin:/bin ./zig-out/bin/jac --version >/dev/null
-          ARTS="$(find "$WORK/.cache/jac/rt" -path '*/_precompiled/native/*' -name 'libjac_*.so')"
-          [ -n "$ARTS" ] || { echo "::error::no sealed native artifacts (libjac_*.so) in the payload"; exit 1; }
-          while IFS= read -r a; do check "$a"; done <<< "$ARTS"
 
       # Intel-mac mirror of the glibc check: neither the launcher nor the shim
       # may require a macOS newer than the zig_target floor, and the shim must
@@ -677,26 +653,11 @@ jobs:
             fi
           }
           check zig-out/bin/jac
-          SHIM="jaclang/compiler/passes/native/llvm/libjacllvm.dylib"
+          SHIM="jaclang/compiler/backends/native/llvm/libjacllvm.dylib"
           check "$SHIM"
           if otool -L "$SHIM" | grep -E "/opt/homebrew|/usr/local"; then
             echo "::error::$SHIM links Homebrew dylibs; the from-source slice must not."; exit 1
           fi
-          # Sealed AOT compiler artifacts (the materializer root carrying
-          # the parser, plus unitree): materialize the payload once, then
-          # hold EVERY shipped artifact to the minos floor and the
-          # no-Homebrew rule. The sealed parser serves all parse trees with
-          # no bytecode fallback, so a missing artifact is a broken binary.
-          WORK="$(mktemp -d)"
-          env -i HOME="$WORK" PATH=/usr/bin:/bin ./zig-out/bin/jac --version >/dev/null
-          ARTS="$(find "$WORK/.cache/jac/rt" -path '*/_precompiled/native/*' -name 'libjac_*.dylib')"
-          [ -n "$ARTS" ] || { echo "::error::no sealed native artifacts (libjac_*.dylib) in the payload"; exit 1; }
-          while IFS= read -r a; do
-            check "$a"
-            if otool -L "$a" | grep -E "/opt/homebrew|/usr/local"; then
-              echo "::error::$a links Homebrew dylibs."; exit 1
-            fi
-          done <<< "$ARTS"
 
       # A release-channel cold build just produced (and floor-verified) the
       # shim the deps release was missing: publish it so the next release with
@@ -713,7 +674,7 @@ jobs:
           set -euo pipefail
           ASSET="${{ steps.shim-fetch.outputs.asset }}"
           mkdir -p dist-shim
-          cp jac/jaclang/compiler/passes/native/llvm/libjacllvm.* "dist-shim/$ASSET"
+          cp jac/jaclang/compiler/backends/native/llvm/libjacllvm.* "dist-shim/$ASSET"
           ( cd dist-shim && shasum -a 256 "$ASSET" > "$ASSET.sha256" )
           gh release create deps --repo "$GITHUB_REPOSITORY" --prerelease \
             --title "Prebuilt build dependencies (rolling)" \
@@ -772,17 +733,43 @@ jobs:
           name: ${{ steps.pkg.outputs.asset }}
           path: jac/dist/*
 
+      # Non-blocking must not shade into unnoticed. continue-on-error reports
+      # the leg as a success to `needs:`, so without this the only trace of a
+      # dead platform is a red step somebody has to go looking for -- the exact
+      # inattention that let this one rot for eighteen days. Say it in the run
+      # summary and as an annotation instead.
+      - name: Say plainly that a non-blocking leg failed
+        if: failure() && matrix.optional
+        run: |
+          {
+            echo "### ${{ matrix.platform }} failed (non-blocking)"
+            echo ""
+            echo "This leg does not gate the release, so the run continues and"
+            echo "the release will ship **without a \`${{ matrix.platform }}\`"
+            echo "binary**. Users on that platform get nothing new until it is"
+            echo "fixed; \`scripts/install.sh\` tells them so and points at the"
+            echo "last release that had one."
+            echo ""
+            echo "Once the leg is green again, drop \`\"optional\": true\` from"
+            echo "its entry in the \`plan\` job of this workflow. That restores"
+            echo "it as a blocking leg and as a required release asset."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::warning title=${{ matrix.platform }} did not build::The release will ship without a ${{ matrix.platform }} binary. See the job summary."
+
   # The admin console is platform-independent, so build it once with the
   # linux-x86_64 binary this run produced (same-commit compiler) and attach
   # it to the release as its own asset for the deploy driver to download.
   admin-dist:
     needs: build
-    if: github.event_name == 'release' || inputs.tag != ''
+    # Not on a filtered matrix: a single-leg run (the manual Intel-Mac lane)
+    # produces no linux artifact for this job to consume, and its release
+    # already carries what this job builds.
+    if: (github.event_name == 'release' || inputs.tag != '') && inputs.only == ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ inputs.channel == 'dev' && github.sha || inputs.tag || github.event.release.tag_name }}
+          ref: ${{ inputs.channel == 'dev' && github.sha || inputs.commit || inputs.tag || github.event.release.tag_name }}
 
       - name: Read version (from jac.toml)
         id: ver
@@ -816,7 +803,7 @@ jobs:
           # The admin console is a pure client app; its client bundle is
           # type-checked by the client toolchain during `build`. Skip the
           # whole-program gate, which applies native rules to `.cl.jac` code.
-          ( cd jac/jaclang/scale/admin/ui && "$BIN" build main.jac --no_typecheck )
+          ( cd jac/jaclang/scale/admin/ui && "$BIN" build main.jac )
           DIST=jac/jaclang/scale/admin/ui/.jac/client/dist
           test -f "$DIST/index.html"
           mkdir -p dist
@@ -846,7 +833,10 @@ jobs:
   # is skipped when the secrets are absent (forks).
   docker-image:
     needs: build
-    if: github.event_name == 'release' || inputs.tag != ''
+    # Not on a filtered matrix: a single-leg run (the manual Intel-Mac lane)
+    # produces no linux artifact for this job to consume, and its release
+    # already carries what this job builds.
+    if: (github.event_name == 'release' || inputs.tag != '') && inputs.only == ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -858,7 +848,7 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ inputs.channel == 'dev' && github.sha || inputs.tag || github.event.release.tag_name }}
+          ref: ${{ inputs.channel == 'dev' && github.sha || inputs.commit || inputs.tag || github.event.release.tag_name }}
 
       - name: Read version (from jac.toml)
         id: ver

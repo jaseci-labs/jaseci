@@ -1,4 +1,5 @@
 import ctypes;
+import from jaclang.testing.test { parametrize }
 import from jaclang.compiler.tests.xbackend_equiv {
     run_with_both,
     run_py_fixture,
@@ -9,193 +10,645 @@ import from jaclang.compiler.tests.xbackend_equiv {
     compare_results
 }
 
+# (case, fixture, py fn, cl fn, na fn, [backends that must run])
+"""Rows `prim_str`'s native lane does not produce yet.
 
-test "int" {
-    run_with_both("prim_int.jac", "int_py", "int_cl", "int_na");
-}
+Declared here rather than absorbed silently: `run_with_both` compares the
+intersection of the two lanes' keys, so a lane that returns fewer rows used to
+narrow the comparison without saying so. Every name below is a string method
+the native lane has no lowering for; deleting one from this list is how the
+suite starts covering it, and the harness fails if a name here is one the
+lane now produces.
+"""
+glob STR_NA_GAPS: list = [
+         "casefold",
+         "enc1",
+         "enc2",
+         "endswith_f",
+         "endswith_t",
+         "eq_f",
+         "eq_t",
+         "et1",
+         "et2",
+         "et3",
+         "fm1",
+         "fm2",
+         "fmt_pos_args",
+         "fmt_repeat",
+         "fmt_single",
+         "ge",
+         "gt",
+         "isalnum_t",
+         "isalpha_f",
+         "isalpha_t",
+         "isascii_t",
+         "isdecimal_f",
+         "isdecimal_t",
+         "isdigit_f",
+         "isdigit_t",
+         "isidentifier_f",
+         "isidentifier_t",
+         "islower_f",
+         "islower_t",
+         "isnumeric_empty",
+         "isnumeric_f",
+         "isnumeric_t",
+         "isprintable_t",
+         "isspace_f",
+         "isspace_t",
+         "isupper_f",
+         "isupper_t",
+         "join",
+         "le",
+         "ljust",
+         "lstrip",
+         "lt",
+         "mod1",
+         "mod2",
+         "ne_t",
+         "replace",
+         "rfind",
+         "rjust",
+         "rstrip",
+         "split",
+         "startswith_f",
+         "startswith_t",
+         "tr1"
+     ],
+     EQUIV_CASES: list[tuple] = [
+         ("int", "prim_int.jac", "int_py", "int_cl", "int_na"),
+         (
+             "dict ctor",
+             "prim_dict.jac",
+             "dict_ctor_py",
+             "dict_ctor_cl",
+             "dict_ctor_na",
+             ["cl"]
+         ),
+         (
+             "dict iteration",
+             "prim_dict.jac",
+             "dict_iter_py",
+             "dict_iter_cl",
+             "dict_iter_na",
+             ["cl"]
+         ),
+         (
+             "numeric parse",
+             "prim_float.jac",
+             "numparse_py",
+             "numparse_cl",
+             "numparse_na",
+             ["cl"]
+         ),
+         ("enums", "prim_enums.jac", "enums_py", "enums_cl", "enums_na", ["cl"]),
+         ("float", "prim_float.jac", "float_py", "float_cl", "float_na"),
+         (
+             "complex",
+             "prim_complex.jac",
+             "complex_ops_py",
+             "complex_ops_cl",
+             "complex_ops_na"
+         ),
+         ("str", "prim_str.jac", "str_py", "str_cl", "str_na", ["na"], STR_NA_GAPS),
+         (
+             "string escapes",
+             "cl_string_escapes.jac",
+             "escapes_py",
+             "escapes_cl",
+             "escapes_na",
+             ["cl"]
+         ),
+         (
+             "bytes search",
+             "prim_bytes.jac",
+             "bytes_search_py",
+             "bytes_search_cl",
+             "bytes_search_na"
+         ),
+         (
+             "bytes modify",
+             "prim_bytes.jac",
+             "bytes_modify_py",
+             "bytes_modify_cl",
+             "bytes_modify_na"
+         ),
+         (
+             "bytes case",
+             "prim_bytes.jac",
+             "bytes_case_py",
+             "bytes_case_cl",
+             "bytes_case_na"
+         ),
+         (
+             "bytes test methods",
+             "prim_bytes.jac",
+             "bytes_test_py",
+             "bytes_test_cl",
+             "bytes_test_na"
+         ),
+         (
+             "bytearray core",
+             "prim_bytearray.jac",
+             "bytearray_core_py",
+             "bytearray_core_cl",
+             "bytearray_core_na",
+             ["na"]
+         ),
+         (
+             "bytearray slices",
+             "prim_bytearray.jac",
+             "bytearray_slices_py",
+             "bytearray_slices_cl",
+             "bytearray_slices_na",
+             ["na"]
+         ),
+         (
+             "bytearray pack_into",
+             "prim_bytearray.jac",
+             "bytearray_pack_py",
+             "bytearray_pack_cl",
+             "bytearray_pack_na",
+             ["na"]
+         ),
+         ("list", "prim_list.jac", "list_py", "list_cl", "list_na"),
+         (
+             "native list pop index",
+             "native_list_any_ops.jac",
+             "pop_index_py",
+             "pop_index_cl",
+             "pop_index_na",
+             ["na"]
+         ),
+         (
+             "native list tuple roundtrip",
+             "native_list_any_ops.jac",
+             "tuple_roundtrip_py",
+             "tuple_roundtrip_cl",
+             "tuple_roundtrip_na",
+             ["na"]
+         ),
+         (
+             "native list any literal",
+             "native_list_any_ops.jac",
+             "any_literal_py",
+             "any_literal_cl",
+             "any_literal_na",
+             ["na"]
+         ),
+         (
+             "native list any unpack stack",
+             "native_list_any_ops.jac",
+             "any_stack_py",
+             "any_stack_cl",
+             "any_stack_na",
+             ["na"]
+         ),
+         (
+             "native list container truthiness dfs",
+             "native_list_any_ops.jac",
+             "dfs_stack_py",
+             "dfs_stack_cl",
+             "dfs_stack_na",
+             ["na"]
+         ),
+         (
+             "native any scalar box",
+             "native_list_any_ops.jac",
+             "any_scalar_box_py",
+             "any_scalar_box_cl",
+             "any_scalar_box_na",
+             ["na"]
+         ),
+         (
+             "native any dict local read",
+             "native_list_any_ops.jac",
+             "any_dict_local_py",
+             "any_dict_local_cl",
+             "any_dict_local_na",
+             ["na"]
+         ),
+         (
+             "native any tuple roundtrip",
+             "native_list_any_ops.jac",
+             "any_tuple_roundtrip_py",
+             "any_tuple_roundtrip_cl",
+             "any_tuple_roundtrip_na",
+             ["na"]
+         ),
+         ("dict", "prim_dict.jac", "dict_py", "dict_cl", "dict_na"),
+         (
+             "unboxed scalars are never None on any backend",
+             "prim_none_identity.jac",
+             "nid_py",
+             "nid_cl",
+             "nid_na",
+             ["cl", "na"]
+         ),
+         (
+             "dict get miss is a real None on every backend",
+             "prim_dict_get_none.jac",
+             "dgn_py",
+             "dgn_cl",
+             "dgn_na",
+             ["cl", "na"]
+         ),
+         (
+             "phi str box",
+             "prim_phi_str_box.jac",
+             "phi_str_box_py",
+             "phi_str_box_cl",
+             "phi_str_box_na",
+             ["na"]
+         ),
+         (
+             "dict struct-pointer value families",
+             "prim_dict_struct_vals.jac",
+             "dict_struct_vals_py",
+             "dict_struct_vals_cl",
+             "dict_struct_vals_na",
+             ["na"]
+         ),
+         (
+             "membership over an element-erased container",
+             "prim_in_erased.jac",
+             "in_erased_py",
+             "in_erased_cl",
+             "in_erased_na"
+         ),
+         ("set", "prim_set.jac", "set_py", "set_cl", "set_na"),
+         (
+             "frozenset",
+             "prim_frozenset.jac",
+             "frozenset_py",
+             "frozenset_cl",
+             "frozenset_na"
+         ),
+         ("tuple", "prim_tuple.jac", "tuple_py", "tuple_cl", "tuple_na"),
+         ("range", "prim_range.jac", "range_py", "range_cl", "range_na"),
+         ("builtins", "prim_builtins.jac", "builtins_py", "builtins_cl", "builtins_na"),
+         (
+             "builtins format long",
+             "prim_format_builtin.jac",
+             "fmt_long_py",
+             "fmt_long_cl",
+             "fmt_long_na",
+             ["na"]
+         ),
+         (
+             "fstring repr conversion",
+             "prim_fstring_conv.jac",
+             "fconv_py",
+             "fconv_cl",
+             "fconv_na",
+             ["na"]
+         ),
+         (
+             "fstring dynamic spec",
+             "prim_fstring_conv.jac",
+             "fdyn_py",
+             "fdyn_cl",
+             "fdyn_na",
+             ["na"]
+         ),
+         (
+             "fstring repr containers",
+             "prim_fstring_conv.jac",
+             "fcont_py",
+             "fcont_cl",
+             "fcont_na",
+             ["na"]
+         ),
+         ("math", "prim_math.jac", "math_py", "math_cl", "math_na", ["na"]),
+         ("time", "prim_time.jac", "time_py", "time_cl", "time_na", ["na"]),
+         ("sys", "prim_sys.jac", "sys_py", "sys_cl", "sys_na", ["na"]),
+         ("os", "prim_os.jac", "os_py", "os_cl", "os_na", ["na"]),
+         (
+             "os environ",
+             "prim_os_environ.jac",
+             "environ_py",
+             "environ_cl",
+             "environ_na",
+             ["na"]
+         ),
+         (
+             "os.path bundled",
+             "prim_ospath.jac",
+             "ospath_py",
+             "ospath_cl",
+             "ospath_na",
+             ["na"]
+         ),
+         (
+             "closures nested capture",
+             "prim_closures.jac",
+             "closures_py",
+             "closures_cl",
+             "closures_na",
+             ["na"]
+         ),
+         (
+             "closures escaping",
+             "prim_closures.jac",
+             "closures_escape_py",
+             "closures_escape_cl",
+             "closures_escape_na",
+             ["na"]
+         ),
+         (
+             "bundled statistics",
+             "prim_statistics.jac",
+             "statistics_py",
+             "statistics_cl",
+             "statistics_na",
+             ["na"]
+         ),
+         (
+             "bundled keyword",
+             "prim_keyword.jac",
+             "keyword_py",
+             "keyword_cl",
+             "keyword_na",
+             ["na"]
+         ),
+         (
+             "generic classes specialize",
+             "prim_generic_classes.jac",
+             "generic_classes_py",
+             "generic_classes_cl",
+             "generic_classes_na",
+             ["na"]
+         ),
+         (
+             "generic functions monomorphize",
+             "prim_generics.jac",
+             "generics_py",
+             "generics_cl",
+             "generics_na",
+             ["na"]
+         ),
+         (
+             "closures transitive sibling captures",
+             "prim_closures_transitive.jac",
+             "transitive_py",
+             "transitive_cl",
+             "transitive_na",
+             ["na"]
+         ),
+         (
+             "closures forward mutual recursion",
+             "prim_closures_transitive.jac",
+             "fwd_mutual_py",
+             "fwd_mutual_cl",
+             "fwd_mutual_na",
+             ["na"]
+         ),
+         (
+             "closures as adapter callbacks",
+             "prim_closures.jac",
+             "closures_adapters_py",
+             "closures_adapters_cl",
+             "closures_adapters_na",
+             ["na"]
+         ),
+         (
+             "generators yield",
+             "prim_generators.jac",
+             "gens_py",
+             "gens_cl",
+             "gens_na",
+             ["na"]
+         ),
+         (
+             "varargs parameter forms",
+             "prim_varargs.jac",
+             "varargs_py",
+             "varargs_cl",
+             "varargs_na",
+             ["na"]
+         ),
+         ("container repr", "prim_repr.jac", "repr_py", "repr_cl", "repr_na", ["na"]),
+         (
+             "chained comparisons with membership and identity",
+             "prim_chain_cmp.jac",
+             "chain_cmp_py",
+             "chain_cmp_cl",
+             "chain_cmp_na",
+             ["na"]
+         ),
+         ("zlib bundled", "prim_zlib.jac", "zlib_py", "zlib_cl", "zlib_na", ["na"]),
+         ("gzip bundled", "prim_gzip.jac", "gzip_py", "gzip_cl", "gzip_na", ["na"]),
+         ("bz2 bundled", "prim_bz2.jac", "bz2_py", "bz2_cl", "bz2_na", ["na"]),
+         (
+             "fractions bundled",
+             "prim_fractions.jac",
+             "fractions_py",
+             "fractions_cl",
+             "fractions_na",
+             ["na"]
+         ),
+         (
+             "hashlib + hmac bundled",
+             "prim_hashlib.jac",
+             "hashlib_py",
+             "hashlib_cl",
+             "hashlib_na",
+             ["na"]
+         ),
+         (
+             "secrets bundled",
+             "prim_secrets.jac",
+             "secrets_py",
+             "secrets_cl",
+             "secrets_na",
+             ["na"]
+         ),
+         ("uuid bundled", "prim_uuid.jac", "uuid_py", "uuid_cl", "uuid_na", ["na"]),
+         (
+             "static members",
+             "prim_static_members.jac",
+             "static_members_py",
+             "static_members_cl",
+             "static_members_na",
+             ["na"]
+         ),
+         (
+             "datetime bundled",
+             "prim_datetime.jac",
+             "datetime_py",
+             "datetime_cl",
+             "datetime_na",
+             ["na"]
+         ),
+         ("json bundled", "prim_json.jac", "json_py", "json_cl", "json_na", ["na"]),
+         (
+             "base64 bundled",
+             "prim_base64.jac",
+             "base64_py",
+             "base64_cl",
+             "base64_na",
+             ["na"]
+         ),
+         (
+             "textwrap bundled",
+             "prim_textwrap.jac",
+             "textwrap_py",
+             "textwrap_cl",
+             "textwrap_na",
+             ["na"]
+         ),
+         ("csv bundled", "prim_csv.jac", "csv_py", "csv_cl", "csv_na", ["na"]),
+         (
+             "pprint bundled",
+             "prim_pprint.jac",
+             "pprint_py",
+             "pprint_cl",
+             "pprint_na",
+             ["na"]
+         ),
+         (
+             "difflib bundled",
+             "prim_difflib.jac",
+             "difflib_py",
+             "difflib_cl",
+             "difflib_na",
+             ["na"]
+         ),
+         ("random", "prim_random.jac", "random_py", "random_cl", "random_na", ["na"]),
+         (
+             "any dispatch",
+             "prim_any.jac",
+             "any_dispatch_py",
+             "any_dispatch_cl",
+             "any_dispatch_na",
+             ["na"]
+         ),
+         (
+             "native any congruence",
+             "native_any_stdlib_gaps.jac",
+             "congruence_check_py",
+             "congruence_check_cl",
+             "congruence_check_na",
+             ["na"]
+         ),
+         (
+             "native any container ops",
+             "native_any_stdlib_gaps.jac",
+             "any_ops_check_py",
+             "any_ops_check_cl",
+             "any_ops_check_na",
+             ["na"]
+         ),
+         (
+             "native any guarded consume",
+             "native_any_stdlib_gaps.jac",
+             "guard_consume_check_py",
+             "guard_consume_check_cl",
+             "guard_consume_check_na",
+             ["na"]
+         ),
+         (
+             "native bare list flow inference",
+             "native_any_stdlib_gaps.jac",
+             "bare_list_check_py",
+             "bare_list_check_cl",
+             "bare_list_check_na",
+             ["na"]
+         ),
+         (
+             "native none any consume",
+             "native_any_stdlib_gaps.jac",
+             "none_consume_check_py",
+             "none_consume_check_cl",
+             "none_consume_check_na",
+             ["na"]
+         ),
+         (
+             "native any alias retain",
+             "native_any_alias_retain.jac",
+             "alias_retain_py",
+             "alias_retain_cl",
+             "alias_retain_na",
+             ["na"]
+         ),
+         (
+             "dict order",
+             "prim_dictorder.jac",
+             "dictorder_py",
+             "dictorder_cl",
+             "dictorder_na",
+             ["na"]
+         ),
+         (
+             "builtins introspection",
+             "prim_builtins_introspection.jac",
+             "builtins_introspection_py",
+             "builtins_introspection_cl",
+             "builtins_introspection_na"
+         ),
+         (
+             "match sequence",
+             "prim_match.jac",
+             "match_seq_py",
+             "match_seq_cl",
+             "match_seq_na",
+             ["cl", "na"]
+         ),
+         (
+             "match star",
+             "prim_match.jac",
+             "match_star_py",
+             "match_star_cl",
+             "match_star_na",
+             ["cl", "na"]
+         ),
+         (
+             "match mapping",
+             "prim_match.jac",
+             "match_map_py",
+             "match_map_cl",
+             "match_map_na",
+             ["cl", "na"]
+         ),
+         (
+             "match class",
+             "prim_match.jac",
+             "match_arch_py",
+             "match_arch_cl",
+             "match_arch_na",
+             ["cl", "na"]
+         ),
+         (
+             "new builtin and positional ctors",
+             "prim_new.jac",
+             "new_py",
+             "new_cl",
+             "new_na",
+             ["na"]
+         ),
+         (
+             "hetero containers round trip",
+             "prim_hetero.jac",
+             "hetero_py",
+             "hetero_cl",
+             "hetero_na",
+             ["na"]
+         ),
 
-test "dict ctor" {
+     ];
+
+def _equiv_case(row: tuple) {
+    require = row[5] if len(row) > 5 else [];
+    waived = row[6] if len(row) > 6 else None;
     run_with_both(
-        "prim_dict.jac", "dict_ctor_py", "dict_ctor_cl", "dict_ctor_na", require=["cl"]
+        row[1], row[2], row[3], row[4], require=require, allow_missing=waived
     );
 }
 
-test "dict iteration" {
-    run_with_both(
-        "prim_dict.jac", "dict_iter_py", "dict_iter_cl", "dict_iter_na", require=["cl"]
+with entry {
+    parametrize(
+        "prim equivalence", EQUIV_CASES, _equiv_case, id_fn=lambda (c: tuple) { c[0]; }
     );
-}
-
-test "numeric parse" {
-    run_with_both(
-        "prim_float.jac", "numparse_py", "numparse_cl", "numparse_na", require=["cl"]
-    );
-}
-
-test "enums" {
-    run_with_both("prim_enums.jac", "enums_py", "enums_cl", "enums_na", require=["cl"]);
-}
-
-test "float" {
-    run_with_both("prim_float.jac", "float_py", "float_cl", "float_na");
-}
-
-test "complex" {
-    run_with_both(
-        "prim_complex.jac", "complex_ops_py", "complex_ops_cl", "complex_ops_na"
-    );
-}
-
-test "str" {
-    run_with_both("prim_str.jac", "str_py", "str_cl", "str_na", require=["na"]);
-}
-
-test "string escapes" {
-    run_with_both(
-        "cl_string_escapes.jac",
-        "escapes_py",
-        "escapes_cl",
-        "escapes_na",
-        require=["cl"]
-    );
-}
-
-test "bytes search" {
-    run_with_both(
-        "prim_bytes.jac", "bytes_search_py", "bytes_search_cl", "bytes_search_na"
-    );
-}
-
-test "bytes modify" {
-    run_with_both(
-        "prim_bytes.jac", "bytes_modify_py", "bytes_modify_cl", "bytes_modify_na"
-    );
-}
-
-test "bytes case" {
-    run_with_both("prim_bytes.jac", "bytes_case_py", "bytes_case_cl", "bytes_case_na");
-}
-
-test "bytes test methods" {
-    run_with_both("prim_bytes.jac", "bytes_test_py", "bytes_test_cl", "bytes_test_na");
-}
-
-test "bytearray core" {
-    run_with_both(
-        "prim_bytearray.jac",
-        "bytearray_core_py",
-        "bytearray_core_cl",
-        "bytearray_core_na",
-        require=["na"]
-    );
-}
-
-test "bytearray slices" {
-    run_with_both(
-        "prim_bytearray.jac",
-        "bytearray_slices_py",
-        "bytearray_slices_cl",
-        "bytearray_slices_na",
-        require=["na"]
-    );
-}
-
-test "bytearray pack_into" {
-    run_with_both(
-        "prim_bytearray.jac",
-        "bytearray_pack_py",
-        "bytearray_pack_cl",
-        "bytearray_pack_na",
-        require=["na"]
-    );
-}
-
-test "list" {
-    run_with_both("prim_list.jac", "list_py", "list_cl", "list_na");
-}
-
-test "native list pop index" {
-    run_with_both(
-        "native_list_any_ops.jac",
-        "pop_index_py",
-        "pop_index_cl",
-        "pop_index_na",
-        require=["na"]
-    );
-}
-
-test "native list tuple roundtrip" {
-    run_with_both(
-        "native_list_any_ops.jac",
-        "tuple_roundtrip_py",
-        "tuple_roundtrip_cl",
-        "tuple_roundtrip_na",
-        require=["na"]
-    );
-}
-
-test "native list any literal" {
-    run_with_both(
-        "native_list_any_ops.jac",
-        "any_literal_py",
-        "any_literal_cl",
-        "any_literal_na",
-        require=["na"]
-    );
-}
-
-test "native list any unpack stack" {
-    run_with_both(
-        "native_list_any_ops.jac",
-        "any_stack_py",
-        "any_stack_cl",
-        "any_stack_na",
-        require=["na"]
-    );
-}
-
-test "native list container truthiness dfs" {
-    run_with_both(
-        "native_list_any_ops.jac",
-        "dfs_stack_py",
-        "dfs_stack_cl",
-        "dfs_stack_na",
-        require=["na"]
-    );
-}
-
-test "native any scalar box" {
-    run_with_both(
-        "native_list_any_ops.jac",
-        "any_scalar_box_py",
-        "any_scalar_box_cl",
-        "any_scalar_box_na",
-        require=["na"]
-    );
-}
-
-test "native any dict local read" {
-    run_with_both(
-        "native_list_any_ops.jac",
-        "any_dict_local_py",
-        "any_dict_local_cl",
-        "any_dict_local_na",
-        require=["na"]
-    );
-}
-
-test "native any tuple roundtrip" {
-    run_with_both(
-        "native_list_any_ops.jac",
-        "any_tuple_roundtrip_py",
-        "any_tuple_roundtrip_cl",
-        "any_tuple_roundtrip_na",
-        require=["na"]
-    );
-}
-
-test "dict" {
-    run_with_both("prim_dict.jac", "dict_py", "dict_cl", "dict_na");
 }
 
 test "native print renders bools as True and False" {
@@ -208,150 +661,6 @@ test "native print renders bools as True and False" {
     llvm_txt = str(na_ir.gen.llvm_ir);
     assert (".repr.true" in llvm_txt) and (".repr.false" in llvm_txt) , (
         "print(bool) must select the True/False repr strings natively"
-    );
-}
-
-test "unboxed scalars are never None on any backend" {
-    run_with_both(
-        "prim_none_identity.jac", "nid_py", "nid_cl", "nid_na", require=["cl", "na"]
-    );
-}
-
-test "dict get miss is a real None on every backend" {
-    run_with_both(
-        "prim_dict_get_none.jac", "dgn_py", "dgn_cl", "dgn_na", require=["cl", "na"]
-    );
-}
-
-test "phi str box" {
-    run_with_both(
-        "prim_phi_str_box.jac",
-        "phi_str_box_py",
-        "phi_str_box_cl",
-        "phi_str_box_na",
-        require=["na"]
-    );
-}
-
-test "dict struct-pointer value families" {
-    run_with_both(
-        "prim_dict_struct_vals.jac",
-        "dict_struct_vals_py",
-        "dict_struct_vals_cl",
-        "dict_struct_vals_na",
-        require=["na"]
-    );
-}
-
-test "membership over an element-erased container" {
-    run_with_both("prim_in_erased.jac", "in_erased_py", "in_erased_cl", "in_erased_na");
-}
-
-test "set" {
-    run_with_both("prim_set.jac", "set_py", "set_cl", "set_na");
-}
-
-test "frozenset" {
-    run_with_both("prim_frozenset.jac", "frozenset_py", "frozenset_cl", "frozenset_na");
-}
-
-test "tuple" {
-    run_with_both("prim_tuple.jac", "tuple_py", "tuple_cl", "tuple_na");
-}
-
-test "range" {
-    run_with_both("prim_range.jac", "range_py", "range_cl", "range_na");
-}
-
-test "builtins" {
-    run_with_both("prim_builtins.jac", "builtins_py", "builtins_cl", "builtins_na");
-}
-
-test "builtins format long" {
-    run_with_both(
-        "prim_format_builtin.jac",
-        "fmt_long_py",
-        "fmt_long_cl",
-        "fmt_long_na",
-        require=["na"]
-    );
-}
-
-test "fstring repr conversion" {
-    run_with_both(
-        "prim_fstring_conv.jac", "fconv_py", "fconv_cl", "fconv_na", require=["na"]
-    );
-}
-
-test "fstring dynamic spec" {
-    run_with_both(
-        "prim_fstring_conv.jac", "fdyn_py", "fdyn_cl", "fdyn_na", require=["na"]
-    );
-}
-
-test "fstring repr containers" {
-    run_with_both(
-        "prim_fstring_conv.jac", "fcont_py", "fcont_cl", "fcont_na", require=["na"]
-    );
-}
-
-test "math" {
-    run_with_both("prim_math.jac", "math_py", "math_cl", "math_na", require=["na"]);
-}
-
-test "time" {
-    run_with_both("prim_time.jac", "time_py", "time_cl", "time_na", require=["na"]);
-}
-
-test "sys" {
-    run_with_both("prim_sys.jac", "sys_py", "sys_cl", "sys_na", require=["na"]);
-}
-
-test "os" {
-    run_with_both("prim_os.jac", "os_py", "os_cl", "os_na", require=["na"]);
-}
-
-test "os environ" {
-    run_with_both(
-        "prim_os_environ.jac", "environ_py", "environ_cl", "environ_na", require=["na"]
-    );
-}
-
-test "os.path bundled" {
-    run_with_both(
-        "prim_ospath.jac", "ospath_py", "ospath_cl", "ospath_na", require=["na"]
-    );
-}
-
-test "closures nested capture" {
-    run_with_both(
-        "prim_closures.jac", "closures_py", "closures_cl", "closures_na", require=["na"]
-    );
-}
-
-test "closures escaping" {
-    run_with_both(
-        "prim_closures.jac",
-        "closures_escape_py",
-        "closures_escape_cl",
-        "closures_escape_na",
-        require=["na"]
-    );
-}
-
-test "bundled statistics" {
-    run_with_both(
-        "prim_statistics.jac",
-        "statistics_py",
-        "statistics_cl",
-        "statistics_na",
-        require=["na"]
-    );
-}
-
-test "bundled keyword" {
-    run_with_both(
-        "prim_keyword.jac", "keyword_py", "keyword_cl", "keyword_na", require=["na"]
     );
 }
 
@@ -369,170 +678,6 @@ test "bundled shutil" {
     );
 }
 
-test "generic classes specialize" {
-    run_with_both(
-        "prim_generic_classes.jac",
-        "generic_classes_py",
-        "generic_classes_cl",
-        "generic_classes_na",
-        require=["na"]
-    );
-}
-
-test "generic functions monomorphize" {
-    run_with_both(
-        "prim_generics.jac", "generics_py", "generics_cl", "generics_na", require=["na"]
-    );
-}
-
-test "closures transitive sibling captures" {
-    run_with_both(
-        "prim_closures_transitive.jac",
-        "transitive_py",
-        "transitive_cl",
-        "transitive_na",
-        require=["na"]
-    );
-}
-
-test "closures forward mutual recursion" {
-    run_with_both(
-        "prim_closures_transitive.jac",
-        "fwd_mutual_py",
-        "fwd_mutual_cl",
-        "fwd_mutual_na",
-        require=["na"]
-    );
-}
-
-test "closures as adapter callbacks" {
-    run_with_both(
-        "prim_closures.jac",
-        "closures_adapters_py",
-        "closures_adapters_cl",
-        "closures_adapters_na",
-        require=["na"]
-    );
-}
-
-test "generators yield" {
-    run_with_both(
-        "prim_generators.jac", "gens_py", "gens_cl", "gens_na", require=["na"]
-    );
-}
-
-test "varargs parameter forms" {
-    run_with_both(
-        "prim_varargs.jac", "varargs_py", "varargs_cl", "varargs_na", require=["na"]
-    );
-}
-
-test "container repr" {
-    run_with_both("prim_repr.jac", "repr_py", "repr_cl", "repr_na", require=["na"]);
-}
-
-test "chained comparisons with membership and identity" {
-    run_with_both(
-        "prim_chain_cmp.jac",
-        "chain_cmp_py",
-        "chain_cmp_cl",
-        "chain_cmp_na",
-        require=["na"]
-    );
-}
-
-test "zlib bundled" {
-    run_with_both("prim_zlib.jac", "zlib_py", "zlib_cl", "zlib_na", require=["na"]);
-}
-
-test "gzip bundled" {
-    run_with_both("prim_gzip.jac", "gzip_py", "gzip_cl", "gzip_na", require=["na"]);
-}
-
-test "bz2 bundled" {
-    run_with_both("prim_bz2.jac", "bz2_py", "bz2_cl", "bz2_na", require=["na"]);
-}
-
-test "fractions bundled" {
-    run_with_both(
-        "prim_fractions.jac",
-        "fractions_py",
-        "fractions_cl",
-        "fractions_na",
-        require=["na"]
-    );
-}
-
-# Besides digest congruence, this test pins the native call-arity contract:
-# module-qualified bundled calls (hmac.new binds an arity-2 name-keyed extern
-# over the three-parameter native kernel) rely on signature-sanctioned extra
-# arguments passing through _codegen_bound_args UNTRUNCATED to reach the real
-# linked symbol via the call ABI. Truncating to the extern's declared arity
-# starves the symbol and segfaults this test at runtime.
-test "hashlib + hmac bundled" {
-    run_with_both(
-        "prim_hashlib.jac", "hashlib_py", "hashlib_cl", "hashlib_na", require=["na"]
-    );
-}
-
-test "secrets bundled" {
-    run_with_both(
-        "prim_secrets.jac", "secrets_py", "secrets_cl", "secrets_na", require=["na"]
-    );
-}
-
-test "uuid bundled" {
-    run_with_both("prim_uuid.jac", "uuid_py", "uuid_cl", "uuid_na", require=["na"]);
-}
-
-test "static members" {
-    run_with_both(
-        "prim_static_members.jac",
-        "static_members_py",
-        "static_members_cl",
-        "static_members_na",
-        require=["na"]
-    );
-}
-
-test "datetime bundled" {
-    run_with_both(
-        "prim_datetime.jac", "datetime_py", "datetime_cl", "datetime_na", require=["na"]
-    );
-}
-
-test "json bundled" {
-    run_with_both("prim_json.jac", "json_py", "json_cl", "json_na", require=["na"]);
-}
-
-test "base64 bundled" {
-    run_with_both(
-        "prim_base64.jac", "base64_py", "base64_cl", "base64_na", require=["na"]
-    );
-}
-
-test "textwrap bundled" {
-    run_with_both(
-        "prim_textwrap.jac", "textwrap_py", "textwrap_cl", "textwrap_na", require=["na"]
-    );
-}
-
-test "csv bundled" {
-    run_with_both("prim_csv.jac", "csv_py", "csv_cl", "csv_na", require=["na"]);
-}
-
-test "pprint bundled" {
-    run_with_both(
-        "prim_pprint.jac", "pprint_py", "pprint_cl", "pprint_na", require=["na"]
-    );
-}
-
-test "difflib bundled" {
-    run_with_both(
-        "prim_difflib.jac", "difflib_py", "difflib_cl", "difflib_na", require=["na"]
-    );
-}
-
 test "native call resolves bundled stdlib signature, not typeshed (#7037)" {
     (eng, _) = compile_native("bundled_stdlib_sig.jac");
     pos = get_func(eng, "dumps_pos_len", ctypes.c_int64);
@@ -543,89 +688,18 @@ test "native call resolves bundled stdlib signature, not typeshed (#7037)" {
     assert kw_len == 4 , f"keyword dumps len {kw_len}";
 }
 
-test "random" {
-    run_with_both(
-        "prim_random.jac", "random_py", "random_cl", "random_na", require=["na"]
+test "native call fills omitted defaults from the bundled stdlib signature" {
+    (eng, _) = compile_native("bundled_stdlib_defaults.jac");
+    adler = get_func(eng, "adler32_default_seed", ctypes.c_int64);
+    hex_len = get_func(eng, "token_hex_default_len", ctypes.c_int64);
+    adler_val = adler();
+    hex_val = hex_len();
+    assert adler_val == 103547413 , (
+        f"adler32(b'hello') with the default seed: na={adler_val}, CPython=103547413 "
+        f"(a zero-filled seed gives 103219732)"
     );
-}
-
-test "any dispatch" {
-    run_with_both(
-        "prim_any.jac",
-        "any_dispatch_py",
-        "any_dispatch_cl",
-        "any_dispatch_na",
-        require=["na"]
-    );
-}
-
-test "native any congruence" {
-    run_with_both(
-        "native_any_stdlib_gaps.jac",
-        "congruence_check_py",
-        "congruence_check_cl",
-        "congruence_check_na",
-        require=["na"]
-    );
-}
-
-test "native any container ops" {
-    run_with_both(
-        "native_any_stdlib_gaps.jac",
-        "any_ops_check_py",
-        "any_ops_check_cl",
-        "any_ops_check_na",
-        require=["na"]
-    );
-}
-
-test "native any guarded consume" {
-    run_with_both(
-        "native_any_stdlib_gaps.jac",
-        "guard_consume_check_py",
-        "guard_consume_check_cl",
-        "guard_consume_check_na",
-        require=["na"]
-    );
-}
-
-test "native bare list flow inference" {
-    run_with_both(
-        "native_any_stdlib_gaps.jac",
-        "bare_list_check_py",
-        "bare_list_check_cl",
-        "bare_list_check_na",
-        require=["na"]
-    );
-}
-
-test "native none any consume" {
-    run_with_both(
-        "native_any_stdlib_gaps.jac",
-        "none_consume_check_py",
-        "none_consume_check_cl",
-        "none_consume_check_na",
-        require=["na"]
-    );
-}
-
-test "native any alias retain" {
-    run_with_both(
-        "native_any_alias_retain.jac",
-        "alias_retain_py",
-        "alias_retain_cl",
-        "alias_retain_na",
-        require=["na"]
-    );
-}
-
-test "dict order" {
-    run_with_both(
-        "prim_dictorder.jac",
-        "dictorder_py",
-        "dictorder_cl",
-        "dictorder_na",
-        require=["na"]
+    assert hex_val == 64 , (
+        f"token_hex() with the default nbytes=32: na={hex_val} chars, CPython=64"
     );
 }
 
@@ -636,7 +710,7 @@ test "exception hierarchy" {
         compare_results(
             py_result, run_js_function(js_code, "exceptions_cl"), "exceptions [ES]"
         );
-    } except Exception { }
+    } except Exception {}
 }
 
 test "runtime error hierarchy" {
@@ -648,207 +722,183 @@ test "runtime error hierarchy" {
             run_js_function(js_code, "runtime_errors_cl"),
             "runtime_errors [ES]"
         );
-    } except Exception { }
+    } except Exception {}
 }
 
-test "exception basic catch" {
-    (eng, _) = compile_native("prim_exceptions.jac");
+"""exception basic catch"""
+def _prim_exceptions__exception_basic_catch(eng: any, _ir: any) {
     f = get_func(eng, "test_basic_catch_na", ctypes.c_int64);
     assert f() == 1;
 }
 
-test "exception catch parent" {
-    (eng, _) = compile_native("prim_exceptions.jac");
+"""exception catch parent"""
+def _prim_exceptions__exception_catch_parent(eng: any, _ir: any) {
     f = get_func(eng, "test_catch_parent_na", ctypes.c_int64);
     assert f() == 1;
 }
 
-test "exception catch grandparent" {
-    (eng, _) = compile_native("prim_exceptions.jac");
+"""exception catch grandparent"""
+def _prim_exceptions__exception_catch_grandparent(eng: any, _ir: any) {
     f = get_func(eng, "test_catch_grandparent_na", ctypes.c_int64);
     assert f() == 1;
 }
 
-test "exception catch wrong type" {
-    (eng, _) = compile_native("prim_exceptions.jac");
+"""exception catch wrong type"""
+def _prim_exceptions__exception_catch_wrong_type(eng: any, _ir: any) {
     f = get_func(eng, "test_catch_wrong_type_na", ctypes.c_int64);
     assert f() == 2;
 }
 
-test "exception multiple handlers" {
-    (eng, _) = compile_native("prim_exceptions.jac");
+"""exception multiple handlers"""
+def _prim_exceptions__exception_multiple_handlers(eng: any, _ir: any) {
     f = get_func(eng, "test_multiple_handlers_na", ctypes.c_int64);
     assert f() == 2;
 }
 
-test "exception nested" {
-    (eng, _) = compile_native("prim_exceptions.jac");
+"""exception nested"""
+def _prim_exceptions__exception_nested(eng: any, _ir: any) {
     f = get_func(eng, "test_nested_hierarchy_na", ctypes.c_int64);
     assert f() == 1;
 }
 
-test "exception finally runs" {
-    (eng, _) = compile_native("prim_exceptions.jac");
+"""exception finally runs"""
+def _prim_exceptions__exception_finally_runs(eng: any, _ir: any) {
     f = get_func(eng, "test_finally_runs_na", ctypes.c_int64);
     assert f() == 11;
 }
 
-test "exception no exception" {
-    (eng, _) = compile_native("prim_exceptions.jac");
+"""exception no exception"""
+def _prim_exceptions__exception_no_exception(eng: any, _ir: any) {
     f = get_func(eng, "test_no_exception_na", ctypes.c_int64);
     assert f() == 11;
 }
 
-test "exception as binding" {
-    (eng, _) = compile_native("prim_exceptions.jac");
+"""exception as binding"""
+def _prim_exceptions__exception_as_binding(eng: any, _ir: any) {
     f = get_func(eng, "test_exc_as_binding_na", ctypes.c_int64);
     assert f() == 1;
 }
 
-test "runtime list index miss raises ValueError" {
+test "prim_exceptions" {
+    (_eng, _ir) = compile_native("prim_exceptions.jac");
+    _prim_exceptions__exception_basic_catch(_eng, _ir);
+    _prim_exceptions__exception_catch_parent(_eng, _ir);
+    _prim_exceptions__exception_catch_grandparent(_eng, _ir);
+    _prim_exceptions__exception_catch_wrong_type(_eng, _ir);
+    _prim_exceptions__exception_multiple_handlers(_eng, _ir);
+    _prim_exceptions__exception_nested(_eng, _ir);
+    _prim_exceptions__exception_finally_runs(_eng, _ir);
+    _prim_exceptions__exception_no_exception(_eng, _ir);
+    _prim_exceptions__exception_as_binding(_eng, _ir);
+}
+
+"""runtime list index miss raises ValueError"""
+def _prim_runtime_errors__runtime_list_index_miss_raises_valueerror(
+    eng: any, _ir: any
+) {
     # Native list.index returned -1 on a miss instead of raising -- and
     # xs[-1] is a *valid* index, so the poison spread silently (#7922).
-    (eng, _) = compile_native("prim_runtime_errors.jac");
     f = get_func(eng, "test_list_index_miss_na", ctypes.c_int64);
     assert f() == 1;
 }
 
-test "runtime setdefault no-default inserts a real None" {
+"""runtime setdefault no-default inserts a real None"""
+def _prim_runtime_errors__runtime_setdefault_no_default_inserts_a_real_none(
+    eng: any, _ir: any
+) {
     # Native setdefault() with no default inserted a fabricated zero of
     # the value type; for nullable (pointer) value slots it must insert
     # None like Python (#7922).
-    (eng, _) = compile_native("prim_runtime_errors.jac");
     f = get_func(eng, "test_setdefault_none_na", ctypes.c_int64);
     assert f() == 1;
 }
 
-test "runtime divzero caught exact" {
-    (eng, _) = compile_native("prim_runtime_errors.jac");
+"""runtime divzero caught exact"""
+def _prim_runtime_errors__runtime_divzero_caught_exact(eng: any, _ir: any) {
     f = get_func(eng, "test_divzero_catch_exact_na", ctypes.c_int64);
     assert f() == 1;
 }
 
-test "runtime divzero caught parent" {
-    (eng, _) = compile_native("prim_runtime_errors.jac");
+"""runtime divzero caught parent"""
+def _prim_runtime_errors__runtime_divzero_caught_parent(eng: any, _ir: any) {
     f = get_func(eng, "test_divzero_catch_parent_na", ctypes.c_int64);
     assert f() == 1;
 }
 
-test "runtime divzero caught grandparent" {
-    (eng, _) = compile_native("prim_runtime_errors.jac");
+"""runtime divzero caught grandparent"""
+def _prim_runtime_errors__runtime_divzero_caught_grandparent(eng: any, _ir: any) {
     f = get_func(eng, "test_divzero_catch_grandparent_na", ctypes.c_int64);
     assert f() == 1;
 }
 
-test "runtime divzero wrong handler" {
-    (eng, _) = compile_native("prim_runtime_errors.jac");
+"""runtime divzero wrong handler"""
+def _prim_runtime_errors__runtime_divzero_wrong_handler(eng: any, _ir: any) {
     f = get_func(eng, "test_divzero_wrong_handler_na", ctypes.c_int64);
     assert f() == 2;
 }
 
-test "runtime modulo zero" {
-    (eng, _) = compile_native("prim_runtime_errors.jac");
+"""runtime modulo zero"""
+def _prim_runtime_errors__runtime_modulo_zero(eng: any, _ir: any) {
     f = get_func(eng, "test_modulo_zero_na", ctypes.c_int64);
     assert f() == 1;
 }
 
-test "runtime index oob exact" {
-    (eng, _) = compile_native("prim_runtime_errors.jac");
+"""runtime index oob exact"""
+def _prim_runtime_errors__runtime_index_oob_exact(eng: any, _ir: any) {
     f = get_func(eng, "test_index_oob_catch_exact_na", ctypes.c_int64);
     assert f() == 1;
 }
 
-test "runtime index oob parent" {
-    (eng, _) = compile_native("prim_runtime_errors.jac");
+"""runtime index oob parent"""
+def _prim_runtime_errors__runtime_index_oob_parent(eng: any, _ir: any) {
     f = get_func(eng, "test_index_oob_catch_parent_na", ctypes.c_int64);
     assert f() == 1;
 }
 
-test "runtime index oob exception" {
-    (eng, _) = compile_native("prim_runtime_errors.jac");
+"""runtime index oob exception"""
+def _prim_runtime_errors__runtime_index_oob_exception(eng: any, _ir: any) {
     f = get_func(eng, "test_index_oob_catch_exception_na", ctypes.c_int64);
     assert f() == 1;
 }
 
-test "runtime key error exact" {
-    (eng, _) = compile_native("prim_runtime_errors.jac");
+"""runtime key error exact"""
+def _prim_runtime_errors__runtime_key_error_exact(eng: any, _ir: any) {
     f = get_func(eng, "test_key_error_catch_exact_na", ctypes.c_int64);
     assert f() == 1;
 }
 
-test "runtime key error parent" {
-    (eng, _) = compile_native("prim_runtime_errors.jac");
+"""runtime key error parent"""
+def _prim_runtime_errors__runtime_key_error_parent(eng: any, _ir: any) {
     f = get_func(eng, "test_key_error_catch_parent_na", ctypes.c_int64);
     assert f() == 1;
 }
 
-test "runtime multi handler" {
-    (eng, _) = compile_native("prim_runtime_errors.jac");
+"""runtime multi handler"""
+def _prim_runtime_errors__runtime_multi_handler(eng: any, _ir: any) {
     f = get_func(eng, "test_multi_handler_runtime_na", ctypes.c_int64);
     assert f() == 2;
 }
 
-test "runtime error with finally" {
-    (eng, _) = compile_native("prim_runtime_errors.jac");
+"""runtime error with finally"""
+def _prim_runtime_errors__runtime_error_with_finally(eng: any, _ir: any) {
     f = get_func(eng, "test_runtime_finally_na", ctypes.c_int64);
     assert f() == 11;
 }
 
-test "builtins introspection" {
-    run_with_both(
-        "prim_builtins_introspection.jac",
-        "builtins_introspection_py",
-        "builtins_introspection_cl",
-        "builtins_introspection_na"
-    );
-}
-
-test "match sequence" {
-    run_with_both(
-        "prim_match.jac",
-        "match_seq_py",
-        "match_seq_cl",
-        "match_seq_na",
-        require=["cl", "na"]
-    );
-}
-
-test "match star" {
-    run_with_both(
-        "prim_match.jac",
-        "match_star_py",
-        "match_star_cl",
-        "match_star_na",
-        require=["cl", "na"]
-    );
-}
-
-test "match mapping" {
-    run_with_both(
-        "prim_match.jac",
-        "match_map_py",
-        "match_map_cl",
-        "match_map_na",
-        require=["cl", "na"]
-    );
-}
-
-test "match class" {
-    run_with_both(
-        "prim_match.jac",
-        "match_arch_py",
-        "match_arch_cl",
-        "match_arch_na",
-        require=["cl", "na"]
-    );
-}
-
-test "new builtin and positional ctors" {
-    run_with_both("prim_new.jac", "new_py", "new_cl", "new_na", require=["na"]);
-}
-
-test "hetero containers round trip" {
-    run_with_both(
-        "prim_hetero.jac", "hetero_py", "hetero_cl", "hetero_na", require=["na"]
-    );
+test "prim_runtime_errors" {
+    (_eng, _ir) = compile_native("prim_runtime_errors.jac");
+    _prim_runtime_errors__runtime_list_index_miss_raises_valueerror(_eng, _ir);
+    _prim_runtime_errors__runtime_setdefault_no_default_inserts_a_real_none(_eng, _ir);
+    _prim_runtime_errors__runtime_divzero_caught_exact(_eng, _ir);
+    _prim_runtime_errors__runtime_divzero_caught_parent(_eng, _ir);
+    _prim_runtime_errors__runtime_divzero_caught_grandparent(_eng, _ir);
+    _prim_runtime_errors__runtime_divzero_wrong_handler(_eng, _ir);
+    _prim_runtime_errors__runtime_modulo_zero(_eng, _ir);
+    _prim_runtime_errors__runtime_index_oob_exact(_eng, _ir);
+    _prim_runtime_errors__runtime_index_oob_parent(_eng, _ir);
+    _prim_runtime_errors__runtime_index_oob_exception(_eng, _ir);
+    _prim_runtime_errors__runtime_key_error_exact(_eng, _ir);
+    _prim_runtime_errors__runtime_key_error_parent(_eng, _ir);
+    _prim_runtime_errors__runtime_multi_handler(_eng, _ir);
+    _prim_runtime_errors__runtime_error_with_finally(_eng, _ir);
 }

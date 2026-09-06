@@ -30,13 +30,13 @@ import os;
 import types;
 import from builtins { compile as pycompile, exec as pyexec }
 import from tests.support { JAC_ROOT }
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { get_py_code_gen }
-import from jaclang.jac0core.passes { JcirBytecodeGenPass }
-import from jaclang.jac0core.passes.jcir_gen_pass { JcirGenPass }
-import from jaclang.jac0core.codegen_shim { compile_ir, transcribe }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.schedules { get_py_code_gen }
+import from jaclang.compiler.backends.py.jcir_bc_gen_pass { JcirBytecodeGenPass }
+import from jaclang.compiler.backends.py.jcir_gen_pass { JcirGenPass }
+import from jaclang.compiler.backends.py.codegen_shim { compile_ir, transcribe }
 
 """Compile a source string, then re-emit it: (pipeline tree, fresh tree, bytes)."""
 def dual_compile(src: str, path: str) -> tuple {
@@ -53,7 +53,7 @@ def dual_compile(src: str, path: str) -> tuple {
     );
     assert len(prog.errors_had) == 0 , str([str(e) for e in prog.errors_had]);
     ref_tree = mod.gen.py_ast[0];
-    emitter = JcirGenPass(ir_in=mod, prog=prog);
+    emitter = JcirGenPass(ir_in=mod);
     blob = emitter.ir_bytes();
     (mods, diags) = transcribe(blob);
     assert diags == [];
@@ -68,7 +68,7 @@ def dual_compile_file(path: str) -> tuple {
     mod = prog.compile(path, options=CompileOptions(no_ir_cache=True));
     assert len(prog.errors_had) == 0 , str([str(e) for e in prog.errors_had]);
     ref_tree = mod.gen.py_ast[0];
-    emitter = JcirGenPass(ir_in=mod, prog=prog);
+    emitter = JcirGenPass(ir_in=mod);
     blob = emitter.ir_bytes();
     (mods, diags) = transcribe(blob);
     assert diags == [];
@@ -76,7 +76,7 @@ def dual_compile_file(path: str) -> tuple {
     return (ref_tree, mods[0][1], blob);
 }
 
-def assert_dump_equal(ref_tree: object, got_tree: object) {
+def assert_dump_equal(ref_tree: any, got_tree: any) {
     want = pyast.dump(ref_tree, include_attributes=True);
     got = pyast.dump(got_tree, include_attributes=True);
     if want != got {
@@ -137,14 +137,14 @@ def code_diffs(a: any, b: any, path: str, out: list) -> list {
     return out;
 }
 
-def assert_bytecode_equal(ref_tree: object, mod_path: str, bytecode: bytes) {
+def assert_bytecode_equal(ref_tree: any, mod_path: str, bytecode: bytes) {
     ref_code = pycompile(ref_tree, mod_path, "exec");
     jcir_code = marshal.loads(bytecode);
     diffs = code_diffs(ref_code, jcir_code, "module", []);
     assert diffs == [] , "\n".join(diffs);
 }
 
-def exec_both(ref_tree: object, got_tree: object, path: str, names: list) {
+def exec_both(ref_tree: any, got_tree: any, path: str, names: list) {
     ref_ns: dict = {};
     got_ns: dict = {};
     pyexec(pycompile(ref_tree, path, "exec"), ref_ns);
@@ -214,7 +214,9 @@ with entry {
     assert_dump_equal(ref_tree, got_tree);
     exec_both(ref_tree, got_tree, "scaffold_fixture.jac", ["p", "b", "e"]);
     assert isinstance(got_tree.body[0], pyast.Expr);
-    assert got_tree.body[0].value.value == "Module docstring survives.";
+    # `Expr.value` is typed as the `expr` base; the docstring is a Constant.
+    docstring_expr: any = got_tree.body[0];
+    assert docstring_expr.value.value == "Module docstring survives.";
 }
 
 test "typed imports wrap in TYPE_CHECKING" {
@@ -488,7 +490,10 @@ with entry {
     missing: list = [];
     for node in pyast.walk(got_tree) {
         if "lineno" in node._attributes {
-            if (node?.lineno is None or node.lineno < 1) {
+            # `lineno` lives on concrete nodes, not the `AST` base the stub
+            # types here; the `_attributes` guard is the real check.
+            located: any = node;
+            if (located.lineno is None or located.lineno < 1) {
                 missing.append(pyast.dump(node)[:60]);
             }
         }
@@ -698,7 +703,7 @@ obj Helper {
 }
 
 test "real repo file srcloc lowers identically end to end" {
-    path = os.path.join(JAC_ROOT, "jaclang", "jac0core", "srcloc.jac");
+    path = os.path.join(JAC_ROOT, "jaclang", "compiler", "frontend", "srcloc.jac");
     (ref_tree, got_tree, blob) = dual_compile_file(path);
     assert_dump_equal(ref_tree, got_tree);
     result = compile_ir(blob);
@@ -851,7 +856,9 @@ with entry {
 }
 
 test "real repo walker file social_graph lowers identically" {
-    path = os.path.join(JAC_ROOT, "examples", "littleX", "social_graph.jac");
+    path = os.path.join(
+        JAC_ROOT, "examples", "jaclang_org", "core", "social_graph.jac"
+    );
     (ref_tree, got_tree, blob) = dual_compile_file(path);
     assert_dump_equal(ref_tree, got_tree);
     result = compile_ir(blob);
@@ -952,7 +959,7 @@ def f -> int {
     calls[0].genai_call = calls[0].target;
     caught_jcir = "";
     try {
-        JcirGenPass(ir_in=mod, prog=prog);
+        JcirGenPass(ir_in=mod);
     } except NotImplementedError as e {
         caught_jcir = str(e);
     }

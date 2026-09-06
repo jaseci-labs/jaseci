@@ -388,6 +388,8 @@ Resources are read-only reference materials that AI models can load for context.
 | `jac://guide/pitfalls` | Common AI mistakes when writing Jac                                          |
 | `jac://guide/patterns` | Idiomatic Jac code patterns                                                  |
 | `jac://guide/*`        | Curated reference guides, served from the compiler's bundled guide store (the same guides as `jac guide`) |
+| `jac://docs/*`         | The full bundled documentation set, one resource per page (the same corpus as `jac guide <doc>`) |
+| `jac://docs/nav`       | The docs navigation manifest as JSON: sections, titles, and reading order (the same tree as `jac guide --nav`) |
 | `jac://examples/*`     | Example Jac projects (auto-discovered)                                       |
 
 ## Tools (19)
@@ -555,7 +557,7 @@ Transpile Jac code to Python. Returns the generated Python source that the Jac c
 
 ```json
 {
-  "python_code": "from __future__ import annotations\nfrom jaclang.jac0core.jaclib import Obj\n\nclass Foo(Obj):\n    x: int = 5\n\ndef greet(name: str) -> str:\n    return f'Hello, {name}!'",
+  "python_code": "from __future__ import annotations\nfrom jaclang.lib.jaclib import Obj\n\nclass Foo(Obj):\n    x: int = 5\n\ndef greet(name: str) -> str:\n    return f'Hello, {name}!'",
   "warnings": []
 }
 ```

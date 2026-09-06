@@ -1,16 +1,13 @@
 import logging;
-import threading;
 import time;
 import hashlib;
-import itertools;
 import from threading { Lock as _RLLock }
 import from jaclang.scale.state.state_backend { StateBackend }
 import from jaclang.scale.state.factory { get_state_backend }
 
-glob _mw_seq = itertools.count();
-
 glob logger = logging.getLogger(__name__),
-     _rl_lock = _RLLock();
+     _rl_lock = _RLLock(),
+     NAMESPACE: str = "gateway";
 
 
 obj TokenBucket {
@@ -119,16 +116,6 @@ impl StateBackendRateLimiter.consume(key: str) -> tuple[bool, float] {
 }
 
 
-def _resolve_client_ip(request: any) -> str {
-    xff = request.headers.get("X-Forwarded-For");
-    if xff {
-        return xff.split(",")[0].strip();
-    }
-    client = request?.client;
-    return getattr(client, "host", "unknown") if client else "unknown";
-}
-
-
 def _resolve_user_key(request: any) -> str | None {
     auth = request.headers.get("Authorization");
     if not auth {
@@ -147,9 +134,9 @@ def build_rate_limit_middleware(cfg: dict[str, any]) -> any {
     burst: float = float(cfg.get("burst_multiplier", 2.0));
     exempt: set[str] = set(cfg.get("exempt_paths", []));
 
-    backend: StateBackend = get_state_backend(bool(cfg.get("scale_enabled", False)));
+    backend: StateBackend = get_state_backend(shared=bool(cfg.get("shared", False)));
 
-    ns: str = f"mw{next(_mw_seq)}";
+    ns: str = NAMESPACE;
 
     ip_limiter: StateBackendRateLimiter | None = None;
     if per_ip_rpm > 0 {
@@ -177,7 +164,7 @@ def build_rate_limit_middleware(cfg: dict[str, any]) -> any {
         }
         retry_after: float = 0.0;
         if ip_limiter is not None {
-            key = f"{ns}:ip:{_resolve_client_ip(request)}";
+            key = f"{ns}:ip:{request.client_host or 'unknown'}";
             (ok, ra) = ip_limiter.consume(key);
             if not ok {
                 retry_after = max(retry_after, ra);

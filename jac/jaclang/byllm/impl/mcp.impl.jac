@@ -1,16 +1,20 @@
+import from concurrent.futures { Future }
+import from contextlib { AbstractAsyncContextManager }
+
 obj _McpState {
-    has loop: object = None,
-        thread: object = None,
-        session: object = None,
-        session_ctx: object = None,
-        transport_ctx: object = None,
-        tools_cache: list = [],
+    has loop: (asyncio.AbstractEventLoop | None) = None,
+        thread: (threading.Thread | None) = None,
+        session: (AbstractAsyncContextManager | None) = None,
+        session_ctx: (AbstractAsyncContextManager | None) = None,
+        transport_ctx: (AbstractAsyncContextManager | None) = None,
+        tools_cache: list[McpTool] = [],
         connected: bool = False,
-        _lock: object postinit;
+        _lock: threading.Lock postinit;
 
     def postinit -> None;
     def start_loop -> None;
-    def run(coro: object) -> str;
+    def run_text(coro: Coroutine[any, any, str]) -> str;
+    def run_task(coro: Coroutine[any, any, None]) -> None;
     def stop -> None;
 }
 
@@ -19,32 +23,54 @@ impl _McpState.postinit -> None {
 }
 
 impl _McpState.start_loop -> None {
-    self.loop = asyncio.new_event_loop();
-    self.thread = threading.Thread(target=self.loop.run_forever, daemon=True);
-    self.thread.start();
+    loop = asyncio.new_event_loop();
+    thread = threading.Thread(target=loop.run_forever, daemon=True);
+    self.loop = loop;
+    self.thread = thread;
+    thread.start();
 }
 
-impl _McpState.run(coro: object) -> str {
+impl _McpState.run_text(coro: Coroutine[any, any, str]) -> str {
+    loop = self.loop;
+    if loop is None {
+        raise McpError(message="MCP event loop is not running.");
+    }
     with self._lock {
-        future = asyncio.run_coroutine_threadsafe(coro, self.loop);
-        return future.result(timeout=120);
+        future = asyncio.run_coroutine_threadsafe(coro, loop);
+        assert isinstance(future, Future);
+        text: str = future.result(timeout=120);
+        return text;
+    }
+}
+
+impl _McpState.run_task(coro: Coroutine[any, any, None]) -> None {
+    loop = self.loop;
+    if loop is None {
+        raise McpError(message="MCP event loop is not running.");
+    }
+    with self._lock {
+        future = asyncio.run_coroutine_threadsafe(coro, loop);
+        assert isinstance(future, Future);
+        future.result(timeout=120);
     }
 }
 
 impl _McpState.stop -> None {
-    if self.loop and self.loop.is_running() {
+    loop = self.loop;
+    thread = self.thread;
+    if loop is not None and loop.is_running() {
         try {
-            self.run(_async_cleanup(self));
+            self.run_task(_async_cleanup(self));
         } except Exception as e {
             logger.debug(f"MCP cleanup failed: {e}");
         }
-        self.loop.call_soon_threadsafe(self.loop.stop);
+        loop.call_soon_threadsafe(loop.stop);
     }
-    if self.thread and self.thread.is_alive() {
-        self.thread.join(timeout=5);
+    if thread is not None and thread.is_alive() {
+        thread.join(timeout=5);
     }
-    if self.loop and not self.loop.is_closed() {
-        self.loop.close();
+    if loop is not None and not loop.is_closed() {
+        loop.close();
     }
     self.loop = None;
     self.thread = None;
@@ -56,16 +82,18 @@ impl _McpState.stop -> None {
 }
 
 async def _async_cleanup(state: _McpState) {
-    if state.session_ctx is not None {
+    session_ctx = state.session_ctx;
+    if session_ctx is not None {
         try {
-            await state.session_ctx.__aexit__(None, None, None);
+            await session_ctx.__aexit__(None, None, None);
         } except Exception as e {
             logger.debug(f"Session __aexit__ error: {e}");
         }
     }
-    if state.transport_ctx is not None {
+    transport_ctx = state.transport_ctx;
+    if transport_ctx is not None {
         try {
-            await state.transport_ctx.__aexit__(None, None, None);
+            await transport_ctx.__aexit__(None, None, None);
         } except Exception as e {
             logger.debug(f"Transport __aexit__ error: {e}");
         }
@@ -76,7 +104,7 @@ impl McpClient.postinit -> None {
     self._id = str(uuid.uuid4());
 }
 
-glob _states: dict = {};
+glob _states: dict[str, _McpState] = {};
 
 def _get_state(client: McpClient) -> _McpState {
     if client._id not in _states {
@@ -98,19 +126,25 @@ async def _do_connect(client: McpClient, transport_type: str) {
         read_timeout_seconds=timedelta(seconds=client.timeout)
     );
     state.session_ctx = session_ctx;
-    state.session = await session_ctx.__aenter__();
-    await state.session.initialize();
+    session = await session_ctx.__aenter__();
+    state.session = session;
+    await session.initialize();
 
-    tools_result = await state.session.list_tools();
-    import from jaclang.byllm.mcp { McpTool }
-    state.tools_cache = [
-        McpTool(
-            name=t.name,
-            description=t.description or "",
-            input_schema=t?.inputSchema or {},
-            _client=client
-        ) for t in tools_result.tools
-    ];
+    tools_result = await session.list_tools();
+    discovered: list[McpTool] = [];
+    for t in tools_result.tools {
+        raw_schema = t?.inputSchema;
+        schema: dict[str, any] = raw_schema if isinstance(raw_schema, dict) else {};
+        discovered.append(
+            McpTool(
+                name=str(getattr(t, "name", "")),
+                description=str(getattr(t, "description", "") or ""),
+                input_schema=schema,
+                _client=client
+            )
+        );
+    }
+    state.tools_cache = discovered;
     state.connected = True;
     logger.info(
         f"[MCP] Connected via {transport_type} — "
@@ -121,16 +155,19 @@ async def _do_connect(client: McpClient, transport_type: str) {
 async def _do_call_tool(
     client: McpClient, name: str, arguments: dict[str, any]
 ) -> str {
+    import from mcp.client.session { ClientSession }
+
     state = _get_state(client);
+    session = state.session;
+    if not isinstance(session, ClientSession) {
+        raise McpError(message="MCP session is not connected.");
+    }
     logger.debug(f"[MCP] call_tool {name}({arguments})");
-    result = await state.session.call_tool(name, arguments);
+    result = await session.call_tool(name, arguments);
     parts: list[str] = [];
     for item in (result.content or []) {
-        if hasattr(item, 'text') {
-            parts.append(item.text);
-        } else {
-            parts.append(str(item));
-        }
+        text = item?.text;
+        parts.append(str(text) if text is not None else str(item));
     }
     return "\n".join(parts) if parts else "MCP tool returned no content.";
 }
@@ -191,7 +228,7 @@ impl McpClient.connect -> None {
     }
     state.start_loop();
     try {
-        state.run(_do_connect(self, transport_type));
+        state.run_task(_do_connect(self, transport_type));
     } except McpError {
         state.stop();
         raise;
@@ -227,7 +264,7 @@ impl McpClient.call_tool(name: str, arguments: dict[str, any]) -> str {
         self.connect();
     }
     try {
-        return state.run(_do_call_tool(self, name, arguments));
+        return state.run_text(_do_call_tool(self, name, arguments));
     } except McpError {
         raise;
     } except Exception as e {

@@ -1,8 +1,10 @@
 import from jaclang.scale.observability.metrics { NoOpMetricsCollector }
 import from jaclang.scale.observability.factory { UtilityFactory }
+import from jaclang.scale.observability { prometheus_metrics }
 import from jaclang.scale.observability.prometheus_metrics {
     PrometheusMetricsCollector
 }
+import from unittest.mock { patch, MagicMock }
 
 test "noop is disabled" {
     collector = NoOpMetricsCollector();
@@ -58,6 +60,42 @@ test "prometheus endpoint handler returns response" {
 
     assert response.status_code == 200;
     assert "text" in response.media_type or "openmetrics" in response.media_type;
+}
+
+test "prometheus exposes jac version info" {
+    import from jaclang.scale.admin.admin_portal { _parse_prometheus_text }
+    import from jaclang.cli.manifest_route { resolve_cli_version }
+
+    collector = PrometheusMetricsCollector(config=ENABLED_CONFIG);
+    metrics = _parse_prometheus_text(collector.expose().decode("utf-8"));
+
+    jac_info = None;
+    for metric in metrics {
+        if metric["name"] == "jac_info" {
+            jac_info = metric;
+        }
+    }
+
+    assert jac_info is not None , "jac_info was not exposed";
+    assert jac_info["values"][0]["labels"]["version"] == resolve_cli_version();
+}
+
+test "prometheus warns when the jac version is unresolved" {
+    import from jaclang.cli { manifest_route }
+
+    fake_logger = MagicMock();
+    unresolved = MagicMock(side_effect=RuntimeError("no dist metadata"));
+
+    with patch.object(manifest_route, "resolve_cli_version", unresolved) {
+        with patch.object(prometheus_metrics, "logger", fake_logger) {
+            collector = PrometheusMetricsCollector(config=ENABLED_CONFIG);
+        }
+    }
+
+    assert collector._jac_info is None;
+    assert "jac_info" not in collector.expose().decode("utf-8");
+    assert fake_logger.warning.call_count == 1;
+    assert "no dist metadata" in fake_logger.warning.call_args[0][0];
 }
 
 test "factory returns noop when disabled" {
@@ -195,4 +233,21 @@ test "admin metrics endpoint requires authentication" {
     } finally {
         shutil.rmtree(tmp, ignore_errors=True);
     }
+}
+
+
+test "prometheus counts read-tier retries per unit" {
+    collector = PrometheusMetricsCollector(config=ENABLED_CONFIG);
+    collector.record_read_tier_retry("walker:app.place_order");
+    collector.record_read_tier_retry("walker:app.place_order");
+    body = collector.expose().decode("utf-8");
+    assert 'test_app_read_tier_retries_total{unit="walker:app.place_order"} 2.0'
+        in body , (f"read-tier retries must be exposed per unit key, got:\n{body}");
+}
+
+
+test "noop read-tier retry is a no-op" {
+    collector = NoOpMetricsCollector();
+    collector.record_read_tier_retry("walker:app.place_order");
+    assert collector.expose() == b"";
 }

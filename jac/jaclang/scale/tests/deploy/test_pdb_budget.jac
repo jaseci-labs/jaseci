@@ -12,27 +12,38 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
     ManifestBuilder,
-    pdb_spec
+    pdb_spec,
+    ScalingMode
 }
 import from jaclang.scale.config.app_config { AppConfig }
 import from jaclang.scale.runtime.cli.diagnostics { PlanValidator }
 
+import from jaclang.scale.runtime.fleet { fleet_of }
+
 
 def _pdbs(services: dict) -> dict {
-    builder = ManifestBuilder(
-        k8s_config=KubernetesConfig(
-            app_name="shop", namespace="shop-ns", bundle_storage_class="standard"
-        ),
-        microservices_config={
-            "routes": {name: f"/{name}" for name in services},
-            "services": services
-        },
-        dry_run=True
-    );
-    bundle = builder.generate_manifests(
-        AppConfig(code_folder=".", app_name="shop"), ""
-    );
-    return dict(bundle.get("pdbs", {}));
+    import tempfile;
+    import from pathlib { Path }
+    with tempfile.TemporaryDirectory() as project {
+        for name in list(services.keys()) + ["main"] {
+            (Path(project) / f"{name}.jac").write_text("");
+        }
+        builder = ManifestBuilder(
+            k8s_config=KubernetesConfig(
+                app_name="shop", namespace="shop-ns", bundle_storage_class="standard"
+            ),
+            fleet=fleet_of(
+                {name: f"/{name}" for name in services},
+                root_app="main",
+                overrides=services
+            ),
+            dry_run=True
+        );
+        bundle = builder.generate_manifests(
+            AppConfig(code_folder=project, app_name="shop"), ""
+        );
+        return dict(bundle.get("pdbs", {}));
+    }
 }
 
 
@@ -99,7 +110,7 @@ test "min_available brings the budget back at one replica" {
 test "the plan validator warns about the pair that produces no budget" {
     validator = PlanValidator(
         bundle={"deployments": {"orders_app": {"spec": {"replicas": 1}}}},
-        ms_cfg={"routes": {"orders_app": "/orders"}},
+        routes={"orders_app": "/orders"},
         svc_configs={
             "orders_app": {"hpa": {"enabled": False}, "pdb": {"max_unavailable": 1}}
         }
@@ -121,7 +132,7 @@ test "the plan validator warns about the pair that produces no budget" {
 test "the validator stays quiet when the budget actually holds" {
     validator = PlanValidator(
         bundle={"deployments": {"orders_app": {"spec": {"replicas": 3}}}},
-        ms_cfg={"routes": {"orders_app": "/orders"}},
+        routes={"orders_app": "/orders"},
         svc_configs={
             "orders_app": {"hpa": {"enabled": False}, "pdb": {"max_unavailable": 1}}
         }
@@ -137,4 +148,49 @@ test "the validator stays quiet when the budget actually holds" {
         if "permits evicting every replica" in m
     ];
     assert hits == [];
+}
+
+
+# --- HTTP-activated services: a scale-to-zero target has no meaningful
+# replica floor, so the floor-based PDB and the base-autoscaler assumptions
+# behind these checks don't apply to it (mirrors _resolve_scaling's own
+# decision that HTTP_ACTIVATION and METRIC are mutually exclusive).
+test "an HTTP-activated service gets no PDB even with pdb.min_available set" {
+    pdbs = _pdbs(
+        {
+            "billing_ops": {
+                "replicas": 1,
+                "pdb": {"min_available": 1},
+                "http_activation": {
+                    "enabled": True,
+                    "target_port": 8080,
+                    "concurrency_target": 10,
+                    "rules": [{"hosts": ["*"]}]
+                }
+            }
+        }
+    );
+    assert pdbs.get("billing_ops") is None;
+}
+
+test "the plan validator skips the HPA and PDB checks for an HTTP_ACTIVATION service" {
+    validator = PlanValidator(
+        bundle={
+            "deployments": {"billing_ops": {"spec": {"replicas": 1}}},
+            "scaling": {"billing_ops": {"mode": ScalingMode.HTTP_ACTIVATION}}
+        },
+        routes={"billing_ops": "/billing-ops"},
+        svc_configs={
+            "billing_ops": {"hpa": {"min": 5, "max": 1}, "pdb": {"max_unavailable": 1}}
+        }
+    );
+    messages = [
+        d.message
+        for d in validator.run()
+        if d.service == "billing_ops"
+    ];
+    assert not any("HPA" in m for m in messages) , messages;
+    assert not any(
+        "PodDisruptionBudget" in m or "pdb." in m for m in messages
+    ) , messages;
 }

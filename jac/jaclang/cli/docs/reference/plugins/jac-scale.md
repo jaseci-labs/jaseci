@@ -1,8 +1,8 @@
 # Scale Reference
 
-Scale generates REST endpoints from your Jac walkers and functions. Running `jac start` turns every `:pub` or `:priv` walker into an API endpoint on the jac-native HTTP server, with automatic OpenAPI docs, Postgres-native persistence, and built-in authentication.
+Scale generates REST endpoints from your Jac walkers and functions. Running `jac run` turns every `:pub` or `:priv` walker into an API endpoint on the jac-native HTTP server, with automatic OpenAPI docs, Postgres-native persistence, and built-in authentication.
 
-For production, the `--scale` flag automates Docker image builds and Kubernetes deployment -- generating Dockerfiles, manifests, and service configurations from your code. This reference covers server startup options, endpoint generation, authentication, database persistence, Kubernetes deployment, and the CLI flags for each mode.
+For production, `jac scale deploy` automates Docker image builds and Kubernetes deployment -- generating Dockerfiles, manifests, and service configurations from your code. This reference covers server startup options, endpoint generation, authentication, database persistence, Kubernetes deployment, and the CLI flags for each mode.
 
 Scale ships **built into `jaclang` core** as the `scale` subsystem (importable as `jaclang.scale`) -- there is no separate `jac-scale` package to install. It arrives with the `jac` binary, so the serving and deployment machinery is always present; only the heavier optional third-party libraries it can use (Kubernetes, Prometheus, cloud storage SDKs, ...) are pulled in per-project, on demand. The database needs nothing extra: the Postgres driver is vendored with the runtime.
 
@@ -12,8 +12,8 @@ Scale exists to keep one promise: **your program text does not change with the s
 
 ```bash
 jac run main.jac             # one user, one process, local store
-jac start main.jac           # N users, one machine, walkers as endpoints
-jac start main.jac --scale   # N users, M machines, Kubernetes
+jac run main.jac             # N users, one machine, walkers as endpoints
+jac scale deploy main.jac    # N users, M machines, Kubernetes
 ```
 
 -- and the diff between those three configurations is empty. The strata a conventional stack adds at each step (the web framework, the auth middleware, the tenancy filter on every query, the serialization schema, the deployment manifests) encode the *shape of the deployment*, not application meaning, and Scale's position is that deployment shape is a runtime concern, the way garbage collection is a runtime concern. Three mechanisms carry the promise: walkers project as endpoints (a walker's `has` fields and `report`s already form a complete, typed interface description, so there is no route table or client SDK to drift), `root` binds per-caller (each authenticated user's traversals are scoped to their own graph by construction, so isolation is geometry rather than middleware), and persistence follows reachability (transient vs. durable is not a code change).
@@ -38,7 +38,7 @@ Scale's core path -- the HTTP server, JWT auth, Postgres persistence, and CLI fl
 jac install
 ```
 
-For example, configuring `[scale.kubernetes]` (or using `jac start --scale`) pulls in `kubernetes`/`docker`; enabling `[scale.monitoring]` pulls in `prometheus-client`; enabling `[scale.scheduler]` pulls in `apscheduler`.
+For example, configuring `[scale.kubernetes]` (or using `jac scale deploy`) pulls in `kubernetes`/`docker`; enabling `[scale.monitoring]` pulls in `prometheus-client`; enabling `[scale.scheduler]` pulls in `apscheduler`.
 
 !!! note
     When a feature is used without its dependency present, you get a clear error telling you to declare the relevant `[scale.*]` config and run `jac install`:
@@ -50,7 +50,7 @@ For example, configuring `[scale.kubernetes]` (or using `jac start --scale`) pul
 | Cloud object storage | boto3 (S3), google-cloud-storage (GCS), firebase-admin (Firebase) | Blob storage on a cloud backend |
 | Monitoring | prometheus-client | Prometheus `/metrics` endpoint |
 | Scheduling | apscheduler | `@schedule(trigger=...)` on walkers/functions |
-| Deployment | kubernetes, docker | `jac start --scale` |
+| Deployment | kubernetes, docker | `jac scale deploy` |
 
 ---
 
@@ -60,14 +60,14 @@ The full Scale reference is organized into three pages:
 
 | Page | Covers |
 |------|--------|
-| **[HTTP API & Walkers](jac-scale-http.md)** | Starting a server, automatic API endpoint generation, the `@restspec` decorator, middleware walkers, authentication (identity model, registration/login, JWT, SSO, password reset, roles), the admin portal, permissions & access control, webhooks, WebSockets, microservice interop (sv-to-sv), the emailer, CLI commands, API documentation, and graph visualization. |
+| **[HTTP API & Walkers](jac-scale-http.md)** | Starting a server, automatic API endpoint generation, the `@restspec` decorator, middleware walkers, authentication (identity model, registration/login, JWT, SSO, password reset, roles), the admin portal, permissions & access control, webhooks, WebSockets, service apps (cross-app bridging, the `BridgeError` family, the outbox, colocation vs fleet), the emailer, CLI commands, API documentation, and graph visualization. |
 | **[Data & Storage](jac-scale-persistence.md)** | Object storage (`store()`, local & S3/GCS-compatible backends), the graph traversal API, async walkers, event streaming, the Postgres database (embedded, external, and Kubernetes-provisioned), and graph builtins. |
-| **[Kubernetes & Operations](jac-scale-kubernetes.md)** | Kubernetes deployment (modes, ingress, TLS, autoscaling, storage, images, version pinning, monitoring stack), health checks, Prometheus metrics, Kubernetes secrets, pre-bound ServiceAccount, cross-service shared volumes, microservice mode in Kubernetes, cluster setup, and troubleshooting. |
+| **[Kubernetes & Operations](jac-scale-kubernetes.md)** | Kubernetes deployment (modes, ingress, TLS, autoscaling, storage, images, version pinning, monitoring stack), health checks, Prometheus metrics, Kubernetes secrets, pre-bound ServiceAccount, cross-app shared volumes, service apps in Kubernetes (the deployed fleet), cluster setup, and troubleshooting. |
 
 For end-to-end walkthroughs rather than reference material, see the Deploy tutorials:
 
 - [Local API server](../../tutorials/production/local.md)
-- [Microservices](../../tutorials/production/microservices.md)
+- [Service Apps](../../tutorials/production/microservices.md)
 - [Kubernetes](../../tutorials/production/kubernetes.md)
 
 ---

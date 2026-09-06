@@ -6,6 +6,10 @@ import from jaclang.scale.tests.scale_test_client {
     extract_data
 }
 
+def _as_any(v: any) -> any {
+    return v;
+}
+
 test "custom method walker" {
     client = make_client("restspec_fixtures.jac");
     try {
@@ -241,7 +245,9 @@ test "undeclared query params ignored on walker" {
 test "openapi specs" {
     client = make_client("restspec_fixtures.jac");
     try {
-        spec = client._server.server.app.openapi();
+        srv = client._server;
+        assert srv is not None , "server must be running";
+        spec = srv.app.openapi();
         paths = spec["paths"];
 
         assert "/custom/walker" in paths;
@@ -279,7 +285,9 @@ test "restspec path parameters" {
         auth = {"Authorization": f"Bearer {token}"};
 
         # --- OpenAPI schema: routes registered with correct path templates ---
-        spec = client._server.server.app.openapi();
+        srv = client._server;
+        assert srv is not None , "server must be running";
+        spec = srv.app.openapi();
         paths = spec["paths"];
         assert "/items/{item_id}" in paths and "get" in paths["/items/{item_id}"];
         assert "/users/{user_id}/orders" in paths
@@ -294,10 +302,12 @@ test "restspec path parameters" {
 
         # OpenAPI marks the path param as in=path, required=true
         item_params = paths["/items/{item_id}"]["get"]["parameters"];
-        pp = next(
-            p
-            for p in item_params
-            if p["name"] == "item_id"
+        pp = _as_any(
+            next(
+                p
+                for p in item_params
+                if p["name"] == "item_id"
+            )
         );
         assert pp["in"] == "path" and pp["required"] == True;
 
@@ -357,7 +367,9 @@ test "restspec path parameters" {
 test "walker with default node parameter route" {
     client = make_client("restspec_fixtures.jac");
     try {
-        spec = client._server.server.app.openapi();
+        srv = client._server;
+        assert srv is not None , "server must be running";
+        spec = srv.app.openapi();
         paths = spec["paths"];
 
         walker_paths_with_param = [
@@ -381,7 +393,7 @@ test "walker with default node parameter route" {
         if test_route {
             method = "post" if "post" in paths[test_route] else "get";
             params = paths[test_route][method]["parameters"];
-            nd_param = next(
+            nd_param: any = next(
                 (
                     p
                     for p in params
@@ -432,7 +444,9 @@ test "custom obj body - walker flows" {
     client = make_client("restspec_fixtures.jac");
     try {
         # OpenAPI: UserBody schema + CreateUser body references it via $ref
-        spec = client._server.server.app.openapi();
+        srv = client._server;
+        assert srv is not None , "server must be running";
+        spec = srv.app.openapi();
         schemas = spec["components"]["schemas"];
         assert "UserBody" in schemas;
         user_schema = schemas["UserBody"];
@@ -553,7 +567,9 @@ test "recursive obj body flows" {
     client = make_client("restspec_fixtures.jac");
     try {
         # OpenAPI: TreeNode.children items $ref TreeNode (self-reference)
-        spec = client._server.server.app.openapi();
+        srv = client._server;
+        assert srv is not None , "server must be running";
+        spec = srv.app.openapi();
         schemas = spec["components"]["schemas"];
         assert "TreeNode" in schemas;
         items = schemas["TreeNode"]["properties"]["children"].get("items", {});
@@ -687,7 +703,9 @@ test "restspec without method registers a live POST route (#8000 f3)" {
         data = extract_data(response.json());
         assert data["result"]["message"] == "no_method_func executed";
 
-        schema = client._server.server.app.openapi();
+        srv = client._server;
+        assert srv is not None , "server must be running";
+        schema = srv.app.openapi();
         methods = list(schema["paths"]["/custom/no-method-func"].keys());
         assert methods == ["post"] , f"openapi must carry a real verb, got {methods}";
     } finally {
@@ -697,8 +715,8 @@ test "restspec without method registers a live POST route (#8000 f3)" {
 
 
 test "restspec decoration-time validation rejects bad specs (#8000 f3)" {
-    import from jaclang.runtimelib.builtin { APIProtocol }
-    import jaclang.runtimelib.builtin as blt;
+    import from jaclang.runtime.builtin { APIProtocol }
+    import jaclang.runtime.builtin as blt;
 
     with testraises(ValueError) as exc {
         blt.restspec(method="HEAD")(lambda { 1; });

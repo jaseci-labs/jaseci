@@ -87,17 +87,22 @@ def summarize(text: str) -> str {   # pinned server; client callers bridge over 
 
 Pins feed the solver exactly like the old markers did: a pinned element is immovable, and everything else re-solves around it. A **module-level `"server"` pin** additionally makes client imports of that module full service-boundary imports (non-pub items callable with auth, boundary types collected) - the trust-boundary form. Pins are part of the program: changing them invalidates the compilation cache and shows up in `--placements` evidence as `pinned 'server' ([placement.pins])`.
 
-## Service topology is a config fact, not an import form
+## App boundaries are a config fact, not an import form
 
-Declaring that a module runs as its own service happens ONLY in `jac.toml`:
+Declaring that a module runs as its own service happens ONLY in `jac.toml`, as an **app**:
 
 ```toml
-[scale.microservices.routes]
-math_service = ""          # "" derives the route prefix (/math_service)
-orders_app   = "/api/orders"
+[apps.math]                          # file-rooted service app: owns exactly this file
+kind = "service"
+entry-point = "core/math.jac"
+
+[apps.orders]                        # dir-rooted: owns everything under orders/
+kind = "service"
+path = "orders"
+route = "/api/orders"                # default would be /api/orders anyway
 ```
 
-Modules in the routes table (the **service cut**) are server-anchored by definition; plain imports of them lower to RPC service stubs automatically - synchronous Python stubs server-to-server, async JS stubs client-to-service. `jac scale split <module>` writes an entry for you. There is no auto-discovery from source. See `jac-sv-microservices`.
+Every module carries stamped **app facts** (`app`, `app_root`, `app_kind`, `owner_app`); modules under no app root are shared. A service app's elements are server-anchored by definition and owned by it; plain imports of its walkers / `def:pub` functions from any other app lower to bridge stubs automatically - typed-async Python stubs server-to-server (`await`), async JS stubs client-to-server. Two laws ride on the same facts: an app may use another app's declarations only through that bridge surface (`E2039`), and shared code may never import from an app (`E2040`). `jac create --app <name> --kind service` writes the table. There is no auto-discovery from source. See `jac-sv-microservices`.
 
 ## Native inference - extern C declarations are the seed
 
@@ -129,6 +134,6 @@ def open_window() -> None {        # uses InitWindow -> native
 
 - `jac-fullstack-patterns` - entry wiring, RPC call styles, endpoint registration
 - `jac-cl-organization` - file layout for multi-component client apps
-- `jac-sv-microservices` - the routes-table service cut between server modules
+- `jac-sv-microservices` - service apps: the app boundary between server modules, the bridge, the outbox
 - `jac-native` - the native codespace
 - `jac-project-kinds` - which codespaces each project kind combines

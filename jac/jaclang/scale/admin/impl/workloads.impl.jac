@@ -2,10 +2,10 @@ import os;
 import time;
 import math;
 import logging;
-import from jaclang.runtimelib.serving.datatypes { Request }
+import from jaclang.server.serving.datatypes { Request }
 import asyncio;
-import from jaclang.runtimelib.transport { TransportResponse, Meta }
-import from jaclang.runtimelib.serving.endpoint {
+import from jaclang.server.transport { TransportResponse, Meta }
+import from jaclang.server.serving.endpoint {
     HTTPMethod,
     JEndPoint,
     APIParameter,
@@ -25,8 +25,8 @@ import from jaclang.scale.admin.workload_helpers {
 
 glob logger = logging.getLogger(__name__);
 
-def _index_by(rows: list, label: str, as_int: bool = False) -> dict {
-    out: dict = {};
+def _index_by(rows: list, label: str, as_int: bool = False) -> dict[str, float] {
+    out: dict[str, float] = {};
     for `entry in rows {
         key = `entry.get("metric", {}).get(label, "");
         v = `entry.get("value", [0, "0"]);
@@ -67,7 +67,7 @@ def _metrics_namespace -> str {
         return str(
             get_scale_config().get_monitoring_config().get('namespace', 'jaclang_scale')
         );
-    } except Exception { }
+    } except Exception {}
     return 'jaclang_scale';
 }
 
@@ -99,7 +99,7 @@ def _unavailable_reason -> str {
         if not bool(get_scale_config().get_monitoring_config().get('enabled', False)) {
             return "Monitoring is disabled. Set [scale.monitoring] enabled = true in jac.toml and redeploy to see workload metrics.";
         }
-    } except Exception { }
+    } except Exception {}
     if resolve_prometheus_url() is None {
         return "Prometheus URL not configured (K8S_APP_NAME unset).";
     }
@@ -107,11 +107,16 @@ def _unavailable_reason -> str {
 }
 
 impl JacAPIServerWorkloads.register_workloads_endpoints -> None {
+    server = self.server;
+    if server is None {
+        return;
+    }
+
     async def summary_handler(request: Request) -> TransportResponse {
         authorization = request.headers.get('Authorization');
         return await asyncio.to_thread(self.admin_workloads_summary, authorization);
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path='/admin/workloads',
@@ -127,7 +132,7 @@ impl JacAPIServerWorkloads.register_workloads_endpoints -> None {
         authorization = request.headers.get('Authorization');
         return await asyncio.to_thread(self.admin_workloads_list, authorization);
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path='/admin/workloads/list',
@@ -143,7 +148,7 @@ impl JacAPIServerWorkloads.register_workloads_endpoints -> None {
         authorization = request.headers.get('Authorization');
         return await asyncio.to_thread(self.admin_workloads_pods, authorization);
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path='/admin/workloads/pods',
@@ -163,7 +168,7 @@ impl JacAPIServerWorkloads.register_workloads_endpoints -> None {
             self.admin_workloads_timeseries, range_minutes, authorization
         );
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path='/admin/workloads/timeseries',
@@ -413,9 +418,9 @@ impl JacAPIServerWorkloads.admin_workloads_list(
     }
 
     tq = _traffic_queries();
-    svc_rps: dict = {};
-    svc_err: dict = {};
-    svc_p95: dict = {};
+    svc_rps: dict[str, float] = {};
+    svc_err: dict[str, float] = {};
+    svc_p95: dict[str, float] = {};
     if tq['by_service'] {
         svc_rps = _index_by(
             prom_query(

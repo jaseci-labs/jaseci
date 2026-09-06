@@ -1,7 +1,5 @@
-import random;
-import string;
 import from urllib.parse { urlparse }
-import from jaclang.runtimelib.transport { TransportResponse, Meta }
+import from jaclang.server.transport { TransportResponse, Meta }
 
 glob _LOOPBACK_HOSTS: set[str] = {'127.0.0.1', 'localhost', '::1'};
 
@@ -41,10 +39,9 @@ def _extract_path_param_names(path: (str | None)) -> list[str] {
     return param_names;
 }
 
-def generate_random_password(length: int = 8) -> str {
-    characters = string.ascii_letters + string.digits + string.punctuation;
-    password_chars = [random.choice(characters) for _ in range(length)];
-    return ''.join(password_chars);
+def generate_random_password(length: int = 32) -> str {
+    import secrets;
+    return secrets.token_urlsafe(max(16, length));
 }
 
 def extract_bearer_token(authorization: str | None, user_manager: any) -> str | None {

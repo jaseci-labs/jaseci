@@ -74,7 +74,7 @@ print(f'5! = {factorial(5)}')
 The compiled output demonstrates how Jac's object-oriented features map to standard Python classes inheriting from `Obj` (Jac's base object archetype), with imports from the `jaclang.lib` package.
 
 !!! note
-    The transpiler outputs `from jaclang.jac0core.jaclib import ...` internally. The public API `jaclang.lib` re-exports the same symbols and is the recommended import path for library-mode usage.
+    The transpiler outputs `from jaclang.lib.jaclib import ...` internally. The public API `jaclang.lib` re-exports the same symbols and is the recommended import path for library-mode usage.
 
 #### Type-Only Imports
 
@@ -189,7 +189,7 @@ Jac provides five adoption strategies that accommodate different development req
 
 | Pattern | Use Case | Jac Content | Python Content | Key Benefits | Example Scenario |
 |---------|----------|-------------|----------------|--------------|------------------|
-| **1. Pure Jac** | New projects, microservices | 100% | 0% | Full Jac language features, modern syntax | Building a new graph-based application with only `.jac` files |
+| **1. Pure Jac** | New projects, service apps | 100% | 0% | Full Jac language features, modern syntax | Building a new graph-based application with only `.jac` files |
 | **2. Jac + Inline Python** | Inline Python in Jac files | Mixed (::py:: blocks) | Embedded inline | Gradual migration, use Python syntax when needed | `.jac` files with embedded Python for legacy logic or complex imports |
 | **3. Mostly Jac** | Import Python modules into Jac | 80-95% .jac | 5-20% .py | Jac architecture with existing Python utilities | Project with `.jac` files importing your existing `.py` utility modules |
 | **4. Mostly Python** | Import Jac modules into Python | 5-20% .jac | 80-95% .py | Python codebase with select Jac features | Python project with `.py` files importing specialized `.jac` modules for graphs/AI |

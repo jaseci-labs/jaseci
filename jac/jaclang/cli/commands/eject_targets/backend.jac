@@ -115,7 +115,7 @@ def emit_backend(
         backend_dir, project_name, walkers_full, functions_full, has_env, entry_module
     );
 
-    import from jaclang.publish.runtime_vendor { vendor_runtime }
+    import from jaclang.dist.publish.runtime_vendor { vendor_runtime }
     uses_llm = _uses_llm(emitted_codes);
     try {
         vendored = vendor_runtime(backend_dir, emitted_codes, include_byllm=uses_llm);
@@ -429,7 +429,7 @@ def _safe_model_default(default_src: str) -> str {
     if isinstance(expr, ast.Call)
         and isinstance(expr.func, ast.Name)
         and (expr.func.id == "field") {
-        inner = None;
+        inner: (ast.expr | None) = None;
         for kw in expr.keywords {
             if (kw.arg in ["factory", "default_factory"])
                 and isinstance(kw.value, ast.Lambda) {
@@ -515,14 +515,17 @@ def _emit_main_py(
 
     lines += [
         '',
-        'from jaclang.runtimelib.server import UserManager, ExecutionManager'
+        'from jaclang.server.identity.config import configure_identity',
+        'from jaclang.server.identity.user_manager import UserManager',
+        'from jaclang.server.server import ExecutionManager',
+        'from jaclang.server.settings import ServeSettings'
     ];
 
     if entry_module {
         lines += [
             '',
             '# Import the entry module for its side effects: its `with entry`',
-            '# code runs at server boot, as it would under `jac start`.',
+            '# code runs at server boot, as it would under `jac run`.',
             'import ' + entry_module
         ];
     }
@@ -538,6 +541,8 @@ def _emit_main_py(
 
     lines += [
         '',
+        '_settings = ServeSettings.load(_BASE)',
+        'configure_identity(_settings.auth, _BASE)',
         '_um = UserManager(base_path=_BASE)',
         '_em = ExecutionManager(base_path=_BASE, user_manager=_um)',
         '_GUEST = "__guest__"',
@@ -822,7 +827,7 @@ def _emit_main_py(
             '',
             '',
             '# Functions decorated with @restspec(path=...) are also mounted at',
-            '# their declared paths (parity with `jac start` custom REST routes).',
+            '# their declared paths (parity with `jac run` custom REST routes).',
             '# GET/HEAD routes carry no body: call the handler with the model',
             "# defaults instead of FastAPI's required JSON body.",
             'def _mount_restspec(fn, handler, model):',

@@ -150,7 +150,7 @@ def linearize_tool_messages(messages: list) -> list {
             continue;
         }
         tool_calls = _field(m, "tool_calls");
-        if tool_calls {
+        if isinstance(tool_calls, list) and tool_calls {
             text = str(_field(m, "content") or "").strip();
             parts: list = [text] if text else [];
             for tc in tool_calls {
@@ -383,7 +383,7 @@ def _parse_value(token: str) -> object {
     }
     try {
         return json.loads(t);
-    } except Exception { }
+    } except Exception {}
     if len(t) >= 2 and t[0] == "'" and t[-1] == "'" {
         return t[1:-1];
     }

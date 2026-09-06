@@ -1,3 +1,13 @@
+import from jaclang.runtime.scalars {
+    ScalarShape,
+    numeric_shapes,
+    sized_scalar_names,
+    shape_literal_fits,
+    shape_range,
+    shapes_unify,
+    shapes_widen_to
+}
+
 enum NumericKind {
     NotNumeric = "not_numeric",
     IntKind = "int_kind",
@@ -7,14 +17,77 @@ enum NumericKind {
 obj JacTypeEntry {
     has name: str,
         emitter_suffix: str,
-        na_type_spec: str | None = None,
-        numeric_kind: NumericKind = NumericKind.NotNumeric;
+        numeric_kind: NumericKind = NumericKind.NotNumeric,
+        width: int = 0,
+        signed: bool = False,
+        is_float: bool = False,
+        sized: bool = False;
+
+    def size_bytes -> int {
+        return max(1, self.width // 8);
+    }
+
+    def align -> int {
+        return self.size_bytes();
+    }
+
+    def is_int_kind -> bool {
+        return self.numeric_kind == NumericKind.IntKind;
+    }
+
+    def is_float_kind -> bool {
+        return self.numeric_kind == NumericKind.FloatKind;
+    }
+}
+
+def _numeric_entry(shape: ScalarShape, emitter_suffix: str) -> JacTypeEntry {
+    return JacTypeEntry(
+        name=shape.name,
+        emitter_suffix=emitter_suffix,
+        numeric_kind=NumericKind.FloatKind if shape.is_float else NumericKind.IntKind,
+        width=shape.width,
+        signed=shape.signed,
+        is_float=shape.is_float,
+        sized=shape.sized
+    );
+}
+
+def _registry_entries -> dict[str, JacTypeEntry] {
+    out: dict[str, JacTypeEntry] = {};
+    for shape in numeric_shapes() {
+        suffix = "BoolEmitter"
+            if shape.name == "bool"
+            else ("FloatEmitter" if shape.is_float else "IntEmitter");
+        out[shape.name] = _numeric_entry(shape, suffix);
+    }
+    out["complex"] = JacTypeEntry(name="complex", emitter_suffix="ComplexEmitter");
+    out["str"] = JacTypeEntry(name="str", emitter_suffix="StrEmitter", width=64);
+    out["bytes"] = JacTypeEntry(name="bytes", emitter_suffix="BytesEmitter");
+    out["list"] = JacTypeEntry(name="list", emitter_suffix="ListEmitter");
+    out["dict"] = JacTypeEntry(name="dict", emitter_suffix="DictEmitter");
+    out["set"] = JacTypeEntry(name="set", emitter_suffix="SetEmitter");
+    out["frozenset"] = JacTypeEntry(
+        name="frozenset", emitter_suffix="FrozensetEmitter"
+    );
+    out["tuple"] = JacTypeEntry(name="tuple", emitter_suffix="TupleEmitter");
+    out["range"] = JacTypeEntry(name="range", emitter_suffix="RangeEmitter");
+    return out;
 }
 
 obj JacTypeRegistry {
     has _entries: dict[str, JacTypeEntry],
         _builtin_names: frozenset[str],
-        _exception_parents: dict[str, str | None];
+        _non_retaining_builtins: frozenset[str],
+        _exception_parents: dict[str, str | None],
+        _shapes: dict[str, ScalarShape];
+
+    def is_non_retaining_builtin(name: str) -> bool {
+        return name in self._non_retaining_builtins;
+    }
+
+    def shape_of(name: str) -> ScalarShape | None {
+        return self._shapes.get(name, None);
+    }
 
     def get(name: str) -> JacTypeEntry | None {
         return self._entries.get(name, None);
@@ -32,11 +105,11 @@ obj JacTypeRegistry {
         return [(e.name, e.emitter_suffix) for e in self._entries.values()];
     }
 
-    def na_type_entries -> list[tuple[str, str]] {
+    def scalar_entries -> list[JacTypeEntry] {
         return [
-            (e.name, e.na_type_spec)
+            e
             for e in self._entries.values()
-            if e.na_type_spec is not None
+            if e.width > 0
         ];
     }
 
@@ -54,6 +127,71 @@ obj JacTypeRegistry {
             return NumericKind.NotNumeric;
         }
         return `entry.numeric_kind;
+    }
+
+    def is_numeric(name: str) -> bool {
+        return self.numeric_kind_of(name) != NumericKind.NotNumeric;
+    }
+
+    def is_sized(name: str) -> bool {
+        shape = self._shapes.get(name, None);
+        return shape is not None and shape.sized;
+    }
+
+    def sized_int_names -> list[str] {
+        return [
+            s.name
+            for s in self._shapes.values()
+            if s.sized and not s.is_float
+        ];
+    }
+
+    def sized_float_names -> list[str] {
+        return [
+            s.name
+            for s in self._shapes.values()
+            if s.sized and s.is_float
+        ];
+    }
+
+    def sized_scalar_names -> list[str] {
+        return [
+            s.name
+            for s in self._shapes.values()
+            if s.sized
+        ];
+    }
+
+    def range_of(name: str) -> tuple[int, int] {
+        shape = self._shapes.get(name, None);
+        if shape is None {
+            raise KeyError(name);
+        }
+        return shape_range(shape);
+    }
+
+    def literal_fits(name: str, value: int | float) -> bool {
+        shape = self._shapes.get(name, None);
+        return shape is not None and shape_literal_fits(shape, value);
+    }
+
+    def widens_to(src: str, dst: str) -> bool {
+        if src == dst {
+            return True;
+        }
+        s = self._shapes.get(src, None);
+        d = self._shapes.get(dst, None);
+        return s is not None and d is not None and shapes_widen_to(s, d);
+    }
+
+    def unify(a: str, b: str) -> str | None {
+        s = self._shapes.get(a, None);
+        d = self._shapes.get(b, None);
+        if s is None or d is None {
+            return None;
+        }
+        out = shapes_unify(s, d);
+        return None if out is None else out.name;
     }
 
     def is_exception(name: str) -> bool {
@@ -96,166 +234,113 @@ obj JacTypeRegistry {
     }
 }
 
+def _non_retaining_builtin_set -> frozenset[str] {
+    return frozenset(
+        {
+            "print",
+            "len",
+            "repr",
+            "str",
+            "int",
+            "float",
+            "bool",
+            "isinstance",
+            "type",
+            "id",
+            "hash",
+            "region_of"
+        }
+    );
+}
+
+def _builtin_name_set -> frozenset[str] {
+    names: set[str] = {
+        "wrapping_add",
+        "wrapping_sub",
+        "wrapping_mul",
+        "wrapping_shl",
+        "wrapping_neg",
+        "print",
+        "input",
+        "len",
+        "abs",
+        "round",
+        "min",
+        "max",
+        "sum",
+        "sorted",
+        "reversed",
+        "enumerate",
+        "zip",
+        "map",
+        "filter",
+        "any",
+        "all",
+        "isinstance",
+        "issubclass",
+        "type",
+        "callable",
+        "id",
+        "hash",
+        "jid",
+        "new",
+        "unsafe_html",
+        "managed",
+        "Region",
+        "region_of",
+        "repr",
+        "format",
+        "ascii",
+        "chr",
+        "ord",
+        "hex",
+        "oct",
+        "bin",
+        "pow",
+        "divmod",
+        "iter",
+        "next",
+        "getattr",
+        "setattr",
+        "hasattr",
+        "delattr",
+        "vars",
+        "dir",
+        "open",
+        "str",
+        "int",
+        "float",
+        "bool",
+        "list",
+        "dict",
+        "set",
+        "tuple",
+        "frozenset",
+        "bytes",
+        "complex",
+        "range",
+        "slice",
+        "bytearray"
+    };
+    for sized in sized_scalar_names() {
+        names.add(sized);
+    }
+    return frozenset(names);
+}
+
+def _shape_table -> dict[str, ScalarShape] {
+    out: dict[str, ScalarShape] = {};
+    for shape in numeric_shapes() {
+        out[shape.name] = shape;
+    }
+    return out;
+}
+
 glob JAC_TYPE_REGISTRY = JacTypeRegistry(
-         _entries={
-             "int": JacTypeEntry(
-                 name="int",
-                 emitter_suffix="IntEmitter",
-                 na_type_spec="i64",
-                 numeric_kind=NumericKind.IntKind
-             ),
-             "float": JacTypeEntry(
-                 name="float",
-                 emitter_suffix="FloatEmitter",
-                 na_type_spec="f64",
-                 numeric_kind=NumericKind.FloatKind
-             ),
-             "bool": JacTypeEntry(
-                 name="bool",
-                 emitter_suffix="BoolEmitter",
-                 na_type_spec="i1",
-                 numeric_kind=NumericKind.IntKind
-             ),
-             "complex": JacTypeEntry(name="complex", emitter_suffix="ComplexEmitter"),
-             "str": JacTypeEntry(
-                 name="str", emitter_suffix="StrEmitter", na_type_spec="i8*"
-             ),
-             "bytes": JacTypeEntry(name="bytes", emitter_suffix="BytesEmitter"),
-             "list": JacTypeEntry(name="list", emitter_suffix="ListEmitter"),
-             "dict": JacTypeEntry(name="dict", emitter_suffix="DictEmitter"),
-             "set": JacTypeEntry(name="set", emitter_suffix="SetEmitter"),
-             "frozenset": JacTypeEntry(
-                 name="frozenset", emitter_suffix="FrozensetEmitter"
-             ),
-             "tuple": JacTypeEntry(name="tuple", emitter_suffix="TupleEmitter"),
-             "range": JacTypeEntry(name="range", emitter_suffix="RangeEmitter"),
-             "i8": JacTypeEntry(
-                 name="i8",
-                 emitter_suffix="IntEmitter",
-                 na_type_spec="i8",
-                 numeric_kind=NumericKind.IntKind
-             ),
-             "u8": JacTypeEntry(
-                 name="u8",
-                 emitter_suffix="IntEmitter",
-                 na_type_spec="i8",
-                 numeric_kind=NumericKind.IntKind
-             ),
-             "i16": JacTypeEntry(
-                 name="i16",
-                 emitter_suffix="IntEmitter",
-                 na_type_spec="i16",
-                 numeric_kind=NumericKind.IntKind
-             ),
-             "u16": JacTypeEntry(
-                 name="u16",
-                 emitter_suffix="IntEmitter",
-                 na_type_spec="i16",
-                 numeric_kind=NumericKind.IntKind
-             ),
-             "i32": JacTypeEntry(
-                 name="i32",
-                 emitter_suffix="IntEmitter",
-                 na_type_spec="i32",
-                 numeric_kind=NumericKind.IntKind
-             ),
-             "u32": JacTypeEntry(
-                 name="u32",
-                 emitter_suffix="IntEmitter",
-                 na_type_spec="i32",
-                 numeric_kind=NumericKind.IntKind
-             ),
-             "i64": JacTypeEntry(
-                 name="i64",
-                 emitter_suffix="IntEmitter",
-                 na_type_spec="i64",
-                 numeric_kind=NumericKind.IntKind
-             ),
-             "u64": JacTypeEntry(
-                 name="u64",
-                 emitter_suffix="IntEmitter",
-                 na_type_spec="i64",
-                 numeric_kind=NumericKind.IntKind
-             ),
-             "f32": JacTypeEntry(
-                 name="f32",
-                 emitter_suffix="FloatEmitter",
-                 na_type_spec="f32",
-                 numeric_kind=NumericKind.FloatKind
-             ),
-             "f64": JacTypeEntry(
-                 name="f64",
-                 emitter_suffix="FloatEmitter",
-                 na_type_spec="f64",
-                 numeric_kind=NumericKind.FloatKind
-             ),
-
-         },
-         _builtin_names=frozenset(
-             {
-                 "print",
-                 "input",
-                 "len",
-                 "abs",
-                 "round",
-                 "min",
-                 "max",
-                 "sum",
-                 "sorted",
-                 "reversed",
-                 "enumerate",
-                 "zip",
-                 "map",
-                 "filter",
-                 "any",
-                 "all",
-                 "isinstance",
-                 "issubclass",
-                 "type",
-                 "callable",
-                 "id",
-                 "hash",
-                 "jid",
-                 "new",
-                 "unsafe_html",
-                 "managed",
-                 "Region",
-                 "repr",
-                 "format",
-                 "ascii",
-                 "chr",
-                 "ord",
-                 "hex",
-                 "oct",
-                 "bin",
-                 "pow",
-                 "divmod",
-                 "iter",
-                 "next",
-                 "getattr",
-                 "setattr",
-                 "hasattr",
-                 "delattr",
-                 "vars",
-                 "dir",
-                 "open",
-                 "str",
-                 "int",
-                 "float",
-                 "bool",
-                 "list",
-                 "dict",
-                 "set",
-                 "tuple",
-                 "frozenset",
-                 "bytes",
-                 "complex",
-                 "range",
-                 "slice",
-                 "bytearray",
-
-             }
-         ),
+         _entries=_registry_entries(),
+         _shapes=_shape_table(),
+         _builtin_names=_builtin_name_set(),
+         _non_retaining_builtins=_non_retaining_builtin_set(),
          _exception_parents={
              "BaseException": None,
              "Exception": "BaseException",

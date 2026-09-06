@@ -13,7 +13,7 @@ impl _read_shadcn_config(config: any) -> any {
     return config._raw_data.get("jac-shadcn");
 }
 
-impl _registry_dir -> any {
+impl _registry_dir -> Path {
     base = Path(__file__).parent.parent / "registry";
     if base.exists() {
         return base;
@@ -27,7 +27,7 @@ impl _registry_dir -> any {
     }
 }
 
-impl load_registry -> dict {
+impl load_registry -> dict[str, any] {
     registry_path = _registry_dir() / "registry.json";
     if registry_path.is_file() {
         with open(registry_path, "r") as f {
@@ -37,7 +37,7 @@ impl load_registry -> dict {
     return {"version": "1.0.0", "components": {}, "sharedDeps": {}};
 }
 
-impl parse_style_css(style_name: str) -> dict {
+impl parse_style_css(style_name: str) -> dict[str, str] {
     style_path = _registry_dir() / "styles" / ("style-" + style_name + ".css");
     if not style_path.is_file() {
         return {};
@@ -46,15 +46,16 @@ impl parse_style_css(style_name: str) -> dict {
         content = f.read();
     }
 
-    pattern = re.compile(r'\.(cn-[\w-]+)\s*\{\s*@apply\s+([^;]+);');
-    resolution_map: dict = {};
+    content = re.sub(r'/\*.*?\*/', "", content, flags=re.DOTALL);
+    pattern = re.compile(r'\.(cn-[\w-]+)\s*\{\s*@apply\s+([^;}]+)[;}]');
+    resolution_map: dict[str, str] = {};
     for `match in pattern.findall(content) {
         resolution_map[`match[0]] = `match[1].strip();
     }
     return resolution_map;
 }
 
-impl resolve_component(source: str, resolution_map: dict) -> str {
+impl resolve_component(source: str, resolution_map: dict[str, str]) -> str {
     sorted_keys = sorted(list(resolution_map.keys()), key=len, reverse=True);
     result = source;
     for key in sorted_keys {
@@ -63,7 +64,7 @@ impl resolve_component(source: str, resolution_map: dict) -> str {
     return result;
 }
 
-impl resolve_single_component(component_name: str, style: str) -> dict {
+impl resolve_single_component(component_name: str, style: str) -> dict[str, any] {
     registry = load_registry();
     components = registry.get("components", {});
 
@@ -93,12 +94,14 @@ impl resolve_single_component(component_name: str, style: str) -> dict {
     };
 }
 
-impl _resolve_peer_deps(requested: list, registry_data: dict, existing: set) -> list {
+impl _resolve_peer_deps(
+    requested: list[str], registry_data: dict[str, any], existing: set[str]
+) -> list[str] {
     components = registry_data.get("components", {});
-    to_install: list = [];
-    visited: set = set();
+    to_install: list[str] = [];
+    visited: set[str] = set();
 
-    queue: list = list(requested);
+    queue: list[str] = list(requested);
     while queue {
         name = queue.pop(0);
 
@@ -128,7 +131,7 @@ impl _resolve_peer_deps(requested: list, registry_data: dict, existing: set) -> 
     return to_install;
 }
 
-impl _update_npm_deps(config: any, npm_deps: dict) -> None {
+impl _update_npm_deps(config: any, npm_deps: dict[str, str]) -> None {
     if not npm_deps {
         return;
     }
@@ -285,7 +288,7 @@ impl _retarget_utils_import(
     );
 }
 
-impl add_shadcn_components(config: any, component_names: list) -> bool {
+impl add_shadcn_components(config: any, component_names: list[str]) -> bool {
     shadcn_config = _read_shadcn_config(config);
     if not shadcn_config {
         console.error(
@@ -409,7 +412,7 @@ impl add_shadcn_components(config: any, component_names: list) -> bool {
     return len(added) > 0;
 }
 
-impl remove_shadcn_components(config: any, component_names: list) -> bool {
+impl remove_shadcn_components(config: any, component_names: list[str]) -> bool {
     project_root = Path(str(config.project_root)).resolve();
     paths = resolve_shadcn_paths(project_root, _read_shadcn_config(config));
     if paths is None {

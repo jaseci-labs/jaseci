@@ -615,7 +615,7 @@ def str_na() -> dict[str, any] {
         "lower": s6.lower(),
         "upper_mixed": s7.upper(),
         "lower_mixed": s7.lower(),
-        "find_hit": s8.find("world"),
+        "find": s8.find("world"),
         "find_miss": s8.find("xyz"),
         "find_start": s8.find("hello"),
         "startswith_true": sw_true,

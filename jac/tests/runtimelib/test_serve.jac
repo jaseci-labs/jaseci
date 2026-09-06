@@ -11,8 +11,7 @@ import from unittest.mock { MagicMock, patch }
 import from http.server { ThreadingHTTPServer }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.cli.commands { execution }
-import from jaclang.runtimelib.server { JacAPIServer }
-import from jaclang.runtimelib.server { UserManager as CoreUserManager }
+import from jaclang.server.server { JacAPIServer }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 
@@ -29,22 +28,25 @@ def get_free_port -> int {
 }
 
 # --- UserManager Unit Tests ---
+def _identity(tmpdir: str) -> any {
+    import from jaclang.server.identity.config { configure_identity }
+    import from jaclang.server.identity.user_manager { UserManager }
+    import from jaclang.server.settings { AuthSettings }
+    Jac.set_base_path(tmpdir);
+    configure_identity(AuthSettings(password_hash_cost=10), tmpdir);
+    return UserManager(base_path=tmpdir);
+}
+
 test "user manager creation" {
     with TemporaryDirectory() as tmpdir {
-        session_file = str(Path(tmpdir) / "test.session");
-        user_mgr = CoreUserManager(base_path=session_file);
-        # Create first user
+        user_mgr = _identity(tmpdir);
         result1 = user_mgr.create_user("user1", "pass1");
-        assert "token" in result1;
-        assert "root_id" in result1;
-        assert result1["username"] == "user1";
-        # Create second user
+        assert "user_id" in result1 , f"{result1}";
+        root1 = user_mgr.get_root_id(result1["user_id"]);
+        assert root1;
         result2 = user_mgr.create_user("user2", "pass2");
-        assert "token" in result2;
-        assert "root_id" in result2;
-        # Users should have different roots
-        assert result1["root_id"] != result2["root_id"];
-        # Duplicate username should fail
+        assert "user_id" in result2;
+        assert user_mgr.get_root_id(result2["user_id"]) != root1;
         result3 = user_mgr.create_user("user1", "pass3");
         assert "error" in result3;
         user_mgr.close();
@@ -53,41 +55,25 @@ test "user manager creation" {
 
 test "user manager authentication" {
     with TemporaryDirectory() as tmpdir {
-        session_file = str(Path(tmpdir) / "test.session");
-        user_mgr = CoreUserManager(base_path=session_file);
-        # Create user
-        create_result = user_mgr.create_user("testuser", "testpass");
-        create_data = create_result.get("data", create_result);
-        original_token = create_data["token"];
-        # Authenticate with correct credentials
+        user_mgr = _identity(tmpdir);
+        created = user_mgr.create_user("testuser", "testpass");
         auth_result = user_mgr.authenticate("testuser", "testpass");
         assert auth_result is not None;
-        assert auth_result["username"] == "testuser";
-        assert auth_result["token"] == original_token;
-        # Wrong password
-        auth_fail = user_mgr.authenticate("testuser", "wrongpass");
-        assert auth_fail is None;
-        # Nonexistent user
-        auth_fail2 = user_mgr.authenticate("nouser", "pass");
-        assert auth_fail2 is None;
+        assert auth_result["user_id"] == created["user_id"];
+        assert auth_result["token"];
+        assert user_mgr.authenticate("testuser", "wrongpass") is None;
+        assert user_mgr.authenticate("nouser", "pass") is None;
         user_mgr.close();
     }
 }
 
 test "user manager token validation" {
     with TemporaryDirectory() as tmpdir {
-        session_file = str(Path(tmpdir) / "test.session");
-        user_mgr = CoreUserManager(base_path=session_file);
-        # Create user
-        result = user_mgr.create_user("validuser", "validpass");
-        data = result.get("data", result);
-        token = data["token"];
-        # Valid token
-        username = user_mgr.validate_token(token);
-        assert username == "validuser";
-        # Invalid token
-        username = user_mgr.validate_token("invalid_token");
-        assert username is None;
+        user_mgr = _identity(tmpdir);
+        created = user_mgr.create_user("validuser", "validpass");
+        token = user_mgr.create_jwt_token(created["user_id"]);
+        assert user_mgr.validate_token(token) == created["user_id"];
+        assert user_mgr.validate_token("invalid_token") is None;
         user_mgr.close();
     }
 }
@@ -100,7 +86,7 @@ test "faux flag prints endpoint docs" {
         captured_output = io.StringIO();
         with suppress(SystemExit) {
             with redirect_stdout(captured_output) {
-                execution.start(
+                execution.serve(
                     filename=fixture_abs_path("serve_api.jac"),
                     port=port,
                     main=True,
@@ -152,7 +138,7 @@ test "faux flag with littlex example" {
         captured_output = io.StringIO();
         with suppress(SystemExit) {
             with redirect_stdout(captured_output) {
-                execution.start(filename=littlex_path, port=port, main=True, faux=True);
+                execution.serve(filename=littlex_path, port=port, main=True, faux=True);
             }
         }
         output = captured_output.getvalue();
@@ -180,7 +166,7 @@ test "start with default main jac" {
             captured_output = io.StringIO();
 
             with redirect_stderr(captured_output) {
-                execution.start(filename="main.jac", port=port, main=True, faux=True);
+                execution.serve(filename="main.jac", port=port, main=True, faux=True);
             }
 
             output = captured_output.getvalue();
@@ -206,7 +192,7 @@ test "start without main jac error" {
             captured_output = io.StringIO();
 
             with redirect_stderr(captured_output) {
-                result = execution.start(
+                result = execution.serve(
                     filename="main.jac", port=port, main=True, faux=True
                 );
             }
@@ -229,7 +215,7 @@ test "start with explicit file" {
         captured_output = io.StringIO();
         with suppress(SystemExit) {
             with redirect_stdout(captured_output) {
-                execution.start(
+                execution.serve(
                     filename=fixture_abs_path("serve_api.jac"),
                     port=port,
                     main=True,
@@ -254,7 +240,7 @@ test "start with nonexistent file error" {
             captured_output = io.StringIO();
 
             with redirect_stderr(captured_output) {
-                result = execution.start(
+                result = execution.serve(
                     filename="nonexistent.jac", port=port, main=True, faux=True
                 );
             }
@@ -270,7 +256,7 @@ test "start with nonexistent file error" {
 }
 
 # --- Dev Mode Tests ---
-test "jac start dev auto-installs watchdog even when not in jac.toml" {
+test "jac run --dev auto-installs watchdog even when not in jac.toml" {
     mock_provider = MagicMock();
     mock_provider.install_specs.return_value = True;
     mock_config = MagicMock();
@@ -325,7 +311,7 @@ test "dev banner headlines vite port not api port" {
 lazily at start() so test-mode servers (port=0) stay socket-free and the app
 can be built and dispatched fully in-process."""
 test "api server construction is socket-free and builds a serving app" {
-    import from jaclang.runtimelib.serving.app { ServingApp }
+    import from jaclang.server.serving.app { ServingApp }
     with TemporaryDirectory() as tmpdir {
         port = get_free_port();
         Jac.set_base_path(tmpdir);

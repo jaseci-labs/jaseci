@@ -28,6 +28,7 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder { ManifestBuilder }
 import from jaclang.scale.injector.bundle { release_binary_env }
 import from jaclang.scale.runtime.context.util { jac_executable }
+import from jaclang.scale.tests.support { require_pod_binary }
 
 # No jac release carries this version, so it can never collide with the jac
 # running the suite.
@@ -37,7 +38,7 @@ glob PINNED: str = "0.0.0";
 def _builder(project_dir: str) -> ManifestBuilder {
     mb = ManifestBuilder(
         k8s_config=KubernetesConfig(app_name="landing", namespace="jb-landing"),
-        microservices_config={"client": {"entry": "main.jac"}}
+        client_entry="main.jac"
     );
     mb.project_dir = project_dir;
     return mb;
@@ -202,8 +203,7 @@ test "the gateway pod command carries no client rebuild fallback" {
 test "an app without a client entry skips the build untouched" {
     project_dir = _project("with entry {}\n");
     mb = ManifestBuilder(
-        k8s_config=KubernetesConfig(app_name="api", namespace="jb-api"),
-        microservices_config={"client": {"entry": False}}
+        k8s_config=KubernetesConfig(app_name="api", namespace="jb-api"), client_entry=""
     );
     mb.project_dir = project_dir;
     try {
@@ -307,10 +307,7 @@ test "a genuine compile error fails on the first attempt with no retry" {
 test "a pinned app builds its client on the pinned release, not the deploying jac" {
     # The checkout's own binary is published as the pinned release, the same way
     # the seal tests reuse it as the pod binary.
-    jac_bin = Path(str(__file__)).parents[4] / "zig-out" / "bin" / "jac";
-    if not jac_bin.is_file() {
-        return;
-    }
+    jac_bin = require_pod_binary();
     tmp = tempfile.mkdtemp(prefix="client-pin-");
     project_dir = _web_app_project(tmp);
     _pin(project_dir, PINNED);
@@ -366,18 +363,30 @@ test "no pin, and a pin naming the running jac, download nothing" {
 
 
 test "a pinned release runs without the deploying jac's compiler redirects" {
-    saved = os.environ.get("JAC_DEV_SOURCE");
+    saved_dev = os.environ.get("JAC_DEV_SOURCE");
+    saved_exec = os.environ.get("JAC_EXECUTABLE");
     os.environ["JAC_DEV_SOURCE"] = "/the/checkout/that/ran/this/deploy";
+    os.environ["JAC_EXECUTABLE"] = "/the/jac/that/ran/this/deploy";
     try {
         env = release_binary_env();
     } finally {
-        _restore("JAC_DEV_SOURCE", saved);
+        _restore("JAC_DEV_SOURCE", saved_dev);
+        _restore("JAC_EXECUTABLE", saved_exec);
     }
 
     assert env.get("PATH") == os.environ.get("PATH") , "not a real environment";
-    # Inherited, these point a release binary at the deploying jac's compiler
-    # and interpreter, which is the pin defeated by the back door.
-    for leaked in ["JAC_DEV_SOURCE", "JAC_NO_PRECOMPILE", "PYTHONPATH", "PYTHONHOME"] {
+    # Inherited, these point a release binary at the deploying jac's compiler,
+    # interpreter or binary, which is the pin defeated by the back door.
+    # JAC_EXECUTABLE is the quietest of them: every reader falls back to
+    # `shutil.which("jac")` when the path is absent, so a leak through it
+    # resolves to some other jac instead of failing where a test would see it.
+    for leaked in [
+        "JAC_DEV_SOURCE",
+        "JAC_EXECUTABLE",
+        "JAC_NO_PRECOMPILE",
+        "PYTHONPATH",
+        "PYTHONHOME"
+    ] {
         assert leaked not in env , f"{leaked} reaches the pinned release";
     }
 }

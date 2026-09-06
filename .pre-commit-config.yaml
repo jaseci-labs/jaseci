@@ -7,8 +7,8 @@
 exclude: |
     (?x)(
         ^jac/jaclang/vendor/|
-        ^jac/jaclang/compiler/passes/native/llvm/|
-        ^jac/jaclang/compiler/passes/native/wasm_rt/vendor/|
+        ^jac/jaclang/compiler/backends/native/llvm/|
+        ^jac/jaclang/compiler/backends/native/wasm_rt/vendor/|
         ^$
     )
 

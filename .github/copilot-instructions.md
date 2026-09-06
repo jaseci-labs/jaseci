@@ -4,14 +4,14 @@
 
 This monorepo contains:
 
-- `jac/`: Jac language compiler, runtime, language server, and the client/desktop runtimes (`jac/jaclang/runtimelib/client/`)
+- `jac/`: Jac language compiler, runtime, language server, and the client/desktop runtimes (`jac/jaclang/client/`)
 - `jac-byllm/`: LLM integration and model-driven features
 - `docs/`: Documentation site and reference materials
 - `scripts/`: Build, test, and maintenance scripts
 
 ## Common Workflows
 
-`jaclang` ships as the single `jac` binary (Zig launcher + bundled CPython) -- there is no pip-installed jaclang. Build it and put it on PATH with `./scripts/fresh_env.sh` (see CONTRIBUTING.md).
+`jaclang` ships as the single `jac` binary (a Jac launcher + bundled CPython) -- there is no pip-installed jaclang. Build it and put it on PATH with `./scripts/fresh_env.sh` (see CONTRIBUTING.md).
 
 Run tests through the binary's bundled runner (`JAC_TEST_JOBS=auto` runs them in parallel):
 
@@ -31,7 +31,7 @@ jac precommit
 
 - Grammar: `jac/jaclang/compiler/jac.lark`
 - IR: `unitree.py` (UniTree nodes)
-- Passes: `jac/jaclang/compiler/passes/main/`
+- Passes: `jac/jaclang/compiler/passes/`
 - Codegen: `jcir_gen_pass.jac`, `jcir_bc_gen_pass.jac`
 - Compiler passes subclass `Transform`/`UniPass` with `enter_*`/`exit_*` hooks
 - Test fixtures: `jac/jaclang/compiler/**/tests/fixtures/`
@@ -45,7 +45,7 @@ jac precommit
 
 ### Client & Desktop Runtimes
 
-- Now part of `jaclang` core: `jac/jaclang/runtimelib/client/`
+- Now part of `jaclang` core: `jac/jaclang/client/`
 
 ## Jac Language Conventions
 
@@ -73,5 +73,5 @@ with entry { /* ... */ }
 
 - Jac examples: `jac/examples/reference/`, `jac/examples/*`
 - Type system details: `.github/agents/type-system-agent.md`
-- Compiler passes: `jac/jaclang/compiler/passes/main/`
+- Compiler passes: `jac/jaclang/compiler/passes/`
 - LLM examples: `jac-byllm/examples/`

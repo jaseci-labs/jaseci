@@ -40,17 +40,17 @@ name = "myapp"
 version = "1.0.0"
 description = "Jac client application: myapp"
 entry-point = "main.jac"
+kind = "web-static"
 
 [dependencies.npm]
 jac-client-node = "1.0.7"
-
-[serve]
-base_route_app = "app"
 
 [client]
 ```
 
 You typically don't need to modify this file until you add dependencies or customize settings.
+
+A project can also hold several **apps** -- a web app, a mobile app, a CLI and a couple of services over one shared `core/` -- each declared as an `[apps.<name>]` table. That is a *workspace*; see [`[apps]`](#apps) below and the full [Workspaces & Apps](../apps.md) reference. `jac create --app <name> --kind <kind>` adds an app to an existing project.
 
 ---
 
@@ -58,7 +58,7 @@ You typically don't need to modify this file until you add dependencies or custo
 
 ### [project]
 
-Project metadata. `entry-point` drives `jac run`. `jac-version` pins the Jac toolchain the project targets: `jac create` stamps it automatically, and `jac start --scale` uses it to select the pod runtime (see [jac-version](#jac-version) below). Publishing fields (`license`, `readme`, `keywords`, `requires-python`, `authors`, `maintainers`, and `[project.include]`) are used by `jac build --as wheel` when building a distributable wheel. All publishing fields are optional -- a project that is never published only needs `name`.
+Project metadata. `entry-point` and `kind` describe the project's single app (in a workspace they move onto the `[apps.<name>]` tables and `default-app` picks the app a bare `jac run` targets). `jac-version` pins the Jac toolchain the project targets: `jac create` stamps it automatically, and `jac scale deploy` uses it to select the pod runtime (see [jac-version](#jac-version) below). Publishing fields (`license`, `readme`, `keywords`, `requires-python`, `authors`, `maintainers`, and `[project.include]`) are used by `jac build --as wheel` when building a distributable wheel. All publishing fields are optional -- a project that is never published only needs `name`.
 
 ```toml
 [project]
@@ -66,8 +66,9 @@ name = "myapp"
 version = "1.0.0"
 description = "My Jac application"
 entry-point = "main.jac"
-kind = "service"   # drives `jac run` (omit to infer from the entry-point)
+kind = "service"   # drives `jac run` (omit to infer from the entry-point); not allowed alongside [apps]
 jac-version = "==0.34.3"   # stamped by `jac create`; widen to `>=`, `<=`, or a range
+# default-app = "web"      # workspaces only: the app a bare `jac run` / `jac build` / `jac test` targets
 
 # Publishing metadata -- only needed to run `jac build --as wheel`
 license = "MIT"
@@ -87,9 +88,10 @@ repository = "https://github.com/user/repo"
 | `name` | string | Project / PyPI package name (required) |
 | `version` | string | Semantic version (default: `0.1.0`) |
 | `description` | string | One-line summary (also shown on PyPI) |
-| `entry-point` | string | Main file for `jac run` (default: `main.jac`) |
-| `kind` | string | Project kind that drives `jac run` dispatch (execute / serve / build). Empty = inferred from the entry-point codespace. One of: `cli`, `cli-native`, `native-binary`, `native-lib`, `service`, `service-mesh`, `py-package`, `js-package`, `web-app`, `web-static`, `desktop`, `mobile` |
-| `jac-version` | string | Jac toolchain version the project targets, as a PEP 440-style specifier. `jac create` stamps `==<current>`; at `jac start --scale` the pod runtime binary, admin console, and base image are all taken from the release that satisfies it, and the deploy aborts if none does. See [jac-version](#jac-version). |
+| `entry-point` | string | Main file for `jac run` (default: `main.jac`). Single-app projects only -- in a workspace each app declares its own under `[apps.<name>]`, and setting it here is a hard error |
+| `kind` | string | Project kind that drives `jac run` dispatch (execute / serve / build). Empty = inferred from the entry-point codespace. One of: `cli`, `cli-native`, `native-binary`, `native-lib`, `service`, `service-mesh`, `py-package`, `js-package`, `web-app`, `web-static`, `desktop`, `mobile`. Single-app projects only; a workspace sets `kind` per app |
+| `default-app` | string | Workspaces only. The app that a bare `jac run`, `jac build`, `jac test` or `jac setup` targets. Must name a key of `[apps]`. With one app it is implied; with several and no default, the bare form errors and lists the apps |
+| `jac-version` | string | Jac toolchain version the project targets, as a PEP 440-style specifier. `jac create` stamps `==<current>`; at `jac scale deploy` the pod runtime binary, admin console, and base image are all taken from the release that satisfies it, and the deploy aborts if none does. See [jac-version](#jac-version). |
 | `license` | string | SPDX license identifier (e.g. `"MIT"`) |
 | `readme` | string | Path to README file (default: `README.md`) |
 | `requires-python` | string | Minimum Python version (e.g. `">=3.14"`) -- the wheel carries bytecode precompiled for the CPython the `jac` binary bundles, so a lower floor than that cannot load it |
@@ -110,7 +112,7 @@ jac-version = "==0.34.3"
 
 You can widen or move it by editing the value -- `>=0.34.3`, `<=0.34.3`, `>=0.34,<0.35`, `~=0.34.3`, or a bare `0.34.3` (same as `==`).
 
-At deploy time (`jac start --scale`), the pin selects the **pod runtime**: the deployer downloads the released `jac` binary, admin console, and base image from the release that satisfies `jac-version` and ships them to the pods, so the app runs on the toolchain it was built against -- not on whatever `latest` happens to be. Resolution rules:
+At deploy time (`jac scale deploy`), the pin selects the **pod runtime**: the deployer downloads the released `jac` binary, admin console, and base image from the release that satisfies `jac-version` and ships them to the pods, so the app runs on the toolchain it was built against -- not on whatever `latest` happens to be. Resolution rules:
 
 - **Unset** -> the latest published release.
 - **Exact pin** (`==X` / `X`) -> the `vX` release.
@@ -118,6 +120,57 @@ At deploy time (`jac start --scale`), the pin selects the **pod runtime**: the d
 - **No published release satisfies the pin** (or the matching release lacks the pod's CPU arch or a `jac-*` asset) -> the deploy **aborts** with an error naming the pin; a pinned deploy never silently ships a different version. Fix or remove `jac-version` to proceed.
 
 The pin is honored only on the default (stable) channel; the `[dev]`, `[experimental]`, and `JAC_SCALE_BINARY_PATH` (local) channels select the pod binary by their own rules and ignore it.
+
+---
+
+### [apps]
+
+One table per app turns the project into a **workspace**. Each app has a kind, an optional directory root, and an optional entry file; modules under no app root are shared code. The full model -- membership, ownership, the app dependency graph, per-app effective config, routes, and the consistency rules across apps -- is in [Workspaces & Apps](../apps.md).
+
+```toml
+[project]
+name = "acme"
+default-app = "web"
+
+[apps.web]
+kind = "web-app"                 # required: any project kind
+path = "web"                     # dir root, relative to the project root
+entry-point = "main.jac"         # relative to path; default = the kind's entry
+platform = ""                    # default platform (mobile: android | ios | web; desktop: windows | macos | linux)
+route = "/api/web"               # default "/api/<name>"; serving kinds only
+
+[apps.social_graph]              # file-rooted: no path, the entry file is the whole app
+kind = "service"
+entry-point = "core/social_graph.jac"
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `kind` | string | **Required.** The app's project kind (same values as `[project] kind`). The kind decides the client too: `web-app`, `web-static`, `desktop` and `js-package` render React DOM; `mobile` renders native views through `@jac/mobui` (its modules are under the `E1105` host-tag guard) |
+| `path` | string | Directory root of the app, relative to the project root; omit for a file-rooted app |
+| `entry-point` | string | Entry file, relative to `path` (or to the project root without one); default = the kind's entry |
+| `platform` | string | Default platform: `android`, `ios` or `web` for a `mobile` app; `windows`, `macos` or `linux` for a `desktop` app. `--platform` overrides it for one command |
+| `route` | string | Public route prefix for apps with a server; must start with `/`; default `/api/<name>`. Two serving apps claiming one prefix is a config error |
+
+`[project] kind` and `[project] entry-point` cannot be set alongside `[apps]` (hard error). Without `[apps]` the project is one implicit app named after `[project] name`, and nothing else changes.
+
+**Per-app overlays.** Any recognized section can be nested under an app and is deep-merged over the base table for that app only:
+
+```toml
+[apps.web.serve]
+port = 3000
+
+[apps.mobile.dependencies.npm]
+lucide-react-native = "^0.4"
+
+[apps.social_graph.scale]        # per-app scale settings: replicas, resources, http_activation, ...
+http_activation = true
+
+[apps.web.placement.pins]        # merged over the base [placement.pins]
+"core.docs.*" = "server"
+```
+
+The effective config an app sees is: base `jac.toml` → its `[apps.<name>.*]` overlays → the active profile (`jac.<profile>.toml` and/or `[environments.<profile>]`) → `jac.local.toml`. `${VAR}` interpolation applies uniformly to every string in every layer.
 
 ---
 
@@ -163,8 +216,8 @@ Optional dependency groups that users can install on demand with `jac install --
 
 ```toml
 [optional-dependencies.data]
-pymongo = ">=4.0,<5.0"
-redis = ">=7.0,<8.0"
+pandas = ">=2.0,<3.0"
+pyarrow = ">=17.0,<19.0"
 
 [optional-dependencies.monitoring]
 prometheus-client = ">=0.21.0,<1.0.0"
@@ -216,15 +269,20 @@ The CLI flag `-e` / `--diagnostics` overrides this setting.
 
 ### [serve]
 
-Defaults for `jac start`:
+Everything the server process reads, for a laptop and a pod alike. Every key
+has a `JAC_SERVE_*` environment mirror (listed with each table), and the
+deploy target sets those same variables on the pod, so one resolver answers
+both.
 
 ```toml
 [serve]
+host = "0.0.0.0"         # Interface to bind; 127.0.0.1 keeps a dev server off the network
 port = 8000              # Server port
 session = ""             # Session name
 main = true              # Run as main module
-cl_route_prefix = "cl"   # URL prefix for client apps
-base_route_app = ""      # Client app to serve at /
+docs_enabled = true      # /docs and /openapi.json
+graph_enabled = true     # /graph and /graph/data (turn off in production)
+cors_origins = ["*"]     # Origins allowed by the CORS middleware
 
 # Optimistic-concurrency policy for concurrent check-then-create races
 # (see Persistence -> Concurrent writes).
@@ -232,7 +290,79 @@ on_conflict = "retry"        # "retry": abort + replay so the loser converges
                              # "fail":  no replay, return HTTP 409 immediately
 conflict_max_attempts = 5    # max walker/function attempts under "retry"
 conflict_backoff_ms = 0      # linear backoff between replay attempts (0 = none)
+
+[serve.workers]
+count = "1"              # Worker processes; "auto" = the CPU quota. JAC_SERVE_WORKERS
+threads = "auto"         # Sync-handler threads per worker; "auto" sizes from the quota. JAC_SERVE_THREADS
+max_requests = 0         # Recycle a worker after this many requests (0 = never). JAC_SERVE_MAX_REQUESTS
+max_requests_jitter = 0  # Random extra requests so workers do not recycle together
+request_timeout = 0.0    # Seconds before a request is answered 504 (0 = no limit). JAC_SERVE_REQUEST_TIMEOUT
+boot_timeout = 120.0     # Seconds a worker may take to start accepting before it is replaced
+hang_timeout = 30.0      # Seconds without a worker heartbeat before it is killed and replaced
+
+[serve.tls]
+certfile = ""            # PEM certificate chain; set to serve HTTPS directly. JAC_SERVE_TLS_CERTFILE
+keyfile = ""             # PEM private key. JAC_SERVE_TLS_KEYFILE
+ca_certs = ""            # Optional CA bundle for client certificates
+min_version = "1.2"      # "1.2" or "1.3"
+
+[serve.proxy]
+trusted = []             # Proxies (IPs or CIDRs) whose X-Forwarded-* / Forwarded headers are believed. JAC_SERVE_PROXY_TRUSTED
+
+[serve.limits]
+max_connections = 0      # Concurrent connections per worker before new ones get 503 (0 = unlimited)
+backlog = 2048           # Listen backlog
+max_body_bytes = 104857600
+max_header_bytes = 65536
+max_header_count = 100
+max_request_line_bytes = 8192
+multipart_spool_bytes = 1048576   # Multipart bodies above this spool to disk
+
+[serve.timeouts]
+header = 30.0            # Seconds to receive the request line and headers
+body = 60.0              # Seconds per body read
+keepalive = 65.0         # Idle seconds before a keep-alive connection is closed
+drain = 10.0             # Seconds in-flight requests get after SIGTERM. JAC_SERVE_DRAIN_TIMEOUT
+close = 5.0
+
+[serve.access_log]
+enabled = true           # JAC_SERVE_ACCESS_LOG
+format = "text"          # "text" or "json". JAC_SERVE_ACCESS_LOG_FORMAT
+suppress_health_checks = false
+
+[serve.compression]
+enabled = true           # gzip negotiable responses (JSON, text, JS, SVG, wasm)
+min_bytes = 1024
+level = 4
+
+[serve.websocket]
+allowed_origins = []     # Cross-origin upgrades to allow; [] = same-origin only. JAC_SERVE_WS_ALLOWED_ORIGINS
+max_message_bytes = 0    # 0 = the 64 MiB frame cap
+ping_interval = 20.0     # Idle seconds before the server pings
+ping_timeout = 20.0      # Seconds to answer the ping before the socket is closed
+
+[serve.auth]
+secret = ""              # JWT signing secret. JAC_SERVE_AUTH_SECRET. Required in a cluster; a laptop mints one per project
+algorithm = "HS256"
+token_ttl_days = 7
+password_hash_cost = 14  # log2 of the scrypt work factor, 10..17
 ```
+
+The served app's client is at `/`. Other client-capable apps in the workspace whose bundle exists (`jac build --all` writes `dist/<app>/`) are served at `/cl/<app-name>/` -- a fixed prefix with no config key. Serving apps answer under their `route` (default `/api/<name>`, see [`[apps]`](#apps)).
+
+Identity is one implementation: users, credentials and sessions live in the
+project's Postgres store (the embedded server on a laptop, `JAC_DB_URL` or
+`[scale.database] url` elsewhere) and every session token is an HS256 JWT
+signed with `[serve.auth] secret`. With no secret configured a laptop keeps
+one per project under `.jac/data/jwt_secret`; a cluster refuses to start
+without one, and `jac scale deploy` mints one into the app Secret.
+
+`workers` is the throughput and isolation knob. One worker is one Python
+process and therefore one core of CPU-bound work; `count = "auto"` starts one
+per core of the container's quota. Even on one core, more than one worker
+keeps a slow request from stalling every other request. Anything that only
+works in one process is refused when `count > 1`: `--dev` hot reload, a
+memory WebSocket backplane, or events without a database.
 
 `on_conflict` controls what happens when two concurrent requests race a "look it up, create it if missing" against the same node and the loser's commit is rejected. `retry` (default) re-runs the request against the now-current graph so it converges on the winner's node; `fail` surfaces a typed `409 write_conflict` for the client to handle. See [Persistence -> Concurrent writes: check-then-create](../persistence.md#concurrent-writes-check-then-create-and-convergence) for the full model.
 
@@ -244,7 +374,6 @@ Build configuration:
 
 ```toml
 [build]
-typecheck = false           # Enable type checking
 dir = ".jac"                # Build artifacts directory
 default_codespace = "native"  # Codespace for markerless .jac modules: "native"/"na" or "server"/"sv"
 ```
@@ -286,12 +415,13 @@ callable with auth, boundary types collected). Pins are part of the program:
 changing them invalidates the compilation cache, and
 `jac check --placements` reports them in each element's evidence chain.
 
-Note that declaring a module as its own **service** is a different fact with
-a different home: the `[scale.microservices.routes]` table is the service
-cut -- each key in it runs as its own service process behind the gateway, and
-imports of it lower to RPC stubs (`jac scale split <module>` writes an
-entry). See
-[Microservice Interop](../plugins/jac-scale-http.md#microservice-interop-sv-to-sv).
+Pins can also be overlaid per app -- `[apps.<name>.placement.pins]` merges
+over this table for that app's modules -- and a pin is one way to name the
+**owner** of a server-placed shared module when several apps serve
+(`E5107`). Declaring that a module runs as its own **service** is a different
+fact with a different home: an `[apps.<name>]` table with `kind = "service"`
+(see [Workspaces & Apps](../apps.md)); imports of what that app owns lower to
+typed-async bridge stubs automatically.
 
 ---
 
@@ -321,15 +451,24 @@ Defaults for `jac test`:
 ```toml
 [test]
 directory = ""          # Scopes no-argument `jac test` discovery (empty = walk project root)
+directories = []        # Several discovery roots; takes precedence over `directory`
+isolate = []            # Glob patterns of test files that each get a dedicated worker process
+serial = []             # Glob patterns of test files that run one at a time after the parallel phase
 filter = ""             # Filter pattern
 verbose = false         # Verbose output
 fail_fast = false       # Stop on first failure
 max_failures = 0        # Max failures (0 = unlimited)
 ```
 
-When `directory` is set, `jac test` with no file argument collects tests only
-from that directory (resolved against the project root), so application modules
-whose top-level `with entry` runs on import are not pulled into test collection.
+When `directory` (or the list form `directories`) is set, `jac test` with no
+file argument collects tests only from those directories (resolved against the
+project root), so application modules whose top-level `with entry` runs on
+import are not pulled into test collection. Every path in `directories` must
+exist. `isolate` names test files that must not share a worker process with
+any other file (servers, sockets, module-level config); `serial` names files
+that additionally run one after another once the parallel phase is done, for
+suites that share one on-disk resource. Both take glob patterns relative to the
+project root.
 
 ---
 
@@ -404,8 +543,8 @@ select = ["combine-has", "remove-empty-parens"]
 | `simplify-ternary` | `W3008` | Simplify `x if x else default` to `x or default` | default |
 | `remove-future-annotations` | `W3009` | Remove `import from __future__ { annotations }` (not needed in Jac) | default |
 | `fix-impl-signature` | `W3010` | Fix signature mismatches between declarations and implementations | default |
-| `remove-import-semi` | `W3011` | Remove trailing semicolons from `import from X { ... }` | default |
 | `no-print` | `E3012` | Error on bare `print()` calls (use console abstraction instead) | all |
+| `remove-redundant-semi` | `W3013` | Remove standalone no-op semicolons from any body (`{;}` → `{}`, `x = 1;;` → `x = 1;`); `remove-import-semi` is an accepted alias for this rule | default |
 | `strip-comments` | `W3050` | Remove **all** comments | opt-in |
 | `strip-docstrings` | `W3051` | Remove **all** docstrings | opt-in |
 
@@ -530,11 +669,9 @@ api_key = "${OPENAI_API_KEY}"
 [byllm.call_params]
 temperature = 0.7
 
-# Server settings (scale)
+# Serving-process logging (scale); the listener itself is [serve]
 [scale.server]
-port = 8000
-host = "0.0.0.0"
-docs_enabled = true              # Set to false to disable /docs, /redoc, /openapi.json
+structured_logs = true
 
 # Webhook settings (scale)
 [scale.webhook]
@@ -543,6 +680,27 @@ signature_header = "X-Webhook-Signature"
 verify_signature = true
 api_key_expiry_days = 365
 ```
+
+**Gateway and fleet topology (scale):**
+
+```toml
+[scale.gateway]
+colocate = true                  # false: `jac run <app>` runs service apps as separate local processes
+gateway_port = 8000
+gateway_host = "0.0.0.0"
+http_forward_timeout = 10.0
+boot_health_timeout = 60.0
+boot_max_wait = 90
+health_monitor_interval = 10.0
+
+[scale.gateway.cors]
+allow_origins = ["*"]
+
+[scale.gateway.rate_limit]
+enabled = false
+```
+
+`[scale.gateway]` holds everything about the process that fronts a workspace's service apps: ports, boot timeouts, `cors`, `rate_limit`, `identity`, `ingress`, `logs`, `tracing`, `shared_volumes`, and `colocate`. The drain window on SIGTERM is `[serve.timeouts] drain`, shared by the gateway and every app. Per-app `workers` and `threads` in `[apps.<name>.scale]` size that app's pods. Which apps form the fleet is not configured here -- it is every app whose kind has a server -- and per-app settings (`replicas`, resources, `rpc_timeout`, `http_activation`, `env`, ...) live in the app's own `[apps.<name>.scale]` overlay. `jac run <app> --fleet` overrides `colocate` for one run; `jac scale deploy` always deploys a fleet. See [Service apps](../plugins/jac-scale-http.md#service-apps-cross-app-bridging).
 
 **Prometheus Metrics (scale):**
 
@@ -613,6 +771,16 @@ Switching frameworks automatically adjusts the installed npm packages and the ge
 ```
 
 Defines custom import aliases applied to Vite `resolve.alias`, TypeScript `compilerOptions.paths`, and the Jac module resolver. See [jac-client Import Path Aliases](../plugins/jac-client.md#import-path-aliases) for details.
+
+**Asset Directory (jac-client):**
+
+```toml
+[client.assets]
+dir = "core/site/assets"        # default: the app's own assets/
+custom_extensions = [".pdf"]    # extra file types to copy into the bundle
+```
+
+Files in the assets directory are served at `/static/assets/<path>` and compiled into the client bundle. In a workspace each app defaults to its own `assets/`; apps that share one UI point `dir` at the shared directory, relative to the project root. Like every client section it overlays per app under `[apps.<name>.client.assets]`.
 
 **NPM Registry Configuration (jac-client):**
 
@@ -790,7 +958,7 @@ jac run --no-cache main.jac
 jac test --verbose -x
 
 # Override serve settings
-jac start --port 3000
+jac run --port 3000
 ```
 
 ---
@@ -817,14 +985,12 @@ cache = true
 
 [serve]
 port = 8000
-cl_route_prefix = "cl"
 
 [test]
 directory = "tests"
 verbose = true
 
 [build]
-typecheck = true
 dir = ".jac"
 
 [check.lint]
@@ -861,7 +1027,7 @@ test_fixtures/
 
 Each line is a filename or pattern that should be skipped during Jac compilation passes (type checking, formatting, etc.). Blank lines and `#` comments are ignored; a pattern containing `/` is matched against the path relative to the project root, a bare pattern against any path component.
 
-A `--scale` deploy reads the same file when it stages the app bundle, so a parked tree is not copied to the pods and is never compiled there. Because `.jacignore` itself ships in the bundle, editing it changes the bundle's content address and the next deploy re-ships.
+A `jac scale deploy` reads the same file when it stages the app bundle, so a parked tree is not copied to the pods and is never compiled there. Because `.jacignore` itself ships in the bundle, editing it changes the bundle's content address and the next deploy re-ships.
 
 ---
 
@@ -875,7 +1041,9 @@ A `--scale` deploy reads the same file when it stages the app bundle, so a parke
 | `NO_EMOJI` | Disable emoji in terminal output |
 | `JAC_PROFILE` | Activate a configuration profile (e.g., `production`) |
 | `JAC_BASE_PATH` | Override base directory for data/storage |
-| `JAC_DATA_PATH` | Override the base directory for application data (graph storage, user db) |
+| `JAC_DATA_PATH` | Override the base directory for application data (graph storage, user db, dev signing secret) |
+| `JAC_SERVE_*` | Every `[serve]` key, one variable each: `JAC_SERVE_HOST`, `JAC_SERVE_PORT`, `JAC_SERVE_WORKERS`, `JAC_SERVE_THREADS`, `JAC_SERVE_AUTH_SECRET`, `JAC_SERVE_PROXY_TRUSTED`, `JAC_SERVE_DRAIN_TIMEOUT`, `JAC_SERVE_ACCESS_LOG_FORMAT`, ... (see [serve](#serve)) |
+| `JAC_SCALE_RUNTIME` | Set to `1` by the serving path so scale features (microservices, deploy context) know they are serving |
 | `JACPATH` | Colon-separated extra search path for Jac module resolution (like `PYTHONPATH`) |
 | `JAC_SCHEMA_REPAIR` | Schema-drift handling on load: `repair` (default) or `strict` |
 | `JAC_STRICT_PERMISSIONS` | Enable strict permission checking for security-sensitive operations (`1`/`true`) |
@@ -896,10 +1064,9 @@ A `--scale` deploy reads the same file when it stages the app bundle, so a parke
 | `JAC_CACHE_HOME` | Root of the machine-wide jac cache; the shared embedded Postgres cluster lives in `<JAC_CACHE_HOME>/pg/main` (default `~/.cache/jac`) |
 | `JAC_DB_RETENTION_DAYS` | Drop databases unused for this many days when the embedded cluster starts; overrides `[database] retention_days`, unset means never |
 | `JAC_DB_SCRATCH` | `1` makes this process open one throwaway database that is dropped when it exits, instead of a per-project one (used by the test runner and deploy staging) |
-| `FIRESTORE_PROJECT_ID` | Firestore / Firebase project ID |
-| `FIREBASE_PROJECT_ID` | Shared Firebase project ID fallback for Auth SSO, Firestore, Storage |
+| `FIREBASE_PROJECT_ID` | Shared Firebase project ID fallback for Auth SSO and Storage |
 
-Project ID vars (`FIREBASE_AUTH_PROJECT_ID`, `FIRESTORE_PROJECT_ID`, `JAC_STORAGE_FIREBASE_PROJECT_ID`, `JAC_STORAGE_GCS_PROJECT_ID`) override `FIREBASE_PROJECT_ID` when set.
+Project ID vars (`FIREBASE_AUTH_PROJECT_ID`, `JAC_STORAGE_FIREBASE_PROJECT_ID`, `JAC_STORAGE_GCS_PROJECT_ID`) override `FIREBASE_PROJECT_ID` when set.
 
 ### Scale: Authentication
 
@@ -913,19 +1080,19 @@ Project ID vars (`FIREBASE_AUTH_PROJECT_ID`, `FIRESTORE_PROJECT_ID`, `JAC_STORAG
 | `SSO_GOOGLE_CLIENT_SECRET` | Google OAuth client secret | None |
 | `EMAILER_SMTP_PASSWORD` | SMTP password for the built-in email sender | None |
 
-### Scale: Microservices
+### Scale: Service apps
 
 | Variable | Description |
 |----------|-------------|
-| `JAC_SV_ROUTES` | JSON object mapping service module names to URL route prefixes |
-| `JAC_SV_<MODULE>_URL` | Point service RPC calls into `<MODULE>` (a `[scale.microservices.routes]` key) at a remote provider URL |
+| `JAC_APP_<APP>_URL` | Point bridged calls into app `<APP>` (an `[apps]` key, upper-cased, non-alphanumerics as `_`) at a provider running elsewhere. Set by hand for a multi-host fleet; injected automatically by `jac scale deploy` and by `--fleet` |
+| `JAC_APP_<APP>_ROUTE` | The provider's route prefix when it differs from the default `/api/<app>` |
 
 ### Client
 
 | Variable | Description |
 |----------|-------------|
 | `JAC_CLIENT_SKIP_NPM_INSTALL` | Skip `npm install` during client build setup |
-| `JAC_MOBILE_PLATFORM` | Mobile platform selection for dev/build (`auto`, `android`, `ios`) |
+| `JAC_MOBILE_PLATFORM` | Set by `jac run --platform <android\|ios> <mobile-app>`; overrides `[client.react_native] default_platform` for that run |
 
 ### Scale: Webhooks
 

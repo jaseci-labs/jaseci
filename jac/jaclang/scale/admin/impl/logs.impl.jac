@@ -3,10 +3,10 @@ import json as json_module;
 import logging;
 import time;
 import re;
-import from jaclang.runtimelib.serving.datatypes { Request }
-import from jaclang.runtimelib.serving.datatypes { JSONResponse }
-import from jaclang.runtimelib.transport { TransportResponse }
-import from jaclang.runtimelib.serving.endpoint {
+import from jaclang.server.serving.datatypes { Request }
+import from jaclang.server.serving.datatypes { JSONResponse }
+import from jaclang.server.transport { TransportResponse }
+import from jaclang.server.serving.endpoint {
     HTTPMethod,
     JEndPoint,
     APIParameter,
@@ -42,19 +42,25 @@ def _app_name -> str {
 }
 
 
-def _is_microservice_mode -> bool {
+def _fleet_names -> list[str] {
     try {
-        routes: dict = get_scale_config().get_microservices_config().get("routes", {});
-        return bool(routes);
+        import from jaclang.scale.runtime.fleet { fleet_member_names }
+        return fleet_member_names();
     } except Exception {
-        return False;
+        return [];
     }
 }
 
 
-def _services_for_mode(microservice: bool, routes: dict, app_name: str) -> list[str] {
+def _is_microservice_mode -> bool {
+    return bool(_fleet_names());
+}
+
+
+def _services_for_mode(
+    microservice: bool, names: list[str], app_name: str
+) -> list[str] {
     if microservice {
-        names: list[str] = list(routes.keys());
         return ["gateway"] + sorted(names);
     }
     return [app_name] if app_name else [];
@@ -62,13 +68,8 @@ def _services_for_mode(microservice: bool, routes: dict, app_name: str) -> list[
 
 
 def _microservice_services -> list[str] {
-    try {
-        ms = get_scale_config().get_microservices_config();
-        routes: dict = ms.get("routes", {});
-        return _services_for_mode(bool(routes), routes, _app_name());
-    } except Exception {
-        return [];
-    }
+    names = _fleet_names();
+    return _services_for_mode(bool(names), names, _app_name());
 }
 
 
@@ -178,7 +179,7 @@ def _build_logql(
 
 
 async def _loki_request(path: str, params: dict) -> dict {
-    import from jaclang.runtimelib.serving.client { ClientConnectionError, arequest }
+    import from jaclang.server.serving.client { ClientConnectionError, arequest }
     base = _loki_base_url();
     url = f"{base}{path}";
     try {
@@ -217,6 +218,11 @@ def _flatten_loki_response(payload: dict, ascending: bool = True) -> list[dict] 
 
 
 impl JacAPIServerLogs.register_logs_endpoints -> None {
+    server = self.server;
+    if server is None {
+        return;
+    }
+
     async def services_handler(request: Request) -> JSONResponse {
         guard = self.require_admin_json(request.headers.get("Authorization"));
         if guard {
@@ -226,7 +232,7 @@ impl JacAPIServerLogs.register_logs_endpoints -> None {
             content={"ok": True, "data": {"services": _microservice_services()}}
         );
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/logs/services",
@@ -236,8 +242,8 @@ impl JacAPIServerLogs.register_logs_endpoints -> None {
             tags=["Logs"],
             summary="Service dropdown options",
             description=(
-                "Microservices declared in [scale.microservices.routes] "
-                "+ 'gateway'. Used by the admin LogsPage service filter."
+                "The workspace's fleet apps + 'gateway'. Used by the admin "
+                "LogsPage service filter."
             )
         )
     );
@@ -331,7 +337,7 @@ impl JacAPIServerLogs.register_logs_endpoints -> None {
             }
         );
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/logs",
@@ -408,7 +414,7 @@ impl JacAPIServerLogs.register_logs_endpoints -> None {
             }
         );
     }
-    self.server.add_endpoint(
+    server.add_endpoint(
         JEndPoint(
             method=HTTPMethod.GET,
             path="/admin/logs/trace/{trace_id}",

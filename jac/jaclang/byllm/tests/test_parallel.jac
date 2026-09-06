@@ -55,7 +55,7 @@ import from jaclang.byllm.config_loader { reset_byllm_config, get_byllm_config }
 # Helpers
 # ---------------------------------------------------------------------------
 """Noop callable — used as Tool.func stand-in so _is_async returns False."""
-def _noop { }
+def _noop {}
 
 
 # ---------------------------------------------------------------------------
@@ -301,13 +301,13 @@ test "sequential batch has no speedup" {
 # 10. _is_async detection
 # ---------------------------------------------------------------------------
 test "is async returns false for sync function" {
-    def sync_fn { }
+    def sync_fn {}
     assert _is_async(sync_fn) == False;
 }
 
 test "is async returns true for async function" {
     import asyncio;
-    async def async_fn { }
+    async def async_fn {}
     assert _is_async(async_fn) == True;
 }
 
@@ -351,14 +351,14 @@ test "timeout none means no timeout" {
 # 14. mark_serialize helper
 # ---------------------------------------------------------------------------
 test "mark serialize sets underscore serialize attribute" {
-    def my_func { }
+    def my_func {}
     assert not hasattr(my_func, '_serialize');
     mark_serialize(my_func);
     assert getattr(my_func, '_serialize') == True;
 }
 
 test "mark serialize returns the original function" {
-    def f { }
+    def f {}
     result = mark_serialize(f);
     assert result is f;
     assert getattr(result, '_serialize') == True;
@@ -438,8 +438,8 @@ test "mock tool call creates valid tool call with correct name" {
 # ---------------------------------------------------------------------------
 test "is async detects coroutine functions at runtime" {
     import asyncio;
-    def sync_fn { }
-    async def async_fn { }
+    def sync_fn {}
+    async def async_fn {}
     assert _is_async(sync_fn) == False;
     assert _is_async(async_fn) == True;
     assert callable(_is_async);
@@ -621,7 +621,7 @@ test "parallel-safe and sequential tags added to tool descriptions" {
     ft = Tool.make_finish_tool(str);
 
     model = Model(model_name="mockllm");
-    mt_run = _MockMTRun(
+    mt_run: any = _MockMTRun(
         call_params={"parallelize": True},
         tools=[tool_a, tool_b, ft],
         messages=[{"role": "system", "content": "You are helpful."}]
@@ -654,7 +654,7 @@ test "finish tool description is NOT tagged" {
     ft_original_desc = ft.description;
 
     model = Model(model_name="mockllm");
-    mt_run = _MockMTRun(
+    mt_run: any = _MockMTRun(
         call_params={"parallelize": True},
         tools=[tool_a, ft],
         messages=[{"role": "system", "content": "You are helpful."}]
@@ -688,7 +688,7 @@ test "scheduling hint injected when parallel plus tools plus parallel_hint" {
     ft = Tool.make_finish_tool(str);
 
     model = Model(model_name="mockllm");
-    mt_run = _MockMTRun(
+    mt_run: any = _MockMTRun(
         call_params={"parallelize": True},
         tools=[tool_a, ft],
         messages=[{"role": "system", "content": "You are helpful."}]
@@ -717,7 +717,7 @@ test "no annotations or hint when parallel is OFF" {
     ft = Tool.make_finish_tool(str);
 
     model = Model(model_name="mockllm");
-    mt_run = _MockMTRun(
+    mt_run: any = _MockMTRun(
         call_params={},
         tools=[tool_a, ft],
         messages=[{"role": "system", "content": "You are helpful."}]
@@ -751,7 +751,7 @@ test "parallel_hint=False suppresses hint even when parallel is on" {
     ft = Tool.make_finish_tool(str);
 
     model = Model(model_name="mockllm");
-    mt_run = _MockMTRun(
+    mt_run: any = _MockMTRun(
         call_params={"parallelize": True, "parallel_hint": False},
         tools=[tool_a, ft],
         messages=[{"role": "system", "content": "You are helpful."}]
@@ -812,7 +812,8 @@ test "tools observe the caller's contextvars on every dispatch path" {
         }
 
         timed = MockToolCall(tool=_ctx_probe, args={}).to_tool_call();
-        timed.tool.timeout_sec = 5.0;
+        _timed_tool: any = timed.tool;
+        _timed_tool.timeout_sec = 5.0;
         result = list(dispatch_batch([timed]));
         assert "caller-value" in result[0][1].content , (
             f"timeout thread lost context: {result[0][1].content}"
@@ -877,7 +878,7 @@ test "serialize tool names listed in system prompt hint" {
     ft = Tool.make_finish_tool(str);
 
     model = Model(model_name="mockllm");
-    mt_run = _MockMTRun(
+    mt_run: any = _MockMTRun(
         call_params={"parallelize": True},
         tools=[tool_a, tool_b, ft],
         messages=[{"role": "system", "content": "You are helpful."}]

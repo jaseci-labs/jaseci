@@ -1,9 +1,12 @@
 import from pathlib { Path }
 import from jaclang.cli.console { console }
-import from jaclang.jac0core.tomlio { read_toml_with_encoding }
+import from jaclang.project.tomlio { read_toml_with_encoding }
+import from jaclang.project.config { JacConfig }
 
-glob CONFIG_GROUPS = [
+glob APP_FIELDS: list[str] = ["kind", "path", "entry_point", "platform", "route"],
+     CONFIG_GROUPS = [
          "project",
+         "apps",
          "run",
          "build",
          "test",
@@ -114,11 +117,12 @@ def _config_path {
 def _config_groups {
     console.print("\nAvailable configuration groups:\n", style="info");
     group_descriptions = {
-        "project": "Project metadata (name, version, description, authors)",
+        "project": "Project metadata (name, version, description, authors, default_app)",
+        "apps": "Workspace apps: one [apps.<name>] table per app (kind, path, entry_point, platform, route)",
         "run": "Run command defaults (session, main, cache)",
         "build": "Build command defaults (typecheck, dir)",
         "test": "Test command defaults (directory, filter, verbose, fail_fast)",
-        "serve": "Serve command defaults (port, session, main, cl_route_prefix)",
+        "serve": "Serve command defaults (port, session, main, on_conflict)",
         "format": "Format command defaults (outfile, fix)",
         "check": "Check command defaults (print_errs)",
         "dot": "Dot/graph visualization defaults (depth, traverse, format)",
@@ -131,7 +135,7 @@ def _config_groups {
     }
 }
 
-def _get_group_defaults(group_name: str) -> dict {
+def _get_group_defaults(group_name: str) -> dict[str, object] {
     import from jaclang.project.config {
         ProjectConfig,
         RunConfig,
@@ -163,7 +167,7 @@ def _get_group_defaults(group_name: str) -> dict {
         return {};
     }
 
-    result: dict = {};
+    result: dict[str, object] = {};
     for attr in dir(default_obj) {
         if not attr.startswith('_') {
             val = getattr(default_obj, attr, None);
@@ -179,14 +183,35 @@ def _get_group_attr(group_name: str) -> str {
     return group_name;
 }
 
-def _get_group_values(config: object, group_name: str) -> dict {
+def _app_settings(config: JacConfig, show_all: bool) -> dict[str, dict[str, object]] {
+    settings: dict[str, dict[str, object]] = {};
+    raw_apps = config._raw_data.get("apps", {}) if config._raw_data else {};
+    for (name, app) in config.apps.items() {
+        raw_app = raw_apps.get(name, {}) if isinstance(raw_apps, dict) else {};
+        for field in APP_FIELDS {
+            toml_key = field.replace("_", "-") if field == "entry_point" else field;
+            is_set = isinstance(raw_app, dict) and toml_key in raw_app;
+            if not show_all and not is_set {
+                continue;
+            }
+            settings[f"{name}.{field}"] = {
+                "value": getattr(app, field, ""),
+                "default": "",
+                "is_set": is_set
+            };
+        }
+    }
+    return settings;
+}
+
+def _get_group_values(config: JacConfig, group_name: str) -> dict[str, object] {
     attr_name = _get_group_attr(group_name);
     group_obj = getattr(config, attr_name, None);
     if group_obj is None {
         return {};
     }
 
-    result: dict = {};
+    result: dict[str, object] = {};
     for attr in dir(group_obj) {
         if not attr.startswith('_') {
             val = getattr(group_obj, attr, None);
@@ -198,7 +223,7 @@ def _get_group_values(config: object, group_name: str) -> dict {
     return result;
 }
 
-def _is_explicitly_set(config: object, group_name: str, key: str) -> bool {
+def _is_explicitly_set(config: JacConfig, group_name: str, key: str) -> bool {
     if not config?._raw_data or config._raw_data is None {
         return False;
     }
@@ -216,7 +241,9 @@ def _is_explicitly_set(config: object, group_name: str, key: str) -> bool {
     return key in section_data;
 }
 
-def _config_list(config: object, group: str, output: str, show_all: bool) -> None {
+def _config_list(
+    config: (JacConfig | None), group: str, output: str, show_all: bool
+) -> None {
     import json;
 
     if config is None {
@@ -226,13 +253,20 @@ def _config_list(config: object, group: str, output: str, show_all: bool) -> Non
 
     groups_to_show = [group] if group else CONFIG_GROUPS;
 
-    all_settings: dict = {};
+    all_settings: dict[str, dict[str, dict[str, object]]] = {};
 
     for grp in groups_to_show {
+        if grp == "apps" {
+            app_settings = _app_settings(config, show_all);
+            if app_settings {
+                all_settings[grp] = app_settings;
+            }
+            continue;
+        }
         defaults = _get_group_defaults(grp);
         current = _get_group_values(config, grp);
 
-        group_settings: dict = {};
+        group_settings: dict[str, dict[str, object]] = {};
         for (key, default_val) in defaults.items() {
             current_val = current.get(key, default_val);
             is_set = _is_explicitly_set(config, grp, key);
@@ -262,7 +296,9 @@ def _config_list(config: object, group: str, output: str, show_all: bool) -> Non
     }
 }
 
-def _output_table(settings: dict, show_all: bool) -> None {
+def _output_table(
+    settings: dict[str, dict[str, dict[str, object]]], show_all: bool
+) -> None {
     if not settings {
         if show_all {
             console.info("No configuration settings found.");
@@ -362,10 +398,10 @@ def _output_table(settings: dict, show_all: bool) -> None {
     }
 }
 
-def _output_json(settings: dict) {
+def _output_json(settings: dict[str, dict[str, dict[str, object]]]) {
     import json;
 
-    output: dict = {};
+    output: dict[str, dict[str, dict[str, object]]] = {};
     for (grp, grp_settings) in settings.items() {
         output[grp] = {};
         for (key, data) in grp_settings.items() {
@@ -379,7 +415,7 @@ def _output_json(settings: dict) {
     console.print(json.dumps(output, indent=2, `default=str));
 }
 
-def _output_toml(settings: dict, show_all: bool) {
+def _output_toml(settings: dict[str, dict[str, dict[str, object]]], show_all: bool) {
     import from jaclang.project.config { toml_value }
     lines: list[str] = [];
 
@@ -436,7 +472,7 @@ def _format_value(value: object) -> str {
     }
 }
 
-def _config_get(config: object, key: str) -> int {
+def _config_get(config: (JacConfig | None), key: str) -> int {
     if not key {
         console.error("Key required for 'get' action.");
         console.print("Usage: jac config get <group>.<key>", style="muted");
@@ -465,6 +501,10 @@ def _config_get(config: object, key: str) -> int {
         return 1;
     }
 
+    if group_name == "apps" {
+        return _config_get_app(config, setting_name);
+    }
+
     current_values = _get_group_values(config, group_name);
     default_values = _get_group_defaults(group_name);
 
@@ -490,7 +530,43 @@ def _config_get(config: object, key: str) -> int {
     return 0;
 }
 
-def _config_set(config: object, key: str, value: str) -> int {
+def _config_get_app(config: JacConfig, setting_name: str) -> int {
+    if '.' not in setting_name {
+        console.error("App keys are 'apps.<name>.<field>'.");
+        console.print("Example: jac config get apps.web.kind", style="muted");
+        return 1;
+    }
+    (app_name, field) = setting_name.split('.', 1);
+    app = config.app(app_name);
+    if app is None {
+        console.error(f"Unknown app '{app_name}'.");
+        console.print(f"Apps: {', '.join(config.apps.keys())}", style="muted");
+        return 1;
+    }
+    if field not in APP_FIELDS {
+        console.error(f"Unknown app field '{field}'.");
+        console.print(f"Available fields: {', '.join(APP_FIELDS)}", style="muted");
+        return 1;
+    }
+    console.print(_format_value(getattr(app, field, "")).strip('"'));
+    settings = _app_settings(config, True);
+    if settings.get(f"{app_name}.{field}", {}).get("is_set") {
+        console.print("  (explicitly set in jac.toml)", style="muted");
+    } else {
+        console.print("  (default value)", style="muted");
+    }
+    return 0;
+}
+
+def _refuse_app_edit(key: str) -> int {
+    console.error(
+        f"'{key}' lives in an [apps.<name>] table; edit jac.toml directly.",
+        hint="jac config set/unset covers flat groups only."
+    );
+    return 1;
+}
+
+def _config_set(config: (JacConfig | None), key: str, value: str) -> int {
     import from jaclang.project.config { JacConfig, find_project_root }
 
     if not key {
@@ -520,6 +596,9 @@ def _config_set(config: object, key: str, value: str) -> int {
         console.error(f"Unknown group '{group_name}'.");
         console.print(f"Available groups: {', '.join(CONFIG_GROUPS)}", style="muted");
         return 1;
+    }
+    if group_name == "apps" {
+        return _refuse_app_edit(key);
     }
 
     if config is None {
@@ -572,7 +651,7 @@ def _config_set(config: object, key: str, value: str) -> int {
     return 0;
 }
 
-def _config_unset(config: object, key: str) -> int {
+def _config_unset(config: (JacConfig | None), key: str) -> int {
     import from jaclang.project.config { find_project_root }
 
     if not key {
@@ -601,6 +680,9 @@ def _config_unset(config: object, key: str) -> int {
         console.error(f"Unknown group '{group_name}'.");
         console.print(f"Available groups: {', '.join(CONFIG_GROUPS)}", style="muted");
         return 1;
+    }
+    if group_name == "apps" {
+        return _refuse_app_edit(key);
     }
 
     if not _is_explicitly_set(config, group_name, setting_name) {
@@ -664,8 +746,8 @@ def _parse_value(value: str, target_type: type) -> object {
         }
     }
 
-    if target_type == list
-        or (target_type?.__origin__ and target_type.__origin__ == list) {
+    _origin = target_type?.__origin__;
+    if target_type == list or _origin == list {
         if value == '[]' or value == '' {
             return [];
         }
@@ -684,7 +766,7 @@ def _parse_value(value: str, target_type: type) -> object {
 }
 
 def _save_config_with_setting(
-    config: object, group_name: str, setting_name: str, value: object
+    config: JacConfig, group_name: str, setting_name: str, value: object
 ) -> None {
     if config.toml_path is None {
         console.error("No toml_path set, cannot save configuration.");
@@ -709,7 +791,7 @@ def _save_config_with_setting(
 }
 
 def _save_config_without_setting(
-    config: object, group_name: str, setting_name: str
+    config: JacConfig, group_name: str, setting_name: str
 ) -> None {
     if config.toml_path is None {
         console.error("No toml_path set, cannot save configuration.");

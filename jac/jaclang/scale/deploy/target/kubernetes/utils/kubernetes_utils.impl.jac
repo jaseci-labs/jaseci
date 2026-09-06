@@ -241,17 +241,18 @@ impl cluster_type -> str {
     try {
         v1 = client.CoreV1Api();
         nodes = v1.list_node();
-        if not nodes.items {
+        node_items: list[any] = nodes.items;
+        if not node_items {
             return 'local';
         }
-        for nd in nodes.items {
-            provider_id = nd.spec.provider_id or '';
+        for nd in node_items {
+            provider_id: str = nd.spec.provider_id or '';
             if provider_id.startswith('aws://') {
                 return 'aws';
             }
         }
-        for nd in nodes.items {
-            labels = nd.metadata.labels or {};
+        for nd in node_items {
+            labels: dict[str, str] = nd.metadata.labels or {};
             if (
                 ('topology.kubernetes.io/region' in labels)
                 and any(
@@ -270,7 +271,17 @@ impl cluster_type -> str {
             }
         }
         return 'local';
-    } except Exception {
+    } except ApiException as exc {
+        console.print(
+            f"[warn] could not read cluster nodes to detect the provider "
+            f"(HTTP {exc.status} {exc.reason}). {_LOCAL_FALLBACK_NOTE}"
+        );
+        return 'local';
+    } except Exception as exc {
+        console.print(
+            f"[warn] provider detection failed "
+            f"({type(exc).__name__}: {exc}). {_LOCAL_FALLBACK_NOTE}"
+        );
         return 'local';
     }
 }
@@ -284,18 +295,18 @@ impl get_cluster_provider -> ClusterProvider {
 
 impl _resolve_current_rs_hashes(namespace: str, selector: str) -> set {
     apps_v1 = client.AppsV1Api();
-    rs_items = apps_v1.list_namespaced_replica_set(
+    rs_items: list[any] = apps_v1.list_namespaced_replica_set(
         namespace=namespace, label_selector=selector
     ).items;
-    best: dict = {};
+    best: dict[str, tuple[int, any]] = {};
     for rs in rs_items {
-        app_val = (rs.metadata.labels or {}).get("app", "");
+        rs_labels: dict[str, str] = rs.metadata.labels or {};
+        app_val = rs_labels.get("app", "");
         if not app_val {
             continue;
         }
-        rev_str = (rs.metadata.annotations or {}).get(
-            "deployment.kubernetes.io/revision", "0"
-        );
+        rs_annotations: dict[str, str] = rs.metadata.annotations or {};
+        rev_str = rs_annotations.get("deployment.kubernetes.io/revision", "0");
         try {
             rev = int(rev_str);
         } except (ValueError, TypeError) {
@@ -306,9 +317,10 @@ impl _resolve_current_rs_hashes(namespace: str, selector: str) -> set {
             best[app_val] = (rev, rs);
         }
     }
-    pending: set = set();
+    pending: set[str] = set();
     for (_, rs) in best.values() {
-        h = (rs.metadata.labels or {}).get("pod-template-hash");
+        best_labels: dict[str, str] = rs.metadata.labels or {};
+        h = best_labels.get("pod-template-hash");
         if h {
             pending.add(h);
         }
@@ -370,7 +382,7 @@ impl privileged_pss_labels(existing: dict[str, str]) -> dict[str, str] | None {
 }
 
 
-impl ensure_namespace_exists(namespace: str) -> None {
+impl ensure_namespace_exists(namespace: str, owner: str) -> None {
     if (namespace == 'default') {
         return;
     }
@@ -403,11 +415,15 @@ impl ensure_namespace_exists(namespace: str) -> None {
     } except ApiException as e {
         if (e.status == 404) {
             console.print(f"Namespace '{namespace}' not found. Creating it...");
+            create_labels: dict = dict(default_pss_labels());
+            if owner {
+                create_labels[NAMESPACE_OWNER_LABEL] = owner;
+            }
             core_v1.create_namespace(
                 body={
                     'apiVersion': 'v1',
                     'kind': 'Namespace',
-                    'metadata': {'name': namespace, 'labels': default_pss_labels()}
+                    'metadata': {'name': namespace, 'labels': create_labels}
                 }
             );
             console.print(f"Namespace '{namespace}' created successfully.");
@@ -417,15 +433,30 @@ impl ensure_namespace_exists(namespace: str) -> None {
     }
 }
 
+impl namespace_is_owned(core_v1: client.CoreV1Api, namespace: str, owner: str) -> bool {
+    if (namespace == 'default') or not owner {
+        return False;
+    }
+    try {
+        ns = core_v1.read_namespace(name=namespace);
+    } except ApiException as e {
+        if (e.status == 404) {
+            return False;
+        }
+        raise;
+    }
+    labels: dict = dict(getattr(ns.metadata, "labels", {}) or {});
+    return labels.get(NAMESPACE_OWNER_LABEL) == owner;
+}
+
+
 impl delete_if_exists(
     delete_func: Callable, name: str, namespace: str, kind: str
 ) -> None {
     try {
         delete_func(name, namespace);
     } except ApiException as e {
-        if (e.status == 404) {
-            ;
-        } else {
+        if (e.status == 404) {} else {
             raise;
         }
     }

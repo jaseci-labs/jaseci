@@ -11,9 +11,9 @@ on every pod without a restart.
 
 import time;
 import from tempfile { mkdtemp }
-import from jaclang.runtimelib.pgembed { PgRuntime }
-import from jaclang.runtimelib.store { PgStore }
-import from jaclang.scale._optdeps.apscheduler { HAS_APSCHEDULER }
+import from jaclang.data.pgembed { PgRuntime }
+import from jaclang.data.store { PgStore }
+import from jaclang.testing.requires { require_module }
 import from jaclang.scale.scheduler.scheduler {
     JOBS_CHANGED_CHANNEL,
     JacScaleScheduler,
@@ -92,6 +92,9 @@ test "per-fire lease admits exactly one pod per tick" {
         return;
     }
     sb = _store();
+    if sb is None {
+        return;
+    }
     pod_a = _pod(sa, 'mp_lease');
     pod_b = _pod(sb, 'mp_lease');
     spec = TriggerSpec(trigger='interval', interval=2.0);
@@ -114,6 +117,9 @@ test "jobs-changed NOTIFY from one pod reaches the other pod's listener" {
         return;
     }
     sb = _store();
+    if sb is None {
+        return;
+    }
     pod_a = _pod(sa, 'mp_notify');
     got: list[str] = [];
     sb.listen(JOBS_CHANGED_CHANNEL, lambda (payload: str) { got.append(payload); });
@@ -138,9 +144,7 @@ test "jobs-changed NOTIFY from one pod reaches the other pod's listener" {
 
 
 test "two live pods fire a due job exactly once and DELETE stops both" {
-    if not HAS_APSCHEDULER {
-        testskip('apscheduler not installed; covered in CI');
-    }
+    require_module("apscheduler");
     import datetime as _dt;
     import from apscheduler.schedulers.background { BackgroundScheduler }
     sa = _store();
@@ -148,18 +152,25 @@ test "two live pods fire a due job exactly once and DELETE stops both" {
         return;
     }
     sb = _store();
+    if sb is None {
+        return;
+    }
     pod_a = _pod(sa, 'mp_fire');
     pod_b = _pod(sb, 'mp_fire');
-    pod_a._apscheduler = BackgroundScheduler(timezone=_dt.timezone.utc);
-    pod_b._apscheduler = BackgroundScheduler(timezone=_dt.timezone.utc);
+    sched_a = BackgroundScheduler(timezone=_dt.timezone.utc);
+    sched_b = BackgroundScheduler(timezone=_dt.timezone.utc);
+    pod_a._apscheduler = sched_a;
+    pod_b._apscheduler = sched_b;
     pod_a._start_jobs_listener();
     pod_b._start_jobs_listener();
-    pod_a._apscheduler.start();
-    pod_b._apscheduler.start();
+    sched_a.start();
+    sched_b.start();
 
     try {
         job_id = 'fire-once';
-        pod_a._store.insert(_job(job_id, 2.0));
+        store_a = pod_a._store;
+        assert store_a is not None , 'pod A must carry a job store';
+        store_a.insert(_job(job_id, 2.0));
         spec = TriggerSpec(trigger='interval', interval=2.0);
         # Both pods restore the same job, as register_dynamic_tasks_from_db
         # does on boot. With no server attached, an admitted fire records a
@@ -174,27 +185,29 @@ test "two live pods fire a due job exactly once and DELETE stops both" {
             );
         }
         time.sleep(5.0);
-        doc = pod_a._store.find_active_one(job_id);
+        doc = store_a.find_active_one(job_id);
         assert doc is not None;
         runs = int(doc.get('run_count', 0));
         assert 1 <= runs <= 3 , f"~2 ticks in 5s must admit one pod each, got run_count={runs}";
 
         assert pod_a.delete_job(job_id) is True;
         deadline = time.time() + 10.0;
-        while time.time() < deadline and pod_b._apscheduler.get_jobs() {
+        while time.time() < deadline and sched_b.get_jobs() {
             time.sleep(0.1);
         }
-        assert not pod_a._apscheduler.get_jobs();
-        assert not pod_b._apscheduler.get_jobs() , 'DELETE on pod A must stop the schedule on pod B without a restart';
+        assert not sched_a.get_jobs();
+        assert not sched_b.get_jobs() , 'DELETE on pod A must stop the schedule on pod B without a restart';
     } finally {
-        pod_a._apscheduler.shutdown(`wait=False);
-        pod_b._apscheduler.shutdown(`wait=False);
+        sched_a.shutdown(`wait=False);
+        sched_b.shutdown(`wait=False);
     }
 }
 
 
 test "events url scheme is validated with a clean error" {
-    import from jaclang.scale.server.serve { _validate_events_url }
+    import from jaclang.scale.server.extensions {
+        validate_events_url as _validate_events_url
+    }
     _validate_events_url(None);
     _validate_events_url('postgresql://u:p@h:5432/db');
     _validate_events_url('postgres://u:p@h:5432/db');

@@ -21,9 +21,9 @@ import os;
 import shutil;
 import tempfile;
 import jaclang;
-import jaclang.jac0core.unitree as uni;
+import jaclang.compiler.frontend.unitree as uni;
 import from pathlib { Path }
-import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.driver.program { JacProgram }
 
 glob REACT_DTS = (
          "export declare function createContext(x: any): any;\n"
@@ -68,9 +68,9 @@ def _install_pkg(proj: Path, name: str, with_types: bool = True) {
     }
 }
 
-def _compile(proj: Path, type_check: bool = False) -> tuple {
+def _compile(proj: Path) -> tuple {
     prog = JacProgram();
-    mod = prog.compile(str(proj / "main.jac"), type_check=type_check);
+    mod = prog.compile(str(proj / "main.jac"));
     errs = [
         e.code.code
         for e in prog.errors_had
@@ -112,7 +112,7 @@ test "bare npm import in a client module is placed client plus emitted" {
     try {
         proj = _write_project(tmp, {"main.jac": CLIENT_APP});
         _install_pkg(proj, "react");
-        (prog, mod, errs, warns) = _compile(proj, type_check=True);
+        (prog, mod, errs, warns) = _compile(proj);
         assert _import_stamp(mod, "react") == "client" , "bare react import should classify client via resolution";
         js = mod.gen.js or "";
         assert 'from "react"' in js , "emitted JS must import from the npm package";
@@ -157,7 +157,7 @@ test "a local jac module shadows the npm name" {
             }
         );
         _install_pkg(proj, "react");
-        (prog, mod, errs, warns) = _compile(proj, type_check=True);
+        (prog, mod, errs, warns) = _compile(proj);
         js = mod.gen.js or "";
         assert "./react.js" in js , "local jac module must win over the npm package";
         assert 'from "react"' not in js.replace("./react.js", "") , "npm specifier must not appear";
@@ -211,7 +211,7 @@ test "a quoted specifier beats a same-named local sibling" {
             npm_deps='sonner = "*"\n'
         );
         _install_pkg(proj, "sonner");
-        (prog, mod, errs, warns) = _compile(proj, type_check=True);
+        (prog, mod, errs, warns) = _compile(proj);
         js = mod.gen.js or "";
         assert 'from "sonner"' in js , "quoted specifier must resolve to the npm package";
         assert "./sonner.js" not in js , "quoted specifier must never resolve to a local sibling";
@@ -246,9 +246,7 @@ test "a module named after the npm package it wraps does not self-import" {
         );
         _install_pkg(proj, "sonner");
         prog = JacProgram();
-        wrapper = prog.compile(
-            str(proj / "components" / "ui" / "sonner.jac"), type_check=True
-        );
+        wrapper = prog.compile(str(proj / "components" / "ui" / "sonner.jac"));
         js = wrapper.gen.js or "";
         assert 'from "sonner"' in js , "the wrapper must import the npm package";
         assert "./sonner.js" not in js , "the wrapper must never import itself";
@@ -277,7 +275,7 @@ test "an unresolved quoted specifier warns instead of going local" {
                 )
             }
         );
-        (prog, mod, errs, warns) = _compile(proj, type_check=True);
+        (prog, mod, errs, warns) = _compile(proj);
         assert "W1106" in warns , "a quoted specifier matching no package deserves a diagnostic";
         js = mod.gen.js or "";
         assert 'from "ghost-pkg"' in js , "emission must keep the bare specifier";
@@ -303,7 +301,7 @@ test "a declared package subpath does not warn before install" {
             },
             npm_deps='react-dom = "*"\n'
         );
-        (prog, mod, errs, warns) = _compile(proj, type_check=True);
+        (prog, mod, errs, warns) = _compile(proj);
         assert "W1106" not in warns , "a subpath of a declared package is not unresolved";
         js = mod.gen.js or "";
         assert 'from "react-dom/client"' in js , "subpath specifiers emit verbatim";

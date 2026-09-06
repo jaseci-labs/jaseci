@@ -45,25 +45,22 @@ With a `jac.toml` declaring your npm deps and `[client]`:
 name = "mini-todo"
 
 [dependencies.npm]
-react = "^18.2.0"
-react-dom = "^18.2.0"
+react = "^19.2.0"
+react-dom = "^19.2.0"
 
 [dependencies.npm.dev]
 vite = "^6.4.1"
 "@vitejs/plugin-react" = "^4.2.1"
 typescript = "^5.3.3"
-"@types/react" = "^18.2.0"
-"@types/react-dom" = "^18.2.0"
-
-[serve]
-base_route_app = "app"
+"@types/react" = "^19.2.0"
+"@types/react-dom" = "^19.2.0"
 
 [client]
 ```
 
 ```bash
-jac start          # production server
-jac start --dev    # hot-module reload while you edit
+jac run            # production server
+jac run --dev      # hot-module reload while you edit
 ```
 
 Open [http://localhost:8000](http://localhost:8000). No database, no separate frontend project, no glue code.
@@ -112,14 +109,14 @@ def:pub app -> JsxElement {
 It uses the same `jac.toml` as the full-stack quick win above (React deps + `[client]`), with `kind = "web-static"` under `[project]`.
 
 ```bash
-jac start          # builds the cl bundle + na->wasm, serves on http://localhost:8000
-jac start --dev    # same, with hot reload
+jac run            # builds the cl bundle + na->wasm, serves on http://localhost:8000
+jac run --dev      # same, with hot reload
 jac build          # portable, self-contained dist in .jac/client/dist/
 ```
 
-Because a `web-static` project has no server, `jac start` serves the build with a **minimal static server** (no API server, auth, or database) and `jac build` emits a **portable `index.html`** with its JS/CSS inlined, so a pure `cl` page opens directly from disk (`file://`). An app that fetches `/static/main.wasm` at runtime, like this one, must be *served* (the browser can't fetch the module over `file://`). See [Client-only apps](../reference/plugins/jac-client.md#client-only-apps).
+Because a `web-static` project has no server, `jac run` serves the build with a **minimal static server** (no API server, auth, or database) and `jac build` emits a **portable `index.html`** with its JS/CSS inlined, so a pure `cl` page opens directly from disk (`file://`). An app that fetches `/static/main.wasm` at runtime, like this one, must be *served* (the browser can't fetch the module over `file://`). See [Client-only apps](../reference/plugins/jac-client.md#client-only-apps).
 
-`jac start` compiles the native-placed code to `/static/main.wasm` as part of the client build -- no emscripten and no `wasm-ld`; Jac's own WebAssembly linker turns the object into an instantiable module -- and the page fetches it on mount:
+`jac run` compiles the native-placed code to `/static/main.wasm` as part of the client build -- no emscripten and no `wasm-ld`; Jac's own WebAssembly linker turns the object into an instantiable module -- and the page fetches it on mount:
 
 ```text
 primes below 20000 (computed in wasm): 2262

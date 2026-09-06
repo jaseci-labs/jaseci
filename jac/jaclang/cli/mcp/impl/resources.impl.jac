@@ -1,5 +1,6 @@
 import from pathlib { Path }
 import json;
+import from http.client { HTTPResponse }
 import from urllib.request { urlopen, Request }
 import from urllib.error { URLError }
 import from functools { lru_cache }
@@ -78,7 +79,7 @@ impl ResourceProvider._index_grammar -> None {
             "path": str(spec_path)
         };
     }
-    tokens_path = jaclang_dir / "jac0core" / "parser" / "tokens.jac";
+    tokens_path = jaclang_dir / "compiler" / "frontend" / "parser" / "tokens.jac";
     if tokens_path.exists() {
         self._resources["jac://grammar/tokens"] = {
             "uri": "jac://grammar/tokens",
@@ -127,7 +128,7 @@ impl ResourceProvider._index_bundled -> None {
 
 impl ResourceProvider._index_shared_guides -> None {
     try {
-        import from jaclang.cli.guide_store { list_docs, list_guides }
+        import from jaclang.cli.guide_store { docs_dir, list_docs, list_guides }
     } except ImportError {
         return;
     }
@@ -149,6 +150,19 @@ impl ResourceProvider._index_shared_guides -> None {
             "description": g.description,
             "mimeType": "text/markdown",
             "path": g.path
+        };
+    }
+    nav_path = docs_dir() / "nav.json";
+    if nav_path.is_file() {
+        self._resources["jac://docs/nav"] = {
+            "uri": "jac://docs/nav",
+            "name": "nav",
+            "description": (
+                "Docs navigation manifest: sections, titles, and reading order "
+                "(the same tree as 'jac guide --nav')"
+            ),
+            "mimeType": "application/json",
+            "path": str(nav_path)
         };
     }
 }
@@ -249,7 +263,8 @@ def _github_api_get(url: str) -> any {
                 "User-Agent": "jac-mcp"
             }
         );
-        with urlopen(req, timeout=10) as resp {
+        opened: HTTPResponse = urlopen(req, timeout=10);
+        with opened as resp {
             return json.loads(resp.read().decode());
         }
     } except (URLError, json.JSONDecodeError, OSError) {
@@ -317,7 +332,8 @@ def _fetch_example_github(github_path: str) -> str {
     for (rel_path, download_url) in sorted(jac_files) {
         try {
             req = Request(download_url, headers={"User-Agent": "jac-mcp"});
-            with urlopen(req, timeout=10) as resp {
+            opened: HTTPResponse = urlopen(req, timeout=10);
+            with opened as resp {
                 content = resp.read().decode();
             }
             result_parts.append(f"--- {rel_path} ---\n{content}");

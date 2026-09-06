@@ -4,11 +4,17 @@ winner verification, and the cost invariant (L3 fetches == |result|)."""
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from uuid { UUID }
-import from jaclang.jac0core.archetype { EdgeAnchor, NodeAnchor, Root }
-import from jaclang.jac0core.graph_query { GraphQuery, QHop, QPred }
-import from jaclang.jac0core.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
-import from jaclang.runtimelib.query_planner { resolve_query }
+import from jaclang.runtime.archetype { EdgeAnchor, NodeAnchor, Root }
+import from jaclang.runtime.graph_query { GraphQuery, QHop, QPred }
+import from jaclang.runtime.runtime { JacRuntime }
+import from jaclang.server.session { Session }
+import from typing { cast }
+import from jaclang.runtime.context { ExecutionContext }
+import from jaclang.data.query_planner { resolve_query }
+
+def _as_any(v: any) -> any {
+    return v;
+}
 
 node PA {
     has val: int = 0;
@@ -39,7 +45,10 @@ def _seed(ctx: ExecutionContext) -> UUID {
         nanch = PA(val=i).__jac__;
         nanch.persistent = True;
         eanch = EdgeAnchor(
-            archetype=PRel(w=i), source=ranch, target=nanch, is_undirected=False
+            archetype=_as_any(PRel(w=i)),
+            source=ranch,
+            target=nanch,
+            is_undirected=False
         );
         eanch.persistent = True;
         ranch.edges.append(eanch);
@@ -51,14 +60,14 @@ def _seed(ctx: ExecutionContext) -> UUID {
     banch = PB(tag="leaf").__jac__;
     banch.persistent = True;
     e2 = EdgeAnchor(
-        archetype=PRel(w=9), source=pas[1], target=banch, is_undirected=False
+        archetype=_as_any(PRel(w=9)), source=pas[1], target=banch, is_undirected=False
     );
     e2.persistent = True;
     pas[1].edges.append(e2);
     banch.edges.append(e2);
     ctx.mem.put(banch);
     ctx.mem.put(e2);
-    return ranch.id;
+    return ranch.ensure_id();
 }
 
 
@@ -86,25 +95,25 @@ test "cold engine query: preds, slice, and fetches == |result|" {
                 ranch.archetype,
                 hops=[QHop(dir=2, nd=PA, preds=[QPred(field="val", op="==", value=2)])]
             );
-            hits = resolve_query(ctx2.mem, q);
+            hits = resolve_query(cast(Session, ctx2.mem), q);
             assert len(hits) == 1;
-            assert hits[0].archetype.val == 2;
+            assert _as_any(hits[0]).archetype.val == 2;
             fetches = ctx2.mem.get_fetch_count();
             assert fetches == 1 , (
                 f"cost invariant: expected 1 L3 fetch (the winner), got {fetches}"
             );
 
             two = resolve_query(
-                ctx2.mem,
+                cast(Session, ctx2.mem),
                 GraphQuery(
                     ranch.archetype, hops=[QHop(dir=2, nd=PA)], slc=slice(0, 2, None)
                 )
             );
             assert len(two) == 2;
-            assert [a.archetype.val for a in two] == [1, 2];
+            assert [_as_any(a).archetype.val for a in two] == [1, 2];
 
             chain = resolve_query(
-                ctx2.mem,
+                cast(Session, ctx2.mem),
                 GraphQuery(
                     ranch.archetype,
                     hops=[
@@ -118,7 +127,7 @@ test "cold engine query: preds, slice, and fetches == |result|" {
                 )
             );
             assert len(chain) == 1;
-            assert chain[0].archetype.tag == "leaf";
+            assert _as_any(chain[0]).archetype.tag == "leaf";
         } finally {
             JacRuntime.exec_ctx = old;
             ctx2.close();
@@ -150,7 +159,10 @@ test "overlay: uncommitted writes are visible, both directions" {
             fresh = PA(val=99).__jac__;
             fresh.persistent = True;
             fe = EdgeAnchor(
-                archetype=PRel(w=0), source=ranch, target=fresh, is_undirected=False
+                archetype=_as_any(PRel(w=0)),
+                source=ranch,
+                target=fresh,
+                is_undirected=False
             );
             fe.persistent = True;
             ranch.edges.append(fe);
@@ -159,7 +171,7 @@ test "overlay: uncommitted writes are visible, both directions" {
             ctx2.mem.put(fe);
 
             got = resolve_query(
-                ctx2.mem,
+                cast(Session, ctx2.mem),
                 GraphQuery(
                     ranch.archetype,
                     hops=[
@@ -174,7 +186,7 @@ test "overlay: uncommitted writes are visible, both directions" {
             # Dirty field write on a resident node: new value matches, old
             # value must not (the engine's committed row says val == 1).
             one = resolve_query(
-                ctx2.mem,
+                cast(Session, ctx2.mem),
                 GraphQuery(
                     ranch.archetype,
                     hops=[
@@ -183,10 +195,10 @@ test "overlay: uncommitted writes are visible, both directions" {
                 )
             );
             assert len(one) == 1;
-            one[0].archetype.val = 42;
+            _as_any(one[0]).archetype.val = 42;
 
             after = resolve_query(
-                ctx2.mem,
+                cast(Session, ctx2.mem),
                 GraphQuery(
                     ranch.archetype,
                     hops=[
@@ -198,7 +210,7 @@ test "overlay: uncommitted writes are visible, both directions" {
             );
             assert len(after) == 1 , "dirty field write must be visible (RYW)";
             stale = resolve_query(
-                ctx2.mem,
+                cast(Session, ctx2.mem),
                 GraphQuery(
                     ranch.archetype,
                     hops=[
@@ -210,7 +222,7 @@ test "overlay: uncommitted writes are visible, both directions" {
 
             # Detaching a persisted edge suppresses its engine row.
             two_anchor = resolve_query(
-                ctx2.mem,
+                cast(Session, ctx2.mem),
                 GraphQuery(
                     ranch.archetype,
                     hops=[
@@ -220,7 +232,7 @@ test "overlay: uncommitted writes are visible, both directions" {
             )[0];
             victim: (EdgeAnchor | None) = None;
             for stub in ranch.edges {
-                loaded = ctx2.mem.get(stub.id);
+                loaded = ctx2.mem.get(stub.ensure_id());
                 if isinstance(loaded, EdgeAnchor)
                     and loaded.is_populated()
                     and loaded.target.id == two_anchor.id {
@@ -230,7 +242,7 @@ test "overlay: uncommitted writes are visible, both directions" {
             assert victim is not None;
             victim.detach();
             gone = resolve_query(
-                ctx2.mem,
+                cast(Session, ctx2.mem),
                 GraphQuery(
                     ranch.archetype,
                     hops=[

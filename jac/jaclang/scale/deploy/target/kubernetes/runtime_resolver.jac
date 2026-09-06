@@ -5,7 +5,7 @@ import from jaclang.scale.runtime.gateway.service_registry {
     ServiceRegistry,
     ServiceEntry
 }
-import from jaclang.runtimelib { sv_client }
+import from jaclang.server { sv_client }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder { k8s_safe_name }
 import from jaclang.scale.runtime.context.util {
     k8s_service_dns_url,
@@ -44,7 +44,7 @@ obj K8sRuntimeServiceResolver(ServiceDeployer) {
     def deploy_service(name: str) -> bool {
         logger.warning(
             f"K8sRuntimeServiceResolver.deploy_service({name}): admin op "
-            "not yet wired. Use `jac start --scale` for deployment."
+            "not yet wired. Use `jac scale deploy <file.jac>` for deployment."
         );
         return False;
     }
@@ -89,7 +89,7 @@ obj K8sRuntimeServiceResolver(ServiceDeployer) {
 
     def deploy_all -> bool {
         logger.warning(
-            "K8sRuntimeServiceResolver.deploy_all: use `jac start --scale` instead."
+            "K8sRuntimeServiceResolver.deploy_all: use `jac scale deploy <file.jac>` instead."
         );
         return False;
     }
@@ -97,12 +97,12 @@ obj K8sRuntimeServiceResolver(ServiceDeployer) {
 
 
 def build_k8s_registry(
-    routes: dict[str, str], port: int = DEFAULT_GATEWAY_PORT
+    apps: list[str] | dict[str, str], port: int = DEFAULT_GATEWAY_PORT
 ) -> dict[str, str] {
     namespace: str = in_cluster_namespace();
     registry: dict[str, str] = {};
-    for svc_name in routes.keys() {
-        registry[svc_name] = resolve_peer_url(svc_name, namespace, port);
+    for svc_name in list(apps) {
+        registry[str(svc_name)] = resolve_peer_url(str(svc_name), namespace, port);
     }
     return registry;
 }

@@ -22,7 +22,7 @@ obj AWSProvider(ClusterProvider) {
         return 'LoadBalancer';
     }
 
-    def validate_ports(node_port: int, current_namespace: str) { }
+    def validate_ports(node_port: int, current_namespace: str) {}
     def service_url(lb_endpoint: (str | None), ingress_node_port: int) -> (str | None) {
         if lb_endpoint {
             return f"http://{lb_endpoint}";
@@ -84,7 +84,7 @@ obj LocalProvider(ClusterProvider) {
         v1 = client.CoreV1Api();
         all_services = v1.list_service_for_all_namespaces();
         used_ports: dict[int, str] = {};
-        for svc in all_services.items {
+        for svc in (all_services.items or []) {
             if svc.metadata.namespace == current_namespace {
                 continue;
             }

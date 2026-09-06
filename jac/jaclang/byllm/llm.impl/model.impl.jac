@@ -29,6 +29,9 @@ impl Model.postinit -> None {
                 _disable_debugging();
             }
             litellm.drop_params = _litellm_config.get("drop_params", True);
+            litellm.include_cost_in_streaming_usage = _litellm_config.get(
+                "include_cost_in_streaming_usage", True
+            );
         }
 
         native_override = self.config.get(
@@ -55,15 +58,16 @@ def _model_lacks_tool_role(model_name: str) -> bool {
     return False;
 }
 
-impl Model.invoke(mt_run: MTRuntime) -> object {
+impl Model.invoke(mt_run: MTRuntime) -> any {
     import uuid;
     import time;
     import types as _types_mod;
 
     _parent = _current_invocation_id.get(None);
-    mt_run._parent_invocation_id = _parent;
-    mt_run._invocation_id = str(uuid.uuid4());
-    _ctx_token = _current_invocation_id.set(mt_run._invocation_id);
+    _invocation_id = str(uuid.uuid4());
+    setattr(mt_run, "_parent_invocation_id", _parent);
+    setattr(mt_run, "_invocation_id", _invocation_id);
+    _ctx_token = _current_invocation_id.set(_invocation_id);
     _start = time.time();
 
     try {
@@ -96,6 +100,94 @@ impl Model.invoke(mt_run: MTRuntime) -> object {
         );
         _current_invocation_id.reset(_ctx_token);
         raise;
+    }
+}
+
+impl Model.ainvoke(mt_run: MTRuntime) -> object {
+    import uuid;
+    import time;
+    import types as _types_mod;
+
+    logging_stream = mt_run.stream and mt_run.call_params.get("logging", False);
+    no_tools = len(mt_run.tools) == 0;
+    handled_directly = no_tools and not logging_stream;
+    if not handled_directly {
+        return await super.ainvoke(mt_run);
+    }
+
+    _parent = _current_invocation_id.get(None);
+    mt_run._parent_invocation_id = _parent;
+    mt_run._invocation_id = str(uuid.uuid4());
+    _ctx_token = _current_invocation_id.set(mt_run._invocation_id);
+    _start = time.time();
+
+    try {
+        result = await super.ainvoke(mt_run);
+
+        if isinstance(result, _types_mod.AsyncGeneratorType) {
+            _current_invocation_id.reset(_ctx_token);
+            return _astream_with_telemetry(result, mt_run, self.model_name, _start);
+        }
+
+        _emit_agent_telemetry(
+            mt_run,
+            result,
+            self.model_name,
+            (time.time() - _start) * 1000,
+            "success",
+            None
+        );
+        _current_invocation_id.reset(_ctx_token);
+        return result;
+    } except Exception as e {
+        _emit_agent_telemetry(
+            mt_run, None, self.model_name, (time.time() - _start) * 1000, "error", e
+        );
+        _current_invocation_id.reset(_ctx_token);
+        raise;
+    }
+}
+
+async def _astream_with_telemetry(
+    agen: AsyncGenerator[object, None], mt: object, model_name: str, start: float
+) -> AsyncGenerator[object, None] {
+    import asyncio;
+    import contextvars;
+    import time;
+
+    invocation_id = mt?._invocation_id;
+    ctx = contextvars.copy_context();
+    if invocation_id is not None {
+        ctx.run(_current_invocation_id.set, invocation_id);
+    }
+
+    _completed = False;
+    try {
+        while True {
+            try {
+                item = await asyncio.Task(agen.__anext__(), context=ctx);
+            } except StopAsyncIteration {
+                _completed = True;
+                break;
+            }
+            yield item;
+        }
+    } except Exception as inner_e {
+        _emit_agent_telemetry(
+            mt, None, model_name, (time.time() - start) * 1000, "error", inner_e
+        );
+        raise;
+    } finally {
+        if _completed {
+            _emit_agent_telemetry(
+                mt,
+                "[streaming]",
+                model_name,
+                (time.time() - start) * 1000,
+                "success",
+                None
+            );
+        }
     }
 }
 
@@ -142,18 +234,17 @@ def _stream_with_telemetry(
 }
 
 impl Model._raise_mapped_provider_error(e: Exception) -> None {
-    if isinstance(e, litellm.exceptions.AuthenticationError)
-        or isinstance(e, openai.AuthenticationError) {
+    if isinstance(
+        e, (litellm.exceptions.AuthenticationError, openai.AuthenticationError)
+    ) {
         logger.error(f"LLM AuthenticationError: {e}");
         raise AuthenticationError(str(e));
     }
-    if isinstance(e, litellm.exceptions.RateLimitError)
-        or isinstance(e, openai.RateLimitError) {
+    if isinstance(e, (litellm.exceptions.RateLimitError, openai.RateLimitError)) {
         logger.error(f"LLM RateLimitError: {e}");
         raise RateLimitError(str(e));
     }
-    if isinstance(e, litellm.exceptions.NotFoundError)
-        or isinstance(e, openai.NotFoundError) {
+    if isinstance(e, (litellm.exceptions.NotFoundError, openai.NotFoundError)) {
         logger.error(f"LLM ModelNotFoundError: {e}");
         raise ModelNotFoundError(str(e));
     }
@@ -220,11 +311,12 @@ impl Model.model_call_with_stream(params: dict) {
 }
 
 impl Model.model_call_http(
-    url: str, token: str, payload: dict, ca_bundle: str
+    url: str, token: str, payload: dict, ca_bundle: (str | bool | None)
 ) -> object {
     import httpx;
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"};
-    with httpx.Client(verify=ca_bundle or True, timeout=60.0) as client {
+    client = httpx.Client(verify=ca_bundle or True, timeout=60.0);
+    with client {
         response = client.post(url=url, headers=headers, json=payload);
     }
     return response.json();
@@ -246,7 +338,9 @@ impl Model.model_call_no_stream_async(params: dict) -> dict {
                     base_url=self.api_base, api_key=self.api_key or None
                 );
             }
-            response = await self._async_proxy_client.chat.completions.create(**params);
+            async_client = self._async_proxy_client;
+            assert async_client is not None;
+            response = await async_client.chat.completions.create(**params);
         } else {
             require_optional("litellm", "llm");
             response = await litellm.acompletion(
@@ -277,7 +371,9 @@ impl Model.model_call_with_stream_async(params: dict) {
                     base_url=self.api_base, api_key=self.api_key or None
                 );
             }
-            response = await self._async_proxy_client.chat.completions.create(
+            async_client = self._async_proxy_client;
+            assert async_client is not None;
+            response = await async_client.chat.completions.create(
                 stream=True, **params
             );
         } else {
@@ -296,11 +392,12 @@ impl Model.model_call_with_stream_async(params: dict) {
 }
 
 impl Model.model_call_http_async(
-    url: str, token: str, payload: dict, ca_bundle: str
+    url: str, token: str, payload: dict, ca_bundle: (str | bool | None)
 ) -> object {
     import httpx;
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"};
-    async with httpx.AsyncClient(verify=ca_bundle or True, timeout=60.0) as client {
+    client = httpx.AsyncClient(verify=ca_bundle or True, timeout=60.0);
+    async with client {
         response = await client.post(url=url, headers=headers, json=payload);
     }
     return response.json();

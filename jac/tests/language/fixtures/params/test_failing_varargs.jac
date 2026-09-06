@@ -1,10 +1,13 @@
+def _as_any(v: any) -> any {
+    return v;
+}
+
 # Test failing variable arguments cases (*args, **kwargs)
-def simple_args_only( *args:
-    int)  -> int {
+def simple_args_only(*args: int) -> int {
     return sum(args);
 }
 
-def simple_kwargs_only( **kwargs: str)  -> int {
+def simple_kwargs_only(**kwargs: str) -> int {
     return len(kwargs);
 }
 
@@ -41,7 +44,7 @@ def conflicting_names(name: str, *args: str, name_kw: str, **kwargs: str) -> dic
     return {"name": name, "args": list(args), "name_kw": name_kw, "kwargs": kwargs};
 }
 
-def type_sensitive_varargs( *args: int , **kwargs: int)  -> dict {
+def type_sensitive_varargs(*args: int, **kwargs: int) -> dict {
     return {"args_sum": sum(args), "kwargs_sum": sum(kwargs.values())};
 }
 
@@ -49,7 +52,7 @@ def edge_case_empty_varargs(required: str, *args: float, **kwargs: bool) -> str 
     return f"{required}: args={len(args)}, kwargs={len(kwargs)}";
 }
 
-def double_star_issues( **kwargs: dict)  -> int {
+def double_star_issues(**kwargs: dict) -> int {
     total = 0;
     for (k, v) in kwargs.items() {
         if isinstance(v, dict) {
@@ -61,35 +64,35 @@ def double_star_issues( **kwargs: dict)  -> int {
     return total;
 }
 
-def additional_varargs_edge_cases()  -> None {
+def additional_varargs_edge_cases {
     print("\n=== ADDITIONAL VARARGS EDGE CASES ===");
 
     # Test 16: Empty containers passed to varargs
-    def test_empty_containers( *args: list , **kwargs: dict)  -> dict {
+    def test_empty_containers(*args: list, **kwargs: dict) -> dict {
         return {"args_count": len(args), "kwargs_count": len(kwargs)};
     }
 
     try {
-        result = test_empty_containers([], {}, third_arg=[]);
+        result = _as_any(test_empty_containers)([], {}, third_arg=[]);
         print("✅ PASS: Empty containers:", result);
     } except Exception as e {
         print("❌ FAIL: Empty containers failed");
     }
 
     # Test 17: Nested data structures
-    def complex_data_varargs( *args: dict , **kwargs: list)  -> dict {
+    def complex_data_varargs(*args: dict, **kwargs: list) -> dict {
         return {"total_keys": sum(args), "total_items": len(kwargs)};
     }
 
     try {
-        result = complex_data_varargs(12, 16, list1=[1, 2, 3], list2=[4, 5]);
+        result = _as_any(complex_data_varargs)(12, 16, list1=[1, 2, 3], list2=[4, 5]);
         print("✅ PASS: Complex data structures:", result);
     } except Exception as e {
         print("❌ FAIL: Complex data structures failed");
     }
 
     # Test 18: Special character handling in kwargs keys
-    def special_chars_kwargs( **kwargs: str)  -> dict {
+    def special_chars_kwargs(**kwargs: str) -> dict {
         return {"keys": list(kwargs.keys()), "count": len(kwargs)};
     }
 
@@ -102,7 +105,7 @@ def additional_varargs_edge_cases()  -> None {
     }
 
     # Test 19: Very large argument counts
-    def stress_test_args( *args: int)  -> dict {
+    def stress_test_args(*args: int) -> dict {
         return {
             "count": len(args),
             "sum": sum(args),
@@ -121,7 +124,9 @@ def additional_varargs_edge_cases()  -> None {
     }
 
     # Test 20: Mixing unpacking with explicit args
-    def mixed_unpacking_test(first: str, *args: int, last: str, **kwargs: bool) -> dict {
+    def mixed_unpacking_test(
+        first: str, *args: int, last: str, **kwargs: bool
+    ) -> dict {
         _sum = sum(args);
         _kwargs_true_count = 0;
         for v in kwargs.values() {
@@ -171,7 +176,7 @@ with entry {
 
     # Test 1: Wrong types in *args (if type checking enabled)
     try {
-        result = simple_args_only(1, 2, "not_int", 4);
+        result = _as_any(simple_args_only)(1, 2, "not_int", 4);
         print("❌ FAIL: Should catch mixed types in *args");
     } except Exception as e {
         print("✅ PASS: Caught *args type error");
@@ -179,7 +184,7 @@ with entry {
 
     # Test 2: Wrong types in **kwargs (if type checking enabled)
     try {
-        result = simple_kwargs_only(12, a="string", b=123, c="string");
+        result = _as_any(simple_kwargs_only)(12, a="string", b=123, c="string");
         print("❌ FAIL: Should catch mixed types in **kwargs");
     } except Exception as e {
         print("✅ PASS: Caught **kwargs type error");
@@ -187,14 +192,14 @@ with entry {
 
     # Test 3: Missing required before *args
     try {
-        result = args_with_required(1, 2, 3, apple=90);
+        result = _as_any(args_with_required)(1, 2, 3, apple=90);
     } except Exception as e {
         print("✅ PASS: Caught required param type error");
     }
 
     # Test 4: Missing required before **kwargs
     try {
-        result = kwargs_with_required(name="test", value="data");
+        result = _as_any(kwargs_with_required)(name="test", value="data");
         print("❌ FAIL: Should catch wrong types for required");
     } except Exception as e {
         print("✅ PASS: Caught required before kwargs error");
@@ -202,7 +207,7 @@ with entry {
 
     # Test 5: Complex signature - pos-only passed as keyword
     try {
-        result = full_varargs_signature(pos=1, reg="test", kw_req=True);
+        result = _as_any(full_varargs_signature)(pos=1, reg="test", kw_req=True);
         print("❌ FAIL: Should reject pos-only as keyword in varargs");
     } except Exception as e {
         print("✅ PASS: Caught pos-only in varargs error");
@@ -210,7 +215,7 @@ with entry {
 
     # Test 6: Complex signature - missing required kw-only
     try {
-        result = full_varargs_signature(1, "test", 2.0, 10, 20);
+        result = _as_any(full_varargs_signature)(1, "test", 2.0, 10, 20);
         print("❌ FAIL: Should reject missing kw-only in varargs");
     } except Exception as e {
         print("✅ PASS: Caught missing kw-only in varargs");
@@ -218,7 +223,9 @@ with entry {
 
     # Test 7: Name conflicts between params and kwargs
     try {
-        result = conflicting_names("test", "arg1", name_kw="kw_test", name="conflict");
+        result = _as_any(conflicting_names)(
+            "test", "arg1", name_kw="kw_test", name="conflict"
+        );
         print("❌ FAIL: Should catch parameter name conflicts");
     } except Exception as e {
         print("✅ PASS: Caught name conflict error");
@@ -226,7 +233,7 @@ with entry {
 
     # Test 8: Type-sensitive varargs with wrong types
     try {
-        result = type_sensitive_varargs(1, 2, 3, a="not_int", b=4.5);
+        result = _as_any(type_sensitive_varargs)(1, 2, 3, a="not_int", b=4.5);
         print("❌ FAIL: Should catch type mismatch in kwargs");
     } except Exception as e {
         print("✅ PASS: Caught varargs type sensitivity error");
@@ -235,7 +242,7 @@ with entry {
     # Test 9: Double unpacking issues
     try {
         data = {"a": {"nested": "dict"}, "b": "simple"};
-        result = double_star_issues(**data);
+        result = _as_any(double_star_issues)(**data);
         print("✅ INFO: Double star result:", result);
     } except Exception as e {
         print("✅ PASS: Caught double star error");
@@ -243,7 +250,7 @@ with entry {
 
     # Test 10: Empty varargs but required params missing
     try {
-        result = edge_case_empty_varargs();
+        result = _as_any(edge_case_empty_varargs)();
         print("❌ FAIL: Should catch missing required with empty varargs");
     } except Exception as e {
         print("✅ PASS: Caught missing required in empty varargs");
@@ -252,7 +259,7 @@ with entry {
     # Test 11: Keyword argument conflicts with *args collection
     try {
         items = [1, 2, 3];
-        result = args_with_required("test", *items, args="conflict");
+        result = _as_any(args_with_required)("test", *items, args="conflict");
         print("❌ FAIL: Should catch args name conflict");
     } except Exception as e {
         print("✅ PASS: Caught args conflict error");

@@ -398,7 +398,7 @@ test "on_compaction hook returning invalid types raises ConfigurationError" {
         return "a";
     }
 
-    def run_with_hook(hook: object) -> object {
+    def run_with_hook(hook: object) -> any {
         llm = MockLLM(
             model_name="mockllm",
             ctx_window=1000,
@@ -423,7 +423,7 @@ test "on_compaction hook returning invalid types raises ConfigurationError" {
         return None;
     }
 
-    def hook_none(msgs: list, keep_recent: int) -> object {
+    def hook_none(msgs: list, keep_recent: int) -> any {
         return None;
     }
     e1 = run_with_hook(hook_none);
@@ -437,7 +437,7 @@ test "on_compaction hook returning invalid types raises ConfigurationError" {
     assert isinstance(e2, ConfigurationError);
     assert "at least 2 messages" in str(e2);
 
-    def hook_dict(msgs: list, keep_recent: int) -> object {
+    def hook_dict(msgs: list, keep_recent: int) -> any {
         return {"role": "user", "content": "wrong shape"};
     }
     e3 = run_with_hook(hook_dict);
@@ -479,7 +479,7 @@ test "streaming path triggers compaction and respects compaction_enabled" {
         on_compaction=hook1
     );
 
-    for event in task1("test") { }
+    for event in task1("test") {}
     assert fired1[0];
 
     llm2 = MockLLM(
@@ -511,7 +511,7 @@ test "streaming path triggers compaction and respects compaction_enabled" {
         on_compaction=hook2
     );
 
-    for event in task2("test") { }
+    for event in task2("test") {}
     assert not fired2[0];
 }
 
@@ -554,7 +554,7 @@ test "LocalLLM ctx_window propagation drives compaction end-to-end" {
         return "";
     }
 
-    def make_fake_dispatch -> object {
+    def make_fake_dispatch -> any {
         step_resp: dict = {
             "choices": [
                 {

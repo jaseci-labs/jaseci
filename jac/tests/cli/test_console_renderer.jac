@@ -10,7 +10,26 @@ surface, the renderer owns the drawing primitives, and the live console
 delegates to a real renderer.
 """
 
-import from jaclang.cli.console { JacConsole, ConsoleRenderer, console }
+import from jaclang.cli.console { JacConsole, ConsoleRenderer, Span, console }
+
+test "live status text refreshes while the current module is still compiling" {
+    import io;
+    import from jaclang.cli.console { _Spinner }
+    stream = io.StringIO();
+    spinner = _Spinner("", stream, ["."], "", "", interval=0);
+    ticks: list[int] = [0];
+    def progress -> str {
+        ticks[0] += 1;
+        if ticks[0] == 2 {
+            spinner._stop.set();
+        }
+        return f"0 completed · 1 active · {ticks[0]}.0s";
+    }
+    spinner.update(progress);
+    spinner._run();
+    assert "0 completed · 1 active · 1.0s" in stream.getvalue();
+    assert "0 completed · 1 active · 2.0s" in stream.getvalue();
+}
 
 
 # Every public method of the console surface. Each must live on the facade.
@@ -69,9 +88,44 @@ test "renderer implements every drawing primitive (incl. box/spinner)" {
 test "the live console delegates to a real renderer" {
     # Materialize the global singleton and reach the real console object.
     console.print;
-    c = console.__getattr__('print').__self__ if console?.__getattr__ else console;
+    console_dyn: any = console;
+    c = (
+        console_dyn.__getattr__('print').__self__
+            if console_dyn?.__getattr__
+            else console_dyn
+    );
     assert hasattr(c, '_renderer') , "console facade has no _renderer to delegate to";
     assert isinstance(c._renderer, ConsoleRenderer) , f"expected a ConsoleRenderer, got {type(
         c._renderer
     ).__name__}";
+}
+
+
+obj _RecordingStatus {
+    has cleared: int = 0;
+
+    def update(text: str = '') -> None {
+        return;
+    }
+
+    def clear {
+        self.cleared += 1;
+    }
+}
+
+
+test "an emit while a status line is live clears that line first" {
+    # A warning printed mid-compile used to land on the spinner's line; every
+    # emit now wipes the live status line, and the spinner redraws after it.
+    import io;
+    renderer = ConsoleRenderer();
+    live = _RecordingStatus();
+    renderer._active_status = live;
+    out = io.StringIO();
+    renderer.emit([Span("hello", None)], out);
+    renderer.emit_raw(["world"], out, None, {});
+    assert live.cleared == 2 , (
+        f"emit and emit_raw must each clear the live status line, saw {live.cleared}"
+    );
+    assert "hello" in out.getvalue() and "world" in out.getvalue();
 }

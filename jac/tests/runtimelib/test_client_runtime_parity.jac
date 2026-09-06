@@ -1,6 +1,6 @@
 """Contract parity across the `@jac/runtime` implementations.
 
-One public API, three runtimes (React, Solid, react-native) plus two cores, so a
+One public API, three runtimes (React, Solid, native/React Native) plus two cores, so a
 name taking different parameters per target is a silent portability bug. Asserting
 each function merely *exists* (`test_solid_backend.jac`) stayed green right through
 #8023, while React's `AuthGuard(redirect)` and Solid's `AuthGuard(redirect,
@@ -16,34 +16,39 @@ revives #8023. The last test reads the compiled body instead.
 import re;
 import jaclang;
 import from pathlib { Path }
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { run_pass }
-import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
-import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
-import from jaclang.compiler.passes.ecmascript.backends.solid { SolidBackend }
-import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.pass_driver { run_pass }
+import from jaclang.compiler.backends.es { EsastGenPass }
+import from jaclang.compiler.backends.es.es_unparse { es_to_js }
+import from jaclang.compiler.backends.es.backends.react { ReactBackend }
+import from jaclang.compiler.backends.es.backends.solid { SolidBackend }
+import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
 
-glob _RT = Path(jaclang.__file__).parent / "runtimelib",
+def _as_any(v: any) -> any {
+    return v;
+}
+
+glob _RT = Path(jaclang.__file__).parent / "client",
      # The three router/component runtimes: one public surface, three targets.
      _ROUTER_RUNTIMES: dict[str, Path] = {
          "react": _RT / "client_runtime.jac",
          "solid": _RT / "solid_runtime.jac",
-         "react-native": _RT / "client" / "client_runtime_native.jac"
+         "native": _RT / "client_runtime_native.jac"
      },
      # The two cores underneath them (auth, walker calls, form plumbing).
      _RUNTIME_CORES: dict[str, Path] = {
          "web": _RT / "client_runtime_core.jac",
-         "native": _RT / "client" / "client_runtime_core.jac"
+         "native": _RT / "client_react_core.jac"
      },
      # `target -> (backend, no-children fallback)` for the compiled-body test.
-     # react-native rides the React backend. Solid's fallback is None: its entry
-     # always passes `props.children`, so it has no `<Outlet/>` branch to keep.
+     # The native (React Native) runtime rides the React backend. Solid's
+     # fallback is None: its entry always passes `props.children`, so it has
+     # no `<Outlet/>` branch to keep.
      _AUTHGUARD_TARGETS: dict[str, tuple[any, (str | None)]] = {
          "react": (ReactBackend, "ReactRouterOutlet"),
-         "react-native": (ReactBackend, "__nativeOutlet"),
+         "native": (ReactBackend, "__nativeOutlet"),
          "solid": (SolidBackend, None)
      };
 
@@ -88,7 +93,7 @@ def _signatures(path: Path) -> dict[str, list] {
             continue;
         }
         params = [];
-        for prm in (abl.signature.params or []) {
+        for prm in (_as_any(abl.signature).params or []) {
             type_node = prm.type_tag.tag if prm.type_tag else None;
             params.append(
                 (prm.name.value, _node_text(src, type_node), _node_text(src, prm.value))
@@ -106,9 +111,7 @@ parameter even after the `impl/` body stops using one. Dropping it leaves only
 what the impl actually wrote -- which is where the behavior lives."""
 def _compiled_body(path: Path, backend: any, name: str) -> str {
     prog = JacProgram();
-    ir = prog.compile(
-        file_path=str(path), options=CompileOptions(type_check=True, no_cgen=True)
-    );
+    ir = prog.compile(file_path=str(path), options=CompileOptions(no_cgen=True));
     fatal = [
         e
         for e in prog.errors_had
@@ -219,7 +222,7 @@ test "runtime cores declare one signature per shared symbol" {
 test "AuthGuard takes redirect and children on every target" {
     # The specific contract #8023 turned on, pinned by name so a regression
     # reports itself rather than arriving as an anonymous parity diff. React and
-    # react-native once declared `redirect` alone and discarded any wrapped page.
+    # the native runtime once declared `redirect` alone and discarded any wrapped page.
     for (target, path) in _ROUTER_RUNTIMES.items() {
         params = _signatures(path).get("AuthGuard");
         assert params is not None , f"{target} does not declare AuthGuard";

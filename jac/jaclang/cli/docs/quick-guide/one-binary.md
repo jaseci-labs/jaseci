@@ -41,8 +41,8 @@ maintain: they are compiler output, owned and re-derived on every build.
 | **Bun** | Node.js, npm, npx | Bundled -- compiles `.jac` to JS, manages npm deps |
 | **LLVM + Zig linker** | gcc, clang, make, cmake | Bundled -- `jac build --as native` produces native binaries |
 | **Package manager** | pip, npm, pipx | `jac install` for PyPI and npm |
-| **REST server** | Flask, FastAPI, Express | `jac start` -- walkers become API endpoints |
-| **Kubernetes deployer** | Docker + kubectl + Helm | `jac start --scale` -- one-command K8s deployment |
+| **REST server** | Flask, FastAPI, Express | `jac run` -- walkers become API endpoints |
+| **Kubernetes deployer** | Docker + kubectl + Helm | `jac scale deploy` -- one-command K8s deployment |
 | **AI integration** | LangChain, prompt libraries | `by llm()` -- built into the language |
 | **MCP server** | Separate MCP package | `jac mcp` -- built in, no install needed |
 | **Type checker** | mypy, pyright, tsc | `jac check` -- built into the compiler |
@@ -72,7 +72,7 @@ jac install
 numpy = ">=1.26"
 
 [dependencies.npm]
-react = "^18.2.0"
+react = "^19.2.0"
 ```
 
 Both PyPI and npm packages live in the same config file, managed by the same tool.
@@ -118,7 +118,7 @@ With Jac installed, you no longer need these on your development machine:
 | Node.js / npm / npx / yarn | Jac bundles Bun; `jac install` manages JS deps |
 | venv / virtualenv | `.jac/venv` is automatic and project-scoped |
 | gcc / clang / make / cmake | Jac bundles LLVM + Zig for native compilation |
-| Flask / FastAPI / Express | `jac start` generates a server from your code |
+| Flask / FastAPI / Express | `jac run` generates a server from your code |
 
 !!! note
     You only need these replacements if you're building with Jac. If you have other Python or Node projects, keep those toolchains installed for them.
@@ -130,7 +130,7 @@ The one-binary idea applies to what you build, not just the toolchain. `jac buil
 ```bash
 jac build                  # -> dist/<app>.jab
 jac run dist/<app>.jab     # cli kinds execute
-jac start dist/<app>.jab   # servable kinds production-serve
+jac run dist/<app>.jab     # servable kinds production-serve
 ```
 
 For machines with nothing installed at all -- no Jac, no Python, no Node -- project the same app to a **self-contained executable**. `jac build --as binary` appends the sealed `.jab` onto a copy of the `jac` launcher, producing one file that carries the full runtime:
@@ -169,7 +169,7 @@ jac --version
 jac create my-app --kind web-app
 cd my-app
 jac install
-jac start
+jac run
 
 # Open http://localhost:8000
 ```
