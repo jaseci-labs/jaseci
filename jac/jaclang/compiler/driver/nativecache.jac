@@ -1,7 +1,12 @@
 import os;
-import time;
+import type from jaclang.compiler.driver.program { JacProgram }
+import type from jaclang.compiler.frontend.codeinfo { CodeGenTarget }
+import type from jaclang.compiler.frontend.unitree { Module }
 import from jaclang.compiler.driver.jir {
     NativeStamp,
+    SEC_NCTDEPS,
+    ct_deps_section,
+    ct_dep_text_fresh,
     SEC_NBITCODE,
     SEC_NIFACE,
     SEC_NOBJ,
@@ -11,6 +16,7 @@ import from jaclang.compiler.driver.jir {
     get_module_cache_path,
     is_module_cache_valid,
     jir_cacheable_source_path,
+    module_cache_key,
     native_section_payload,
     read_native_dep_hashes,
     read_section_bytes,
@@ -83,7 +89,12 @@ obj NativeUnitEntry {
         iface: NativeIface,
         stamp: NativeStamp,
         source: str = "",
-        loaded_at: float = 0.0;
+        source_key: (str | None) = None,
+        object_bytes: (bytes | None) = None,
+        bitcode: (bytes | None) = None,
+        compile_deps: bytes = b"",
+        compile_deps_base: str = "",
+        dep_digests: dict[str, str] = {};
 }
 
 obj NativeVerdict {
@@ -93,14 +104,14 @@ obj NativeVerdict {
 }
 
 obj NativeUnitRegistry {
-    has prog: any,
+    has prog: JacProgram,
         entries: dict[str, NativeUnitEntry] = {},
         building: set[str] postinit,
         checking: set[str] postinit,
-        not_native: dict[str, tuple] = {},
+        not_native: dict[str, str] = {},
         failures: dict[str, str] = {},
-        recorded_deps: dict[str, dict[str, str]] = {},
-        verdicts: dict[str, tuple[tuple, NativeVerdict]] = {};
+        compiled_paths: list[str] = [],
+        verdicts: dict[str, tuple[str, NativeVerdict]] = {};
 
     def postinit {
         self.building = set();
@@ -110,22 +121,21 @@ obj NativeUnitRegistry {
     def clear {
         self.entries.clear();
         self.not_native.clear();
-        self.recorded_deps.clear();
         self.verdicts.clear();
+        self.compiled_paths.clear();
+        self.failures.clear();
     }
 
     def forget(path: str) {
         real = os.path.realpath(path);
         self.entries.pop(real, None);
-        self.recorded_deps.pop(real, None);
         self.not_native.pop(real, None);
         self.failures.pop(real, None);
     }
 
-    static def _file_key(path: str) -> (tuple | None) {
+    static def _source_key(path: str) -> (str | None) {
         try {
-            st = os.stat(path);
-            return (st.st_mtime_ns, st.st_size);
+            return module_cache_key(path);
         } except OSError {
             return None;
         }
@@ -134,6 +144,18 @@ obj NativeUnitRegistry {
     def _event(name: str) {
         counters = self.prog.analysis.cache_events;
         counters[name] = counters.get(name, 0) + 1;
+    }
+
+    def note_codegen(path: str, object_emitted: bool = True) {
+        self.compiled_paths.append(os.path.realpath(path));
+        self._event("native_unit_codegen");
+        if object_emitted {
+            self._event("native_object_emit");
+        }
+    }
+
+    def note_link(reused: bool) {
+        self._event("native_link_hit" if reused else "native_link");
     }
 
     def _options -> CompileOptions {
@@ -161,25 +183,12 @@ obj NativeUnitRegistry {
     }
 
     def _entry_fresh(ent: NativeUnitEntry) -> bool {
-        import from jaclang.compiler.driver.bccache { discover_annex_files }
-        if not os.path.exists(ent.path) {
-            """A module compiled from a string has no file that could be
-            newer than what was recorded.""";
-            return True;
-        }
-        try {
-            if os.path.getmtime(ent.path) > ent.loaded_at {
-                return False;
-            }
-            for related in discover_annex_files(ent.path) {
-                if os.path.getmtime(related) > ent.loaded_at {
-                    return False;
-                }
-            }
-            return True;
-        } except OSError {
-            return False;
-        }
+        """Use the shared source key, including annex membership and content.
+        A deleted file differs from a unit that never had a source file.""";
+        return ent.source_key == NativeUnitRegistry._source_key(ent.path)
+            and ct_dep_text_fresh(
+                ent.compile_deps.decode("utf-8"), ent.compile_deps_base
+            );
     }
 
     def _register(
@@ -191,7 +200,7 @@ obj NativeUnitRegistry {
             iface=iface,
             stamp=stamp,
             source=source,
-            loaded_at=time.time()
+            source_key=NativeUnitRegistry._source_key(resolved)
         );
         self.entries[resolved] = ent;
         return ent;
@@ -201,17 +210,23 @@ obj NativeUnitRegistry {
         path: str,
         iface: NativeIface,
         options: (CompileOptions | None) = None,
-        dep_digests: (dict[str, str] | None) = None
+        dep_digests: (dict[str, str] | None) = None,
+        compile_deps: bytes = b""
     ) -> NativeUnitEntry {
         resolved = os.path.realpath(path);
-        if dep_digests is not None {
-            self.recorded_deps[resolved] = dict(dep_digests);
+        ent = self._register(resolved, iface, self.stamp_for(options), "compile");
+        ent.compile_deps = compile_deps;
+        ent.dep_digests = dict(dep_digests or {});
+        gen = self._live_gen(resolved);
+        if gen is not None {
+            ent.object_bytes = gen.native_object;
+            ent.bitcode = gen.native_bitcode;
         }
-        return self._register(resolved, iface, self.stamp_for(options), "compile");
+        return ent;
     }
 
     def record_module(
-        module: any, options: (CompileOptions | None) = None
+        module: Module, options: (CompileOptions | None) = None
     ) -> (NativeUnitEntry | None) {
         """A module this process just lowered enters the registry with the
         digests of the dependencies it was lowered against, which are the
@@ -223,32 +238,44 @@ obj NativeUnitRegistry {
         if gen.native_iface is None {
             return None;
         }
-        return self.record(
+        ent = self.record(
             module.loc.mod_path,
             gen.native_iface,
             options,
-            dep_digests=self.dep_digests(list(gen.native_deps or []))
+            dep_digests=self.dep_digests(list(gen.native_deps or [])),
+            compile_deps=ct_deps_section(module.ct_file_deps, module.ct_body_deps)
         );
+        ent.object_bytes = gen.native_object;
+        ent.bitcode = gen.native_bitcode;
+        return ent;
     }
 
-    def recorded_native_deps(path: str) -> list[tuple[str, str]] {
+    def recorded_native_deps(
+        path: str, options: (CompileOptions | None) = None
+    ) -> list[tuple[str, str]] {
         resolved = os.path.realpath(path);
-        live = self.recorded_deps.get(resolved);
-        if live is not None {
-            return sorted(live.items());
+        live = self.entries.get(resolved);
+        if live is not None and live.stamp.matches(self.stamp_for(options)) {
+            return sorted(live.dep_digests.items());
         }
         found = self._module_jir(resolved);
         if found is None {
             return [];
         }
-        return read_native_dep_hashes(found[0], self.stamp_for(), found[1], resolved);
+        return read_native_dep_hashes(
+            found[0], self.stamp_for(options), found[1], resolved
+        );
     }
 
     def _deps_match(
-        data: bytes, stamp: NativeStamp, base_dir: str, anchor: str = ""
+        data: bytes,
+        stamp: NativeStamp,
+        base_dir: str,
+        anchor: str = "",
+        options: (CompileOptions | None) = None
     ) -> bool {
         for (dep, recorded) in read_native_dep_hashes(data, stamp, base_dir, anchor) {
-            ent = self.ensure(dep, compile_on_miss=False);
+            ent = self.ensure(dep, compile_on_miss=False, options=options);
             if ent is None or ent.digest != recorded {
                 return False;
             }
@@ -266,7 +293,10 @@ obj NativeUnitRegistry {
     }
 
     def _read_from_disk(
-        resolved: str, stamp: NativeStamp, check_deps: bool
+        resolved: str,
+        stamp: NativeStamp,
+        check_deps: bool,
+        options: (CompileOptions | None) = None
     ) -> (NativeUnitEntry | None) {
         found = self._module_jir(resolved);
         if found is None {
@@ -278,12 +308,31 @@ obj NativeUnitRegistry {
         if iface is None {
             return None;
         }
+        compile_deps = native_section_payload(
+            read_section_bytes(data, SEC_NCTDEPS), stamp
+        );
+        if compile_deps is None
+            or not ct_dep_text_fresh(compile_deps.decode("utf-8"), base_dir) {
+            self._event("native_comptime_miss");
+            return None;
+        }
         iface.resolve_deps(resolved);
-        if check_deps and not self._deps_match(data, stamp, base_dir, resolved) {
+        if check_deps
+            and not self._deps_match(data, stamp, base_dir, resolved, options) {
             self._event("native_dep_miss");
             return None;
         }
-        return self._register(resolved, iface, stamp, "disk");
+        ent = self._register(resolved, iface, stamp, "disk");
+        ent.compile_deps = compile_deps;
+        ent.compile_deps_base = base_dir;
+        ent.dep_digests = dict(read_native_dep_hashes(data, stamp, base_dir, resolved));
+        ent.object_bytes = native_section_payload(
+            read_section_bytes(data, SEC_NOBJ), stamp
+        );
+        ent.bitcode = native_section_payload(
+            read_section_bytes(data, SEC_NBITCODE), stamp
+        );
+        return ent;
     }
 
     def ensure(
@@ -308,13 +357,17 @@ obj NativeUnitRegistry {
             return None;
         }
         if resolved in self.checking {
-            return self._read_from_disk(resolved, stamp, check_deps=False);
+            return self._read_from_disk(
+                resolved, stamp, check_deps=False, options=options
+            );
         }
         (rebuild, _) = cache_mode();
         if not rebuild {
             self.checking.add(resolved);
             try {
-                found = self._read_from_disk(resolved, stamp, check_deps=check_deps);
+                found = self._read_from_disk(
+                    resolved, stamp, check_deps=check_deps, options=options
+                );
             } finally {
                 self.checking.discard(resolved);
             }
@@ -326,7 +379,7 @@ obj NativeUnitRegistry {
         if not compile_on_miss or not os.path.isfile(resolved) {
             return None;
         }
-        if self.not_native.get(resolved) == NativeUnitRegistry._file_key(resolved) {
+        if self.not_native.get(resolved) == NativeUnitRegistry._source_key(resolved) {
             return None;
         }
         return self.compile_unit(resolved, options);
@@ -338,7 +391,7 @@ obj NativeUnitRegistry {
         resolved = os.path.realpath(path);
         self.entries.pop(resolved, None);
         return self._read_from_disk(
-            resolved, self.stamp_for(options), check_deps=False
+            resolved, self.stamp_for(options), check_deps=False, options=options
         );
     }
 
@@ -443,23 +496,21 @@ obj NativeUnitRegistry {
     def products_blob(path: str, options: (CompileOptions | None) = None) -> bytes {
         resolved = os.path.realpath(path);
         ent = self.entries.get(resolved);
-        gen = self.prog.hub.artifacts.get(resolved);
-        if ent is None or gen is None {
+        if ent is None {
             return b"";
         }
         import from jaclang.compiler.driver.jir { SEC_NDEPS, native_deps_section }
         stamp = self.stamp_for(options);
         sections: dict[int, bytes] = {
+            SEC_NCTDEPS: stamp.pack(ent.compile_deps),
             SEC_NIFACE: stamp.pack(ent.iface.to_bytes()),
-            SEC_NDEPS: stamp.pack(
-                native_deps_section(dict(self.recorded_deps.get(resolved) or {}))
-            )
+            SEC_NDEPS: stamp.pack(native_deps_section(ent.dep_digests))
         };
-        if gen.native_object is not None {
-            sections[SEC_NOBJ] = stamp.pack(gen.native_object);
+        if ent.object_bytes is not None {
+            sections[SEC_NOBJ] = stamp.pack(ent.object_bytes);
         }
-        if gen.native_bitcode is not None {
-            sections[SEC_NBITCODE] = stamp.pack(gen.native_bitcode);
+        if ent.bitcode is not None {
+            sections[SEC_NBITCODE] = stamp.pack(ent.bitcode);
         }
         return write_sections(sections);
     }
@@ -485,7 +536,6 @@ obj NativeUnitRegistry {
                 recorded[dep] = digest;
             }
         }
-        self.recorded_deps[resolved] = recorded;
         import from jaclang.compiler.frontend.codeinfo { CodeGenTarget }
         carrier = self.prog.hub.artifacts.get(resolved);
         if carrier is None {
@@ -497,7 +547,13 @@ obj NativeUnitRegistry {
         carrier.native_bitcode = native_section_payload(
             sections.get(SEC_NBITCODE), stamp
         );
-        return self._register(resolved, iface, stamp, "child");
+        ent = self._register(resolved, iface, stamp, "child");
+        ent.compile_deps = native_section_payload(sections.get(SEC_NCTDEPS), stamp)
+            or b"";
+        ent.dep_digests = recorded;
+        ent.object_bytes = carrier.native_object;
+        ent.bitcode = carrier.native_bitcode;
+        return ent;
     }
 
     def compile_unit(
@@ -547,10 +603,11 @@ obj NativeUnitRegistry {
             _UNITS_IN_FLIGHT.discard(resolved);
         }
         iface = mod.gen.native_iface if (mod is not None and mod.gen) else None;
+        self.compiled_paths.extend(unit_prog.native_units().compiled_paths);
         if iface is None {
             found = self.entries.get(resolved);
             if found is None {
-                key = NativeUnitRegistry._file_key(resolved);
+                key = NativeUnitRegistry._source_key(resolved);
                 if key is not None {
                     self.not_native[resolved] = key;
                 }
@@ -559,8 +616,11 @@ obj NativeUnitRegistry {
         }
         self.not_native.pop(resolved, None);
         gen = mod.gen;
-        self.recorded_deps[resolved] = self.dep_digests(list(gen.native_deps or []));
         ent = self._register(resolved, iface, self.stamp_for(base), "compile");
+        ent.compile_deps = ct_deps_section(mod.ct_file_deps, mod.ct_body_deps);
+        ent.dep_digests = dict(
+            unit_prog.native_units().recorded_native_deps(resolved, base)
+        );
         self._stash_products(resolved, gen);
         try {
             unit_prog.release_compile_closure(collect=False);
@@ -574,7 +634,12 @@ obj NativeUnitRegistry {
         return ent;
     }
 
-    def _stash_products(resolved: str, gen: any) {
+    def _stash_products(resolved: str, gen: CodeGenTarget) {
+        ent = self.entries.get(resolved);
+        if ent is not None {
+            ent.object_bytes = gen.native_object;
+            ent.bitcode = gen.native_bitcode;
+        }
         import from jaclang.compiler.frontend.codeinfo { CodeGenTarget }
         carrier = self.prog.hub.artifacts.get(resolved);
         if carrier is None {
@@ -625,64 +690,43 @@ obj NativeUnitRegistry {
         return NativeIface.read_digest(payload) or "";
     }
 
-    def _section_payload(
-        path: str, sec: int, options: (CompileOptions | None) = None
-    ) -> (bytes | None) {
-        resolved = os.path.realpath(path);
-        found = self._module_jir(resolved);
-        if found is None {
-            return None;
-        }
-        return native_section_payload(
-            read_section_bytes(found[0], sec), self.stamp_for(options)
-        );
-    }
-
     def object_for(
         path: str, options: (CompileOptions | None) = None
     ) -> (bytes | None) {
-        resolved = os.path.realpath(path);
-        live = self._live_gen(resolved);
-        if live is not None and live.native_object is not None {
-            return live.native_object;
+        ent = self.ensure(path, options=options, check_deps=False);
+        if ent is not None and ent.object_bytes is None {
+            if ent.bitcode is None {
+                ent = self.compile_unit(path, options);
+            }
+            if ent is not None and ent.bitcode is not None {
+                import from jaclang.compiler.backends.native.na_compile_pass {
+                    emit_unit_object
+                }
+                import from jaclang.compiler.driver.jir { write_module_cache }
+                opts = options if options is not None else self._options();
+                ent.object_bytes = emit_unit_object(ent.bitcode, opts);
+                self._event("native_object_emit");
+                write_module_cache(
+                    ent.path,
+                    None,
+                    extra_sections={SEC_NOBJ: ent.stamp.pack(ent.object_bytes)}
+                );
+            }
         }
-        payload_bytes = self._section_payload(resolved, SEC_NOBJ, options);
-        if payload_bytes is not None {
-            return payload_bytes;
-        }
-        if self.compile_unit(resolved, options) is None {
-            return None;
-        }
-        live = self._live_gen(resolved);
-        if live is not None and live.native_object is not None {
-            return live.native_object;
-        }
-        return self._section_payload(resolved, SEC_NOBJ, options);
+        return ent.object_bytes if ent is not None else None;
     }
 
     def bitcode_for(
         path: str, options: (CompileOptions | None) = None
     ) -> (bytes | None) {
-        resolved = os.path.realpath(path);
-        live = self._live_gen(resolved);
-        if live is not None and live.native_bitcode is not None {
-            return live.native_bitcode;
+        ent = self.ensure(path, options=options, check_deps=False);
+        if ent is not None and ent.bitcode is None {
+            ent = self.compile_unit(path, options);
         }
-        bc = self._section_payload(resolved, SEC_NBITCODE, options);
-        if bc is not None {
-            return bc;
-        }
-        if self.compile_unit(resolved, options) is None {
-            return None;
-        }
-        live = self._live_gen(resolved);
-        if live is not None and live.native_bitcode is not None {
-            return live.native_bitcode;
-        }
-        return self._section_payload(resolved, SEC_NBITCODE, options);
+        return ent.bitcode if ent is not None else None;
     }
 
-    def _live_gen(resolved: str) -> any {
+    def _live_gen(resolved: str) -> (CodeGenTarget | None) {
         mod = self.prog.find_module(resolved);
         if mod is not None
             and mod.gen is not None
@@ -694,7 +738,7 @@ obj NativeUnitRegistry {
 
     def verdict_for(path: str) -> (NativeVerdict | None) {
         resolved = os.path.realpath(path);
-        key = NativeUnitRegistry._file_key(resolved);
+        key = NativeUnitRegistry._source_key(resolved);
         cached = self.verdicts.get(resolved);
         if cached is not None {
             if cached[0] == key {
@@ -725,7 +769,7 @@ obj NativeUnitRegistry {
 
     def record_verdict(path: str, code: str, detail: str) {
         resolved = os.path.realpath(path);
-        key = NativeUnitRegistry._file_key(resolved);
+        key = NativeUnitRegistry._source_key(resolved);
         if key is not None {
             self.verdicts[resolved] = (
                 key,

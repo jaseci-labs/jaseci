@@ -247,6 +247,21 @@ impl NaIRGenPass._export_native_iface -> None {
         }
         fn = self.func_symtab.get(name);
         if isinstance(fn, ir.Function) {
+            decl = self._linked_callee_decl(fn);
+            if decl is not None and isinstance(decl.signature, uni.FuncSignature) {
+                import json;
+                ex.param_defaults = [
+                    json.dumps(
+                        [
+                            [tok.name, tok.value]
+                            for tok in p.value.flatten()
+                            if isinstance(tok, uni.Token)
+                        ]
+                    )
+                        if p.value is not None
+                        else "" for p in decl.signature.get_parameters()
+                ];
+            }
             ex.ownership = [
                 "borrow" if "readonly" in [str(a) for a in arg.attributes] else "own"
                 for arg in fn.args
@@ -283,6 +298,9 @@ impl NaIRGenPass._export_native_iface -> None {
     }
     iface.demoted = sorted(self._demoted_names);
     iface.clib_paths = list(self.ir_in.gen._clib_paths or []);
+    iface.python_imports = [
+        binding.name for binding in self.ir_in.gen.interop_manifest.native_imports
+    ];
     iface.clib_symbol_lib = dict(self.ir_in.gen._clib_symbol_lib or {});
     iface.deps = list(self._native_dep_paths);
     try {

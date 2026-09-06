@@ -10,6 +10,14 @@ impl module_bitcode(mod: ModuleRef) -> bytes {
     return bitcode;
 }
 
+impl emit_unit_object(bitcode: bytes, options: CompileOptions) -> bytes {
+    mod = llvm.parse_bitcode(bitcode);
+    tm = create_unit_target_machine(options);
+    result = tm.emit_object(mod);
+    assert isinstance(result, bytes);
+    return result;
+}
+
 impl create_unit_target_machine(
     options: CompileOptions, jit: bool = False
 ) -> TargetMachine {
@@ -146,9 +154,12 @@ impl NativeCompilePass._run_impl(ir_in: uni.Module) -> uni.Module {
         }
 
         module.gen.native_bitcode = module_bitcode(mod);
-        obj_bytes = target_machine.emit_object(mod);
-        assert isinstance(obj_bytes, bytes);
-        module.gen.native_object = obj_bytes;
+        if native_debug {
+            obj_bytes = target_machine.emit_object(mod);
+            assert isinstance(obj_bytes, bytes);
+            module.gen.native_object = obj_bytes;
+        }
+        self.prog.native_units().note_codegen(module.loc.mod_path, native_debug);
 
         debug_obj_path = "";
         if native_debug {

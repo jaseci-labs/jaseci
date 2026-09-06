@@ -441,6 +441,7 @@ impl NaIRGenPass._instantiate_generic(
 impl NaIRGenPass._stamp_mono_fn(
     ability: uni.Ability, spec_name: str, memo_key: str
 ) -> (ir.Function | None) {
+    self.ir_in.record_comptime_dependency(ability.loc.mod_path, body=True);
     name = ability.name_ref.sym_name if ability.name_ref else "unnamed";
     sig = ability.signature;
     param_types: list = [];
@@ -615,6 +616,7 @@ impl NaIRGenPass._stamp_mono_method(
     spec_name: str,
     memo_key: str
 ) -> (ir.Function | None) {
+    self.ir_in.record_comptime_dependency(ability.loc.mod_path, body=True);
     full_name = f"{arch_name}.{method_name}";
     if full_name in self._native_skipped_methods {
         return None;

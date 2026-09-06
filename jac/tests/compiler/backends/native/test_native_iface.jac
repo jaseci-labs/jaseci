@@ -159,3 +159,38 @@ test "merged layouts refuse a class two units lay out differently" {
     }
     assert raised , "a size disagreement must be refused";
 }
+
+test "default argument changes move the native interface" {
+    scratch = tempfile.mkdtemp(prefix="jac-default-iface-");
+    path = _scratch_copy("base.jac", "def f(x: int = 1) -> int { return x; }", scratch);
+    before = _iface_of(path);
+    Path(path).write_text("def f(x: int = 2) -> int { return x; }");
+    after = _iface_of(path);
+    assert before.exports["f"].param_defaults != after.exports["f"].param_defaults;
+    assert before.digest() != after.digest();
+    restored = NativeIface.from_bytes(after.to_bytes());
+    assert restored is not None;
+    assert restored.exports["f"].param_defaults == after.exports["f"].param_defaults;
+}
+
+test "native source revisions include deletion, preserved timestamps and annex membership" {
+    import from jaclang.compiler.driver.nativecache { NativeUnitRegistry }
+    scratch = tempfile.mkdtemp(prefix="jac-native-revision-");
+    path = Path(_scratch_copy("base.jac", "def f -> int { return 1; }", scratch));
+    registry = NativeUnitRegistry(JacProgram());
+    ent = registry.record(str(path), NativeIface());
+    old_stat = path.stat();
+    path.write_text("def f -> int { return 2; }");
+    os.utime(path, ns=(old_stat.st_atime_ns, old_stat.st_mtime_ns));
+    assert not registry._entry_fresh(ent);
+    ent = registry.record(str(path), NativeIface());
+    annex = Path(scratch) / "base.impl.jac";
+    annex.write_text("impl f -> int { return 2; }");
+    assert not registry._entry_fresh(ent);
+    ent = registry.record(str(path), NativeIface());
+    annex.unlink();
+    assert not registry._entry_fresh(ent);
+    ent = registry.record(str(path), NativeIface());
+    path.unlink();
+    assert not registry._entry_fresh(ent);
+}

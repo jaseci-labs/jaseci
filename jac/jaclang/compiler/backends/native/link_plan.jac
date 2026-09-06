@@ -101,6 +101,25 @@ obj LinkInputs {
         export_symbols: list[str] = [],
         init_funcs: list[str] = [],
         static_musl: bool = False;
+
+    def digest(plan_digest: str, kind: str, soname: str) -> str {
+        """Hash the actual linker inputs, including selected archive members.
+        The plan's interfaces alone cannot identify a linked artifact.""";
+        payload = {
+            "plan": plan_digest,
+            "kind": kind,
+            "soname": soname,
+            "objects": [hashlib.sha256(b).hexdigest() for b in self.objects],
+            "archives": [hashlib.sha256(b).hexdigest() for b in self.archive_members],
+            "crt": [hashlib.sha256(b).hexdigest() for b in self.crt_objects],
+            "libraries": self.needed_libs,
+            "symbols": self.symbol_lib_map,
+            "exports": self.export_symbols,
+            "initializers": self.init_funcs,
+            "static_musl": self.static_musl
+        };
+        return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest();
+    }
 }
 
 obj LinkResult {
@@ -109,7 +128,8 @@ obj LinkResult {
         layout_digest: str,
         sha256: str,
         classes: dict = {},
-        units: list[str] = [];
+        units: list[str] = [],
+        reused: bool = False;
 }
 
 obj LinkPlan {
@@ -300,7 +320,6 @@ def build_link_plan(
     real_roots = [os.path.realpath(r) for r in roots];
     units: dict[str, LinkUnit] = {};
     edges: dict[str, list[str]] = {};
-    order: list[str] = [];
 
     def walk_unit(path: str, stack: list[str]) -> None {
         if path in units {
@@ -313,7 +332,9 @@ def build_link_plan(
             walk_unit(dep, stack + [path]);
         }
         errs_before = len(prog.errors_had);
-        ent = registry.ensure(path, compile_on_miss=False, options=opts);
+        ent = registry.ensure(
+            path, compile_on_miss=False, options=opts, check_deps=False
+        );
         if ent is None and os.path.isfile(path) {
             ent = registry.compile_unit_detached(path, opts);
         }
@@ -352,85 +373,111 @@ def build_link_plan(
         for dep in deps {
             walk_unit(dep, stack + [path]);
         }
-        order.append(path);
     }
 
     for root_u in real_roots {
         walk_unit(root_u, []);
     }
 
-    for _round in range(6) {
-        unsettled: dict[str, str] = {};
-        for (path, deps) in edges.items() {
-            recorded_for = dict(registry.recorded_native_deps(path));
-            for dep in deps {
-                live = units.get(dep);
-                if live is None {
-                    continue;
-                }
-                recorded = recorded_for.get(dep, "");
-                if not recorded {
-                    unsettled[path] = f"compiled while {dep} was still building";
-                } elif recorded != live.digest {
-                    unsettled[path] = (
-                        f"compiled against {dep} at {recorded[:12]}, now {live.digest[:12]}"
-                    );
+    import from jaclang.compiler.driver.dependency_graph { dependency_groups }
+    import from jaclang.compiler.frontend.codeinfo { is_kernel_unit_path }
+    seen: set[str] = set();
+    ordered: list[LinkUnit] = [];
+    while True {
+        groups = dependency_groups(edges, real_roots);
+        ordered = [];
+        for group in groups {
+            members = [units[p] for p in group];
+            members.sort(
+                key=lambda (u: LinkUnit) { (
+                    0 if is_kernel_unit_path(u.path) else 1,
+                    1 if u.is_root else 0,
+                    u.path
+                ); }
+            );
+            ordered.extend(members);
+        }
+        state = json.dumps(
+            [
+                [
+                    u.path,
+                    u.digest,
+                    edges[u.path],
+                    registry.recorded_native_deps(u.path, opts)
+                ] for u in ordered
+            ]
+        );
+        if state in seen {
+            disagreements: list[str] = [];
+            for u in ordered {
+                recorded = dict(registry.recorded_native_deps(u.path, opts));
+                for dep in edges[u.path] {
+                    actual = units[dep].digest;
+                    prior = recorded.get(dep, "");
+                    if prior != actual {
+                        disagreements.append(
+                            f"{u.path} -> {dep}: {prior[:12] or 'missing'}, expected {actual[:12]}"
+                        );
+                    }
                 }
             }
-        }
-        if not unsettled {
-            break;
-        }
-        if env_na_debug() {
-            sys.stderr.write(
-                f"[link plan] round {_round + 1}: {len(unsettled)} unit(s) unsettled\n"
-                    + "".join(
-                        f"  {os.path.basename(p)}: {why}\n"
-                        for (p, why) in sorted(unsettled.items())
-                    )
-            );
-        }
-        if _round == 5 {
             raise LinkPlanError(
-                "native interface disagreement did not settle: "
-                    + "; ".join(f"{p}: {why}" for (p, why) in sorted(unsettled.items()))
+                "native interfaces did not converge: " + "; ".join(disagreements)
             );
         }
-        for path in sorted(unsettled.keys()) {
-            if not os.path.isfile(path) {
+        seen.add(state);
+        rebuilt = False;
+        for u in ordered {
+            recorded = dict(registry.recorded_native_deps(u.path, opts));
+            stale = [
+                dep
+                for dep in edges[u.path]
+                if not recorded.get(dep) or recorded[dep] != units[dep].digest
+            ];
+            if not stale {
+                continue;
+            }
+            if not os.path.isfile(u.path) {
                 raise LinkPlanError(
-                    f"{path} was compiled from a string and cannot be lowered "
-                    f"again to settle ({unsettled[path]})"
+                    f"{u.path} was compiled from a string and cannot be lowered "
+                    f"again to settle its dependencies: {', '.join(stale)}"
                 );
             }
-            registry.forget(path);
-            try {
-                prog.invalidate_module(path);
-            } except Exception {}
-            ent = registry.compile_unit_detached(path, opts);
+            if env_na_debug() {
+                sys.stderr.write(
+                    f"[link plan] rebuilding {u.path}: {', '.join(stale)}\n"
+                );
+            }
+            registry.forget(u.path);
+            prog.invalidate_module(u.path);
+            ent = registry.compile_unit_detached(u.path, opts);
             if ent is None {
                 raise LinkPlanError(
-                    f"{path} failed to lower against its dependencies "
-                    f"({registry.failures.get(path) or 'no diagnostic was recorded'})"
+                    f"{u.path} failed to lower against its dependencies "
+                    f"({registry.failures.get(u.path) or 'no diagnostic was recorded'})"
                 );
             }
-            units[path].iface = ent.iface;
-            units[path].digest = ent.digest;
-            units[path].prefix = ent.iface.prefix;
+            u.iface = ent.iface;
+            u.digest = ent.digest;
+            u.prefix = ent.iface.prefix;
+            new_deps = sorted(os.path.realpath(d) for d in ent.iface.deps);
+            changed_edges = new_deps != edges[u.path];
+            edges[u.path] = new_deps;
+            for dep in new_deps {
+                walk_unit(dep, []);
+            }
+            rebuilt = True;
+            if changed_edges {
+                """Recompute reachability and group order before compiling another
+                consumer. A lowering can add or remove native dependencies.""";
+                break;
+            }
+        }
+        if not rebuilt {
+            break;
         }
     }
 
-    ordered = [units[p] for p in order];
-    """Toolchain units depend on nothing a program defines, so they lead
-    the order whatever path the walk reached them by; the root closes it.""";
-    import from jaclang.compiler.frontend.codeinfo { is_kernel_unit_path }
-    ordered.sort(
-        key=lambda (u: LinkUnit) { (
-            0 if is_kernel_unit_path(u.path) else 1,
-            1 if u.is_root else 0,
-
-        ); }
-    );
     check_pub_collisions(ordered);
     return LinkPlan(
         prog=prog,
@@ -629,7 +676,11 @@ def sidecar_unit_paths(sidecar: dict) -> list[str] {
 }
 
 def _write_sidecar(
-    plan: LinkPlan, output_path: str, plan_digest: str
+    plan: LinkPlan,
+    output_path: str,
+    plan_digest: str,
+    input_digest: str = "",
+    artifact_sha256: str = ""
 ) -> tuple[dict, str] {
     classes = plan.merged_layout();
     ldigest = layout_digest_of(classes);
@@ -641,7 +692,9 @@ def _write_sidecar(
         "layout_digest": ldigest,
         "units": unit_paths,
         "unit_ids": [native_unit_identity(p) for p in unit_paths],
-        "source_key": units_source_key(unit_paths, plan.options)
+        "source_key": units_source_key(unit_paths, plan.options),
+        "input_digest": input_digest,
+        "artifact_sha256": artifact_sha256
     };
     with open(output_path + ".layout.json", "w", encoding="utf-8") as lf {
         lf.write(json.dumps(sidecar, sort_keys=True));
@@ -655,6 +708,44 @@ def _sha256_of(path: str) -> str {
         h.update(f.read());
     }
     return h.hexdigest();
+}
+
+def _reuse_artifact(
+    plan: LinkPlan, output_path: str, input_digest: str
+) -> (LinkResult | None) {
+    import from jaclang.compiler.driver.jir { cache_mode }
+    (rebuild, _) = cache_mode();
+    if rebuild or plan.options.native_debug {
+        return None;
+    }
+    try {
+        with open(output_path + ".layout.json", encoding="utf-8") as f {
+            sidecar = json.load(f);
+        }
+        if not isinstance(sidecar, dict)
+            or sidecar.get("input_digest") != input_digest {
+            return None;
+        }
+        classes = plan.merged_layout();
+        if sidecar.get("classes") != classes {
+            return None;
+        }
+        digest = _sha256_of(output_path);
+        if sidecar.get("artifact_sha256") != digest {
+            return None;
+        }
+        return LinkResult(
+            output_path=output_path,
+            plan_digest=plan.plan_digest(),
+            layout_digest=layout_digest_of(classes),
+            sha256=digest,
+            classes=classes,
+            units=[u.path for u in plan.units],
+            reused=True
+        );
+    } except (OSError, ValueError, TypeError) {
+        return None;
+    }
 }
 
 def link_artifact(
@@ -722,7 +813,33 @@ def link_artifact(
     );
     inputs.static_musl = static_musl;
 
+    if static_musl {
+        musl = collect_musl_static(inputs.objects, plan.triple);
+        if musl is None {
+            raise LinkPlanError(
+                "Static musl runtime not found. Expected a vendored musl "
+                "libc.a under .pbs-build/<arch>/musl/lib (run `zig build "
+                "vendor-musl`) or set JAC_NATIVE_MUSL_DIR."
+            );
+        }
+        (musl_members, crt_objects) = musl;
+        inputs.archive_members = inputs.archive_members + musl_members;
+        inputs.crt_objects = crt_objects;
+        if log is not None {
+            log(
+                f"  Static-linking musl: {len(musl_members)} libc member(s) + "
+                f"{len(crt_objects)} crt object(s)."
+            );
+        }
+    }
     soname = os.path.basename(output_path);
+    input_digest = inputs.digest(plan.plan_digest(), kind.value, soname);
+    reused = _reuse_artifact(plan, output_path, input_digest);
+    if reused is not None {
+        plan.prog.native_units().note_link(True);
+        return reused;
+    }
+    plan.prog.native_units().note_link(False);
     if is_windows {
         import from jaclang.compiler.backends.native.pe_linker { PeLinker }
         ok = PeLinker.link(
@@ -750,25 +867,6 @@ def link_artifact(
         );
     } else {
         import from jaclang.compiler.backends.native.elf_linker { ElfLinker }
-        if static_musl {
-            musl = collect_musl_static(inputs.objects, plan.triple);
-            if musl is None {
-                raise LinkPlanError(
-                    "Static musl runtime not found. Expected a vendored musl "
-                    "libc.a under .pbs-build/<arch>/musl/lib (run `zig build "
-                    "vendor-musl`) or set JAC_NATIVE_MUSL_DIR."
-                );
-            }
-            (musl_members, crt_objects) = musl;
-            inputs.archive_members = inputs.archive_members + musl_members;
-            inputs.crt_objects = crt_objects;
-            if log is not None {
-                log(
-                    f"  Static-linking musl: {len(musl_members)} libc member(s) + "
-                    f"{len(crt_objects)} crt object(s)."
-                );
-            }
-        }
         ok = ElfLinker.link(
             objects=inputs.objects,
             output_path=output_path,
@@ -786,12 +884,15 @@ def link_artifact(
         raise LinkPlanError(f"{platform} link failed: could not parse an object");
     }
     digest = plan.plan_digest();
-    (classes, ldigest) = _write_sidecar(plan, output_path, digest);
+    artifact_sha256 = _sha256_of(output_path);
+    (classes, ldigest) = _write_sidecar(
+        plan, output_path, digest, input_digest, artifact_sha256
+    );
     return LinkResult(
         output_path=output_path,
         plan_digest=digest,
         layout_digest=ldigest,
-        sha256=_sha256_of(output_path),
+        sha256=artifact_sha256,
         classes=classes,
         units=[u.path for u in plan.units]
     );

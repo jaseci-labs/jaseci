@@ -1405,8 +1405,17 @@ impl JacCompiler._native_sections(
         sections[SEC_NBITCODE] = stamp.pack(gen.native_bitcode);
     }
     dep_digests = registry.dep_digests(list(gen.native_deps or []));
-    registry.record(full_target, gen.native_iface, actual_program.options, dep_digests);
     sections[SEC_NDEPS] = stamp.pack(native_deps_section(dep_digests));
+    import from jaclang.compiler.driver.jir { SEC_NCTDEPS, ct_deps_section }
+    compile_deps = ct_deps_section(result.ct_file_deps, result.ct_body_deps);
+    sections[SEC_NCTDEPS] = stamp.pack(compile_deps);
+    registry.record(
+        full_target,
+        gen.native_iface,
+        actual_program.options,
+        dep_digests,
+        compile_deps=compile_deps
+    );
     return sections;
 }
 

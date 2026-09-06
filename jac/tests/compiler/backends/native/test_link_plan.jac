@@ -61,9 +61,7 @@ def _plan_for(root_dir: str, mode: str = "") -> tuple[JacProgram, any] {
     prog = JacProgram();
     opts = _opts(mode);
     top = os.path.join(root_dir, "top.jac");
-    mod = prog.compile(file_path=top, options=opts);
-    assert not prog.errors_had , [str(e) for e in prog.errors_had];
-    assert mod.gen.native_iface is not None;
+    prog.options = opts;
     return (prog, build_link_plan(prog, [top], opts, mode=mode));
 }
 
@@ -116,12 +114,146 @@ test "a body edit rewrites one object and keeps every interface" {
     left.write_text(left.read_text().replace("scale(p.sum(), 2)", "scale(p.sum(), 3)"));
     (prog2, plan2) = _plan_for(root_dir);
     registry2 = prog2.native_units();
+    assert registry2.compiled_paths == [os.path.realpath(str(left))] , registry2.compiled_paths;
     assert registry2.object_for(str(left), _opts()) != obj_before , "left's object must be rebuilt";
     assert registry2.object_for(os.path.join(root_dir, "base.jac"), _opts())
         == base_obj_before , "base is untouched";
     for u in plan2.units {
         prev = plan.unit(u.path);
         assert prev is not None and prev.digest == u.digest , f"{u.path} interface moved on a body edit";
+    }
+}
+
+test "a no-op build lowers no units and preserves the linked artifact" {
+    if _can_link_host() {
+        root_dir = _diamond_copy();
+        (prog, plan) = _plan_for(root_dir);
+        output = os.path.join(root_dir, "program");
+        first = link_artifact(plan, output, ArtifactKind.EXECUTABLE);
+        before = os.stat(output).st_mtime_ns;
+        (warm_prog, warm_plan) = _plan_for(root_dir);
+        assert warm_prog.native_units().compiled_paths == [];
+        second = link_artifact(warm_plan, output, ArtifactKind.EXECUTABLE);
+        assert second.reused;
+        assert second.sha256 == first.sha256;
+        assert os.stat(output).st_mtime_ns == before;
+        assert warm_prog.analysis.cache_events.get("native_link", 0) == 0;
+        assert warm_prog.analysis.cache_events.get("native_link_hit", 0) == 1;
+        Path(output).write_bytes(b"corrupted");
+        repaired = link_artifact(warm_plan, output, ArtifactKind.EXECUTABLE);
+        assert not repaired.reused;
+        assert repaired.sha256 == first.sha256;
+    }
+}
+
+test "changing a default argument updates an unchanged caller's executable" {
+    if _can_link_host() {
+        root_dir = tempfile.mkdtemp(prefix="jac-default-link-");
+        base = Path(root_dir) / "base.jac";
+        base.write_text("def f(x: int = 1) -> int { return x; }");
+        consumer = Path(root_dir) / "consumer.jac";
+        consumer.write_text("import from base { f }\ndef g() -> int { return f(); }");
+        top = Path(root_dir) / "top.jac";
+        top.write_text("import from consumer { g }\nwith entry { print(g()); }");
+        (prog, plan) = _plan_for(root_dir);
+        output = os.path.join(root_dir, "program");
+        link_artifact(plan, output, ArtifactKind.EXECUTABLE);
+        base.write_text("def f(x: int = 2) -> int { return x; }");
+        (updated_prog, updated_plan) = _plan_for(root_dir);
+        link_artifact(updated_plan, output, ArtifactKind.EXECUTABLE);
+        run = subprocess.run([output], capture_output=True, text=True);
+        assert run.returncode == 0 , run.stderr;
+        assert run.stdout.strip() == "2" , run.stdout;
+        assert str(consumer.resolve()) in updated_prog.native_units().compiled_paths;
+    }
+}
+
+test "bitcode builds emit objects on demand without lowering again" {
+    root_dir = _diamond_copy();
+    (prog, plan) = _plan_for(root_dir, NATIVE_LINK_MODE_BITCODE);
+    registry = prog.native_units();
+    unit_path = plan.root_unit().path;
+    ent = registry.entries[unit_path];
+    assert ent.bitcode is not None and ent.object_bytes is None;
+    emitted_before = list(registry.compiled_paths);
+    obj_bytes = registry.object_for(unit_path, _opts());
+    assert obj_bytes is not None;
+    assert registry.compiled_paths == emitted_before;
+}
+
+test "settlement refreshes edges and removes dependencies no longer reachable" {
+    import from unittest.mock { patch }
+    import from jaclang.compiler.driver.native_iface { NativeIface }
+    scratch = Path(tempfile.mkdtemp(prefix="jac-plan-edges-"));
+    paths: dict[str, str] = {};
+    for name in ["top", "old", "new"] {
+        path = scratch / (name + ".jac");
+        path.write_text("def f -> int { return 1; }");
+        paths[name] = str(path.resolve());
+    }
+    prog = JacProgram();
+    opts = _opts();
+    prog.options = opts;
+    registry = prog.native_units();
+    registry.record(paths["old"], NativeIface(module="old", prefix="old"), opts);
+    replacement = registry.record(
+        paths["new"], NativeIface(module="new", prefix="new"), opts
+    );
+    registry.record(
+        paths["top"], NativeIface(module="top", prefix="top", deps=[paths["old"]]), opts
+    );
+    def recompile(path: str, options: CompileOptions) -> any {
+        assert path == paths["top"];
+        return registry.record(
+            path,
+            NativeIface(module="top", prefix="top", deps=[paths["new"]]),
+            options,
+            dep_digests={paths["new"]: replacement.digest}
+        );
+    }
+    with patch.object(
+        registry, "compile_unit_detached", side_effect=recompile
+    ) as compile_unit {
+        plan = build_link_plan(prog, [paths["top"]], opts);
+        assert compile_unit.call_count == 1;
+    }
+    assert [u.path for u in plan.units] == [paths["new"], paths["top"]];
+}
+
+test "an imported generic body invalidates native code after a bytecode cache merge" {
+    if _can_link_host() {
+        import from jaclang.compiler.driver.jir {
+            SEC_CTDEPS,
+            SEC_NCTDEPS,
+            get_module_cache_path,
+            read_section_bytes,
+            write_module_cache
+        }
+        scratch = Path(tempfile.mkdtemp(prefix="jac-generic-incremental-"));
+        base = scratch / "base.jac";
+        base.write_text("def pick[T](xs: list[T]) -> T { return xs[0]; }");
+        top = scratch / "top.jac";
+        top.write_text(
+            "import from base { pick }\nwith entry { print(pick([1, 2])); }"
+        );
+        (prog, plan) = _plan_for(str(scratch));
+        native_deps = read_section_bytes(
+            get_module_cache_path(str(top)).read_bytes(), SEC_NCTDEPS
+        );
+        assert native_deps is not None;
+        write_module_cache(str(top), None, extra_sections={SEC_CTDEPS: b""});
+        assert read_section_bytes(
+            get_module_cache_path(str(top)).read_bytes(), SEC_NCTDEPS
+        )
+            == native_deps;
+        base.write_text("def pick[T](xs: list[T]) -> T { return xs[1]; }");
+        (updated_prog, updated_plan) = _plan_for(str(scratch));
+        assert str(top.resolve()) in updated_prog.native_units().compiled_paths;
+        output = str(scratch / "program");
+        link_artifact(updated_plan, output, ArtifactKind.EXECUTABLE);
+        run = subprocess.run([output], capture_output=True, text=True);
+        assert run.returncode == 0 , run.stderr;
+        assert run.stdout.strip() == "2" , run.stdout;
     }
 }
 
@@ -150,11 +282,11 @@ test "a stale recorded dependency is recompiled until the plan agrees" {
     (prog, plan) = _plan_for(root_dir);
     registry = prog.native_units();
     top = os.path.realpath(os.path.join(root_dir, "top.jac"));
-    stale = dict(registry.recorded_deps.get(top) or {});
+    stale = dict(registry.entries[top].dep_digests);
     assert stale , "top must have recorded its dependencies";
     victim = sorted(stale.keys())[0];
     stale[victim] = "0" * 64;
-    registry.recorded_deps[top] = stale;
+    registry.entries[top].dep_digests = stale;
     plan2 = build_link_plan(prog, [top], _opts());
     recorded = dict(registry.recorded_native_deps(top));
     victim_unit = plan2.unit(victim);

@@ -210,8 +210,8 @@ impl JacProgram.load_dependency_module(
         self.record_dependency(importer_path, resolved_path);
         if need_tree {
             importer = self.find_module(JacProgram.hub_key(importer_path));
-            if importer is not None and resolved_path not in importer.ct_file_deps {
-                importer.ct_file_deps.append(resolved_path);
+            if importer is not None {
+                importer.record_comptime_dependency(resolved_path);
             }
         }
     }

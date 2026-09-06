@@ -1,6 +1,6 @@
 # Native Units
 
-Every native module is compiled once, as its own unit, and every native
+Every native module owns a reusable compilation unit, and every native
 artifact is a link of units. This page records the design behind
 `compiler/backends/native/link_plan.jac`, `link_glue.jac`,
 `kernel_resolve.jac`, `driver/nativecache.jac` and `driver/native_iface.jac`,
@@ -20,11 +20,12 @@ the same file, under `MODKEY` plus a stamp in the section's own header:
 | `SEC_NOBJ` | The relocatable object, compiled position-independent, small code model |
 | `SEC_NBITCODE` | The unit's optimized bitcode |
 | `SEC_NDEPS` | The native-interface digest of every unit it was compiled against |
+| `SEC_NCTDEPS` | Compile-time inputs, using the shared CTDEPS encoding under a native stamp |
 
 The stamp (`NativeStamp`) names the compiler digest, the codegen identity
 (gc mode, target, opt level and the rest of `CompileOptions.codegen_identity`)
 and the triple. A reader that finds a stamp it did not produce treats the
-section as absent. Only a native compile writes these four sections; a
+section as absent. Only a native compile writes these five sections; a
 bytecode compile of the same file merges around them. That is why the native
 digests have their own section: when they lived in `SEC_DEPS`, every
 bytecode compile of a unit rewrote the rows without them and the next link
@@ -33,14 +34,17 @@ plan recompiled the whole closure.
 ### The interface
 
 `NativeIface` is everything a consumer links against: exports (symbol,
-kind, parameter and return types, ownership convention, `:pub`), class
+kind, parameter and return types, default argument tokens, ownership convention, `:pub`), class
 layouts, enums, the initializer and entry symbols, the demoted function
 set, clib paths, the module layout, and the dependency edges. Its digest
-covers all of that except the edges and coverage. So a body edit, a renamed
-local or a new private helper leaves the digest alone and rebuilds one
+covers all of that except the edges and coverage. So an ordinary body edit or a renamed
+local leaves the digest alone and rebuilds one
 object; a new or removed export, a changed signature or ownership
 convention, a changed layout, a new enum member, or a gained or lost
-initializer moves it and rebuilds dependents. Codegen options never enter
+initializer moves it and rebuilds dependents. Default expressions are part of the source
+contract because callers embed them; binary signature equality alone is not
+enough. Imported generic bodies use the shared compile-time dependency
+encoding in stamped `SEC_NCTDEPS`, including their implementation annexes. Codegen options never enter
 the digest: the stamp carries them.
 
 Symbols that are not `:pub` are module-qualified, `<prefix>.<name>`, where
@@ -89,20 +93,17 @@ callers, and the plan knows nothing about any of them.
 
 1. Resolve roots: an entry module, `jc_unit` for the kernel, every native
    unit of a package for a seal.
-2. Walk edges dependencies first. Before a unit is looked at, the edges it
-   is already known to have (its interface on disk under any stamp, else the
-   type-interface dependency rows that are native units) are walked, so a
-   unit compiles after its dependencies and an import cycle nests only
-   inside the child that meets it.
-3. Compile each stale unit (`NativeUnitRegistry.compile_unit_detached`):
-   in this process for a program's plan, in a child `jac` process for the
-   kernel build and the seal, which hand their products back through a
-   blob. See "Why a child process" below.
-4. Check agreement: every recorded dependency digest must equal the digest
-   of the unit in the plan. A unit that disagrees is recompiled, and the
-   rounds continue until every record agrees; a recompile can move a unit's
-   own digest (a demoted export) and unsettle its dependents in turn. A
-   cycle that never settles is an error naming every unsettled unit.
+2. Discover the native dependency closure. Read matching unit records without
+   recursively compiling their consumers; the plan owns dependency agreement.
+3. Schedule the reachable graph through `driver/dependency_graph.jac`. The
+   deterministic scheduler puts dependencies first and groups import cycles.
+   Native units still lower individually, in process for applications and in
+   child processes for the kernel and seal.
+4. Recompile a unit only when its source/compile-time inputs changed or a
+   dependency's recorded interface differs. Process dependents after their
+   dependencies, refresh edges after lowering, and recompute reachability when
+   the graph changes. Repeated disagreement states produce an explicit
+   convergence error rather than an arbitrary six-round cutoff.
 5. Order initializers topologically and synthesize the glue object.
 6. Collect floor archives, clib paths and needed libraries from the unit
    interfaces.
@@ -119,6 +120,42 @@ the merged module optimized whole-program before MCJIT sees it. Its target
 machine is llvmlite's default for `jit=True`: with the position-independent
 small-model pair the linked artifacts use, MCJIT's AArch64 stubs branch into
 the GOT instead of through it.
+
+### Incremental development builds
+
+`jac nacompile` enters through the link plan, so a warm entry module is not
+unconditionally parsed and lowered before the cache is consulted. A no-op
+objects build lowers no units. An ordinary body edit recompiles its unit;
+a changed source contract recompiles the affected consumers.
+
+`NativeUnitEntry` owns the interface, consumed dependency digests, source
+revision, compile-time dependencies, object and bitcode together. Disk and
+memory checks use the shared module source key, which includes annex
+membership and content. Deletion and restored timestamps do not make stale
+sources fresh. Native compile-time dependencies have their own stamped section so a
+bytecode compile cannot erase them. They reuse the existing CTDEPS codec
+and are rebased with the other native sections when sealing.
+The registry's `compiled_paths` records actual lowering work;
+cache counters distinguish unit code generation, object emission, linking,
+and artifact reuse.
+
+Objects are materialized on demand from stored bitcode, without repeating
+the frontend. Bitcode builds and the JIT avoid emitting unused unit objects;
+debug builds still eagerly produce their debugger artifacts. The optimization level is unchanged.
+The JIT still optimizes and emits a merged program; this is not incremental
+whole-program optimization.
+
+For native linked files, the existing layout sidecar also records a digest
+of the actual linker inputs (objects, selected archive members, CRT objects,
+exports, libraries, kind and output name) and the artifact's SHA-256. A matching
+artifact is reused without invoking the linker or rewriting the output.
+Corruption or changed inputs cause a relink. Bitcode mode still runs its
+whole-program pipeline before this final linker-input check; wasm uses its
+existing emission path.
+
+Compiler-source edits still change the producer compiler digest. A stable
+bootstrap compiler and group-wide frontend analysis remain separate follow-up
+work; the scheduler does not weaken compiler identity or claim those speedups.
 
 ### The glue
 

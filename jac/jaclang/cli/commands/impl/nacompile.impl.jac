@@ -176,7 +176,15 @@ impl nacompile(
             nogc_enforce_modules=(_gc_cfg.enforce.modules if _gc_cfg else []),
             nogc_grandfathered=(_gc_cfg.enforce.grandfathered if _gc_cfg else [])
         );
-        ir_module = prog.compile(file_path=os.path.abspath(filename), options=options);
+        prog.options = options;
+        ir_module = (
+            prog.compile(file_path=os.path.abspath(filename), options=options)
+                if is_wasm
+                else None
+        );
+        plan = build_link_plan(
+            prog, [os.path.abspath(filename)], options, mode=link_mode
+        );
     } except Exception as e {
         console.error(f"Jac compilation failed: {e}");
         import traceback;
@@ -193,7 +201,7 @@ impl nacompile(
         return 1;
     }
 
-    if ir_module is None or ir_module.gen.native_iface is None {
+    if is_wasm and (ir_module is None or ir_module.gen.native_iface is None) {
         if not (ir_module and ir_module.decided_codespace == 'native') {
             console.error(
                 "This .jac file is not compatible with native compilation.\n"
@@ -215,29 +223,21 @@ impl nacompile(
     }
     console.print("  Auto-promoted to native compilation.");
 
-    manifest = ir_module.gen.interop_manifest;
-    if not is_wasm and manifest and manifest.native_imports {
+    python_imports = sorted(
+        {name for unit in plan.units for name in unit.iface.python_imports}
+    );
+    if not is_wasm and python_imports {
         console.error(
             "Cannot compile to standalone binary: "
             "file has Python/server dependencies (native_imports)."
         );
-        for binding in manifest.native_imports {
-            console.error(f"  - {binding.name}");
+        for name in python_imports {
+            console.error(f"  - {name}");
         }
         _restore_env(debug, _prev_native_debug, triple, _prev_target);
         return 1;
     }
 
-    try {
-        """The entry module was just compiled with these options: the plan
-        starts from its products rather than lowering it again.""";
-        prog.native_units().record_module(ir_module, options);
-        plan = build_link_plan(prog, [ir_module.loc.mod_path], options, mode=link_mode);
-    } except LinkPlanError as e {
-        console.error(f"Link plan failed: {e}");
-        _restore_env(debug, _prev_native_debug, triple, _prev_target);
-        return 1;
-    }
     console.print(
         f"  Link plan: {len(plan.units)} unit(s), mode={plan.mode}, target={plan.triple}"
     );
@@ -295,6 +295,7 @@ impl nacompile(
     app_imports: (set | None) = None;
     if is_wasm {
         import from jaclang.compiler.backends.native.wasm_build { app_declared_imports }
+        assert ir_module is not None;
         app_imports = app_declared_imports(ir_module);
     }
     try {
@@ -311,9 +312,20 @@ impl nacompile(
     }
 
     file_size = os.path.getsize(output);
-    console.print(
-        f"  Object code emitted for {plan.triple}: {len(result.units)} unit(s)."
+    lowered = len(prog.native_units().compiled_paths);
+    compiled = set(prog.native_units().compiled_paths);
+    reused_units = len(
+        [
+            u
+            for u in plan.units
+            if u.path not in compiled
+        ]
     );
+    console.print(f"  Recompiled {lowered} unit(s); reused {reused_units}.");
+    if result.reused {
+        console.print(f"  Up to date: {output} ({file_size} bytes).");
+        return 0;
+    }
     if is_wasm {
         console.print(f"  Wasm module written to {output} ({file_size} bytes).");
         console.print(

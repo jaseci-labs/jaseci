@@ -953,6 +953,7 @@ impl NaIRGenPass._forward_declare_method(
         func.args[_base + len(_m_params)].name = "value";
     }
     self._apply_ownership_param_attrs(func, _m_params, _base);
+    self._record_linked_decl(func, method);
     self.method_funcs[full_name] = func;
     self.func_symtab[full_name] = func;
     if _is_static {

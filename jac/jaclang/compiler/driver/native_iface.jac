@@ -6,7 +6,7 @@ import from jaclang.compiler.frontend.codeinfo {
     native_layout_to_dict
 }
 
-glob NIFACE_FORMAT: int = 1,
+glob NIFACE_FORMAT: int = 2,
      NIFACE_HASH_LEN: int = 64,
      EXPORT_FUNCTION: str = "function",
      EXPORT_METHOD: str = "method",
@@ -22,6 +22,7 @@ obj NativeExport {
         is_pub: bool = False,
         param_types: list[str] = field(default_factory=`list),
         param_names: list[str] = field(default_factory=`list),
+        param_defaults: list[str] = field(default_factory=`list),
         ret_type: str = "",
         ownership: list[str] = field(default_factory=`list);
 
@@ -33,6 +34,7 @@ obj NativeExport {
             "is_pub": self.is_pub,
             "param_types": list(self.param_types),
             "param_names": list(self.param_names),
+            "param_defaults": list(self.param_defaults),
             "ret_type": self.ret_type,
             "ownership": list(self.ownership)
         };
@@ -46,6 +48,7 @@ obj NativeExport {
             is_pub=bool(d.get("is_pub", False)),
             param_types=[str(x) for x in d.get("param_types", [])],
             param_names=[str(x) for x in d.get("param_names", [])],
+            param_defaults=[str(x) for x in d.get("param_defaults", [])],
             ret_type=str(d.get("ret_type", "")),
             ownership=[str(x) for x in d.get("ownership", [])]
         );
@@ -128,6 +131,7 @@ obj NativeIface {
         entry_symbol: str = "",
         demoted: list[str] = field(default_factory=`list),
         clib_paths: list[str] = field(default_factory=`list),
+        python_imports: list[str] = field(default_factory=`list),
         clib_symbol_lib: dict[str, str] = field(default_factory=`dict),
         layout: (NativeModuleLayout | None) = None,
         deps: list[str] = field(default_factory=`list),
@@ -149,6 +153,7 @@ obj NativeIface {
             "entry": self.entry_symbol,
             "demoted": sorted(self.demoted),
             "clib_paths": list(self.clib_paths),
+            "python_imports": sorted(self.python_imports),
             "clib_symbol_lib": {
                 k: self.clib_symbol_lib[k] for k in sorted(self.clib_symbol_lib.keys())
             },
@@ -207,6 +212,7 @@ obj NativeIface {
             entry_symbol=str(d.get("entry", "")),
             demoted=[str(x) for x in d.get("demoted", [])],
             clib_paths=[str(x) for x in d.get("clib_paths", [])],
+            python_imports=[str(x) for x in d.get("python_imports", [])],
             clib_symbol_lib={
                 str(k): str(v) for (k, v) in (d.get("clib_symbol_lib") or {}).items()
             },

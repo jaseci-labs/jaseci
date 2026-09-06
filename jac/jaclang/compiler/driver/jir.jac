@@ -6,7 +6,7 @@ import zlib;
 import from pathlib { Path }
 
 glob MAGIC = b"JIR\x00",
-     FORMAT_VERSION: int = 26,
+     FORMAT_VERSION: int = 27,
      HEADER_SIZE: int = 32,
      HEADER_FMT: str = "<4sHHIIIIII",
      EXTERNAL_REF: int = 0xFFFFFF,
@@ -28,6 +28,7 @@ glob MAGIC = b"JIR\x00",
      SEC_NIFACE: int = 0x11,
      SEC_NOBJ: int = 0x12,
      SEC_NDEPS: int = 0x13,
+     SEC_NCTDEPS: int = 0x14,
      SEC_TERMINATOR: int = 0xFF,
      FLAG_PRECOMPILED: int = 0x02,
      PRECOMPILE_SENTINEL: str = "__PKG_ROOT__",
@@ -37,7 +38,8 @@ glob NATIVE_SECTIONS: tuple[int, ...] = (
          SEC_NBITCODE,
          SEC_NIFACE,
          SEC_NOBJ,
-         SEC_NDEPS
+         SEC_NDEPS,
+         SEC_NCTDEPS
      ),
      NATIVE_STAMP_MAGIC: bytes = b"JNS1";
 
@@ -1129,10 +1131,6 @@ def read_debug_source(data: bytes) -> (str | None) {
 }
 
 def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
-    import from jaclang.compiler.driver.bccache {
-        discover_annex_files,
-        discover_style_annex
-    }
     if not cache_path.exists() {
         return False;
     }
@@ -1148,32 +1146,8 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
         if not ct_deps_fresh(data) {
             return False;
         }
-        cache_mtime = os.path.getmtime(cache_path);
-
-        related = discover_annex_files(source_path, '.impl.jac')
-            + discover_annex_files(source_path, '.test.jac');
-        style = discover_style_annex(source_path);
-        if style is not None {
-            related.append(style);
-        }
-        fresh = cache_mtime > os.path.getmtime(source_path);
-        if fresh {
-            for f in related {
-                try {
-                    if cache_mtime <= os.path.getmtime(f) {
-                        fresh = False;
-                        break;
-                    }
-                } except OSError {
-                    fresh = False;
-                    break;
-                }
-            }
-        }
-        if fresh {
-            return True;
-        }
-
+        """Timestamps are not source identities: restores can preserve mtimes
+        and annex deletion must invalidate the same way annex edits do.""";
         return jir_matches_source(data, source_path);
     } except OSError {
         return False;
