@@ -26,6 +26,17 @@ def _jaclang_dir -> str {
     return os.path.dirname(str(jaclang.__file__));
 }
 
+def kernel_unit_owner(path: str) -> str {
+    """Canonical native unit supplying a directly imported runtime source.""";
+    resolved = os.path.realpath(path);
+    for part in OSP_CORE_PARTS {
+        if resolved == os.path.realpath(os.path.join(_jaclang_dir(), part)) {
+            return "osp_kernel";
+        }
+    }
+    return "";
+}
+
 def _units_dir -> str {
     import from jaclang.jac0core.cache_paths { get_jir_cache_dir }
     d = os.path.join(str(get_jir_cache_dir()), "kernel_units");

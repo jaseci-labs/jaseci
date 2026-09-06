@@ -348,6 +348,7 @@ impl JacProgram.release_compile_closure(
     self.scratch.clear();
     self.analysis.analyses_run.clear();
     self.analysis.placement_state.pop('work', None);
+    self.analysis.early_passes.clear();
     if self._iface is not None {
         self._iface.on_closure_release();
     }

@@ -148,6 +148,14 @@ def layout_slot_count(lay: ArchetypeLayout) -> int {
 
 def declaring_module_path(base_expr: UniNode) -> str {
     import os;
+    import from jaclang.compiler.types.types { ClassType }
+    base_type = base_expr.type;
+    if isinstance(base_type, ClassType) and base_type._shared is not None {
+        scope = base_type.shared.symbol_table;
+        if isinstance(scope, Archetype) and scope.loc.mod_path {
+            return os.path.realpath(scope.loc.mod_path);
+        }
+    }
     if not isinstance(base_expr, AstSymbolNode) {
         return "";
     }
@@ -256,7 +264,7 @@ def adopt_imported_bases(module: Module) -> list[str] {
         }
     }
     layouts = reg.layouts;
-    order = sorted(layouts.keys(), key=lambda (n: str) { len(layouts[n].mro or [n]); });
+    order = reg.dependency_order(list(layouts));
     adopted: list[str] = [];
     for name in order {
         lay = reg.layouts.get(name);
@@ -587,6 +595,7 @@ obj LayoutRegistry {
     def resolve_method_owner(arch_name: str, method_name: str) -> (str | None);
     def get_mro(name: str) -> list[str];
     def get_topo_order -> list[str];
+    def dependency_order(names: list[str]) -> list[str];
     def is_primary_ancestor(child: str, ancestor: str) -> bool;
 }
 

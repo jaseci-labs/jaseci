@@ -394,10 +394,10 @@ impl NaIRGenPass._emit_class_name_const(arch_name: str) -> ir.Value {
         (arch_name + "\0").encode("utf8")
     );
     global_str = ir.GlobalVariable(
-        self.llvm_module, struct_type, name=f".clsname.{self._str_count}"
+        self.llvm_module, struct_type, name=f".clsname.{arch_name}"
     );
-    self._str_count = self._str_count + 1;
-    global_str.linkage = "private";
+    # Class references and vtables must carry the same identity across units.
+    global_str.linkage = "linkonce_odr";
     global_str.global_constant = True;
     global_str.initializer = struct_val;
 

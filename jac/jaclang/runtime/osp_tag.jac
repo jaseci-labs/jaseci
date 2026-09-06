@@ -1,7 +1,12 @@
 def stable_osp_tag(name: str) -> int {
-    _h = 14695981039346656037;
+    # Only the low 53 bits form a tag. Split multiplication into limbs so
+    # the same FNV hash also works with checked native 64-bit integers.
+    _h = 5239054864098085;
     for _c in name {
-        _h = ((_h ^ ord(_c)) * 1099511628211) & 18446744073709551615;
+        _h = _h ^ ord(_c);
+        low = (_h & 67108863) * 435;
+        high = ((_h >> 26) * 435 + (_h & 67108863) * 16384 + (low >> 26)) & 134217727;
+        _h = (high << 26) | (low & 67108863);
     }
     return _h & 9007199254740991;
 }

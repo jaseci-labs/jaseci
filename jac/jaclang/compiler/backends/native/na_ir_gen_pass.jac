@@ -1294,7 +1294,6 @@ walker NaIRGenPass(Transform) {
         nd: uni.Archetype, arch_name: str, block: uni.ModuleCode
     ) -> None;
 
-    def _jc_abi_offsets(field_types: list) -> tuple;
     def _build_jc_layout -> str;
     def _register_one_class_const(
         arch_name: str,
@@ -1339,6 +1338,13 @@ walker NaIRGenPass(Transform) {
     ) -> (ir.Value | None);
 
     def _receiver_union_parts(nd: (uni.UniNode | None)) -> (list[str] | None);
+    def _jc_reference_schema(
+        ft: ir.Type, layouts: dict, semantic: object = None
+    ) -> (dict | None);
+    def _codegen_union_member(
+        obj_val: ir.Value, field_name: str, nd: uni.AtomTrailer, parts: list[str]
+    ) -> (ir.Value | None);
+
     def _narrow_receiver_ptr(obj_val: ir.Value, type_name: str) -> (ir.Value | None);
     def _class_const_global(
         arch_name: str, field_name: str

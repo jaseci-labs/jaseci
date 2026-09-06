@@ -608,6 +608,7 @@ impl NaIRGenPass._register_imported_struct_types -> None {
         os.path.realpath(self.ir_in.loc.mod_path) if (self.ir_in?.loc) else None
     );
     import from jaclang.compiler.frontend.codeinfo { native_module_key }
+    import from jaclang.compiler.backends.common.kernel_units { kernel_unit_owner }
 
     _canon_src: dict = {};
     _src_keys: dict[str, str] = {};
@@ -633,7 +634,11 @@ impl NaIRGenPass._register_imported_struct_types -> None {
             continue;
         }
 
-        imported_mod = self.prog.mod.hub.get(full_path);
+        _kernel_owner = kernel_unit_owner(full_path);
+        imported_mod = _load_native_osp_kernel_module() if _kernel_owner else None;
+        if imported_mod is None {
+            imported_mod = self.prog.mod.hub.get(full_path);
+        }
         if imported_mod is None {
             imported_mod = self.prog.mod.hub.get(abs_key);
         }
@@ -655,9 +660,11 @@ impl NaIRGenPass._register_imported_struct_types -> None {
         }
         self._ensure_dep_inference(imported_mod);
         processed_modules.add(abs_key);
-        _canon_src[abs_key] = src_mod_str;
-        imported_mods.append((src_mod_str, imported_mod));
-        _src_keys[src_mod_str] = native_module_key(full_path);
+        _canon_src[abs_key] = _kernel_owner or src_mod_str;
+        imported_mods.append((_kernel_owner or src_mod_str, imported_mod));
+        _src_keys[_canon_src[abs_key]] = ""
+            if _kernel_owner
+            else native_module_key(full_path);
 
         sub_base = os.path.dirname(os.path.abspath(full_path));
         for sub_imp in ModuleFacts.iter_module_imports(imported_mod)
@@ -734,8 +741,10 @@ impl NaIRGenPass._register_imported_struct_types -> None {
         self.prog.scratch.na_dep_inflight.add(_self_real);
     }
     try {
-        for (_, imported_mod) in imported_mods {
-            self._walk_imported_module_abilities(imported_mod);
+        for (source, imported_mod) in imported_mods {
+            self._walk_imported_module_abilities(
+                imported_mod, with_fn_verdicts=source != "osp_kernel"
+            );
         }
     } finally {
         if _self_real is not None {

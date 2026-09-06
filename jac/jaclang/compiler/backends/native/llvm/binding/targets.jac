@@ -1,4 +1,5 @@
 import os;
+import type from jaclang.compiler.backends.native.llvm.binding.value { ValueRef }
 import from ctypes {
     POINTER,
     c_char_p,
@@ -104,6 +105,17 @@ def create_target_data(layout: any) -> object {
     Use :func:`create_target_data` to create instances.
     """
 class TargetData(ffi.ObjectRef) {
+    def get_global_struct_layout(
+        self: TargetData, value: ValueRef, field_count: int
+    ) -> tuple[list[int], int] {
+        """Query a global's struct type while its owning module is alive.""";
+        typ = ffi.lib.LLVMPY_GlobalGetValueType(value);
+        return (
+            [int(self.get_element_offset(typ, i)) for i in range(field_count)],
+            int(self.get_abi_size(typ))
+        );
+    }
+
     def __str__(self: TargetData) -> object {
         if self._closed {
             return "<dead TargetData>";
