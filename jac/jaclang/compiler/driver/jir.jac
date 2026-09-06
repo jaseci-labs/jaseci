@@ -978,6 +978,14 @@ def write_sections(sections: (dict[int, bytes] | None)) -> bytes {
     return bytes(buf);
 }
 
+def read_sections_blob(data: bytes) -> dict[int, bytes] {
+    magic: any = SECTIONS_MAGIC;
+    if not data.startswith(magic) {
+        return {};
+    }
+    return read_sections(data, len(magic));
+}
+
 def read_sections(data: (bytes | memoryview), start_pos: int) -> dict[int, bytes] {
     result: dict[int, bytes] = {};
     pos = start_pos;

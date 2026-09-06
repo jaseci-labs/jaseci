@@ -46,8 +46,15 @@ the digest: the stamp carries them.
 Symbols that are not `:pub` are module-qualified, `<prefix>.<name>`, where
 the prefix is the native-safe form of the module key; `:pub` symbols keep
 bare names, and only two `:pub` exports of one name in one link collide.
-The prefix is keyed on the module's path, so variants of one module written
-to different directories are different units with different digests.
+The prefix is keyed on the module's identity within its package, not on its
+absolute path: a module under a sealed package (a directory holding
+`_precompiled`), a `jac.toml` project, or the jaclang package itself is
+keyed by `<root name>/<path within the root>`. A sealed unit is compiled at
+the build's staging path and served from wherever the kit lands, and a
+consumer compiled at run time names the sealed unit's symbols by computing
+the same key from its own path, so the key has to agree across the move. A
+module outside any such root keeps its real path as its identity. Variants
+of one module written to different roots are still different units.
 
 ### Dependency edges
 

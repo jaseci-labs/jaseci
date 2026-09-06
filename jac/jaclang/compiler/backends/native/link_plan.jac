@@ -731,6 +731,17 @@ def jit_engine(plan: LinkPlan) -> ExecutionEngine {
     spec = plan.glue_spec(ArtifactKind.JIT, _platform_of(plan.triple), False);
     (merged, _exports) = whole_program_module(plan, spec);
     optimize_whole_program(plan, merged, ArtifactKind.JIT, tm);
+    if env_na_debug() {
+        undefined = [
+            f.name
+            for f in merged.functions
+            if f.is_declaration and not f.name.startswith("llvm.")
+        ];
+        sys.stderr.write(
+            f"[jit] {len(plan.units)} unit(s), inits {plan.init_symbols()}, "
+            f"undefined: {sorted(undefined)}\n"
+        );
+    }
     for lib_path in plan.clib_paths() {
         try {
             jit_load_clib(lib_path);

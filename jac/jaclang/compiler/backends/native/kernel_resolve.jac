@@ -276,7 +276,7 @@ def _build_kernel_in_child(dst: str) {
     env = child_compiler_env({KERNEL_LIB_ENV: "off"});
     code = (
         "import sys\n"
-        "sys.path.insert(0, sys.argv[2])\n"
+        "sys.path.insert(0, sys.argv[-1])\n"
         "from jaclang.compiler.backends.native.kernel_resolve import build_kernel\n"
         "build_kernel(sys.argv[1], log=lambda m: sys.stderr.write(m + '\\n'))\n"
     );

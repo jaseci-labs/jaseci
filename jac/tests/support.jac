@@ -167,6 +167,48 @@ def compile_native(fixture: str, fixture_dir: str = "") -> tuple {
     return (eng, ir);
 }
 
+"""The whole-program LLVM IR of `fixture` linked for `triple`: its unit
+bitcode merged with the link glue that defines `jac_entry`, the way an
+executable's object is assembled before the platform linker sees it. Tests
+that hand a single relocatable object to a linker start from this text."""
+def program_ir(fixture: str, triple: str, static_musl: bool = False) -> str {
+    import os;
+    import from jaclang.compiler.driver.program { JacProgram }
+    import from jaclang.compiler.driver.compile_options {
+        CompileOptions,
+        NATIVE_LINK_MODE_BITCODE
+    }
+    import from jaclang.compiler.backends.native.link_plan {
+        ArtifactKind,
+        build_link_plan,
+        whole_program_module
+    }
+    prev = os.environ.get("JAC_NATIVE_TARGET", None);
+    os.environ["JAC_NATIVE_TARGET"] = triple;
+    try {
+        prog = JacProgram();
+        opts = CompileOptions(aot_mode=True, native_link_mode=NATIVE_LINK_MODE_BITCODE);
+        path = str(Path(NATIVE_FIXTURES) / fixture);
+        plan = build_link_plan(
+            prog, [path], options=opts, mode=NATIVE_LINK_MODE_BITCODE
+        );
+        assert not prog.errors_had , f"compile errors: {[
+            str(e) for e in prog.errors_had
+        ]}";
+        tl = triple.lower();
+        platform = "macho" if ("darwin" in tl or "apple" in tl) else "elf";
+        spec = plan.glue_spec(ArtifactKind.EXECUTABLE, platform, static_musl);
+        (merged, _exports) = whole_program_module(plan, spec);
+        return str(merged);
+    } finally {
+        if prev is None {
+            os.environ.pop("JAC_NATIVE_TARGET", None);
+        } else {
+            os.environ["JAC_NATIVE_TARGET"] = prev;
+        }
+    }
+}
+
 """Pin the compiled module's unit path and native interface on its engine,
 so `native_address` can map a Jac-level name to the unit's link symbol."""
 def remember_native_unit(eng: any, ir: any) {

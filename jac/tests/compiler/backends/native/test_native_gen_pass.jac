@@ -6455,8 +6455,6 @@ test "restore-failure falls back to recompile for inferred modules (item #19)" {
         assert bc1 is not None , "warm-up compile must produce bytecode";
         prog2 = JacProgram();
         with patch.object(
-            JacCompiler, '_load_native_from_bitcode', side_effect=RuntimeError('boom')
-        ), patch.object(
             JacCompiler, '_load_native_from_cache', side_effect=RuntimeError('boom')
         ) {
             bc2 = comp.get_bytecode(fx, prog2);

@@ -365,7 +365,11 @@ class NativeCompiler {
         }
         boxed = cast(ptr, py_object);
         out = boxed.value;
-        ctypes.pythonapi.Py_DecRef(boxed);
+        """The reference the kernel handed over is dropped through a raw
+        pointer: `ctypes.pythonapi` is one shared handle whose prototypes any
+        code in the process may set, and a `py_object` argument is refused
+        once `Py_DecRef.argtypes` names `c_void_p`.""";
+        ctypes.pythonapi.Py_DecRef(c_void_p(ptr));
         return out;
     }
 

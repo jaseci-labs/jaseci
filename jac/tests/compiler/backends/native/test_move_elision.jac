@@ -45,7 +45,9 @@ def compile_fixture(fixture: str) -> tuple[ExecutionEngine, uni.Module] {
     return (eng, ir);
 }
 
-"""Count emitted __rc_retain call sites, optionally with move-lowering off."""
+"""Count the __rc_retain call sites in the fixture's own code. The unit's
+exported `jac_retain` helper wraps one retain for the link glue and is not
+an assignment's retain, so its body is left out."""
 def retain_calls(fixture: str, move_lower: bool) -> int {
     orig = NaIRGenPass._can_native_move_lower;
     if not move_lower {
@@ -54,7 +56,17 @@ def retain_calls(fixture: str, move_lower: bool) -> int {
     }
     try {
         (eng, ir) = compile_fixture(fixture);
-        return str(ir.gen.llvm_ir).count('call void @"__rc_retain"');
+        count = 0;
+        in_helper = False;
+        for line in str(ir.gen.llvm_ir).splitlines() {
+            if line.startswith("define ") {
+                in_helper = '.jac_retain"' in line;
+            }
+            if not in_helper and 'call void @"__rc_retain"' in line {
+                count += 1;
+            }
+        }
+        return count;
     } finally {
         NaIRGenPass._can_native_move_lower = orig;
     }

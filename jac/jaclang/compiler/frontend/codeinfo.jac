@@ -157,13 +157,49 @@ def module_dotted_name(mod_path: str, mod_name: str = "") -> str {
     return stem.replace("/", ".");
 }
 
+def native_unit_root(directory: str) -> (str | None) {
+    import os;
+    d = directory;
+    while True {
+        if os.path.isdir(os.path.join(d, "_precompiled"))
+            or os.path.isfile(os.path.join(d, "jac.toml"))
+            or (
+                os.path.isfile(os.path.join(d, "jac0.py"))
+                and os.path.isfile(os.path.join(d, "__init__.py"))
+            ) {
+            return d;
+        }
+        parent = os.path.dirname(d);
+        if parent == d or not parent {
+            return None;
+        }
+        d = parent;
+    }
+}
+
+def native_unit_identity(path: str) -> str {
+    import os;
+    rp = os.path.realpath(path);
+    unit_root = native_unit_root(os.path.dirname(rp));
+    if unit_root is None {
+        return rp;
+    }
+    rel = os.path.relpath(rp, unit_root).replace("\\", "/");
+    return f"{os.path.basename(unit_root)}/{rel}";
+}
+
 def native_module_key(path: str) -> str {
+    """The key names a unit the same wherever its package lands: a module
+    under a sealed package, a `jac.toml` project or the jaclang package is
+    keyed by its path within that root, so the symbols a sealed unit
+    defines at build time are the ones consumers reference at run time.""";
     import os;
     rp = os.path.realpath(path);
     base = os.path.basename(rp);
     dot = base.rfind(".");
     stem = base[0:dot] if dot > 0 else base;
-    return f"{stem}:{hashlib.sha1(rp.encode()).hexdigest()[:12]}";
+    ident = native_unit_identity(rp);
+    return f"{stem}:{hashlib.sha1(ident.encode()).hexdigest()[:12]}";
 }
 
 def native_unit_prefix(path: str) -> str {

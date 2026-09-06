@@ -13,7 +13,9 @@ import from jaclang.compiler.driver.jir {
     jir_cacheable_source_path,
     native_section_payload,
     read_native_dep_hashes,
-    read_section_bytes
+    read_section_bytes,
+    read_sections_blob,
+    write_sections
 }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.driver.native_iface { NativeIface }
@@ -34,7 +36,9 @@ path mode so the working directory never joins `sys.path`, the driver
 code, its arguments, and the package parent for the driver to insert
 first. `import jaclang` registers the `.jac` importer itself.""";
     import sys;
-    return [sys.executable, "-P", "-c", code] + list(args) + [compiler_package_parent()];
+    return [sys.executable, "-P", "-c", code]
+        + list(args)
+        + [compiler_package_parent()];
 }
 
 def child_compiler_env(extra: (dict[str, str] | None) = None) -> dict[str, str] {
@@ -55,7 +59,7 @@ glob _UNITS_IN_FLIGHT: set[str] = set(),
 
 glob _UNIT_CHILD_DRIVER: str = (
          "import json, sys\n"
-         "sys.path.insert(0, sys.argv[3])\n"
+         "sys.path.insert(0, sys.argv[-1])\n"
          "from jaclang.compiler.driver.program import JacProgram\n"
          "from jaclang.compiler.driver.compile_options import CompileOptions\n"
          "opts = CompileOptions.from_native_import_env(json.loads(sys.argv[2]))\n"
@@ -65,6 +69,7 @@ glob _UNIT_CHILD_DRIVER: str = (
          "    why = reg.failures.get(sys.argv[1]) or 'no diagnostic was recorded'\n"
          "    sys.stderr.write('jac: native unit ' + sys.argv[1] + ' failed: ' + why + '\\n')\n"
          "    sys.exit(3)\n"
+         "open(sys.argv[3], 'wb').write(reg.products_blob(sys.argv[1], opts))\n"
      );
 
 obj NativeUnitEntry {
@@ -350,26 +355,102 @@ obj NativeUnitRegistry {
         child_env = child_compiler_env({UNIT_CHILD_DEPTH_ENV: str(depth + 1)});
         env = json.dumps(base.clone_for_native_import().native_import_env());
         self._event("native_unit_compile_detached");
+        import tempfile;
+        (fd, products) = tempfile.mkstemp(prefix="jac-unit-", suffix=".jirx");
+        os.close(fd);
         try {
-            proc = subprocess.run(
-                child_compiler_argv(_UNIT_CHILD_DRIVER, [resolved, env]), env=child_env
-            );
-        } except OSError as exc {
-            self.failures[resolved] = f"{type(exc).__name__}: {exc}";
-            return None;
-        }
-        if proc.returncode != 0 {
-            self.failures[resolved] = (
-                f"the unit compile exited with status {proc.returncode}"
-            );
-            return None;
+            try {
+                proc = subprocess.run(
+                    child_compiler_argv(_UNIT_CHILD_DRIVER, [resolved, env, products]),
+                    env=child_env
+                );
+            } except OSError as exc {
+                self.failures[resolved] = f"{type(exc).__name__}: {exc}";
+                return None;
+            }
+            if proc.returncode != 0 {
+                self.failures[resolved] = (
+                    f"the unit compile exited with status {proc.returncode}"
+                );
+                return None;
+            }
+            try {
+                blob = open(products, "rb").read();
+            } except OSError {
+                blob = b"";
+            }
+        } finally {
+            try {
+                os.remove(products);
+            } except OSError {}
         }
         self.forget(resolved);
-        found = self.read_unit(resolved, base);
+        found = self.register_products_blob(resolved, blob, base) if blob else None;
         if found is None {
-            self.failures[resolved] = "the unit compile left no native interface in the module cache";
+            self.failures[resolved] = "the unit compile handed back no native products";
         }
         return found;
+    }
+
+    def products_blob(path: str, options: (CompileOptions | None) = None) -> bytes {
+        resolved = os.path.realpath(path);
+        ent = self.entries.get(resolved);
+        gen = self.prog.hub.artifacts.get(resolved);
+        if ent is None or gen is None {
+            return b"";
+        }
+        import from jaclang.compiler.driver.jir { SEC_NDEPS, native_deps_section }
+        stamp = self.stamp_for(options);
+        sections: dict[int, bytes] = {
+            SEC_NIFACE: stamp.pack(ent.iface.to_bytes()),
+            SEC_NDEPS: stamp.pack(
+                native_deps_section(dict(self.recorded_deps.get(resolved) or {}))
+            )
+        };
+        if gen.native_object is not None {
+            sections[SEC_NOBJ] = stamp.pack(gen.native_object);
+        }
+        if gen.native_bitcode is not None {
+            sections[SEC_NBITCODE] = stamp.pack(gen.native_bitcode);
+        }
+        return write_sections(sections);
+    }
+
+    def register_products_blob(
+        resolved: str, blob: bytes, options: (CompileOptions | None) = None
+    ) -> (NativeUnitEntry | None) {
+        import from jaclang.compiler.driver.jir { SEC_NDEPS }
+        stamp = self.stamp_for(options);
+        sections = read_sections_blob(blob);
+        iface = NativeIface.from_bytes(
+            native_section_payload(sections.get(SEC_NIFACE), stamp)
+        );
+        if iface is None {
+            return None;
+        }
+        deps_raw = native_section_payload(sections.get(SEC_NDEPS), stamp);
+        recorded: dict[str, str] = {};
+        if deps_raw {
+            for line in deps_raw.decode("utf-8").split("\n") {
+                if "\t" in line {
+                    (dep, digest) = line.split("\t", 1);
+                    recorded[dep] = digest;
+                }
+            }
+        }
+        self.recorded_deps[resolved] = recorded;
+        import from jaclang.compiler.frontend.codeinfo { CodeGenTarget }
+        carrier = self.prog.hub.artifacts.get(resolved);
+        if carrier is None {
+            carrier = CodeGenTarget();
+            self.prog.hub.artifacts[resolved] = carrier;
+        }
+        carrier.native_iface = iface;
+        carrier.native_object = native_section_payload(sections.get(SEC_NOBJ), stamp);
+        carrier.native_bitcode = native_section_payload(
+            sections.get(SEC_NBITCODE), stamp
+        );
+        return self._register(resolved, iface, stamp, "child");
     }
 
     def compile_unit(
@@ -471,7 +552,9 @@ obj NativeUnitRegistry {
         if found is None {
             if env_na_debug() {
                 import sys;
-                sys.stderr.write(f"NA_DEBUG known_digest {resolved}: no valid module cache entry\n");
+                sys.stderr.write(
+                    f"NA_DEBUG known_digest {resolved}: no valid module cache entry\n"
+                );
             }
             return "";
         }
@@ -482,8 +565,14 @@ obj NativeUnitRegistry {
             have = NativeStamp.unpack(raw);
             sys.stderr.write(
                 f"NA_DEBUG known_digest {resolved}: "
-                + ("no native interface section" if have is None else f"stamp mismatch: disk {have[0].compiler_digest[:12]}/{have[0].codegen_identity}/{have[0].triple} want {self.stamp_for().compiler_digest[:12]}/{self.stamp_for().codegen_identity}/{self.stamp_for().triple}")
-                + "\n"
+                    + (
+                        "no native interface section"
+                            if have is None
+                            else f"stamp mismatch: disk {have[0].compiler_digest[:12]}/{have[
+                                0
+                            ].codegen_identity}/{have[0].triple} want {self.stamp_for().compiler_digest[:12]}/{self.stamp_for().codegen_identity}/{self.stamp_for().triple}"
+                    )
+                    + "\n"
             );
         }
         return NativeIface.read_digest(payload) or "";
