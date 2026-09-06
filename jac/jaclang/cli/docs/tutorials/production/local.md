@@ -68,10 +68,11 @@ jac run
 Output:
 
 ```
-INFO:     Started server process [12345]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+  jac dev server v0.16.7
+
+  ➜  Local:     http://localhost:8000/
+
+  Server ready
 ```
 
 ### 3. Call the API
@@ -97,11 +98,38 @@ curl -X POST http://localhost:8000/walker/add_task \
 jac run --port 3000
 ```
 
-If the specified port is already in use, the server automatically finds and uses the next available port:
+A port you pass is a contract. If it is already in use the server does not move to
+another one, because whatever sits in front of it (a proxy, a port mapping, a health
+check) is still addressing the port you asked for. It fails and names the port:
 
 ```
-Port 3000 is in use, using port 3001 instead
+✖ Error: Port 3000 is already in use
 ```
+
+The same applies to a port set in `jac.toml`, which `jac run` reads:
+
+```toml
+[serve]
+port = 3000
+```
+
+Naming the port is what makes it a contract, not where you named it. A project that
+pins 3000 usually has something addressing 3000, a proxy or an OAuth callback or a
+hardcoded URL, and moving to 3001 would break it silently.
+
+One exception, for now. When a workspace's service apps run as a fleet
+(`jac run <app> --fleet`, or `[scale.gateway] colocate = false`), a
+`[scale.gateway] gateway_port` in `jac.toml` does **not** pin, because the loaded
+config supplies a default for that key and nothing downstream can tell a port you chose
+from one that was merely assumed. Pass `--port` to pin the gateway.
+
+Leave the port unset and the default behaves as before, relocating with a notice:
+
+```
+Port 8000 is in use, using port 8001 instead
+```
+
+`--api-port` follows the same rule when you pass it, and has no `jac.toml` key.
 
 ### Development Mode (HMR)
 
@@ -219,18 +247,19 @@ Response (all walker responses are wrapped in a standard envelope):
 - **OpenAPI JSON:** `http://localhost:8000/openapi.json`
 - **Graph Visualizer:** `http://localhost:8000/graph` - interactive visualization of your application's graph
 
-These endpoints are enabled by default. To disable them (e.g. in production), set `docs_enabled = false` in your `jac.toml`:
+These endpoints are enabled by default. To disable them (e.g. in production), turn them off in your `jac.toml`:
 
 ```toml
-[scale.server]
+[serve]
 docs_enabled = false
+graph_enabled = false
 ```
 
 ---
 
 ## Database Persistence
 
-By default, Jac uses SQLite for persistence (you'll see "Using SQLite for persistence" when starting).
+By default, Jac persists the graph in an embedded Postgres store: it boots lazily on first graph access, with one database per project, and requires no setup. Set `JAC_DB_URL` to point at an external Postgres instead.
 
 ### Custom Persistence
 
@@ -283,7 +312,7 @@ import os;
 walker get_config {
     can fetch with Root entry {
         report {
-            "database_url": os.getenv("DATABASE_URL", "sqlite:///default.db"),
+            "database_url": os.getenv("DATABASE_URL", "postgresql://jac@localhost:5432/jac"),
             "api_key": os.getenv("API_KEY"),
             "debug": os.getenv("DEBUG", "false") == "true"
         };

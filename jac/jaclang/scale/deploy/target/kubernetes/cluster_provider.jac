@@ -22,7 +22,7 @@ obj AWSProvider(ClusterProvider) {
         return 'LoadBalancer';
     }
 
-    def validate_ports(node_port: int, current_namespace: str) { }
+    def validate_ports(node_port: int, current_namespace: str) {}
     def service_url(lb_endpoint: (str | None), ingress_node_port: int) -> (str | None) {
         if lb_endpoint {
             return f"http://{lb_endpoint}";

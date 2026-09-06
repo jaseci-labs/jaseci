@@ -1,10 +1,7 @@
 import asyncio;
 import contextlib;
-import gc;
 import glob;
 import json;
-import re;
-import select;
 import socket;
 import subprocess;
 import from jaclang.scale.runtime.context.util { jac_executable }
@@ -12,10 +9,11 @@ import time;
 import uuid;
 import shutil;
 import requests;
-import from jaclang.runtimelib.serving.authcrypt {
+import from jaclang.server.serving.authcrypt {
     jwt_decode as _jwt_decode,
     jwt_encode as _jwt_encode
 }
+import from jaclang.server.identity.config { signing_secret as jwt_secret }
 import from datetime { UTC, datetime, timedelta }
 import from pathlib { Path }
 import from jaclang.scale.tests.scale_test_client {
@@ -23,10 +21,11 @@ import from jaclang.scale.tests.scale_test_client {
     make_client,
     extract_data
 }
-import from jaclang.scale.tests.server_support {
+import from jaclang.scale.tests.support {
+    cleanup_db_files,
     get_free_port,
-    _cleanup_db_files,
-    _extract_transport_response_data
+    start_server,
+    stop_server
 }
 
 def _as_any(v: any) -> any {
@@ -63,91 +62,8 @@ def register_and_get_token(client: any, username: str, password: str) -> str {
     return result["token"];
 }
 
-"""Start the jac-scale server in a subprocess."""
-def _start_server(
-    fixtures_dir: Path,
-    test_file: Path,
-    port: int,
-    base_url: str,
-    extra_args: list[str] | None = None
-) -> subprocess.Popen {
-    cmd = [
-        jac_executable(),
-        "run",
-        "--serve",
-        "--port",
-        str(port),
-        test_file.name if not extra_args else str(test_file)
-    ];
-    if extra_args {
-        cmd.extend(extra_args);
-    }
-
-    server_process = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        cwd=str(fixtures_dir) if not extra_args else None
-    );
-
-    max_attempts = 120;
-    server_ready = False;
-
-    for _ in range(max_attempts) {
-        if server_process.poll() is not None {
-            (stdout, stderr) = server_process.communicate();
-            raise RuntimeError(
-                f"Server process terminated unexpectedly.\n"
-                f"STDOUT: {stdout}\nSTDERR: {stderr}"
-            );
-        }
-
-        try {
-            response = requests.get(f"{base_url}/healthz", timeout=2);
-            if response.status_code == 200 {
-                print(f"Server started successfully on port {port}");
-                server_ready = True;
-                break;
-            }
-        } except (requests.ConnectionError, requests.Timeout) {
-            time.sleep(0.5);
-        }
-    }
-
-    if not (server_ready) {
-        server_process.terminate();
-        try {
-            (stdout, stderr) = server_process.communicate(timeout=2);
-        } except subprocess.TimeoutExpired {
-            server_process.kill();
-            (stdout, stderr) = server_process.communicate();
-        }
-        raise RuntimeError(
-            f"Server failed to start after {max_attempts} attempts.\n"
-            f"STDOUT: {stdout}\nSTDERR: {stderr}"
-        );
-    }
-
-    return server_process;
-}
-
-def _stop_server(server_process: subprocess.Popen | None) {
-    if server_process {
-        server_process.terminate();
-        try {
-            server_process.`wait(timeout=5);
-        } except subprocess.TimeoutExpired {
-            server_process.kill();
-            server_process.`wait();
-        }
-    }
-    time.sleep(0.2);
-    gc.collect();
-}
-
 def _create_expired_token(username: str, days_ago: int = 1) -> str {
-    secret = "supersecretkey_for_testing_only!";
+    secret = jwt_secret();
     algorithm = "HS256";
 
     past_time = datetime.now(UTC) - timedelta(days=days_ago);
@@ -160,7 +76,7 @@ def _create_expired_token(username: str, days_ago: int = 1) -> str {
 }
 
 def _create_very_old_token(username: str, days_ago: int = 15) -> str {
-    secret = "supersecretkey_for_testing_only!";
+    secret = jwt_secret();
     algorithm = "HS256";
 
     past_time = datetime.now(UTC) - timedelta(days=days_ago);
@@ -182,13 +98,13 @@ def setup_serve_server -> subprocess.Popen {
     if not sv_test_file.exists() {
         raise FileNotFoundError(f"Test fixture not found: {sv_test_file}");
     }
-    _cleanup_db_files(sv_fixtures_dir);
-    return _start_server(sv_fixtures_dir, sv_test_file, sv_port, sv_base_url);
+    cleanup_db_files(sv_fixtures_dir);
+    return start_server(sv_fixtures_dir, sv_test_file, sv_port);
 }
 
 def teardown_serve_server(sp: subprocess.Popen | None) {
-    _stop_server(sp);
-    _cleanup_db_files(sv_fixtures_dir);
+    stop_server(sp);
+    cleanup_db_files(sv_fixtures_dir);
 }
 
 test "static and schema endpoints" {
@@ -212,7 +128,7 @@ test "static and schema endpoints" {
 
         srv = client._server;
         assert srv is not None , "server must be running";
-        openapi_spec = srv.server.app.openapi();
+        openapi_spec = srv.app.openapi();
         paths = openapi_spec.get("paths", {});
 
         assert "/user/refresh-token" in paths;
@@ -282,11 +198,7 @@ test "user registration and login" {
     try {
         test_username = f"testuser_{uuid.uuid4().hex[:8]}";
         response = client.post(
-            "/user/register",
-            json={
-                "identities": [{"type": "username", "value": test_username}],
-                "credential": {"type": "password", "password": "testpass123"}
-            }
+            "/user/register", json=register_payload(test_username, "testpass123")
         );
         result = extract_data(response.json());
         assert "user_id" in result;
@@ -294,40 +206,24 @@ test "user registration and login" {
 
         status_user = f"status_{uuid.uuid4().hex[:8]}";
         response = client.post(
-            "/user/register",
-            json={
-                "identities": [{"type": "username", "value": status_user}],
-                "credential": {"type": "password", "password": "password123"}
-            }
+            "/user/register", json=register_payload(status_user, "password123")
         );
         assert response.status_code == 201;
         data = extract_data(response.json());
         assert "user_id" in data;
 
         response = client.post(
-            "/user/register",
-            json={
-                "identities": [{"type": "username", "value": status_user}],
-                "credential": {"type": "password", "password": "password123"}
-            }
+            "/user/register", json=register_payload(status_user, "password123")
         );
         assert response.status_code == 400;
 
         login_username = f"login_{uuid.uuid4().hex[:8]}";
         response = client.post(
-            "/user/register",
-            json={
-                "identities": [{"type": "username", "value": login_username}],
-                "credential": {"type": "password", "password": "loginpass"}
-            }
+            "/user/register", json=register_payload(login_username, "loginpass")
         );
         create_result = extract_data(response.json());
         response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": login_username},
-                "credential": {"type": "password", "password": "loginpass"}
-            }
+            "/user/login", json=login_payload(login_username, "loginpass")
         );
         login_result = extract_data(response.json());
         assert "token" in login_result;
@@ -335,38 +231,22 @@ test "user registration and login" {
         assert "root_id" in login_result;
 
         response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": login_username},
-                "credential": {"type": "password", "password": "loginpass"}
-            }
+            "/user/login", json=login_payload(login_username, "loginpass")
         );
         assert response.status_code == 200;
 
         fail_username = f"fail_{uuid.uuid4().hex[:8]}";
         response = client.post(
-            "/user/register",
-            json={
-                "identities": [{"type": "username", "value": fail_username}],
-                "credential": {"type": "password", "password": "correctpass"}
-            }
+            "/user/register", json=register_payload(fail_username, "correctpass")
         );
         response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": fail_username},
-                "credential": {"type": "password", "password": "wrongpass"}
-            }
+            "/user/login", json=login_payload(fail_username, "wrongpass")
         );
         login_result = extract_data(response.json());
         assert "error" in login_result;
 
         response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": fail_username},
-                "credential": {"type": "password", "password": "wrongpass"}
-            }
+            "/user/login", json=login_payload(fail_username, "wrongpass")
         );
         assert response.status_code == 401;
         data = extract_data(response.json());
@@ -381,21 +261,11 @@ test "user registration and login" {
         );
         assert response.status_code in (400, 422);
 
-        response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": ""},
-                "credential": {"type": "password", "password": "x"}
-            }
-        );
+        response = client.post("/user/login", json=login_payload("", "x"));
         assert response.status_code in (400, 422);
 
         response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": "nonexistent"},
-                "credential": {"type": "password", "password": "password"}
-            }
+            "/user/login", json=login_payload("nonexistent", "password")
         );
         assert response.status_code == 401;
     } finally {
@@ -575,7 +445,7 @@ test "token refresh functionality" {
         refresh_result = extract_data(response.json());
         new_token = refresh_result["token"];
 
-        secret = "supersecretkey_for_testing_only!";
+        secret = jwt_secret();
         algorithm = "HS256";
 
         original_payload = _jwt_decode(token, secret, algorithms=[algorithm]);
@@ -619,33 +489,21 @@ test "integration auth flow" {
         username = f"integration_{uuid.uuid4().hex[:8]}";
 
         register_response = client.post(
-            "/user/register",
-            json={
-                "identities": [{"type": "username", "value": username}],
-                "credential": {"type": "password", "password": "secure123"}
-            }
+            "/user/register", json=register_payload(username, "secure123")
         );
         assert register_response.status_code == 201;
         data = extract_data(register_response.json());
         assert "user_id" in data;
 
         login_response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": username},
-                "credential": {"type": "password", "password": "secure123"}
-            }
+            "/user/login", json=login_payload(username, "secure123")
         );
         assert login_response.status_code == 200;
         data = extract_data(login_response.json());
         token1 = data["token"];
 
         login_response2 = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": username},
-                "credential": {"type": "password", "password": "secure123"}
-            }
+            "/user/login", json=login_payload(username, "secure123")
         );
         assert login_response2.status_code == 200;
         data = extract_data(login_response2.json());
@@ -657,11 +515,7 @@ test "integration auth flow" {
         token3 = data["token"];
 
         fail_response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": username},
-                "credential": {"type": "password", "password": "wrongpass"}
-            }
+            "/user/login", json=login_payload(username, "wrongpass")
         );
         assert fail_response.status_code == 401;
 
@@ -679,10 +533,7 @@ def _me_register_and_login(
     password: str = "pw12345",
     profile: dict[str, any] | None = None
 ) -> tuple[str, str] {
-    body: dict[str, any] = {
-        "identities": [{"type": "username", "value": username}],
-        "credential": {"type": "password", "password": password}
-    };
+    body: dict[str, any] = register_payload(username, password);
     if profile is not None {
         body["profile"] = profile;
     }
@@ -690,13 +541,7 @@ def _me_register_and_login(
     assert register.status_code == 201 , f"register failed: {register.json()}";
     user_id = extract_data(register.json())["user_id"];
 
-    login = client.post(
-        "/user/login",
-        json={
-            "identity": {"type": "username", "value": username},
-            "credential": {"type": "password", "password": password}
-        }
-    );
+    login = client.post("/user/login", json=login_payload(username, password));
     assert login.status_code == 200 , f"login failed: {login.json()}";
     return (user_id, extract_data(login.json())["token"]);
 }
@@ -860,21 +705,11 @@ test "function calls" {
     try {
         func_user = f"funcuser_{uuid.uuid4().hex[:8]}";
         response = client.post(
-            "/user/register",
-            json={
-                "identities": [{"type": "username", "value": func_user}],
-                "credential": {"type": "password", "password": "pass"}
-            }
+            "/user/register", json=register_payload(func_user, "pass")
         );
         create_result = extract_data(response.json());
         assert "user_id" in create_result;
-        response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": func_user},
-                "credential": {"type": "password", "password": "pass"}
-            }
-        );
+        response = client.post("/user/login", json=login_payload(func_user, "pass"));
         login_result = extract_data(response.json());
         token = login_result["token"];
 
@@ -970,21 +805,11 @@ test "walker calls" {
     try {
         walker_user = f"walkeruser_{uuid.uuid4().hex[:8]}";
         response = client.post(
-            "/user/register",
-            json={
-                "identities": [{"type": "username", "value": walker_user}],
-                "credential": {"type": "password", "password": "pass"}
-            }
+            "/user/register", json=register_payload(walker_user, "pass")
         );
         create_result = extract_data(response.json());
         assert "user_id" in create_result;
-        response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": walker_user},
-                "credential": {"type": "password", "password": "pass"}
-            }
-        );
+        response = client.post("/user/login", json=login_payload(walker_user, "pass"));
         login_result = extract_data(response.json());
         token = login_result["token"];
 
@@ -1024,7 +849,7 @@ test "walker calls" {
         data = response_data["reports"][0];
         assert data["message"] == "This is a public endpoint";
 
-        secret = "supersecretkey_for_testing_only!";
+        secret = jwt_secret();
         now = datetime.now(UTC);
         payload = {
             "username": "deleted_user",
@@ -1049,21 +874,11 @@ test "walker calls" {
 
         g_user = f"guser_{uuid.uuid4().hex[:8]}";
         response = client.post(
-            "/user/register",
-            json={
-                "identities": [{"type": "username", "value": g_user}],
-                "credential": {"type": "password", "password": "gpass"}
-            }
+            "/user/register", json=register_payload(g_user, "gpass")
         );
         reg = extract_data(response.json());
         assert "user_id" in reg;
-        response = client.post(
-            "/user/login",
-            json={
-                "identity": {"type": "username", "value": g_user},
-                "credential": {"type": "password", "password": "gpass"}
-            }
-        );
+        response = client.post("/user/login", json=login_payload(g_user, "gpass"));
         reg_login = extract_data(response.json());
         response = client.post(
             "/walker/CreateTask",
@@ -1200,7 +1015,7 @@ test "user management operations" {
 }
 
 test "websocket functionality" {
-    import from jaclang.runtimelib.serving.client { aws_connect }
+    import from jaclang.server.serving.client { aws_connect }
     sp = setup_serve_server();
     try {
         async def test_echo {
@@ -1317,20 +1132,14 @@ test "websocket functionality" {
 
         response = requests.post(
             f"{sv_base_url}/user/register",
-            json={
-                "identities": [{"type": "username", "value": username}],
-                "credential": {"type": "password", "password": password}
-            },
+            json=register_payload(username, password),
             timeout=10
         );
         assert response.status_code in (200, 201) , f"Failed to create user: {response.text}";
 
         response = requests.post(
             f"{sv_base_url}/user/login",
-            json={
-                "identity": {"type": "username", "value": username},
-                "credential": {"type": "password", "password": password}
-            },
+            json=login_payload(username, password),
             timeout=10
         );
         assert response.status_code == 200 , f"Failed to login: {response.text}";
@@ -1358,20 +1167,14 @@ test "websocket functionality" {
         username = f"ws_query_user_{uuid.uuid4().hex[:8]}";
         response = requests.post(
             f"{sv_base_url}/user/register",
-            json={
-                "identities": [{"type": "username", "value": username}],
-                "credential": {"type": "password", "password": password}
-            },
+            json=register_payload(username, password),
             timeout=10
         );
         assert response.status_code in (200, 201);
 
         response = requests.post(
             f"{sv_base_url}/user/login",
-            json={
-                "identity": {"type": "username", "value": username},
-                "credential": {"type": "password", "password": password}
-            },
+            json=login_payload(username, password),
             timeout=10
         );
         assert response.status_code == 200;
@@ -1449,20 +1252,14 @@ test "websocket functionality" {
 
             response = requests.post(
                 f"{sv_base_url}/user/register",
-                json={
-                    "identities": [{"type": "username", "value": username}],
-                    "credential": {"type": "password", "password": password}
-                },
+                json=register_payload(username, password),
                 timeout=10
             );
             assert response.status_code in (200, 201);
 
             response = requests.post(
                 f"{sv_base_url}/user/login",
-                json={
-                    "identity": {"type": "username", "value": username},
-                    "credential": {"type": "password", "password": password}
-                },
+                json=login_payload(username, password),
                 timeout=10
             );
             assert response.status_code == 200;
@@ -1516,7 +1313,6 @@ test "websocket functionality" {
 
 glob dm_fixtures_dir: Path = Path(__file__).parent.parent / "fixtures",
      dm_test_file: Path = dm_fixtures_dir / "test_api.jac",
-     dm_vite_port: int = get_free_port(),
      dm_api_port: int = get_free_port(),
      dm_base_url: str = f"http://localhost:{dm_api_port}";
 
@@ -1536,14 +1332,16 @@ def setup_dev_mode_server -> subprocess.Popen {
     if not dm_test_file.exists() {
         raise FileNotFoundError(f"Test fixture not found: {dm_test_file}");
     }
-    _cleanup_db_files(dm_fixtures_dir);
+    cleanup_db_files(dm_fixtures_dir);
 
+    # Only --api_port is pinned: that is the one this suite talks to, and a
+    # pinned port is now a contract that fails rather than relocating. The app
+    # port is left unset so it may still relocate, which is what this harness
+    # always relied on after reserving ports at import time.
     cmd = [
         jac_executable(),
         "run",
         "--serve",
-        "--port",
-        str(dm_vite_port),
         "--api-port",
         str(dm_api_port),
         "--dev",
@@ -1598,8 +1396,8 @@ def setup_dev_mode_server -> subprocess.Popen {
 }
 
 def teardown_dev_mode_server(sp: subprocess.Popen | None) {
-    _stop_server(sp);
-    _cleanup_db_files(dm_fixtures_dir);
+    stop_server(sp);
+    cleanup_db_files(dm_fixtures_dir);
 }
 
 test "dev mode operations" {
@@ -1608,19 +1406,13 @@ test "dev mode operations" {
         devtest_user = f"devtest_{uuid.uuid4().hex[:8]}";
         register_response = requests.post(
             f"{dm_base_url}/user/register",
-            json={
-                "identities": [{"type": "username", "value": devtest_user}],
-                "credential": {"type": "password", "password": "pass"}
-            },
+            json=register_payload(devtest_user, "pass"),
             timeout=10
         );
         assert register_response.status_code == 201;
         login_response = requests.post(
             f"{dm_base_url}/user/login",
-            json={
-                "identity": {"type": "username", "value": devtest_user},
-                "credential": {"type": "password", "password": "pass"}
-            },
+            json=login_payload(devtest_user, "pass"),
             timeout=10
         );
         token = _extract_data_dev(login_response.json())["token"];
@@ -1641,19 +1433,13 @@ test "dev mode operations" {
         devfunc_user = f"devfunc_{uuid.uuid4().hex[:8]}";
         register_response = requests.post(
             f"{dm_base_url}/user/register",
-            json={
-                "identities": [{"type": "username", "value": devfunc_user}],
-                "credential": {"type": "password", "password": "pass"}
-            },
+            json=register_payload(devfunc_user, "pass"),
             timeout=10
         );
         assert register_response.status_code == 201;
         login_response = requests.post(
             f"{dm_base_url}/user/login",
-            json={
-                "identity": {"type": "username", "value": devfunc_user},
-                "credential": {"type": "password", "password": "pass"}
-            },
+            json=login_payload(devfunc_user, "pass"),
             timeout=10
         );
         token = _extract_data_dev(login_response.json())["token"];
@@ -1690,19 +1476,13 @@ test "dev mode operations" {
         username = f"asyncuser_{uuid.uuid4().hex[:8]}";
         register_response = requests.post(
             f"{dm_base_url}/user/register",
-            json={
-                "identities": [{"type": "username", "value": username}],
-                "credential": {"type": "password", "password": "password123"}
-            },
+            json=register_payload(username, "password123"),
             timeout=10
         );
         assert register_response.status_code == 201;
         login_response = requests.post(
             f"{dm_base_url}/user/login",
-            json={
-                "identity": {"type": "username", "value": username},
-                "credential": {"type": "password", "password": "password123"}
-            },
+            json=login_payload(username, "password123"),
             timeout=10
         );
         token = _extract_data_dev(login_response.json())["token"];
@@ -1844,13 +1624,13 @@ test "dev mode named endpoints and HMR refresh" {
     }
 }
 
-import from jaclang.scale.server.serve {
-    _find_available_port,
-    _get_network_ips,
+import from jaclang.server.net {
+    find_available_port as _find_available_port,
+    PortInUseError,
     PORT_RETRY_LIMIT,
-    ERRNO_ADDR_IN_USE_LINUX,
-    ERRNO_ADDR_IN_USE_WINDOWS
+    ERRNO_ADDR_IN_USE
 }
+import from jaclang.cli.commands.execution { _find_free_port }
 
 test "port fallback - available port returns same port" {
     free_port = get_free_port();
@@ -1901,6 +1681,90 @@ test "port fallback - skips multiple blocked ports" {
     }
 }
 
+def _assert_refuses(label: str, port: int, err: OSError | None) {
+    assert err is not None , (
+        f"{label}: a pinned port was relocated instead of failing, which is what "
+        "silently strands a proxy pointed at it"
+    );
+    assert str(port) in str(err) , (
+        f"{label}: the error must name the port that was asked for, got: {err}"
+    );
+}
+
+
+test "an explicitly requested port is never relocated" {
+    # Both selections a user's -p reaches: the API port, and in dev mode the
+    # app port Vite serves. The second is the one the incident in #8387 moved.
+    blocked = get_free_port();
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s {
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
+        s.bind(('0.0.0.0', blocked));
+        s.listen(1);
+        api_err: OSError | None = None;
+        try {
+            _find_available_port(blocked, strict=True);
+        } except OSError as e {
+            api_err = e;
+        }
+        _assert_refuses("api port", blocked, api_err);
+        app_err: OSError | None = None;
+        try {
+            _find_free_port(blocked, 0, True);
+        } except OSError as e {
+            app_err = e;
+        }
+        _assert_refuses("app port", blocked, app_err);
+        collide_err: OSError | None = None;
+        try {
+            _find_free_port(blocked, blocked, True);
+        } except OSError as e {
+            collide_err = e;
+        }
+        _assert_refuses("app port equal to the api port", blocked, collide_err);
+    }
+}
+
+
+test "a refused port reaches the CLI as a mapped error, not a traceback" {
+    # The refusal crosses two paths that report failures differently: the plain
+    # one catches it itself, the gateway one lets it reach the CLI executor.
+    # Carrying a type rather than a message is what lets errmap render both the
+    # same way, so an unmapped error's raw Python traceback stops being the
+    # gateway's answer to a busy port.
+    import from jaclang.cli.errmap { humanize_error }
+
+    blocked = get_free_port();
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s {
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
+        s.bind(('0.0.0.0', blocked));
+        s.listen(1);
+        err: OSError | None = None;
+        try {
+            _find_available_port(blocked, strict=True);
+        } except OSError as e {
+            err = e;
+        }
+        assert isinstance(err, PortInUseError) , (
+            f"a strict refusal must raise PortInUseError, got {type(err).__name__}"
+        );
+        assert err.port == blocked , (
+            f"the error must carry the port asked for, got {err.port}"
+        );
+        assert isinstance(err, OSError) , (
+            "PortInUseError must stay an OSError so existing handlers still catch it"
+        );
+        mapped = humanize_error(err);
+        assert mapped is not None , (
+            "an unmapped error is what makes the CLI print a raw traceback"
+        );
+        assert str(blocked) in mapped[0] , (
+            f"the mapped message must name the port: {mapped[0]!r}"
+        );
+        assert mapped[1] , "the mapped error should carry a hint";
+    }
+}
+
+
 test "port fallback - raises error when no ports available" {
     start_port = get_free_port();
     sockets: list[socket.socket] = [];
@@ -1935,33 +1799,20 @@ test "port fallback - raises error when no ports available" {
     }
 }
 
-test "network IPs - returns valid IP list" {
-    ips = _get_network_ips();
-    assert isinstance(ips, list) , "Expected list of IPs";
-
-    for ip in ips {
-        assert not ip.startswith('127.') , f"Localhost IP {ip} should be filtered";
-        assert ':' not in ip , f"IPv6 address {ip} should be filtered";
-    }
-
-    assert len(ips) == len(set(ips)) , "IP list should not contain duplicates";
-}
-
 test "port constants - values are correct" {
     assert PORT_RETRY_LIMIT == 10 , "PORT_RETRY_LIMIT should be 10";
-    assert ERRNO_ADDR_IN_USE_LINUX == 98 , "ERRNO_ADDR_IN_USE_LINUX should be 98";
-    assert ERRNO_ADDR_IN_USE_WINDOWS == 10048 , "ERRNO_ADDR_IN_USE_WINDOWS should be 10048";
+    assert 98 in ERRNO_ADDR_IN_USE , "Linux EADDRINUSE should be recognised";
+    assert 48 in ERRNO_ADDR_IN_USE , "macOS EADDRINUSE should be recognised";
+    assert 10048 in ERRNO_ADDR_IN_USE , "Windows WSAEADDRINUSE should be recognised";
 }
 
-test "server startup - port fallback integration" {
+test "server startup - a second server refuses an already-taken explicit port" {
     port1 = get_free_port();
     sp1: subprocess.Popen | None = None;
     sp2: subprocess.Popen | None = None;
 
     try {
-        sp1 = _start_server(
-            sv_fixtures_dir, sv_test_file, port1, f"http://localhost:{port1}"
-        );
+        sp1 = start_server(sv_fixtures_dir, sv_test_file, port1);
 
         response = requests.get(f"http://localhost:{port1}/healthz", timeout=5);
         assert response.status_code == 200 , "First server should be running";
@@ -1972,6 +1823,7 @@ test "server startup - port fallback integration" {
             "--serve",
             "--port",
             str(port1),
+            "--no-client",
             sv_test_file.name
         ];
 
@@ -1983,38 +1835,17 @@ test "server startup - port fallback integration" {
             cwd=str(sv_fixtures_dir)
         );
 
-        actual_port = port1;
-        max_wait = 60;
-        start_time = time.time();
+        (output, _unused) = sp2.communicate(timeout=120);
 
-        while time.time() - start_time < max_wait {
-            if sp2.stdout and select.select([sp2.stdout], [], [], 0.5)[0] {
-                line = sp2.stdout.readline();
-                if line and "using port" in line {
-                    port_match = re.search(r'using port (\d+)', line);
-                    if port_match {
-                        actual_port = int(port_match.group(1));
-                    }
-                }
-            }
-
-            for test_port in range(port1 + 1, port1 + 5) {
-                try {
-                    resp = requests.get(
-                        f"http://localhost:{test_port}/healthz", timeout=1
-                    );
-                    if resp.status_code == 200 {
-                        actual_port = test_port;
-                        break;
-                    }
-                } except Exception { }
-            }
-            if actual_port > port1 {
-                break;
-            }
-        }
-
-        assert actual_port > port1 , f"Second server should use port > {port1}, got {actual_port}";
+        assert sp2.returncode != 0 , (
+            "a second server asked for a port the first one holds must exit "
+            f"non-zero rather than relocating, got {sp2.returncode}"
+        );
+        assert str(port1) in output , (
+            f"the failure must name the port that was asked for, got: {output[-300:]!r}"
+        );
+        survivor = requests.get(f"http://localhost:{port1}/healthz", timeout=5);
+        assert survivor.status_code == 200 , "the first server must be undisturbed";
     } finally {
         if sp2 {
             sp2.terminate();
@@ -2025,139 +1856,128 @@ test "server startup - port fallback integration" {
             }
         }
         if sp1 {
-            _stop_server(sp1);
+            stop_server(sp1);
         }
-        _cleanup_db_files(sv_fixtures_dir);
+        cleanup_db_files(sv_fixtures_dir);
     }
 }
 
-test "health check filter is disabled by default" {
+test "health check filter is off unless [serve.access_log] asks for it" {
     import logging;
-    import from jaclang.scale.config.config_loader {
-        get_scale_config,
-        reset_scale_config
+    import from jaclang.server.serving.accesslog {
+        HealthCheckFilter,
+        access_logger,
+        configure_access_logging
     }
-    import from jaclang.scale.server.native_server {
-        ConsoleLogHandler,
+    import from jaclang.server.settings { ServeSettings }
+
+    settings = ServeSettings();
+    assert not settings.access_log.suppress_health_checks , "suppress_health_checks should default to False";
+
+    configure_access_logging(enabled=True, format='text', suppress_health_checks=False);
+    handler = access_logger.handlers[0];
+    assert not any(isinstance(f, HealthCheckFilter) for f in handler.filters) , "HealthCheckFilter should not be attached when suppress_health_checks is false";
+
+    configure_access_logging(enabled=True, format='text', suppress_health_checks=True);
+    handler = access_logger.handlers[0];
+    assert any(isinstance(f, HealthCheckFilter) for f in handler.filters) , "HealthCheckFilter should be attached when suppress_health_checks is true";
+    configure_access_logging(enabled=True, format='text', suppress_health_checks=False);
+}
+
+test "health check filter suppresses probe records and keeps the rest" {
+    import logging;
+    import from jaclang.server.serving.accesslog {
+        ACCESS_LOGGER_NAME,
+        AccessRecord,
         HealthCheckFilter
     }
 
-    reset_scale_config();
-    cfg = get_scale_config();
-    server_cfg = cfg.get_server_config();
-
-    assert not server_cfg.get('suppress_health_check_logs', False) , "suppress_health_check_logs should default to False";
-
-    handler = ConsoleLogHandler();
-    handler.setFormatter(logging.Formatter("%(message)s"));
-    if server_cfg.get('suppress_health_check_logs', False) {
-        handler.addFilter(HealthCheckFilter());
-    }
-    assert not any(isinstance(f, HealthCheckFilter) for f in handler.filters) , "HealthCheckFilter should not be attached when suppress_health_check_logs is false";
-
-    reset_scale_config();
-}
-
-test "health check filter suppresses health endpoint log records" {
-    import logging;
-    import from jaclang.scale.server.native_server { HealthCheckFilter }
-    import from jaclang.runtimelib.serving.server { ACCESS_LOGGER_NAME }
-
-    def make_record(msg: str) -> logging.LogRecord {
-        return logging.LogRecord(
+    def make_record(path: str) -> logging.LogRecord {
+        rec = logging.LogRecord(
             name=ACCESS_LOGGER_NAME,
             level=logging.INFO,
             pathname="",
             lineno=0,
-            msg=msg,
+            msg=path,
             args=(),
             exc_info=None
         );
+        setattr(
+            rec,
+            'access',
+            AccessRecord(client='127.0.0.1', method='GET', path=path, status=200)
+        );
+        return rec;
     }
 
     f = HealthCheckFilter();
-
-    suppressed = [
-        '127.0.0.1:12345 - "GET /health HTTP/1.1" 200',
-        '127.0.0.1:12345 - "GET /docs HTTP/1.1" 200',
-        '127.0.0.1:12345 - "GET / HTTP/1.1" 200',
-        '127.0.0.1:12345 - "GET /openapi.json HTTP/1.1" 200',
-        '127.0.0.1:12345 - "GET /healthz HTTP/1.1" 200',
-        '127.0.0.1:12345 - "GET /healthz/ready HTTP/1.1" 200',
-        '127.0.0.1:12345 - "GET /healthz/live HTTP/1.1" 200',
-
-    ];
-    for msg in suppressed {
-        assert not f.filter(make_record(msg)) , f"Expected suppressed: {msg}";
+    for path in ['/healthz', '/healthz/ready', '/healthz/live'] {
+        assert not f.filter(make_record(path)) , f"Expected suppressed: {path}";
     }
-
-    allowed = [
-        '127.0.0.1:12345 - "GET /walker/MyWalker HTTP/1.1" 200',
-        '127.0.0.1:12345 - "POST /user/login HTTP/1.1" 200',
-        '127.0.0.1:12345 - "GET /graph HTTP/1.1" 200',
-        '127.0.0.1:12345 - "POST /function/add_numbers HTTP/1.1" 200',
-        '127.0.0.1:12345 - "GET /health/extra HTTP/1.1" 200',
-
-    ];
-    for msg in allowed {
-        assert f.filter(make_record(msg)) , f"Expected allowed: {msg}";
+    for path in [
+        '/walker/MyWalker',
+        '/user/login',
+        '/graph',
+        '/function/add_numbers',
+        '/health/extra',
+        '/docs',
+        '/'
+    ] {
+        assert f.filter(make_record(path)) , f"Expected allowed: {path}";
     }
+    plain = logging.LogRecord(
+        name=ACCESS_LOGGER_NAME,
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg="x",
+        args=(),
+        exc_info=None
+    );
+    assert f.filter(plain) , "records without an access payload pass through";
 }
 
-test "health check filter blocks records when attached to a handler" {
+test "json access log formatter emits one object per request" {
+    import json;
     import logging;
-    import from jaclang.scale.server.native_server { HealthCheckFilter }
-    import from jaclang.runtimelib.serving.server { ACCESS_LOGGER_NAME }
-
-    class _CapturingHandler(logging.Handler) {
-        has captured: list = [];
-
-        def emit(self: _CapturingHandler, record: logging.LogRecord) {
-            self.captured.append(record.getMessage());
-        }
+    import from jaclang.server.serving.accesslog {
+        ACCESS_LOGGER_NAME,
+        AccessJsonFormatter,
+        AccessRecord
     }
-
-    def make_record(msg: str) -> logging.LogRecord {
-        return logging.LogRecord(
-            name=ACCESS_LOGGER_NAME,
-            level=logging.INFO,
-            pathname="",
-            lineno=0,
-            msg=msg,
-            args=(),
-            exc_info=None
-        );
-    }
-
-    handler = _CapturingHandler();
-    handler.setFormatter(logging.Formatter("%(message)s"));
-    handler.addFilter(HealthCheckFilter());
-
-    records = [
-        ('127.0.0.1 - "GET /health HTTP/1.1" 200', False),
-        ('127.0.0.1 - "GET /docs HTTP/1.1" 200', False),
-        ('127.0.0.1 - "GET / HTTP/1.1" 200', False),
-        ('127.0.0.1 - "GET /openapi.json HTTP/1.1" 200', False),
-        ('127.0.0.1 - "GET /healthz HTTP/1.1" 200', False),
-        ('127.0.0.1 - "GET /healthz/ready HTTP/1.1" 200', False),
-        ('127.0.0.1 - "GET /healthz/live HTTP/1.1" 200', False),
-        ('127.0.0.1 - "POST /user/login HTTP/1.1" 200', True),
-        ('127.0.0.1 - "GET /walker/Foo HTTP/1.1" 200', True),
-
-    ];
-
-    for (msg, should_appear) in records {
-        handler.captured = [];
-        handler.handle(make_record(msg));
-        if should_appear {
-            assert len(handler.captured) == 1 , f"Expected handler to receive: {msg}";
-        } else {
-            assert len(handler.captured) == 0 , f"Expected handler to suppress: {msg}";
-        }
-    }
+    rec = logging.LogRecord(
+        name=ACCESS_LOGGER_NAME,
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg="m",
+        args=(),
+        exc_info=None
+    );
+    setattr(
+        rec,
+        'access',
+        AccessRecord(
+            client='10.0.0.9',
+            method='POST',
+            path='/walker/Foo',
+            status=201,
+            bytes_sent=42,
+            duration_ms=3.5,
+            request_id='abc',
+            ts=1700000000.25
+        )
+    );
+    payload = json.loads(AccessJsonFormatter().format(rec));
+    assert payload['method'] == 'POST';
+    assert payload['path'] == '/walker/Foo';
+    assert payload['status'] == 201;
+    assert payload['bytes'] == 42;
+    assert payload['request_id'] == 'abc';
+    assert payload['ts'].endswith('Z');
 }
 
-test "pwa target uses jac-scale server" {
+test "pwa project uses jac-scale server" {
     import tempfile;
 
     port = get_free_port();
@@ -2176,17 +1996,10 @@ version = "1.0.0"
 theme_color = "#000000"
 '''
         );
+        # A [client.pwa] table is what makes this a PWA; there is no
+        # separate PWA client target or --client flag.
         server = subprocess.Popen(
-            [
-                jac_executable(),
-                "run",
-                "--serve",
-                "--client",
-                "pwa",
-                "-p",
-                str(port),
-                "main.jac"
-            ],
+            [jac_executable(), "run", "--serve", "-p", str(port), "main.jac"],
             cwd=temp_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -2226,21 +2039,9 @@ test "jwt middleware: per-user isolation and token rejection" {
     client = make_client();
     try {
         def reg(name: str) -> str {
-            r = client.post(
-                "/user/register",
-                json={
-                    "identities": [{"type": "username", "value": name}],
-                    "credential": {"type": "password", "password": "Pass!99"}
-                }
-            );
+            r = client.post("/user/register", json=register_payload(name, "Pass!99"));
             assert r.status_code == 201;
-            login = client.post(
-                "/user/login",
-                json={
-                    "identity": {"type": "username", "value": name},
-                    "credential": {"type": "password", "password": "Pass!99"}
-                }
-            );
+            login = client.post("/user/login", json=login_payload(name, "Pass!99"));
             assert login.status_code == 200;
             return extract_data(login.json())["token"];
         }

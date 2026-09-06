@@ -75,7 +75,7 @@ For typed report accumulation (`has reports: list[T] = [];`, exit-collector patt
 
 - `POST /walker/<name>` - spawn a walker; body maps onto `has` fields.
 - `POST /function/<name>` - call a function; body maps onto parameters.
-- `GET /docs` (Swagger), `/redoc`, `/openapi.json` - auto-generated; disable in prod with `[scale.server] docs_enabled = false`.
+- `GET /docs` (Swagger), `/redoc`, `/openapi.json` - auto-generated; disable in prod with `[serve] docs_enabled = false`.
 - `GET /graph` - live graph visualizer. `GET /healthz` (+ `/healthz/ready`, `/healthz/live`) - health probes.
 
 Every response is wrapped in a standard envelope:
@@ -109,7 +109,7 @@ Parameters are classified: **path** (name matches `{...}` in path) → **file** 
 ## File uploads
 
 ```jac
-import from jaclang.runtimelib.serving.datatypes { UploadFile }
+import from jaclang.server.serving.datatypes { UploadFile }
 
 glob storage: any = store();   # ambient builtin; local disk by default
 

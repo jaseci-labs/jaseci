@@ -15,11 +15,13 @@ ACL-gated, and is applied in object space otherwise.
 
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.jac0core.graph_query { GraphQuery, QHop, QOrder }
-import from jaclang.jac0core.runtime { JacRuntime }
-import from jaclang.runtimelib.context { ExecutionContext }
-import from jaclang.runtimelib.query_planner { resolve_query }
-import from jaclang.runtimelib.sqlcompile { compile_query }
+import from jaclang.runtime.graph_query { GraphQuery, QHop, QOrder }
+import from jaclang.runtime.runtime { JacRuntime }
+import from jaclang.server.session { Session }
+import from typing { cast }
+import from jaclang.runtime.context { ExecutionContext }
+import from jaclang.data.query_planner { resolve_query }
+import from jaclang.data.sqlcompile { compile_query }
 
 node OBoard {
     has name: str = "";
@@ -110,7 +112,7 @@ test "ordering drives real results, ascending and descending" {
             b = _seed();
             ctx.mem.commit();
             asc = resolve_query(
-                ctx.mem,
+                cast(Session, ctx.mem),
                 GraphQuery(
                     b, hops=[QHop(dir=2, nd=OItem)], order=[QOrder(field="rank")]
                 )
@@ -118,7 +120,7 @@ test "ordering drives real results, ascending and descending" {
             ranks = [_as_any(a).archetype.rank for a in asc];
             assert ranks == sorted(ranks) , ranks;
             desc = resolve_query(
-                ctx.mem,
+                cast(Session, ctx.mem),
                 GraphQuery(
                     b,
                     hops=[QHop(dir=2, nd=OItem)],
@@ -145,7 +147,7 @@ test "a bound returns the first n in the requested order" {
             b = _seed();
             ctx.mem.commit();
             top = resolve_query(
-                ctx.mem,
+                cast(Session, ctx.mem),
                 GraphQuery(
                     b,
                     hops=[QHop(dir=2, nd=OItem)],

@@ -93,7 +93,7 @@ The MCP server for AI-assisted Jac development is built into the binary -- run `
 `jac install` resolves packages from PyPI into your project environment; jaclang itself is provided by the binary, so it is never reinstalled. See [One Binary, Build Anything](one-binary.md) for the full picture of what the binary bundles, and the [CLI reference](../reference/cli/index.md#jac-install) for all options.
 
 !!! note "Deployment & scaling is built in"
-    Production serving and Kubernetes deployment (`jac run`, `jac scale deploy`) ship inside the `jac` binary as the built-in `scale` subsystem -- there is no separate `jac-scale` package to install. Scale's optional heavier dependencies (MongoDB, Redis, Kubernetes, Prometheus, ...) are pulled into your project on demand: declare the matching `[scale.*]` config in `jac.toml`, then run `jac install` to resolve them into `.jac/venv`.
+    Production serving and Kubernetes deployment (`jac run`, `jac scale deploy`) ship inside the `jac` binary as the built-in `scale` subsystem -- there is no separate `jac-scale` package to install. Scale's optional heavier dependencies (Kubernetes, Prometheus, OpenTelemetry, ...) are pulled into your project on demand: declare the matching `[scale.*]` config in `jac.toml`, then run `jac install` to resolve them into `.jac/venv`.
 
 ---
 

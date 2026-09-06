@@ -1,29 +1,29 @@
 import from pathlib { Path }
-import from jaclang.runtimelib.serving.datatypes { Request }
-import from jaclang.runtimelib.serving.datatypes {
+import from jaclang.server.serving.datatypes { Request }
+import from jaclang.server.serving.datatypes {
     FileResponse,
     HTMLResponse,
     JSONResponse,
     Response
 }
-import from jaclang.runtimelib.transport { TransportResponse }
-import from jaclang.runtimelib.serving.endpoint {
+import from jaclang.server.transport { TransportResponse }
+import from jaclang.server.serving.endpoint {
     HTTPMethod,
     JEndPoint,
     APIParameter,
     ParameterType
 }
 import from jaclang.scale.config.config_loader { get_scale_config }
-import from jaclang.scale.server.native_server { NativeJServer }
-import from jaclang.scale.identity.user_manager { JacScaleUserManager }
+import from jaclang.server.server { EndpointHost }
+import from jaclang.server.identity.user_manager { UserManager }
 import from jaclang.scale.observability.metrics { MetricsCollector }
 
 obj JacAPIServerAdmin {
-    has server: (NativeJServer | None) = None,
-        user_manager: (JacScaleUserManager | None) = None,
+    has server: (EndpointHost | None) = None,
+        user_manager: (UserManager | None) = None,
         _metrics: (MetricsCollector | None) = None;
 
-    def _require_user_manager -> JacScaleUserManager;
+    def _require_user_manager -> UserManager;
     def register_admin_endpoints -> None;
     def bootstrap_admin -> None;
     def admin_login(username: str, password: str) -> TransportResponse;

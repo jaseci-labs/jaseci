@@ -1,13 +1,17 @@
 import yaml;
 import from jaclang.cli.console { console }
 import from jaclang.scale.config.app_config { AppConfig }
-import from jaclang.scale.deploy.target.kubernetes.manifest_builder { GATEWAY_NAME }
+import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
+    GATEWAY_NAME,
+    ScalingMode
+}
 import from jaclang.scale.runtime.cli.diagnostics {
     Diagnostic,
     PlanValidator,
     has_errors
 }
 import from jaclang.scale.runtime.cli._narrow { dget, fget, iget, lget, pod_spec, sget }
+import from jaclang.scale.runtime.fleet { FleetSpec }
 
 
 def _diags_for(diagnostics: list[Diagnostic], service: str | None) -> list[Diagnostic] {
@@ -58,6 +62,31 @@ obj HPAView {
 }
 
 
+obj HTTPActivationView {
+    has min_replicas: int,
+        max_replicas: int,
+        metric: str;
+
+    static def from_manifest(http: Any) -> HTTPActivationView | None {
+        if not isinstance(http, dict) or not http {
+            return None;
+        }
+        if http.get("concurrency_target") is not None {
+            metric = f"concurrency={http.get('concurrency_target')}";
+        } elif http.get("request_rate_target") is not None {
+            metric = f"request_rate={http.get('request_rate_target')}";
+        } else {
+            metric = "(metric unset)";
+        }
+        return HTTPActivationView(
+            min_replicas=iget(http, "min_replicas", 0),
+            max_replicas=iget(http, "max_replicas", 1),
+            metric=metric
+        );
+    }
+}
+
+
 obj PDBView {
     has max_unavailable: int | None;
 
@@ -91,11 +120,17 @@ obj ServiceView {
         env_keys: list[str] = [],
         secret_ref_count: int = 0,
         hpa: HPAView | None = None,
+        http_activation: HTTPActivationView | None = None,
         pdb: PDBView | None = None,
         mounts: list[tuple[str, str]] = [];
 
     static def from_manifests(
-        name: str, deployment: any, hpa: any, pdb: any, route_path: str | None
+        name: str,
+        deployment: any,
+        hpa: any,
+        http_activation: any,
+        pdb: any,
+        route_path: str | None
     ) -> ServiceView {
         containers = lget(pod_spec(deployment), "containers");
         container: dict = {};
@@ -157,6 +192,7 @@ obj ServiceView {
             env_keys=env_keys,
             secret_ref_count=secret_refs,
             hpa=HPAView.from_manifest(hpa),
+            http_activation=HTTPActivationView.from_manifest(http_activation),
             pdb=PDBView.from_manifest(pdb),
             mounts=mounts
         );
@@ -173,6 +209,13 @@ obj ServiceView {
                 f"{self.replicas}  "
                 f"(HPA: {h.min_replicas} -> {h.max_replicas} {target_str})"
             );
+        } elif self.http_activation is not None {
+            a = self.http_activation;
+            replicas_line = (
+                f"{self.replicas}  "
+                f"(HTTP activation: {a.min_replicas} -> {a.max_replicas} "
+                f"on {a.metric}, scale-to-zero via KEDA HTTP Add-on)"
+            );
         } else {
             replicas_line = str(self.replicas);
         }
@@ -188,7 +231,11 @@ obj ServiceView {
         if self.container_port is not None {
             console.print(f"    port:      {self.container_port}");
         }
-        if self.route_path is not None {
+        if self.route_path == "/" {
+            console.print(
+                "    route:     /  (served app; the gateway forwards root paths)"
+            );
+        } elif self.route_path is not None {
             console.print(f"    route:     {self.route_path}  (via gateway)");
         } elif self.name != GATEWAY_NAME {
             console.print("    route:     (internal-only, no gateway path)");
@@ -237,7 +284,7 @@ obj IngressView {
             }
             paths: list[tuple[str, str]] = [];
             for (svc, path) in routes.items() {
-                if svc == GATEWAY_NAME {
+                if svc == GATEWAY_NAME or str(path) == "/" {
                     continue;
                 }
                 paths.append((str(path), str(svc)));
@@ -263,10 +310,10 @@ obj IngressView {
 }
 
 
-def _render_cluster_wide(bundle: any, ms_cfg: any) -> None {
+def _render_cluster_wide(bundle: any, gateway_cfg: any) -> None {
     lines: list[str] = [];
 
-    rl = dget(ms_cfg, "rate_limit");
+    rl = dget(gateway_cfg, "rate_limit");
     if isinstance(rl, dict) and rl.get("enabled") {
         tiers: list[str] = [];
         per_ip = iget(rl, "per_ip_rpm", 0);
@@ -286,7 +333,7 @@ def _render_cluster_wide(bundle: any, ms_cfg: any) -> None {
         }
     }
 
-    cors = dget(ms_cfg, "cors");
+    cors = dget(gateway_cfg, "cors");
     if isinstance(cors, dict) and cors.get("enabled") {
         raw = cors.get("allow_origins");
         if isinstance(raw, list) and raw {
@@ -319,16 +366,30 @@ def _render_totals(bundle: any) {
         n = len(dget(bundle, key));
         return f"{n} {label}{'s' if n != 1 else ''}" if n else None;
     }
+    def _n_mode(mode: ScalingMode, label: str) -> str | None {
+        n = len(
+            [
+                p
+                for p in dget(bundle, "scaling").values()
+                if isinstance(p, dict) and p.get("mode") == mode
+            ]
+        );
+        return f"{n} {label}{'s' if n != 1 else ''}" if n else None;
+    }
     parts: list[str] = [];
     n_dep = len(dget(bundle, "deployments"));
     n_svc = len(dget(bundle, "services"));
     parts.append(f"{n_dep} deployment{'s' if n_dep != 1 else ''}");
     parts.append(f"{n_svc} service{'s' if n_svc != 1 else ''}");
-    for (key, label) in [
-        ("autoscalers", "Autoscaler"),
-        ("pdbs", "PDB"),
-        ("pvcs", "PVC")
-    ] {
+    autoscaler_entry = _n_mode(ScalingMode.METRIC, "Autoscaler");
+    if autoscaler_entry {
+        parts.append(autoscaler_entry);
+    }
+    http_entry = _n_mode(ScalingMode.HTTP_ACTIVATION, "HTTP activation");
+    if http_entry {
+        parts.append(http_entry);
+    }
+    for (key, label) in [("pdbs", "PDB"), ("pvcs", "PVC")] {
         `entry = _n(key, label);
         if `entry {
             parts.append(`entry);
@@ -345,7 +406,8 @@ def _render_totals(bundle: any) {
 
 obj Plan {
     has bundle: dict,
-        ms_cfg: dict,
+        routes: dict,
+        gateway_cfg: dict,
         svc_configs: dict,
         cluster_type: str,
         namespace: str,
@@ -359,25 +421,31 @@ obj Plan {
         if render_autoscalers is not None {
             bundle["autoscaler_manifests"] = render_autoscalers(bundle);
         }
-        (ms_cfg, svc_configs) = Plan._load_ms_cfg();
+        fleet: (FleetSpec | None) = bundle.get("fleet");
+        gateway_cfg_raw: any = bundle.get("gateway_config");
+        gateway_cfg: dict = gateway_cfg_raw
+            if isinstance(gateway_cfg_raw, dict)
+            else {};
 
-        routes_any: any = ms_cfg.get("routes", {});
         routes: dict = {};
-        if isinstance(routes_any, dict) {
-            routes = routes_any;
+        svc_configs: dict = {};
+        if fleet is not None {
+            for (name, member) in fleet.members.items() {
+                routes[str(name)] = "/" if member.is_root else str(member.route);
+            }
+            for (name, cfg) in fleet.overrides.items() {
+                if isinstance(cfg, dict) {
+                    svc_configs[str(name)] = cfg;
+                }
+            }
         }
         deployments = dget(bundle, "deployments");
-        autoscalers = dget(bundle, "autoscalers");
+        scaling = dget(bundle, "scaling");
         pdbs = dget(bundle, "pdbs");
 
-        user_routes: list[str] = [
-            str(r)
-            for r in routes
-            if r != GATEWAY_NAME
-        ];
         ordered: list[str] = [
             r
-            for r in user_routes
+            for r in routes
             if r in deployments
         ];
         if GATEWAY_NAME in deployments {
@@ -393,11 +461,25 @@ obj Plan {
         services: list[ServiceView] = [];
         for svc in ordered {
             route_path: str | None = str(routes[svc]) if svc in routes else None;
+            plan_svc: Any = scaling.get(svc);
+            mode: Any = plan_svc.get("mode") if isinstance(plan_svc, dict) else None;
+            hpa: Any = (
+                plan_svc.get("autoscaler")
+                    if isinstance(plan_svc, dict) and mode == ScalingMode.METRIC
+                    else None
+            );
+            http: Any = (
+                plan_svc.get("http_activation")
+                    if isinstance(plan_svc, dict)
+                        and mode == ScalingMode.HTTP_ACTIVATION
+                    else None
+            );
             services.append(
                 ServiceView.from_manifests(
                     name=svc,
                     deployment=deployments.get(svc),
-                    hpa=autoscalers.get(svc),
+                    hpa=hpa,
+                    http_activation=http,
                     pdb=pdbs.get(svc),
                     route_path=route_path
                 )
@@ -406,7 +488,8 @@ obj Plan {
 
         return Plan(
             bundle=bundle,
-            ms_cfg=ms_cfg,
+            routes=routes,
+            gateway_cfg=gateway_cfg,
             svc_configs=svc_configs,
             cluster_type="(active kubectl context)",
             namespace=str(target.k8s_config.namespace),
@@ -415,29 +498,12 @@ obj Plan {
         );
     }
 
-    static def _load_ms_cfg -> tuple[dict, dict] {
-        try {
-            import from jaclang.scale.config.config_loader { get_scale_config }
-            raw: any = get_scale_config().get_microservices_config();
-            ms_cfg: dict = raw if isinstance(raw, dict) else {};
-            services_raw: any = ms_cfg.get("services", {});
-            svc_configs: dict = {};
-            if isinstance(services_raw, dict) {
-                for (name, cfg) in services_raw.items() {
-                    if isinstance(cfg, dict) {
-                        svc_configs[str(name)] = cfg;
-                    }
-                }
-            }
-            return (ms_cfg, svc_configs);
-        } except Exception {
-            return ({}, {});
-        }
-    }
-
     def validate -> list[Diagnostic] {
         return PlanValidator(
-            bundle=self.bundle, ms_cfg=self.ms_cfg, svc_configs=self.svc_configs
+            bundle=self.bundle,
+            routes=self.routes,
+            gateway_cfg=self.gateway_cfg,
+            svc_configs=self.svc_configs
         ).run();
     }
 
@@ -448,7 +514,7 @@ obj Plan {
         if self.ingress is not None {
             self.ingress.render();
         }
-        _render_cluster_wide(self.bundle, self.ms_cfg);
+        _render_cluster_wide(self.bundle, self.gateway_cfg);
         _render_totals(self.bundle);
         self._render_yaml_or_hint(show_yaml);
     }
@@ -507,14 +573,11 @@ obj Plan {
     def _render_services(diagnostics: list[Diagnostic]) -> None {
         if not self.services {
             console.print();
-            console.print(
-                "(no microservices declared in [scale.microservices.routes])",
-                style="muted"
-            );
+            console.print("(no apps in the fleet)", style="muted");
             return;
         }
         console.print();
-        console.print(f"Microservices ({len(self.services)})", style="bold");
+        console.print(f"Apps ({len(self.services)})", style="bold");
         for svc in self.services {
             svc.render(diagnostics);
         }

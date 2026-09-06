@@ -7,13 +7,15 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 
+import from jaclang.scale.runtime.fleet { fleet_of }
+
 
 def _builder(
     services: dict, k8s_config: KubernetesConfig | None = None
 ) -> ManifestBuilder {
     return ManifestBuilder(
         k8s_config=k8s_config or KubernetesConfig(app_name="t", namespace="t-ns"),
-        microservices_config={"services": services},
+        fleet=fleet_of({}, overrides=services),
         dry_run=True
     );
 }
@@ -143,9 +145,7 @@ test "malformed hpa.behavior warns and falls back to the empty fragment" {
     logger = unittest.mock.MagicMock();
     b = ManifestBuilder(
         k8s_config=KubernetesConfig(app_name="t", namespace="t-ns"),
-        microservices_config={
-            "services": {"billing_ops": {"hpa": {"behavior": "gentle"}}}
-        },
+        fleet=fleet_of({}, overrides={"billing_ops": {"hpa": {"behavior": "gentle"}}}),
         dry_run=True,
         logger=logger
     );
@@ -170,10 +170,15 @@ test "deploy loads the cluster config before it resolves the pod arch" {
     }
     import from jaclang.scale.config.app_config { AppConfig }
     import jaclang.scale.injector.binary as binary_mod;
+    import from jaclang.cli.manifest_route { resolve_cli_version }
 
+    # Same minor line as the running jac, or the deploy is refused as a
+    # cross-generation deploy (#8766) and never reaches the ordering under test.
+    (major, minor, _) = binary_mod._ver_key(resolve_cli_version().strip());
     d = tempfile.mkdtemp();
     (Path(d) / "jac.toml").write_text(
-        '[project]\nname = "x"\nversion = "0.1.0"\njac-version = "==0.34.99"\n'
+        f'[project]\nname = "x"\nversion = "0.1.0"\n'
+        f'jac-version = "=={major}.{minor}.99"\n'
     );
     order: list[str] = [];
     target = KubernetesTarget(config=KubernetesConfig(app_name="t", namespace="t-ns"));

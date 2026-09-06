@@ -1,6 +1,6 @@
 import inspect;
 import json;
-import from jaclang.jac0core.mtp { Info, MethodInfo, FunctionInfo }
+import from jaclang.compiler.driver.mtp { Info, MethodInfo, FunctionInfo }
 import from types { MethodType }
 import from typing { get_type_hints }
 import from jaclang.byllm.schema { json_to_instance, type_to_schema }
@@ -39,7 +39,9 @@ obj MTRuntime {
         _final_output: object = None,
         _has_final_output: bool = False,
         _stream_reset_count: int = 0,
-        _tool_arg_deltas: list[dict] = [];
+        _tool_arg_deltas: list[dict] = [],
+        _usage_history: list[dict] = [],
+        _call_kind: str = "react_iteration";
 
     static def factory(mtir: MTIR) -> MTRuntime;
     def add_message(message: MessageType) -> None;

@@ -1,15 +1,15 @@
-import from jaclang.runtimelib.serving.datatypes { Request }
-import from jaclang.runtimelib.serving.datatypes { JSONResponse }
-import from jaclang.runtimelib.serving.endpoint {
+import from jaclang.server.serving.datatypes { Request }
+import from jaclang.server.serving.datatypes { JSONResponse }
+import from jaclang.server.serving.endpoint {
     HTTPMethod,
     JEndPoint,
     APIParameter,
     ParameterType
 }
-import from jaclang.scale.server.native_server { NativeJServer }
+import from jaclang.server.server { EndpointHost }
 
 obj JacAPIServerLLMTelemetry {
-    has server: (NativeJServer | None) = None;
+    has server: (EndpointHost | None) = None;
 
     def require_admin_json(Authorization: str | None) -> (JSONResponse | None);
     def register_llm_telemetry_endpoints -> None;

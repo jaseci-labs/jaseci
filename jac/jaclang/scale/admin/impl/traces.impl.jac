@@ -1,9 +1,9 @@
 import os;
 import logging;
 import time;
-import from jaclang.runtimelib.serving.datatypes { Request }
-import from jaclang.runtimelib.serving.datatypes { JSONResponse }
-import from jaclang.runtimelib.serving.endpoint {
+import from jaclang.server.serving.datatypes { Request }
+import from jaclang.server.serving.datatypes { JSONResponse }
+import from jaclang.server.serving.endpoint {
     HTTPMethod,
     JEndPoint,
     APIParameter,
@@ -22,10 +22,8 @@ def _tempo_base_url -> str {
 
 def _trace_services -> list[str] {
     try {
-        ms = get_scale_config().get_microservices_config();
-        routes: dict = ms.get("routes", {});
-        names: list[str] = list(routes.keys());
-        return ["gateway"] + sorted(names);
+        import from jaclang.scale.runtime.fleet { fleet_member_names }
+        return ["gateway"] + sorted(fleet_member_names());
     } except Exception {
         return [];
     }
@@ -66,7 +64,7 @@ def _build_traceql(service: str, status: str, min_duration_ms: int) -> str {
 
 
 async def _tempo_request(path: str, params: dict, accept_json: bool = False) -> dict {
-    import from jaclang.runtimelib.serving.client { ClientConnectionError, arequest }
+    import from jaclang.server.serving.client { ClientConnectionError, arequest }
     base = _tempo_base_url();
     url = base + path;
     headers: dict = {};
@@ -190,8 +188,8 @@ impl JacAPIServerTraces.register_traces_endpoints -> None {
             tags=["Traces"],
             summary="Service dropdown options",
             description=(
-                "Microservices declared in [scale.microservices.routes] "
-                "+ 'gateway'. Used by the admin TracesPage service filter."
+                "The workspace's fleet apps + 'gateway'. Used by the admin "
+                "TracesPage service filter."
             )
         )
     );

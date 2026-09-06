@@ -8,6 +8,7 @@ The complete technical reference for Jac -- pure lookup, organized by subject. I
 - **Meeting a term like *synechic* or *walker* for the first time?** → [The Vocabulary of Jac](../quick-guide/vocabulary.md).
 - **Looking up a `jac` command?** → [CLI Commands](cli/index.md).
 - **Configuring a project?** → [Configuration (`jac.toml`)](config/index.md).
+- **Several apps over one codebase?** → [Workspaces & Apps](apps.md).
 - **Wiring AI, deployment, or the full-stack client?** → [Capabilities and Plugins](#capabilities-and-plugins).
 
 ---
@@ -29,6 +30,7 @@ The core language -- syntax, types, objects, graphs, concurrency, and native com
 - **[Comprehensions & Filters](language/advanced.md)** -- filter/assign comprehensions, typed filters
 - **[Walker Patterns](language/walker-responses.md)** -- the `.reports` array, response patterns, nested spawning
 - **[Gradual Borrow Checking](language/ownership-borrowing.md)** -- `own`/`imm`/`&`/`&mut` bindings, move checking, `Region` arenas (`in <handle> { }` opens), `def drop` ([checker spec](../internals/ownership-checker-spec.md))
+- **[Compile-Time Evaluation](language/comptime.md)** -- `comptime` bindings, `if`/`for`/`assert`, comptime defs, imports and parameters, archetype value params, the `jaclang.comptime` intrinsics
 - **[Syntax Cheatsheet](language/syntax-cheatsheet.md)** -- one-page lookup
 - **[Native Compilation](language/native-pathway.md)** -- compiling to native binaries and C-ABI shared libraries; gc modes and zero-RC ownership builds
 
@@ -54,6 +56,7 @@ AI, deployment, and the full-stack frameworks. byLLM and Scale are **built into 
 - **[MCP Server](mcp.md)** -- expose your project to AI coding assistants via `jac mcp`
 - **[Agent Skills & MCP](agent-skills-and-mcp.md)** -- `jac guide`, exportable skills, and when to use each
 - **[Configuration](config/index.md)** -- `jac.toml`, profiles, environments
+- **[Workspaces & Apps](apps.md)** -- `[apps.<name>]` tables, shared code, ownership, the app boundary and its topology
 - **[Publishing Packages](publishing.md)** -- building wheels and npm tarballs
 - **[Persistence & Schema Migration](persistence.md)** -- the `root` graph, schema drift, migrations
 - **[Placement](placement.md)** -- how the solver assigns server / client / native, and when to still write `sv` / `na`

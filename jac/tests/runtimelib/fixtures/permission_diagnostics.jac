@@ -88,6 +88,18 @@ walker try_field_write {
     }
 }
 
+walker try_field_write_then_read {
+    has target_id: str,
+        new_tag: str;
+
+    can enter with Root entry {
+        target = &(self.target_id);
+        target.tag = self.new_tag;
+        print("TAG:" + target.tag);
+        _print_diagnostics();
+    }
+}
+
 walker try_delete {
     has target_id: str;
 
@@ -104,5 +116,43 @@ walker check_profile_tag {
     can enter with Root entry {
         target = &(self.target_id);
         print(target.tag);
+    }
+}
+
+walker try_acl_grant {
+    has target_id: str,
+        requestor_id: str,
+        level: str = "WRITE";
+
+    can enter with Root entry {
+        target = &(self.target_id);
+        # Cross-user ACL write: a grant on a node the caller does not own.
+        Jac.allow_root(target, UUID(self.requestor_id), self.level);
+        _print_diagnostics();
+    }
+}
+
+walker try_perm_grant {
+    has target_id: str,
+        level: str = "WRITE";
+
+    can enter with Root entry {
+        target = &(self.target_id);
+        # Cross-user ACL write: opening a foreign node to every user.
+        Jac.perm_grant(target, self.level);
+        _print_diagnostics();
+    }
+}
+
+walker check_grant_level {
+    has target_id: str,
+        requestor_id: str;
+
+    can enter with Root entry {
+        target = &(self.target_id);
+        acc = target.__jac__.access;
+        lvl = acc.roots.check(self.requestor_id) if acc is not None else None;
+        print("LEVEL:" + (lvl.name if lvl is not None else "NONE"));
+        print("ALL:" + (acc.all.name if acc is not None else "NONE"));
     }
 }

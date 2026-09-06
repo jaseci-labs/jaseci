@@ -181,8 +181,8 @@ test "the client encodes through its own replacer, leaving BigInt.prototype alon
 }
 
 test "a value that left as a string reads back into its sized type" {
-    import from jaclang.runtimelib.serializer { Serializer }
-    import from jaclang.runtimelib.sized { SIZED_TYPES }
+    import from jaclang.data.serializer { Serializer }
+    import from jaclang.runtime.sized { SIZED_TYPES }
     u64_cls = SIZED_TYPES["u64"];
     (back, ok) = Serializer.coerce("9223372036854775808", u64_cls);
     assert ok and type(back) is int and back == 9223372036854775808;
@@ -191,8 +191,8 @@ test "a value that left as a string reads back into its sized type" {
 }
 
 test "the wire rule touches sized 64-bit values only, not plain ints" {
-    import from jaclang.runtimelib.serializer { Serializer }
-    import from jaclang.runtimelib.sized { SIZED_TYPES }
+    import from jaclang.data.serializer { Serializer }
+    import from jaclang.runtime.sized { SIZED_TYPES }
     import from jaclang.compiler.tests.fixtures.fw_conformance { FwScope }
     big: int = 1 << 60;
     payload = FwScope(

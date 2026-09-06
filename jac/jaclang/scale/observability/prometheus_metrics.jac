@@ -7,9 +7,11 @@ import from jaclang.scale._optdeps.prometheus {
     CONTENT_TYPE_LATEST,
     CollectorRegistry
 }
-import from jaclang.runtimelib.serving.datatypes { Response }
+import from jaclang.server.serving.datatypes { Response }
+import logging;
 
-glob DEFAULT_BUCKETS: tuple = (
+glob logger = logging.getLogger(__name__),
+     DEFAULT_BUCKETS: tuple = (
          0.005,
          0.01,
          0.025,
@@ -36,7 +38,9 @@ obj PrometheusMetricsCollector(MetricsCollector) {
         _active_requests: any = None,
         _walker_latency: any = None,
         _ws_connections_active: any = None,
-        _ws_broadcasts_total: any = None;
+        _ws_broadcasts_total: any = None,
+        _read_tier_retries: any = None,
+        _jac_info: any = None;
 
     def postinit {
         self._enabled = bool(self.config.get("enabled", True));
@@ -60,7 +64,21 @@ obj PrometheusMetricsCollector(MetricsCollector) {
             ProcessCollector(registry=self._registry);
             PlatformCollector(registry=self._registry);
             GCCollector(registry=self._registry);
-        } except Exception { }
+        } except Exception {}
+
+        try {
+            import from jaclang.cli.manifest_route { resolve_cli_version }
+            version = resolve_cli_version();
+            self._jac_info = Gauge(
+                "jac_info",
+                "Jac runtime version information",
+                ["version"],
+                registry=self._registry
+            );
+            self._jac_info.labels(version=version).set(1);
+        } except Exception as e {
+            logger.warning(f"jac_info not registered; version unresolved: {e}");
+        }
 
         buckets = self.config.get("histogram_buckets");
         if buckets {
@@ -73,6 +91,13 @@ obj PrometheusMetricsCollector(MetricsCollector) {
             f"{self._namespace}_http_requests_total",
             "Total HTTP requests processed",
             ["method", "path", "status_code"],
+            registry=self._registry
+        );
+
+        self._read_tier_retries = Counter(
+            f"{self._namespace}_read_tier_retries_total",
+            "Requests re-run at SERIALIZABLE after a unit wrote inside a read-only snapshot",
+            ["unit"],
             registry=self._registry
         );
 
@@ -111,6 +136,12 @@ obj PrometheusMetricsCollector(MetricsCollector) {
             "WebSocket broadcast publishes",
             registry=self._registry
         );
+    }
+
+    def record_read_tier_retry(unit_key: str) {
+        if self._read_tier_retries is not None {
+            self._read_tier_retries.labels(unit=unit_key).inc();
+        }
     }
 
     def record_ws_connection_opened {
@@ -171,10 +202,28 @@ obj PrometheusMetricsCollector(MetricsCollector) {
         }
     }
 
+    def _scrape_registry -> any {
+        import os;
+        if not os.environ.get('PROMETHEUS_MULTIPROC_DIR') {
+            return self._registry;
+        }
+        try {
+            import from prometheus_client { multiprocess }
+            merged = CollectorRegistry();
+            multiprocess.MultiProcessCollector(merged);
+            return merged;
+        } except Exception as e {
+            logger.debug(
+                f"multiprocess metrics unavailable ({e}); exposing this process only"
+            );
+            return self._registry;
+        }
+    }
+
     def get_endpoint_handler -> Callable[..., any] {
-        registry = self._registry;
+        collector = self;
         def metrics_endpoint -> Response {
-            _content: any = generate_latest(registry);
+            _content: any = generate_latest(collector._scrape_registry());
             _mt: any = CONTENT_TYPE_LATEST;
             return Response(content=_content, media_type=_mt);
         }
@@ -182,7 +231,7 @@ obj PrometheusMetricsCollector(MetricsCollector) {
     }
 
     def expose -> bytes {
-        _payload: any = generate_latest(self._registry);
+        _payload: any = generate_latest(self._scrape_registry());
         return _payload;
     }
 

@@ -24,8 +24,8 @@ collision is the thing that has to be undone and neither half of it is
 recoverable from the code alone.
 """
 
-import jaclang.jac0core.diagnostics as diagmod;
-import from jaclang.jac0core.diagnostics { Category, DIAGNOSTICS, Severity }
+import jaclang.compiler.frontend.diagnostics as diagmod;
+import from jaclang.compiler.frontend.diagnostics { Category, DIAGNOSTICS, Severity }
 
 test "the registry holds one entry per code, bound under its own name" {
     assert DIAGNOSTICS , "the diagnostic registry is empty";
@@ -68,4 +68,38 @@ test "the guard admits a code the registry has never seen" {
     );
     assert DIAGNOSTICS[code] is info;
     del DIAGNOSTICS[code];
+}
+
+
+test "no diagnostic code is claimed twice in the registry source" {
+    # The import-time guard fires only once the compiler is loaded, which on a
+    # merged branch is the sealed kit failing to build. This reads the source
+    # the way a merge produced it, so the collision is named before anything
+    # imports it (#8982 item 7); the same scan runs in CI's contribution checks.
+    import os;
+    import re;
+    src_path = os.path.join(os.path.dirname(str(diagmod.__file__)), "diagnostics.jac");
+    with open(src_path) as fh {
+        src = fh.read();
+    }
+    claims = re.findall(r'\b([EW]\d{4}) = _(?:err|warn)\(\s*"([EW]\d{4})"', src);
+    assert len(claims) == len(DIAGNOSTICS) , (
+        f"the source scan found {len(claims)} registrations but the registry "
+        f"holds {len(DIAGNOSTICS)}; the scan's pattern no longer matches how "
+        "codes are declared"
+    );
+    seen: dict[str, int] = {};
+    for (bound, literal) in claims {
+        assert bound == literal , f"binding {bound} registers code {literal}";
+        seen[literal] = seen.get(literal, 0) + 1;
+    }
+    dupes = sorted(
+        code
+        for (code, n) in seen.items()
+        if n > 1
+    );
+    assert not dupes , (
+        f"diagnostic code(s) claimed more than once: {', '.join(dupes)}; two "
+        "branches each took the next free number and the merge kept both"
+    );
 }

@@ -24,9 +24,9 @@ import tempfile;
 import importlib;
 import jaclang;
 import from pathlib { Path }
-import from jaclang.jac0core.modresolver { resolve_relative_path }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.compiler.driver.modresolver { resolve_relative_path }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 
 glob PKG_FILES: dict[str, str] = {
          '__init__.jac': '',
@@ -97,19 +97,70 @@ test "type check holds one identity per class across a self-import cycle" {
 
 test "the compiler's own package stays with the running compiler" {
     home = tempfile.mkdtemp();
-    copy = Path(home) / 'jaclang' / 'runtimelib' / 'serving';
+    copy = Path(home) / 'jaclang' / 'server' / 'serving';
     copy.mkdir(parents=True);
     (Path(home) / 'jaclang' / '__init__.jac').write_text('');
     (copy / 'app.jac').write_text('obj ServingApp {}\n');
     (copy / 'openapi.jac').write_text(
-        'import from jaclang.runtimelib.serving.app { ServingApp }\n'
+        'import from jaclang.server.serving.app { ServingApp }\n'
     );
     try {
         resolved = resolve_relative_path(
-            'jaclang.runtimelib.serving.openapi', str(copy / 'app.jac')
+            'jaclang.server.serving.openapi', str(copy / 'app.jac')
         );
         running = os.path.dirname(os.path.realpath(jaclang.__file__));
         assert os.path.realpath(resolved).startswith(running + os.sep) , f"resolved into the foreign copy: {resolved}";
+    } finally {
+        shutil.rmtree(home, ignore_errors=True);
+    }
+}
+
+test "a directory without a marker resolves as the namespace package the runtime makes of it" {
+    # The runtime claims a marker-less directory whose subtree holds Jac
+    # source as an implicit namespace package; the resolver answered nothing
+    # for the bare directory, so `import from pkg { sub }` could not find
+    # `sub` and go-to-definition had nowhere to land.
+    import from jaclang.compiler.driver.modresolver { resolve_module }
+    base_dir = tempfile.mkdtemp();
+    try {
+        pkg = os.path.join(base_dir, "nspkg");
+        os.makedirs(os.path.join(pkg, "inner"));
+        with open(os.path.join(pkg, "inner", "leaf.jac"), "w") as fh {
+            fh.write("glob LEAF: int = 1;\n");
+        }
+        with open(os.path.join(base_dir, "user.jac"), "w") as fh {
+            fh.write("import from nspkg.inner { leaf }\n");
+        }
+        base = os.path.join(base_dir, "user.jac");
+        (pkg_path, pkg_lang) = resolve_module("nspkg", base);
+        assert pkg_path == pkg , f"bare package: {pkg_path}";
+        assert pkg_lang == "jac" , pkg_lang;
+        (inner_path, _) = resolve_module("nspkg.inner", base);
+        assert inner_path == os.path.join(pkg, "inner") , f"nested bare package: {inner_path}";
+        (leaf_path, _) = resolve_module("nspkg.inner.leaf", base);
+        assert leaf_path == os.path.join(pkg, "inner", "leaf.jac") , f"leaf: {leaf_path}";
+    } finally {
+        shutil.rmtree(base_dir, ignore_errors=True);
+    }
+}
+
+test "a marker-less package of the compiler's own tree stays with the running compiler" {
+    # jaclang/server/serving carries no __init__.jac; the package itself must
+    # still resolve into the running compiler's tree, never into a foreign
+    # copy, or the sealed binary compiles both and one class gets two
+    # identities (E1053 "Cannot assign RunPlan to parameter of type RunPlan").
+    home = tempfile.mkdtemp();
+    copy = Path(home) / 'jaclang' / 'server' / 'serving';
+    copy.mkdir(parents=True);
+    (Path(home) / 'jaclang' / '__init__.jac').write_text('');
+    (copy / 'app.jac').write_text('obj ServingApp {}\n');
+    try {
+        resolved = resolve_relative_path(
+            'jaclang.server.serving', str(copy / 'app.jac')
+        );
+        running = os.path.dirname(os.path.realpath(jaclang.__file__));
+        assert os.path.realpath(resolved).startswith(running + os.sep) , f"resolved into the foreign copy: {resolved}";
+        assert os.path.isdir(resolved) , f"a marker-less package resolves to its directory: {resolved}";
     } finally {
         shutil.rmtree(home, ignore_errors=True);
     }

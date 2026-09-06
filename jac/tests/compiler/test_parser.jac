@@ -6,7 +6,7 @@ and micro suite.
 """
 
 import inspect;
-import from jaclang.jac0core.treeprinter { print_ast_tree }
+import from jaclang.compiler.tools.treeprinter { print_ast_tree }
 import io;
 import os;
 import re;
@@ -14,12 +14,12 @@ import sys;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import jaclang;
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.constant { CodeContext }
-import from jaclang.jac0core.parser { parse as rd_parse }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.helpers { read_file_with_encoding }
-import from jaclang.runtimelib.test { parametrize }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.frontend.constant { CodeContext }
+import from jaclang.compiler.frontend.parser { parse as rd_parse }
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.frontend.helpers { read_file_with_encoding }
+import from jaclang.testing.test { parametrize }
 import from tests.fixtures_list { MICRO_JAC_FILES }
 
 glob FIXTURES = os.path.join(JAC_ROOT, "tests", "compiler", "fixtures"),
@@ -43,6 +43,29 @@ test "parser fam" {
     assert not had_error;
 }
 
+test "a comprehension iterable is any operator expression short of the ternary" {
+    # #8982 item 8: the iterable stopped at an atomic chain, so `[h] + rows`
+    # after `in` read as a stray `]`.
+    for src in [
+        "with entry { widths = [len(r) for r in [header] + rows]; }",
+        "with entry { errs = [e for e in prog.errors_had + prog.warnings_had]; }",
+        "with entry { s = ', '.join(str(e) for e in a + b); }",
+        "with entry { d = {k: v for k in d1 + d2}; }",
+        "with entry { st = {x for x in a or b}; }",
+        "with entry { ys = [x for x in xs |> f]; }",
+        "with entry { zs = [x for x in xs if x > 1 if x < 9]; }",
+        "with entry { ts = [x for x in (a if c else b)]; }"
+    ] {
+        (module, had_error) = rd_parse(src, "");
+        assert not had_error , src;
+    }
+    (module, _) = rd_parse("with entry { w = [len(r) for r in [h] + rows]; }", "");
+    compr = [n for n in module.get_all_sub_nodes(uni.InnerCompr)];
+    assert len(compr) == 1;
+    assert isinstance(compr[0].collection, uni.BinaryExpr) , type(compr[0].collection);
+}
+
+
 test "staticmethod checks out" {
     (module, had_error) = rd_parse(load_fixture("staticcheck.jac"), "");
     out = print_ast_tree(module);
@@ -61,8 +84,8 @@ test "parser mod doc test" {
 }
 
 test "all ast has normalize" {
-    import from jaclang.compiler.passes.tool.normalize_pass { NormalizePass }
-    import from jaclang.jac0core.helpers { pascal_to_snake }
+    import from jaclang.compiler.tools.normalize_pass { NormalizePass }
+    import from jaclang.compiler.frontend.helpers { pascal_to_snake }
 
     exclude = [
         "UniNode",
@@ -248,13 +271,7 @@ test "connect_disconnect_missing_rhs" {
 
 test "jsx comprehensive fixture" {
     fixture_path = os.path.join(
-        JAC_ROOT,
-        "tests",
-        "compiler",
-        "passes",
-        "ecmascript",
-        "fixtures",
-        "client_jsx.jac"
+        JAC_ROOT, "tests", "compiler", "backends", "es", "fixtures", "client_jsx.jac"
     );
     source_text = Path(fixture_path).read_text(encoding="utf-8");
     (module, had_error) = rd_parse(source_text, str(fixture_path));
@@ -784,8 +801,8 @@ with entry {
 test "parser core emits flat diag records without prog" {
     # W1 (#6930): the parser core appends flat SrcDiag records and holds no
     # JacProgram reference; frontend.parse() replays records into Alerts.
-    import from jaclang.jac0core.parser.lexer { tokenize_full }
-    import from jaclang.jac0core.parser.parser { Parser }
+    import from jaclang.compiler.frontend.parser.lexer { tokenize_full }
+    import from jaclang.compiler.frontend.parser.parser { Parser }
     src = "with entry { x = ( ; }";
     (tokens, comments, ldiags, lex_errs) = tokenize_full(src, "<probe>");
     parser = Parser(tokens=tokens, file_path="<probe>", source_code=src);
@@ -802,14 +819,14 @@ test "parser core emits flat diag records without prog" {
 test "parser core sources are foreign-free" {
     # W1/W2 (#6930): the sealed parser core may not reference host-side
     # machinery; all Alert construction lives in frontend.jac.
-    pkg = Path(jaclang.__file__).parent / "jac0core" / "parser";
+    pkg = Path(jaclang.__file__).parent / "compiler" / "frontend" / "parser";
     core = (pkg / "parser.jac").read_text(encoding="utf-8")
         + (pkg / "impl" / "parser.impl.jac").read_text(encoding="utf-8");
     banned = [
         "passes.transform",
         "CodeLocInfo",
         "JacProgram",
-        "jac0core.diagnostics",
+        "compiler.frontend.diagnostics",
         "**kwargs",
         "pathlib",
         "import re"

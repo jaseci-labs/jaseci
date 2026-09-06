@@ -1,10 +1,9 @@
 import os;
 import sys;
-import from jaclang.cli.command { ArgKind, arg_consumes_value }
-import from jaclang.cli.manifest { ArgMeta, CommandMeta }
+import from jaclang.cli.command { Arg, ArgKind, CommandSpec, arg_consumes_value }
 
 def _discover_project_config {
-    import from jaclang.jac0core.tomlio { MalformedJacTomlError }
+    import from jaclang.project.tomlio { MalformedJacTomlError }
 
     try {
         import from jaclang.project.config { get_config }
@@ -16,7 +15,16 @@ def _discover_project_config {
         }
     } except MalformedJacTomlError as exc {
         _exit_on_malformed_jac_toml(exc);
-    } except Exception { }
+    } except ValueError as exc {
+        _exit_on_invalid_jac_toml(exc);
+    } except Exception {}
+}
+
+def _exit_on_invalid_jac_toml(exc: any) {
+    import from jaclang.cli.console { console }
+
+    console.error(f"jac.toml is invalid: {exc}");
+    sys.`exit(2);
 }
 
 def _exit_on_malformed_jac_toml(exc: any) {
@@ -29,7 +37,7 @@ def _exit_on_malformed_jac_toml(exc: any) {
 }
 
 impl split_remainder_argv(
-    raw: list[str], meta: CommandMeta
+    raw: list[str], meta: CommandSpec
 ) -> tuple[list[str], list[str]] | None {
     if len(raw) < 2 {
         return None;
@@ -85,7 +93,7 @@ impl split_remainder_argv(
     return None;
 }
 
-def _extract_script_args(meta: CommandMeta) -> list[str] {
+def _extract_script_args(meta: CommandSpec) -> list[str] {
     raw = sys.argv[1:];
     split = split_remainder_argv(raw, meta);
     if split is None {
@@ -96,7 +104,7 @@ def _extract_script_args(meta: CommandMeta) -> list[str] {
     return script_args;
 }
 
-def _apply_profile(meta: CommandMeta, args_dict: dict) {
+def _apply_profile(meta: CommandSpec, args_dict: dict) {
     import from jaclang.cli.console { console }
     try {
         import from jaclang.project.config { get_config }
@@ -110,29 +118,59 @@ def _apply_profile(meta: CommandMeta, args_dict: dict) {
         if not profile {
             profile = os.environ.get('JAC_PROFILE');
         }
-        if not profile {
-            jac_env = os.environ.get('JAC_ENV');
-            if jac_env {
-                console.warning('JAC_ENV is deprecated, use JAC_PROFILE instead.');
-                profile = jac_env;
-            }
-        }
         if not profile and config.environment.default_profile {
             profile = config.environment.default_profile;
         }
 
         config.apply_profile_overlay(profile or None);
-        _apply_config_defaults(config, meta, args_dict);
+        _apply_config_defaults(
+            _command_config(config, meta, args_dict), meta, args_dict
+        );
     } except (KeyError, ValueError, OSError) as exc {
         console.warning(f"Failed to apply profile: {exc}");
     }
 }
 
-def _arg_dict_key(arg: ArgMeta) -> str {
+def _arg_dict_key(arg: Arg) -> str {
     if arg.dest {
         return arg.dest;
     }
     return arg.name.replace("-", "_");
+}
+
+def _target_app_name(config: any, target: any) -> str {
+    if not isinstance(target, str) {
+        return "";
+    }
+    if target in config.apps {
+        return target;
+    }
+    if target == "" {
+        try {
+            name = config.resolve_app("").name;
+        } except ValueError {
+            return "";
+        }
+        return name if name in config.apps else "";
+    }
+    app = config.app_for_path(os.path.abspath(target));
+    return app.name if app is not None else "";
+}
+
+def _command_config(config: any, meta: CommandSpec, args_dict: dict) -> any {
+    for arg in meta.args {
+        if arg.kind != ArgKind.POSITIONAL or arg.name != "target" {
+            continue;
+        }
+        try {
+            app_name = _target_app_name(config, args_dict.get(_arg_dict_key(arg)));
+            if app_name {
+                return config.effective_for_app(app_name);
+            }
+        } except Exception {}
+        return config;
+    }
+    return config;
 }
 
 def _config_value(config: any, config_key: str) -> tuple[str, str, any] | None {
@@ -149,7 +187,7 @@ def _config_value(config: any, config_key: str) -> tuple[str, str, any] | None {
     return (section, key, getattr(section_obj, key, None));
 }
 
-def _apply_config_defaults(config: any, meta: CommandMeta, args_dict: dict) {
+def _apply_config_defaults(config: any, meta: CommandSpec, args_dict: dict) {
     for arg in meta.args {
         if not arg.config_key {
             continue;
@@ -193,6 +231,25 @@ def _command_argv(command_name: str) -> list[str] {
     );
 }
 
+def _exit_now(code: int) -> None {
+    if os.environ.get('JAC_SLOW_EXIT') {
+        if code != 0 {
+            raise SystemExit(code);
+        }
+        return;
+    }
+    import atexit;
+    try {
+        atexit._run_exitfuncs();
+    } except Exception {}
+    try {
+        sys.stdout.flush();
+        sys.stderr.flush();
+    } except Exception {}
+    os._exit(code);
+}
+
+
 impl run_selected_command(command_name: str) -> None {
     import from jaclang.cli.manifest { get_command_meta }
     import from jaclang.cli.manifest_parse { build_command_parser }
@@ -211,7 +268,6 @@ impl run_selected_command(command_name: str) -> None {
         return;
     }
 
-    import from jaclang.cli.command { CommandSpec }
     import from jaclang.cli.console { console }
     import from jaclang.cli.executor { get_executor }
     import from jaclang.cli.loader { load_handler }
@@ -246,7 +302,5 @@ impl run_selected_command(command_name: str) -> None {
     if result.error {
         console.error(f"{result.error}");
     }
-    if result.return_code != 0 {
-        raise SystemExit(result.return_code);
-    }
+    _exit_now(result.return_code);
 }

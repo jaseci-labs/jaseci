@@ -190,6 +190,7 @@ obj KubernetesPostgresProvider {
                 if embedded
                 else str(self._db_cfg().get('postgres_image') or PG_IMAGE)
         );
+        db_cfg = self._db_cfg();
         container: dict[str, any] = {
             'name': 'postgres',
             'image': image,
@@ -199,6 +200,16 @@ obj KubernetesPostgresProvider {
                 'allowPrivilegeEscalation': False,
                 'capabilities': {'drop': ['ALL']},
                 'seccompProfile': {'type': 'RuntimeDefault'}
+            },
+            'resources': {
+                'requests': {
+                    'cpu': str(db_cfg.get('postgres_cpu_request') or '250m'),
+                    'memory': str(db_cfg.get('postgres_memory_request') or '512Mi')
+                },
+                'limits': {
+                    'cpu': str(db_cfg.get('postgres_cpu_limit') or '2'),
+                    'memory': str(db_cfg.get('postgres_memory_limit') or '1Gi')
+                }
             },
             'ports': [{'containerPort': PG_PORT}],
             'readinessProbe': {
@@ -229,9 +240,28 @@ obj KubernetesPostgresProvider {
                 }
             ];
         } else {
-            import from jaclang.runtimelib.pgembed { pg_tuning_settings }
+            import from jaclang.data.pgembed { pg_tuning_settings }
+            settings = dict(pg_tuning_settings());
+            settings.update(
+                {
+                    'shared_buffers': '256MB',
+                    'effective_cache_size': '768MB',
+                    'maintenance_work_mem': '64MB',
+                    'work_mem': '8MB',
+                    'wal_compression': 'on',
+                    'max_wal_size': '2GB',
+                    'checkpoint_completion_target': '0.9',
+                    'random_page_cost': '1.1'
+                }
+            );
+            overrides = self._db_cfg().get('postgres_settings') or {};
+            if isinstance(overrides, dict) {
+                for (key, value) in overrides.items() {
+                    settings[str(key)] = str(value);
+                }
+            }
             server_args: list[str] = ['postgres'];
-            for (setting, value) in pg_tuning_settings().items() {
+            for (setting, value) in settings.items() {
                 server_args.extend(['-c', f"{setting}={value}"]);
             }
             container['args'] = server_args;
@@ -314,7 +344,7 @@ obj KubernetesPostgresProvider {
         };
     }
 
-    def cleanup { }
+    def cleanup {}
     def get_init_container(
         app_name: str, wait_image: str
     ) -> (dict[(str, any)] | None) {

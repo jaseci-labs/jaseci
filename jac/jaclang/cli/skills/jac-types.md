@@ -74,7 +74,11 @@ The 3-step playbook for an untyped boundary (PyPI call, `json.loads`, walker rep
 
 ## `import type` - the circular-import breaker
 
-`import type from billing { Invoice }` registers `Invoice` for annotations only - it compiles to a `typing.TYPE_CHECKING`-guarded Python import, so it never runs at module load. That breaks circular imports between modules whose types reference each other. **Caveat:** the name does not exist at runtime - do NOT use `import type` for names you construct (`Invoice(...)`), `isinstance`-check, or use in `has` field types (archetypes are dataclass-derived and resolve annotations at runtime). Those need a regular `import`.
+`import type from billing { Invoice }` registers `Invoice` for annotations only - it compiles to a `typing.TYPE_CHECKING`-guarded Python import and to nothing at all in the client bundle, so it never runs at module load. That breaks circular imports between modules whose types reference each other.
+
+Every import binding carries a kind and the checker enforces it, asking whether the backend that lowers *this* module leaves a runtime binding for the imported name. A TypeScript `interface` or `type` alias in a `.d.ts` (npm or sibling declaration file) has no runtime export in any codespace, so a plain `import from` of one is always `E1131`; give it its own `import type` statement beside the value imports (`import from mermaid { default as mermaid }` + `import type from mermaid { Mermaid }`). A jac `type` alias is `E1131` **only in client code**: on the server it lowers to a real runtime binding (`type UserId := int;` becomes `UserId = int`, which is what makes `UserId(raw)` a brand constructor), so a plain import of an alias from a server module is correct - do not "fix" it. A `declare class`, a `declare enum`, and every jac archetype have a runtime binding on both backends, so a plain import of those stays correct.
+
+Going the other way, an `import type` binding is legal only in type position - annotations, `has` field types, return types, generic arguments, `as` casts, `type` alias right-hand sides. Constructing it (`Invoice(...)`), `isinstance`-checking it, reading an attribute off it, decorating with it or inheriting from it is `E1132`, on the server as much as in the client (the `TYPE_CHECKING` guard means the name is not there at run time); those need a regular `import`. **Caveat that is not diagnosed:** an archetype `has` field type still has to exist at runtime on the Python lane, because archetypes are dataclass-derived and resolve annotations through `typing.get_type_hints`. Keep those names on a regular `import`.
 
 ## Type aliases, named constructors, `Self`
 
@@ -107,7 +111,7 @@ obj Counter {
 
 ## Fixed-width numbers - `i8`..`u64`, `f32`, `f64`
 
-Real types with one contract on every lane (server, native, client). Widening is implicit only when value-preserving (`i8 -> i16 -> i32 -> i64 -> int`, `u8 -> u16 -> u32 -> u64 -> int`, `u8 -> i16`, `i8..u16 -> f32`, `i8..u32 -> f64`, `f32 -> f64 -> float`, `bool -> int-kind`, `int-kind -> float`); everything else is the checked cast `T(x)` (raises `OverflowError` out of range) or the modular `T.wrap(x)`. An in-range literal adopts the sized operand (`w: i32 = 1; w = w + 1` is fine); arithmetic traps on overflow; `wrapping_add/sub/mul/neg/shl` never trap; `T.MIN`/`T.MAX` are the bounds.
+Real types with one contract on every lane (server, native, client). `int` and `float` are members of the same lattice, not exceptions: `int` is the signed 64-bit machine integer and behaves exactly as `i64`, `float` is binary64 and behaves exactly as `f64` -- so `u64 -> int` needs a cast for the same reason `u64 -> i64` does. Widening is implicit only when value-preserving (`i8 -> i16 -> i32 -> i64 -> int`, `u8 -> u16 -> u32 -> u64 -> int`, `u8 -> i16`, `i8..u16 -> f32`, `i8..u32 -> f64`, `f32 -> f64 -> float`, `bool -> int-kind`, `int-kind -> float`); everything else is the checked cast `T(x)` (raises `OverflowError` out of range) or the modular `T.wrap(x)`. An in-range literal adopts the sized operand (`w: i32 = 1; w = w + 1` is fine); arithmetic traps on overflow; `wrapping_add/sub/mul/neg/shl` never trap; `T.MIN`/`T.MAX` are the bounds.
 
 | Code | Meaning | Fix |
 |---|---|---|
@@ -115,6 +119,7 @@ Real types with one contract on every lane (server, native, client). Widening is
 | **E1127** | implicit conversion that is not value-preserving (`int -> i32`, `i64 -> i8`, `u8 -> i8`, `f64 -> f32`, `i64 -> f32`) | cast at the boundary: `i32(n)`, or widen the destination; FFI call sites need the cast too |
 | **E1128** | operands with no common fixed-width type (`u8 + i8`, `u64 < i64`, `i32 == u32`, `i64 + f32`) | cast one operand explicitly so the width and sign of the operation is chosen: `i64(x) + y` |
 | **E1129** | unary minus on an unsigned operand | negate in a signed type (`-i64(x)`) or use `wrapping_neg(x)` |
+| **E1130** | float literal past the target's range (`f32 = 1e60`, `f64 = 1e400`) | it would arrive as `inf`; widen the type or write a value it can hold |
 
 `T op int` yields `int` (so `w: i32 = w + n` with `n: int` is E1127); `/` yields `float`; shifts keep the left operand's type with the count range-checked at run time.
 
@@ -136,4 +141,4 @@ The width is a compile-time fact, not a runtime wrapper: a sized value is a plai
 
 ## See also
 
-`jac-has-fields` (field rules) · `jac-core-cheatsheet` (`import type` syntax, reserved words) · `jac-python-interop` (typing the Python boundary) · `jac-walker-patterns` (typed reports)
+`jac-has-fields` (field rules) · `jac-core-cheatsheet` (`import type` syntax, reserved words) · `jac-python-interop` (typing the Python boundary) · `jac-walker-patterns` (typed reports) · `jac-comptime` (`comptime` parameters, archetype value params, compile-time reflection)

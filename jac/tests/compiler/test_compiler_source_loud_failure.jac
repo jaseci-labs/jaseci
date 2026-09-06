@@ -1,6 +1,6 @@
 """A broken file in the compiler's own sources is never degraded around.
 
-Every schedule builder in `jac0core.compiler` degrades on `ImportError` so the
+Every schedule builder in `compiler.driver.schedules` degrades on `ImportError` so the
 compiler can bootstrap itself and so an install missing an optional backend
 still compiles. Both of those are *absence*. When #8215 dropped a comma from
 `esast_gen_pass.jac`'s import list the file was present and simply would not
@@ -24,17 +24,15 @@ import os;
 import sys;
 import tempfile;
 import types;
-import jaclang.jac0core.unitree as uni;
-import jaclang.jac0core.compiler as compiler_mod;
+import jaclang.compiler.frontend.unitree as uni;
+import jaclang.compiler.driver.compiler as compiler_mod;
 import from jaclang.meta_importer { JacSourceCompileError }
-import from jaclang.jac0core.compiler {
-    CompilerSourceError,
-    JcirBytecodeGenPass,
-    JcirGenPass,
-    get_py_code_gen
-}
-import from jaclang.jac0core.passes { Transform }
-import from jaclang.jac0core.runtime { JacRuntime as Jac }
+import from jaclang.compiler.driver.source_failures { CompilerSourceError }
+import from jaclang.compiler.backends.py.jcir_bc_gen_pass { JcirBytecodeGenPass }
+import from jaclang.compiler.backends.py.jcir_gen_pass { JcirGenPass }
+import from jaclang.compiler.driver.schedules { get_py_code_gen }
+import from jaclang.compiler.passes { Transform }
+import from jaclang.runtime.runtime { JacRuntime as Jac }
 
 # The #8215 defect shape: an import list whose separator went missing.
 glob BROKEN_SRC = (
@@ -48,7 +46,7 @@ glob BROKEN_SRC = (
          '    return 1;\n'
          '}\n'
      ),
-     ES_BACKEND = 'jaclang.compiler.passes.ecmascript';
+     ES_BACKEND = 'jaclang.compiler.backends.es';
 
 glob COMPILER_SRC = os.path.join(
          os.path.dirname(os.path.dirname(compiler_mod.__file__)),
@@ -127,6 +125,42 @@ test "a .jac source that fails to compile names the file and the parse error" {
     assert broken in str(err);
     assert "failed to compile" in str(err);
     assert "error[" in str(err) , f"no diagnostic in: {err}";
+}
+
+
+test "a compile error in a shared impl/ annex is reported as the module's own" {
+    # #8982 item 2: the error lived in `impl/config.impl.jac`, the importer
+    # scoped diagnostics by the `config.` prefix, and the shared annex folder
+    # matched nothing, so the failure surfaced as a bare "No bytecode found".
+    tmp = tempfile.mkdtemp(prefix="jac_loud_annex_");
+    os.mkdir(os.path.join(tmp, "impl"));
+    base = os.path.join(tmp, "annex_owner_fixture.jac");
+    with open(base, "w") as f {
+        f.write("obj Owner {\n    def greet -> str;\n}\n");
+    }
+    with open(os.path.join(tmp, "impl", "annex_owner_fixture.impl.jac"), "w") as f {
+        f.write('impl Owner.greet -> str {\n    root = "hi";\n    return root;\n}\n');
+    }
+    prog = Jac.get_program();
+    prior = list(prog.errors_had);
+    sys.path.insert(0, tmp);
+    err: (ImportError | None) = None;
+    try {
+        importlib.import_module("annex_owner_fixture");
+    } except ImportError as e {
+        err = e;
+    } finally {
+        sys.path.remove(tmp);
+        sys.modules.pop("annex_owner_fixture", None);
+        prog.errors_had.clear();
+        prog.errors_had.extend(prior);
+    }
+    assert isinstance(err, JacSourceCompileError) , f"got {err!r}";
+    assert "failed to compile" in str(err) , f"annex error was dropped: {err}";
+    assert "error[" in str(err) , f"no diagnostic in: {err}";
+    assert "annex_owner_fixture.impl.jac" in str(err) , (
+        f"the diagnostic does not name the annex it came from: {err}"
+    );
 }
 
 test "a broken compiler source fails loudly instead of dropping backends" {

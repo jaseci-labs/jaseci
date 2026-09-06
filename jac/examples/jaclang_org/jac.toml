@@ -1,0 +1,165 @@
+[project]
+name = "jaclang_org"
+default-app = "web"
+jac-version = "==0.37.3"
+
+# Makes this site scaffoldable as a template: `jac create <name> --awesome`
+# dumps it (the payload bundles this tree as awesome_template beside the
+# jaclang package). The section never reaches a scaffolded project's jac.toml.
+[jacpack]
+name = "awesome"
+description = "The full jaclang.org workspace: a web app, a mobUI mobile app, and a CLI over one shared core, with live docs, the leaderboard, socialize, and a wasm game"
+
+# The workspace. Anything under core/ belongs to no app and is shared; the
+# two file-rooted service apps own exactly their entry files. An app
+# boundary is structural (it always compiles and type-checks as a cut);
+# whether the service apps share the web server's process or run as their
+# own is a profile: `jac run --serve` colocates, `--fleet` splits.
+[apps.web]
+kind = "web-app"
+path = "web"
+
+[apps.mobile]
+kind = "mobile"
+path = "mobile"
+
+[apps.cli]
+kind = "cli"
+path = "cli"
+
+# The site as a desktop app: the same core/site UI in an OS webview. Its
+# backend is jaclang.org itself (see [apps.desktop.desktop] backend), so it is
+# a native window onto the live site, not a private copy of it.
+[apps.desktop]
+kind = "desktop"
+path = "desktop"
+
+[apps.social_graph]
+kind = "service"
+entry-point = "core/social_graph.jac"
+
+[apps.scoring]
+kind = "service"
+entry-point = "core/scoring_service.jac"
+
+[dev]
+jaclang_source = "../.."
+
+[precommit]
+typecheck = true
+
+[test]
+directories = ["core", "web", "mobile", "cli"]
+
+# `jac test cli` / `jac test mobile` run one app; a bare `jac test` targets the
+# default app (web) and so runs the workspace list above. The mobile app is a
+# shell over the phone UI in core/socialize_mobile, so its tests live there.
+[apps.cli.test]
+directories = ["."]
+
+[apps.mobile.test]
+directories = ["core/socialize_mobile"]
+
+[check.lint]
+select = ["all", "strip-comments", "strip-docstrings"]
+exclude = [
+    ".jac/*",
+    "core/site/examples/*",
+    "core/site/source/FloatingSource.jac",
+    "core/site/landing/Reveal.jac",
+    "core/site/game/webgl_host.jac",
+    "core/async_utils.jac",
+    "core/leaderboard/format.jac",
+]
+
+[gc]
+default = "none"
+
+[gc.enforce]
+modules = ["arena*", "sim*", "gmath*", "platform_rl*"]
+
+[jac-shadcn]
+style = "nova"
+baseColor = "neutral"
+theme = "orange"
+font = "geist"
+radius = "default"
+menuAccent = "subtle"
+menuColor = "default"
+components_dir = "core/site/ui"
+utils_path = "core/utils.jac"
+
+[dependencies]
+[dependencies.npm]
+embla-carousel-react = "*"
+"@hugeicons/core-free-icons" = "*"
+"@hugeicons/react" = "*"
+radix-ui = "*"
+class-variance-authority = "*"
+"@fontsource-variable/geist" = "*"
+"@tailwindcss/vite" = "^4.1.17"
+tailwindcss = "^4.1.17"
+clsx = "^2.1.1"
+tailwind-merge = "^3.5.0"
+tw-animate-css = "^1.4.0"
+"@fontsource-variable/geist-mono" = "latest"
+motion = "latest"
+mermaid = "^11"
+lucide-react = "^0.469.0"
+
+[apps.cli.check.lint]
+ignore = ["no-print"]
+
+[apps.desktop.desktop]
+name = "jaclang"
+identifier = "org.jaclang.desktop"
+backend = "https://jaclang.org"
+
+[apps.desktop.desktop.window]
+title = "jaclang.org"
+width = 1280
+height = 860
+min_width = 900
+min_height = 600
+
+[apps.mobile.dependencies.npm]
+react-native-web = "^0.19.13"
+
+[apps.mobile.dependencies.npm.native]
+lucide-react-native = "^0.469.0"
+react-native-svg = "^15.13.0"
+
+# identity.jac is pure client helpers over the social graph's wire shapes;
+# without JSX of its own the solver cannot see that, so pin it. The [client.*]
+# tables below are workspace-wide: the web app and the desktop app share one
+# UI (core/site) and so one client configuration.
+[placement.pins]
+"core.site.socialize.identity" = "client"
+
+[client.vite]
+plugins = ["tailwindcss()"]
+lib_imports = ["import tailwindcss from '@tailwindcss/vite'"]
+
+[client.assets]
+dir = "core/site/assets"
+custom_extensions = [
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico",
+    ".woff", ".woff2", ".ttf", ".otf", ".eot", ".mp4", ".webm", ".mp3",
+    ".wav", ".css", ".js", ".json",
+]
+
+[client.app_meta_data]
+title = "The Jac Programming Language"
+description = "One language, one compiler, the whole stack. No glue. AI, graphs, persistence, APIs, UIs, and cloud deployment as language features."
+keywords = "jac, jaclang, programming language, jaseci, object-spatial programming, by llm, full-stack"
+author = "Jaseci Labs"
+theme_color = "#ff6b35"
+icon = "/static/assets/jac-logo.svg"
+og_title = "The Jac Programming Language"
+og_description = "One language, one compiler, the whole stack. No glue. AI, graphs, persistence, APIs, UIs, and cloud deployment as language features."
+og_type = "website"
+og_url = "https://jaclang.org/"
+og_site_name = "jaclang.org"
+og_image = "https://jaclang.org/static/assets/og-card.png"
+twitter_card = "summary_large_image"
+twitter_image = "https://jaclang.org/static/assets/og-card.png"

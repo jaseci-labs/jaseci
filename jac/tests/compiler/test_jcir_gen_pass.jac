@@ -30,13 +30,13 @@ import os;
 import types;
 import from builtins { compile as pycompile, exec as pyexec }
 import from tests.support { JAC_ROOT }
-import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { get_py_code_gen }
-import from jaclang.jac0core.passes { JcirBytecodeGenPass }
-import from jaclang.jac0core.passes.jcir_gen_pass { JcirGenPass }
-import from jaclang.jac0core.codegen_shim { compile_ir, transcribe }
+import jaclang.compiler.frontend.unitree as uni;
+import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
+import from jaclang.compiler.driver.schedules { get_py_code_gen }
+import from jaclang.compiler.backends.py.jcir_bc_gen_pass { JcirBytecodeGenPass }
+import from jaclang.compiler.backends.py.jcir_gen_pass { JcirGenPass }
+import from jaclang.compiler.backends.py.codegen_shim { compile_ir, transcribe }
 
 """Compile a source string, then re-emit it: (pipeline tree, fresh tree, bytes)."""
 def dual_compile(src: str, path: str) -> tuple {
@@ -53,7 +53,7 @@ def dual_compile(src: str, path: str) -> tuple {
     );
     assert len(prog.errors_had) == 0 , str([str(e) for e in prog.errors_had]);
     ref_tree = mod.gen.py_ast[0];
-    emitter = JcirGenPass(ir_in=mod, prog=prog);
+    emitter = JcirGenPass(ir_in=mod);
     blob = emitter.ir_bytes();
     (mods, diags) = transcribe(blob);
     assert diags == [];
@@ -68,7 +68,7 @@ def dual_compile_file(path: str) -> tuple {
     mod = prog.compile(path, options=CompileOptions(no_ir_cache=True));
     assert len(prog.errors_had) == 0 , str([str(e) for e in prog.errors_had]);
     ref_tree = mod.gen.py_ast[0];
-    emitter = JcirGenPass(ir_in=mod, prog=prog);
+    emitter = JcirGenPass(ir_in=mod);
     blob = emitter.ir_bytes();
     (mods, diags) = transcribe(blob);
     assert diags == [];
@@ -703,7 +703,7 @@ obj Helper {
 }
 
 test "real repo file srcloc lowers identically end to end" {
-    path = os.path.join(JAC_ROOT, "jaclang", "jac0core", "srcloc.jac");
+    path = os.path.join(JAC_ROOT, "jaclang", "compiler", "frontend", "srcloc.jac");
     (ref_tree, got_tree, blob) = dual_compile_file(path);
     assert_dump_equal(ref_tree, got_tree);
     result = compile_ir(blob);
@@ -856,7 +856,9 @@ with entry {
 }
 
 test "real repo walker file social_graph lowers identically" {
-    path = os.path.join(JAC_ROOT, "examples", "littleX", "social_graph.jac");
+    path = os.path.join(
+        JAC_ROOT, "examples", "jaclang_org", "core", "social_graph.jac"
+    );
     (ref_tree, got_tree, blob) = dual_compile_file(path);
     assert_dump_equal(ref_tree, got_tree);
     result = compile_ir(blob);
@@ -957,7 +959,7 @@ def f -> int {
     calls[0].genai_call = calls[0].target;
     caught_jcir = "";
     try {
-        JcirGenPass(ir_in=mod, prog=prog);
+        JcirGenPass(ir_in=mod);
     } except NotImplementedError as e {
         caught_jcir = str(e);
     }

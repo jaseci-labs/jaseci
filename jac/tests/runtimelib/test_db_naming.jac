@@ -12,9 +12,9 @@ import os;
 import from pathlib { Path }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.cli.commands { execution }
-import from jaclang.runtimelib.pgembed { PgRuntime }
-import from jaclang.runtimelib.session { project_db_name, shared_pg_data_dir }
-import from jaclang.runtimelib.store { PgStore, TxnIsolation }
+import from jaclang.data.pgembed { PgRuntime }
+import from jaclang.server.session { project_db_name, shared_pg_data_dir }
+import from jaclang.data.store { PgStore, TxnIsolation }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 
@@ -51,12 +51,11 @@ test "different standalone files get separate databases" {
         # so these files have to actually touch the graph: simple_persistent
         # declares walkers only, hence the explicit spawn.
         execution.run(
-            filename=os.path.join(FIXTURES, "simple_persistent.jac"),
-            entry_name="create"
+            target=os.path.join(FIXTURES, "simple_persistent.jac"), entry_name="create"
         );
-        execution.run(filename=os.path.join(FIXTURES, "simple_node_connection.jac"));
+        execution.run(target=os.path.join(FIXTURES, "simple_node_connection.jac"));
 
-        rc = execution.run(filename=os.path.join(FIXTURES, "simple_persistent.jac"));
+        rc = execution.run(target=os.path.join(FIXTURES, "simple_persistent.jac"));
         assert rc == 0 , (
             f"Second run of simple_persistent.jac file failed with return code {rc} - bug #4401 regression"
         );
@@ -81,9 +80,7 @@ test "running file with same name as project uses project DB name" {
     try {
         Jac.set_base_path(FIXTURES);
 
-        execution.run(
-            filename=os.path.join(file_path, "main.jac"), entry_name="create"
-        );
+        execution.run(target=os.path.join(file_path, "main.jac"), entry_name="create");
 
         # jac.toml names the project test_db_naming; the database carries
         # that name (suffixed with the base-path digest), not "main".

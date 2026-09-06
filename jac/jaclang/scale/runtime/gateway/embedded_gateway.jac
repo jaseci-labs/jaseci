@@ -1,8 +1,8 @@
 import logging;
 import mimetypes;
 import from pathlib { Path }
-import from jaclang.runtimelib.serving.app { ServingApp }
-import from jaclang.runtimelib.serving.datatypes { JSONResponse, Request, Response }
+import from jaclang.server.serving.app { ServingApp }
+import from jaclang.server.serving.datatypes { JSONResponse, Request, Response }
 import from jaclang.scale.runtime.gateway.gateway { Gateway }
 import from jaclang.scale.runtime.gateway.service_registry { ServiceRegistry }
 import from jaclang.scale.runtime.gateway.dispatch {
@@ -26,6 +26,7 @@ obj EmbeddedGateway(Gateway) {
         port: int = DEFAULT_GATEWAY_PORT,
         host: str = DEFAULT_GATEWAY_HOST,
         client_dist_dir: str = DEFAULT_CLIENT_DIST_DIR,
+        port_pinned: bool = False,
         app: any = None;
 
     def setup -> None;
@@ -37,5 +38,5 @@ obj EmbeddedGateway(Gateway) {
     ) -> Response | None;
 
     def _serve_static(path: str, accept: str) -> Response;
-    def serve -> None;
+    def serve(on_ready: any = None) -> None;
 }

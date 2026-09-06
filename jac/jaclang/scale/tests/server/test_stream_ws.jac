@@ -28,7 +28,7 @@ test "ws scheme rewrite passes through already ws/wss URLs" {
 }
 
 
-test "handshake headers keep auth + trace + xff and drop the rest" {
+test "handshake headers keep auth + trace, drop the rest, and stamp the peer onto xff" {
     inbound = {
         "Authorization": "Bearer abc",
         "X-Trace-Id": "trace-123",
@@ -41,11 +41,11 @@ test "handshake headers keep auth + trace + xff and drop the rest" {
         "Sec-WebSocket-Key": "dGhlIHNhbXBsZQ==",
         "Sec-WebSocket-Version": "13"
     };
-    out = _select_handshake_headers(inbound);
+    out = _select_handshake_headers(inbound, "198.51.100.7");
     assert "Authorization" in out;
     assert out["Authorization"] == "Bearer abc";
     assert "X-Trace-Id" in out;
-    assert "X-Forwarded-For" in out;
+    assert out["X-Forwarded-For"] == "10.0.0.1, 198.51.100.7";
 
     assert "Cookie" not in out;
     assert "User-Agent" not in out;
@@ -57,15 +57,24 @@ test "handshake headers keep auth + trace + xff and drop the rest" {
 }
 
 
+test "handshake xff is the bare peer when the client sent no xff" {
+    out = _select_handshake_headers({"Authorization": "Bearer abc"}, "198.51.100.7");
+    assert out["X-Forwarded-For"] == "198.51.100.7";
+}
+
+
 test "handshake headers are case-insensitive on the filter" {
     inbound = {
         "authorization": "Bearer x",
         "X-TRACE-ID": "t1",
+        "x-forwarded-for": "10.0.0.1",
         "sec-websocket-key": "k"
     };
-    out = _select_handshake_headers(inbound);
+    out = _select_handshake_headers(inbound, "198.51.100.7");
     assert out["authorization"] == "Bearer x";
     assert out["X-TRACE-ID"] == "t1";
+    assert out["X-Forwarded-For"] == "10.0.0.1, 198.51.100.7";
+    assert "x-forwarded-for" not in out;
     assert "sec-websocket-key" not in out;
 }
 
@@ -75,10 +84,10 @@ test "handshake headers are case-insensitive on the filter" {
 The forwarders used to be exercised against an aiohttp server; the runtime no
 longer depends on aiohttp, so the upstream is the same server jac ships."""
 def _spawn_upstream -> tuple[object, object, str] {
-    import from jaclang.runtimelib.serving.app { ServingApp }
-    import from jaclang.runtimelib.serving.datatypes { Request, Response }
-    import from jaclang.runtimelib.serving.endpoint { HTTPMethod, JEndPoint }
-    import from jaclang.runtimelib.serving.server { ServingServer }
+    import from jaclang.server.serving.app { ServingApp }
+    import from jaclang.server.serving.datatypes { Request, Response }
+    import from jaclang.server.serving.endpoint { HTTPMethod, JEndPoint }
+    import from jaclang.server.serving.server { ServingServer }
 
     def echo(request: Request) -> Response {
         return Response(content=request.body, media_type="application/octet-stream");
@@ -90,7 +99,7 @@ def _spawn_upstream -> tuple[object, object, str] {
                 yield f"data: event{i}\n\n";
             }
         }
-        import from jaclang.runtimelib.serving.datatypes { StreamingResponse }
+        import from jaclang.server.serving.datatypes { StreamingResponse }
         return StreamingResponse(gen(), media_type="text/event-stream");
     }
 
@@ -100,7 +109,7 @@ def _spawn_upstream -> tuple[object, object, str] {
                 yield b"x" * 4096;
             }
         }
-        import from jaclang.runtimelib.serving.datatypes { StreamingResponse }
+        import from jaclang.server.serving.datatypes { StreamingResponse }
         return StreamingResponse(gen());
     }
 
@@ -231,8 +240,8 @@ test "ws route closes with 1008 when no registry prefix matches" {
     import from jaclang.scale.runtime.gateway.microservice_gateway {
         MicroserviceGateway
     }
-    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
-    import from jaclang.runtimelib.serving.datatypes { WebSocketDisconnect }
+    import from jaclang.testing.testkit { ServingTestClient as TestClient }
+    import from jaclang.server.serving.datatypes { WebSocketDisconnect }
 
     reg = ServiceRegistry();
     gw = MicroserviceGateway(registry=reg);
@@ -264,10 +273,8 @@ test "ws route rejects with 1012 during drain" {
     import from jaclang.scale.runtime.gateway.microservice_gateway {
         MicroserviceGateway
     }
-    import from jaclang.scale.runtime.lifecycle.drain { reset_drain, start_drain }
-    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
+    import from jaclang.testing.testkit { ServingTestClient as TestClient }
 
-    reset_drain();
     reg = ServiceRegistry();
     reg.register(
         ServiceEntry(
@@ -283,7 +290,7 @@ test "ws route rejects with 1012 during drain" {
     gw.setup();
 
     client = TestClient(gw.app);
-    start_drain(10.0);
+    gw.drain.start("test");
     try {
         raised = False;
         try {
@@ -295,7 +302,7 @@ test "ws route rejects with 1012 during drain" {
         }
         assert raised;
     } finally {
-        reset_drain();
+        gw.drain.reset();
     }
 }
 
@@ -304,7 +311,13 @@ obj FakeClientWS {
     has inbound: any,
         sent: list,
         closed: bool = False,
-        close_code: int = 0;
+        close_code: int = 0,
+        client_host: str = "",
+        accepts: list[str] = [];
+
+    async def accept(subprotocol: str = '') {
+        self.accepts.append(subprotocol);
+    }
 
     async def receive -> dict {
         return await self.inbound.get();
@@ -326,12 +339,17 @@ obj FakeClientWS {
 
 
 """Upstream websocket echo, served by the native ws codec."""
-def _spawn_ws_upstream -> tuple[object, object, str] {
-    import from jaclang.runtimelib.serving.app { ServingApp }
-    import from jaclang.runtimelib.serving.endpoint { WSEndPoint }
-    import from jaclang.runtimelib.serving.server { ServingServer }
+def _spawn_ws_upstream(
+    captured_headers: list | None = None
+) -> tuple[object, object, str] {
+    import from jaclang.server.serving.app { ServingApp }
+    import from jaclang.server.serving.endpoint { WSEndPoint }
+    import from jaclang.server.serving.server { ServingServer }
 
     async def ws_echo(ws: any) {
+        if captured_headers is not None {
+            captured_headers.append(dict(ws.headers.items()));
+        }
         await ws.accept();
         while True {
             msg = await ws.receive();
@@ -358,9 +376,12 @@ def _spawn_ws_upstream -> tuple[object, object, str] {
 
 test "websocket_forward round-trips text and binary through a real upstream ws" {
     async def body -> dict {
-        (stop_upstream, server, base) = _spawn_ws_upstream();
+        upstream_headers: list[dict[str, str]] = [];
+        (stop_upstream, server, base) = _spawn_ws_upstream(upstream_headers);
         try {
-            client = FakeClientWS(inbound=asyncio.Queue(), sent=[]);
+            client = FakeClientWS(
+                inbound=asyncio.Queue(), sent=[], client_host="203.0.113.9"
+            );
             client.inbound.put_nowait({"type": "websocket.receive", "text": "hello"});
             client.inbound.put_nowait(
                 {"type": "websocket.receive", "bytes": b"\x00\x01\x02"}
@@ -369,9 +390,21 @@ test "websocket_forward round-trips text and binary through a real upstream ws" 
             client.inbound.put_nowait({"type": "websocket.disconnect"});
 
             await websocket_forward(
-                client, base, {"Authorization": "Bearer t", "Cookie": "drop=me"}
+                client,
+                base,
+                {
+                    "Authorization": "Bearer t",
+                    "Cookie": "drop=me",
+                    "X-Forwarded-For": "10.0.0.1"
+                }
             );
-            return {"sent": client.sent, "closed": client.closed};
+            return {
+                "sent": client.sent,
+                "closed": client.closed,
+                "upstream_headers": {
+                    k.lower(): v for (k, v) in upstream_headers[0].items()
+                }
+            };
         } finally {
             stop_upstream();
         }
@@ -393,6 +426,11 @@ test "websocket_forward round-trips text and binary through a real upstream ws" 
     assert "bye" in texts;
     assert b"\x00\x01\x02" in byte_msgs;
     assert result["closed"] == True;
+
+    seen = result["upstream_headers"];
+    assert seen["x-forwarded-for"] == "10.0.0.1, 203.0.113.9";
+    assert seen["authorization"] == "Bearer t";
+    assert "cookie" not in seen;
 }
 
 
@@ -405,4 +443,94 @@ test "websocket_forward closes the client with 1011 when the upstream handshake 
     result = _run(body());
     assert result["closed"] == True;
     assert result["code"] == 1011;
+}
+
+
+"""Upstream that selects a subprotocol, the way vite's HMR server does."""
+def _spawn_ws_upstream_with_protocol(protocol: str) -> tuple[any, any, str] {
+    import from jaclang.server.serving.app { ServingApp }
+    import from jaclang.server.serving.endpoint { WSEndPoint }
+    import from jaclang.server.serving.server { ServingServer }
+
+    async def ws_echo(ws: any) {
+        offered: str = str(ws.headers.get("sec-websocket-protocol") or "");
+        await ws.accept(subprotocol=protocol if protocol in offered else "");
+        while True {
+            msg = await ws.receive();
+            if msg["type"] == "websocket.disconnect" {
+                break;
+            }
+            if "text" in msg {
+                await ws.send_text(msg["text"]);
+                break;
+            }
+        }
+    }
+    app = ServingApp();
+    app.add_ws_endpoint(WSEndPoint(path="/ws", handler=ws_echo));
+    server = ServingServer(app=app, host="127.0.0.1", port=0);
+    stop = server.serve_background();
+    return (stop, server, f"http://127.0.0.1:{server.bound_port}/ws");
+}
+
+
+test "the client is accepted once, after the upstream chose the subprotocol" {
+    async def body -> dict {
+        (stop_upstream, server, base) = _spawn_ws_upstream_with_protocol("vite-hmr");
+        try {
+            client = FakeClientWS(
+                inbound=asyncio.Queue(), sent=[], accepts=[], client_host="127.0.0.1"
+            );
+            client.inbound.put_nowait({"type": "websocket.receive", "text": "ping"});
+            client.inbound.put_nowait({"type": "websocket.disconnect"});
+
+            chosen: list[str] = [];
+
+            async def on_upstream(selected: str) {
+                chosen.append(selected);
+                await client.accept(subprotocol=selected);
+            }
+            await websocket_forward(
+                client,
+                base,
+                {"Sec-WebSocket-Protocol": "vite-hmr"},
+                on_upstream=on_upstream
+            );
+            return {"accepts": client.accepts, "chosen": chosen};
+        } finally {
+            server.request_stop();
+        }
+    }
+    out = asyncio.run(body());
+    assert out["chosen"] == ["vite-hmr"] , (
+        f"the forwarder must report what the upstream selected; got {out['chosen']}"
+    );
+    assert out["accepts"] == ["vite-hmr"] , (
+        f"the client is accepted exactly once, with the upstream's protocol - "
+        f"answering 101 before the upstream handshake is what made a browser "
+        f"tear the socket down and reconnect in a loop; got {out['accepts']}"
+    );
+}
+
+
+test "a failed upstream handshake never accepts the client" {
+    async def body -> dict {
+        client = FakeClientWS(
+            inbound=asyncio.Queue(), sent=[], accepts=[], client_host="127.0.0.1"
+        );
+        accepted: list[str] = [];
+
+        async def on_upstream(selected: str) {
+            accepted.append(selected);
+        }
+        await websocket_forward(
+            client, "http://127.0.0.1:1/ws", {}, on_upstream=on_upstream
+        );
+        return {"accepted": accepted, "closed": client.closed};
+    }
+    out = asyncio.run(body());
+    assert out["accepted"] == [] , (
+        "no upstream means nothing to proxy; the client must not be handed a 101"
+    );
+    assert out["closed"];
 }

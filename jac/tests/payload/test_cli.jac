@@ -1,4 +1,4 @@
-"""`jaclang.payload.cli.main`: the subcommand grammar build.zig drives. Every
+"""`jaclang.dist.payload.cli.main`: the subcommand grammar build.zig drives. Every
 usage error exits non-zero with its usage line on stderr (prefixed `payload: `
 like the Zig tool's `die`), and the mkpayload trailing flags parse into
 MkPayloadOpts."""
@@ -9,7 +9,7 @@ import os;
 import shutil;
 import tempfile;
 
-import from jaclang.payload.cli { MKPAYLOAD_USAGE, main, parse_mkpayload_flags }
+import from jaclang.dist.payload.cli { MKPAYLOAD_USAGE, main, parse_mkpayload_flags }
 
 def run(argv: list[str]) -> tuple[int, str] {
     err = io.StringIO();
@@ -23,7 +23,7 @@ test "no subcommand and unknown subcommand are usage errors" {
     (rc, err) = run([]);
     assert rc == 1;
     assert err.startswith("payload: usage: payload <fetch-pbs|fetch-typeshed|");
-    assert "|mkpayload|typeshed-sha|pack> ..." in err;
+    assert "|mkpayload|typeshed-sha|stubcat|pack> ..." in err;
 
     (rc, err) = run(["bogus"]);
     assert rc == 1;
@@ -54,8 +54,12 @@ test "every subcommand reports its usage when positional args are missing" {
         (["mkpayload", "/pbs", "/root"], MKPAYLOAD_USAGE),
         (["typeshed-sha"], "usage: payload typeshed-sha <commit>"),
         (
+            ["stubcat", "/pbs", "/site"],
+            "usage: payload stubcat <pbs-python-dir> <site-dir> <out.bin>"
+        ),
+        (
             ["pack", "/stub", "/payload"],
-            "usage: payload pack <stub> <payload.tar.zst> <out>"
+            "usage: payload pack <stub> <payload.tar.zst> <out> [stubcat.bin]"
         )
     ];
     for (argv, usage) in cases {

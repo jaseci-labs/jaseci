@@ -23,16 +23,17 @@ import subprocess;
 import sys;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
-import from jaclang.cli.gen_cli_manifest { _discover_core_modules }
+import from jaclang.cli.manifest { iter_command_meta }
 
 glob REPO: str = str(Path(JAC_ROOT).parent),
-     # The authoritative core registration modules, derived from the same
-     # filesystem discovery the manifest generator uses
-     # (gen_cli_manifest._discover_core_modules) so the two cannot drift apart.
-     # Loading any single command must not import registration modules outside
-     # that command's owning module.
+     # The authoritative core registration modules, derived from the manifest
+     # the compiler assembled from the command specs, so the two cannot drift
+     # apart. Loading any single command must not import registration modules
+     # outside that command's owning module.
      REGISTRATION_SHORT: set[str] = set(
-         m.split(".")[-1] for m in _discover_core_modules()
+         m.handler_module.split(".")[-1]
+         for m in iter_command_meta(include_hidden=True)
+         if m.handler_module.startswith("jaclang.cli.commands.")
      ),
      # Commands representative of every family: core runtime (run), compiler
      # analysis (check), config/filesystem (config), pure tool (guide), client

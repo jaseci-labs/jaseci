@@ -1,6 +1,6 @@
 import logging;
-import from jaclang.runtimelib.serving.datatypes { Request }
-import from jaclang.runtimelib.serving.datatypes {
+import from jaclang.server.serving.datatypes { Request }
+import from jaclang.server.serving.datatypes {
     FileResponse,
     HTMLResponse,
     JSONResponse,
@@ -10,22 +10,22 @@ import from jaclang.runtimelib.serving.datatypes {
 import mimetypes;
 import subprocess;
 import from pathlib { Path }
-import from jaclang.runtimelib.transport { TransportResponse, Meta }
-import from jaclang.runtimelib.server { JsonValue }
-import from jaclang.runtimelib.serving.endpoint {
+import from jaclang.server.transport { TransportResponse, Meta }
+import from jaclang.server.server { JsonValue }
+import from jaclang.server.serving.endpoint {
     HTTPMethod,
     JEndPoint,
     APIParameter,
     ParameterType
 }
 import from jaclang.scale.config.config_loader { get_scale_config }
-import from jaclang.scale.identity.user_manager { UserRole, JacScaleUserManager }
-import from jaclang.jac0core.runtime { JacRuntime as Jac }
-import from jaclang.jac0core.constant { Constants as Con }
+import from jaclang.server.identity.user_manager { UserRole, UserManager }
+import from jaclang.runtime.runtime { JacRuntime as Jac }
+import from jaclang.compiler.frontend.constant { Constants as Con }
 
 glob logger = logging.getLogger(__name__);
 
-impl JacAPIServerAdmin._require_user_manager -> JacScaleUserManager {
+impl JacAPIServerAdmin._require_user_manager -> UserManager {
     manager = self.user_manager;
     if manager is None {
         raise RuntimeError(
@@ -79,7 +79,7 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
         )
     );
 
-    import from jaclang.runtimelib.serving.datatypes { Request }
+    import from jaclang.server.serving.datatypes { Request }
     async def reset_password_handler(
         request: Request, current_password: str, new_password: str
     ) -> TransportResponse {
@@ -534,7 +534,14 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
 }
 
 impl JacAPIServerAdmin.bootstrap_admin -> None {
-    result = self._require_user_manager().bootstrap_admin_user();
+    admin_config = get_scale_config().get_admin_config();
+    if not admin_config.get('enabled', True) {
+        return;
+    }
+    result = self._require_user_manager().bootstrap_admin_user(
+        admin_username=str(admin_config.get('username', 'admin')),
+        default_password=str(admin_config.get('default_password', 'changeme'))
+    );
     if 'error' not in result {
         if 'created' in result.get('message', '').lower() {
             logger.warning(
@@ -1030,7 +1037,7 @@ impl JacAPIServerAdmin.admin_graph_data(
             content={'error': 'Forbidden', 'message': 'Admin access required'}
         );
     }
-    import from jaclang.runtimelib.utils { collect_node_connections }
+    import from jaclang.runtime.graph_utils { collect_node_connections }
     target_username = username or Con.GUEST.value;
     root_id = self._require_user_manager().get_root_id(target_username);
     if not root_id {
@@ -1301,7 +1308,7 @@ impl JacAPIServerAdmin.build_admin_client(force: bool = False) -> bool {
     logger.info("Building admin client from source...");
     try {
         result = subprocess.run(
-            ["jac", "build", "main.jac", "--client", "web"],
+            ["jac", "build", "--as", "client", "main.jac"],
             cwd=str(ui_dir),
             capture_output=True,
             text=True,

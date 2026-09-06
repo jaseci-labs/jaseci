@@ -10,7 +10,7 @@ import requests;
 import from pathlib { Path }
 
 import from jaclang.project.config { find_project_root }
-import from jaclang.scale.tests.server_support { get_free_port }
+import from jaclang.scale.tests.support { get_free_port }
 
 glob JacScaleFixtures: Path = Path(__file__).parent.parent / "fixtures";
 

@@ -61,18 +61,15 @@ This single file defines a persistent data model, an AI-powered categorizer, a R
     name = "mini-todo"
 
     [dependencies.npm]
-    react = "^18.2.0"
-    react-dom = "^18.2.0"
+    react = "^19.2.0"
+    react-dom = "^19.2.0"
 
     [dependencies.npm.dev]
     vite = "^6.4.1"
     "@vitejs/plugin-react" = "^4.2.1"
     typescript = "^5.3.3"
-    "@types/react" = "^18.2.0"
-    "@types/react-dom" = "^18.2.0"
-
-    [serve]
-    base_route_app = "app"
+    "@types/react" = "^19.2.0"
+    "@types/react-dom" = "^19.2.0"
 
     [scale]
 
@@ -123,7 +120,7 @@ The two properties compound. With one continuous medium and mobile computation t
 The machinery beneath them has names too:
 
 - **[Meaning types](../reference/plugins/byllm.md)** make the model a typed executor: `by llm()` delegates a function to an LLM, and the prompt is derived from your names, types, and `sem` annotations rather than written by hand.
-- **[Scale invariance](../reference/plugins/jac-scale.md#the-scale-invariance-contract)** keeps semantics fixed from `jac run` to `jac scale deploy`: same program text at every deployment scale, with Kubernetes, Redis, and MongoDB provisioned by the runtime.
+- **[Scale invariance](../reference/plugins/jac-scale.md#the-scale-invariance-contract)** keeps semantics fixed from `jac run` to `jac scale deploy`: same program text at every deployment scale, with Kubernetes and Postgres provisioned by the runtime.
 - **The [polypiler](one-binary.md)** compiles the whole polyglot application as one unit: its targets are ecosystems rather than instruction sets, and it ships as one self-contained binary.
 - **[Gradual borrow checking](../reference/language/ownership-borrowing.md)** makes memory discipline a dial rather than a divide: managed semantics by default, ownership adopted one declaration at a time, down to native code with no collector.
 
@@ -147,7 +144,7 @@ For the *why* and *how* beneath them (codespaces, Object-Spatial Programming, an
 curl -fsSL https://raw.githubusercontent.com/jaseci-labs/jaseci/main/scripts/install.sh | bash
 ```
 
-This installs the self-contained `jac` binary -- no Python, pip, or uv required. It includes the compiler, the built-in full-stack frontend/desktop framework, and the built-in `scale` subsystem for serving and deployment. Add AI integration with `jac install byllm`; scale's optional deps (MongoDB, Redis, Kubernetes, ...) are pulled per-project by your `[scale.*]` config plus `jac install`.
+This installs the self-contained `jac` binary -- no Python, pip, or uv required. It includes the compiler, the built-in full-stack frontend/desktop framework, and the built-in `scale` subsystem for serving and deployment. Add AI integration with `jac install byllm`; scale's optional deps (Kubernetes, Prometheus, OpenTelemetry, ...) are pulled per-project by your `[scale.*]` config plus `jac install`.
 
 Verify your installation:
 

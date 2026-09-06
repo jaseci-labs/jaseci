@@ -3,7 +3,7 @@
 import os;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from jaclang.runtimelib.testing { JacTestClient }
+import from jaclang.testing.testing { JacTestClient }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 
@@ -92,9 +92,10 @@ test "auth token management" {
 test "authentication required" {
     with TemporaryDirectory() as tmpdir {
         client = make_client(tmpdir);
-        response = client.get("/protected");
+        response = client.get("/user/info");
         assert not response.ok;
-        assert "Unauthorized" in str(response.data);
+        assert response.status_code == 401;
+        assert "token" in str(response.data).lower();
         client.close();
     }
 }

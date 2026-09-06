@@ -115,7 +115,7 @@ def emit_backend(
         backend_dir, project_name, walkers_full, functions_full, has_env, entry_module
     );
 
-    import from jaclang.publish.runtime_vendor { vendor_runtime }
+    import from jaclang.dist.publish.runtime_vendor { vendor_runtime }
     uses_llm = _uses_llm(emitted_codes);
     try {
         vendored = vendor_runtime(backend_dir, emitted_codes, include_byllm=uses_llm);
@@ -515,7 +515,10 @@ def _emit_main_py(
 
     lines += [
         '',
-        'from jaclang.runtimelib.server import UserManager, ExecutionManager'
+        'from jaclang.server.identity.config import configure_identity',
+        'from jaclang.server.identity.user_manager import UserManager',
+        'from jaclang.server.server import ExecutionManager',
+        'from jaclang.server.settings import ServeSettings'
     ];
 
     if entry_module {
@@ -538,6 +541,8 @@ def _emit_main_py(
 
     lines += [
         '',
+        '_settings = ServeSettings.load(_BASE)',
+        'configure_identity(_settings.auth, _BASE)',
         '_um = UserManager(base_path=_BASE)',
         '_em = ExecutionManager(base_path=_BASE, user_manager=_um)',
         '_GUEST = "__guest__"',

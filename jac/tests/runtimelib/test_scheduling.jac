@@ -5,7 +5,7 @@ import threading;
 import time;
 import from pathlib { Path }
 import from jaclang { JacRuntime as Jac }
-import from jaclang.runtimelib.scheduler { Scheduler, ScheduleSpec, ScheduledTask }
+import from jaclang.server.task_scheduler { Scheduler, ScheduleSpec, ScheduledTask }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 
@@ -173,7 +173,7 @@ test "compute next run and schedule decorator" {
 }
 
 test "fixture loading registration and api exclusion" {
-    import from jaclang.runtimelib.server { ModuleIntrospector }
+    import from jaclang.server.server { ModuleIntrospector }
     (module, ) = Jac.jac_import("scheduled_tasks", FIXTURES);
 
     # All scheduled items have schedule_spec
@@ -255,4 +255,39 @@ test "scheduler executes walkers and functions correctly" {
     fn_count = module.execution_log.count("interval-function");
     assert walker_count >= 2 , f"Expected >=2 interval-walker runs, got {walker_count}";
     assert fn_count >= 2 , f"Expected >=2 interval-function runs, got {fn_count}";
+}
+
+
+"""The server registers every static @schedule target with its scheduler, even
+though scheduled walkers and functions are not HTTP endpoints and so never
+appear in the introspector's endpoint listings."""
+test "the served app registers its scheduled targets with the scheduler" {
+    import from tempfile { TemporaryDirectory }
+    import from jaclang.testing.testing { JacTestClient }
+    with TemporaryDirectory() as tmpdir {
+        client = JacTestClient.from_file(
+            str(Path(FIXTURES) / "scheduled_tasks.jac"), base_path=tmpdir
+        );
+        try {
+            server: any = client.server;
+            assert "IntervalWalker" not in server.get_walkers();
+            assert "interval_function" not in server.get_functions();
+            server._register_scheduled_tasks();
+            names = {task.name for task in server.scheduler._tasks};
+            for expected in [
+                "IntervalWalker",
+                "interval_function",
+                "CronWalker",
+                "cron_function",
+                "StaticWalker",
+                "static_fn"
+            ] {
+                assert expected in names , f"{expected} not registered: {sorted(
+                    names
+                )}";
+            }
+        } finally {
+            client.close();
+        }
+    }
 }
