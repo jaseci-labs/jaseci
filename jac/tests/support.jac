@@ -271,7 +271,7 @@ def python_run(src: str, args: list[str] | None = None, timeout: int = 120) -> s
     import subprocess;
     import sys;
     proc = subprocess.run(
-        [sys.executable, os.path.join(TESTS_DIR, "python_runner.py"), src]
+        [sys.executable, "-m", "jaclang", "run", "--backend", "python", src]
             + list(args or []),
         capture_output=True,
         text=True,

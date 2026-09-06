@@ -265,6 +265,18 @@ The `diagnostics` setting controls how compilation errors and warnings are repor
 
 The CLI flag `-e` / `--diagnostics` overrides this setting.
 
+### Execution backend override
+
+Use `jac run --backend python app.jac` to execute Jac source through the Python
+bytecode backend, or `jac run --backend native app.jac` to require native
+execution. Without `--backend`, the project and placement settings select the
+backend automatically. The override applies only to this invocation.
+
+Put run options before the source path; arguments after the path are passed to
+the program. For example, `jac run --backend python app.jac -- input.txt` passes
+`input.txt` to the program. Backend selection applies to source execution, not
+serving, building, sealed bundles, `--debug`, or `--entry`.
+
 ---
 
 ### [serve]
