@@ -134,7 +134,7 @@ impl EsastGenPass.exit_module with uni.Module exit {
             declarations=[
                 es.VariableDeclarator(
                     id=es.Identifier(name='_jac'),
-                    init=es.Identifier(name=build_jac_runtime_js())
+                    init=es.RawCode(code=build_jac_runtime_js())
                 )
             ],
             kind='const'
@@ -167,8 +167,14 @@ impl EsastGenPass.exit_module with uni.Module exit {
         }
         body.append(
             self.sync_loc(
+                es.ExpressionStatement(expression=es.RawCode(code=build_osp_core_js())),
+                jac_node=here
+            )
+        );
+        body.append(
+            self.sync_loc(
                 es.ExpressionStatement(
-                    expression=es.Identifier(name=build_osp_core_js())
+                    expression=es.RawCode(code=build_osp_driver_js())
                 ),
                 jac_node=here
             )
@@ -176,15 +182,7 @@ impl EsastGenPass.exit_module with uni.Module exit {
         body.append(
             self.sync_loc(
                 es.ExpressionStatement(
-                    expression=es.Identifier(name=build_osp_driver_js())
-                ),
-                jac_node=here
-            )
-        );
-        body.append(
-            self.sync_loc(
-                es.ExpressionStatement(
-                    expression=es.Identifier(name=self._build_osp_tags_js())
+                    expression=es.RawCode(code=self._build_osp_tags_js())
                 ),
                 jac_node=here
             )
@@ -194,7 +192,7 @@ impl EsastGenPass.exit_module with uni.Module exit {
         body.append(
             self.sync_loc(
                 es.ExpressionStatement(
-                    expression=es.Identifier(name=self._build_osp_setup_js())
+                    expression=es.RawCode(code=self._build_osp_setup_js())
                 ),
                 jac_node=here
             )

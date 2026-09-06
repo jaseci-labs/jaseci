@@ -80,8 +80,7 @@ test "the stamped verdict is the computation it replaced" {
 test "the emitter unit no longer names the driver" {
     impl_dir = PKG_PATH / "compiler" / "backends" / "py" / "jcir_gen_pass.impl";
     text = "\n".join(
-        f.read_text(encoding="utf-8")
-        for f in sorted(impl_dir.glob("*.impl.jac"))
+        f.read_text(encoding="utf-8") for f in sorted(impl_dir.glob("*.impl.jac"))
     );
     assert text , f"no emitter bodies under {impl_dir}";
     assert "self.prog" not in text , (

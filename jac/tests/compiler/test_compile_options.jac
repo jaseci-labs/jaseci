@@ -371,7 +371,8 @@ test "native type identity never reads walk-time registration maps" {
                         offenders.append(f"{rel}:{lineno}: {line.strip()}");
                     }
                     if write_pat.search(line)
-                        and rel != os.path.join("na_ir_gen_pass.impl", "core.impl.jac") {
+                        and rel
+                            != os.path.join("na_ir_gen_pass.impl", "core.impl.jac") {
                         offenders.append(f"{rel}:{lineno}: {line.strip()}");
                     }
                 }
@@ -545,9 +546,9 @@ test "one static-string constructor" {
         "(_static_str_struct_const in builtins.impl.jac); found: "
         + ", ".join(hits)
     );
-    assert hits[0].startswith(os.path.join("na_ir_gen_pass.impl", "builtins.impl.jac")) , f"static-string constructor moved: {hits[
-        0
-    ]}";
+    assert hits[0].startswith(
+        os.path.join("na_ir_gen_pass.impl", "builtins.impl.jac")
+    ) , f"static-string constructor moved: {hits[0]}";
 }
 
 test "set shares the dict hash core with no linear-scan sibling" {
@@ -634,7 +635,11 @@ test "hetero container band-aids are deleted; one element-storage authority" {
     assert authority_defs
         == [
             os.path.join(
-                "compiler", "backends", "native", "na_ir_gen_pass.impl", "types.impl.jac"
+                "compiler",
+                "backends",
+                "native",
+                "na_ir_gen_pass.impl",
+                "types.impl.jac"
             )
         ] , (
         "container element storage must be decided by exactly one authority "
@@ -694,7 +699,9 @@ test "no consumer-site NULL guards on string operands" {
         + "\n".join(offenders)
     );
     assert len(unwrap_sites) == 1
-        and unwrap_sites[0].startswith(os.path.join("na_ir_gen_pass.impl", "types.impl.jac")) , (
+        and unwrap_sites[0].startswith(
+            os.path.join("na_ir_gen_pass.impl", "types.impl.jac")
+        ) , (
         "optional unwrap must be emitted by exactly one site "
         f"(_coerce_type_inner in types.impl.jac); found: {unwrap_sites}"
     );

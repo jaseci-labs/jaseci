@@ -1064,7 +1064,7 @@ impl EsastGenPass.exit_func_call with uni.FuncCall exit {
                     self.needs_jac_runtime = True;
                 }
                 here.gen.es_ast = self.sync_loc(
-                    es.Identifier(name=_result), jac_node=here
+                    es.RawCode(code=_result), jac_node=here
                 );
                 return;
             }
@@ -1156,7 +1156,7 @@ impl EsastGenPass.exit_func_call with uni.FuncCall exit {
                     self.needs_jac_runtime = True;
                 }
                 here.gen.es_ast = self.sync_loc(
-                    es.Identifier(name=_result), jac_node=here
+                    es.RawCode(code=_result), jac_node=here
                 );
                 return;
             }

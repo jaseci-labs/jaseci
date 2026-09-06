@@ -66,7 +66,7 @@ impl EsastGenPass._try_primitive_op(
     if "_jac." in str(_result) {
         self.needs_jac_runtime = True;
     }
-    return self.sync_loc(es.Identifier(name=_result), jac_node=jac_node);
+    return self.sync_loc(es.RawCode(code=_result), jac_node=jac_node);
 }
 
 impl EsastGenPass._operand_str(unparser: object, es_node: es.Expression) -> str {
