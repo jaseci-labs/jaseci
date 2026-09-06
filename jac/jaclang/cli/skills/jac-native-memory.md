@@ -1,6 +1,6 @@
 ---
 name: jac-native-memory
-description: Memory management on the native pathway - the memory profiles (`[memory] profile = managed | rc | nogc`), the opt-in ownership & borrow checker (`own`, `&`/`&mut`, `imm`, `def drop`), first-class `Region` arenas (`in <handle> { }` opens, growth rule, sendable handles), zero-RC enforced builds (`--memory nogc`, E1401-E1406, `managed()`), and verification (the always-on RC-free invariant of `nogc` builds, `jac explain memory`). Load when any E13xx/E14xx diagnostic or W1310 appears, when a native binary leaks or churns refcounts, or when building an RC-free binary. For the native subset itself see `jac-native`.
+description: Memory management on the native pathway - the memory profiles (`[memory] profile = managed | rc | nogc`), the opt-in ownership & borrow checker (`own`, `lin`, `&`/`&mut`, `imm`, views, `take`/`swap`, `def drop`), first-class `Region` arenas (`in <handle> { }` opens, growth rule, sendable handles), zero-RC enforced builds (`--memory nogc`, E1401-E1407, `managed()`), and verification (the always-on RC-free invariant of `nogc` builds, `jac explain memory`). Load when any E13xx/E14xx diagnostic or W1310 appears, when a native binary leaks or churns refcounts, or when building an RC-free binary. For the native subset itself see `jac-native`.
 ---
 
 Native Jac heap values (objects, strings, lists, dicts, sets) are reference-counted by default. Ownership annotations are **opt-in**: they let the compiler move/borrow-check tagged bindings, and - taken to full coverage - compile memory management the way Rust would emit it: alloc at construction, free at a statically determined drop point, **no RC or collector in the binary**, proven by the RC-free scan every `nogc` build runs.
@@ -15,11 +15,11 @@ jac build --native app.jac --memory nogc     # zero retain/release call sites em
 
 - Default comes from `jac.toml`: `[memory] profile = "managed"`; `--memory` overrides it for one build.
 - Under `managed` the cycle collector runs automatically; `JAC_GC=off ./binary` switches collection off at run time for leak debugging.
-- `nogc` holds every module to the ownership contract (below) and emits no runtime at all: statically placed drops replace RC entirely, and the emitted IR is proven free of RC machinery on every build.
+- `nogc` holds every module to the ownership contract (below) and emits no RC or collector runtime: statically placed drops replace RC entirely, and the emitted IR is proven free of RC machinery on every build.
 
 ## Ownership surface (opt-in - unannotated code is untouched)
 
-The checker only tracks bindings tagged `own`/`imm`/`&`/`&mut` plus allocations under an `in <handle> { }` region open. Annotations are compile-time-only on every backend (`&x` compiles to exactly `x`).
+The checker only tracks bindings tagged `own`/`lin`/`imm`/`&`/`&mut` and their derived moves and views plus allocations under an `in <handle> { }` region open. Under nogc enforcement, unmarked locals also infer ownership states. Annotations are compile-time-only on every backend (`&x` compiles to exactly `x`).
 
 ```jac
 obj Buffer { has n: int = 0; }
@@ -39,12 +39,24 @@ with entry {
 `&mut x` takes the exclusive mutable borrow: any number of live `&`, or exactly one live `&mut`, never both (violations are E1302). Borrows split at single-field granularity: `&p.name` loans only that field, so a write to `p.score` (or a `&mut p.score`) under it is legal; same-field overlaps, whole-object borrows, subscripts, and deeper paths conflict as before.
 
 - The `imm` prefix operator freezes a statically unique value (an `own` binding, consumed, or a fresh expression) into the immutable world: `cfg = imm build();` binds `cfg` as `imm` with no annotation needed. Identity at runtime on every backend, E1311 when uniqueness cannot be proven; frozen values are the natural `flow` payload (imm crosses freely). The rule of the surface: states are annotations, transitions are operators (`&x`, `&mut x`, `own x`, `imm x`), and the exit is a call (`managed(x)`).
-- `own` is **affine**: dropping without consuming is fine, not an error. Passing an owned local to a jac-defined call, `return`, or field store consumes it; read-only builtin methods and native stdlib calls borrow instead (see the idioms section below).
-- Storing an owned value into a field/subscript/graph object seals it into managed storage (**the membrane**): the source binding dies, and reading it back yields a plain managed value. `node`/`edge`/`walker` stay fully managed - no `own`/`&` of graph state. Exception: a field declared `has ref: own T` keeps the value in the owned world - the store still consumes the source, but it is not an E1402 seal; the parent drops the field at its own drop point and an overwrite drops the old value first.
-- Borrows are second-class: returning or storing one is E1306 (single passthrough of a borrow *parameter* is allowed); a borrow outliving its owner is E1304.
-- `flow for x in &xs { }` / `flow for m in &mut xs { }` - the disjoint-partition loop: per-element body, closing brace is the join. Collection must be lent, `break`/`return`/`yield`/`disengage` in the body are E1313 (`continue` ok), nesting rejected, and body captures follow sendability (write to any outer name is E1308 - write through the `&mut` element instead). **Runs genuinely parallel in zero-RC enforced builds** (`--memory nogc`): body outlined, element ranges over pthreads, join at the brace, `[native] threads` sets the width (default 4; `JAC_THREADS` overrides at run time) - sound because a `nogc` binary has no refcounts to race on. `--memory rc` builds fan out too - retain/release are atomic, so crossings are safe at no added single-thread cost (measured ~7x on 8 threads); `--memory managed`, the Python backend, and wasm stay sequential. Results are byte-identical either way.
+- `own` is **affine**: dropping without consuming is fine, not an error. Passing an owned local to a consuming parameter, owned return, or owned field store consumes it; read-only builtin methods and native stdlib calls borrow instead (see the idioms section below).
+- `lin` is implemented: `f: lin File = File()` must be consumed on every control-flow path before scope exit (`E1305`), and a second consumption is `E1301`. Use `own` when automatic dropping is acceptable; use `lin` when the caller must explicitly hand off the resource.
+- Owned fields and containers preserve ownership: `has child: own T`, `list[own T]`, and `dict[str, own T]` move stored objects and drop replaced/removed values. Storing into ordinary managed storage instead crosses the ownership boundary; under enforcement it needs an explicit `managed(...)` transfer where the selected profile permits one. Graph storage is managed or region-owned; an `own` walker is affine and spawning it consumes it, but that annotation does not make graph nodes uniquely owned.
+- Borrowed results must remain tied to their owners. A borrowed parameter may be returned; a local owner's borrow may not escape (`E1306`), and no borrow may outlive its owner (`E1304`). Local borrow-containing objects are views, with the restrictions below.
+- `flow for x in &xs { }` / `flow for m in &mut xs { }` - the disjoint-partition loop: per-element body, closing brace is the join. Collection must be lent, `break`/`return`/`yield`/`disengage` in the body are E1313 (`continue` ok), nesting rejected, and body captures follow sendability (outer writes are E1308 except integer `+=`, `min`, and `max` reductions; otherwise write through the `&mut` element). **Runs genuinely parallel in zero-RC enforced builds** (`--memory nogc`): body outlined, element ranges over pthreads, join at the brace, `[native] threads` sets the width (default 4; `JAC_THREADS` overrides at run time) - sound because a `nogc` binary has no refcounts to race on. `--memory rc` builds fan out too - retain/release are atomic, so crossings are safe with atomic lifetime updates; `--memory managed`, the Python backend, and wasm stay sequential. Results are byte-identical either way.
 - Sendability (E1308): only `imm`, moved `own` (including an `own Region` handle), or scalars cross `flow`/`thread_run` boundaries. Exception - scoped lending: `h = flow f(&a); ... wait h;` in one block lends `a` for exactly the spawn-to-join extent, provided the owner is untouched in between; any other live borrow never crosses.
-- `def drop` (reserved ability, like `postinit`) runs exactly once at destruction, **at the owner's last use, not scope end** (NLL-style eager drop) - same observable point under every gc mode. No resurrection; under `cycles`, intra-cycle drop order is unspecified. The Python backend calls it only for region-allocated values (below); rely on it elsewhere only in native modules.
+- `def drop` (reserved ability, like `postinit`) runs exactly once at destruction, **after the owner's last use and no later than scope exit**, at the same observable point under every native memory profile. Some drops are eager; do not rely on immediate destruction after every last-read statement. No resurrection; under `cycles`, intra-cycle drop order is unspecified. The Python backend calls it only for region-allocated values (below); rely on it elsewhere only in native modules.
+
+## Places, methods, and views
+
+- `take(place)` reads and clears an optional local or field, leaving `None`. Use it to move an optional owned child; it also works for an optional scalar handle. It does not validate the lifetime of an opaque foreign handle. `swap(&mut a, &mut b)` exchanges same-typed locals/fields with both receivers evaluated once. Invalid places are E1319; use container `pop` for elements.
+- Method receiver modes are inferred from the body, including mutations through helper methods. Read methods borrow shared; mutators require exclusive access (E1318 through a shared receiver). Explicit `self: own` consumes the receiver. Generic parameters and `Callable[[own T], None]` preserve ownership at calls.
+- A type with borrow-containing fields, including inherited fields and generic arguments, is a view. For example `obj View { has player: &Player; }` can be constructed and used locally. It cannot be bound `own`, stored into a field/container/global, or sent to another task. Returning a view is legal only when its roots derive from borrowed parameters or the receiver; callers retain all those lifetime dependencies. E1315 rejects escaping views; build a fresh owned value if it must escape.
+- `for x in &xs` and `for x in &mut xs` yield scoped element borrows. The mutable form updates elements in place; neither allows growing or clearing the container during the loan. The element cannot escape, and the container becomes reusable after the loop.
+- `flow for chunk in &mut xs.chunks(3)` lends disjoint mutable chunks (the last may be shorter); `&xs.chunks(3)` lends shared chunks. Use `chunks` directly in the lent loop, not as a stored iterator. No structural growth or escaping chunk; ordinary flow capture and reduction rules apply.
+- Use `&x` with no space for a shared ownership borrow. Legacy `& expr` and `&(expr)` perform graph UUID lookup. Avoid rewriting one as the other.
+
+For complete examples and lifetime rules, read `reference/language/ownership-borrowing.md` in the bundled docs; for diagnostic contracts read `internals/ownership-checker-spec.md`. Rocket Arena (`examples/jaclang_org/core/site/game`) demonstrates owned aggregates, generic pool removal, inferred receivers, field splitting, local render views, swap, and an explicit browser handle lifecycle. It does not demonstrate regions or concurrency. Its simulation is validated across managed/RC/nogc and Python; the website uses managed memory.
 
 ## Regions - first-class arenas
 
@@ -68,7 +80,7 @@ with entry {
 - Moving an `own Region` across `flow` transfers the whole subgraph zero-copy; legal only while no borrows of the handle are live. `fr = imm r` consumes the owned handle and transfers handle-ness: the frozen result deep-freezes the subgraph and crosses `flow` freely under the imm sendability rule (share one frozen graph with N parallel readers); opening a frozen handle for allocation is E1309.
 - Python backend: memory stays GC-managed, but `drop` hooks fire at portable points - LIFO at the closing brace for an anonymous open, at handle death for a named one.
 - `W1310` lints an open with an empty body. Region opens are fully supported inside nogc-enforced modules: the arena core (bump alloc, dtor log, bulk free) needs no RC, so build-traverse-discard region code compiles headerless with the RC-free invariant holding and the same LIFO teardown as the managed modes.
-- **Sub-arenas**: `c: own Region = r.partition()` yields an owned child handle - open it, allocate under it, move it across `flow` (owned-handle sendability); child death **reabsorbs** its memory and drop log into the parent (hooks fire once, at parent death, child entries first), and a parent dying first zombie-defers its teardown to the last reabsorb. One `partition()` call per child.
+- **Sub-arenas**: `c: own Region = r.partition()` yields an owned child handle - open it, allocate under it, move it across `flow` (owned-handle sendability); child death **reabsorbs** its memory and drop log into the parent (hooks fire once, at parent death, child entries first), and a parent dying first zombie-defers its teardown to the last reabsorb. Alternatively `(a, b) = r.partition(2)` immediately unpacks a literal count into exactly that many plain names. Dynamic counts, wrong arity, and unowned receivers are E1314; use separate calls for dynamic counts.
 - **Inferred anonymous regions**: a block that builds a graph from fresh node locals, connects them only among themselves, and consumes it with expression-statement spawns is rewritten by `RegionInferPass` into a real `in Region() { }` open at zero annotation - arena allocation, `drop` hooks LIFO right after the last spawn, one bulk free, identical in every gc mode and on the Python backend. Touching `root`/`here`, passing a member to a call, consuming the spawn result, or control flow through the extent declines the inference (graph stays managed, never wrong). Enforced-mode traversals still wait on the walker engine's zero-RC factoring.
 
 ## Zero-RC enforced builds - the workflow
@@ -77,12 +89,12 @@ with entry {
 jac build --native service.jac --memory nogc
 ```
 
-1. **Enforce**: `--memory nogc` (this module) or `jac.toml` patterns (fnmatch vs module name):
+1. **Enforce**: `--memory nogc` (every native module in the artifact) or `jac.toml` patterns (fnmatch vs module name):
 
    ```toml
    [memory]
-   modules = ["service*"]       # compiled under the zero-RC contract
-   grandfathered = ["legacy*"]  # exempt while migrating (checked first)
+   enforce = ["service*"]       # compiled under the zero-RC contract
+   exempt = ["legacy*"]  # incremental exemption under managed/rc only
    ```
 
 2. **Fix the E140x hard errors** (each blocks codegen; `{provenance}` says why the module is enforced):
@@ -94,17 +106,21 @@ jac build --native service.jac --memory nogc
    | E1403 | Heap value crosses out of the module implicitly | Wrap the argument in `managed(x)`; scalars and `imm` cross freely |
    | E1404 | `any`-typed value could be heap | Give it a concrete type, or confine `any` to scalars |
    | E1405 | Escaping closure capture | Pass the value as an explicit parameter or keep the closure local |
-   | E1406 | A value that cannot enter the owned world as it is: a borrow, `imm` value or place read stored into a container, a retaining builtin (`iter`/`globals`/`locals`), or `managed()` under a nogc build | Follow the help: `xs.append(own p)` copies a str, `take(place)` moves an element out, `for p in xs` iterates by value, or build the element fresh at the store |
+   | E1406 | A value that cannot enter the owned world as it is: a borrow, `imm` value or place read stored into a container, a retaining builtin (`iter`/`globals`/`locals`), or `managed()` under a nogc build | Follow the help: `xs.append(own p)` copies a str, `take(place)` extracts an optional field, `pop` removes a container element, `for p in xs` iterates by value, or build the element fresh at the store |
+   | E1407 | Entry block leaves an inferred exception unhandled | Handle the call with `try`/`except`; functions can propagate to their callers |
+
+   A whole-artifact `nogc` profile admits no exemptions: use `enforce`/`exempt` under managed or RC while migrating, then switch the profile.
 
 3. **Verify**: every `nogc` build scans the emitted IR for `__rc_*` helpers, trace functions, roots-buffer globals, and run-time collector probes; a hit is a compiler bug, and success prints `nogc invariant ok`.
 
-Under `--memory nogc` an enforced module compiles **headerless**: owned payloads are bare `malloc` allocations (no RC header) and each free is a direct statically-placed `__drop_<T>` call, which also runs the user `def drop` hook. Note: an unhandled `raise` in an enforced module runs the current frame's drop obligations (each exactly once -- eager-dropped locals are already nulled), prints a line, and calls `abort()` instead of unwinding.
+Under `--memory nogc` an enforced module compiles **headerless**: owned payloads are bare `malloc` allocations (no RC header) and each free is a direct statically-placed `__drop_<T>` call, which also runs the user `def drop` hook. Raising functions propagate through hidden error slots; callers dispatch `except`, execute `finally`, and release owned locals on error paths. An entry block must handle its inferred raises effect (`E1407`); it has no caller to propagate to. See the language reference's “Errors without unwinding” section.
 
 ## Enforced-module idioms (what real programs look like)
 
 - Locals infer ownership from any fresh right-hand side: calls, literals,
-  f-strings, comprehensions, and str-typed subscripts/slices (`p = src[0:n]`
-  is an owned copy and does not consume `src`). Only contract positions
+  f-strings and comprehensions. Step-free string slices (`p = src[0:n]`)
+  are lifetime-bound views under enforcement; use `src[0:n:1]` for an owned
+  materialization. Neither consumes `src`. Only enforced contract positions
   (params, returns, `has` fields) need explicit `own`/`&`/`&mut`/`imm`.
 - Read-only builtin methods (`find`, `startswith`, `split`, `join`,
   `replace`, `get`, `write`, ...) and the native stdlib surface
@@ -119,19 +135,13 @@ Under `--memory nogc` an enforced module compiles **headerless**: owned payloads
   (`xs.append(s); print(s);` is legal). The container owns its elements and
   frees them when it drops. A borrowed (`&str`) or field-read string must be
   laundered through an explicit copy first (`xs.append(f"{p}")`).
-- Lists of archetype elements are supported for **fresh** values: a
-  constructor result moves into `append`/`insert` (`xs.append(Res(tag=i))`)
-  and into list literals, the container stamps the element type's drop in
-  its element-drop slot, and every element is freed exactly once when the
-  list drops. Named archetype bindings stay fenced (E1406) - there is no
-  copy-in idiom for archetypes - and sets, dict keys/values of archetypes,
-  and nested containers remain E1406 until their hashing and element-drop
-  monomorphization land.
+- Named `own` archetypes and fresh constructors move into list literals, `append`/`insert`, and dict values. Reading the named owner afterwards is E1301. `pop()` / `pop(i)` / dict `pop(key)` transfer the removed value; direct field/element reads cannot silently become owners (E1316/E1317). Sets and dict keys of archetypes remain outside this ownership support; check the concrete container shape rather than assuming all nested containers are supported.
+- Under nogc, eligible acyclic owned fields are embedded in the parent, and scalar-only leaf object list elements use by-value storage. The compiler chooses layout from the resolved type, so generic helpers and borrowed container parameters agree with callers. Do not reproduce element lifetime or layout logic in application code.
 - Typed-base int enum members are scalar constants; string globs are not
   expressible under the contract - use a `def` returning `own str` for
   string constants.
 - The compiler's own modules are never enforced: a project-wide
-  `[memory] modules = ["*"]` applies to your code only, so a release
+  `[memory] enforce = ["*"]` applies to your code only, so a release
   binary can drive a `[dev] jaclang_source` checkout under full enforcement.
 
 ## Measuring and debugging
@@ -144,6 +154,6 @@ Under `--memory nogc` an enforced module compiles **headerless**: owned payloads
 
 - Ownership diagnostics gate native codegen (they are required analyses there), but whether they are *displayed* never changes the binary.
 - A shared library (`--lib`) exports `jac_retain`/`jac_release` for host-side lifetime management **only when built under a managed gc mode**; a zero-RC (`--memory nogc`) library has no RC helpers to wrap, so those exports are absent by design.
-- `linear` (must-use marker, E1305) is planned but **not implemented** - do not write it.
+- Spell the must-consume marker `lin`, not `linear`. A static ownership contract does not validate aliases hidden behind `any`, opaque C/Wasm handles, or separately obtained managed references.
 - `managed(x)` is the identity function on the Python backend; annotations there are checked, then erased.
 - `jac build --as native` does not take the gc flags; use file-level `jac build --native` for zero-RC builds.

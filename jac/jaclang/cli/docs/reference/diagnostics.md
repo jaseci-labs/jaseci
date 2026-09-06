@@ -308,7 +308,7 @@ Emitted by `JsxIntrinsicGuardPass` when a module of a `mobile` app (see [Mobile]
 
 ### Ownership / Borrow Errors
 
-Emitted by `OwnershipCheckPass` for `own`/`imm`/`borrow`/`&`/`&mut` bindings and `in <handle> { }` region opens. See [Ownership & Borrowing](language/ownership-borrowing.md). On the native pathway the checker is one of the required analyses: it always runs there, and error-severity findings block native codegen -- a clean check is what makes the annotations trustworthy facts for lowering (see the [Ownership Fact Schema](../internals/ownership-checker-spec.md)). Whether diagnostics are *displayed* never changes generated code; builds with and without display are bit-identical.
+Emitted by `OwnershipCheckPass` for `own`/`lin`/`imm`/`&`/`&mut` bindings and derived views and `in <handle> { }` region opens. See [Ownership & Borrowing](language/ownership-borrowing.md). On the native pathway the checker is one of the required analyses: it always runs there, and error-severity findings block native codegen -- a clean check is what makes the annotations trustworthy facts for lowering (see the [Ownership Fact Schema](../internals/ownership-checker-spec.md)). Whether diagnostics are *displayed* never changes generated code; builds with and without display are bit-identical.
 
 | Code | Message |
 |------|---------|
@@ -324,6 +324,7 @@ Emitted by `OwnershipCheckPass` for `own`/`imm`/`borrow`/`&`/`&mut` bindings and
 | `E1311` | Cannot freeze '{name}': the value may be aliased |
 | `E1313` | `flow for` does not allow {name} |
 | `E1314` | `partition(n)` does not allow {name} |
+| `E1315` | A view does not allow {name} |
 | `E1316` | Cannot move '{name}' out of '{place}' without take() |
 | `E1317` | Cannot move '{name}' out of the element '{place}' |
 | `E1318` | Cannot call mutating method '{method}' through a shared borrow of '{name}' |
@@ -341,6 +342,7 @@ Emitted by `OwnershipCheckPass` only in **nogc-enforced** native modules (`jac b
 | `E1404` | '{name}' is `any`-typed and could be heap-allocated in a nogc-enforced module ({provenance}) |
 | `E1405` | Closure capture of '{name}' escapes its scope in a nogc-enforced module ({provenance}) |
 | `E1406` | {name} ({provenance}) -- the message names the value, why it cannot enter the owned world (a borrow of `x`, an `imm` value, a place read, a retaining builtin) and the destination; the help names the idiom that fits (`own p` copy, `take(place)`, iterate by value, or a fresh value) |
+| `E1407` | '{name}' raises {exc}, and the entry block does not handle it |
 | `E1407` | '{name}' raises {exc}, and the entry block does not handle it |
 
 ### Type-Only Import Bindings
