@@ -247,18 +247,25 @@ def _from_source_tree -> (ResolvedKernel | None) {
     }
 }
 
+def _sidecar_matches_sources(sidecar: dict) -> bool {
+    import from jaclang.compiler.backends.native.link_plan {
+        sidecar_unit_paths,
+        units_source_key
+    }
+    units = sidecar_unit_paths(sidecar);
+    recorded = str(sidecar.get("source_key", ""));
+    if not units or not recorded {
+        return False;
+    }
+    return units_source_key(units, kernel_options()) == recorded;
+}
+
 def _accept_in_tree(lib_path: str) -> (ResolvedKernel | None) {
     sidecar = read_sidecar(lib_path);
     if sidecar is None or not os.path.isfile(lib_path) {
         return None;
     }
-    units = sidecar.get("units");
-    recorded = str(sidecar.get("source_key", ""));
-    if not isinstance(units, list) or not units or not recorded {
-        return None;
-    }
-    import from jaclang.compiler.backends.native.link_plan { units_source_key }
-    if units_source_key([str(u) for u in units], kernel_options()) != recorded {
+    if not _sidecar_matches_sources(sidecar) {
         return None;
     }
     return ResolvedKernel(
@@ -267,6 +274,67 @@ def _accept_in_tree(lib_path: str) -> (ResolvedKernel | None) {
         source="tree",
         plan_digest=str(sidecar.get("plan_digest", ""))
     );
+}
+
+def _bundled_kernel_path -> (str | None) {
+    """The kernel the running kit carries, when this process's compiler is
+    a rerouted checkout rather than that kit: the kit's sealed jaclang sits
+    beside its interpreter.""";
+    import from jaclang.compiler.frontend.codeinfo { jaclang_pkg_root }
+    site_pkg = os.path.join(os.path.dirname(sys.prefix), "site", "jaclang");
+    if not os.path.isdir(os.path.join(site_pkg, "_precompiled")) {
+        return None;
+    }
+    if os.path.realpath(site_pkg) == os.path.realpath(jaclang_pkg_root()) {
+        return None;
+    }
+    try {
+        import from jaclang.jac0core.sealed { load_image }
+        image = load_image(os.path.join(site_pkg, "_precompiled"));
+        if image is None {
+            return None;
+        }
+        record = image.native_artifact();
+    } except Exception {
+        return None;
+    }
+    if not record {
+        return None;
+    }
+    lib_path = os.path.join(site_pkg, str(record.get("path", "")));
+    return lib_path if os.path.isfile(lib_path) else None;
+}
+
+def _adopt_bundled(lib_path: str) -> (ResolvedKernel | None) {
+    """A checkout whose sources are the ones the kit was built from takes
+    the kit's kernel instead of deriving its own: the sidecar's source key
+    is the same compiler digest and unit keys the derivation would settle
+    on. The copy lands beside the loader so later runs accept it in place.""";
+    import shutil;
+    bundled = _bundled_kernel_path();
+    if bundled is None {
+        return None;
+    }
+    sidecar = read_sidecar(bundled);
+    if sidecar is None or not _sidecar_matches_sources(sidecar) {
+        return None;
+    }
+    try {
+        os.makedirs(os.path.dirname(lib_path) or ".", exist_ok=True);
+        shutil.copyfile(bundled, lib_path + ".adopt");
+        shutil.copyfile(
+            bundled + LAYOUT_SIDECAR_SUFFIX, lib_path + LAYOUT_SIDECAR_SUFFIX + ".adopt"
+        );
+        os.replace(
+            lib_path + LAYOUT_SIDECAR_SUFFIX + ".adopt",
+            lib_path + LAYOUT_SIDECAR_SUFFIX
+        );
+        os.replace(lib_path + ".adopt", lib_path);
+        shutil.copymode(bundled, lib_path);
+    } except OSError {
+        return None;
+    }
+    return _accept_in_tree(lib_path);
 }
 
 def _build_kernel_in_child(dst: str) {
@@ -297,7 +365,7 @@ def _derive_in_tree(lib_path: str) -> (ResolvedKernel | None) {
     lock = _KernelLock(lib_path);
     lock.acquire();
     try {
-        found = _accept_in_tree(lib_path);
+        found = _accept_in_tree(lib_path) or _adopt_bundled(lib_path);
         if found is not None {
             return found;
         }

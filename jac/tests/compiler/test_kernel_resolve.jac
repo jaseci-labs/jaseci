@@ -119,3 +119,39 @@ test "an in-tree kernel is accepted by source key, without a plan" {
     Path(lib + ".layout.json").write_text(json.dumps(stale));
     assert _accept_in_tree(lib) is None , "a sidecar without a source key is never accepted";
 }
+
+
+test "a kernel built elsewhere is accepted by its units' package identity" {
+    import from jaclang.compiler.backends.native.link_plan { sidecar_unit_paths }
+    import from jaclang.compiler.frontend.codeinfo {
+        jaclang_pkg_root,
+        native_unit_identity
+    }
+    unit = os.path.join(jaclang_pkg_root(), "compiler", "driver", "jir.jac");
+    ident = native_unit_identity(unit);
+    assert ident.startswith("jaclang/") , ident;
+    elsewhere = os.path.join(
+        "/build", "stage", "site", "jaclang", "compiler", "driver", "jir.jac"
+    );
+    resolved = sidecar_unit_paths({"units": [elsewhere], "unit_ids": [ident]});
+    assert resolved == [unit] , (
+        "a unit recorded at the build's path is found where this jaclang lives"
+    );
+    key_here = units_source_key([unit], kernel_options());
+    tmp = tempfile.mkdtemp(prefix="jac-kernel-");
+    lib = os.path.join(tmp, "libjac_compiler.dylib");
+    Path(lib).write_bytes(b"not a real kernel");
+    sidecar = {
+        "classes": {},
+        "plan_digest": "p",
+        "layout_digest": "l",
+        "units": [elsewhere],
+        "unit_ids": [ident],
+        "source_key": key_here
+    };
+    Path(lib + ".layout.json").write_text(json.dumps(sidecar));
+    found = _accept_in_tree(lib);
+    assert found is not None , (
+        "the source key is keyed on package identity, not on the build's paths"
+    );
+}

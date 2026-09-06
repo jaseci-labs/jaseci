@@ -86,9 +86,10 @@ callers, and the plan knows nothing about any of them.
    type-interface dependency rows that are native units) are walked, so a
    unit compiles after its dependencies and an import cycle nests only
    inside the child that meets it.
-3. Compile each stale unit in a child `jac` process
-   (`NativeUnitRegistry.compile_unit_detached`) and read its products back
-   from the JIR. See "Why a child process" below.
+3. Compile each stale unit (`NativeUnitRegistry.compile_unit_detached`):
+   in this process for a program's plan, in a child `jac` process for the
+   kernel build and the seal, which hand their products back through a
+   blob. See "Why a child process" below.
 4. Check agreement: every recorded dependency digest must equal the digest
    of the unit in the plan. A unit that disagrees is recompiled, and the
    rounds continue until every record agrees; a recompile can move a unit's
@@ -159,17 +160,30 @@ with a fixed precedence:
    error.
 3. Source tree. The kernel beside `native_compiler.jac` is accepted when the
    source key its sidecar records equals the one the sources have now.
-   Otherwise a child `jac` process rebuilds it under a lock, with the store
-   parser pinned for the build.
+   Otherwise, under a lock, the checkout first looks at the kernel the
+   running kit carries: a rerouted checkout runs on a kit's interpreter,
+   and when that kit was built from these very sources its kernel's source
+   key matches, so the kernel is copied beside the loader and accepted.
+   Only a checkout whose compiler differs from every kernel in reach has a
+   child `jac` process rebuild one, with the store parser pinned for the
+   build.
 4. No native toolchain: the store parser serves, silently.
 
-The source key is the compiler digest plus the module key of every unit the
-kernel was linked from. Accepting a kernel therefore costs one content hash
-per unit and no plan, which is what makes a warm `jac run` in a source tree
-start in well under a second. The derivation runs in a child on purpose:
-the first parse of a checkout happens inside the compiler's own import
-chain, where half the checker is not importable yet, and a rebuild must not
-depend on the state of the process that asked for it.
+The source key is the compiler digest plus, for every unit the kernel was
+linked from, the unit's package identity and module key. Nothing in it is
+a path, which is what lets a kernel built at the kit's staging directory
+be accepted in a checkout elsewhere; the sidecar records each unit's
+identity next to the path the build used, and acceptance finds the unit
+where this process's jaclang lives. Accepting a kernel therefore costs one
+content hash per unit and no plan, which is what makes a warm `jac run` in
+a source tree start in well under a second. The derivation runs in a child
+on purpose: the first parse of a checkout happens inside the compiler's own
+import chain, where half the checker is not importable yet, and a rebuild
+must not depend on the state of the process that asked for it. The kernel
+build and the seal are the plans that compile each unit in a child of
+their own (`JAC_NATIVE_UNIT_ISOLATE`); a program's handful of units lowers
+in the requesting process, where a child per unit would only multiply
+compiler processes across a machine already running several.
 
 The kernel is always the host's. `kernel_options()` pins the target to the
 host whatever `JAC_NATIVE_TARGET` says, so a cross-compiled artifact's
@@ -196,13 +210,25 @@ closure and scrubbing the shared hub after the outermost compile recovered
 part of it; the rest is held through the catalog's memo tables, which are
 global by design.
 
-Compiling each unit in a child `jac -c` process ends the question: the
+Compiling each unit in a child `jac -c` process ends the question for the
+plans that compile dozens of units, the kernel build and the seal: the
 parent stays flat (about 100 MB), a unit's closure dies with its process,
 and the nested compiles an import cycle causes stay inside the child that
 hit the cycle. A child that would itself spawn past two levels compiles in
 process instead, so a cycle cannot spawn without bound. The child receives
-the native-import options as JSON (`CompileOptions.native_import_env`) and
-rebuilds them with `from_native_import_env`.
+the native-import options as JSON (`CompileOptions.native_import_env`),
+rebuilds them with `from_native_import_env`, and writes its interface,
+dependency digests, object and bitcode to a products blob the parent
+registers, so two plans with different identities in one process never
+read each other's cache entries. Its diagnostics stay in the child unless
+it fails: a first run that derives a kernel would otherwise scroll every
+unit's seam warnings past the program's own output.
+
+A program's plan compiles its units in the requesting process
+(`JAC_NATIVE_UNIT_ISOLATE` unset). The child model costs a compiler
+bootstrap and about 1.5 GB per unit, and a test lane running four workers
+held thirteen compiler processes at once; a program's handful of units
+leaves nothing behind that a process which will end anyway needs to shed.
 
 Two consequences of running the compiler's modules through the same JIR
 entries as their native products deserve a note:

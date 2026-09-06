@@ -555,12 +555,13 @@ def units_source_key(paths: list[str], options: CompileOptions) -> str {
         module_cache_key,
         running_compiler_digest
     }
+    import from jaclang.compiler.frontend.codeinfo { native_unit_identity }
     h = hashlib.sha256();
     h.update(running_compiler_digest().encode("utf-8"));
     h.update(options.codegen_identity().encode("utf-8"));
     h.update(options.effective_triple().encode("utf-8"));
     for path in sorted(os.path.realpath(p) for p in paths) {
-        h.update(path.encode("utf-8"));
+        h.update(native_unit_identity(path).encode("utf-8"));
         try {
             h.update(module_cache_key(path).encode("utf-8"));
         } except OSError {
@@ -570,17 +571,45 @@ def units_source_key(paths: list[str], options: CompileOptions) -> str {
     return h.hexdigest();
 }
 
+def sidecar_unit_paths(sidecar: dict) -> list[str] {
+    """The units a sidecar names, found where this process's jaclang lives:
+    a kernel built by the kit records its units by package identity, so the
+    checkout that matches the kit's sources can accept it without the
+    build's paths existing here.""";
+    import from jaclang.compiler.frontend.codeinfo { jaclang_pkg_root }
+    units = sidecar.get("units");
+    ids = sidecar.get("unit_ids");
+    recorded = [str(u) for u in units] if isinstance(units, list) else [];
+    if not isinstance(ids, list) or len(ids) != len(recorded) {
+        return recorded;
+    }
+    pkg_parent = os.path.dirname(jaclang_pkg_root());
+    out: list[str] = [];
+    for (path, ident) in zip(recorded, ids) {
+        ident_s = str(ident);
+        local = (
+            os.path.join(pkg_parent, ident_s)
+                if ident_s.startswith("jaclang/")
+                else path
+        );
+        out.append(local if os.path.isfile(local) else path);
+    }
+    return out;
+}
+
 def _write_sidecar(
     plan: LinkPlan, output_path: str, plan_digest: str
 ) -> tuple[dict, str] {
     classes = plan.merged_layout();
     ldigest = layout_digest_of(classes);
+    import from jaclang.compiler.frontend.codeinfo { native_unit_identity }
     unit_paths = [u.path for u in plan.units];
     sidecar = {
         "classes": classes,
         "plan_digest": plan_digest,
         "layout_digest": ldigest,
         "units": unit_paths,
+        "unit_ids": [native_unit_identity(p) for p in unit_paths],
         "source_key": units_source_key(unit_paths, plan.options)
     };
     with open(output_path + ".layout.json", "w", encoding="utf-8") as lf {
