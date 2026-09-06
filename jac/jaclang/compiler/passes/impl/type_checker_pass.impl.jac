@@ -967,7 +967,7 @@ impl TypeCheckPass._jsx_component_params(nd: Ability) -> (list[ParamVar] | None)
         not isinstance(nd.signature, FuncSignature)
         or nd.find_parent_of_type(ImplDef) is not None
         or not return_type_is_jsx(nd.signature.return_type)
-        or is_jsx_runtime_helper(nd.name_spec.sym_name)
+        or nd.name_spec.sym_name.startswith("__jac")
     ) {
         return None;
     }

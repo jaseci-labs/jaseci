@@ -1,5 +1,5 @@
 import from jaclang.compiler.tools.unparse_pass { unparse_node }
-import from jaclang.compiler.symbol_utils { is_jsx_runtime_helper, return_type_is_jsx }
+import from jaclang.compiler.symbol_utils { return_type_is_jsx }
 
 impl EsastGenPass._resolve_source_module(nd: uni.Import) -> (uni.Module | None) {
     import from jaclang.compiler.symbol_utils { resolve_import_source_module }
@@ -161,7 +161,8 @@ impl EsastGenPass._component_call_abi(ability_node: uni.Ability) -> str {
             if return_type_is_jsx(rt) {
                 if (
                     ability_node.name_ref
-                    and is_jsx_runtime_helper(ability_node.name_ref.sym_name)
+                    and ability_node.name_ref.sym_name
+                    and ability_node.name_ref.sym_name.startswith('__jac')
                 ) {
                     abi = 'direct';
                 } else {
