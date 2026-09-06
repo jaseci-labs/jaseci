@@ -220,7 +220,7 @@ dict_spread_entry ::= "**" expression | expression ":" expression
 
 comprehension_clauses ::= compr_clause compr_clause*
 
-compr_clause ::= "async"? "for" atomic_chain "in" pipe_call ("if" walrus_assign)*
+compr_clause ::= "async"? "for" atomic_chain "in" pipe ("if" walrus_assign)*
 
 lambda_expr ::=
     "lambda" ("(" func_params ")")? ("->" expression)? "{" code_block_stmts "}"

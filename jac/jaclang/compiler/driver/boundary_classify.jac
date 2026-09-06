@@ -323,7 +323,17 @@ def same_workspace(consumer_path: str, provider_path: str) -> bool {
 def _module_carries_owned_elements(nd: uni.Import) -> bool {
     linked = symbol_linked_source_module(nd);
     if linked is None {
-        return False;
+        resolved = bridgeable_import_target(nd);
+        if resolved is None {
+            return False;
+        }
+        import from jaclang.compiler.passes.boundary_analysis_pass {
+            _parse_module_for_types
+        }
+        linked = _parse_module_for_types(resolved);
+        if linked is None {
+            return False;
+        }
     }
     for stmt in linked.body {
         if isinstance(stmt, uni.Archetype)
@@ -411,6 +421,7 @@ def is_client_boundary_import(nd: uni.Import) -> bool {
 }
 
 def symbol_linked_source_module(nd: uni.Import) -> (uni.Module | None) {
+    importer = nd.find_parent_of_type(uni.Module);
     for item in nd.items {
         if not (isinstance(item, uni.ModuleItem) and isinstance(item.name, uni.Name)) {
             continue;
@@ -419,8 +430,11 @@ def symbol_linked_source_module(nd: uni.Import) -> (uni.Module | None) {
         if sym is None or sym.decl is None {
             continue;
         }
+        if sym.decl.find_parent_of_type(uni.ModuleItem) is not None {
+            continue;
+        }
         linked = sym.decl.find_parent_of_type(uni.Module);
-        if linked is not None {
+        if linked is not None and linked is not importer {
             return linked;
         }
     }

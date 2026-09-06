@@ -388,7 +388,7 @@ The gateway's own knobs live under `[scale.gateway]` -- and the whole error enve
 | Concern | Config | Default |
 |---------|--------|---------|
 | Colocate service apps under `jac run` | `colocate = true` | true (`--fleet` overrides) |
-| Graceful shutdown | `drain_timeout_seconds = 10` | 10s |
+| Graceful shutdown | `[serve.timeouts] drain = 10.0` | 10s |
 | Per-app bridged-call timeout | `[apps.NAME.scale] rpc_timeout = 120.0` | 10s |
 | Boot-time per-app /healthz wait | `boot_health_timeout = 60.0` | 60s |
 | Boot-time overall startup window | `boot_max_wait = 90` | 90s |
@@ -398,7 +398,7 @@ The gateway's own knobs live under `[scale.gateway]` -- and the whole error enve
 | Rate limiting | `[scale.gateway.rate_limit] enabled = true, per_ip_rpm = 600, per_user_rpm = 120` | disabled |
 | Centralised logs (Loki + Alloy) | `[scale.gateway.logs] enabled = true` | disabled -- see [Centralised Logs](../../reference/plugins/jac-scale-kubernetes.md#centralised-logs) |
 
-The gateway exposes a standard error envelope (`{ok, error: {code, message, service?, trace_id}, meta}`) across every failure path; `X-Trace-Id` is minted if absent and threaded through every hop. WebSockets (`/ws/*`) and SSE / chunked responses flow through the gateway transparently. On `SIGTERM` (or `jac scale stop`), each app flips a drain flag (new requests get `503` with `Retry-After: 2`) and waits up to `drain_timeout_seconds` for in-flight requests before exiting.
+The gateway exposes a standard error envelope (`{ok, error: {code, message, service?, trace_id}, meta}`) across every failure path; `X-Trace-Id` is minted if absent and threaded through every hop. WebSockets (`/ws/*`) and SSE / chunked responses flow through the gateway transparently. On `SIGTERM` (or `jac scale stop`), each app flips a drain flag (new requests get `503` with `Retry-After: 1`) and the server waits up to `[serve.timeouts] drain` for in-flight requests to complete before exiting. Mirrors K8s `terminationGracePeriodSeconds`.
 
 For the full deploy pipeline (image building, ingress, autoscaling, secrets, shared volumes), see the [Kubernetes tutorial](kubernetes.md) and [Service Apps in Kubernetes](../../reference/plugins/jac-scale-kubernetes.md#service-apps-in-kubernetes).
 

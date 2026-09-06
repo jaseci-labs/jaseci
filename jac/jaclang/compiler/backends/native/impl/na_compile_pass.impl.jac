@@ -244,9 +244,7 @@ impl native_unit_demotions(
         }
         _ud_all: set = set();
         import jaclang.compiler.frontend.unitree as _ud_uni;
-        import from jaclang.compiler.backends.py.module_codegen_pass {
-            ModuleCodegenPass as _UdWalk
-        }
+        import from jaclang.compiler.frontend.module_facts { ModuleFacts as _UdWalk }
         for _ud_stmt in _UdWalk.iter_context_stmts(_ud_tree) {
             if isinstance(_ud_stmt, _ud_uni.Ability) and _ud_stmt.name_ref {
                 _ud_all.add(_ud_stmt.name_ref.sym_name);
@@ -1238,7 +1236,7 @@ def _kernel_unit_opts(gc_mode: str, enforce: bool) -> any {
 def _compile_kernel_unit_ir(
     unit: str, cache: dict[str, str], gc_mode: str, enforce: bool
 ) -> (str | None) {
-    import from jaclang.compiler.backends.kernel_units {
+    import from jaclang.compiler.backends.common.kernel_units {
         load_unit_artifact,
         store_unit_artifact
     }
@@ -1273,7 +1271,7 @@ def _compile_kernel_unit_ir(
 def _compile_osp_kernel_ir(
     gc_mode: str = "cycles", enforce: bool = False
 ) -> (str | None) {
-    import from jaclang.compiler.backends.kernel_units { osp_core_unit_path }
+    import from jaclang.compiler.backends.common.kernel_units { osp_core_unit_path }
     variant = f"na_{gc_mode}_enf" if enforce else f"na_{gc_mode}";
     return _compile_kernel_unit_ir(
         osp_core_unit_path(variant), _OSP_KERNEL_IR_CACHE, gc_mode, enforce
@@ -1283,7 +1281,9 @@ def _compile_osp_kernel_ir(
 def _compile_region_kernel_ir(
     gc_mode: str = "cycles", enforce: bool = False
 ) -> (str | None) {
-    import from jaclang.compiler.backends.kernel_units { region_kernel_unit_path }
+    import from jaclang.compiler.backends.common.kernel_units {
+        region_kernel_unit_path
+    }
     variant = f"na_{gc_mode}_enf" if enforce else f"na_{gc_mode}";
     return _compile_kernel_unit_ir(
         region_kernel_unit_path(variant), _REGION_KERNEL_IR_CACHE, gc_mode, enforce
@@ -1314,7 +1314,7 @@ impl NativeCompilePass._module_defines(main_mod: ModuleRef, name: str) -> bool {
 impl NativeCompilePass._references_undefined_region_kernel(
     main_mod: ModuleRef
 ) -> bool {
-    import from jaclang.compiler.backends.kernel_units { REGION_KERNEL_ABI }
+    import from jaclang.compiler.backends.common.kernel_units { REGION_KERNEL_ABI }
     try {
         for _fn in _mod_functions(main_mod) {
             if _fn.is_declaration and _fn.name in REGION_KERNEL_ABI {
@@ -1414,7 +1414,7 @@ impl NativeCompilePass._link_osp_kernel(main_mod: ModuleRef) -> None {
 glob _FMT_KERNEL_IR_CACHE: dict = {};
 
 def _compile_fmt_kernel_ir -> (str | None) {
-    import from jaclang.compiler.backends.kernel_units {
+    import from jaclang.compiler.backends.common.kernel_units {
         fmt_kernel_unit_path,
         load_unit_artifact,
         store_unit_artifact

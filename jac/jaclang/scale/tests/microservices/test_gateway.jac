@@ -193,7 +193,6 @@ test "health endpoint returns service summary" {
 }
 
 test "/healthz/live returns 200 always (liveness, no drain check)" {
-    import from jaclang.scale.runtime.lifecycle.drain { reset_drain, start_drain }
     reg = ServiceRegistry();
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
@@ -205,17 +204,16 @@ test "/healthz/live returns 200 always (liveness, no drain check)" {
         assert resp.status_code == 200;
         assert resp.json()["status"] == "alive";
 
-        start_drain(10.0);
+        gw.drain.start("test");
         resp2 = client.get("/healthz/live");
         assert resp2.status_code == 200;
     } finally {
-        reset_drain();
+        gw.drain.reset();
     }
 }
 
 
 test "/healthz/ready returns 200 normally, 503 during drain (readiness)" {
-    import from jaclang.scale.runtime.lifecycle.drain { reset_drain, start_drain }
     reg = ServiceRegistry();
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
@@ -227,7 +225,7 @@ test "/healthz/ready returns 200 normally, 503 during drain (readiness)" {
         assert resp.status_code == 200;
         assert resp.json()["status"] == "ready";
 
-        start_drain(10.0);
+        gw.drain.start("test");
         resp2 = client.get("/healthz/ready");
         assert resp2.status_code == 503 , (
             "readiness must 503 during drain so kube-proxy removes "
@@ -237,7 +235,7 @@ test "/healthz/ready returns 200 normally, 503 during drain (readiness)" {
         assert body["ready"] is False;
         assert body["status"] == "draining";
     } finally {
-        reset_drain();
+        gw.drain.reset();
     }
 }
 
@@ -1190,13 +1188,6 @@ test "health endpoint does not require auth" {
 }
 
 test "gateway drain 503s new requests with Retry-After + envelope" {
-    import from jaclang.scale.runtime.lifecycle.drain {
-        reset_drain,
-        start_drain,
-        is_draining
-    }
-    reset_drain();
-
     reg = ServiceRegistry();
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
@@ -1207,28 +1198,25 @@ test "gateway drain 503s new requests with Retry-After + envelope" {
     resp = client.get("/health");
     assert resp.status_code == 200;
 
-    start_drain(10.0);
-    assert is_draining();
+    gw.drain.start("test");
+    assert gw.drain.draining;
 
     resp = client.get("/health");
     assert resp.status_code == 503;
-    assert resp.headers.get("Retry-After") == "2";
+    assert resp.headers.get("Retry-After") == "1";
 
     body = resp.json();
     assert body["ok"] == False;
     assert body["error"]["code"] == "SERVICE_UNAVAILABLE";
-    assert body["error"]["service"] == "__gateway__";
+    assert "__gateway__" in body["error"]["message"];
     assert "draining" in body["error"]["message"];
 
-    reset_drain();
+    gw.drain.reset();
     resp = client.get("/health");
     assert resp.status_code == 200;
 }
 
 test "gateway drain does not burn metrics labels on 503d requests" {
-    import from jaclang.scale.runtime.lifecycle.drain { reset_drain, start_drain }
-    reset_drain();
-
     reg = ServiceRegistry();
     gw = MicroserviceGateway(registry=reg);
     gw.setup();
@@ -1236,12 +1224,12 @@ test "gateway drain does not burn metrics labels on 503d requests" {
     import from jaclang.testing.testkit { ServingTestClient as TestClient }
     client = TestClient(gw.app);
 
-    start_drain(5.0);
+    gw.drain.start("test");
     resp = client.get("/health");
     assert resp.status_code == 503;
     assert "x-trace-id" not in {k.lower() for k in resp.headers.keys()};
 
-    reset_drain();
+    gw.drain.reset();
 }
 
 
@@ -1252,7 +1240,6 @@ obj _FakeScaleConfig {
         return {
             "gateway_port": 8000,
             "gateway_host": "0.0.0.0",
-            "drain_timeout_seconds": 10.0,
             "rate_limit": {},
             "cors": self._cors,
             "tracing": {}
@@ -1366,7 +1353,6 @@ test "CORS simple request echoes Allow-Origin on the response" {
 
 
 test "CORS preflight still responds during drain (headers reachable on 503)" {
-    import from jaclang.scale.runtime.lifecycle.drain { reset_drain, start_drain }
     def build -> object {
         reg = ServiceRegistry();
         gw = MicroserviceGateway(registry=reg);
@@ -1385,8 +1371,7 @@ test "CORS preflight still responds during drain (headers reachable on 503)" {
 
     import from jaclang.testing.testkit { ServingTestClient as TestClient }
     client = TestClient(gw.app);
-    reset_drain();
-    start_drain(5.0);
+    gw.drain.start("test");
     try {
         resp = client.options(
             "/health",
@@ -1404,7 +1389,7 @@ test "CORS preflight still responds during drain (headers reachable on 503)" {
         assert resp2.headers.get("access-control-allow-origin")
             == "http://app.example.com";
     } finally {
-        reset_drain();
+        gw.drain.reset();
     }
 }
 
@@ -1782,12 +1767,12 @@ test "identity fallthrough POST is delivered exactly once" {
             [_entry("svc_a", "/api/a", port_a), _entry("svc_b", "/api/b", port_b)]
         );
         resp = client.post(
-            "/user/verify-identity", json={"token": "secret", "identity": "x"}
+            "/user/send-verification", json={"token": "secret", "identity": "x"}
         );
 
         total = (
-            hits_a.get("POST /user/verify-identity", 0)
-            + hits_b.get("POST /user/verify-identity", 0)
+            hits_a.get("POST /user/send-verification", 0)
+            + hits_b.get("POST /user/send-verification", 0)
         );
         assert total == 1 , (
             f"credential-bearing body must reach exactly one service, reached {total}"

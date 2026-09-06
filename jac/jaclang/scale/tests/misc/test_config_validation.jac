@@ -79,8 +79,8 @@ test "open dict sections accept arbitrary keys" {
 
 test "valid config produces no findings" {
     cfg = {
-        "jwt": {"secret": "s", "algorithm": "HS256", "exp_delta_days": 7},
-        "server": {"port": 8080, "docs_enabled": False},
+        "sso": {"host": "http://localhost:8000"},
+        "server": {"structured_logs": False},
         "kubernetes": {"namespace": "prod", "cpu_limit": "1000m"},
         "fat_bundle": True,
         "seal_timeout": 120
@@ -89,7 +89,7 @@ test "valid config produces no findings" {
 }
 
 test "non-dict section values do not crash the validator" {
-    msgs = validate_scale_config({"jwt": "not-a-table", "bogus": 1});
+    msgs = validate_scale_config({"sso": "not-a-table", "bogus": 1});
     assert len(msgs) == 1 , f"expected only the bogus finding, got {msgs}";
     assert "bogus" in msgs[0] , msgs[0];
 }
@@ -213,7 +213,9 @@ test "strict env ignores a clean config" {
     os.environ[STRICT_ENV] = "1";
     try {
         report_schema_findings(
-            validate_scale_config({"server": {"port": 9000}}), "scale", STRICT_ENV
+            validate_scale_config({"server": {"structured_logs": False}}),
+            "scale",
+            STRICT_ENV
         );
     } finally {
         os.environ.pop(STRICT_ENV, None);
@@ -257,13 +259,13 @@ test "the shared loader validates the on-disk jac.toml" {
 test "a clean on-disk jac.toml loads without complaint under strict mode" {
     d = tempfile.mkdtemp();
     (Path(d) / "jac.toml").write_text(
-        "[project]\nname = \"demo\"\n\n[scale.server]\nport = 9100\n"
+        "[project]\nname = \"demo\"\n\n[scale.server]\nstructured_logs = false\n"
     );
     os.environ[STRICT_ENV] = "1";
     reset_scale_config();
     try {
         cfg = get_scale_config(Path(d)).load();
-        assert cfg["server"]["port"] == 9100 , cfg["server"];
+        assert cfg["server"]["structured_logs"] is False , cfg["server"];
     } finally {
         os.environ.pop(STRICT_ENV, None);
         reset_scale_config();

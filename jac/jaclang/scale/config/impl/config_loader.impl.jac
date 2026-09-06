@@ -14,11 +14,6 @@ impl JacScaleConfig.get_config_strict_env(self: JacScaleConfig) -> str {
 
 impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
     return {
-        'jwt': {
-            'secret': 'supersecretkey_for_testing_only!',
-            'algorithm': 'HS256',
-            'exp_delta_days': 7
-        },
         'sso': {
             'host': 'http://localhost:8000',
             'client_auth_callback_url': '',
@@ -35,7 +30,6 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
         },
         'websocket': {
             'backplane': None,
-            'allowed_origins': [],
             'max_message_bytes': 65536,
             'max_connections_per_target': 5000,
             'max_connections_per_user': 10,
@@ -44,12 +38,7 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
             'messages_per_second': 20
         },
         'secrets': {},
-        'server': {
-            'port': 8000,
-            'host': '0.0.0.0',
-            'docs_enabled': True,
-            'suppress_health_check_logs': False
-        },
+        'server': {'structured_logs': True},
         'webhook': {
             'secret': 'webhook-secret-key',
             'signature_header': 'X-Webhook-Signature',
@@ -118,68 +107,9 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
             'verify_token_ttl_seconds': 86400,
             'reset_url_template': '',
             'verify_url_template': '',
-            'token_collection': 'auth_tokens',
-            'password_hash_cost': 14
+            'token_collection': 'auth_tokens'
         },
         'gateway': {'gateway_port': 8000, 'gateway_host': '0.0.0.0', 'colocate': True}
-    };
-}
-
-impl _warn_placeholder_jwt_secret -> None {
-    if _placeholder_jwt_secret_warned {
-        return;
-    }
-    _placeholder_jwt_secret_warned = True;
-    import logging;
-    logging.getLogger(__name__).warning(
-        'No [scale.jwt] secret is configured, and a per-project dev secret '
-        'would be per-replica in a cluster. Signing tokens with the shipped '
-        'placeholder, which is public: anyone can mint a token for any user. '
-        'Set [scale.jwt] secret to a real value for this deployment.'
-    );
-}
-
-impl _announce_minted_jwt_secret(path: str) -> None {
-    if _minted_jwt_secret_announced {
-        return;
-    }
-    _minted_jwt_secret_announced = True;
-    import logging;
-    logging.getLogger(__name__).info(
-        f"No [scale.jwt] secret is configured; signing with the one kept at "
-        f"{path}. Processes that serve this project from the same directory "
-        'share it, so sessions survive a restart. Replicas that do not share '
-        'that directory each mint their own and reject one another tokens: a '
-        'deployment must set [scale.jwt] secret.'
-    );
-}
-
-impl JacScaleConfig.get_jwt_config(self: JacScaleConfig) -> dict[str, any] {
-    import from jaclang.server.serving.authcrypt {
-        DEV_SECRET_FILENAME,
-        PLACEHOLDER_JWT_SECRET,
-        project_data_dir,
-        project_signing_secret
-    }
-    config = self.load();
-    jwt_config = config.get('jwt', {});
-    secret = str(jwt_config.get('secret', '') or '');
-    if not secret or secret == PLACEHOLDER_JWT_SECRET {
-        if os.environ.get('KUBERNETES_SERVICE_HOST', '').strip() {
-            _warn_placeholder_jwt_secret();
-            secret = PLACEHOLDER_JWT_SECRET;
-        } else {
-            base = str(self.project_dir) if self.project_dir is not None else '.';
-            secret = project_signing_secret(base);
-            _announce_minted_jwt_secret(
-                os.path.join(project_data_dir(base), DEV_SECRET_FILENAME)
-            );
-        }
-    }
-    return {
-        'secret': secret,
-        'algorithm': jwt_config.get('algorithm', 'HS256'),
-        'exp_delta_days': int(jwt_config.get('exp_delta_days', 7))
     };
 }
 
@@ -266,15 +196,7 @@ impl JacScaleConfig.get_kubernetes_config(self: JacScaleConfig) -> dict[str, any
 impl JacScaleConfig.get_server_config(self: JacScaleConfig) -> dict[str, any] {
     config = self.load();
     server_config = config.get('server', {});
-    return {
-        'port': int(server_config.get('port', 8000)),
-        'host': server_config.get('host', '0.0.0.0'),
-        'docs_enabled': server_config.get('docs_enabled', True),
-        'suppress_health_check_logs': bool(
-            server_config.get('suppress_health_check_logs', False)
-        ),
-        'structured_logs': bool(server_config.get('structured_logs', True))
-    };
+    return {'structured_logs': bool(server_config.get('structured_logs', True))};
 }
 
 impl JacScaleConfig.get_webhook_config(self: JacScaleConfig) -> dict[str, any] {
@@ -410,7 +332,6 @@ impl JacScaleConfig.get_websocket_config(self: JacScaleConfig) -> dict[str, any]
     }
     return {
         'backplane': backplane,
-        'allowed_origins': [str(o) for o in (ws_config.get('allowed_origins') or [])],
         'max_message_bytes': int(_ws_positive(ws_config, 'max_message_bytes', 65536)),
         'max_connections_per_target': int(
             _ws_positive(ws_config, 'max_connections_per_target', 5000)
@@ -457,21 +378,6 @@ impl peek_scale_config -> JacScaleConfig | None {
 impl reset_scale_config -> None {
     _scale_config_instance = None;
     _app_scale_cache.clear();
-}
-
-impl resolve_password_hash_cost(configured_cost: int) -> int {
-    env_val = os.environ.get('JAC_SCALE_PASSWORD_HASH_COST');
-    if not env_val {
-        return max(10, min(15, configured_cost));
-    }
-    try {
-        cost = int(env_val);
-    } except ValueError as e {
-        raise ValueError(
-            f"JAC_SCALE_PASSWORD_HASH_COST must be an integer in 10..15, got: {env_val!r}"
-        ) from e;
-    }
-    return max(10, min(15, cost));
 }
 
 impl JacScaleConfig.get_telemetry_config(self: JacScaleConfig) -> dict[str, any] {
@@ -531,9 +437,6 @@ impl JacScaleConfig.get_auth_config(self: JacScaleConfig) -> dict[str, any] {
         'reset_url_template': auth_config.get('reset_url_template', ''),
         'verify_url_template': auth_config.get('verify_url_template', ''),
         'token_collection': auth_config.get('token_collection', 'auth_tokens'),
-        'password_hash_cost': resolve_password_hash_cost(
-            int(auth_config.get('password_hash_cost', 14))
-        ),
         'forgot_password_rate_per_hour': int(
             auth_config.get('forgot_password_rate_per_hour', 3)
         ),
@@ -621,7 +524,6 @@ impl normalize_gateway_config(gateway_config: dict[str, any] | None) -> dict[str
         'gateway_port': int(raw.get('gateway_port', 8000)),
         'gateway_host': str(raw.get('gateway_host', '0.0.0.0')),
         'gateway_port_pinned': bool(raw.get('gateway_port_pinned', False)),
-        'drain_timeout_seconds': float(raw.get('drain_timeout_seconds', 10)),
         'http_forward_timeout': float(raw.get('http_forward_timeout', 30)),
         'rate_limit': {
             'enabled': bool(rl_config.get('enabled', False)),
@@ -631,9 +533,7 @@ impl normalize_gateway_config(gateway_config: dict[str, any] | None) -> dict[str
             'exempt_paths': list(
                 rl_config.get('exempt_paths', ["/health", "/healthz", "/metrics"])
             ),
-            'trusted_proxies': [
-                str(p) for p in (rl_config.get('trusted_proxies', []) or [])
-            ]
+            'shared': bool(rl_config.get('shared', True))
         },
         'cors': {
             'allow_origins': list(cors_config.get('allow_origins', ["*"])),

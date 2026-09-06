@@ -335,12 +335,12 @@ test "serve register rejects legacy payload" {
             "/user/register", json={"username": "legacy", "password": "pass123"}
         );
         assert not response.ok;
-        assert response.status_code == 400;
+        assert response.status_code == 422;
         client.close();
     }
 }
 
-test "serve login rejects email identity" {
+test "serve login with an unknown email identity is refused" {
     with TemporaryDirectory() as tmpdir {
         client = make_client(tmpdir);
         response = client.post(
@@ -351,9 +351,7 @@ test "serve login rejects email identity" {
             }
         );
         assert not response.ok;
-        assert response.status_code == 400;
-        body = response.json();
-        assert "username" in body.get("error", "");
+        assert response.status_code == 401;
         client.close();
     }
 }
@@ -484,11 +482,12 @@ test "serve get user info different users" {
 test "serve authentication required" {
     with TemporaryDirectory() as tmpdir {
         client = make_client(tmpdir);
-        response = client.get("/protected");
+        response = client.get("/user/info");
         assert not response.ok;
+        assert response.status_code == 401;
         data = response.data;
         assert "error" in data;
-        assert "Unauthorized" in data["error"];
+        assert "token" in data["error"].lower();
         client.close();
     }
 }
@@ -1166,11 +1165,12 @@ test "serve private walker with auth" {
 test "serve introspection list requires auth" {
     with TemporaryDirectory() as tmpdir {
         ac = make_access_client(tmpdir);
-        response = ac.get("/protected");
+        response = ac.get("/user/info");
         assert not response.ok;
+        assert response.status_code == 401;
         data = response.data;
         assert "error" in data;
-        assert "Unauthorized" in data["error"];
+        assert "token" in data["error"].lower();
         ac.close();
     }
 }
@@ -2160,11 +2160,12 @@ test "concurrent multi-user requests do not race on ctx.user_root" {
     }
 }
 
-"""A request whose setup raises outside the walker-execution envelope (here:
-the user's persisted root anchor is gone from the anchor store, e.g. stale
-state written by an older runtime) must surface as a 500 JSON error response
-- never as a silently dropped connection with no HTTP response at all."""
-test "orphaned user root returns 500 json instead of dropping the connection" {
+"""A request whose setup fails before the walker runs (here: the user's
+persisted root anchor is gone from the anchor store, e.g. stale state written
+by an older runtime) must fail closed with a JSON error response that names
+the problem - never continue on another root, and never drop the connection
+with no HTTP response at all."""
+test "orphaned user root is refused with a json error instead of dropping the connection" {
     with TemporaryDirectory() as tmpdir {
         client = make_client(tmpdir);
         reg = client.register_user("orphan_user", "pw12345");
@@ -2173,19 +2174,20 @@ test "orphaned user root returns 500 json instead of dropping the connection" {
         # anchor store, simulating a store that was reset or migrated out from
         # under the users db.
         um = client.user_manager;
-        um._ensure_connection();
-        um._conn.execute(
-            "UPDATE users SET root_id = ? WHERE username = ?",
-            ("deadbeefdeadbeefdeadbeefdeadbeef", "orphan_user")
+        orphan = um.find_user_by_identity("orphan_user");
+        assert orphan is not None;
+        assert um.update_user_fields(
+            str(orphan["user_id"]), {"root_id": "deadbeefdeadbeefdeadbeefdeadbeef"}
         );
-        um._conn.commit();
         resp = client.post("/walker/CreateTask", json={"title": "x"});
-        assert resp.status_code == 500 , f"expected a 500 error envelope, got {resp.status_code}: {resp.text}";
+        assert resp.status_code == 401 , f"expected a fail-closed error envelope, got {resp.status_code}: {resp.text}";
         body = resp.json();
-        assert "error" in body , f"500 body should carry an error: {resp.text}";
+        assert "error" in body , f"the body should carry an error: {resp.text}";
         # Registered users are NOT healed: silently minting a new root would
         # mask real data loss. The error names the problem instead.
-        assert "does not exist in the anchor store" in str(body.get("error")) , f"error should explain the missing root anchor: {resp.text}";
+        assert body["error"]["code"] == "IDENTITY_UNRESOLVABLE" , resp.text;
+        assert "does not exist in the anchor store"
+            in str(body["error"].get("message")) , f"error should explain the missing root anchor: {resp.text}";
         client.close();
     }
 }
@@ -2204,18 +2206,16 @@ test "missing guest root anchor is healed with a fresh root" {
         assert first.ok , f"anonymous walker call should work: {first.text}";
         # Point the guest row at a root anchor that does not exist.
         um = client.user_manager;
-        um._ensure_connection();
-        um._conn.execute(
-            "UPDATE users SET root_id = ? WHERE username = ?",
-            ("feedfacefeedfacefeedfacefeedface", "__guest__")
+        guest = um.find_user_by_identity("__guest__");
+        assert guest is not None;
+        assert um.update_user_fields(
+            str(guest["user_id"]), {"root_id": "feedfacefeedfacefeedfacefeedface"}
         );
-        um._conn.commit();
         healed = client.post("/walker/whereami", json={});
         assert healed.ok , f"guest request should heal, got {healed.status_code}: {healed.text}";
-        row = um._conn.execute(
-            "SELECT root_id FROM users WHERE username = ?", ("__guest__", )
-        ).fetchone();
-        assert row[0] != "feedfacefeedfacefeedfacefeedface" , "guest root_id should have been replaced by the heal";
+        after = um.find_user_by_identity("__guest__");
+        assert after is not None;
+        assert after["root_id"] != "feedfacefeedfacefeedfacefeedface" , "guest root_id should have been replaced by the heal";
         # And the healed root keeps working on subsequent requests.
         again = client.post("/walker/whereami", json={});
         assert again.ok , f"healed guest root should persist: {again.text}";
@@ -2229,10 +2229,14 @@ liveness/readiness probe surface."""
 test "stdlib server answers health endpoints" {
     with TemporaryDirectory() as tmpdir {
         client = make_client(tmpdir);
-        for path in ["/healthz", "/healthz/live", "/healthz/ready"] {
+        for (path, status) in [
+            ("/healthz", "ok"),
+            ("/healthz/live", "alive"),
+            ("/healthz/ready", "ready")
+        ] {
             resp = client.get(path);
             assert resp.status_code == 200 , f"{path} should be 200: {resp.text}";
-            assert resp.json().get("status") == "ok" , f"{path} body: {resp.text}";
+            assert resp.json().get("status") == status , f"{path} body: {resp.text}";
         }
         client.close();
     }
