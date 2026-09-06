@@ -5,7 +5,7 @@ import subprocess;
 import from pathlib { Path }
 import from jaclang.toolchains.host { host_platform }
 import from jaclang.toolchains.pins { NODE_ARTIFACTS }
-import from jaclang.toolchains.store { install }
+import from jaclang.toolchains.store { install, offline }
 
 def native_node -> Path {
     found = shutil.which("node");
@@ -39,5 +39,8 @@ def build_environment(base: dict[str, str]) -> dict[str, str] {
     result = dict(base);
     result["PATH"] = str(node_path.parent) + os.pathsep + result.get("PATH", "");
     result["NODE_BINARY"] = str(node_path);
+    if offline() {
+        result["EXPO_OFFLINE"] = "1";
+    }
     return result;
 }

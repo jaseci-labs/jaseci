@@ -220,26 +220,30 @@ def _inject_platform(host_src: str, platform_src: str) -> str {
 def _native_build_cef(
     cef_dir: Path, source_name: str, build_name: str, output: Path, shared: bool,
 ) -> Path {
-    build_dir = cef_dir / ".build";
-    build_dir.mkdir(parents=True, exist_ok=True);
-    build_src = build_dir / build_name;
-    host_src = (cef_dir / source_name).read_text();
-    platform_src = (cef_dir / "cef_platform.jac").read_text();
-    build_src.write_text(_inject_platform(host_src, platform_src));
-    cmd = [_jac_bin(), "build", "--native"];
-    if shared {
-        cmd.append("--lib");
+    import from jaclang.toolchains.store { InstallLock }
+    with InstallLock(cef_dir / ".native-build.lock") {
+        build_dir = cef_dir / ".build";
+        build_dir.mkdir(parents=True, exist_ok=True);
+        build_src = build_dir / build_name;
+        host_src = (cef_dir / source_name).read_text();
+        platform_src = (cef_dir / "cef_platform.jac").read_text();
+        build_src.write_text(_inject_platform(host_src, platform_src));
+        cmd = [_jac_bin(), "build", "--native"];
+        if shared {
+            cmd.append("--lib");
+        }
+        cmd += [str(build_src), "-o", str(output)];
+        res = subprocess.run(cmd);
+        if res.returncode != 0 or not output.exists() {
+            raise RuntimeError(
+                f"jac build --native failed for {output.name} (source {source_name})."
+            );
+        }
+        _patchelf_rpath(output, "$ORIGIN");
+        return output;
     }
-    cmd += [str(build_src), "-o", str(output)];
-    res = subprocess.run(cmd);
-    if res.returncode != 0 or not output.exists() {
-        raise RuntimeError(
-            f"jac build --native failed for {output.name} (source {source_name})."
-        );
-    }
-    _patchelf_rpath(output, "$ORIGIN");
-    return output;
 }
+
 
 def build_cef_dispatch(cef_dir: Path) -> Path {
     return _native_build_cef(

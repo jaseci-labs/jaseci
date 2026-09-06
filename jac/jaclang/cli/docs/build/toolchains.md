@@ -30,7 +30,9 @@ SDK Manager, Gradle, CocoaPods, and system package managers display their own
 installation progress. Toolchain versions and checksums are pinned in source;
 Jac does not silently select the latest JDK or Android command-line tools.
 
-Compatible `JAVA_HOME` / PATH JDK 21 installations are reused. An incompatible JDK
+Set `JAC_TOOLCHAIN_USE_SYSTEM=0` to force pinned managed tools, useful for CI and
+reproducible setup. By default, compatible `JAVA_HOME` / PATH JDK 21 installations
+are reused. An incompatible JDK
 is left intact while Jac selects its managed JDK. `ANDROID_HOME` (or
 `ANDROID_SDK_ROOT`) selects an existing SDK; otherwise Jac creates a managed SDK.
 Selected build paths are passed to child processes rather than changing the

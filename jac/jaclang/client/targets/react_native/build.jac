@@ -612,9 +612,25 @@ def run_xcodebuild_ios(
             f"iOS project not found at {ios_dir}. Did expo prebuild fail?"
         );
     }
-    run_step(
-        "Installing iOS native dependencies", ["pod", "install"], ios_dir, environment
-    );
+    import from jaclang.toolchains.store { offline }
+    if offline() {
+        locked = ios_dir / "Podfile.lock";
+        installed = ios_dir / "Pods" / "Manifest.lock";
+        if not locked.is_file()
+            or not installed.is_file()
+            or locked.read_bytes() != installed.read_bytes() {
+            raise RuntimeError(
+                "iOS native dependencies are not ready offline. Build online first."
+            );
+        }
+    } else {
+        run_step(
+            "Installing iOS native dependencies",
+            ["pod", "install"],
+            ios_dir,
+            environment
+        );
+    }
     workspace = _find_first_workspace_or_project(ios_dir);
     if workspace is None {
         raise RuntimeError(f"No .xcworkspace or .xcodeproj found under {ios_dir}.");
@@ -699,6 +715,12 @@ def run_xcodebuild_ios(
 def run_eas_local_build(
     rn_dir: Path, platform: str, profile: str = "production", release: bool = True
 ) -> Path {
+    import from jaclang.toolchains.store { offline }
+    if offline() {
+        raise RuntimeError(
+            "EAS builds require network access; disable JAC_OFFLINE or use the native builder."
+        );
+    }
     plat = str(platform or "").strip().lower();
     if plat not in ["android", "ios"] {
         raise ValueError(f"Unsupported EAS platform '{platform}'");
