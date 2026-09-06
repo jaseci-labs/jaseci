@@ -56,6 +56,8 @@ enum ArtifactKind {
     JIT = "jit"
 }
 
+glob LIBC_SHARED_NAMES: tuple[str, ...] = ("libc.so.6", "libm.so.6");
+
 class LinkPlanError(RuntimeError) {}
 
 class SymbolCollision(LinkPlanError) {
@@ -779,7 +781,19 @@ def link_artifact(
     }
     lib_norm = clib_needed_libs(needed_libs, clib_paths, floor_handled);
     is_linux_exec = (not shared) and platform == "elf";
-    static_musl = is_linux_exec and (len(needed_libs) == 0);
+    """The runtime units declare their libc calls as C imports, and musl's
+    libc.a satisfies every one of them: only a library beyond libc and libm
+    keeps a Linux executable off the static path.""";
+    libc_only = all(lib in LIBC_SHARED_NAMES for lib in needed_libs);
+    static_musl = is_linux_exec and libc_only;
+    if static_musl {
+        needed_libs = [];
+        lib_norm = {
+            k: v
+            for (k, v) in lib_norm.items()
+            if v not in LIBC_SHARED_NAMES
+        };
+    }
 
     tm = _target_machine(plan, kind);
     spec = plan.glue_spec(kind, platform, static_musl);
