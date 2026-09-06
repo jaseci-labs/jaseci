@@ -26,14 +26,13 @@ import jaclang;
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.backends.native.na_compile_pass { native_linked_ir_text }
-import from jaclang.compiler.backends.native.wasm_linker {
-    WasmLinker,
-    _uleb,
-    _uleb5,
-    _sleb_bytes,
-    _rd_uleb,
-    _rd_sleb,
-    _u32le
+import from jaclang.compiler.backends.native.wasm_linker { WasmLinker, _u32le }
+import from jaclang.compiler.backends.native.linker_common {
+    encode_sleb128,
+    encode_uleb128,
+    encode_uleb128_padded5,
+    read_sleb128,
+    read_uleb128
 }
 import jaclang.compiler.backends.native.llvm.binding as llvm;
 
@@ -78,7 +77,7 @@ def sections(b: bytes) -> list {
     while o < len(b) {
         sid = b[o];
         o += 1;
-        (sz, o) = _rd_uleb(b, o);
+        (sz, o) = read_uleb128(b, o);
         out.append((sid, o, o + sz));
         o += sz;
     }
@@ -101,28 +100,28 @@ def func_imports(b: bytes) -> list {
         if sid != 2 {
             continue;
         }
-        (n, o) = _rd_uleb(b, s);
+        (n, o) = read_uleb128(b, s);
         i = 0;
         while i < n {
-            (mlen, o) = _rd_uleb(b, o);
+            (mlen, o) = read_uleb128(b, o);
             o += mlen;
-            (flen, o) = _rd_uleb(b, o);
+            (flen, o) = read_uleb128(b, o);
             fld = b[o:o + flen].decode("latin1");
             o += flen;
             k = b[o];
             o += 1;
             if k == 0 {
-                (ti, o) = _rd_uleb(b, o);
+                (ti, o) = read_uleb128(b, o);
                 out.append(fld);
             } elif k == 1 {
                 o += 2;
-                (mn, o) = _rd_uleb(b, o);
+                (mn, o) = read_uleb128(b, o);
             } elif k == 2 {
                 fl = b[o];
                 o += 1;
-                (mn, o) = _rd_uleb(b, o);
+                (mn, o) = read_uleb128(b, o);
                 if fl & 1 {
-                    (mx, o) = _rd_uleb(b, o);
+                    (mx, o) = read_uleb128(b, o);
                 }
             } elif k == 3 {
                 o += 2;
@@ -140,14 +139,14 @@ def export_names(b: bytes) -> list {
         if sid != 7 {
             continue;
         }
-        (n, o) = _rd_uleb(b, s);
+        (n, o) = read_uleb128(b, s);
         i = 0;
         while i < n {
-            (ln, o) = _rd_uleb(b, o);
+            (ln, o) = read_uleb128(b, o);
             out.append(b[o:o + ln].decode("latin1"));
             o += ln;
             o += 1;
-            (idx, o) = _rd_uleb(b, o);
+            (idx, o) = read_uleb128(b, o);
             i += 1;
         }
     }
@@ -157,12 +156,12 @@ def export_names(b: bytes) -> list {
 # ─── tests ───────────────────────────────────────────────────────────────────
 test "LEB and fixed-width byte encoders round-trip" {
     for v in [0, 1, 63, 64, 127, 128, 300, 16384, 1 << 28, (1 << 31) - 1] {
-        assert _rd_uleb(_uleb(v), 0)[0] == v;
-        assert len(_uleb5(v)) == 5;  # always 5 bytes (in-place reloc safe)
-        assert _rd_uleb(_uleb5(v), 0)[0] == v;  # padded form still decodes to v
+        assert read_uleb128(encode_uleb128(v), 0)[0] == v;
+        assert len(encode_uleb128_padded5(v)) == 5;  # always 5 bytes (in-place reloc safe)
+        assert read_uleb128(encode_uleb128_padded5(v), 0)[0] == v;  # padded form still decodes to v
     }
     for v in [-1, -64, -8192, 0, 12345, -123456] {
-        assert _rd_sleb(_sleb_bytes(v), 0)[0] == v;
+        assert read_sleb128(encode_sleb128(v), 0)[0] == v;
     }
     assert _u32le(0x01020304) == bytes([4, 3, 2, 1]);
 }

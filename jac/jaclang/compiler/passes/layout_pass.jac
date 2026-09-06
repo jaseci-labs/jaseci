@@ -20,7 +20,7 @@ import from jaclang.compiler.frontend.unitree {
     UniNode
 }
 import from jaclang.compiler.passes.transform { Transform }
-import from jaclang.compiler.backends.py.const_fold { fold_const }
+import from jaclang.compiler.frontend.const_fold { fold_const }
 import from jaclang.compiler.frontend.constant { OwnershipKind, Tokens as Tok }
 import from jaclang.compiler.frontend.diagnostics { E5030, W5031, W5032 }
 import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }

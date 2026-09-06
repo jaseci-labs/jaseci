@@ -1217,7 +1217,7 @@ impl TypeCheckPass._client_state_field_owner(nd: HasVar) -> (Ability | None) {
 }
 
 impl TypeCheckPass._install_client_state_setters -> None {
-    import from jaclang.compiler.backends.es.framework_backend { state_setter_name }
+    import from jaclang.compiler.frontend.constant { client_state_setter_name }
     import from jaclang.compiler.types.types { create_callable_type }
     mod = self.ir_in;
     if mod is None {
@@ -1230,7 +1230,7 @@ impl TypeCheckPass._install_client_state_setters -> None {
         if owner is None {
             continue;
         }
-        setter_name = state_setter_name(nd.name.value);
+        setter_name = client_state_setter_name(nd.name.value);
         if not setter_name {
             continue;
         }
