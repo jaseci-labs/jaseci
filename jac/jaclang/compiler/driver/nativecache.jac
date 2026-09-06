@@ -572,7 +572,17 @@ obj NativeUnitRegistry {
         try {
             self._event("native_unit_compile");
             import from jaclang.compiler.driver.program { JacProgram }
+            import copy;
             unit_prog = JacProgram();
+            unit_registry = unit_prog.native_units();
+            stamp = self.stamp_for(base);
+            for (dep, known) in self.entries.items() {
+                if dep != resolved
+                    and known.stamp.matches(stamp)
+                    and self._entry_fresh(known) {
+                    unit_registry.entries[dep] = copy.copy(known);
+                }
+            }
             try {
                 mod = unit_prog.compile(
                     resolved, use_str=use_str, options=base.clone_for_native_import()

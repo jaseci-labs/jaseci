@@ -420,7 +420,8 @@ test "jac nacompile itself registers a parser for its target (#8788)" {
         f"jac nacompile died on SIGABRT ({res.returncode}) emitting for "
         f"aarch64.\n{out[-800:]}"
     );
-    assert "Object code emitted" in out , (
+    assert res.returncode == 0
+        and os.path.isfile(os.path.join(work, "crc32_aarch64")) , (
         f"jac nacompile never got past object emission for an aarch64 target, "
         f"which is where a missing asm parser kills it.\n{out[-800:]}"
     );

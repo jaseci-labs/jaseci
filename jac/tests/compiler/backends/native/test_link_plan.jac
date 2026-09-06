@@ -456,3 +456,19 @@ test "a source string can settle after its dependency interface changes" {
         assert result.stdout.strip() == "7";
     }
 }
+
+test "a unit retains prepared dependency interfaces when disk products are unavailable" {
+    import from unittest.mock { patch }
+    import from jaclang.compiler.driver.nativecache { NativeUnitRegistry }
+    root_dir = _diamond_copy();
+    (prog, plan) = _plan_for(root_dir);
+    registry = prog.native_units();
+    top = plan.root_unit().path;
+    prior = dict(registry.entries[top].dep_digests);
+    assert prior and all(prior.values());
+    with patch.object(NativeUnitRegistry, "_module_jir", return_value=None) {
+        ent = registry.compile_unit(top, _opts());
+    }
+    assert ent is not None , registry.failures;
+    assert ent.dep_digests == prior;
+}
