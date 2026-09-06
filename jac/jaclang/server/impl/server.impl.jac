@@ -653,13 +653,13 @@ impl ModuleIntrospector._register_sealed_bindings(
                 }
             }
         }
-        target = os.path.basename(src_path);
-        if target.endswith('.jac') {
-            target = target.removesuffix('.jac');
+        rel = os.path.relpath(src_path, img_root).replace(os.sep, '/');
+        if rel.endswith('.jac') {
+            rel = rel.removesuffix('.jac');
         }
         try {
             imported = Jac.jac_import(
-                target=target, base_path=os.path.dirname(src_path), lng='jac'
+                target=rel.replace('/', '.'), base_path=img_root, lng='jac'
             );
             if imported {
                 return getattr(imported[0], name, None);
@@ -710,7 +710,7 @@ impl ModuleIntrospector._register_sealed_bindings(
 }
 
 impl ModuleIntrospector._collect_cross_boundary_endpoints -> None {
-    if not (self._module and Jac.get_program().mod) {
+    if not (self.discover_endpoints and self._module and Jac.get_program().mod) {
         return;
     }
     import from jaclang.compiler.frontend.constant { Tokens as Tok }
@@ -1389,7 +1389,10 @@ impl JacAPIServer.postinit -> None {
     }
     Jac.set_shared_root_resolver(_shared_root_id);
     self.introspector = ModuleIntrospector(
-        self.module_name, self.base_path, module_file=self.module_file
+        self.module_name,
+        self.base_path,
+        module_file=self.module_file,
+        discover_endpoints=not self.settings.static_only
     );
     self.execution_manager = ExecutionManager(
         base_path=self.base_path, user_manager=self.user_manager
@@ -1531,6 +1534,10 @@ impl JacAPIServer.register_endpoints -> None {
     import from jaclang.server.serving.health { register_health_endpoints }
     settings = self.resolved_settings();
     register_health_endpoints(self.require_app(), self.drain);
+    if settings.static_only {
+        register_page_endpoints(self);
+        return;
+    }
     register_diagnostics_endpoints(self);
     register_auth_endpoints(self);
     register_introspection_endpoints(self);
@@ -1643,7 +1650,7 @@ impl JacAPIServer._ensure_client_bundle -> None {
     import from jaclang.client.client_diagnostics { format_build_diagnostics }
     import from jaclang.project.config { get_config }
     settings = self.resolved_settings();
-    if settings.dev or settings.no_client {
+    if settings.dev or settings.no_client or settings.client_dist {
         return;
     }
     client_exports = self.introspector._client_manifest.get('exports', []);
@@ -1784,14 +1791,8 @@ impl JacAPIServer._validate_or_raise -> None {
     }
 }
 
-impl JacAPIServer.start(
-    dev: bool = False,
-    no_client: bool = False,
-    on_ready: Callable[..., None] | None = None
-) -> int {
-    import from jaclang.cli.console { console }
+impl JacAPIServer._prepare_to_serve(dev: bool, no_client: bool) -> ServeSettings {
     import from jaclang.server.serving.accesslog { configure_access_logging }
-    import from jaclang.server.serving.supervisor { WorkerSupervisor }
     settings = self.resolved_settings();
     settings.dev = dev;
     settings.no_client = no_client;
@@ -1807,6 +1808,51 @@ impl JacAPIServer.start(
     self._ensure_client_bundle();
     self.build_app();
     self._register_scheduled_tasks();
+    return settings;
+}
+
+impl JacAPIServer.serve_background(
+    dev: bool = False,
+    no_client: bool = False,
+    on_ready: Callable[..., None] | None = None,
+    port_retries: int = 0
+) -> Callable[[], None] {
+    import from jaclang.server.outbox { start_worker_if_bridging, stop_worker }
+    settings = self._prepare_to_serve(dev, no_client);
+    serving = ServingServer(
+        app=self.require_app(), settings=settings, drain=self.drain
+    );
+    self.server = serving;
+    self.scheduler.start_if_pending();
+    start_worker_if_bridging();
+    for ext in (self.extensions or []) {
+        ext.on_worker_start(self);
+    }
+    def _ready(bound_port: int) {
+        self.port = bound_port;
+        if on_ready is not None {
+            on_ready(bound_port);
+        }
+    }
+    stop_transport = serving.serve_background(
+        on_ready=_ready, port_retries=port_retries
+    );
+    def _stop {
+        stop_transport();
+        self.scheduler.stop();
+        stop_worker();
+    }
+    return _stop;
+}
+
+impl JacAPIServer.start(
+    dev: bool = False,
+    no_client: bool = False,
+    on_ready: Callable[..., None] | None = None
+) -> int {
+    import from jaclang.cli.console { console }
+    import from jaclang.server.serving.supervisor { WorkerSupervisor }
+    settings = self._prepare_to_serve(dev, no_client);
 
     def _announce(bound_port: int) {
         self.port = bound_port;

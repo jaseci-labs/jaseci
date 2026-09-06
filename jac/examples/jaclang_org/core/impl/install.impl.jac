@@ -8,8 +8,8 @@ impl _get_meta -> InstallMeta | None {
     return metas[0] if metas else None;
 }
 
-impl asset_path -> str {
-    return os.path.join("assets", "install.sh");
+impl cache_path -> str {
+    return os.path.join(CACHE_DIR, "install.sh");
 }
 
 impl _fresh(meta: InstallMeta) -> bool {
@@ -34,23 +34,23 @@ impl _fetch_script -> str | None {
     return text if looks_like_script(text) else None;
 }
 
-impl _write_asset(text: str) {
-    os.makedirs("assets", exist_ok=True);
-    tmp = os.path.join("assets", ".install.sh.tmp");
+impl _write_cache(text: str) {
+    os.makedirs(CACHE_DIR, exist_ok=True);
+    tmp = os.path.join(CACHE_DIR, ".install.sh.tmp");
     with open(tmp, "w") as f {
         f.write(text);
     }
-    os.replace(tmp, asset_path());
+    os.replace(tmp, cache_path());
 }
 
 impl install_sh -> str {
-    path = asset_path();
+    path = cache_path();
     if not os.path.exists(path) {
         text = _fetch_script();
         if text is None {
             return UNAVAILABLE_SH;
         }
-        _write_asset(text);
+        _write_cache(text);
     }
     with open(path) as f {
         return f.read();
@@ -62,7 +62,7 @@ impl ensure_install -> InstallStatus {
     if meta is None {
         meta = (root.shared ++> InstallMeta()) as InstallMeta;
     }
-    have_file = os.path.exists(asset_path());
+    have_file = os.path.exists(cache_path());
     if (_fresh(meta) and have_file) or _pulling {
         return InstallStatus(
             building=_pulling, sha=meta.sha, checked_at=meta.checked_at
@@ -75,7 +75,7 @@ impl ensure_install -> InstallStatus {
         if text is not None {
             new_sha = hashlib.sha256(text.encode("utf-8")).hexdigest();
             if new_sha != meta.sha or not have_file {
-                _write_asset(text);
+                _write_cache(text);
                 meta.sha = new_sha;
                 meta.updated_at = now_iso();
                 updated = True;

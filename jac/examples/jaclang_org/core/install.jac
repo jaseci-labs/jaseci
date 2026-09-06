@@ -11,6 +11,7 @@ glob INSTALL_SRC: str = "https://raw.githubusercontent.com/jaseci-labs/jac/main/
      USER_AGENT: str = "jaclang.org installer sync",
      CHECK_TTL_S: float = 900.0,
      MIN_SCRIPT_BYTES: int = 500,
+     CACHE_DIR: str = ".jac",
      _pulling: bool = False;
 
 node InstallMeta {
@@ -23,7 +24,7 @@ glob UNAVAILABLE_SH: str = "#!/usr/bin/env bash\necho 'jac: installer temporaril
 
 def _get_meta -> InstallMeta | None;
 
-def asset_path -> str;
+def cache_path -> str;
 
 def _fresh(meta: InstallMeta) -> bool;
 
@@ -31,7 +32,7 @@ def looks_like_script(text: str) -> bool;
 
 def _fetch_script -> str | None;
 
-def _write_asset(text: str);
+def _write_cache(text: str);
 
 @restspec(
     method=HTTPMethod.GET,
