@@ -65,6 +65,7 @@ import from jaclang.compiler.driver.source_failures {
     import_error_re_enters,
     module_import_in_flight,
     module_scoped_failure_details,
+    bootstrap_tier_failure_details,
     note_compiler_source_failure
 }
 import from jaclang.compiler.driver.boundary_classify {

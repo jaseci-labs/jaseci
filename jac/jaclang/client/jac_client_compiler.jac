@@ -33,6 +33,8 @@ class JacClientCompiler {
         COMPOUND_EXTENSIONS = ['.native.jac'] + list(ANNEX_SUFFIXES);
 
         NATIVE_RUNTIME_FILE = "client_runtime_native.jac";
+
+        SELF_COMPILED_VIRTUAL_MODULES = {"@jac/mobui", "@jac/pwa"};
     }
 
     def init(

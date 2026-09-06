@@ -147,7 +147,6 @@ test "normalize_gateway_config fills every section with defaults" {
         "colocate",
         "gateway_port",
         "gateway_host",
-        "drain_timeout_seconds",
         "http_forward_timeout",
         "rate_limit",
         "cors",

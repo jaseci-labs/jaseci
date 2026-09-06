@@ -21,7 +21,9 @@ glob APP_SCALE_KEYS: tuple = (
          "deployment_overlay",
          "triggers",
          "http_activation",
-         "read_cache"
+         "read_cache",
+         "workers",
+         "threads"
      ),
      GATEWAY_POD_KEYS: tuple = (
          "replicas",
@@ -46,7 +48,6 @@ class JacScaleConfig(PluginConfigBase) {
     override def get_default_config(self: JacScaleConfig) -> dict[str, any];
     override def get_config_schema(self: JacScaleConfig) -> dict[str, any];
     override def get_config_strict_env(self: JacScaleConfig) -> str;
-    def get_jwt_config(self: JacScaleConfig) -> dict[str, any];
     def get_sso_config(self: JacScaleConfig) -> dict[str, any];
     def get_database_config(self: JacScaleConfig) -> dict[str, any];
     def get_deploy_database_config(self: JacScaleConfig) -> dict[str, any];
@@ -74,17 +75,10 @@ def _pick_app_scale_keys(section: dict[str, any] | None) -> dict[str, any];
 
 
 glob _scale_config_instance: JacScaleConfig | None = None,
-     _app_scale_cache: dict[str, dict[str, any]] = {},
-     _placeholder_jwt_secret_warned: bool = False,
-     _minted_jwt_secret_announced: bool = False;
-
-def _warn_placeholder_jwt_secret -> None;
-def _announce_minted_jwt_secret(path: str) -> None;
+     _app_scale_cache: dict[str, dict[str, any]] = {};
 
 def sanitize_prometheus_namespace(name: str) -> str;
 def _ws_positive(ws_config: dict, key: str, fallback: (int | float)) -> float;
 def get_scale_config(project_dir: Path | None = None) -> JacScaleConfig;
 def peek_scale_config -> JacScaleConfig | None;
 def reset_scale_config -> None;
-
-def resolve_password_hash_cost(configured_cost: int) -> int;

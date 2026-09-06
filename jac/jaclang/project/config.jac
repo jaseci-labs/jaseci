@@ -84,14 +84,91 @@ obj TestConfig {
         max_failures: int = 0;
 }
 
+obj ServeWorkersConfig {
+    has count: str = "1",
+        threads: str = "auto",
+        max_requests: int = 0,
+        max_requests_jitter: int = 0,
+        request_timeout: float = 0.0,
+        boot_timeout: float = 120.0,
+        hang_timeout: float = 30.0;
+}
+
+obj ServeTlsConfig {
+    has certfile: str = "",
+        keyfile: str = "",
+        ca_certs: str = "",
+        min_version: str = "1.2";
+}
+
+obj ServeProxyConfig {
+    has trusted: list[str] = [];
+}
+
+obj ServeLimitsConfig {
+    has max_connections: int = 0,
+        backlog: int = 2048,
+        max_body_bytes: int = 104857600,
+        max_header_bytes: int = 65536,
+        max_header_count: int = 100,
+        max_request_line_bytes: int = 8192,
+        multipart_spool_bytes: int = 1048576;
+}
+
+obj ServeTimeoutsConfig {
+    has header: float = 30.0,
+        body: float = 60.0,
+        keepalive: float = 65.0,
+        drain: float = 10.0,
+        close: float = 5.0;
+}
+
+obj ServeAccessLogConfig {
+    has enabled: bool = True,
+        format: str = "text",
+        suppress_health_checks: bool = False;
+}
+
+obj ServeCompressionConfig {
+    has enabled: bool = True,
+        min_bytes: int = 1024,
+        level: int = 4;
+}
+
+obj ServeWebSocketConfig {
+    has allowed_origins: list[str] = [],
+        max_message_bytes: int = 0,
+        ping_interval: float = 20.0,
+        ping_timeout: float = 20.0;
+}
+
+obj ServeAuthConfig {
+    has secret: str = "",
+        algorithm: str = "HS256",
+        token_ttl_days: int = 7,
+        password_hash_cost: int = 14;
+}
+
 obj ServeConfig {
-    has port: int = 8000,
+    has host: str = "0.0.0.0",
+        port: int = 8000,
         session: str = "",
         main: bool = True,
-        identity: str = "auto",
+        docs_enabled: bool = True,
+        graph_enabled: bool = True,
+        cors_origins: list[str] = ["*"],
         on_conflict: str = "retry",
         conflict_max_attempts: int = 5,
-        conflict_backoff_ms: int = 0;
+        conflict_backoff_ms: int = 0,
+        workers: ServeWorkersConfig = ServeWorkersConfig(),
+        tls: ServeTlsConfig = ServeTlsConfig(),
+        proxy: ServeProxyConfig = ServeProxyConfig(),
+        limits: ServeLimitsConfig = ServeLimitsConfig(),
+        timeouts: ServeTimeoutsConfig = ServeTimeoutsConfig(),
+        access_log: ServeAccessLogConfig = ServeAccessLogConfig(),
+        compression: ServeCompressionConfig = ServeCompressionConfig(),
+        websocket: ServeWebSocketConfig = ServeWebSocketConfig(),
+        auth: ServeAuthConfig = ServeAuthConfig();
 }
 
 obj FormatConfig {
@@ -257,6 +334,7 @@ obj JacConfig {
     def resolved_kind(app: AppConfig) -> str;
     def effective_for_app(name: str) -> JacConfig;
     def app_for_path(abs_path: str) -> AppConfig | None;
+    def app_for_target(entry_path: str = "") -> AppConfig | None;
     def serving_apps -> list[AppConfig];
     def owner_app_for_path(abs_path: str) -> tuple[AppConfig | None, bool];
 }

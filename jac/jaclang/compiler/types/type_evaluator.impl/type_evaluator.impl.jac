@@ -2903,12 +2903,14 @@ impl TypeEvaluator._assign_class(
 ) -> bool {
     unwrapped_dest: TypeBase = dest_type;
     unwrapped_src: TypeBase = src_type;
-    if dest_type.shared == self.prefetch.final_class.shared {
+    if self.prefetch.final_class is not None
+        and dest_type.shared == self.prefetch.final_class.shared {
         if len(dest_type.private.type_args) > 0 {
             unwrapped_dest = dest_type.private.type_args[0];
         }
     }
-    if src_type.shared == self.prefetch.final_class.shared {
+    if self.prefetch.final_class is not None
+        and src_type.shared == self.prefetch.final_class.shared {
         if len(src_type.private.type_args) > 0 {
             unwrapped_src = src_type.private.type_args[0];
         }
@@ -3157,6 +3159,9 @@ impl TypeEvaluator.get_type_of_magic_method_call(
 
                 _fallback_result: TypeBase | None = None;
                 for fn in overloaded_fns {
+                    if not self._overload_accepts_receiver(fn, obj_type) {
+                        continue;
+                    }
                     arg_param_match = self.match_args_to_params(
                         arg_nodes, node_for_error, fn, checking_overload=True
                     );
@@ -3828,7 +3833,11 @@ impl TypeEvaluator._make_coroutine_type(inner: TypeBase) -> TypeBase {
     if self.prefetch.coroutine_class is None {
         return inner;
     }
-    if is_generator_family_type(inner) {
+
+    if isinstance(inner, ClassType)
+        and inner.is_builtin(
+            ["AsyncGenerator", "AsyncIterator", "AsyncIterable", "AwaitableGenerator"]
+        ) {
         return inner;
     }
     coro = self.prefetch.coroutine_class.clone_as_instance();
@@ -3927,11 +3936,14 @@ impl TypeEvaluator._is_sv_async_call(expr: FuncCall) -> bool {
                 sym_kind = item.name.sym.sym_type;
                 if sym_kind != SymbolType.ABILITY {
                     facts = imp.boundary_facts;
-                    is_bridged_walker = (
-                        is_service
-                        and facts is not None
-                        and item.name.value in facts.sv_walkers
-                    );
+                    is_bridged_walker = is_service
+                        and (
+                            sym_kind == SymbolType.WALKER_ARCH
+                            or (
+                                facts is not None
+                                and item.name.value in facts.sv_walkers
+                            )
+                        );
                     if not is_bridged_walker and is_service {
                         decl = resolved_decl_of(item.name.sym);
                         owner = decl.name_of if decl is not None else None;
@@ -4639,6 +4651,7 @@ impl TypeEvaluator._get_type_from_flow_node(
                     and not isinstance(assigned_type, UnknownType)
                 ) {
                     declared_type = target.declared_type;
+                    assigned_type = self._widen_literal_for_declaration(assigned_type);
 
                     _decl_extern = (
                         isinstance(declared_type, ClassType)

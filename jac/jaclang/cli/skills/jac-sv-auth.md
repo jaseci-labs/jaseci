@@ -78,8 +78,8 @@ The built-in roles gate *platform* surfaces (admin portal, `/metrics`). For **ap
 With no secret configured, a dev server mints one per project into `.jac/data/jwt_secret` (gitignored, mode 0600) and reuses it across restarts, so browser sessions survive a restart and no two projects share a signing key. A deployment must set its own secret, because a per-project file would be per-replica in a cluster - a cluster with none configured falls back to the shipped placeholder and warns at boot, and anyone who knows that placeholder can forge tokens for any user:
 
 ```toml
-[scale.jwt]
-secret = "long-random-string"     # or env JWT_SECRET; algorithm HS256, exp_delta_days 7
+[serve.auth]
+secret = "long-random-string"     # or env JAC_SERVE_AUTH_SECRET; algorithm HS256, token_ttl_days 7
 ```
 
 No token revocation exists - tokens stay valid until expiry. SSO (Google/Apple/GitHub): configure `[scale.sso.<platform>]` and send users to `/sso/<platform>/login`.

@@ -128,7 +128,7 @@ The same shape works from client apps (`root spawn Greet(...)` in a page or a mo
 - **Local fleet.** `jac run <app> --fleet`, or `[scale.gateway] colocate = false`: each service app is its own local process behind the served app's gateway - one public port, one `/docs`, one `/metrics`, `X-Trace-Id` threaded through every hop; `jac scale status|logs|restart|stop <app>` manage members. Startup is fail-fast (a service that cannot come up crashes the served app at boot).
 - **Deployed.** `jac scale deploy` is ALWAYS a fleet: each serving app its own Deployment/Service/HPA/PDB, the served app hosts the gateway, `JAC_APP_<APP>_URL` injected on every pod (in-cluster DNS - don't set them by hand), boot order from the app DAG; `colocate` is ignored. `--dry-run` previews the per-app plan.
 
-Gateway knobs: `[scale.gateway]` (`gateway_port`, `drain_timeout_seconds`, `boot_health_timeout`, `boot_max_wait`, `health_monitor_interval`, `cors`, `rate_limit`, `logs`, `tracing`, `shared_volumes`, `colocate`). Per-app knobs: `[apps.<name>.scale]` (`replicas`, resources, `rpc_timeout` - **default 10s, bump to 120-300 for LLM-backed apps**, `http_activation`, `env`, `hpa`, `pdb`, `triggers`, `deployment_overlay`).
+Gateway knobs: `[scale.gateway]` (`gateway_port`, `boot_health_timeout`, `boot_max_wait`, `health_monitor_interval`, `cors`, `rate_limit`, `logs`, `tracing`, `shared_volumes`, `colocate`). Per-app knobs: `[apps.<name>.scale]` (`replicas`, resources, `rpc_timeout` - **default 10s, bump to 120-300 for LLM-backed apps**, `http_activation`, `env`, `hpa`, `pdb`, `triggers`, `deployment_overlay`).
 
 ## Pitfalls
 

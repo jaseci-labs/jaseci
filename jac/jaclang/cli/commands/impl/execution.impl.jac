@@ -5,6 +5,12 @@ import types;
 import from pathlib { Path }
 import from jaclang.cli.console { console, use_line_buffered_output }
 import from jaclang.cli.commands.cli_helpers { proc_file as _proc_file }
+import from jaclang.server.assembly {
+    assemble_served_program,
+    colocate_services as _colocate_services,
+    gateway_colocates as _gateway_colocates,
+    service_apps as _service_apps
+}
 import from jaclang.project.kinds { RunPlan }
 import type from importlib.metadata { EntryPoint }
 import type from jaclang.compiler.backends.native.llvm.binding.executionengine {
@@ -312,7 +318,8 @@ def _serve_flag_spelling -> dict {
         "faux": "--faux",
         "host": "--host",
         "platform": "--platform",
-        "fleet": "--fleet"
+        "fleet": "--fleet",
+        "workers": "--workers"
     };
 }
 
@@ -340,7 +347,8 @@ def _serve_overrides(
     host: (str | None),
     platform: (str | None),
     fleet: bool,
-    cfg: any
+    cfg: any,
+    workers: (str | None) = None
 ) -> dict {
     over: dict = {};
     if _port_is_explicit(port, cfg) {
@@ -366,6 +374,9 @@ def _serve_overrides(
     }
     if fleet {
         over["fleet"] = True;
+    }
+    if workers is not None {
+        over["workers"] = workers;
     }
     return over;
 }
@@ -433,7 +444,8 @@ def _serve_with(
         "host": "",
         "platform": "",
         "takeover": False,
-        "fleet": False
+        "fleet": False,
+        "workers": ""
     };
     for (k, v) in plan_flags.items() {
         if k in kw {
@@ -783,6 +795,7 @@ impl run(
     platform: (str | None) = None,
     takeover: (bool | None) = None,
     fleet: bool = False,
+    workers: (str | None) = None,
     args: list = []
 ) -> int {
     use_line_buffered_output();
@@ -818,7 +831,7 @@ impl run(
     eff = _effective_config(cfg, app);
 
     over = _serve_overrides(
-        port, dev, api_port, no_client, faux, host, platform, fleet, eff
+        port, dev, api_port, no_client, faux, host, platform, fleet, eff, workers
     );
     entry_flags = _entry_flags_used(entry_name, nd, root_id, debug_mode);
     kind_serves = plan is not None and plan.action == "serve";
@@ -1041,19 +1054,6 @@ def _serve_app(cfg: any, app: str, filename: str) -> any {
     return cfg.app_for_path(os.path.abspath(filename));
 }
 
-def _service_apps(cfg: any, served: any) -> list {
-    return [
-        a
-        for a in cfg.serving_apps()
-        if a.kind in ("service", "service-mesh") and a.name != served.name
-    ];
-}
-
-def _gateway_colocates(cfg: any) -> bool {
-    scale_cfg = cfg.get_plugin_config("scale") or {};
-    gateway = scale_cfg.get("gateway", {}) if isinstance(scale_cfg, dict) else {};
-    return not (isinstance(gateway, dict) and gateway.get("colocate") is False);
-}
 
 def _serve_fleet(
     cfg: any,
@@ -1112,47 +1112,6 @@ def _serve_fleet(
     );
 }
 
-def _colocate_services(cfg: any, served: any, base: str) -> None {
-    if cfg is None or served is None or os.environ.get("JAC_SV_SIBLING") == "1" {
-        return;
-    }
-    services = _service_apps(cfg, served);
-    if not services {
-        return;
-    }
-    import from jaclang.runtime.runtime { JacRuntime as Jac }
-    import from jaclang.jac0core.ext_registry { base_stem }
-    import from jaclang.server.sv_client { register_local }
-
-    project_root = str(cfg.project_root) if cfg.project_root else base;
-    for svc in services {
-        entry_file = svc.entry_path(project_root);
-        if not entry_file or not os.path.isfile(entry_file) {
-            console.warning(
-                f"Service app '{svc.name}' has no entry_file file; not colocated."
-            );
-            continue;
-        }
-        (svc_base, svc_file) = os.path.split(entry_file);
-        loaded = Jac.jac_import(
-            target=base_stem(svc_file),
-            base_path=svc_base or "./",
-            lng=entry_file.split(".")[-1]
-        );
-        module = loaded[0] if loaded else None;
-        if module is None {
-            raise RuntimeError(
-                f"Service app '{svc.name}' failed to load from {entry_file}"
-            );
-        }
-        register_local(svc.name, module);
-        console.print(
-            f"  ✔ colocated service '{svc.name}' "
-            f"({os.path.relpath(entry_file, project_root)})",
-            style="muted"
-        );
-    }
-}
 
 def _client_display_path(path: Path, base: str) -> str {
     import jaclang;
@@ -1180,7 +1139,8 @@ impl serve(
     platform: str = "",
     takeover: bool = False,
     fleet: bool = False,
-    app: str = ""
+    app: str = "",
+    workers: str = ""
 ) -> int {
     import from jaclang.runtime.runtime { JacRuntime as Jac }
     import from pathlib { Path }
@@ -1250,11 +1210,7 @@ impl serve(
             mach.close();
             return 1;
         }
-        _colocate_services(cfg, served, base);
-        if served is not None {
-            import from jaclang.server.sv_client { set_consumer_app }
-            set_consumer_app(served.name);
-        }
+        assemble_served_program(cfg, served, base);
     } except Exception as e {
         if Jac.get_program().errors_had {
             for error in Jac.get_program().errors_had {
@@ -1285,13 +1241,28 @@ impl serve(
         api_port_pinned = port_pinned;
     }
 
+    import from jaclang.server.settings { ServeConfigError, ServeSettings }
+    overrides: dict[str, any] = {
+        'port': actual_api_port,
+        'strict_port': api_port_pinned,
+        'dev': dev,
+        'no_client': no_client
+    };
+    if host {
+        overrides['host'] = host;
+    }
+    if workers {
+        overrides['workers'] = workers;
+    }
+    try {
+        settings = ServeSettings.load(base, overrides);
+    } except ServeConfigError as e {
+        console.error(f"cannot start the server:\n{e}");
+        mach.close();
+        return 1;
+    }
     ServerClass = Jac.get_api_server_class();
-    server = ServerClass(
-        module_name=mod,
-        port=actual_api_port,
-        base_path=base,
-        strict_port=api_port_pinned
-    );
+    server = ServerClass(module_name=mod, base_path=base, settings=settings);
     if faux {
         try {
             server.print_endpoint_docs();
@@ -1301,11 +1272,6 @@ impl serve(
             console.error(dump_traceback(e));
             mach.close();
             return 1;
-        } finally {
-            svr = server.server;
-            if svr and hasattr(svr, 'server_close') {
-                svr.server_close();
-            }
         }
         mach.close();
         return 0;
@@ -1430,8 +1396,16 @@ impl serve(
         );
     }
     try {
-        server.start(dev=dev, no_client=no_client, on_ready=_announce_ready);
-        return 0;
+        return int(
+            server.start(dev=dev, no_client=no_client, on_ready=_announce_ready)
+        );
+    } except ServeConfigError as e {
+        console.error(str(e));
+        if hot_reloader is not None {
+            hot_reloader.stop();
+        }
+        mach.close();
+        return 1;
     } except KeyboardInterrupt {
         console.print('\nShutting down');
         if hot_reloader is not None {

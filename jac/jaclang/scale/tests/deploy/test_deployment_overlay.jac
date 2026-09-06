@@ -318,7 +318,7 @@ test "embedder-supplied overrides reach the builder with gateway defaults" {
     b = _builder({"svc_a": {"replicas": 2}});
     cfg = b._gateway_cfg();
     assert cfg["gateway_port"] == 8000;
-    assert cfg["drain_timeout_seconds"] == 10.0;
+    assert b._drain_timeout() == 10;
     assert b._service_config("svc_a") == {"replicas": 2};
     assert b._service_config("svc_b") == {};
 }
@@ -343,7 +343,6 @@ test "embedder gateway overrides survive normalization" {
     );
     cfg = b._gateway_cfg();
     assert cfg["gateway_port"] == 9001;
-    assert cfg["drain_timeout_seconds"] == 10.0;
     assert b._client_entry() == "";
     assert b._service_config("__gateway__") == {"replicas": 3};
 }

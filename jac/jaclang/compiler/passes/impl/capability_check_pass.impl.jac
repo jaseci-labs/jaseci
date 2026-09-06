@@ -267,7 +267,7 @@ impl native_capability_violations(
     out: list[tuple[(UniNode, str, str, (str | None))]] = [];
     _stdlib_help: (str | None) = None;
 
-    _native_stmts: list[ElementStmt] = ModuleCodegenPass.iter_context_stmts(
+    _native_stmts: list[ElementStmt] = ModuleFacts.iter_context_stmts(
         mod, CodeContext.NATIVE
     );
     _runtime_used: set = set();
@@ -295,8 +295,8 @@ impl native_capability_violations(
     _base_dir = os.path.dirname(os.path.abspath(mod.loc.mod_path))
         if (mod?.loc and mod.loc.mod_path)
         else '.';
-    for stmt in ModuleCodegenPass.iter_module_imports(mod, CodeContext.NATIVE)
-        + ModuleCodegenPass.iter_nested_imports(mod, CodeContext.NATIVE) {
+    for stmt in ModuleFacts.iter_module_imports(mod, CodeContext.NATIVE)
+        + ModuleFacts.iter_nested_imports(mod, CodeContext.NATIVE) {
         if stmt.clib_decls or not stmt.items {
             continue;
         }
@@ -374,6 +374,36 @@ impl native_capability_violations(
                 kind = "expression" if isinstance(nd, Expr) else "statement";
                 out.append((nd, kind, type(nd).__name__, None));
                 continue;
+            }
+            if isinstance(nd, Assignment) {
+                _targets = (
+                    nd.target if isinstance(nd.target, (list, tuple)) else [nd.target]
+                );
+                for _target in _targets {
+                    if isinstance(_target, (TupleVal, ListVal)) {
+                        for _star in _target.get_all_sub_nodes(typ=UnaryExpr) {
+                            if (
+                                isinstance(_star, UnaryExpr)
+                                and isinstance(_star.op, Token)
+                                and _star.op.name == Tok.STAR_MUL.value
+                            ) {
+                                out.append(
+                                    (
+                                        _target,
+                                        "starred unpack target",
+                                        "*",
+                                        (
+                                            "Starred tuple/list assignment targets are "
+                                            "not lowered natively yet; move the "
+                                            "statement to a non-native context."
+                                        )
+                                    )
+                                );
+                                break;
+                            }
+                        }
+                    }
+                }
             }
 
             if isinstance(nd, CtrlStmt)

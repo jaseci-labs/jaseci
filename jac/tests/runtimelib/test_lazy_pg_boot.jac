@@ -239,6 +239,52 @@ test "first-use schema DDL runs once per database, even from many threads" {
 }
 
 
+# --- The schema gate is safe on a store nobody has readied (#8982 item 16) ---
+obj _FirstUseStore(PgStore) {
+    has ddl_runs: int = 0;
+
+    def _run(sql: str, params: dict) -> list {
+        self._ensure_ready();
+        return [("170000", )];
+    }
+
+    def ensure_schema(promotions: dict[str, list[str]]) {
+        self.ddl_runs += 1;
+        self.server_version();
+    }
+}
+
+
+test "the schema gate readies the store instead of deadlocking on first use" {
+    import threading;
+    import from uuid { uuid4 }
+    import from jaclang.data.store { ConnInfo }
+
+    store = _FirstUseStore(
+        conninfo=ConnInfo(
+            host="127.0.0.1", port=1, database=f"jac_gate_{uuid4().hex[:8]}"
+        ),
+        auto_schema=True
+    );
+    outcome: list = [];
+
+    def first_use {
+        store.ensure_schema_once({});
+        outcome.append(store.ddl_runs);
+    }
+    t = threading.Thread(target=first_use, name="jac-gate-first-use", daemon=True);
+    t.start();
+    t.join(10);
+    assert not t.is_alive() , (
+        "ensure_schema_once on an un-readied auto_schema store deadlocked: the "
+        "gate was held while the schema DDL's first query readied the store, "
+        "and readiness asked for the gate again"
+    );
+    assert outcome == [1] , f"schema DDL ran {outcome} time(s); expected exactly once";
+    assert store._ready , "first use through the schema gate left the store un-readied";
+}
+
+
 test "no production module runs first-use schema DDL outside the gate" {
     # PgStore.ensure_schema_once owns the _schema_gate + _schema_ready pair.
     # A second caller that reaches straight for ensure_schema races it, and
