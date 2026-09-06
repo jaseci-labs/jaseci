@@ -326,7 +326,7 @@ def _ct_deps_extra(jac_path: str, pkg_root: str) -> dict[int, bytes] {
     }
 }
 
-def _native_extra(jac_path: str) -> dict[int, bytes] {
+def _native_extra(jac_path: str, pkg_root: str) -> dict[int, bytes] {
     out: dict[int, bytes] = {};
     try {
         cache_path = get_module_cache_path(jac_path);
@@ -336,9 +336,14 @@ def _native_extra(jac_path: str) -> dict[int, bytes] {
         data = cache_path.read_bytes();
         for sec in list(NATIVE_SECTIONS) + [SEC_PLACEMENT] {
             raw = read_section_bytes(data, sec);
-            if raw is not None {
-                out[int(sec)] = raw;
+            if raw is None {
+                continue;
             }
+            if sec == SEC_PLACEMENT {
+                import from jaclang.compiler.driver.jir { rebase_placement_section }
+                raw = rebase_placement_section(raw, os.path.normpath(pkg_root));
+            }
+            out[int(sec)] = raw;
         }
     } except Exception {}
     return out;
@@ -346,7 +351,7 @@ def _native_extra(jac_path: str) -> dict[int, bytes] {
 
 def _unit_extra(jac_path: str, pkg_root: str, embed_src: bool) -> dict[int, bytes] {
     extra: dict[int, bytes] = _ct_deps_extra(jac_path, pkg_root);
-    extra.update(_native_extra(jac_path));
+    extra.update(_native_extra(jac_path, pkg_root));
     if embed_src {
         extra[int(SEC_DEBUG_SRC)] = zlib.compress(Path(jac_path).read_bytes(), 9);
     }
@@ -870,7 +875,7 @@ def seal_native(
         if mod_entry is None {
             raise RuntimeError(f"native unit {rel} has no sealed JIR");
         }
-        _refresh_native_twin(out_dir / mod_entry["jir"], u.path);
+        _refresh_native_twin(out_dir / mod_entry["jir"], u.path, str(pkg_path));
         jir_bytes = (out_dir / mod_entry["jir"]).read_bytes();
         sealed_iface = NativeIface.read_digest(
             native_section_payload(_rsb(jir_bytes, SEC_NIFACE), stamp)
@@ -901,12 +906,12 @@ def seal_native(
     };
 }
 
-def _refresh_native_twin(twin: Path, jac_path: str) -> None {
+def _refresh_native_twin(twin: Path, jac_path: str, pkg_root: str) -> None {
     """Carry a unit's native sections from the module cache into its sealed
 JIR twin. A dual module's twin was written by the compile pass, before the
 plan compiled the module as a native unit; the plan's products are what
 the artifact linked, so the twin takes them now.""";
-    fresh = _native_extra(jac_path);
+    fresh = _native_extra(jac_path, pkg_root);
     if not fresh {
         return;
     }

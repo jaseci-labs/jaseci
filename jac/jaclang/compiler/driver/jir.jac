@@ -609,6 +609,51 @@ def ct_deps_section(
     return "\n".join(lines).encode("utf-8");
 }
 
+def rebase_placement_section(raw: bytes, base: str) -> bytes {
+    """A placement summary names its module by path; sealed under a
+    package it names it under the package sentinel, so two seals of one
+    tree are the same bytes wherever they were staged.""";
+    import json as _json;
+    try {
+        parsed = _json.loads(raw.decode("utf-8"));
+    } except Exception {
+        return raw;
+    }
+    roots: list[str] = [];
+    for cand in (os.path.normpath(base), os.path.realpath(base)) {
+        if cand not in roots {
+            roots.append(cand);
+        }
+    }
+
+    def _rebase(value: any) -> any {
+        if isinstance(value, str) {
+            for root in roots {
+                if value == root {
+                    return PRECOMPILE_SENTINEL;
+                }
+                prefix = root + os.sep;
+                if value.startswith(prefix) {
+                    return (
+                        PRECOMPILE_SENTINEL
+                        + "/"
+                        + value[len(prefix):].replace(os.sep, "/")
+                    );
+                }
+            }
+            return value;
+        }
+        if isinstance(value, list) {
+            return [_rebase(v) for v in value];
+        }
+        if isinstance(value, dict) {
+            return {k: _rebase(v) for (k, v) in value.items()};
+        }
+        return value;
+    }
+    return _json.dumps(_rebase(parsed), sort_keys=True).encode("utf-8");
+}
+
 def rebase_ct_deps_section(raw: bytes, base: str) -> bytes {
     lines: list[str] = [];
     for (path, digest, is_body) in _ct_dep_rows(raw.decode("utf-8")) {
