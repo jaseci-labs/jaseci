@@ -35,14 +35,30 @@ impl ViteBundler._get_client_dir(self: ViteBundler) -> Path {
         config = get_config();
         if config is not None {
             config_root = config.project_root;
-            if config_root is not None
-                and config_root.resolve() == self.project_dir.resolve() {
-                return config.get_client_dir();
+            if config_root is not None {
+                cfg_root = config_root.resolve();
+                cur_dir = self.project_dir.resolve();
+                if cur_dir == cfg_root or cfg_root in cur_dir.parents {
+                    return config.get_client_dir();
+                }
             }
         }
     } except ImportError {}
 
     return self.project_dir / '.jac' / 'client';
+}
+
+impl ViteBundler._client_app_dir(self: ViteBundler) -> Path {
+    client_dir = self._get_client_dir();
+    try {
+        import from jaclang.project.config { get_config }
+        import from jaclang.client.targets.registry { client_workspace_app }
+        app = client_workspace_app(get_config());
+        if app is not None {
+            return client_dir / app.name;
+        }
+    } except ImportError {}
+    return client_dir;
 }
 
 impl ViteBundler.create_package_json(
@@ -418,9 +434,6 @@ impl ViteBundler._generate_vite_config_content(
     api_base_url: str,
     base_path: str,
     api_port: int = 8000,
-    for_mobile_dev: bool = False,
-    mobile_hmr_host: str = "",
-    mobile_hmr_port: int = 0,
     for_desktop_dev: bool = False,
     desktop_broker_port: int = 0,
     api_paths: (list[str] | None) = None,
@@ -435,8 +448,11 @@ impl ViteBundler._generate_vite_config_content(
         entry_relative = entry_file.as_posix();
     }
 
+    entry_dir = entry_relative.rpartition('/')[0];
     if entry_relative.endswith('/build/main.js') {
         compiled_base = entry_relative[:-13] + '/compiled';
+    } elif entry_dir.rpartition('/')[2] == 'compiled' {
+        compiled_base = entry_dir;
     } else {
         compiled_base = 'compiled';
     }
@@ -547,28 +563,12 @@ impl ViteBundler._generate_vite_config_content(
             if (isinstance(server_config, dict) and server_config)
             else '';
 
-        reload_enabled: bool = for_mobile_dev or for_desktop_dev;
-        if for_mobile_dev and mobile_hmr_host {
-            hmr_host = mobile_hmr_host;
-            hmr_port = mobile_hmr_port or 5173;
-            mobile_hmr_str = (
-                f'\n    hmr: {{ protocol: "ws", host: "{hmr_host}", port: {hmr_port}, clientPort: {hmr_port}, overlay: false }},'
-            );
-        } elif reload_enabled {
-            mobile_hmr_str = "\n    hmr: { overlay: false },";
-        } else {
-            mobile_hmr_str = "";
-        }
+        reload_enabled: bool = for_desktop_dev;
+        hmr_str = "\n    hmr: { overlay: false }," if reload_enabled else "";
         compiled_reload_plug_in: str = "\n    jacCompiledReload(),"
             if reload_enabled
             else "";
-        if for_mobile_dev and mobile_hmr_host {
-            host_value = f'"{mobile_hmr_host}"';
-        } elif for_desktop_dev {
-            host_value = '"127.0.0.1"';
-        } else {
-            host_value = 'true';
-        }
+        host_value = '"127.0.0.1"' if for_desktop_dev else 'true';
         claimed = {p for p in (client_paths or [])};
         builtin_proxy_str: str = "";
         for prefix in DEV_PROXY_PREFIXES {
@@ -613,7 +613,7 @@ impl ViteBundler._generate_vite_config_content(
         mobile_compiled_block: str = (
             r'''
 
-// When Jac recompiles, push full-reload to the WebView (Capacitor does not watch project files)
+// When Jac recompiles, push full-reload to the webview (the desktop shell does not watch project files)
 function sendFullReload(server) {
   let sent = false;
   // Broadcast over the websocket first (works for both Vite 5 and Vite 6 clients).
@@ -884,7 +884,7 @@ export default defineConfig({{
     }},
     proxy: {{{builtin_proxy_str}{declared_proxy_str}{desktop_proxy_str}
     }},
-{server_config_str}{mobile_hmr_str}{desktop_server_extras}
+{server_config_str}{hmr_str}{desktop_server_extras}
   }},
   resolve: {{
     alias: {{
@@ -998,9 +998,6 @@ impl ViteBundler.create_vite_config(
     api_base_url_override: str = "",
     is_dev: bool = False,
     api_port: int = 8000,
-    for_mobile_dev: bool = False,
-    mobile_hmr_host: str = "",
-    mobile_hmr_port: int = 0,
     for_desktop_dev: bool = False,
     desktop_broker_port: int = 0,
     api_paths: (list[str] | None) = None,
@@ -1020,9 +1017,6 @@ impl ViteBundler.create_vite_config(
         api_base_url=api_base_url,
         base_path=base_path,
         api_port=api_port,
-        for_mobile_dev=for_mobile_dev,
-        mobile_hmr_host=mobile_hmr_host,
-        mobile_hmr_port=mobile_hmr_port,
         for_desktop_dev=for_desktop_dev,
         desktop_broker_port=desktop_broker_port,
         api_paths=api_paths,
@@ -1121,7 +1115,7 @@ impl ViteBundler.init(
     self.config_path = config_path;
     self.config_loader = JacClientConfig(project_dir);
 
-    self.output_dir = output_dir or (self._get_client_dir() / 'dist');
+    self.output_dir = output_dir or (self._client_app_dir() / 'dist');
 
     self.dev_server_port = 0;
 }

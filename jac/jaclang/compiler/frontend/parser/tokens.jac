@@ -364,6 +364,51 @@ def lookup_keyword(text: str) -> TokenKind | None {
     return None;
 }
 
+glob RESERVED_KINDS: frozenset = frozenset(KEYWORDS.values())
+         - frozenset({TokenKind.BOOL, TokenKind.NULL});
+
+def is_reserved_kind(kind: TokenKind) -> bool {
+    return kind in RESERVED_KINDS;
+}
+
+glob BUILTIN_TYPE_KINDS: frozenset = frozenset(
+         {
+             TokenKind.TYP_STRING,
+             TokenKind.TYP_INT,
+             TokenKind.TYP_FLOAT,
+             TokenKind.TYP_LIST,
+             TokenKind.TYP_TUPLE,
+             TokenKind.TYP_SET,
+             TokenKind.TYP_DICT,
+             TokenKind.TYP_BOOL,
+             TokenKind.TYP_BYTES,
+             TokenKind.TYP_ANY,
+             TokenKind.TYP_TYPE,
+             TokenKind.TYP_I8,
+             TokenKind.TYP_U8,
+             TokenKind.TYP_I16,
+             TokenKind.TYP_U16,
+             TokenKind.TYP_I32,
+             TokenKind.TYP_U32,
+             TokenKind.TYP_I64,
+             TokenKind.TYP_U64,
+             TokenKind.TYP_F32,
+             TokenKind.TYP_F64
+         }
+     );
+
+def is_builtin_type_kind(kind: TokenKind) -> bool {
+    return kind in BUILTIN_TYPE_KINDS;
+}
+
+def reserved_words -> list[str] {
+    return sorted(
+        word
+        for (word, kind) in KEYWORDS.items()
+        if kind in RESERVED_KINDS
+    );
+}
+
 glob SPECIAL_VAR_KINDS: set[TokenKind] = {
          TokenKind.KW_SELF,
          TokenKind.KW_SUPER,

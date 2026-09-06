@@ -26,48 +26,53 @@ import from jaclang.scale.runtime.gateway.service_registry {
     ServiceEntry
 }
 import from jaclang.server.sv_client { peer_url_env_key }
+import from jaclang.scale.runtime.fleet { FLEET_ENV, fleet_of }
 
 
 glob _K8S_E2E_FIXTURE: Path = Path(__file__).parents[1] / "fixtures" / "k8s_e2e",
      _DISCOVERED_ROUTES: dict[str, str] = {
          "cart_app": "/cart",
          "orders_app": "/orders",
-         "products_app": "/products",
-         "main": "/__main__"
+         "products_app": "/products"
      };
 
 
-# A declared [scale.microservices.routes] table (#7772) is the authoritative
-# service cut: every key becomes its own pod. Driven through the real builder via
-# a real microservices_config, not a patched _ms_cfg / _build_*_pod_spec.
-test "generate_service_pod_specs builds one pod per declared route" {
+def _shop_fleet -> any {
+    return fleet_of(_DISCOVERED_ROUTES, root_app="web", root_file="main.jac");
+}
+
+
+# The [apps] table is the authoritative fleet: every service app becomes its own
+# pod and the served app hosts the gateway at /. Driven through the real builder
+# via a real FleetSpec, not a patched _fleet / _build_*_pod_spec.
+test "generate_service_pod_specs builds one pod per app in the fleet" {
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
-    declared = {
-        "routes": {
-            "products_app": "/products",
-            "orders_app": "/orders",
-            "cart_app": "/cart"
-        }
-    };
     builder = ManifestBuilder(
-        k8s_config=cfg, project_dir=str(_K8S_E2E_FIXTURE), microservices_config=declared
+        k8s_config=cfg, project_dir=str(_K8S_E2E_FIXTURE), fleet=_shop_fleet()
     );
     app_cfg = AppConfig(code_folder=str(_K8S_E2E_FIXTURE), app_name="jac-shop");
 
     specs = builder.generate_service_pod_specs(app_cfg, "img");
 
     assert set(specs.keys())
-        == {"products_app", "orders_app", "cart_app", "main", GATEWAY_NAME};
+        == {"products_app", "orders_app", "cart_app", "web", GATEWAY_NAME};
     orders_env = {
         e["name"]: e["value"] for e in specs["orders_app"]["containers"][0]["env"]
     };
-    assert json.loads(orders_env["JAC_SV_ROUTES"]) == _DISCOVERED_ROUTES;
+    shipped = json.loads(orders_env[FLEET_ENV]);
+    assert shipped["root"] == "web";
+    assert {
+        m["app"]: m["route"]
+        for m in shipped["members"]
+        if not m["root"]
+    }
+        == _DISCOVERED_ROUTES;
 }
 
 
-test "an app with no declared routes deploys as one service plus the gateway" {
+test "an app with no [apps] deploys as one pod plus the gateway" {
     cfg = KubernetesConfig(app_name="littlex", namespace="ns");
-    builder = ManifestBuilder(k8s_config=cfg, microservices_config={"routes": {}});
+    builder = ManifestBuilder(k8s_config=cfg);
     app_cfg = AppConfig(code_folder="/apps/littlex", file_name="main.jac");
 
     specs = builder.generate_service_pod_specs(app_cfg, "img");
@@ -75,26 +80,11 @@ test "an app with no declared routes deploys as one service plus the gateway" {
     # named after the app, not its entry file: main.jac must not turn every
     # monolith into a "main" service.
     assert set(specs.keys()) == {"littlex", GATEWAY_NAME};
-    assert builder.microservices_config["routes"] == {"littlex": "/littlex"};
+    fleet = builder.fleet;
+    assert fleet is not None and fleet.root_app == "littlex";
     env = {e["name"]: e["value"] for e in specs["littlex"]["containers"][0]["env"]};
     assert env["JAC_SV_NAME"] == "littlex";
     assert env["JAC_SV_FILE"] == "main.jac";
-}
-
-
-test "a solo app whose name shadows a builtin route is rejected" {
-    cfg = KubernetesConfig(app_name="admin", namespace="ns");
-    builder = ManifestBuilder(k8s_config=cfg, microservices_config={"routes": {}});
-    app_cfg = AppConfig(code_folder="/apps/admin", file_name="main.jac");
-
-    raised = False;
-    try {
-        builder.generate_service_pod_specs(app_cfg, "img");
-    } except ValueError as e {
-        raised = True;
-        assert "builtin" in str(e);
-    }
-    assert raised , "expected the reserved-name guard to fire";
 }
 
 
@@ -185,13 +175,13 @@ test "the marker is opaque and carries no secret material" {
 }
 
 
-test "build_env omits JAC_SV_ROUTES when no routes are declared" {
+test "build_env omits JAC_SV_FLEET when no fleet is resolved" {
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
-    builder = ManifestBuilder(k8s_config=cfg, microservices_config={"routes": {}});
+    builder = ManifestBuilder(k8s_config=cfg);
 
     env = builder._build_env("orders_app", {});
 
-    assert "JAC_SV_ROUTES" not in {e["name"] for e in env};
+    assert FLEET_ENV not in {e["name"] for e in env};
 }
 
 test "build_env injects K8S_APP_NAME and K8S_NAMESPACE from k8s_config" {
@@ -326,7 +316,7 @@ test "every service pod carries the sibling flag in its env, and no override dro
     builder = ManifestBuilder(
         k8s_config=cfg,
         project_dir=str(_K8S_E2E_FIXTURE),
-        microservices_config={"routes": {"orders_app": "/orders"}}
+        fleet=fleet_of({"orders_app": "/orders"}, root_app="main", root_file="main.jac")
     );
     app_cfg = AppConfig(code_folder=str(_K8S_E2E_FIXTURE), app_name="jac-shop");
     specs = builder.generate_service_pod_specs(app_cfg, "img");
@@ -346,26 +336,25 @@ test "every service pod carries the sibling flag in its env, and no override dro
 
 
 test "a shared volume is handed to the runtime identity before the service starts" {
-    # A PVC from [scale.microservices] shared_volumes arrives root-owned
-    # from most provisioners, the service container runs as the image's
-    # `jac` user, and nothing adjusted the mount: the first write into the
-    # volume the app declared failed with EACCES (jac#8949). The bundle
-    # volume already solved this with a root init container that chowns the
-    # mount root; a shared volume gets the same container, plus fsGroup for
-    # the backends that honor it.
+    # A PVC from [scale.gateway] shared_volumes arrives root-owned from most
+    # provisioners, the service container runs as the image's `jac` user, and
+    # nothing adjusted the mount: the first write into the volume the app
+    # declared failed with EACCES (jac#8949). The bundle volume already solved
+    # this with a root init container that chowns the mount root; a shared
+    # volume gets the same container, plus fsGroup for the backends that honor
+    # it.
     import from jaclang.scale.injector.pvc_injector {
         RUNTIME_UID,
         RUNTIME_GID,
         VOLUME_PERMS_NAME
     }
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
-    declared = {
-        "routes": {"orders_app": "/orders", "cart_app": "/cart"},
+    gateway = {
         "shared_volumes": [
             {
                 "name": "workspace",
                 "mount_path": "/app/.jachome/.jac-ide",
-                "services": ["orders_app"],
+                "apps": ["orders_app"],
                 "size": "1Gi",
                 "access_mode": "ReadWriteMany",
                 "storage_class": "standard"
@@ -373,7 +362,14 @@ test "a shared volume is handed to the runtime identity before the service start
         ]
     };
     builder = ManifestBuilder(
-        k8s_config=cfg, project_dir=str(_K8S_E2E_FIXTURE), microservices_config=declared
+        k8s_config=cfg,
+        project_dir=str(_K8S_E2E_FIXTURE),
+        fleet=fleet_of(
+            {"orders_app": "/orders", "cart_app": "/cart"},
+            root_app="main",
+            root_file="main.jac"
+        ),
+        gateway_config=gateway
     );
     app_cfg = AppConfig(code_folder=str(_K8S_E2E_FIXTURE), app_name="jac-shop");
     specs = builder.generate_service_pod_specs(app_cfg, "img");
@@ -440,17 +436,15 @@ test "a service pod with no resolved file refuses to guess" {
 }
 
 
-test "every service pod env carries its bundle-resolved file" {
+test "every app pod env carries its bundle-resolved file" {
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
     builder = ManifestBuilder(
-        k8s_config=cfg,
-        project_dir=str(_K8S_E2E_FIXTURE),
-        microservices_config={"routes": dict(_DISCOVERED_ROUTES)}
+        k8s_config=cfg, project_dir=str(_K8S_E2E_FIXTURE), fleet=_shop_fleet()
     );
     orders = {e["name"]: e["value"] for e in builder._build_env("orders_app", {})};
     assert orders["JAC_SV_FILE"] == "orders_app.jac" , orders;
-    main_env = {e["name"]: e["value"] for e in builder._build_env("main", {})};
-    assert main_env["JAC_SV_FILE"] == "main.jac" , main_env;
+    web_env = {e["name"]: e["value"] for e in builder._build_env("web", {})};
+    assert web_env["JAC_SV_FILE"] == "main.jac" , web_env;
 }
 
 
@@ -465,7 +459,7 @@ def _routed_project(tmp: str, files: list[str]) -> str {
 }
 
 
-test "the pod env resolves the routes the deploy emits pods for" {
+test "the pod env resolves the apps the deploy emits pods for" {
     import tempfile;
     with tempfile.TemporaryDirectory() as tmp {
         project = _routed_project(tmp, ["svc.jac", "lib/svc.jac", "main.jac"]);
@@ -473,7 +467,7 @@ test "the pod env resolves the routes the deploy emits pods for" {
         builder = ManifestBuilder(
             k8s_config=cfg,
             project_dir=project,
-            microservices_config={"routes": {"svc": "/svc"}},
+            fleet=fleet_of({"svc": "/svc"}, root_app="main"),
             dry_run=True
         );
         app_cfg = AppConfig(code_folder=project, app_name="jac-shop");
@@ -493,17 +487,13 @@ test "the pod env carries the bundle-validated path, not the declared string" {
     with tempfile.TemporaryDirectory() as tmp {
         project = _routed_project(tmp, ["lib/svc.jac", "main.jac"]);
         cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
-        declared: dict[str, any] = {"file": "./lib/svc.jac"};
         builder = ManifestBuilder(
             k8s_config=cfg,
             project_dir=project,
-            microservices_config={
-                "routes": {"svc": "/svc"},
-                "services": {"svc": declared}
-            },
+            fleet=fleet_of({"svc": "/svc"}, files={"svc": "./lib/svc.jac"}),
             dry_run=True
         );
-        env = {e["name"]: e["value"] for e in builder._build_env("svc", declared)};
+        env = {e["name"]: e["value"] for e in builder._build_env("svc", {})};
         assert env["JAC_SV_FILE"] == "lib/svc.jac" , env;
     }
 }
@@ -517,13 +507,14 @@ test "the injector seals against the config the deploy emits pods for" {
         builder = ManifestBuilder(
             k8s_config=cfg,
             project_dir=project,
-            microservices_config={"routes": {"svc": "/svc"}},
+            fleet=fleet_of({"svc": "/svc"}, root_app="main"),
             dry_run=True
         );
         app_cfg = AppConfig(code_folder=project, app_name="jac-shop");
         injector = builder._prepare_injector(app_cfg);
-        assert injector._ms_config == builder._ms_cfg() , injector._ms_config;
-        assert injector._ms_config["routes"] == {"svc": "/svc", "main": "/__main__"};
+        assert injector._fleet is builder.fleet , injector._fleet;
+        assert injector._fleet.routes() == {"svc": "/svc"};
+        assert injector._fleet.root_app == "main";
     }
 }
 
@@ -536,7 +527,7 @@ test "a routed service with no module fails manifest generation, dry run include
         builder = ManifestBuilder(
             k8s_config=cfg,
             project_dir=project,
-            microservices_config={"routes": {"ghost": "/ghost"}},
+            fleet=fleet_of({"ghost": "/ghost"}, root_app="main"),
             dry_run=True
         );
         app_cfg = AppConfig(code_folder=project, app_name="jac-shop");
@@ -579,10 +570,10 @@ test "a single-file full-stack app still gets its client bundle built" {
 }
 
 
-# Peer URL resolution. jac-scale injects a JAC_SV_<PEER>_URL for every peer, so
-# the registry must read it rather than deriving every URL from the route name.
-# The env key keeps the raw route name while Kubernetes names are RFC1123-safe,
-# so orders_app injects JAC_SV_ORDERS_APP_URL beside an orders-app-service; a
+# Peer URL resolution. jac-scale injects a JAC_APP_<PEER>_URL for every peer, so
+# the registry must read it rather than deriving every URL from the app name.
+# The env key keeps the raw app name while Kubernetes names are RFC1123-safe,
+# so orders_app injects JAC_APP_ORDERS_APP_URL beside an orders-app-service; a
 # reader keyed off the safe name would miss and fall back to the derived URL.
 
 glob _PEER_ROUTES: dict[str, str] = {"orders_app": "/orders", "cart_app": "/cart"},
@@ -625,7 +616,7 @@ def _peer_builder -> ManifestBuilder {
     return ManifestBuilder(
         k8s_config=cfg,
         project_dir=str(_K8S_E2E_FIXTURE),
-        microservices_config={"routes": dict(_PEER_ROUTES)}
+        fleet=fleet_of(_PEER_ROUTES, root_app="web", root_file="main.jac")
     );
 }
 
@@ -703,13 +694,13 @@ test "the key the builder injects is the key the registry reads" {
         _peer_env_isolate();
         cart_env = _peer_env_of("cart_app");
 
-        assert "JAC_SV_ORDERS_APP_URL" in cart_env , (
+        assert "JAC_APP_ORDERS_APP_URL" in cart_env , (
             "the builder no longer injects the underscore-preserving key; "
             f"it wrote {sorted(cart_env.keys())}"
         );
 
         standby = "http://orders-app-standby-service.shop.svc.cluster.local:8000";
-        os.environ["JAC_SV_ORDERS_APP_URL"] = standby;
+        os.environ["JAC_APP_ORDERS_APP_URL"] = standby;
         registry = build_k8s_registry(_PEER_ROUTES, _PEER_PORT);
 
         assert registry["orders_app"] == standby , (

@@ -46,7 +46,9 @@ obj CompileOptions {
         na_debug: (bool | None) = None,
         suppress_codes: list[str] = field(default_factory=`list),
         default_codespace: str = "",
-        project_kind: str = "web",
+        app_kind: str = "",
+        target_app: str = "",
+        ui: str = "",
         project_root: (str | None) = None,
         native_module_walk_order: (str | None) = None,
         cancel_token: any = None;
@@ -138,7 +140,9 @@ obj CompileOptions {
                 f"rc_debug={int(bool(self.rc_debug_codegen))}",
                 f"target={self.native_target}",
                 f"native_debug={int(bool(self.native_debug))}",
-                f"opt={self.opt_level}"
+                f"opt={self.opt_level}",
+                f"app={self.target_app}",
+                f"app_kind={self.app_kind}"
             ]
         );
     }
@@ -156,7 +160,9 @@ obj CompileOptions {
                 f"nogc_cli={self.nogc_cli_target}",
                 "nogc_mods=" + ",".join(sorted(self.nogc_enforce_modules or [])),
                 "nogc_grand=" + ",".join(sorted(self.nogc_grandfathered or [])),
-                f"target={self.native_target}"
+                f"target={self.native_target}",
+                f"app={self.target_app}",
+                f"app_kind={self.app_kind}"
             ]
         );
     }
@@ -186,7 +192,11 @@ obj CompileOptions {
             debug_ir=self.debug_ir,
             rc_stats=self.rc_stats,
             nogc_debug=self.nogc_debug,
-            na_debug=self.na_debug
+            na_debug=self.na_debug,
+            app_kind=self.app_kind,
+            target_app=self.target_app,
+            ui=self.ui,
+            project_root=self.project_root
         );
     }
 

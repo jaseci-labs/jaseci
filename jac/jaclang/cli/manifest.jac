@@ -68,7 +68,7 @@ comptime VERB_BUDGET: int = 26,
          "config": "Configuration",
          "build": "Build",
          "db": "Database",
-         "microservices": "Microservices",
+         "fleet": "Microservices",
          "general": "General"
      },
      GROUP_ORDER: list[str] = [
@@ -80,7 +80,7 @@ comptime VERB_BUDGET: int = 26,
          "config",
          "build",
          "db",
-         "microservices",
+         "fleet",
          "general"
      ],
      TIER_SECTIONS: dict[str, str] = {

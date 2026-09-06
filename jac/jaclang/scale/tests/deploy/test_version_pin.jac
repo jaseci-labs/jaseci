@@ -435,7 +435,7 @@ test "a cross-generation deploy is refused before the cluster is contacted" {
     cfg = KubernetesConfig.from_dict(
         KubernetesConfig, {"app_name": "x", "namespace": "default"}
     );
-    result = KubernetesTarget(config=cfg, microservices_config={}).deploy(
+    result = KubernetesTarget(config=cfg).deploy(
         AppConfig(code_folder=_pin_offset(1), file_name="main.jac")
     );
     assert result.success is False , "a cross-generation deploy must not proceed";
@@ -451,7 +451,7 @@ test "the pinned jac is handed the same deploy, and cannot delegate again" {
     assert pinned_deploy_argv("/jac", "a.jac", "aws", True)[-1] == "--enable-tls";
 
     app = _project('[project]\nname = "x"\njac-version = "==0.1.0"\n') + "/main.jac";
-    r = KubernetesRealizer(ms_config={});
+    r = KubernetesRealizer();
     prior = os.environ.get(DELEGATED_ENV);
     os.environ[DELEGATED_ENV] = "1";
     try {
@@ -484,7 +484,7 @@ test "delegating runs the pinned binary with this deploy, and forwards its resul
     with unittest.mock.patch.object(
         binary_mod, "host_toolchain_path", return_value=str(stub)
     ), redirect_stderr(err) {
-        rc = KubernetesRealizer(ms_config={})._deploy_on_pinned_jac(
+        rc = KubernetesRealizer()._deploy_on_pinned_jac(
             f"{d}/main.jac", "kubernetes", False, False
         );
     }

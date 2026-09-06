@@ -1577,186 +1577,17 @@ impl JacBuiltin.get_console -> ConsoleImpl {
 }
 
 impl JacServe.get_api_server_class -> type {
-    import from jaclang.server.identity_owner {
-        SCALE_IDENTITY,
-        identity_owner,
-        scale_stack_unavailable
-    }
-    _served = JacRuntime.get_full_target_path() or JacRuntime.get_base_path_dir();
-    if identity_owner(_served) != SCALE_IDENTITY {
-        import from jaclang.server.server { JacAPIServer }
-        return JacAPIServer;
-    }
+    import from jaclang.server.server { JacAPIServer }
+    return JacAPIServer;
+}
+
+impl JacServe.get_server_extensions -> list[ServerExtension] {
     _sp = _scale_provider();
     if _sp is None {
-        raise scale_stack_unavailable('jaclang.scale.plugin', scale_provider_error());
+        return [];
     }
-    _scaled = _sp.get_api_server_class();
-    if _scaled is None {
-        raise RuntimeError(
-            'the scale plugin returned no API server class while the scale '
-            'identity owns /user/* for this project. Nothing falls back to the '
-            'core store from here: the two stacks keep credentials in '
-            'different databases, so serving the other one would answer for '
-            'accounts this project does not have.'
-        );
-    }
-    return _scaled;
+    return list(_sp.get_server_extensions());
 }
-
-impl JacServe.ensure_sv_service(module_name: str, base_path: str) -> None {
-    import from jaclang.server.identity_owner {
-        scale_stack_installed,
-        scale_stack_unavailable
-    }
-    _sp = _scale_provider();
-    if _sp is not None {
-        _sp.ensure_sv_service(module_name, base_path);
-        return;
-    }
-    if scale_stack_installed() {
-        raise scale_stack_unavailable('jaclang.scale.plugin', scale_provider_error());
-    }
-    import os;
-    import time;
-    import urllib.request;
-    import from http.client { HTTPResponse }
-    import from jaclang.server { sv_client }
-    import from jaclang.server.server { JacAPIServer as CoreJacAPIServer }
-    import from jaclang.server.serving.server { ServingServer }
-    if module_name in sv_client._registry {
-        return;
-    }
-    if module_name in sv_client._test_clients {
-        return;
-    }
-    base_port = 18000 + (hash(module_name) % 1000);
-
-    srv = CoreJacAPIServer(
-        module_name=module_name, port=0, base_path=base_path, is_sv_sibling=True
-    );
-    srv.load_module();
-    serving = ServingServer(app=srv.build_app(), host='127.0.0.1', port=base_port);
-    serving.serve_background(port_retries=100);
-    port = serving.bound_port;
-    srv.port = port;
-    srv.server = serving;
-    base_url = f"http://127.0.0.1:{port}";
-    deadline = time.time() + 10.0;
-    healthy = False;
-    while time.time() < deadline {
-        try {
-            probe: HTTPResponse = urllib.request.urlopen(
-                f"{base_url}/functions", timeout=1
-            );
-            with probe as resp {
-                if resp.status < 500 {
-                    healthy = True;
-                    break;
-                }
-            }
-        } except Exception {
-            time.sleep(0.05);
-        }
-    }
-    if not healthy {
-        raise RuntimeError(
-            f"sv-to-sv service '{module_name}' did not become healthy at {base_url}"
-        );
-    }
-    sv_client.register(module_name, base_url);
-}
-
-impl JacServe.sv_service_call(module_name: str, func_name: str, args: dict) -> any {
-    _sp = _scale_provider();
-    if _sp is not None and _sp.sv_transport_available() {
-        return _sp.sv_service_call(module_name, func_name, args);
-    }
-    import from jaclang.server { sv_client }
-    import from jaclang.server.serving.client { post_stream_aware_sync }
-    import from jaclang.server.serving.sse { consume_sse_events }
-
-    func_label = f"{module_name}.{func_name}";
-
-    if module_name in sv_client._test_clients {
-        client = sv_client._test_clients[module_name];
-        resp = client.post(f"/function/{func_name}", json=args);
-        ct = str(resp.headers.get("Content-Type") or "");
-        if ct.startswith("text/event-stream") {
-            return consume_sse_events(str(resp.text).splitlines(), func_label);
-        }
-        data = resp.json();
-    } else {
-        url = sv_client.resolve_url(module_name);
-        (kind, payload) = post_stream_aware_sync(
-            f"{url}/function/{func_name}", json_body=args, label=func_label
-        );
-        if kind == 'sse' {
-            return payload;
-        }
-        data = payload;
-    }
-
-    if isinstance(data, dict) and data.get("ok") {
-        result_envelope = data.get("data");
-        if isinstance(result_envelope, dict) and ("result" in result_envelope) {
-            return result_envelope["result"];
-        }
-        return result_envelope;
-    }
-
-    err = (data.get("error") if isinstance(data, dict) else None) or {};
-    msg = err.get("message") if isinstance(err, dict) else str(err);
-    raise RuntimeError(
-        f"sv-to-sv RPC '{module_name}.{func_name}' failed: {msg or 'unknown error'}"
-    );
-}
-
-impl JacServe.sv_walker_call(
-    module_name: str, walker_name: str, args: dict, stub_cls: any
-) -> any {
-    _sp = _scale_provider();
-    if _sp is not None and _sp.sv_transport_available() {
-        return _sp.sv_walker_call(module_name, walker_name, args, stub_cls);
-    }
-    import from jaclang.server { sv_client }
-    import from jaclang.server.serving.client { request_sync }
-
-    label = f"{module_name}.{walker_name}";
-
-    if module_name in sv_client._test_clients {
-        client = sv_client._test_clients[module_name];
-        resp = client.post(f"/walker/{walker_name}", json=args);
-        data = resp.json();
-    } else {
-        url = sv_client.resolve_url(module_name);
-        data = request_sync(
-            'POST', f"{url}/walker/{walker_name}", json_body=args
-        ).json();
-    }
-
-    if isinstance(data, dict) and data.get("ok") {
-        envelope = data.get("data") or {};
-        result_dict = envelope.get("result") if isinstance(envelope, dict) else None;
-        reports = envelope.get("reports") if isinstance(envelope, dict) else None;
-        instance = stub_cls._from_wire(result_dict)
-            if (stub_cls is not None and result_dict is not None)
-            else result_dict;
-        if instance is not None and reports is not None {
-            try {
-                instance.reports = reports;
-            } except Exception {}
-        }
-        return instance;
-    }
-
-    err = (data.get("error") if isinstance(data, dict) else None) or {};
-    msg = err.get("message") if isinstance(err, dict) else str(err);
-    raise RuntimeError(
-        f"sv-to-sv walker spawn '{label}' failed: {msg or 'unknown error'}"
-    );
-}
-
 
 impl JacServe.get_sv_registry -> dict[str, str] {
     _sp = _scale_provider();
@@ -2160,14 +1991,7 @@ impl JacConfig.validate_config(config: dict[(str, any)]) -> list[str] {
 }
 
 impl JacPersistence.get_user_manager(base_path: str) -> UserManager {
-    _sp = _scale_provider();
-    if _sp is not None {
-        _scaled = _sp.get_user_manager(base_path);
-        if _scaled is not None {
-            return _scaled;
-        }
-    }
-    import from jaclang.server.server { UserManager }
+    import from jaclang.server.identity.user_manager { UserManager }
     return UserManager(base_path=base_path);
 }
 
@@ -2331,4 +2155,29 @@ impl JacRuntime.push_request_context(context: ExecutionContext) -> any {
 
 impl JacRuntime.reset_request_context(token: any) -> None {
     _request_context.reset(token);
+}
+
+impl JacRuntime.after_fork_in_child -> None {
+    import from concurrent.futures { ThreadPoolExecutor }
+    import from jaclang.data.pgpool { detach }
+    ctx = JacRuntime.exec_ctx;
+    JacRuntime.exec_ctx = None;
+    if ctx is not None {
+        store = ctx.mem?.store;
+        if store is not None {
+            for attr in ('_conn', '_side_conn') {
+                detach(getattr(store, attr, None));
+                try {
+                    setattr(store, attr, None);
+                } except Exception {}
+            }
+            try {
+                store._listen_thread = None;
+                store._listen_stop = None;
+                store._side_listened = False;
+            } except Exception {}
+        }
+    }
+    _shared_root_resolver[1] = None;
+    JacRuntime.pool = ThreadPoolExecutor();
 }

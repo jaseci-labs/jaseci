@@ -194,28 +194,36 @@ obj DiagLedger {
     has errors: list[Alert] = [],
         warnings: list[Alert] = [];
 
-    def drop_module(resolved_path: str) {
-        import os;
-        try {
-            norm = os.path.realpath(resolved_path);
-        } except OSError {
-            return;
-        }
-        import from jaclang.jac0core.ext_registry { is_annex_path_of }
+    def owned_errors(path: str) -> list[Alert] {
+        return [
+            a
+            for a in self.errors
+            if self._owned(a, path)
+        ];
+    }
 
-        def owned(alert: Alert) -> bool {
-            return alert.owner == norm or is_annex_path_of(alert.owner, norm);
-        }
+    def drop_module(resolved_path: str) {
         self.errors[:] = [
             a
             for a in self.errors
-            if not owned(a)
+            if not self._owned(a, resolved_path)
         ];
         self.warnings[:] = [
             a
             for a in self.warnings
-            if not owned(a)
+            if not self._owned(a, resolved_path)
         ];
+    }
+
+    def _owned(alert: Alert, path: str) -> bool {
+        import os;
+        import from jaclang.jac0core.ext_registry { is_annex_path_of }
+        try {
+            norm = os.path.realpath(path);
+        } except OSError {
+            return False;
+        }
+        return alert.owner == norm or is_annex_path_of(alert.owner, norm);
     }
 
     def clear {

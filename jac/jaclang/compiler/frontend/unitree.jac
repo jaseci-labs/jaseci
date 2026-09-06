@@ -638,6 +638,10 @@ node Module(AstDocNode, UniScopeNode) {
         mobui_enforced_root: (str | None) = None,
         jac_project_root: (str | None) = None,
         access_enforced: bool = False,
+        app: (str | None) = None,
+        app_root: (str | None) = None,
+        app_kind: str = "",
+        owner_app: (str | None) = None,
         ct_resolved: bool = False,
         ct_file_deps: list[str] postinit,
         ct_body_deps: list[str] postinit,
@@ -829,7 +833,8 @@ obj ImportBoundaryFacts {
         na_unmappable_targets: list[str] = [],
         native_absorb_path: (str | None) = None,
         native_item_paths: dict[(str, str)] = {},
-        bridged_decls: dict[(str, Ability)] = {};
+        bridged_decls: dict[(str, Ability)] = {},
+        cross_app_kind: str = "local";
 }
 
 node Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {

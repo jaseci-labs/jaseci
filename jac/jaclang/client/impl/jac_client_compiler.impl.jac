@@ -26,13 +26,38 @@ impl JacClientCompiler._get_client_dir(self: JacClientCompiler) -> Path {
         config = get_config();
         if config is not None {
             config_root = config.project_root;
-            if config_root is not None
-                and config_root.resolve() == self.project_dir.resolve() {
-                return config.get_client_dir();
+            if config_root is not None {
+                cfg_root = config_root.resolve();
+                cur_dir = self.project_dir.resolve();
+                if cur_dir == cfg_root or cfg_root in cur_dir.parents {
+                    return config.get_client_dir();
+                }
             }
         }
     } except ImportError {}
     return self.project_dir / '.jac' / 'client';
+}
+
+impl JacClientCompiler._client_app_dir(self: JacClientCompiler) -> Path {
+    client_dir = self._get_client_dir();
+    try {
+        import from jaclang.project.config { get_config }
+        import from jaclang.client.targets.registry { client_workspace_app }
+        app = client_workspace_app(get_config());
+        if app is not None {
+            return client_dir / app.name;
+        }
+    } except ImportError {}
+    return client_dir;
+}
+
+impl JacClientCompiler._app_root(self: JacClientCompiler) -> Path {
+    try {
+        import from jaclang.project.config { get_config }
+        import from jaclang.client.targets.registry { client_app_root }
+        return client_app_root(get_config(), self.project_dir);
+    } except ImportError {}
+    return self.project_dir;
 }
 
 impl JacClientCompiler._jac_path_to_js(self: JacClientCompiler, rel_str: str) -> str {
@@ -66,7 +91,7 @@ impl JacClientCompiler.compile(
     self: JacClientCompiler,
     module: (ModuleType | None),
     module_path: Path,
-    target_name: str = "web"
+    native: bool = False
 ) -> tuple[list[str], list[str]] {
     artifact = self.jac_compiler.compile_module(module_path);
     self._collect_na_modules(artifact);
@@ -87,21 +112,20 @@ impl JacClientCompiler.compile(
         collected_exports=collected_exports,
         collected_globals=collected_globals,
         source_root=source_root,
-        target_name=target_name
+        native=native
     );
     self._has_pages = self._scan_and_compile_pages(
         visited=visited,
         collected_exports=collected_exports,
         collected_globals=collected_globals,
-        target_name=target_name
+        native=native
     );
-    runtime_filename = self.PLATFORM_RUNTIME_FILES.get(target_name);
-    if runtime_filename {
-        self.compile_runtime_utils(runtime_filename);
+    if native {
+        self.compile_runtime_utils(self.NATIVE_RUNTIME_FILE);
     }
     import from jaclang.client.config_loader { JacClientConfig as PwaConfig }
     pwa_config = PwaConfig(self.project_dir);
-    if pwa_config.is_pwa_enabled() and target_name != "react-native" {
+    if pwa_config.is_pwa_enabled() and not native {
         self.compile_pwa_runtime();
     }
     self.copy_root_assets();
@@ -111,7 +135,8 @@ impl JacClientCompiler.compile(
 }
 
 impl JacClientCompiler.copy_root_assets(self: JacClientCompiler) -> None {
-    root_assets_dir = self.project_dir / 'assets';
+    import from jaclang.client.config_loader { JacClientConfig }
+    root_assets_dir = JacClientConfig(self.project_dir).get_assets_dir();
     compiled_assets_dir = self.compiled_dir / 'assets';
     if (root_assets_dir.exists() and root_assets_dir.is_dir()) {
         self.asset_processor.copy_assets(root_assets_dir, compiled_assets_dir);
@@ -200,7 +225,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
     collected_exports: (set[str] | None) = None,
     collected_globals: (dict[(str, any)] | None) = None,
     source_root: (Path | None) = None,
-    target_name: str = "web",
+    native: bool = False,
     skip_existing: bool = False
 ) -> None {
     if (visited is None) {
@@ -213,7 +238,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
         collected_globals = {};
     }
     module_path = module_path.resolve();
-    if target_name == "react-native" {
+    if native {
         module_path = self._native_variant(module_path);
     }
     if (module_path in visited) {
@@ -254,8 +279,11 @@ impl JacClientCompiler.compile_dependencies_recursively(
         return;
     }
     for (_name, import_path) in manifest.imports.items() {
+        if _name in self.SELF_COMPILED_VIRTUAL_MODULES {
+            continue;
+        }
         path_obj = Path(str(import_path)).resolve();
-        if target_name == "react-native" {
+        if native {
             path_obj = self._native_variant(path_obj);
         }
         if (path_obj in visited) {
@@ -272,7 +300,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
                 collected_exports=collected_exports,
                 collected_globals=collected_globals,
                 source_root=source_root,
-                target_name=target_name,
+                native=native,
                 skip_existing=skip_existing
             );
         } elif (path_obj.suffix == '.js') {
@@ -554,9 +582,9 @@ impl JacClientCompiler._scan_and_compile_pages(
     visited: (set[Path] | None) = None,
     collected_exports: (set[str] | None) = None,
     collected_globals: (dict[(str, any)] | None) = None,
-    target_name: str = "web"
+    native: bool = False
 ) -> bool {
-    scanner = RouteScanner(self.project_dir, route_exports_of=resolve_route_exports);
+    scanner = RouteScanner(self._app_root(), route_exports_of=resolve_route_exports);
     if not scanner.has_pages_dir() {
         return False;
     }
@@ -574,7 +602,7 @@ impl JacClientCompiler._scan_and_compile_pages(
             collected_exports=collected_exports,
             collected_globals=collected_globals,
             source_root=source_root,
-            target_name=target_name
+            native=native
         );
     }
     self._generate_routes_manifest();
@@ -591,7 +619,7 @@ impl JacClientCompiler._warn_pages_without_routes(
 }
 
 impl JacClientCompiler.rescan_pages(self: JacClientCompiler) -> bool {
-    scanner = RouteScanner(self.project_dir, route_exports_of=resolve_route_exports);
+    scanner = RouteScanner(self._app_root(), route_exports_of=resolve_route_exports);
     if not scanner.has_pages_dir() {
         return False;
     }
@@ -706,7 +734,7 @@ impl JacClientCompiler.init(
     self.runtime_path = runtime_path;
     self.compiled_dir = compiled_dir
         if compiled_dir is not None
-        else (self._get_client_dir() / 'compiled');
+        else (self._client_app_dir() / 'compiled');
     self.jac_compiler = JacToJSCompiler(
         compile_to_js_func, extract_exports_func, extract_globals_func
     );
