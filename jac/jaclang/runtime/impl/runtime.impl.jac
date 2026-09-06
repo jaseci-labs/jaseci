@@ -1473,9 +1473,13 @@ impl JacPersistence._destroy_anchors(objs: any, strict: bool) -> list[Anchor] {
 }
 
 impl JacPersistence.destroy(objs: any, strict: bool = False) -> None {
+    anchors = JacPersistence._destroy_anchors(objs, strict);
+    if not anchors {
+        return;
+    }
     import from jaclang.runtime.osp_kernel { osp_forget }
     import from jaclang.runtime.region { run_drop }
-    for anchor in JacPersistence._destroy_anchors(objs, strict) {
+    for anchor in anchors {
         if isinstance(anchor.archetype, Root) {
             raise RuntimeError("cannot destroy root");
         }
