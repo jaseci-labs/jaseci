@@ -435,7 +435,8 @@ def whole_program_module(
         if bc is None {
             raise LinkPlanError(f"no bitcode for native unit {u.path}");
         }
-        unit_mod: ModuleRef = llvm.parse_bitcode(bc);
+        unit_mod = llvm.parse_bitcode(bc);
+        assert isinstance(unit_mod, llvm.ModuleRef);
         if merged is None {
             merged = unit_mod;
         } else {
