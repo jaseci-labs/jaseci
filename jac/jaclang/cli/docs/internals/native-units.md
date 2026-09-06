@@ -56,6 +56,14 @@ the same key from its own path, so the key has to agree across the move. A
 module outside any such root keeps its real path as its identity. Variants
 of one module written to different roots are still different units.
 
+A unit names the units it depends on, in its interface and in its
+dependency-digest rows, by package identity rather than by path: the
+reference `jaclang/runtime/region_native.jac` resolves under whichever
+jaclang the reading process runs, and `natapp/fast.jac` resolves beside the
+reading unit's own root. A unit outside any root is referenced by its real
+path. This is what lets the sealed kit's units, compiled at the build's
+staging directory, be linked from wherever the kit lands.
+
 ### Dependency edges
 
 The IR generator records an edge for every unit it calls into and for every
@@ -144,6 +152,37 @@ Weak cells every unit carries (the region TLS slot, the GC switches,
 first definition of an external name and binds later references to it,
 letting a strong definition replace a weak one, exactly as a fused module
 or a system linker would have it.
+
+### Names across units
+
+An importing unit declares the functions it reaches in other units from
+their ASTs, under the symbols their interfaces record. Two imported modules
+may each define one name (hashlib's private `new` next to hmac's public
+`new`): the consumer keeps the first binding under the bare name and every
+imported function under a module-qualified key, so `hmac.new(...)` finds
+hmac's. A private function of another module is neither declared nor able
+to mark the bare name as demoted, and two `:pub` definitions of one name are
+left to the plan, which reports the collision (E5026) before anything
+links. Inherited-method thunks a subclass gets from its base keep external
+linkage and are recorded as exports, since callers look them up by the
+subclass's name.
+
+A module made only of imports and includes is a re-export surface, not a
+unit with code of its own: an importer records the units behind it as its
+dependencies, so a star or include chain links what it forwards.
+
+### The wasm host contract
+
+A wasm program is the same plan in bitcode mode. Its host calls the entry
+module's functions by the names the source gives them, and initializes the
+module before it calls anything, so for wasm the glue also defines a bare
+`__jac_glob_init` that runs every unit's initializer (each runs once,
+whoever calls first), and the root unit's module-level functions and
+globals take their bare names in the merged module, the way `:pub`
+symbols already do. The RC-free audit a `[gc] default = "none"` project
+demands reads the application's own units: the runtime units linked beside
+them define the reference-counting helpers whatever the application's
+setting, and stay inert unless the application calls them.
 
 ## The kernel
 
