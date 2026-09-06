@@ -131,24 +131,13 @@ def _retained_failure_details(file_path: str) -> str:
 
 
 def _module_scoped_alerts(program: object, file_path: str) -> list:
-    """Collect compile alerts recorded against file_path (or its annexes).
+    """Compile errors recorded against file_path or one of its annexes.
 
-    `foo.jac` -> prefix `foo.` also matches annex paths such as
-    `foo.impl.jac` and `foo.impl/bar.jac`, so errors reported against
-    an impl file count as the module's own.
+    The program's diagnostic ledger owns the rule (an error in `foo.impl.jac`,
+    `foo.impl/bar.jac` or `impl/foo.impl.jac` is `foo.jac`'s own), so the
+    importer reports exactly what the compiler retains and drops.
     """
-    norm = os.path.realpath(file_path)
-    stem = norm[:-4] if norm.endswith(".jac") else norm
-    prefix = stem + "."
-    alerts = []
-    for alert in getattr(program, "errors_had", []):
-        try:
-            alert_path = os.path.realpath(alert.loc.mod_path)
-        except Exception:
-            continue
-        if alert_path == norm or alert_path.startswith(prefix):
-            alerts.append(alert)
-    return alerts
+    return program.diags.owned_errors(file_path)
 
 
 # Bootstrap modresolver.jac before JacMetaImporter is registered. This module

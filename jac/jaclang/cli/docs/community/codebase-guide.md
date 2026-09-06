@@ -33,7 +33,7 @@ Here's a quick map from contribution type to the right part of the codebase:
 | Fix a compiler bug | `jac/jaclang/compiler/passes/` (shared analysis) + `compiler/backends/py/` (Python target) |
 | Add a language feature | `jac/jaclang/compiler/frontend/` (parser + AST) + `compiler/passes/` + `compiler/backends/` (all targets) |
 | Fix type checking | `jac/jaclang/compiler/types/` + `compiler/passes/type_checker_pass.jac` |
-| Work on native compilation | `jac/jaclang/compiler/backends/native/na_ir_gen/` |
+| Work on native compilation | `jac/jaclang/compiler/backends/native/na_ir_gen_pass.impl/` |
 | Work on JS compilation | `jac/jaclang/compiler/backends/es/` |
 | Improve the CLI | `jac/jaclang/cli/commands/` |
 | Fix a runtime bug | `jac/jaclang/runtime/` |
@@ -73,7 +73,7 @@ The most important files to know:
 
 - **`frontend/unitree.jac`** -- The unified AST that all backends share. If you're adding or changing syntax, you'll touch this.
 - **`driver/compiler.jac`** -- The pass pipeline orchestrator. It defines schedules like `get_ir_gen_sched()` and `get_py_code_gen()` that chain passes together. This is the authoritative source for pass ordering.
-- **`driver/jir.jac`** -- The JIR container: cached module bytecode plus typed sections (MTIR, placement, native objects), keyed by source content and the running compiler's identity. Trees are never persisted; they are working state, re-derived per process.
+- **`driver/jir.jac`** -- The JIR container: cached module bytecode plus typed sections (MTIR, placement, native objects, module interfaces, dependency hashes, diagnostics), keyed by source content and the running compiler's identity. Trees are never persisted; they are working state, re-derived per process -- what a module *exports* is persisted instead, as an interface section that dependency ingestion hydrates from (`driver/ifacecache.jac`).
 - **`frontend/diagnostics.jac`** -- Error and warning reporting infrastructure.
 - **`driver/modresolver.jac`** -- Module import and dependency resolution.
 - **`frontend/parser/`** -- The Lark grammar definition and lexer that parse Jac source into the initial AST.
@@ -131,7 +131,7 @@ See `compiler/driver/compiler.jac` for the authoritative ordering -- it uses re-
 
 ### `compiler/backends/native/` -- Native Compilation
 
-The native backend generates LLVM IR via `llvmlite`. `na_ir_gen_pass.jac` composes `NaIRGenPass` from the sibling modules under `na_ir_gen/`, each its own compilation unit handling a different part of the language (every `<name>.jac` declares its slice, `<name>.impl.jac` implements it, and shared emitter state lives on `NaIRGenState` in `state.jac`):
+The native backend generates LLVM IR via `llvmlite`. `na_ir_gen_pass.jac` is the one declaration of `NaIRGenPass` (its state fields and every method signature, grouped by concern), and the bodies live under `na_ir_gen_pass.impl/`, one file per concern, the same shape as the Python and ECMAScript generators:
 
 | File | What it covers |
 |------|---------------|
@@ -235,11 +235,12 @@ Many language tests use **fixture files** -- small `.jac` programs in `fixtures/
 The entire documentation set lives inside the jaclang package at
 `jac/jaclang/cli/docs/` and ships with the `jac` binary -- `jac guide`
 serves it offline, the MCP server exposes it as `jac://docs/*` resources,
-and the website renders the same corpus:
+and the website reads the same corpus straight out of the jac binary that
+serves it:
 
 ```
 jac/jaclang/cli/docs/
-├── nav.json                # Section hierarchy, titles, and page order
+├── nav.json                # Section hierarchy, titles, and page order (`jac guide --nav`)
 ├── quick-guide/            # Getting-started content
 ├── build/                  # "I like to build..." task-oriented entry points
 ├── reference/              # Comprehensive language & API reference

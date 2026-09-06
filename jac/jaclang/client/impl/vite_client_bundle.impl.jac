@@ -32,7 +32,7 @@ impl make_client_bundle_builder(
     }
     return ViteClientBundleBuilder(
         vite_package_json=package_json_path,
-        vite_output_dir=client_dir / 'dist',
+        vite_output_dir=bundler._client_app_dir() / 'dist',
         vite_minify=False
     );
 }
@@ -70,8 +70,8 @@ impl ViteClientBundleBuilder._get_compiler(
                 'Vite package.json not found. Set vite_package_json when using ViteClientBundleBuilder'
             );
         }
-        compile_to_js_func: Callable[([Path], tuple[(str, (ModuleType | None))])] = cast(
-            Callable[([Path], tuple[(str, (ModuleType | None))])], self._compile_to_js
+        compile_to_js_func: Callable[[Path], ClientArtifact] = cast(
+            Callable[[Path], ClientArtifact], self._compile_to_js
         );
         self._compiler = ViteCompiler(
             vite_package_json=self.vite_package_json,

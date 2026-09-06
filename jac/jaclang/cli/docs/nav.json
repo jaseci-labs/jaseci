@@ -92,7 +92,7 @@
           "title": "Ship It — Deploy & Scale",
           "items": [
             { "title": "Local API Server", "page": "tutorials/production/local.md" },
-            { "title": "Microservices", "page": "tutorials/production/microservices.md" },
+            { "title": "Service Apps", "page": "tutorials/production/microservices.md" },
             { "title": "Kubernetes", "page": "tutorials/production/kubernetes.md" }
           ]
         }
@@ -156,6 +156,7 @@
             { "title": "MCP Server", "page": "reference/mcp.md" },
             { "title": "Agent Skills & MCP", "page": "reference/agent-skills-and-mcp.md" },
             { "title": "Configuration", "page": "reference/config/index.md" },
+            { "title": "Workspaces & Apps", "page": "reference/apps.md" },
             { "title": "Publishing Packages", "page": "reference/publishing.md" },
             { "title": "Persistence & Schema Migration", "page": "reference/persistence.md" },
             { "title": "Placement", "page": "reference/placement.md" },
@@ -190,6 +191,7 @@
         { "title": "Ownership Checker Specification", "page": "internals/ownership-checker-spec.md" },
         { "title": "Import Patterns", "page": "internals/jac_import_patterns.md" },
         { "title": "Compiler Architecture", "page": "internals/compiler_architecture.md" },
+        { "title": "The Analysis Cache", "page": "internals/analysis-cache.md" },
         { "title": "Cross-Codespace Interop", "page": "internals/interop.md" },
         { "title": "Region-Granular Persistence Design", "page": "internals/region-persistence-design.md" },
         { "title": "Compact Codegen IR", "page": "internals/codegen-ir.md" }

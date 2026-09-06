@@ -25,7 +25,17 @@ impl JacClient.render_page(
     }
     config = get_config();
     if config is not None {
-        dist_dir = config.get_client_dir() / 'dist';
+        import from jaclang.client.targets.registry {
+            client_app_dir_for,
+            client_workspace_app
+        }
+        dist_dir = client_app_dir_for(config) / 'dist';
+        served_app = client_workspace_app(config);
+        if served_app is not None {
+            try {
+                config = config.effective_for_app(served_app.name);
+            } except ValueError {}
+        }
     } else {
         dist_dir = base_path / '.jac' / 'client' / 'dist';
     }
@@ -207,7 +217,14 @@ impl HeaderBuilder._build_link_tags -> list[str] {
     };
     for (key, rel) in special_links.items() {
         if val := self._get_value(key) {
-            lines.append(f'<link rel="{rel}" href="{html.escape(str(val))}" />');
+            href = html.escape(str(val));
+            if rel == "icon" and str(val).lower().endswith(".svg") {
+                lines.append(
+                    f'<link rel="{rel}" type="image/svg+xml" href="{href}" />'
+                );
+            } else {
+                lines.append(f'<link rel="{rel}" href="{href}" />');
+            }
         }
     }
     for (key, val) in self.meta_data.items() {

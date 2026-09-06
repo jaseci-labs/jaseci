@@ -21,6 +21,7 @@ def walk_sorted(top: str) -> list[tuple[str, list[str], list[str]]];
 def copy_tree(src_dir: str, dst_path: str, skip_fn: Callable[[str], bool]);
 def skip_none(p: str) -> bool;
 def skip_jaclang(p: str) -> bool;
+def skip_site_template(p: str) -> bool;
 def skip_stage_site(p: str) -> bool;
 def skip_typeshed_tests(p: str) -> bool;
 def toml_string(toml: str, key: str) -> str | None;

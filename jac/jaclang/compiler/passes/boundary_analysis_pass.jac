@@ -35,7 +35,8 @@ import from jaclang.compiler.frontend.unitree {
     TupleVal,
     UnaryExpr,
     UniNode,
-    ability_of_symbol
+    ability_of_symbol,
+    resolved_decl_of
 }
 import from jaclang.compiler.frontend.constant {
     CodeContext,
@@ -78,11 +79,23 @@ walker BoundaryAnalysisPass(UniPass) {
 
     def _register_na_client_import(nd: Import) -> None;
     def _register_client_bridged_import(nd: Import) -> None;
+    def _provider_module_of(nd: Import) -> (Module | None);
+    def _record_app_edge(nd: Import) -> None;
+    def _bridge_targets(mod: Module) -> list[tuple[(str, str)]];
+    def _check_app_cycle(nd: Import, consumer_app: str, provider_app: str) -> None;
+    def _find_ability(mod: Module, target: str) -> (Ability | None);
+    def _parsed_provider_of(nd: Import) -> (Module | None);
+    def _reject_owned_type_import(nd: Import, item: ModuleItem, kind: str) -> None;
+    def _check_provider_pub(nd: Import, item: ModuleItem) -> None;
     def _extract_walker_has_fields(
         walker_nd: (Archetype | None)
     ) -> tuple[list[str], list[str]];
 
     def _find_archetype(nd: UniNode, target: str) -> (Archetype | Enum | None);
+    def _parse_imported_archetype(
+        type_name: str, search_mods: list[Module]
+    ) -> (Archetype | Enum | None);
+
     can enter_ability with Ability entry;
     can enter_func_call with FuncCall entry;
     def _extract_subscript_inner(expr: (UniNode | None)) -> str;
@@ -93,3 +106,7 @@ walker BoundaryAnalysisPass(UniPass) {
     def after_pass -> None;
     def _record_access_levels(manifest: any) -> None;
 }
+
+glob _type_parse_memo: dict[str, tuple[float, Module | None]] = {};
+
+def _parse_module_for_types(file_path: str) -> (Module | None);

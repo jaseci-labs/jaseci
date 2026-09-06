@@ -1,6 +1,8 @@
 import atexit;
 import os;
 import sys;
+import from collections.abc { Callable, Iterator }
+import from contextlib { contextmanager }
 import from jaclang.compiler.passes.transform { DiagnosticPolicy }
 import from jaclang.compiler.driver.program { JacProgram }
 
@@ -44,6 +46,21 @@ def diagnostic_policy_for(
     );
 }
 
+def config_for_app(config: any, app_name: str) -> any {
+    if config is None or not app_name {
+        return config;
+    }
+    apps = config?.apps;
+    if not isinstance(apps, dict) or app_name not in apps {
+        return config;
+    }
+    try {
+        return config.effective_for_app(app_name);
+    } except Exception {
+        return config;
+    }
+}
+
 def build_diagnostic_policy(prog: JacProgram) -> DiagnosticPolicy {
     config: any = None;
     try {
@@ -53,6 +70,7 @@ def build_diagnostic_policy(prog: JacProgram) -> DiagnosticPolicy {
         config = None;
     }
     opts = prog.options;
+    config = config_for_app(config, opts.target_app if opts is not None else '');
     extra: list[str] = (
         list(opts.suppress_codes) if (opts is not None and opts.suppress_codes) else []
     );
@@ -131,6 +149,16 @@ def run_pass(
     } finally {
         eff = inst.policy if (inst is not None and inst.policy is not None) else pol;
         deliver_alerts(errors, warnings, prog, eff);
+        try {
+            ledger = prog.analysis;
+            pass_name = pass_cls.__name__;
+            ledger.pass_runs[pass_name] = ledger.pass_runs.get(pass_name, 0) + 1;
+            if inst is not None {
+                ledger.pass_time[pass_name] = (
+                    ledger.pass_time.get(pass_name, 0.0) + inst.time_taken
+                );
+            }
+        } except Exception {}
     }
     return inst;
 }
@@ -153,3 +181,14 @@ obj _SetupProgress {
 }
 
 glob setup_progress = _SetupProgress();
+
+obj CompileProgress {
+    has _listeners: list[Callable[[str], None]] postinit;
+
+    def postinit -> None;
+    def notify(file_path: str) -> None;
+    @contextmanager
+    def listen(callback: Callable[[str], None]) -> Iterator[None];
+}
+
+glob compile_progress = CompileProgress();

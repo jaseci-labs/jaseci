@@ -15,7 +15,6 @@ import from jaclang.scale.tests.scale_test_client {
     make_client,
     extract_data
 }
-import from jaclang.scale.tests.server_support { _extract_transport_response_data }
 
 """Generate HMAC-SHA256 signature for webhook payload."""
 def _generate_webhook_signature(payload: bytes, secret: str) -> str {
@@ -74,7 +73,7 @@ test "webhook - endpoint exists" {
     try {
         srv = client._server;
         assert srv is not None , "server must be running";
-        schema = srv.server.app.openapi();
+        schema = srv.app.openapi();
         paths = schema.get("paths", {});
 
         assert "/webhook/PaymentReceived" in paths , (
@@ -93,7 +92,7 @@ test "webhook - normal walker not in webhook" {
     try {
         srv = client._server;
         assert srv is not None , "server must be running";
-        schema = srv.server.app.openapi();
+        schema = srv.app.openapi();
         paths = schema.get("paths", {});
 
         assert "/webhook/NormalPayment" not in paths , (

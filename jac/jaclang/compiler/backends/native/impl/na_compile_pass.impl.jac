@@ -71,6 +71,7 @@ impl DepClibMeta.to_meta -> dict {
         "owned_symbols": self.owned_symbols,
         "demoted_symbols": self.demoted_symbols,
         "transitive_deps": self.transitive_deps,
+        "ct_deps": self.ct_deps,
         "options_fingerprint": self.options_fingerprint,
         "unverified_live_calls": self.unverified_live_calls,
         "coverage": self.coverage
@@ -86,6 +87,7 @@ impl DepClibMeta.from_meta(meta: dict) -> DepClibMeta {
         owned_symbols=meta.get("owned_symbols", []),
         demoted_symbols=meta.get("demoted_symbols", []),
         transitive_deps=meta.get("transitive_deps", []),
+        ct_deps=meta.get("ct_deps", ""),
         options_fingerprint=meta.get("options_fingerprint", ""),
         unverified_live_calls=meta.get("unverified_live_calls", {}),
         coverage=meta.get("coverage", {})
@@ -120,6 +122,14 @@ impl native_verdict_blast_guard(
         f"{NATIVE_VERDICT_TAINT_BOUND}/{NATIVE_LINK_COMPILE_BOUND}/"
         f"{NATIVE_VERDICT_MISS_BOUND}"
     );
+}
+
+impl native_linked_ir_text(module: uni.Module) -> str {
+    linked = module.gen.native_linked_ir;
+    if linked is not None {
+        return linked;
+    }
+    return str(module.gen.llvm_ir);
 }
 
 impl native_ir_live_externs(llvm_ir_text: str) -> set[str] {
@@ -234,9 +244,7 @@ impl native_unit_demotions(
         }
         _ud_all: set = set();
         import jaclang.compiler.frontend.unitree as _ud_uni;
-        import from jaclang.compiler.backends.py.module_codegen_pass {
-            ModuleCodegenPass as _UdWalk
-        }
+        import from jaclang.compiler.frontend.module_facts { ModuleFacts as _UdWalk }
         for _ud_stmt in _UdWalk.iter_context_stmts(_ud_tree) {
             if isinstance(_ud_stmt, _ud_uni.Ability) and _ud_stmt.name_ref {
                 _ud_all.add(_ud_stmt.name_ref.sym_name);
@@ -390,14 +398,18 @@ impl NativeCompilePass._run_impl(ir_in: uni.Module) -> uni.Module {
             module.gen.llvm_ir = mod;
         }
 
+        _is_kernel_unit = bool(getattr(_compile_opts, "kernel_unit", False));
+
         _needs_osp_kernel = (manifest is not None)
             and ("osp_kernel" in manifest.native_transitive_sources);
         if (not _needs_osp_kernel) and self._references_undefined_osp_kernel(mod) {
             _needs_osp_kernel = True;
         }
-        if _needs_osp_kernel {
+        _kernel_linked = False;
+        if _needs_osp_kernel and not _is_kernel_unit {
             self._link_osp_kernel(mod);
             module.gen.llvm_ir = mod;
+            _kernel_linked = True;
         }
 
         _needs_fmt_kernel = (manifest is not None)
@@ -405,10 +417,23 @@ impl NativeCompilePass._run_impl(ir_in: uni.Module) -> uni.Module {
         if (not _needs_fmt_kernel) and self._references_undefined_fmt_kernel(mod) {
             _needs_fmt_kernel = True;
         }
-        if _needs_fmt_kernel {
+        if _needs_fmt_kernel and not _is_kernel_unit {
             self._link_fmt_kernel(mod);
             module.gen.llvm_ir = mod;
+            _kernel_linked = True;
         }
+
+        _needs_region_kernel = (manifest is not None)
+            and ("region_kernel" in manifest.native_transitive_sources);
+        if (not _needs_region_kernel)
+            and self._references_undefined_region_kernel(mod) {
+            _needs_region_kernel = True;
+        }
+        if _needs_region_kernel and not _is_kernel_unit {
+            self._link_region_kernel(mod);
+            _kernel_linked = True;
+        }
+        module.gen.native_linked_ir = str(mod) if _kernel_linked else None;
 
         import os as _os;
         _opt_level = int(_compile_opts.opt_level or 0);
@@ -740,6 +765,20 @@ impl NativeCompilePass._compile_and_link_native_imports(
             }
         } except Exception {}
 
+        if _cache_hit and meta.ct_deps {
+            import from jaclang.compiler.driver.jir { ct_dep_text_fresh }
+            if not ct_dep_text_fresh(meta.ct_deps) {
+                _cache_hit = False;
+                imported_llvm_str_raw = "";
+                meta = DepClibMeta();
+                for _ct_stale in (_cache_ir_path, _cache_meta_path) {
+                    try {
+                        os.remove(_ct_stale);
+                    } except OSError {}
+                }
+            }
+        }
+
         if _cache_hit
             and link_fingerprint_mismatches(
                 [(real_path, meta.options_fingerprint)], _link_fp
@@ -930,6 +969,8 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 }
             }
             meta.options_fingerprint = _link_fp;
+            import from jaclang.compiler.driver.jir { module_ct_deps_text }
+            meta.ct_deps = module_ct_deps_text(imported_ir);
             meta.unverified_live_calls = {
                 _uv_c: sorted(_uv_n) for (_uv_c, _uv_n) in _uv_pending.items()
             };
@@ -1140,23 +1181,16 @@ impl NativeCompilePass._compile_and_link_native_imports(
     }
 }
 
-glob _OSP_KERNEL_IR_CACHE: dict[str, str] = {};
+glob _OSP_KERNEL_IR_CACHE: dict[str, str] = {},
+     _REGION_KERNEL_IR_CACHE: dict[str, str] = {};
 
-def _compile_osp_kernel_ir(
-    gc_mode: str = "cycles", enforce: bool = False
-) -> (str | None) {
-    import from jaclang.compiler.backends.kernel_units {
-        load_unit_artifact,
-        osp_core_unit_path,
-        store_unit_artifact
-    }
-    import from jaclang.compiler.driver.program { JacProgram }
+def _kernel_unit_opts(gc_mode: str, enforce: bool) -> any {
     import from jaclang.compiler.driver.compile_options {
         CompileOptions as _KernelOpts
     }
-
-    kernel_opts = _KernelOpts(
+    return _KernelOpts(
         aot_mode=True,
+        kernel_unit=True,
         default_codespace='native',
         na_gc_mode=gc_mode,
         nogc_enforce_all=enforce,
@@ -1186,17 +1220,25 @@ def _compile_osp_kernel_ir(
                 else []
         )
     );
-    cache_key = kernel_opts.codegen_fingerprint();
-    if cache_key in _OSP_KERNEL_IR_CACHE {
-        return _OSP_KERNEL_IR_CACHE[cache_key];
-    }
+}
 
-    variant = f"na_{gc_mode}_enf" if enforce else f"na_{gc_mode}";
-    unit = osp_core_unit_path(variant);
+def _compile_kernel_unit_ir(
+    unit: str, cache: dict[str, str], gc_mode: str, enforce: bool
+) -> (str | None) {
+    import from jaclang.compiler.backends.common.kernel_units {
+        load_unit_artifact,
+        store_unit_artifact
+    }
+    import from jaclang.compiler.driver.program { JacProgram }
+    kernel_opts = _kernel_unit_opts(gc_mode, enforce);
+    cache_key = f"{unit}|{kernel_opts.codegen_fingerprint()}";
+    if cache_key in cache {
+        return cache[cache_key];
+    }
     fp = native_compiler_fingerprint(kernel_opts);
     ir_str = load_unit_artifact(unit, "ll", fp);
     if ir_str is not None {
-        _OSP_KERNEL_IR_CACHE[cache_key] = ir_str;
+        cache[cache_key] = ir_str;
         return ir_str;
     }
     try {
@@ -1209,10 +1251,115 @@ def _compile_osp_kernel_ir(
         ir_str = None;
     }
     if ir_str is not None {
-        _OSP_KERNEL_IR_CACHE[cache_key] = ir_str;
+        cache[cache_key] = ir_str;
         store_unit_artifact(unit, "ll", fp, ir_str);
     }
     return ir_str;
+}
+
+def _compile_osp_kernel_ir(
+    gc_mode: str = "cycles", enforce: bool = False
+) -> (str | None) {
+    import from jaclang.compiler.backends.common.kernel_units { osp_core_unit_path }
+    variant = f"na_{gc_mode}_enf" if enforce else f"na_{gc_mode}";
+    return _compile_kernel_unit_ir(
+        osp_core_unit_path(variant), _OSP_KERNEL_IR_CACHE, gc_mode, enforce
+    );
+}
+
+def _compile_region_kernel_ir(
+    gc_mode: str = "cycles", enforce: bool = False
+) -> (str | None) {
+    import from jaclang.compiler.backends.common.kernel_units {
+        region_kernel_unit_path
+    }
+    variant = f"na_{gc_mode}_enf" if enforce else f"na_{gc_mode}";
+    return _compile_kernel_unit_ir(
+        region_kernel_unit_path(variant), _REGION_KERNEL_IR_CACHE, gc_mode, enforce
+    );
+}
+
+def _rename_kernel_glob_init(ir_str: str, suffix: str) -> str {
+    ir_str = ir_str.replace('@"__jac_glob_init"', f'@"__jac_glob_init_{suffix}"');
+    ir_str = ir_str.replace("@__jac_glob_init(", f"@__jac_glob_init_{suffix}(");
+    return ir_str.replace(
+        'name: "__jac_glob_init"', f'name: "__jac_glob_init_{suffix}"'
+    );
+}
+
+impl NativeCompilePass._module_defines(main_mod: ModuleRef, name: str) -> bool {
+    try {
+        for _fn in _mod_functions(main_mod) {
+            if _fn.name == name and not _fn.is_declaration {
+                return True;
+            }
+        }
+    } except Exception {
+        return False;
+    }
+    return False;
+}
+
+impl NativeCompilePass._references_undefined_region_kernel(
+    main_mod: ModuleRef
+) -> bool {
+    import from jaclang.compiler.backends.common.kernel_units { REGION_KERNEL_ABI }
+    try {
+        for _fn in _mod_functions(main_mod) {
+            if _fn.is_declaration and _fn.name in REGION_KERNEL_ABI {
+                return True;
+            }
+        }
+    } except Exception {
+        return False;
+    }
+    return False;
+}
+
+impl NativeCompilePass._link_region_kernel(main_mod: ModuleRef) -> None {
+    _gc = str(getattr(self.prog?.options, "na_gc_mode", "cycles") or "cycles");
+    _enf = bool(getattr(self.prog?.options, "nogc_enforce_all", False))
+        or bool(getattr(self.ir_in.gen, "nogc_enforced", False));
+    ir_str = _compile_region_kernel_ir(_gc, _enf and _gc == "none");
+    if ir_str is None {
+        self.emit(
+            E5025,
+            path=f"region kernel unit (gc={_gc})",
+            error="the kernel unit failed to compile to LLVM IR; every region "
+            "operation in this module would be an unresolved symbol at link"
+        );
+        return;
+    }
+    ir_str = _rename_kernel_glob_init(ir_str, "region_kernel");
+    try {
+        kmod = llvm.parse_assembly(ir_str);
+        kmod.verify();
+        for _gv in _mod_globals(kmod) {
+            if not _gv.is_declaration {
+                _gv.linkage = "internal";
+            }
+        }
+        main_mod.link_in(kmod);
+    } except Exception as _e {
+        self.emit(E5025, path=f"region kernel unit (gc={_gc})", error=str(_e));
+        return;
+    }
+    if self._module_defines(main_mod, "__jac_region_died_hook") {
+        return;
+    }
+    _hook_ir = (
+        "define linkonce_odr void @__jac_region_died_hook(i64 %rgn) {\n"
+        "entry:\n"
+        "  ret void\n"
+        "}\n"
+    );
+    try {
+        hmod = llvm.parse_assembly(_hook_ir);
+        hmod.verify();
+        main_mod.link_in(hmod);
+    } except Exception as _e {
+        self.emit(E5025, path="region kernel died hook", error=str(_e));
+    }
 }
 
 impl NativeCompilePass._references_undefined_osp_kernel(main_mod: ModuleRef) -> bool {
@@ -1243,11 +1390,7 @@ impl NativeCompilePass._link_osp_kernel(main_mod: ModuleRef) -> None {
         return;
     }
 
-    ir_str = ir_str.replace('@"__jac_glob_init"', '@"__jac_glob_init_osp_kernel"');
-    ir_str = ir_str.replace("@__jac_glob_init", "@__jac_glob_init_osp_kernel");
-    ir_str = ir_str.replace(
-        'name: "__jac_glob_init"', 'name: "__jac_glob_init_osp_kernel"'
-    );
+    ir_str = _rename_kernel_glob_init(ir_str, "osp_kernel");
     try {
         kmod = llvm.parse_assembly(ir_str);
         kmod.verify();
@@ -1260,7 +1403,7 @@ impl NativeCompilePass._link_osp_kernel(main_mod: ModuleRef) -> None {
 glob _FMT_KERNEL_IR_CACHE: dict = {};
 
 def _compile_fmt_kernel_ir -> (str | None) {
-    import from jaclang.compiler.backends.kernel_units {
+    import from jaclang.compiler.backends.common.kernel_units {
         fmt_kernel_unit_path,
         load_unit_artifact,
         store_unit_artifact

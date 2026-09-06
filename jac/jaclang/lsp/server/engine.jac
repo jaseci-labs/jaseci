@@ -35,8 +35,13 @@ import from . { utils }
 import from .module_manager { ModuleManager }
 import from .rwlock { ReadWriteLock }
 
+glob LSP_SHARED_APP_LIMIT: int = 4;
+
 def _uri_of(path: str) -> str;
 def _path_of(uri: str) -> str;
+def _merge_app_alerts(
+    collected: list[tuple[str, list, list]], app_count: int
+) -> tuple[list, list];
 
 obj Task {
     has file_uri: str,
@@ -60,6 +65,7 @@ obj JacLangServer(LanguageServer) {
         _work_event: threading.Event = threading.Event(),
         _idle_event: threading.Event postinit,
         _shutdown_called: bool = False,
+        _dep_edges_seeded: bool = False,
         _debounce_timer: threading.Timer | None = None;
 
     def postinit -> None;

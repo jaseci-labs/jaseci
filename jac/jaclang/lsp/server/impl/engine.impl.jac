@@ -6,6 +6,63 @@ impl _path_of(uri: str) -> str {
     return uris.to_fs_path(uri) or "";
 }
 
+impl _merge_app_alerts(
+    collected: list[tuple[str, list, list]], app_count: int
+) -> tuple[list, list] {
+    def key_of(alert: any) -> tuple {
+        code = alert.code.code if alert.code else '';
+        return (
+            alert.loc.mod_path,
+            alert.loc.first_line,
+            alert.loc.col_start,
+            code,
+            alert.msg
+        );
+    }
+
+    def merge(index: int) -> list {
+        seen_apps: dict[tuple, set[str]] = {};
+        first: dict[tuple, any] = {};
+        order: list[tuple] = [];
+        tagged: list[tuple[str, any]] = [];
+        for entry_item in collected {
+            app_name = entry_item[0];
+            for alert in entry_item[index] {
+                key = key_of(alert);
+                if key not in seen_apps {
+                    seen_apps[key] = set();
+                    first[key] = alert;
+                    order.append(key);
+                }
+                seen_apps[key].add(app_name);
+                tagged.append((app_name, alert));
+            }
+        }
+        shared = {
+            key
+            for key in order
+            if len(seen_apps[key]) >= app_count
+        };
+        out: list = [];
+        emitted: set[tuple] = set();
+        for (app_name, alert) in tagged {
+            key = key_of(alert);
+            if key in shared {
+                if key not in emitted {
+                    emitted.add(key);
+                    out.append(first[key]);
+                }
+                continue;
+            }
+            alert.msg = f"[app:{app_name}] {alert.msg}";
+            out.append(alert);
+        }
+        return out;
+    }
+
+    return (merge(1), merge(2));
+}
+
 import from jaclang.compiler.tools.unparse_pass { unparse_node }
 
 impl Task.postinit -> None {
@@ -28,7 +85,6 @@ impl JacLangServer.postinit -> None {
     self._idle_event.set();
 
     self.worker_future = flow self.dispatcher() ;
-    logging.getLogger().setLevel(logging.CRITICAL);
 }
 
 impl JacLangServer.type_check(file_uri: str) -> None {
@@ -81,6 +137,16 @@ impl JacLangServer._fanout_dependents(file_uri: str) -> None {
         return;
     }
 
+    if not self._dep_edges_seeded {
+        self._dep_edges_seeded = True;
+        try {
+            ws_root = self.workspace?.root_path;
+            if isinstance(ws_root, str) and ws_root {
+                import from jaclang.compiler.driver.ifacecache { seed_dep_edges }
+                seed_dep_edges(self.program, ws_root);
+            }
+        } except Exception {}
+    }
     self.program.invalidate_module(resolved);
     dependents = self.program.transitive_dependents(resolved);
     if not dependents {
@@ -169,17 +235,64 @@ impl JacLangServer.type_check_file(
         if cancel_token and cancel_token.is_set() {
             return False;
         }
-        build = self.program.compile(
-            file_path=main_path,
-            use_str=main_doc.source,
-            options=CompileOptions(
-                no_cgen=True, force_target_program=True, cancel_token=cancel_token
-            )
-        );
-
-        if cancel_token and cancel_token.is_set() {
-            return False;
+        import from jaclang.compiler.placement.workspace { workspace_for_path }
+        ws = workspace_for_path(main_path);
+        app = ws.app_for_path(main_path) if ws is not None else None;
+        proj_root = ws.project_root if ws is not None else None;
+        targets: list[tuple[str, str]] = [];
+        if ws is None or app is not None {
+            targets = [(app.name if app else '', app.kind if app else '')];
+        } else {
+            targets = [
+                (a.name, a.kind) for a in list(ws.apps.values())[:LSP_SHARED_APP_LIMIT]
+            ];
         }
+        multi = len(targets) > 1;
+        collected: list[tuple[str, list, list]] = [];
+        build: (uni.Module | None) = None;
+        for (app_name, app_kind) in targets {
+            build = self.program.compile(
+                file_path=main_path,
+                use_str=main_doc.source,
+                options=CompileOptions(
+                    no_cgen=True,
+                    force_target_program=True,
+                    cancel_token=cancel_token,
+                    target_app=app_name,
+                    app_kind=app_kind,
+                    project_root=proj_root
+                )
+            );
+            if cancel_token and cancel_token.is_set() {
+                return False;
+            }
+            if multi {
+                collected.append(
+                    (
+                        app_name,
+                        [
+                            e
+                            for e in self.program.errors_had
+                            if e.loc.mod_path in files_to_check
+                        ],
+                        [
+                            w
+                            for w in self.program.warnings_had
+                            if w.loc.mod_path in files_to_check
+                        ]
+                    )
+                );
+                for f in files_to_check {
+                    self._clear_alerts_for_file(f);
+                }
+            }
+        }
+        if multi {
+            (merged_errs, merged_warns) = _merge_app_alerts(collected, len(targets));
+            self.program.errors_had.extend(merged_errs);
+            self.program.warnings_had.extend(merged_warns);
+        }
+        assert build is not None;
         self.update_modules(main_path, build, files=files_to_check);
 
         all_errors = list(self.program.errors_had);

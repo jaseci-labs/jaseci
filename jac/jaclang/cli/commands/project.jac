@@ -23,14 +23,32 @@ comptime SPEC_CREATE: CommandSpec = CommandSpec(
              Arg.create(
                  "kind",
                  `default="",
-                 help="Project kind to scaffold (cli, cli-native, service, web-app, ...)",
+                 help="Project or app kind to scaffold (cli, cli-native, service, web-app, ...)",
                  short="k"
+             ),
+             Arg.create(
+                 "app",
+                 `default="",
+                 short="",
+                 help="Scaffold an app of --kind inside the current project and register [apps.<app>] in its jac.toml"
+             ),
+             Arg.create(
+                 "path",
+                 `default="",
+                 short="",
+                 help="With --app: directory for the app, relative to the project root (default: the app name)"
              ),
              Arg.create(
                  "use",
                  `default="default",
                  help="Custom template: file path or URL to a .jacpack (or a variant name)",
                  short="u"
+             ),
+             Arg.create(
+                 "awesome",
+                 typ=bool,
+                 `default=False,
+                 help="Scaffold the full jaclang.org site (landing, docs, leaderboard, socialize, wasm game) as your project"
              ),
              Arg.create(
                  "list",
@@ -61,7 +79,7 @@ comptime SPEC_CREATE: CommandSpec = CommandSpec(
                  "style",
                  typ=str,
                  `default=None,
-                 help="shadcn style preset (nova|vega|maia|lyra|mira)",
+                 help="shadcn style preset (nova|vega|maia|lyra|mira|luma|rhea|sera)",
                  short=""
              ),
              Arg.create(
@@ -124,6 +142,14 @@ comptime SPEC_CREATE: CommandSpec = CommandSpec(
                  "Scaffold a natively-compiled binary"
              ),
              ("jac create myapp --kind web-app", "Scaffold a full-stack web app"),
+             (
+                 "jac create --app mobile --kind mobile",
+                 "Add a mobile app to the current project as [apps.mobile]"
+             ),
+             (
+                 "jac create mysite --awesome",
+                 "Dump the entire jaclang.org site as your project"
+             ),
              ("jac create --force", "Reinitialize existing project"),
              ("jac create --use ./my.jacpack", "Create from local .jacpack file"),
              ("jac create --use https://example.com/t.jacpack", "Create from URL"),
@@ -138,7 +164,10 @@ def create(
     name: str = "",
     force: bool = False,
     kind: str = "",
+    app: str = "",
+    path: str = "",
     use: str = "default",
+    awesome: bool = False,
     `list: bool = False,
     pack: str = "",
     pack_output: str = "",
@@ -521,4 +550,6 @@ def clean(
 
 def jacpack(action: str = "", path: str = "", output: str = "") -> int;
 
-def bundle(output: str = "dist", target: str = "wheel", fat: bool = False) -> int;
+def bundle(
+    output: str = "dist", target: str = "wheel", fat: bool = False, app: str = ""
+) -> int;

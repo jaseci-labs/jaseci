@@ -19,6 +19,13 @@ import from '@tanstack/solid-form' { createForm }
 import from 'zod' { z }
 
 import from jaclang.client.client_runtime_core {
+    BridgeError as _BridgeError,
+    BridgeUnavailable as _BridgeUnavailable,
+    BridgeTimeout as _BridgeTimeout,
+    BridgeRejected as _BridgeRejected,
+    __bridgeErrorFor as ___bridgeErrorFor,
+    __bridgeErrorFromFetch as ___bridgeErrorFromFetch,
+    __bridgeApiBase as ___bridgeApiBase,
     navigate as _navigate,
     __createJacSchema as ___createJacSchema,
     __jacSpawn as ___jacSpawn,
@@ -58,6 +65,14 @@ import from jaclang.client.client_runtime_core {
     __jacReactErrorHandler as ___jacReactErrorHandler,
     __unwrapFormSchema as ___unwrapFormSchema
 }
+
+glob:pub BridgeError = _BridgeError,
+     BridgeUnavailable = _BridgeUnavailable,
+     BridgeTimeout = _BridgeTimeout,
+     BridgeRejected = _BridgeRejected,
+     __bridgeErrorFor = ___bridgeErrorFor,
+     __bridgeErrorFromFetch = ___bridgeErrorFromFetch,
+     __bridgeApiBase = ___bridgeApiBase;
 
 glob:pub __createJacSchema = ___createJacSchema,
      __jacSpawn = ___jacSpawn,

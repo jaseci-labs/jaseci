@@ -48,11 +48,57 @@ impl TypeEvaluator._type_from_union_annotation_arg(val: Expr) -> TypeBase {
     return self._convert_to_instance(self.get_type_of_expression(val));
 }
 
+impl TypeEvaluator._merge_catalog_field_params(
+    tab: any, param_map: dict[str, Parameter], skip_deferred: bool
+) -> None {
+    import from jaclang.compiler.frontend.constant { SymbolType }
+    import from jaclang.compiler.types.stubcat.format { SYMF_DEFER, SYMF_HAS_DEFAULT }
+    names: dict[str, Symbol] = dict(getattr(tab, "names_in_scope", {}) or {});
+    for (name, sym) in names.items() {
+        try {
+            if sym.sym_type != SymbolType.HAS_VAR {
+                continue;
+            }
+        } except Exception {
+            continue;
+        }
+        prov: any = sym.provider;
+        bits: int = int(getattr(prov, "symbits", 0) or 0);
+        if skip_deferred and (bits & SYMF_DEFER) != 0 {
+            param_map.pop(name, None);
+            continue;
+        }
+        if int(getattr(prov, "prop_kind", 0) or 0) != 0 {
+            continue;
+        }
+        param_type: (TypeBase | None) = None;
+        try {
+            param_type = self.get_type_of_symbol(sym);
+        } except Exception {
+            param_type = None;
+        }
+        param_map[name] = Parameter(
+            name=name,
+            category=ParameterCategory.Positional,
+            param_type=param_type,
+            default_value=None,
+            is_self=False,
+            param_kind=ParamKind.NORMAL,
+            has_default=(bits & SYMF_HAS_DEFAULT) != 0
+        );
+    }
+}
+
 impl TypeEvaluator._build_field_params(
     class_type: ClassType, skip_deferred: bool = True
 ) -> dict[str, Parameter] {
     param_map: dict[str, Parameter] = {};
     for cls in class_type.shared.mro[::-1] {
+        cat_tab = cls.shared.symbol_table;
+        if hasattr(cat_tab, "cat_kind") {
+            self._merge_catalog_field_params(cat_tab, param_map, skip_deferred);
+            continue;
+        }
         for has_var in cls.shared.symbol_table.get_has_vars() {
             if skip_deferred and has_var.defer {
                 param_map.pop(has_var.name.value, None);
@@ -272,6 +318,29 @@ impl TypeEvaluator._typeddict_as_dict(base_type: ClassType) -> ClassType | None 
         [str_inst, self._typeddict_value_union(base_type)]
     );
     return self._convert_to_instance(dict_type);
+}
+
+impl TypeEvaluator._scope_has_fields(tab: any) -> bool {
+    if tab is None {
+        return False;
+    }
+    if isinstance(tab, Archetype) and tab.get_has_vars() {
+        return True;
+    }
+    if not hasattr(tab, "cat_kind") {
+        return False;
+    }
+    import from jaclang.compiler.frontend.constant { SymbolType }
+    for sym in (getattr(tab, "names_in_scope", {}) or {}).values() {
+        try {
+            if sym.sym_type == SymbolType.HAS_VAR {
+                return True;
+            }
+        } except Exception {
+            continue;
+        }
+    }
+    return False;
 }
 
 impl TypeEvaluator._create_dataclass_init_method(
@@ -992,6 +1061,13 @@ impl TypeEvaluator._is_unbound_method_call(expr: FuncCall) -> bool {
                         return False;
                     }
 
+                    import from jaclang.compiler.types.stubcat.format {
+                        SYMF_INSTANCE_METHOD
+                    }
+                    prov: any = member.symbol.provider;
+                    if int(getattr(prov, "symbits", 0) or 0) & SYMF_INSTANCE_METHOD {
+                        return True;
+                    }
                     if not isinstance(node_, Ability) or not node_.is_method {
                         return False;
                     }
