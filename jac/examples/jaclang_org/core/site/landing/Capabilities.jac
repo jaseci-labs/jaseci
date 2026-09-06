@@ -137,7 +137,7 @@ def:pub Capabilities -> JsxElement {
                                         <p
                                             className="mt-8 text-center text-sm text-muted-foreground"
                                         >
-                                            Proof in the repo: a playable chess engine as a standalone binary, a raylib shooter running as in-browser wasm, and Jacyak — a full social app in{" "}
+                                            Proof in the repo: a playable chess engine as a standalone binary, a raylib shooter running as in-browser wasm, and JacYac — a full social app in{" "}
                                             <span
                                                 className="font-medium text-foreground"
                                             >

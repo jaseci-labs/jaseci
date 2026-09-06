@@ -1262,9 +1262,9 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      W2014 = _warn(
          "W2014",
          Category.SEMANTIC,
-         "Avoid 'return' with a value in an event-driven ability — "
-         "abilities are triggered by walkers and their return values are ignored. "
-         "Update node or walker fields directly instead."
+         "Return value is ignored in this event ability. "
+         "Return cleanup functions only from synchronous client 'can with entry' "
+         "blocks; otherwise update state directly."
      ),
      E2015 = _err(
          "E2015",

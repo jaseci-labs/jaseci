@@ -63,7 +63,13 @@ impl TypeCheckPass.exit_return_stmt with ReturnStmt exit {
             and here.expr
             and not isinstance(here.expr, Null)
         ) {
-            self.emit(W2014, node_override=here);
+            if not (
+                scope.in_client_context()
+                and scope.signature.event.name == Tok.KW_ENTRY
+                and not scope.is_async
+            ) {
+                self.emit(W2014, node_override=here);
+            }
             return;
         }
 
