@@ -118,7 +118,6 @@ import from jaclang.compiler.frontend.diagnostics {
     E1095,
     E1106,
     E1107,
-    E1108,
     E1109,
     E1112,
     E1113,
@@ -220,8 +219,6 @@ walker TypeCheckPass(UniPass) {
     def _check_props_bundle_is_exclusive(
         nd: Ability, comp_params: list[ParamVar]
     ) -> None;
-
-    def _check_pages_entry_renders_children(nd: Ability) -> None;
     def _check_event_trigger_archetype(nd: Ability) -> None;
     def _check_unresolved_lambda_params -> None;
 }

@@ -2,14 +2,13 @@ import re;
 import from pathlib { Path }
 import from operator { attrgetter }
 import from jaclang.client.client_bundle { ClientBundleError }
-import from jaclang.project.pages_routing { has_pages_dir, pages_dir_in }
 
 impl RouteScanner.postinit{
-    self.pages_dir = pages_dir_in(self.project_root);
+    self.pages_dir = self.project_root / self.PAGES_DIR_NAME;
 }
 
 impl RouteScanner.has_pages_dir -> bool {
-    return has_pages_dir(self.project_root);
+    return self.pages_dir.exists() and self.pages_dir.is_dir();
 }
 
 impl RouteScanner.scan -> list[RouteEntry] {
@@ -239,4 +238,20 @@ impl _route_exports_from_ast(mod: any) -> tuple[((str | None), (str | None))] {
         }
     }
     return (page_name, layout_name);
+}
+
+"""The generated `pages/` entry renders `app` with the route tree as its
+children. The codegen destructures only declared parameter names out of
+`props`, so an `app` without `children` (or a lone `props`) discards every
+route, from JavaScript no checker sees. Read off the compiled manifest so a
+warm build never re-enters the compiler for it."""
+impl entry_drops_route_children(manifest: any) -> bool {
+    if manifest is None or "app" not in manifest.exports {
+        return False;
+    }
+    names = manifest.params.get("app");
+    if names is None {
+        return False;
+    }
+    return "children" not in names and names != ["props"];
 }

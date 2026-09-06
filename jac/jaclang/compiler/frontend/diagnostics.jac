@@ -650,19 +650,6 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " runtime value (int, float, str, bool, bytes). For richer types,"
          " declare an archetype that wraps the value instead."
      ),
-     E1108 = _err(
-         "E1108",
-         Category.TYPE,
-         "Client entry '{name}' declares no 'children' parameter, so this"
-         " project's `pages/` routes are all discarded",
-         help="The generated entry renders `app` with the whole route tree as"
-         " its children, from JavaScript the checker never sees, so an `app`"
-         " without 'children' drops every route. Declare"
-         " `def:pub {name}(children: any) -> JsxElement` and render them"
-         " (`<Theme>{{children}}</Theme>`); a single `props` parameter works"
-         " too, as `props.children`.",
-         blocks_codegen=True
-     ),
      E1109 = _err(
          "E1109",
          Category.TYPE,

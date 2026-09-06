@@ -958,8 +958,6 @@ impl TypeCheckPass.exit_ability with Ability exit {
             }
         }
     }
-
-    self._check_pages_entry_renders_children(here);
 }
 
 impl TypeCheckPass._jsx_component_params(nd: Ability) -> (list[ParamVar] | None) {
@@ -1011,35 +1009,6 @@ impl TypeCheckPass._check_props_bundle_is_exclusive(
             return;
         }
     }
-}
-
-impl TypeCheckPass._check_pages_entry_renders_children(nd: Ability) -> None {
-    if nd.name_spec.sym_name != "app" or nd.method_owner is not None {
-        return;
-    }
-    comp_params = self._jsx_component_params(nd);
-    if comp_params is None {
-        return;
-    }
-    param_names = [
-        p.name.value
-        for p in comp_params
-        if isinstance(p.name, Name)
-    ];
-    if "children" in param_names {
-        return;
-    }
-
-    if param_names == ["props"] {
-        return;
-    }
-
-    import from jaclang.project.pages_routing { is_pages_routing_entry }
-    mod_path = nd.loc.mod_path if nd.loc else "";
-    if not is_pages_routing_entry(mod_path) {
-        return;
-    }
-    self.emit(E1108, node_override=nd.name_spec, name=nd.name_spec.sym_name);
 }
 
 impl TypeCheckPass._check_event_trigger_archetype(nd: Ability) -> None {

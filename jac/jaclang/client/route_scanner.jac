@@ -1,18 +1,24 @@
 import re;
 import from pathlib { Path }
-import from jaclang.project.pages_routing {
-    MODULE_ROLE_SUFFIXES as _MODULE_ROLE_SUFFIXES,
-    PAGES_DIR_NAME as _PAGES_DIR_NAME,
-    declares_route,
-    route_module_candidates
-}
 
-glob _JSX_ELEMENT_EXPORT_RE: str = (
+glob _ROUTE_ROLE_SUFFIXES: list = ['.impl.', '.test.'],
+     _JSX_ELEMENT_EXPORT_RE: str = (
          r'def(?::\w+)?\s+(\w+)\s*(?:\([^)]*\))?\s*->\s*JsxElement\b'
-     );
+     ),
+     _ROUTE_TYPE_RE: str = r'->\s*(?:JsxPage|JsxLayout)\b';
 
 def describe_pages_without_routes(pages_dir: Path) -> list[str] {
-    candidates = route_module_candidates(pages_dir);
+    candidates: list[Path] = [];
+    try {
+        for f in sorted(pages_dir.rglob('*.jac')) {
+            if any(suffix in f.name for suffix in _ROUTE_ROLE_SUFFIXES) {
+                continue;
+            }
+            candidates.append(f);
+        }
+    } except OSError {
+        return [];
+    }
     if not candidates {
         return [];
     }
@@ -28,7 +34,7 @@ def describe_pages_without_routes(pages_dir: Path) -> list[str] {
         } except OSError {
             continue;
         }
-        if declares_route(f) {
+        if re.search(_ROUTE_TYPE_RE, source) {
             continue;
         }
         for hit in re.finditer(_JSX_ELEMENT_EXPORT_RE, source) {
@@ -55,11 +61,11 @@ obj RouteEntry {
 
 obj RouteScanner {
     with entry {
-        PAGES_DIR_NAME = _PAGES_DIR_NAME;
+        PAGES_DIR_NAME = 'pages';
         INDEX_FILENAME = 'index';
         AUTH_GROUP_NAME = 'auth';
         COMPONENT_PREFIX = 'Pages';
-        MODULE_ROLE_SUFFIXES = _MODULE_ROLE_SUFFIXES;
+        MODULE_ROLE_SUFFIXES = ['.impl.', '.test.'];
     }
 
     has project_root: Path,
@@ -84,5 +90,6 @@ obj RouteScanner {
 }
 
 def resolve_route_exports(module_path: Path) -> tuple[((str | None), (str | None))];
+def entry_drops_route_children(manifest: any) -> bool;
 
 def _route_exports_from_ast(mod: any) -> tuple[((str | None), (str | None))];

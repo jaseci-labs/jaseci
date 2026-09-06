@@ -4319,44 +4319,6 @@ test "jsx_props_bag_untyped_and_typed" {
         + "\n---\n".join(e.pretty_print() for e in program.errors_had);
 }
 
-glob PAGES_ROUTING_FIXTURES = os.path.join(
-         os.path.dirname(__file__), "fixtures", "pages_routing"
-     );
-
-"""E1108 count for the `main.jac` of one `fixtures/pages_routing/` project."""
-def _pages_entry_errors(project: str) -> list {
-    path = os.path.join(PAGES_ROUTING_FIXTURES, project, "main.jac");
-    program = JacProgram();
-    program.compile(path);
-    return [
-        e
-        for e in program.errors_had
-        if e.code and e.code.code == "E1108"
-    ];
-}
-
-test "pages_project_app_must_accept_children" {
-    # The generated entry renders `app` with the route tree as its children,
-    # from JavaScript the checker never sees -- so W1053 cannot catch this.
-    e1108 = _pages_entry_errors("drops_children");
-    assert len(e1108) == 1 , f"Expected 1 E1108 for a pages/ app dropping children, got {len(
-        e1108
-    )}:\n"
-        + "\n---\n".join(e.pretty_print() for e in e1108);
-    assert "children" in e1108[0].msg , f"Expected E1108 to name 'children', got: {e1108[
-        0
-    ].msg}";
-}
-
-test "pages_project_app_declaring_children_is_accepted" {
-    # Same project shape, one declared parameter: nothing to report.
-    e1108 = _pages_entry_errors("renders_children");
-    assert len(e1108) == 0 , f"Expected no E1108 when `app` declares children, got {len(
-        e1108
-    )}:\n"
-        + "\n---\n".join(e.pretty_print() for e in e1108);
-}
-
 test "jsx_intrinsic_tag_names_do_not_emit_w1051" {
     # Regression: Name nodes under a JsxElementName are resolved against the
     # _JsxIntrinsicElements registry by the JsxElement handler, not against
