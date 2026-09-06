@@ -37,8 +37,14 @@ def _require_libc {
     }
 }
 
-"""Compile the shared fixture to LLVM IR text (the emit_wasm_from_ir input)."""
+"""The fixture's whole program for wasm: its unit merged with the runtime
+units it links and the glue that defines `jac_entry` and `__jac_glob_init`,
+the text `compile_to_wasm` hands the emitter."""
 def fixture_ir -> str {
+    import from jaclang.compiler.backends.native.link_plan {
+        build_link_plan,
+        wasm_program_ir
+    }
     prev = os.environ.get("JAC_NATIVE_TARGET", None);
     os.environ["JAC_NATIVE_TARGET"] = "wasm32-unknown-unknown";
     try {
@@ -48,7 +54,8 @@ def fixture_ir -> str {
             options=CompileOptions(aot_mode=True)
         );
         assert not prog.errors_had;
-        return str(ir.gen.llvm_ir);
+        plan = build_link_plan(prog, [ir.loc.mod_path], prog.options);
+        return wasm_program_ir(plan);
     } finally {
         if prev is None {
             os.environ.pop("JAC_NATIVE_TARGET", None);

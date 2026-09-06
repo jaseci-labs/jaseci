@@ -1,5 +1,6 @@
 glob SHARED_INIT_SYMBOL: str = "__jac_shared_init",
      ENTRY_SYMBOL: str = "jac_entry",
+     WASM_INIT_SYMBOL: str = "__jac_glob_init",
      REGION_DIED_HOOK: str = "__jac_region_died_hook",
      STR_NEW_SYMBOL: str = "__jac_str_new";
 
@@ -50,12 +51,29 @@ def entry_preamble_ir(spec: GlueSpec) -> str {
     }
     name = SHARED_INIT_SYMBOL if spec.shared else ENTRY_SYMBOL;
     body = "\n".join(calls) + "\n" if calls else "";
-    return (
+    text = (
         "".join(decls)
         + f"define void @{name}() {{\nentry:\n"
         + body
         + "  ret void\n}\n\n"
     );
+    if spec.platform == "wasm" and not spec.shared {
+        """A wasm host initializes the module before it calls exported
+        functions and may never run the entry: `__jac_glob_init` runs every
+        unit's initializer, each of which runs once whoever calls first.""";
+        init_calls = [
+            f'  call void @"{unit.init_symbol}"()'
+            for unit in spec.units
+            if unit.init_symbol
+        ];
+        init_body = "\n".join(init_calls) + "\n" if init_calls else "";
+        text += (
+            f"define void @{WASM_INIT_SYMBOL}() {{\nentry:\n"
+            + init_body
+            + "  ret void\n}\n\n"
+        );
+    }
+    return text;
 }
 
 def rc_wrapper_ir(spec: GlueSpec) -> tuple[str, list[str]] {

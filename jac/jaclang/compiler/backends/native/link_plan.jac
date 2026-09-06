@@ -766,15 +766,64 @@ def link_artifact(
     );
 }
 
+def expose_root_exports(plan: LinkPlan, merged: ModuleRef) -> list[str] {
+    """A wasm host calls the entry module's functions by the names the
+    source gives them: the root unit's module-level functions and globals
+    take their bare names in the merged module, the way `:pub` symbols
+    already do, and a name another symbol already holds stays qualified.""";
+    exposed: list[str] = [];
+    root_u = plan.root_unit();
+    mod_any: any = merged;
+    for name in sorted(root_u.iface.exports.keys()) {
+        ex = root_u.iface.exports[name];
+        if ex.is_pub or ex.kind not in ("function", "global") or "." in name {
+            continue;
+        }
+        if ex.symbol == name {
+            continue;
+        }
+        try {
+            taken = (
+                mod_any.get_function(name)
+                    if ex.kind == "function"
+                    else mod_any.get_global_variable(name)
+            );
+        } except Exception {
+            taken = None;
+        }
+        if taken is not None {
+            continue;
+        }
+        try {
+            value = (
+                mod_any.get_function(ex.symbol)
+                    if ex.kind == "function"
+                    else mod_any.get_global_variable(ex.symbol)
+            );
+        } except Exception {
+            continue;
+        }
+        value.name = name;
+        exposed.append(name);
+    }
+    return exposed;
+}
+
+def wasm_program_ir(plan: LinkPlan) -> str {
+    spec = plan.glue_spec(ArtifactKind.WASM, "wasm", False);
+    (merged, _exports) = whole_program_module(plan, spec);
+    expose_root_exports(plan, merged);
+    return str(merged);
+}
+
 def link_wasm(
     plan: LinkPlan, output_path: str, app_imports: (set | None) = None
 ) -> LinkResult {
     import from jaclang.compiler.backends.native.wasm_build { emit_wasm_from_ir }
-    spec = plan.glue_spec(ArtifactKind.WASM, "wasm", False);
-    (merged, _exports) = whole_program_module(plan, spec);
+    merged_ir = wasm_program_ir(plan);
     imports: set[str] = set(app_imports or set());
     imports.update(plan.clib_symbol_lib().keys());
-    wasm_bytes = emit_wasm_from_ir(str(merged), app_imports=imports);
+    wasm_bytes = emit_wasm_from_ir(merged_ir, app_imports=imports);
     with open(output_path, "wb") as wf {
         wf.write(wasm_bytes);
     }
