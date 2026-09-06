@@ -109,13 +109,18 @@ def _finish_parse(
 }
 
 def _native_parse_woven(
-    source_str: str, file_path: str, prog: (JacProgram | None), annexes: list
+    source_str: str,
+    file_path: str,
+    prog: (JacProgram | None),
+    annexes: list,
+    early_context: str = ""
 ) -> (tuple | None) {
     import jaclang.compiler.native_compiler as _jc;
     kernel = _jc.ensure_loaded();
     if kernel is None {
         return None;
     }
+    kernel.prepare_early(early_context if prog is not None else "");
     for (a_src, a_path) in annexes {
         kernel.annex(a_src, a_path);
     }
@@ -134,13 +139,23 @@ def _native_parse_woven(
     had_error = _finish_parse(
         module, p_errs, p_diags, comments, lex_diags, lex_errs, prog
     );
+    if prog is not None {
+        results = kernel.take_pass_results();
+        if results {
+            prog.analysis.record_early(module, results);
+        }
+    }
     return (module, had_error);
 }
 
 def parse_woven(
-    source_str: str, file_path: str, prog: (JacProgram | None), annexes: list
+    source_str: str,
+    file_path: str,
+    prog: (JacProgram | None),
+    annexes: list,
+    early_context: str = ""
 ) -> tuple {
-    nat = _native_parse_woven(source_str, file_path, prog, annexes);
+    nat = _native_parse_woven(source_str, file_path, prog, annexes, early_context);
     if nat is not None {
         return nat;
     }

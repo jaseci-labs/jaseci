@@ -136,6 +136,7 @@ import from jaclang.compiler.frontend.relations {
     CfgSucc,
     CfgTrue,
     DecidedCodespace,
+    Codespace,
     Defines,
     InScope,
     PlacedIn,
@@ -628,6 +629,8 @@ node SubTag[T](UniNode) {
 }
 
 node Module(AstDocNode, UniScopeNode) {
+    def set_code_context(context: CodeContext) -> None;
+
     has name: str,
         source: Source,
         terminals: list[Token],

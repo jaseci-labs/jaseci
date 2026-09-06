@@ -437,6 +437,13 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
                 );
                 self._mark_owned(val);
             }
+            if skip_var is None
+                and self?.jacval_type
+                and val.type == self.jacval_type
+                and not self._is_owned(val) {
+                self._emit_elem_retain(self.builder, val.type, val);
+                self._mark_owned(val);
+            }
             if (
                 skip_var is None
                 and self._opt_ptr_payload_of(val.type) is not None
