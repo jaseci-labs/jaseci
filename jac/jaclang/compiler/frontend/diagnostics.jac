@@ -1049,8 +1049,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Heap-typed {position} '{name}' has no ownership state in a nogc-enforced module ({provenance})",
          help="Inside a nogc-enforced module every heap-typed contract position"
          " (parameter, return, or `has` field) must be in the owned world: annotate"
-         " it `own`, `&`, `&mut`, or `imm`. Locals still infer ownership from a fresh"
-         " right-hand side; only contracts must be explicit.",
+         " it `own`, `&`, `&mut`, or `imm`. A local infers its state from its"
+         " right-hand side: a call, container literal, f-string, concatenation or"
+         " `own` copy is `own`; a string literal is `imm`; a field or element read"
+         " borrows its root; a conditional whose arms agree takes their state."
+         " Write the state only when the arms disagree or the value comes from"
+         " outside the owned world.",
          blocks_codegen=True
      ),
      E1402 = _err(
@@ -1103,15 +1107,14 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      E1406 = _err(
          "E1406",
          Category.SEMANTIC,
-         "'{name}' has retaining or aliasing semantics not supported in a nogc-enforced module ({provenance})",
-         help="This builtin or construct retains or aliases its heap arguments, which"
-         " the zero-RC contract cannot express yet. Containers of str elements"
-         " are supported: fresh strings (f-strings, concats, slices, call"
-         " results) move into the container and named bindings or literals are"
-         " copied in; a borrowed or field-read str must be copied explicitly"
-         " (xs.append(f\"{{p}}\")). Containers of archetypes or nested"
-         " containers stay on the ownership roadmap: use an owned-compatible"
-         " alternative, or move this code outside the enforced module.",
+         "{name} ({provenance})",
+         help="A nogc-enforced module keeps every heap value in the owned world. A"
+         " container owns its elements, so a value enters one by moving in: a"
+         " named `own` binding, a fresh call, literal, f-string or concatenation,"
+         " or an `own <expr>` copy. A borrow, an `imm` value, a place read or a"
+         " managed value cannot be stored as it is, and builtins that retain or"
+         " alias their arguments (`iter`, `globals`, `locals`) and `managed()`"
+         " under a nogc build have no owned-world form.",
          blocks_codegen=True
      ),
      W1050 = _warn("W1050", Category.TYPE, "Unknown intrinsic JSX element '<{tag}>'"),

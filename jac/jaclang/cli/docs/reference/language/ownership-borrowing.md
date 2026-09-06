@@ -240,7 +240,7 @@ def run -> int {
 }
 ```
 
-A mutating call is a write: [`E1303`](../diagnostics.md#ownership-borrow-errors) while a shared borrow of the receiver is live, [`E1309`](../diagnostics.md#ownership-borrow-errors) on an `imm` binding, and [`E1318`](../diagnostics.md#ownership-borrow-errors) when the call goes through a shared `&` borrow (take the borrow with `&mut`, or call on the owner). A `self: own` call moves the receiver exactly like passing it to an `own` parameter: the binding is dead afterwards, and under headerless codegen the method owns and drops it.
+A mutating call is a write: [`E1303`](../diagnostics.md#ownership-borrow-errors) while a shared borrow of the receiver is live, [`E1309`](../diagnostics.md#ownership-borrow-errors) on an `imm` binding, and [`E1318`](../diagnostics.md#ownership-borrow-errors) when the call goes through a shared `&` borrow (take the borrow with `&mut`, or call on the owner). The builtin container mutators (`append`, `insert`, `pop`, `remove`, `clear`, `extend`, `update`, `sort`, ...) are `&mut self` methods under the same rule, so `c.tags.append(1)` through `c: &Cfg`, or through a local that borrowed `c.tags`, is `E1318` as well. A `self: own` call moves the receiver exactly like passing it to an `own` parameter: the binding is dead afterwards, and under headerless codegen the method owns and drops it.
 
 ## Views and zero-copy: current state and direction
 
@@ -353,6 +353,39 @@ def ok -> None {
 ```
 
 The check is a must-analysis over the control-flow graph: a `lin` value consumed inside a loop body or on one arm of a branch is not consumed on the paths that skip it, so those paths report. Pair `lin` with a [`drop` hook](#the-drop-hook) when the resource must be released explicitly rather than by falling out of scope.
+
+## Local inference under enforcement
+
+Contract positions stay explicit in every module: a parameter, return type or `has` field that holds heap data is written `own`, `&`, `&mut`, `imm` or `lin`, enforced or not. What an enforced module adds is how far an unmarked local infers, so the wall a developer meets is not the locals inside a function:
+
+| Right-hand side | Inferred state |
+|---|---|
+| a call, constructor, container literal, f-string, concatenation (`a + b`, `s * n`, `fmt % x`) or `own <expr>` copy | `own` |
+| a string literal | `imm` (a literal that is later rebound, `s = ""; s = s + x`, is `own`) |
+| a field or element read of a place (`c.name`, `xs[i]`, `self.head`) | a borrow of the root: `&mut` when the root is owned or `&mut` and the local is written through, `&` otherwise |
+| `&place` / `&mut place` | that borrow |
+| another borrow | a reborrow tied to the same owner |
+| a conditional whose arms agree | the arms' state |
+
+```jac
+obj Cfg { has name: str = "svc", tags: list[int] = []; }
+
+def summarize(c: &Cfg, flag: bool) -> int {        # contract: written
+    lit = "a,b,c";                                 # imm str
+    cat = "a" + str(1);                            # own str
+    label = "y" if flag else "n";                  # imm str
+    n = c.name;                                    # &str, borrows c
+    t = c.tags;                                    # &list[int], borrows c
+    return len(lit) + len(cat) + len(label) + len(n) + len(t);
+}
+
+def rename_first(xs: &mut list[Item]) {
+    it = xs[0];                                    # &mut Item: the root is &mut and `it` is written through
+    it.name = "z";
+}
+```
+
+A conditional whose arms disagree (`s = "lit" if f else build()`) has no single state and stays [`E1401`](../diagnostics.md#zero-rc-enforcement-errors): write the binding out. An inferred borrow obeys every borrow rule, so mutating through a borrow of a shared root, or returning it as `own`, is rejected the same way an explicit `&` local would be. The inlay hints below show every inferred state.
 
 ## Seeing what was inferred
 

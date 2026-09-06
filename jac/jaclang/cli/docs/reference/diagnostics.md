@@ -339,7 +339,7 @@ Emitted by `OwnershipCheckPass` only in **nogc-enforced** native modules (`jac b
 | `E1403` | Heap value '{name}' crosses implicitly out of a nogc-enforced module ({provenance}) |
 | `E1404` | '{name}' is `any`-typed and could be heap-allocated in a nogc-enforced module ({provenance}) |
 | `E1405` | Closure capture of '{name}' escapes its scope in a nogc-enforced module ({provenance}) |
-| `E1406` | '{name}' has retaining or aliasing semantics not supported in a nogc-enforced module ({provenance}) |
+| `E1406` | {name} ({provenance}) -- the message names the value, why it cannot enter the owned world (a borrow of `x`, an `imm` value, a place read, a retaining builtin) and the destination; the help names the idiom that fits (`own p` copy, `take(place)`, iterate by value, or a fresh value) |
 | `E1407` | '{name}' raises {exc}, and the entry block does not handle it |
 
 ### Type-Only Import Bindings

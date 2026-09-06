@@ -19,7 +19,9 @@ impl OwnershipCheckPass._emit_marker_diagnostics -> None {
                 base = base.target;
             }
             root_sid = self._sym_id(base);
-            if root_sid is not None and root_sid in self.imm_decl {
+            if root_sid is not None
+                and root_sid in self.imm_decl
+                and self.imm_decl.get(root_sid) is not tgt {
                 self._emit_imm_mutation(root_sid, tgt, self.imm_decl.get(root_sid));
             }
         }

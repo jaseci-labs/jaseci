@@ -89,12 +89,12 @@ jac build --native service.jac --memory nogc
 
    | Code | Meaning | Fix |
    |------|---------|-----|
-   | E1401 | Heap-typed param/return/`has` field has no ownership state | Annotate the contract position `own`/`&`/`&mut`/`imm` (locals infer from a fresh RHS) |
+   | E1401 | Heap-typed param/return/`has` field has no ownership state, or a local whose conditional arms disagree | Annotate the contract position `own`/`&`/`&mut`/`imm`; locals infer (fresh RHS = `own`, literal = `imm`, field/element read = borrow of the root), so write a local only when its arms disagree |
    | E1402 | Owned value sealed into managed storage | Keep it owned, or cross explicitly with `managed(x)` at the boundary |
    | E1403 | Heap value crosses out of the module implicitly | Wrap the argument in `managed(x)`; scalars and `imm` cross freely |
    | E1404 | `any`-typed value could be heap | Give it a concrete type, or confine `any` to scalars |
    | E1405 | Escaping closure capture | Pass the value as an explicit parameter or keep the closure local |
-   | E1406 | Retaining/aliasing construct (`iter`/`globals`/`locals`, or `managed()` of a heap value under `--memory nogc`) | Use an owned-compatible alternative or move the code out of the enforced module |
+   | E1406 | A value that cannot enter the owned world as it is: a borrow, `imm` value or place read stored into a container, a retaining builtin (`iter`/`globals`/`locals`), or `managed()` under a nogc build | Follow the help: `xs.append(own p)` copies a str, `take(place)` moves an element out, `for p in xs` iterates by value, or build the element fresh at the store |
 
 3. **Verify**: every `nogc` build scans the emitted IR for `__rc_*` helpers, trace functions, roots-buffer globals, and run-time collector probes; a hit is a compiler bug, and success prints `nogc invariant ok`.
 

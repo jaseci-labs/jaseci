@@ -26,6 +26,20 @@ glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "fixtures", "nogc_containers"
      );
 
+"""Compile a fixture as a headerless nogc-enforced module; return its coded
+alerts in emission order."""
+def enforced_alerts(fixture: str) -> list {
+    path = os.path.join(FIXTURES, fixture);
+    prog = JacProgram();
+    opts = CompileOptions(aot_mode=True, memory_profile="nogc");
+    prog.compile(file_path=path, options=opts);
+    return [
+        a
+        for a in list(prog.errors_had)
+        if a.code is not None
+    ];
+}
+
 """Compile a fixture as a headerless nogc-enforced module; return its unique,
 sorted diagnostic codes."""
 def enforced_codes(fixture: str) -> list[str] {
@@ -53,6 +67,30 @@ test "E1406: appending a borrowed str param into a list" {
 
 test "E1406: appending an obj field read into a list" {
     assert enforced_codes("append_field_fenced.jac") == ["E1406"];
+}
+
+test "a str method on a borrowed element yields a fresh str that moves in" {
+    assert enforced_codes("append_elem_method_ok.jac") == [];
+}
+
+test "`own p` copies a borrowed str element into an owned list" {
+    assert enforced_codes("append_own_copy_ok.jac") == [];
+}
+
+test "E1406 names the borrow, its owner, the container and the fix" {
+    alerts = enforced_alerts("append_loop_borrow_fenced.jac");
+    assert [a.code.code for a in alerts] == ["E1406"];
+    assert "'p', a borrow of 'parts', cannot enter 'out', which owns its elements"
+        in alerts[0].msg;
+    assert "out.append(own p)" in (alerts[0].help_text or "");
+    assert "for p in parts" in (alerts[0].help_text or "");
+}
+
+test "E1406 on an inferred imm local names the copy idiom" {
+    alerts = enforced_alerts("append_imm_local_fenced.jac");
+    assert [a.code.code for a in alerts] == ["E1406"];
+    assert "'lit', an `imm` value, cannot enter 'xs'" in alerts[0].msg;
+    assert "xs.append(own lit)" in (alerts[0].help_text or "");
 }
 
 test "a fresh archetype index-assigned as a dict value moves into the dict" {

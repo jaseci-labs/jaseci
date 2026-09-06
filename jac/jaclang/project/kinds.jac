@@ -118,7 +118,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              ),
              KindSpec(
                  name="desktop",
-                 description="Jac desktop app (OS webview + nacompile)",
+                 description="Jac desktop app (OS webview + native build)",
                  `entry="main.jac",
                  action="serve",
                  verb="run",

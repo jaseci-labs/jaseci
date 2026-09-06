@@ -7,6 +7,7 @@ import from jaclang.compiler.frontend.unitree {
     Assignment,
     AtomTrailer,
     BinaryExpr,
+    CfgExpr,
     ConcurrentExpr,
     ConnectOp,
     CtrlStmt,
@@ -82,6 +83,8 @@ enum AccessKind {
     READ = "read"
 }
 
+glob _STR_MANGLES: frozenset[str] = frozenset(["str", "LiteralString"]);
+
 def _stdlib_attr_call_root(call: FuncCall) -> (str | None);
 
 obj BorrowMeta {
@@ -137,6 +140,17 @@ walker OwnershipCheckPass(Transform) {
     def _nogc_setup -> None;
     def _nogc_resolve_provenance -> (str | None);
     def _nogc_infer_locals -> None;
+    def _nogc_infer_state(expr: Expr | None) -> tuple[OwnershipKind, list[Name]];
+    def _nogc_bind_inferred(
+        nd: Assignment, tgt: Name, kind: OwnershipKind, roots: list[Name]
+    ) -> None;
+
+    def _nogc_type_is_str(expr: Expr | None) -> bool;
+    def _nogc_place_text(expr: Expr | None) -> str;
+    def _nogc_elem_fixit(elem: Expr | None, dest: str, verb: str) -> tuple[str, str];
+    def _name_written_through(nm: Name) -> bool;
+    def _is_builtin_mutator(ability: Ability | None) -> bool;
+    def _trailer_writes_root(top: UniNode) -> bool;
     def _nogc_str_slice_value(expr: Expr | None) -> bool;
     def _view_base_place(expr: Expr | None) -> (Name | None);
     def _view_root_owner(sym_id: SymId) -> SymId;

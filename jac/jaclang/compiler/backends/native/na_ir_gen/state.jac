@@ -207,6 +207,7 @@ obj NaIRGenState(ModuleCodegenPass) {
         _native_emit_ctx_class: (type | None) = None,
         _lowered_type_cache: dict[str, ir.Type] = {},
         _subclassed_arch_names: (set[str] | None) = None,
+        _aos_deciding: set[str] = set(),
         _self_owned: bool = False,
         di_file: object = None,
         di_cu: object = None,

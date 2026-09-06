@@ -637,6 +637,21 @@ impl NaIRGenRefcount._can_native_move_lower(nd: object) -> bool {
     return True;
 }
 
+impl NaIRGenRefcount._nogc_borrow_local_assign(nd: object) -> bool {
+    if not self._nogc_headerless() or not isinstance(nd, uni.Assignment) {
+        return False;
+    }
+    if len(nd.target) != 1 or not isinstance(nd.target[0], uni.Name) {
+        return False;
+    }
+    import from jaclang.compiler.frontend.constant { is_borrow_kind }
+    _sym = nd.target[0].sym;
+    if _sym is not None and is_borrow_kind(_sym.ownership) {
+        return True;
+    }
+    return isinstance(nd.value, uni.UnaryExpr) and is_borrow_kind(nd.value.ownership);
+}
+
 impl NaIRGenRefcount._release_owned_operands(
     left_orig: ir.Value, right_orig: ir.Value, op: str = ""
 ) -> None {

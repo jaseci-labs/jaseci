@@ -887,13 +887,7 @@ impl OwnershipCheckPass._grow_arg_moves(call: FuncCall, arg: Expr | None) -> boo
     if not _direct {
         return False;
     }
-    _m = "";
-    try {
-        _m = arg.type.mangle() if arg.type is not None else "";
-    } except Exception {
-        _m = "";
-    }
-    return _m != "str";
+    return not self._nogc_type_is_str(arg);
 }
 
 impl OwnershipCheckPass._return_move_gen(nd: UniCFGNode) -> set[SymId] {
@@ -1332,9 +1326,36 @@ impl OwnershipCheckPass._method_call_mode(call: FuncCall) -> OwnershipKind {
     }
     callee = call.callee_decl;
     if callee is None or not callee.is_method {
+        if isinstance(trailer.right, Name)
+            and trailer.right.sym_name in _MUTATING_CONTAINER_METHODS
+            and self._nogc_is_container_expr(trailer.target) {
+            return OwnershipKind.MUT_BORROW;
+        }
         return OwnershipKind.NONE;
     }
     return self._receiver_mode(callee);
+}
+
+impl OwnershipCheckPass._is_builtin_mutator(ability: Ability | None) -> bool {
+    if ability is None {
+        return False;
+    }
+    _nm = ability.name_ref;
+    _mname = _nm.sym_name if isinstance(_nm, Name) else "";
+    if _mname not in _MUTATING_CONTAINER_METHODS {
+        return False;
+    }
+    _arch = ability.find_parent_of_type(Archetype);
+    return _arch is not None
+        and _arch.name.value
+            in (
+                "list",
+                "dict",
+                "set",
+                "MutableSequence",
+                "MutableMapping",
+                "MutableSet"
+            );
 }
 
 impl OwnershipCheckPass._explicit_receiver_mode(
@@ -1396,6 +1417,47 @@ impl OwnershipCheckPass._method_writes_self(ability: Ability) -> bool {
     return False;
 }
 
+impl OwnershipCheckPass._trailer_writes_root(top: UniNode) -> bool {
+    _p = top.parent;
+    if isinstance(_p, Assignment) {
+        for _t in _p.target {
+            if _t is top {
+                return True;
+            }
+        }
+        return False;
+    }
+    if isinstance(_p, UnaryExpr) and is_mut_kind(_p.ownership) and _p.operand is top {
+        return True;
+    }
+    if isinstance(_p, FuncCall) and _p.target is top and isinstance(top, AtomTrailer) {
+        if isinstance(top.right, Name)
+            and top.right.sym_name in _MUTATING_CONTAINER_METHODS {
+            return True;
+        }
+        return self._receiver_mode(self._callee_ability(_p))
+            == OwnershipKind.MUT_BORROW;
+    }
+    return False;
+}
+
+impl OwnershipCheckPass._name_written_through(nm: Name) -> bool {
+    _sid = self._name_sym_id(nm);
+    for _u in self.name_uses_by_sym.get(_sid, []) {
+        if _u is nm {
+            continue;
+        }
+        _top: UniNode = _u;
+        while isinstance(_top.parent, AtomTrailer) and _top.parent.target is _top {
+            _top = _top.parent;
+        }
+        if self._trailer_writes_root(_top) {
+            return True;
+        }
+    }
+    return False;
+}
+
 impl OwnershipCheckPass._self_method_callees(ability: Ability) -> list[Ability] {
     out: list[Ability] = [];
     for call in ability.get_all_sub_nodes(FuncCall) {
@@ -1430,8 +1492,12 @@ impl OwnershipCheckPass._receiver_mode(ability: Ability | None) -> OwnershipKind
         return explicit;
     }
     if ability.find_parent_of_type(Module) is not self.ir_in {
-        stamped = ability.receiver_mode;
-        mode = stamped if stamped != OwnershipKind.NONE else OwnershipKind.BORROW;
+        mode = ability.receiver_mode;
+        if mode == OwnershipKind.NONE {
+            mode = OwnershipKind.MUT_BORROW
+                if self._is_builtin_mutator(ability)
+                else OwnershipKind.BORROW;
+        }
         self.receiver_modes[key] = mode;
         return mode;
     }
@@ -1583,16 +1649,10 @@ impl OwnershipCheckPass._owned_sym_of(nd: UniNode | None) -> (SymId | None) {
 }
 
 impl OwnershipCheckPass._owned_sym_of_expr(nd: Expr | None) -> (SymId | None) {
-    if isinstance(nd, AtomTrailer) and isinstance(nd.right, IndexSlice) {
-        _m = "";
-        try {
-            _m = nd.type.mangle() if nd.type is not None else "";
-        } except Exception {
-            _m = "";
-        }
-        if _m == "str" {
-            return None;
-        }
+    if isinstance(nd, AtomTrailer)
+        and isinstance(nd.right, IndexSlice)
+        and self._nogc_type_is_str(nd) {
+        return None;
     }
     cur = nd;
     while isinstance(cur, AtomTrailer) {

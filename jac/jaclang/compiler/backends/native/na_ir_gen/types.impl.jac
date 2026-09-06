@@ -935,13 +935,45 @@ impl NaIRGenTypes._aos_elem_name(t: any) -> (str | None) {
     if self._program_has_subclasses(_tn) {
         return None;
     }
-    _fields = self.struct_field_types.get(_tn) or {};
+    _fields = self.struct_field_types.get(_tn);
+    if _fields is None {
+        _fields = self._decl_field_llvm_types(_tn);
+    }
+    if _fields is None {
+        return None;
+    }
     for (_fname, _fty) in _fields.items() {
         if isinstance(_fty, ir.PointerType) or self._opt_payload_of(_fty) is not None {
             return None;
         }
     }
     return _tn;
+}
+
+impl NaIRGenTypes._decl_field_llvm_types(
+    arch_name: str
+) -> (dict[str, ir.Type] | None) {
+    if arch_name in self._aos_deciding {
+        return None;
+    }
+    _lay = self._arch_layout(arch_name);
+    if _lay is None {
+        return None;
+    }
+    self._aos_deciding.add(arch_name);
+    out: dict[str, ir.Type] = {};
+    try {
+        for _f in _lay.fields {
+            _var = _f.decl_node;
+            if _var is None or getattr(_var, "type", None) is None {
+                return None;
+            }
+            out[_f.name] = self._resolve_field_type(_var);
+        }
+    } finally {
+        self._aos_deciding.discard(arch_name);
+    }
+    return out;
 }
 
 impl NaIRGenTypes._program_has_subclasses(arch_name: str) -> bool {

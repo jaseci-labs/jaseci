@@ -161,3 +161,20 @@ test "raise propagates through the hidden error slot with static drops and final
     assert out.splitlines()
         == ["drop 1", "81", "drop 1", "8080", "caught", "finally", "done"] , out;
 }
+
+test "inferred local states never change behavior" {
+    out = assert_native_identity(_fixture("local_inference.jac"));
+    assert out.splitlines()
+        == [
+            "a,b,c a1 yes svc 2",
+            "15",
+            "drop cfg",
+            "a!",
+            "b",
+            "x,X,y,Y",
+            "4",
+            "012",
+            "drop item 1",
+            "drop item 2"
+        ];
+}

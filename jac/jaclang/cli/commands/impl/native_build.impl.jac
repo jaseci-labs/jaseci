@@ -409,7 +409,7 @@ impl native_build(
     }
 
     manifest = ir_module.gen.interop_manifest;
-    if manifest and manifest.native_imports {
+    if not lib and manifest and manifest.native_imports {
         console.error(
             "Cannot compile to standalone binary: "
             "file has Python/server dependencies (native_imports)."
@@ -425,7 +425,7 @@ impl native_build(
         native_demoted_ir_symbols as _demoted_syms
     }
     _demoted = _demoted_syms(llvm_ir_str);
-    if _demoted {
+    if _demoted and not lib {
         console.error(
             f"{len(
                 _demoted

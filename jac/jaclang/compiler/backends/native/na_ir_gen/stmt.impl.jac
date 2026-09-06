@@ -2364,10 +2364,13 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                 } elif _is_raw_int_ptr {
                     self.param_vars.add(var_name);
                 } else {
-                    if self._nogc_headerless()
+                    if (
+                        self._nogc_headerless()
                         and isinstance(nd.value, uni.Name)
                         and nd.value.sym is not None
-                        and nd.value.sym.storage == uni.SymbolStorage.MODULE_GLOBAL {
+                        and nd.value.sym.storage == uni.SymbolStorage.MODULE_GLOBAL
+                    )
+                        or self._nogc_borrow_local_assign(nd) {
                         self.nogc_no_free_vars.add(var_name);
                     }
                     if not self._is_owned(value)
@@ -2875,10 +2878,13 @@ impl NaIRGenStmt._codegen_assignment(nd: uni.Assignment) -> None {
                         and nd.target[0].sym is not None
                         and nd.target[0].sym.ownership == OwnershipKind.OWN
                     );
-                    if self._nogc_headerless()
+                    if (
+                        self._nogc_headerless()
                         and isinstance(nd.value, uni.Name)
                         and nd.value.sym is not None
-                        and nd.value.sym.storage == uni.SymbolStorage.MODULE_GLOBAL {
+                        and nd.value.sym.storage == uni.SymbolStorage.MODULE_GLOBAL
+                    )
+                        or self._nogc_borrow_local_assign(nd) {
                         self.nogc_no_free_vars.add(var_name);
                     }
                     _moved_here = False;

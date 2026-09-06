@@ -115,6 +115,7 @@ obj NaIRGenRefcount(NaIRGenState) {
     def _is_owned(val: ir.Value) -> bool;
     def _opt_result_owned(val: ir.Value, expr: object) -> bool;
     def _can_native_move_lower(nd: object) -> bool;
+    def _nogc_borrow_local_assign(nd: object) -> bool;
     def _release_owned_operands(
         left_orig: ir.Value, right_orig: ir.Value, op: str = ""
     ) -> None;

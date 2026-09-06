@@ -51,7 +51,7 @@ glob BENCH = Path(str(__file__)).resolve().parent.parent,
 
      };
 
-"""nacompile flags for a memory mode."""
+"""Native build flags for a memory mode."""
 def mode_flags(mode: str) -> list[str] {
     if mode == "none" {
         return ["--memory", "nogc"];
