@@ -564,13 +564,10 @@ impl NaIRGenCore._register_imported_struct_types -> None {
         else os.getcwd();
 
     _native_ids: set = {
-        id(_s)
-        for _s in ModuleFacts.iter_context_stmts(self.ir_in, CodeContext.NATIVE)
+        id(_s) for _s in ModuleFacts.iter_context_stmts(self.ir_in, CodeContext.NATIVE)
     };
     _has_native_code: bool = len(_native_ids) > 0;
-    _nested_native = ModuleFacts.iter_nested_imports(
-        self.ir_in, CodeContext.NATIVE
-    );
+    _nested_native = ModuleFacts.iter_nested_imports(self.ir_in, CodeContext.NATIVE);
     for _nested_imp in _nested_native {
         _native_ids.add(id(_nested_imp));
     }

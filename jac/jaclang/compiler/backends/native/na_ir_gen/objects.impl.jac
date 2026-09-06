@@ -19,9 +19,7 @@ impl NaIRGenObjects._native_archetypes(module: uni.Module) -> list[uni.Archetype
         }
     }
 
-    for arch in ModuleFacts.shared_archetypes_for_context(
-        module, CodeContext.NATIVE
-    ) {
+    for arch in ModuleFacts.shared_archetypes_for_context(module, CodeContext.NATIVE) {
         aname = arch.name.value if arch.name else "unknown";
         if aname not in result {
             result[aname] = arch;

@@ -145,6 +145,7 @@ import from jaclang.compiler.backends.py.jcir_facts {
     jcir_is_test_path
 }
 import from jaclang.compiler.backends.common.ast_gen_base { BaseAstGenPass }
+import from jaclang.compiler.frontend.module_facts { ModuleFacts }
 import from jaclang.compiler.frontend.diagnostics {
     E5001,
     E5002,
@@ -367,7 +368,10 @@ walker JcirGenPass(BaseAstGenPass[CgItem]) {
         cls_name: str, keys: list[str], vals: list, l1: int, c1: int, l2: int, c2: int
     ) -> CgNode;
 
-    def _flatten_ast_list(items: list[CgItem | list[CgItem] | None]) -> list[CgItem];
+    def call_node(
+        func: CgNode, args: list, keywords: list, jac_node: (UniNode | None) = None
+    ) -> CgNode;
+
     def outs(nd: UniNode) -> list[CgItem];
     def set_out(nd: UniNode, items: list[CgItem]) -> None;
     def _apply_coercion(nd: Expr) -> None;
@@ -402,6 +406,7 @@ walker JcirGenPass(BaseAstGenPass[CgItem]) {
     def _class_ref(module: str, name: str, jac_node: UniNode) -> CgNode;
     def _materialize(v: any, jac_node: UniNode) -> (CgNode | None);
     def _comptime_if_out(nd: IfStmt) -> bool;
+    def _if_out(nd: IfStmt) -> None;
     def name_load(name_id: str, jac_node: (UniNode | None) = None) -> CgNode;
     def _with_ctx(cgn: CgNode, ctx_cls: str) -> CgNode;
     def jaclib_obj(obj_name: str) -> CgNode;
@@ -431,6 +436,10 @@ walker JcirGenPass(BaseAstGenPass[CgItem]) {
     def _sv_consumer_app_expr -> str;
     def _sv_endpoint_effects(binding: InteropBinding, key: str) -> list[str];
     def _sv_bridge_walker_call(expr: Expr) -> (FuncCall | None);
+    def _sv_wire_args_dict(
+        names: list[str], types: list[str], boundary_types: dict
+    ) -> str;
+
     def _gen_py_sv_func_stub(
         local_name: str,
         func_name: str,

@@ -1739,9 +1739,7 @@ impl JacCompiler._compile_pipeline(
         and not had_blocking_errors
         and actual_program.analysis.analyses_run.provides(mod_targ, 'TypeOf')
     ) {
-        import from jaclang.compiler.frontend.module_facts {
-            ModuleFacts as _PtyMcp
-        }
+        import from jaclang.compiler.frontend.module_facts { ModuleFacts as _PtyMcp }
         if is_native_mod or _PtyMcp.has_native_context_stmts(mod_targ) {
             _parity_passes: list = [];
             try {
@@ -1860,11 +1858,8 @@ impl JacCompiler._compile_pipeline(
     ) {
         actual_program.options = options;
 
-        import from jaclang.compiler.frontend.module_facts {
-            ModuleFacts
-        }
-        needs_native = is_native_mod
-            or ModuleFacts.has_native_context_stmts(mod_targ);
+        import from jaclang.compiler.frontend.module_facts { ModuleFacts }
+        needs_native = is_native_mod or ModuleFacts.has_native_context_stmts(mod_targ);
 
         if needs_native
             and not actual_program.analysis.analyses_run.provides(mod_targ, 'TypeOf') {

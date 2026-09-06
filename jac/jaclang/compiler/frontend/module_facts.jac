@@ -21,6 +21,7 @@ import from jaclang.compiler.frontend.constant {
     NATIVE_ERASED_TYPE_MARKERS,
     TYPE_PARAM_CONSTRUCTORS
 }
+
 obj ModuleFacts {
     static def unwrap_body(nd: Archetype | Enum | Ability) -> (Sequence | None) {
         body = nd.body;

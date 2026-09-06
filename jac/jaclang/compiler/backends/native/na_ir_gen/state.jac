@@ -4,9 +4,8 @@ import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.passes.transform { Transform }
 
 obj NaIRGenState(Transform) {
-    has ir_in: Module;
-
-    has _llvm_module: (ir.Module | None) = None,
+    has ir_in: Module,
+        _llvm_module: (ir.Module | None) = None,
         _type_map: (dict[str, ir.Type] | None) = None,
         _complex_struct_type: (ir.Type | None) = None,
         _range_struct_type: (ir.Type | None) = None,
@@ -239,7 +238,6 @@ obj NaIRGenState(Transform) {
         _closure_uid: int = 0,
         _opt_struct_types: dict[str, ir.Type] = {},
         _loop_rebind_memo: dict[tuple, bool] = {};
-
     has builder: ir.IRBuilder { getter; }
     has llvm_module: ir.Module { getter; }
     has type_map: dict[str, ir.Type] { getter; }

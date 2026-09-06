@@ -244,9 +244,7 @@ impl native_unit_demotions(
         }
         _ud_all: set = set();
         import jaclang.compiler.frontend.unitree as _ud_uni;
-        import from jaclang.compiler.frontend.module_facts {
-            ModuleFacts as _UdWalk
-        }
+        import from jaclang.compiler.frontend.module_facts { ModuleFacts as _UdWalk }
         for _ud_stmt in _UdWalk.iter_context_stmts(_ud_tree) {
             if isinstance(_ud_stmt, _ud_uni.Ability) and _ud_stmt.name_ref {
                 _ud_all.add(_ud_stmt.name_ref.sym_name);
@@ -1272,7 +1270,9 @@ def _compile_osp_kernel_ir(
 def _compile_region_kernel_ir(
     gc_mode: str = "cycles", enforce: bool = False
 ) -> (str | None) {
-    import from jaclang.compiler.backends.common.kernel_units { region_kernel_unit_path }
+    import from jaclang.compiler.backends.common.kernel_units {
+        region_kernel_unit_path
+    }
     variant = f"na_{gc_mode}_enf" if enforce else f"na_{gc_mode}";
     return _compile_kernel_unit_ir(
         region_kernel_unit_path(variant), _REGION_KERNEL_IR_CACHE, gc_mode, enforce

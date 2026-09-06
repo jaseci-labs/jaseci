@@ -505,9 +505,7 @@ impl EsastGenPass.enter_walk with uni.UniNode entry {
 impl EsastGenPass.before_pass -> None {
     import from jaclang.compiler.frontend.codeinfo { ClientManifest }
 
-    import from jaclang.compiler.frontend.module_facts {
-        client_capability_violations
-    }
+    import from jaclang.compiler.frontend.module_facts { client_capability_violations }
     import from jaclang.compiler.frontend.diagnostics { E5096 }
     if not self.ir_in.client_viols_reported {
         for (_vnode, _vkind) in client_capability_violations(self.ir_in) {
