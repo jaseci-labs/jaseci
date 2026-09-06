@@ -1665,19 +1665,6 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
     ) {
         value = self._instantiate_generic_for_target(nd.value.value, nd.type_tag.tag);
     }
-    if value is None
-        and nd.type_tag is not None
-        and isinstance(nd.value, uni.ListVal)
-        and not (nd.value.values or []) {
-        _aos_t = self._aos_elem_of(nd.type_tag);
-        if _aos_t is not None {
-            self._emit_aos_list_helpers(_aos_t);
-            value = self.builder.call(
-                self.list_helpers[f"aos.{_aos_t}"]["new"], [], name="aos.new"
-            );
-            self._mark_owned(value);
-        }
-    }
     if value is None {
         value = self._codegen_expr(nd.value) if nd.value else None;
     }

@@ -2098,7 +2098,9 @@ walker NaIRGenPass(Transform) {
         obj_val: ir.Value, field_name: str, type_name: str
     ) -> ir.Value;
 
-    def _codegen_place_ptr(expr: uni.Expr) -> (ir.Value | None);
+    def _codegen_place_ptr(
+        expr: uni.Expr, allow_inline: bool = False
+    ) -> (ir.Value | None);
     def _nogc_owned_world -> bool;
     def _nogc_opt_slots_owned -> bool;
     def _nogc_drop_op_active(op: str) -> bool;

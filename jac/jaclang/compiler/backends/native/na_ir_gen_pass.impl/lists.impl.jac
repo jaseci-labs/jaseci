@@ -271,6 +271,18 @@ impl NaIRGenPass._empty_list_dest_spec(nd: uni.ListVal) -> (str | None) {
 impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
     self._pending_list_elem_struct = None;
     if not nd.values {
+        destination = nd.parent;
+        tag = destination.type_tag
+            if isinstance(destination, (uni.Assignment, uni.HasVar))
+                and destination.value is nd
+            else None;
+        aos_type = self._aos_elem_of(tag or nd);
+        if aos_type is not None {
+            self._emit_aos_list_helpers(aos_type);
+            return self.builder.call(
+                self.list_helpers[f"aos.{aos_type}"]["new"], [], name="aos.new"
+            );
+        }
         elem_type_name = "";
         _decl_par = nd.parent;
         _bare_list_decl = False;

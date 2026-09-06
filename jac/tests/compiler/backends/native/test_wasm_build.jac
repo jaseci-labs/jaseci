@@ -186,7 +186,7 @@ console.log(`out=${JSON.stringify(out)} compute=${c}`);
     last = proc.stdout.strip().splitlines()[-1];
     # float repr, alloc-churning concat, and str.lower all format in-module and
     # arrive through jac_host1.write — the exact #7048 breakage surface.
-    assert last == 'out="3.14\\n11\\nup\\n" compute=21' , f"unexpected: {last}";
+    assert last == 'out="3.14\\n11\\nup\\nfinished\\n7\\n" compute=21' , f"unexpected: {last}";
 }
 
 # ─── stale-floor detection ───────────────────────────────────────────────────

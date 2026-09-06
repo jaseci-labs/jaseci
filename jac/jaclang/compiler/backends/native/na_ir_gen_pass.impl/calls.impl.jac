@@ -3572,7 +3572,7 @@ impl NaIRGenPass._emit_swap(nd: uni.FuncCall) -> (ir.Value | None) {
     _slots: list = [];
     for _p in params_l {
         _place = _p.operand if isinstance(_p, uni.UnaryExpr) else _p;
-        _slot = self._codegen_place_ptr(_place);
+        _slot = self._codegen_place_ptr(_place, allow_inline=True);
         if _slot is None {
             self.emit(
                 E5092,

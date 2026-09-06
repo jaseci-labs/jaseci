@@ -569,7 +569,10 @@ impl NaIRGenPass._codegen_try_unwind(
 }
 
 impl NaIRGenPass._slot_lowering_active -> bool {
-    return bool(getattr(self.ir_in.gen, "nogc_enforced", False))
+    return (
+        bool(getattr(self.ir_in.gen, "nogc_enforced", False))
+        or "wasm" in str(self.llvm_module.triple)
+    )
         and self._gen_ctx is None;
 }
 

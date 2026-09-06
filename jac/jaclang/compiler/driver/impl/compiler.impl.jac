@@ -871,7 +871,8 @@ impl JacCompiler.stamp_native_import_facts(
     import os;
     for imp in mod.get_all_sub_nodes(uni.Import) {
         target = native_only_import_target(imp, target_program);
-        imp.native_only_drop = target is not None
+        imp.native_only_drop = mod.decided_codespace == 'native'
+            and target is not None
             and (os.sep + 'jaclang' + os.sep) not in os.path.abspath(target);
     }
 }

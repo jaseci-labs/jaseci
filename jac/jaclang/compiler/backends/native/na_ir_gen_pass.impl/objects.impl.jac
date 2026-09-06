@@ -447,6 +447,9 @@ impl NaIRGenPass._visit_nonprimary_ancestor_methods(
 
 impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
     arch_name = (nd).name.value if (nd).name else "unknown";
+    if arch_name in self.struct_field_types {
+        return;
+    }
     struct_type = self.struct_types.get(arch_name);
     if struct_type is None {
         return;
@@ -533,6 +536,16 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
                     and isinstance(ftype, ir.PointerType) {
                     _fpn = getattr(ftype.pointee, "name", "") or "";
                     _fstruct = self.struct_types.get(_fpn);
+                    # Finalize acyclic owned dependencies before deciding their
+                    # layout. Imports can visit the same declarations in a
+                    # different order, but must agree on inline field storage.
+                    if _fstruct is not None
+                        and _fstruct.is_opaque
+                        and _fpn != arch_name
+                        and self._arch_is_acyclic(_fpn)
+                        and _fpn in self.arch_ast_map {
+                        self._codegen_archetype(self.arch_ast_map[_fpn]);
+                    }
                     if _fstruct is not None
                         and _fpn != arch_name
                         and _fstruct?.elements is not None
@@ -3694,7 +3707,9 @@ impl NaIRGenPass._field_slot_ptr(
     return field_ptr;
 }
 
-impl NaIRGenPass._codegen_place_ptr(expr: uni.Expr) -> (ir.Value | None) {
+impl NaIRGenPass._codegen_place_ptr(
+    expr: uni.Expr, allow_inline: bool = False
+) -> (ir.Value | None) {
     if isinstance(expr, uni.Name) {
         return self.local_vars.get(expr.sym_name);
     }
@@ -3721,7 +3736,8 @@ impl NaIRGenPass._codegen_place_ptr(expr: uni.Expr) -> (ir.Value | None) {
     if field_indices is None or field_name not in field_indices {
         return None;
     }
-    if field_name in self.struct_field_inline.get(type_name, set()) {
+    if not allow_inline
+        and field_name in self.struct_field_inline.get(type_name, set()) {
         return None;
     }
     if self._accessor_slot_of(type_name, field_name, "property") is not None {
