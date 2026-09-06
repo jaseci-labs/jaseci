@@ -429,7 +429,7 @@ obj NativeUnitRegistry {
     }
 
     def compile_unit_detached(
-        path: str, options: (CompileOptions | None) = None
+        path: str, options: (CompileOptions | None) = None, use_str: (str | None) = None
     ) -> (NativeUnitEntry | None) {
         import json;
         import subprocess;
@@ -437,11 +437,13 @@ obj NativeUnitRegistry {
         resolved = os.path.realpath(path);
         base = options if options is not None else self._options();
         depth = int(os.environ.get(UNIT_CHILD_DEPTH_ENV, "0") or "0");
-        if depth >= UNIT_CHILD_MAX_DEPTH or not unit_isolation_wanted() {
+        if use_str is not None
+            or depth >= UNIT_CHILD_MAX_DEPTH
+            or not unit_isolation_wanted() {
             """A program's few units compile in this process; a child per
             unit is for the plans that compile the compiler itself, where
             what each compile leaves behind adds up across dozens of units.""";
-            return self.compile_unit(resolved, base);
+            return self.compile_unit(resolved, base, use_str);
         }
         child_env = child_compiler_env({UNIT_CHILD_DEPTH_ENV: str(depth + 1)});
         env = json.dumps(base.clone_for_native_import().native_import_env());
@@ -557,7 +559,7 @@ obj NativeUnitRegistry {
     }
 
     def compile_unit(
-        path: str, options: (CompileOptions | None) = None
+        path: str, options: (CompileOptions | None) = None, use_str: (str | None) = None
     ) -> (NativeUnitEntry | None) {
         resolved = os.path.realpath(path);
         if resolved in self.building or resolved in _UNITS_IN_FLIGHT {
@@ -573,13 +575,12 @@ obj NativeUnitRegistry {
             unit_prog = JacProgram();
             try {
                 mod = unit_prog.compile(
-                    resolved, options=base.clone_for_native_import()
+                    resolved, use_str=use_str, options=base.clone_for_native_import()
                 );
             } finally {
                 if unit_prog.errors_had {
-                    self.failures[resolved] = "; ".join(
-                        e.pretty_print().split("\n")[0]
-                        for e in unit_prog.errors_had[:5]
+                    self.failures[resolved] = "\n".join(
+                        e.pretty_print() for e in unit_prog.errors_had[:5]
                     );
                 }
             }
@@ -616,6 +617,9 @@ obj NativeUnitRegistry {
         }
         self.not_native.pop(resolved, None);
         gen = mod.gen;
+        if use_str is not None {
+            unit_prog.native_units().record_module(mod, base);
+        }
         ent = self._register(resolved, iface, self.stamp_for(base), "compile");
         ent.compile_deps = ct_deps_section(mod.ct_file_deps, mod.ct_body_deps);
         ent.dep_digests = dict(

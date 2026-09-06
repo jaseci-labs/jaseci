@@ -104,6 +104,8 @@ callers, and the plan knows nothing about any of them.
    dependencies, refresh edges after lowering, and recompute reachability when
    the graph changes. Repeated disagreement states produce an explicit
    convergence error rather than an arbitrary six-round cutoff.
+   Fileless modules retry from their in-memory source through the same compile
+   API, and record the interfaces they consumed even without a disk cache entry.
 5. Order initializers topologically and synthesize the glue object.
 6. Collect floor archives, clib paths and needed libraries from the unit
    interfaces.

@@ -229,7 +229,9 @@ test "guardrail: field access on an untyped (any) node-ref element demotes the a
         prog
     )}";
     layout = ir.gen.native_layout;
-    assert layout is not None , "whole-module native compile aborted";
+    assert layout is not None , f"whole-module native compile aborted: {fmt_errors(
+        prog
+    )}\n{log}";
     assert "W.go" not in layout.methods , (
         "the violating ability must be demoted out of the native layout"
     );

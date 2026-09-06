@@ -425,3 +425,34 @@ test "the glue defines atexit wherever glibc would leave it unresolved" {
     jit = plan.glue_spec(ArtifactKind.JIT, "jit", False);
     assert not jit.needs_atexit_shim;
 }
+
+test "a source string can settle after its dependency interface changes" {
+    if not _can_link_host() {
+        return;
+    }
+    with tempfile.TemporaryDirectory(prefix="jac-plan-source-") as tmp {
+        dep = Path(tmp) / "dep.jac";
+        dep.write_text("def answer -> int { return 7; }\n");
+        path = str((Path(tmp) / "inline.jac").resolve());
+        prog = JacProgram();
+        opts = _opts();
+        module = prog.compile(
+            file_path=path,
+            use_str="import from dep { answer }\nwith entry { print(answer()); }\n",
+            options=opts
+        );
+        assert not prog.errors_had , [e.pretty_print() for e in prog.errors_had];
+        registry = prog.native_units();
+        ent = registry.record_module(module, opts);
+        assert ent is not None;
+        ent.dep_digests[str(dep.resolve())] = "";
+        plan = build_link_plan(prog, [path], opts);
+        assert not os.path.exists(path);
+        assert path in registry.compiled_paths;
+        output = str(Path(tmp) / "inline-bin");
+        link_artifact(plan, output, ArtifactKind.EXECUTABLE);
+        result = subprocess.run([output], capture_output=True, text=True);
+        assert result.returncode == 0 , result.stderr;
+        assert result.stdout.strip() == "7";
+    }
+}

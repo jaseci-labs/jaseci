@@ -185,6 +185,10 @@ impl nacompile(
         plan = build_link_plan(
             prog, [os.path.abspath(filename)], options, mode=link_mode
         );
+    } except LinkPlanError as e {
+        console.print(str(e));
+        _restore_env(debug, _prev_native_debug, triple, _prev_target);
+        return 1;
     } except Exception as e {
         console.error(f"Jac compilation failed: {e}");
         import traceback;

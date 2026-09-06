@@ -322,6 +322,7 @@ def build_link_plan(
     real_roots = [os.path.realpath(r) for r in roots];
     units: dict[str, LinkUnit] = {};
     edges: dict[str, list[str]] = {};
+    virtual_sources: dict[str, str] = {};
 
     def walk_unit(path: str, stack: list[str]) -> None {
         if path in units {
@@ -439,7 +440,15 @@ def build_link_plan(
             if not stale {
                 continue;
             }
+            source_text = virtual_sources.get(u.path);
             if not os.path.isfile(u.path) {
+                source_module = prog.find_module(u.path);
+                if source_module is not None {
+                    source_text = source_module.source.code;
+                    virtual_sources[u.path] = source_text;
+                }
+            }
+            if not os.path.isfile(u.path) and source_text is None {
                 raise LinkPlanError(
                     f"{u.path} was compiled from a string and cannot be lowered "
                     f"again to settle its dependencies: {', '.join(stale)}"
@@ -452,7 +461,11 @@ def build_link_plan(
             }
             registry.forget(u.path);
             prog.invalidate_module(u.path);
-            ent = registry.compile_unit_detached(u.path, opts);
+            ent = (
+                registry.compile_unit_detached(u.path, opts, use_str=source_text)
+                    if source_text is not None
+                    else registry.compile_unit_detached(u.path, opts)
+            );
             if ent is None {
                 raise LinkPlanError(
                     f"{u.path} failed to lower against its dependencies "
