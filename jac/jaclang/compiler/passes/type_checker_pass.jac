@@ -62,7 +62,7 @@ import from jaclang.compiler.frontend.unitree {
     YieldExpr
 }
 import from jaclang.compiler.passes.uni_pass { UniPass }
-import from jaclang.compiler.jsx_component { is_jsx_runtime_helper, return_type_is_jsx }
+import from jaclang.compiler.symbol_utils { is_jsx_runtime_helper, return_type_is_jsx }
 import from jaclang.compiler.frontend.constant { Tokens as Tok }
 import from jaclang.compiler.frontend.diagnostics { E0033, E0108, E0109 }
 import from jaclang.compiler.types.ct_value { CT_DEFERRED, CtValue }

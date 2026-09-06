@@ -1,4 +1,4 @@
-import from jaclang.compiler.jsx_component { return_type_is_jsx }
+import from jaclang.compiler.symbol_utils { return_type_is_jsx }
 
 impl EsastGenPass._ability_is_generator(nd: uni.Ability) -> bool {
     for y in nd.get_all_sub_nodes(uni.YieldExpr) {

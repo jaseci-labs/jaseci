@@ -925,7 +925,7 @@ test "union JsxElement return type still triggers props-destructure lowering" {
     assert error_banner.params[0].name == "props";
 
     # `JsxPage` and `JsxLayout` returns are components too, lowered through the
-    # same props protocol (`jaclang.compiler.jsx_component` is the one predicate
+    # same props protocol (`return_type_is_jsx` in `symbol_utils` is the one predicate
     # the checker and the emitter share).
     for name in ["PageComp", "LayoutComp"] {
         assert len(funcs[name].params) == 1 , f"{name} should take one props parameter";

@@ -1,5 +1,5 @@
 import from jaclang.compiler.tools.unparse_pass { unparse_node }
-import from jaclang.compiler.jsx_component { is_jsx_runtime_helper, return_type_is_jsx }
+import from jaclang.compiler.symbol_utils { is_jsx_runtime_helper, return_type_is_jsx }
 
 impl EsastGenPass._resolve_source_module(nd: uni.Import) -> (uni.Module | None) {
     import from jaclang.compiler.symbol_utils { resolve_import_source_module }
