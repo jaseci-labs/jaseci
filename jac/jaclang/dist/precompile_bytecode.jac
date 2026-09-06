@@ -282,6 +282,14 @@ def _ct_deps_extra(jac_path: str, pkg_root: str) -> dict[int, bytes] {
     }
 }
 
+def _unit_extra(jac_path: str, pkg_root: str, embed_src: bool) -> dict[int, bytes] {
+    extra: dict[int, bytes] = _ct_deps_extra(jac_path, pkg_root);
+    if embed_src {
+        extra[int(SEC_DEBUG_SRC)] = zlib.compress(Path(jac_path).read_bytes(), 9);
+    }
+    return extra;
+}
+
 def precompile_unit(
     jac_path: str, pkg_root: str, embed_src: bool = False, collect: bool = True
 ) -> bytes | None {
@@ -299,17 +307,11 @@ def precompile_unit(
                 rewrapped = patch_co_filenames_bytes(
                     cached_bc, pkg_root, PRECOMPILE_SENTINEL
                 );
-                wrap_extra: dict[int, bytes] = _ct_deps_extra(jac_path, pkg_root);
-                if embed_src {
-                    wrap_extra[int(SEC_DEBUG_SRC)] = zlib.compress(
-                        Path(jac_path).read_bytes(), 9
-                    );
-                }
                 return write_precompiled_jir(
                     rewrapped,
                     compute_precompile_module_key(jac_path),
                     FLAG_PRECOMPILED,
-                    wrap_extra
+                    _unit_extra(jac_path, pkg_root, embed_src)
                 );
             }
         }
@@ -335,12 +337,11 @@ def precompile_unit(
     patched = patch_co_filenames_bytes(
         marshal.dumps(code), pkg_root, PRECOMPILE_SENTINEL
     );
-    extra: dict[int, bytes] = _ct_deps_extra(jac_path, pkg_root);
-    if embed_src {
-        extra[int(SEC_DEBUG_SRC)] = zlib.compress(Path(jac_path).read_bytes(), 9);
-    }
     return write_precompiled_jir(
-        patched, compute_precompile_module_key(jac_path), FLAG_PRECOMPILED, extra
+        patched,
+        compute_precompile_module_key(jac_path),
+        FLAG_PRECOMPILED,
+        _unit_extra(jac_path, pkg_root, embed_src)
     );
 }
 
@@ -444,20 +445,45 @@ def jir_to_module(pkg_name: str, rel_jir: str) -> tuple[str, str, bool] {
     return (source_rel, fullname, is_pkg);
 }
 
-def app_metadata(pkg_path: Path, pkg_name: str) -> dict[str, any] {
+def bundle_app(config: any, app: str = "") -> any {
+    if app {
+        named = config.app(app);
+        if named is not None {
+            return named;
+        }
+    }
+    try {
+        return config.resolve_app("");
+    } except ValueError {}
+    serving = config.serving_apps();
+    if serving {
+        return serving[0];
+    }
+    for candidate in config.apps.values() {
+        return candidate;
+    }
+    return None;
+}
+
+def app_metadata(pkg_path: Path, pkg_name: str, app: str = "") -> dict[str, any] {
     if not (pkg_path / "jac.toml").is_file() {
         return {};
     }
     import from jaclang.project.config { get_config_for_path }
-    import from jaclang.project.kinds { resolve_project_kind, resolve_entry }
+    import from jaclang.project.kinds { resolve_app_kind, resolve_entry }
     import from jaclang.server.sealed_serve { CLIENT_DIST_REL, NATIVE_DIR_REL }
 
     config = get_config_for_path(pkg_path);
     if config is None {
         return {};
     }
-    entry_path = resolve_entry(config, str(pkg_path));
-    kind = resolve_project_kind(config, entry_path);
+    chosen = bundle_app(config, app);
+    entry_path = resolve_entry(config, str(pkg_path), chosen)
+        if chosen is not None
+        else "";
+    kind = (
+        resolve_app_kind(config, chosen, entry_path) if chosen is not None else "cli"
+    );
 
     `entry: dict[str, str] = {};
     if entry_path and Path(entry_path).is_file() {
@@ -484,7 +510,12 @@ def app_metadata(pkg_path: Path, pkg_name: str) -> dict[str, any] {
         caps.append("attachable");
     }
 
-    meta = {"kind": kind, "capabilities": caps, "entry": `entry};
+    meta = {
+        "kind": kind,
+        "app": chosen.name if chosen is not None else "",
+        "capabilities": caps,
+        "entry": `entry
+    };
     native_dir = pkg_path / NATIVE_DIR_REL;
     if native_dir.is_dir() {
         triples = sorted(
@@ -531,7 +562,12 @@ def collect_payloads(pkg_path: Path) -> dict[str, str] {
 }
 
 def seal_finalize(
-    pkg_path: Path, precompiled_dir: Path, pkg_name: str, pyver: str, embed_src: bool
+    pkg_path: Path,
+    precompiled_dir: Path,
+    pkg_name: str,
+    pyver: str,
+    embed_src: bool,
+    app: str = ""
 ) -> int {
     writes = (
         FORMAT_VERSION,
@@ -631,7 +667,7 @@ def seal_finalize(
     if payloads {
         console.print(f"  Payload files: {len(payloads)}");
     }
-    app_meta = app_metadata(pkg_path, pkg_name);
+    app_meta = app_metadata(pkg_path, pkg_name, app);
     if app_meta {
         console.print(
             f"  App: kind={app_meta.get('kind')} caps={app_meta.get('capabilities')}"
@@ -714,9 +750,13 @@ def main {
     finalize_only = "--seal-finalize" in args;
     embed_src = "--debug-src" in args;
     jobs_arg = "";
+    app_arg = "";
     for a in args {
         if a.startswith("--jobs=") {
             jobs_arg = a[len("--jobs="):];
+        }
+        if a.startswith("--app=") {
+            app_arg = a[len("--app="):];
         }
     }
     args = [
@@ -764,7 +804,8 @@ def main {
         seal_compile=seal_compile,
         finalize_only=finalize_only,
         embed_src=embed_src,
-        jobs_arg=jobs_arg
+        jobs_arg=jobs_arg,
+        app=app_arg
     );
 }
 
@@ -774,7 +815,8 @@ def run_precompile(
     seal_compile: bool = False,
     finalize_only: bool = False,
     embed_src: bool = False,
-    jobs_arg: str = ""
+    jobs_arg: str = "",
+    app: str = ""
 ) {
     exclude_seed = seal or seal_compile;
     package_dir = find_package_dir(source_dir);
@@ -802,7 +844,7 @@ def run_precompile(
         console.print(f"Sealing {pkg_name} for {pyver} (finalize)...");
         precompile_exit(
             seal_finalize(
-                Path(package_dir), precompiled_dir, pkg_name, pyver, embed_src
+                Path(package_dir), precompiled_dir, pkg_name, pyver, embed_src, app
             )
         );
     }
@@ -973,7 +1015,7 @@ def run_precompile(
 
     if seal {
         precompile_exit(
-            seal_finalize(pkg_path, precompiled_dir, pkg_name, pyver, embed_src)
+            seal_finalize(pkg_path, precompiled_dir, pkg_name, pyver, embed_src, app)
         );
     }
 

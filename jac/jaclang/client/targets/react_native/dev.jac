@@ -50,7 +50,7 @@ def inject_dev_api_base_url(rn_dir: Path, api_url: str) -> Optional[str] {
     if not config_path.exists() {
         console.warning(
             f"  app.json not found at {config_path}; skipping API URL injection. "
-            "Run `jac setup react-native` to regenerate the scaffold."
+            "Run `jac setup <app>` to regenerate the scaffold."
         );
         return None;
     }
@@ -107,7 +107,7 @@ def rn_hmr_on_jac_changed(
             return;
         }
         invalidate_runtime_module_cache([pth, str(entry_file)]);
-        compiler.compile(None, entry_file, target_name="react-native");
+        compiler.compile(None, entry_file, native=True);
         compiled_dir = compiler.compiled_dir;
         if compiled_dir is not None {
             try {

@@ -90,7 +90,10 @@ obj SelfHostCache {
 
 impl SelfHostCache.program.getter -> JacProgram {
     if (self._program is None) {
-        self._program = JacProgram();
+        import from jaclang.runtime.runtime { JacRuntime }
+        prog = JacProgram();
+        prog._compiler = JacRuntime.get_compiler();
+        self._program = prog;
     }
     return self._program;
 }

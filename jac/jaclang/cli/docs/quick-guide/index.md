@@ -71,9 +71,6 @@ This single file defines a persistent data model, an AI-powered categorizer, a R
     "@types/react" = "^19.2.0"
     "@types/react-dom" = "^19.2.0"
 
-    [serve]
-    base_route_app = "app"
-
     [scale]
 
     [client]

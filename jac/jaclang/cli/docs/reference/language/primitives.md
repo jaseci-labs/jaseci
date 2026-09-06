@@ -109,7 +109,7 @@ def:pub app() -> JsxElement {
 }
 ```
 
-The import itself lives wherever its consumers live (here, the client bundle, as an RPC stub), while its target remains on the server. Between two server modules, the same import becomes a server-to-server microservice boundary when the target is listed in `[scale.microservices.routes]` (or its module is pinned `"server"`).
+The import itself lives wherever its consumers live (here, the client bundle, as an RPC stub), while its target remains on the server. Between two server modules, the same import becomes a server-to-server bridge when the target belongs to a different app of the workspace (a walker or `def:pub` owned by an `[apps.<name>]` service app); the stub is a coroutine and the call is awaited.
 
 ### What Is Shared
 

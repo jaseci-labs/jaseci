@@ -134,7 +134,6 @@ def _related_files(source_path: str) -> list[tuple[str, str]] {
     return result;
 }
 
-glob _client_kind_probe: dict = {"active": False};
 
 def is_compiler_tree_path(source_path: str) -> bool {
     try {
@@ -173,22 +172,6 @@ def _module_codespace_mode(source_path: str) -> str {
         return effective_default_codespace();
     } except Exception {
         return "server";
-    }
-}
-
-def _module_client_kind(source_path: str) -> str {
-    if _client_kind_probe["active"] {
-        return "web";
-    }
-    _client_kind_probe["active"] = True;
-    try {
-        import from jaclang.project.client_kind { resolve_client_kind_context }
-        (kind, _) = resolve_client_kind_context(source_path);
-        return kind;
-    } except Exception {
-        return "web";
-    } finally {
-        _client_kind_probe["active"] = False;
     }
 }
 
@@ -395,16 +378,21 @@ def _analysis_fingerprint_for(source_path: str) -> str {
 
 def _project_env_fingerprint(source_path: str) -> str {
     h = hashlib.sha256();
-    h.update(_module_client_kind(source_path).encode());
     h.update(_module_codespace_mode(source_path).encode());
     import from jaclang.compiler.placement.placement_pins {
         pins_digest,
         config_kind_space
     }
+    import from jaclang.compiler.placement.workspace {
+        app_fact_digest,
+        app_for_path,
+        workspace_for_path
+    }
     h.update(pins_digest(source_path).encode());
     h.update(config_kind_space(source_path).encode());
-    import from jaclang.compiler.placement.service_cut { cut_digest }
-    h.update(cut_digest(source_path).encode());
+    h.update(app_fact_digest(app_for_path(source_path)).encode());
+    _ws = workspace_for_path(source_path);
+    h.update((_ws.digest if _ws is not None else '').encode());
     h.update(_analysis_fingerprint_for(source_path).encode());
     return h.hexdigest();
 }
@@ -590,7 +578,7 @@ def deps_section(rows: list[tuple[str, str, str]]) -> bytes {
     return "\n".join(lines).encode("utf-8");
 }
 
-def read_dep_rows(data: bytes) -> list[tuple[str, str, str]] {
+def read_dep_rows(data: bytes, base_dir: str = "") -> list[tuple[str, str, str]] {
     raw = _read_key_section(data, SEC_DEPS);
     out: list[tuple[str, str, str]] = [];
     if not raw {
@@ -603,14 +591,22 @@ def read_dep_rows(data: bytes) -> list[tuple[str, str, str]] {
         parts = line.split("\t");
         digest = parts[1] if len(parts) > 1 else "";
         flags = parts[2] if len(parts) > 2 else "";
-        out.append((parts[0], digest, flags, ));
+        out.append((_dep_row_path(parts[0], base_dir), digest, flags, ));
     }
     return out;
 }
 
-def read_dep_hashes(data: bytes) -> list[tuple[str, str]] {
+def _dep_row_path(stored: str, base_dir: str) -> str {
+    prefix = PRECOMPILE_SENTINEL + "/";
+    if base_dir and stored.startswith(prefix) {
+        return os.path.normpath(os.path.join(base_dir, stored[len(prefix):]));
+    }
+    return stored;
+}
+
+def read_dep_hashes(data: bytes, base_dir: str = "") -> list[tuple[str, str]] {
     out: list[tuple[str, str]] = [];
-    for (path, digest, _flags) in read_dep_rows(data) {
+    for (path, digest, _flags) in read_dep_rows(data, base_dir) {
         out.append((path, digest, ));
     }
     return out;

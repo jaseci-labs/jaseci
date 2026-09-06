@@ -149,129 +149,11 @@ impl Parser.is_name_usable_token -> bool {
 }
 
 impl Parser.is_keyword_token -> bool {
-    return self.check_any(
-        TokenKind.KW_ABSTRACT,
-        TokenKind.KW_OBJECT,
-        TokenKind.KW_CLASS,
-        TokenKind.KW_ENUM,
-        TokenKind.KW_NODE,
-        TokenKind.KW_EDGE,
-        TokenKind.KW_WALKER,
-        TokenKind.KW_HAS,
-        TokenKind.KW_CAN,
-        TokenKind.KW_DEF,
-        TokenKind.KW_STATIC,
-        TokenKind.KW_OVERRIDE,
-        TokenKind.KW_COMPTIME,
-        TokenKind.KW_IMPL,
-        TokenKind.KW_GETTER,
-        TokenKind.KW_SETTER,
-        TokenKind.KW_DELETER,
-        TokenKind.KW_SEM,
-        TokenKind.KW_TEST,
-        TokenKind.KW_GLOBAL,
-        TokenKind.KW_IMPORT,
-        TokenKind.KW_INCLUDE,
-        TokenKind.KW_FROM,
-        TokenKind.KW_AS,
-        TokenKind.KW_IF,
-        TokenKind.KW_ELIF,
-        TokenKind.KW_ELSE,
-        TokenKind.KW_FOR,
-        TokenKind.KW_BY,
-        TokenKind.KW_WHILE,
-        TokenKind.KW_FOREVER,
-        TokenKind.KW_MATCH,
-        TokenKind.KW_SWITCH,
-        TokenKind.KW_CASE,
-        TokenKind.KW_DEFAULT,
-        TokenKind.KW_TRY,
-        TokenKind.KW_EXCEPT,
-        TokenKind.KW_FINALLY,
-        TokenKind.KW_WITH,
-        TokenKind.KW_RETURN,
-        TokenKind.KW_YIELD,
-        TokenKind.KW_BREAK,
-        TokenKind.KW_CONTINUE,
-        TokenKind.KW_RAISE,
-        TokenKind.KW_DELETE,
-        TokenKind.KW_ASSERT,
-        TokenKind.KW_SKIP,
-        TokenKind.KW_REPORT,
-        TokenKind.KW_VISIT,
-        TokenKind.KW_SPAWN,
-        TokenKind.KW_ENTRY,
-        TokenKind.KW_EXIT,
-        TokenKind.KW_DISENGAGE,
-        TokenKind.KW_HERE,
-        TokenKind.KW_VISITOR,
-        TokenKind.KW_ROOT,
-        TokenKind.KW_ASYNC,
-        TokenKind.KW_AWAIT,
-        TokenKind.KW_FLOW,
-        TokenKind.KW_WAIT,
-        TokenKind.KW_AND,
-        TokenKind.KW_OR,
-        TokenKind.KW_NOT,
-        TokenKind.KW_IN,
-        TokenKind.KW_IS,
-        TokenKind.KW_LAMBDA,
-        TokenKind.KW_PUB,
-        TokenKind.KW_PRIV,
-        TokenKind.KW_PROT,
-        TokenKind.KW_SELF,
-        TokenKind.KW_PROPS,
-        TokenKind.KW_INIT,
-        TokenKind.KW_POST_INIT,
-        TokenKind.KW_SUPER,
-        TokenKind.TYP_STRING,
-        TokenKind.TYP_INT,
-        TokenKind.TYP_FLOAT,
-        TokenKind.TYP_LIST,
-        TokenKind.TYP_TUPLE,
-        TokenKind.TYP_SET,
-        TokenKind.TYP_DICT,
-        TokenKind.TYP_BOOL,
-        TokenKind.TYP_BYTES,
-        TokenKind.TYP_ANY,
-        TokenKind.TYP_TYPE,
-        TokenKind.TYP_I8,
-        TokenKind.TYP_U8,
-        TokenKind.TYP_I16,
-        TokenKind.TYP_U16,
-        TokenKind.TYP_I32,
-        TokenKind.TYP_U32,
-        TokenKind.TYP_I64,
-        TokenKind.TYP_U64,
-        TokenKind.TYP_F32,
-        TokenKind.TYP_F64
-    );
+    return is_reserved_kind(self.current().kind);
 }
 
 impl Parser.is_builtin_type_token -> bool {
-    return self.check_any(
-        TokenKind.TYP_STRING,
-        TokenKind.TYP_INT,
-        TokenKind.TYP_FLOAT,
-        TokenKind.TYP_LIST,
-        TokenKind.TYP_TUPLE,
-        TokenKind.TYP_SET,
-        TokenKind.TYP_DICT,
-        TokenKind.TYP_BOOL,
-        TokenKind.TYP_BYTES,
-        TokenKind.TYP_ANY,
-        TokenKind.TYP_TYPE,
-        TokenKind.TYP_I8,
-        TokenKind.TYP_U8,
-        TokenKind.TYP_I16,
-        TokenKind.TYP_U16,
-        TokenKind.TYP_I32,
-        TokenKind.TYP_U32,
-        TokenKind.TYP_I64,
-        TokenKind.TYP_U64,
-        TokenKind.TYP_F32,
-        TokenKind.TYP_F64
-    );
+    return is_builtin_type_kind(self.current().kind);
 }
 
 impl Parser.expect_name(context: str = "identifier") -> LexToken {
@@ -643,7 +525,7 @@ impl Parser._recover_removed_marker -> ElementStmt | EmptyToken | None {
     self.error(
         f"'{self.current().value}' placement markers were removed: "
             + "placement is inferred (override via [placement.pins] in "
-            + "jac.toml; declare services in [scale.microservices.routes]). "
+            + "jac.toml; a service is an app: [apps.<name>] kind = \"service\"). "
             + "Run 'jac fix placement' to migrate this file."
     );
     self.advance();
@@ -1316,8 +1198,7 @@ impl Parser.parse_atomic_chain -> Expr {
             ) {
                 attr = self.make_special_name(self.advance());
             } elif self.is_keyword_token() {
-                name_tok = self.expect_name("attribute");
-                attr = self.make_name(name_tok);
+                attr = self.make_name(self.advance());
             }
             if not attr {
                 dot_tok = first_consumed_tok;
@@ -2764,7 +2645,8 @@ impl Parser.parse_compr_clause -> InnerCompr {
     for_uni = self.consume_uni(TokenKind.KW_FOR);
     target = self.parse_atomic_chain();
     in_uni = self.consume_uni(TokenKind.KW_IN);
-    iter_expr = self.parse_pipe_call();
+
+    iter_expr = self.parse_pipe();
     ifs: list[Expr] = [];
     if_unis: list[Token] = [];
     while self.match_tok(TokenKind.KW_IF) {
