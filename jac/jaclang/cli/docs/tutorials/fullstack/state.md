@@ -247,7 +247,7 @@ can with [url] entry {
             if not controller.signal.aborted {
                 data = result;
             }
-        } except {
+        } except Exception {
             if not controller.signal.aborted {
                 error = "Could not load data";
             }
