@@ -41,56 +41,63 @@ glob FORBIDDEN: dict[str, str] = {
      # they are reads of central APIs or of the declaration surface itself,
      # at sites where the declaration IS the fact.
      SANCTIONED: dict[tuple, tuple] = {
-         ("es/impl/esast_gen_pass.impl.jac", "symbol_utils"): (
-             6,
-             "collect_field_names/symbol_owner_archetype - symbol-FACT "
-             "readers over an already-resolved walker symbol. "
-             "The former classify_call fallback is deleted (#7418): "
-             "call_kind is stamped authoritatively by the required "
-             "inference schedule. Plus two client-boundary reads (#7632): "
-             "resolve_import_source_module (the delegated body of the "
-             "former local _resolve_source_module, now shared with "
-             "StaticAnalysisPass) and the classify/report helpers in "
-             "_partition_client_import_items - both consume the SOURCE "
-             "module's stamped code_context and declaration surface, "
-             "facts that exist on no local-tree node. The "
-             "symbol_linked_source_module read (#7740) left with the "
-             "esast-time pull hook (#7679): cross-module pulls now happen "
-             "in the placement solver before codegen, so ES generation "
-             "only consumes stamped facts, never the producer. The former "
-             "ability_of_symbol read at sv-import stub generation is "
-             "deleted (#7760): stubs now consume the InteropBinding "
-             "recorded by BoundaryAnalysisPass. Plus "
-             "report_client_bare_import_uses at exit_module: client use "
-             "of a bare import that resolves to no client-reachable "
-             "module is a guaranteed runtime ReferenceError - the "
-             "reporter consumes stamped code_context and symbol facts, "
-             "shared with StaticAnalysisPass so build-only and "
-             "check-only runs agree. Plus client_value_ref_targets / "
-             "client_bridged_endpoint at exit_module (#8072): the same "
-             "shape one level up - client code naming a module element "
-             "that the bundle never binds is a guaranteed runtime "
-             "ReferenceError, so the backend asks the central resolver "
-             "which references have no client binding and which are "
-             "endpoints it must bind a forwarder for. It consumes "
-             "stamped code_context, resolved `.sym`, and the declared "
-             "access tag; the same resolver drives W6007 in "
-             "StaticAnalysisPass, which is the point - the emit path and "
-             "the check path must not disagree about what is bound"
+         ("es/esast_gen_pass.impl/calls.impl.jac", "symbol_utils"): (
+             3,
+             "symbol-FACT readers over already-resolved symbols at call "
+             "lowering: resolve_import_source_module (#7632, the delegated "
+             "body of the former local _resolve_source_module, shared with "
+             "StaticAnalysisPass) consumes the SOURCE module's stamped "
+             "code_context; ability_of_symbol reads the declared ability "
+             "behind a resolved callee symbol; client_value_ref_targets / "
+             "client_bridged_endpoint (#8072) ask the central resolver "
+             "which client references have no bundle binding and which "
+             "are endpoints needing a forwarder - the same resolver "
+             "drives W6007 in StaticAnalysisPass, so the emit path and the "
+             "check path cannot disagree about what is bound. The former "
+             "classify_call fallback is deleted (#7418): call_kind is "
+             "stamped authoritatively by the required inference schedule"
          ),
-         ("es/impl/esast_gen_pass.impl.jac", ".lookup("): (
-             2,
-             "declaration-surface reads: (1) cross-module archetype kind "
-             "for OSP lowering (#7948) - _arch_kind_by_name resolves an "
-             "imported archetype NAME to its declared node/edge/walker "
-             "kind via the module symbol, the exact declaration-IS-the-"
-             "fact category; tags derive from stable_osp_tag(name), no "
-             "analysis re-run. (2) component PascalCase rename "
-             "collision guard checks whether the capitalized name is "
-             "already declared in the module - the declared NAME is the "
-             "consumed fact, not a resolved type. The former sv-import "
-             "stub lookup is deleted (#7760): signatures come from the "
-             "recorded InteropBinding"
+         ("es/esast_gen_pass.impl/module.impl.jac", "symbol_utils"): (
+             1,
+             "report_client_bare_import_uses at exit_module: client use of "
+             "a bare import that resolves to no client-reachable module is "
+             "a guaranteed runtime ReferenceError - the reporter consumes "
+             "stamped code_context and symbol facts, shared with "
+             "StaticAnalysisPass so build-only and check-only runs agree"
+         ),
+         ("es/esast_gen_pass.impl/imports.impl.jac", "symbol_utils"): (
+             1,
+             "the classify/report helpers in _partition_client_import_items "
+             "(#7632) consume the SOURCE module's stamped code_context and "
+             "declaration surface, facts that exist on no local-tree node. "
+             "The former ability_of_symbol read at sv-import stub "
+             "generation is deleted (#7760): stubs consume the "
+             "InteropBinding recorded by BoundaryAnalysisPass"
+         ),
+         ("es/esast_gen_pass.impl/osp.impl.jac", "symbol_utils"): (
+             1,
+             "collect_field_names/symbol_owner_archetype - symbol-FACT "
+             "readers over an already-resolved walker symbol when building "
+             "the spawn argument object. The symbol_linked_source_module "
+             "read (#7740) left with the esast-time pull hook (#7679): "
+             "cross-module pulls now happen in the placement solver before "
+             "codegen, so ES generation only consumes stamped facts"
+         ),
+         ("es/esast_gen_pass.impl/calls.impl.jac", ".lookup("): (
+             1,
+             "component PascalCase rename collision guard checks whether "
+             "the capitalized name is already declared in the module - the "
+             "declared NAME is the consumed fact, not a resolved type. The "
+             "former sv-import stub lookup is deleted (#7760): signatures "
+             "come from the recorded InteropBinding"
+         ),
+         ("es/esast_gen_pass.impl/osp.impl.jac", ".lookup("): (
+             1,
+             "cross-module archetype kind for OSP lowering (#7948) - "
+             "_arch_kind_by_name resolves an imported archetype NAME to its "
+             "declared node/edge/walker kind via the module symbol, the "
+             "exact declaration-IS-the-fact category; tags derive from "
+             "stable_osp_tag(name), no analysis re-run"
          ),
          ("native/foreign.jac", "type_tag.tag"): (
              4,
@@ -100,12 +107,22 @@ glob FORBIDDEN: dict[str, str] = {
              "audit at compiler/targets/; absorbed into backends/native by "
              "the #8681 reorg with its consumption unchanged"
          ),
-         ("es/impl/esast_gen_pass.impl.jac", "type_tag.tag"): (
-             9,
-             "declaration-surface name reads: param/field type-name maps "
-             "for interop payloads, Ref[...] head detection, and the W6005 "
-             "Callable-over-RPC guard on endpoint params - the declared "
-             "annotation is the consumed fact, not a resolved type"
+         ("es/esast_gen_pass.impl/calls.impl.jac", "type_tag.tag"): (
+             4,
+             "declaration-surface name reads: the param type-name map for "
+             "interop payloads and the W6005 Callable-over-RPC guard on "
+             "endpoint params - the declared annotation is the consumed "
+             "fact, not a resolved type"
+         ),
+         ("es/esast_gen_pass.impl/view.impl.jac", "type_tag.tag"): (
+             2,
+             "Ref[...] head detection on has-var annotations for client "
+             "state lowering - the declared annotation is the consumed fact"
+         ),
+         ("es/esast_gen_pass.impl/osp.impl.jac", "type_tag.tag"): (
+             3,
+             "field type-name map for the spawn argument payload - the "
+             "declared annotation is the consumed fact, not a resolved type"
          ),
          ("native/na_ir_gen/generics.impl.jac", "type_tag.tag"): (
              5,

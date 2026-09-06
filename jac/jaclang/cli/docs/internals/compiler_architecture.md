@@ -511,7 +511,7 @@ The primitive type contract for this backend lives in
 
 | Pass | Source | Output |
 |------|--------|--------|
-| `EsastGenPass` | [`compiler/backends/es/esast_gen_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/es/esast_gen_pass.jac) (+ [impl](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/es/impl/esast_gen_pass.impl.jac)) | ESTree AST + serialised JS (`module.gen.js`) |
+| `EsastGenPass` | [`compiler/backends/es/esast_gen_pass.jac`](https://github.com/Jaseci-Labs/jaseci/blob/main/jac/jaclang/compiler/backends/es/esast_gen_pass.jac) (+ [impl by concern](https://github.com/Jaseci-Labs/jaseci/tree/main/jac/jaclang/compiler/backends/es/esast_gen_pass.impl)) | ESTree AST + serialised JS (`module.gen.js`) |
 
 `EsastGenPass` derives from `BaseAstGenPass` (shared with `JcirGenPass`)
 so the same traversal infrastructure visits the tree but emits ESTree

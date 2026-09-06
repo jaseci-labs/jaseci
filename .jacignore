@@ -79,6 +79,19 @@ jac/jaclang/client/targets/desktop/native/cef/cef_subprocess.jac
 
 # ECMAScript backend.
 jac/jaclang/compiler/backends/es/esast_gen_pass.jac
-jac/jaclang/compiler/backends/es/impl/esast_gen_pass.impl.jac
+jac/jaclang/compiler/backends/es/esast_gen_pass.impl/assign.impl.jac
+jac/jaclang/compiler/backends/es/esast_gen_pass.impl/calls.impl.jac
+jac/jaclang/compiler/backends/es/esast_gen_pass.impl/comptime.impl.jac
+jac/jaclang/compiler/backends/es/esast_gen_pass.impl/core.impl.jac
+jac/jaclang/compiler/backends/es/esast_gen_pass.impl/decls.impl.jac
+jac/jaclang/compiler/backends/es/esast_gen_pass.impl/dts.impl.jac
+jac/jaclang/compiler/backends/es/esast_gen_pass.impl/expr.impl.jac
+jac/jaclang/compiler/backends/es/esast_gen_pass.impl/imports.impl.jac
+jac/jaclang/compiler/backends/es/esast_gen_pass.impl/match.impl.jac
+jac/jaclang/compiler/backends/es/esast_gen_pass.impl/module.impl.jac
+jac/jaclang/compiler/backends/es/esast_gen_pass.impl/ops.impl.jac
+jac/jaclang/compiler/backends/es/esast_gen_pass.impl/osp.impl.jac
+jac/jaclang/compiler/backends/es/esast_gen_pass.impl/stmt.impl.jac
+jac/jaclang/compiler/backends/es/esast_gen_pass.impl/view.impl.jac
 
 # Example apps.
