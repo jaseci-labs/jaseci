@@ -1,21 +1,12 @@
 import from core.site.ui.badge { Badge }
-import from core.site.ui.CodeBlock { CodeBlock }
+import from core.site.source.CodeSpotlight { CodeSpotlight }
 import from .Reveal { Reveal }
 import from "@jac/runtime" { Link }
 import from "@hugeicons/react" { HugeiconsIcon }
 import from "@hugeicons/core-free-icons" { CheckmarkCircle01Icon, ArrowUpRight01Icon }
 import from core.jacyac.native.JacYacMobile { JacYacMobile }
 
-glob _IMPORT_LINES: list[str] = [
-         "import from core.jacyac.native.JacYacMobile {",
-         "    JacYacMobile",
-         "}",
-         "",
-         "<PhoneFrame>",
-         "    <JacYacMobile embedded={True}/>",
-         "</PhoneFrame>"
-     ],
-     _POINTS: list[str] = [
+glob _POINTS: list[str] = [
          "Every screen is @jac/mobui: View, Text, Pressable, ScrollView. No div, no CSS. Built natively it is React Native; on this page react-native-web draws it.",
          "The same account and the same graph as /jacyac. Sign in on either and the other already knows you; post here and it lands in the site feed.",
          "It talks to core/social_graph.jac by spawning walkers. There is no API client in the phone and no route table on the server.",
@@ -86,9 +77,12 @@ def:pub MobileShowcase -> JsxElement {
                     </Reveal>
                     <Reveal delay={200}>
                         <div className="pt-2">
-                            <CodeBlock
-                                lines={_IMPORT_LINES}
-                                title="core/site/landing/MobileShowcase.jac"
+                            <CodeSpotlight
+                                path="core/site/landing/MobileShowcase.jac"
+                                needle="<JacYacMobile embedded={True}/>"
+                                before={2}
+                                after={4}
+                                compact={True}
                             />
                             <h3 className="mt-8 text-xl font-semibold tracking-tight">
                                 One import. That is the whole embed.
