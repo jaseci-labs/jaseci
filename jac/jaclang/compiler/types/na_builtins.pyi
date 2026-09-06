@@ -24,12 +24,19 @@ __all__ = [
     "iter",
     "next",
     "managed",
+    "take",
+    "swap",
     "Region",
+    "region_of",
 ]
 
 _T = TypeVar("_T")
 
 def managed(__x: _T) -> _T: ...
+
+def take(__place: _T) -> _T: ...
+
+def swap(__a: _T, __b: _T) -> None: ...
 
 # First-class region handle: an ownable, sendable, escape-checked allocation
 # extent opened by `in <handle> { ... }`. Native codegen lowers it to an arena.
@@ -38,6 +45,10 @@ class Region:
     def partition(self) -> Region: ...
     @overload
     def partition(self, n: int) -> tuple[Region, ...]: ...
+
+# The region a value was allocated in (the growth anchor of a traversal),
+# or None for a managed value.
+def region_of(__x: object) -> Region | None: ...
 
 class Iterable(Protocol[_T]):
     def __iter__(self) -> Iterator[_T]: ...

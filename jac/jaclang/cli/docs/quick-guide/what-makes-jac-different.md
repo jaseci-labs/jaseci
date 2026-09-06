@@ -79,9 +79,9 @@ Keys are fnmatch patterns over `module` or `module.element` dotted paths; values
 Two rules to keep in mind:
 
 - **Pins always win.** Inference never moves a pinned element -- the most useful pin is `"server"` on a declaration you want kept server-side even though client code references it (the client call bridges over RPC instead).
-- **Native compatibility is not intent.** Extern C declarations infer native placement, but pure code that merely *could* compile natively stays on the server -- without an FFI seed, taking it native is your call, made via a `"native"` pin or `jac nacompile`.
+- **Native compatibility is not intent.** Extern C declarations infer native placement, but pure code that merely *could* compile natively stays on the server -- without an FFI seed, taking it native is your call, made via a `"native"` pin or `jac build --native`.
 
-- **Whole modules go native by inference.** Under the default `[build] default_codespace = "native"`, an anchor-free module that can lower compiles native, and one that cannot demotes to the server with a note; extern C declarations seed native placement inside mixed files. To force the choice -- loud errors instead of demotion -- use `jac nacompile` or `jac build --as native`.
+- **Whole modules go native by inference.** Under the default `[placement] default = "native"`, an anchor-free module that can lower compiles native, and one that cannot demotes to the server with a note; extern C declarations seed native placement inside mixed files. To force the choice -- loud errors instead of demotion -- use `jac build --native` or `jac build --as native`.
 
 (`.jac` still exists as an **implementation variant** -- the per-space implementation of one logical module -- not as the way ordinary code is placed. Native has no per-file spelling at all: it is inferred, pinned, or forced.)
 

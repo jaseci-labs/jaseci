@@ -114,7 +114,7 @@ glob SNAPSHOT_LINKS: list[str] = [
 """What a `-b 1` game of AOT-compiled chess costs, and how far it may drift.
 
 Recorded truth on the machine this landed from: 0.07-0.08s per run, over ten
-consecutive runs of a `jac nacompile` binary, with a spread under 0.01s. The
+consecutive runs of a `jac build --native` binary, with a spread under 0.01s. The
 epic's earlier note recorded 0.23-0.26s per run for the same command; that
 figure is kept here because the ceiling has to hold under whichever of the two
 frames is right, and it is 3x the older number and 9x the measured one. Nothing
@@ -423,7 +423,16 @@ test "the chess AOT binary stays inside its recorded run envelope" {
     with tempfile.TemporaryDirectory() as tmp {
         out_bin = os.path.join(tmp, "chess");
         comp = subprocess.run(
-            [sys.executable, "-m", "jaclang", "nacompile", CHESS, "-o", out_bin],
+            [
+                sys.executable,
+                "-m",
+                "jaclang",
+                "build",
+                "--native",
+                CHESS,
+                "-o",
+                out_bin
+            ],
             capture_output=True,
             text=True,
             timeout=1800

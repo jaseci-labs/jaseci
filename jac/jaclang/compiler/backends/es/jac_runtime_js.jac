@@ -1849,7 +1849,7 @@ def build_osp_core_js -> str {
     if _OSP_CORE_JS_CACHE {
         return _OSP_CORE_JS_CACHE[0];
     }
-    import from jaclang.compiler.backends.kernel_units {
+    import from jaclang.compiler.backends.common.kernel_units {
         es_pass_fingerprint,
         load_unit_artifact,
         osp_core_unit_path,

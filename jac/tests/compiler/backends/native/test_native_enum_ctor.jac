@@ -13,13 +13,9 @@ the declared table, so the emitter tests the argument against it and calls the
 same raise primitive `int()` uses for a bad literal. The call then returns the
 value it validated, which is the member's runtime form.
 
-What stays refused is named rather than generic. A string-valued enum's
-runtime form is the member's *ordinal*, so the lookup is not the identity, and
-a member whose value no fold reaches -- `ParameterCategory`'s `auto()` -- has
-no table to validate against at all. Both refuse under E5092 with a help text
-that says which of the two it is; `EnumLayout.all_values_known` is what makes
-the second answerable rather than guessed, because the layout builder already
-skipped the members it could not fold.
+String-valued enums look up the declared value and return its ordinal.
+Members whose values cannot be folded still have no table to validate against,
+and noninteger inputs to integer enums remain refused under E5092.
 
 The subprocess pair is the contract: the server pathway and a native binary
 print the same lines, and CPython's own answers for the same six calls are
@@ -86,7 +82,8 @@ def na_lines(fixture: str) -> list {
             sys.executable,
             "-m",
             "jaclang",
-            "nacompile",
+            "build",
+            "--native",
             os.path.join(FIXTURES, fixture),
             "-o",
             out_bin
@@ -148,14 +145,23 @@ test "declared and undeclared values answer as CPython does" {
 }
 
 
-test "a string-valued enum constructor refuses by name" {
+test "a noninteger input to an integer enum refuses by name" {
     seams = seam_report("xmod_demote_dyn_lib.jac");
     assert "enum constructor 'Hue'" in seams , (
-        f"the string-valued spelling lowered silently:\n{seams}"
+        f"the floating-point input lowered silently:\n{seams}"
     );
     assert "from_code" in seams , (
         f"the refusal did not demote the callable that owns it:\n{seams}"
     );
+}
+
+test "string enum constructors resolve values and reject missing members" {
+    import ctypes;
+    import from tests.support { get_func }
+    (prog, ir) = compile_native("enum_ctor_string.jac");
+    assert not prog.errors_had , f"{[str(e) for e in prog.errors_had]}";
+    probe = get_func(ir.gen.native_engine, "probe", ctypes.c_int64, ctypes.c_int64);
+    assert [probe(i) for i in range(4)] == [1, 1, 1, -1];
 }
 
 

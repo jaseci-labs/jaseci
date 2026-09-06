@@ -72,7 +72,7 @@ def compile_na_inline_demote(label: str, code: str) -> tuple {
 """Compile a snippet through the FRONT-END check schedule (the `type_check`
 extras) with codegen OFF — the `jac check` path. This is the path that
 historically did NOT surface native codegen-time E5090s, so structural native
-gaps stayed invisible at check time and only failed at `jac nacompile` (issue
+gaps stayed invisible at check time and only failed at `jac build --native` (issue
 #6636 follow-up B). The native capability authority is now run here too."""
 def check_na_inline(label: str, code: str) -> JacProgram {
     path = os.path.join(FIXTURES_DIR, f"_check_{label}.jac");
@@ -243,6 +243,21 @@ test "guardrail: field access on an untyped (any) node-ref element demotes the a
 # behavioral test in test_osp_equivalence.jac "osp typed edge endpoints", per
 # this file's convention of migrating a feature to a behavioral test once it
 # gains real support.)
+
+test "guardrail: starred tuple assignment is rejected" {
+    src = (
+        "with entry {\n" "    (first, *rest) = (1, 2, 3);\n" "    print(first);\n" "}\n"
+    );
+    prog = compile_na_inline("starred_tuple_assign", src);
+    assert has_error_code(prog, "E5090") , f"Expected E5090 for starred tuple assignment, got: {fmt_errors(
+        prog
+    )}";
+    checked = check_na_inline("starred_tuple_assign_check", src);
+    assert has_error_code(checked, "E5090") , (
+        "the front-end native capability gate must reject starred tuple "
+        f"assignment, got: {fmt_errors(checked)}"
+    );
+}
 
 # ─────────────────────────────────────────────────────────────────────
 # Import / builtin gaps (issue #6357)
@@ -648,7 +663,7 @@ test "guardrail: foreign-typed field lowers to an opaque slot, not E5090" {
         prog
     )}";
     # Same must hold at check time (codegen OFF), so `jac check` and
-    # `jac nacompile` agree.
+    # `jac build --native` agree.
     check_prog = check_na_inline(
         "opaque_foreign_field",
         "import ast as ast3;\n"
@@ -814,7 +829,7 @@ test "osp gate: connect-only module (no walker) lowers without E5090" {
 # ─────────────────────────────────────────────────────────────────────
 # Diagnostic rendering + check/nacompile parity (issue #6636 follow-ups)
 # ─────────────────────────────────────────────────────────────────────
-# (A) `jac nacompile` rendered diagnostics with `str(_err)`, which drops
+# (A) `jac build --native` rendered diagnostics with `str(_err)`, which drops
 # `Alert.help_text` — so the cross-module-OSP / stdlib-import guidance that
 # the native E5090s carry never reached the user. nacompile must render like
 # `jac check` / `jac run` (Alert.pretty_print), which includes the help line.
@@ -823,7 +838,7 @@ test "nacompile surfaces native E5090 help text, not just the generic message" {
     import contextlib;
     import io;
     import tempfile;
-    import from jaclang.cli.commands.nacompile { nacompile }
+    import from jaclang.cli.commands.native_build { native_build }
     with tempfile.TemporaryDirectory() as td {
         src = os.path.join(td, "bad_import.jac");
         with open(src, "w") as f {
@@ -831,7 +846,7 @@ test "nacompile surfaces native E5090 help text, not just the generic message" {
         }
         buf = io.StringIO();
         with contextlib.redirect_stdout(buf) {
-            rc = nacompile(filename=src, output=os.path.join(td, "out"));
+            rc = native_build(filename=src, output=os.path.join(td, "out"));
         }
         out = buf.getvalue();
         assert rc != 0 , "nacompile should fail on an unsupported stdlib import";
@@ -846,7 +861,7 @@ test "nacompile surfaces native E5090 help text, not just the generic message" {
 # event ability. In a value-returning function it is unsupported: granular
 # demotion seams that function, and the module entry that natively calls it
 # then fails with a structured E5092. The check-parity schedule runs the same
-# codegen at check time, so `jac check` and `jac nacompile` still agree.
+# codegen at check time, so `jac check` and `jac build --native` still agree.
 test "check surfaces the demoted skip-in-value-fn through its native caller" {
     prog = check_na_inline(
         "skip_in_value_fn",

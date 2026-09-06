@@ -63,7 +63,13 @@ impl TypeCheckPass.exit_return_stmt with ReturnStmt exit {
             and here.expr
             and not isinstance(here.expr, Null)
         ) {
-            self.emit(W2014, node_override=here);
+            if not (
+                scope.in_client_context()
+                and scope.signature.event.name == Tok.KW_ENTRY
+                and not scope.is_async
+            ) {
+                self.emit(W2014, node_override=here);
+            }
             return;
         }
 
@@ -817,6 +823,7 @@ impl TypeCheckPass.enter_ability with Ability entry {
 }
 
 impl TypeCheckPass.exit_ability with Ability exit {
+    import from jaclang.compiler.frontend.constant { OwnershipKind }
     self.evaluator.validate_typevar_variance(here);
 
     self._check_intrinsic_collision(here);
@@ -836,6 +843,10 @@ impl TypeCheckPass.exit_ability with Ability exit {
                 len(all_params) > 0
                 and isinstance(all_params[0].name, Name)
                 and all_params[0].name.value == "self"
+                and (
+                    all_params[0].type_tag is None
+                    or all_params[0].type_tag.ownership == OwnershipKind.NONE
+                )
             ) {
                 self.emit(
                     E2015,
@@ -1276,7 +1287,7 @@ impl TypeCheckPass._client_state_field_owner(nd: HasVar) -> (Ability | None) {
 }
 
 impl TypeCheckPass._install_client_state_setters -> None {
-    import from jaclang.compiler.backends.es.framework_backend { state_setter_name }
+    import from jaclang.compiler.frontend.constant { client_state_setter_name }
     import from jaclang.compiler.types.types { create_callable_type }
     mod = self.ir_in;
     if mod is None {
@@ -1289,7 +1300,7 @@ impl TypeCheckPass._install_client_state_setters -> None {
         if owner is None {
             continue;
         }
-        setter_name = state_setter_name(nd.name.value);
+        setter_name = client_state_setter_name(nd.name.value);
         if not setter_name {
             continue;
         }
@@ -1983,6 +1994,11 @@ impl TypeCheckPass._eval_unpacking_names(container: Expr) -> None {
         for val in container.values {
             if isinstance(val, Name) {
                 self.evaluator.get_type_of_expression(val);
+            } elif isinstance(val, UnaryExpr)
+                and isinstance(val.op, Token)
+                and val.op.name == Tok.STAR_MUL.value
+                and isinstance(val.operand, Expr) {
+                self.evaluator.get_type_of_expression(val.operand);
             } elif isinstance(val, (TupleVal, ListVal)) {
                 self._eval_unpacking_names(val);
             }

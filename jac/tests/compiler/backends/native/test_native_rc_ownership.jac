@@ -144,7 +144,7 @@ test "param shadow: loop-exit cleanup still releases same-named locals" {
 }
 
 # --- Heap-element containers under non-default gc modes (issue #7466, 3) ---
-test "heap-element container compiles and runs under --gc rc" {
+test "heap-element container compiles and runs under --memory rc" {
     # The list[str] element-release helper used to re-enter _emit_rc_helpers
     # (its guard checked a cycles-only global) and redefine __rc_debug:
     # DuplicatedNameError ICE under rc, fine under the default cycles mode.
@@ -154,14 +154,14 @@ test "heap-element container compiles and runs under --gc rc" {
     assert result == 2 , f"Expected 2, got {result}";
 }
 
-test "heap-element container compiles and runs under plain --gc none" {
+test "heap-element container compiles and runs under plain --memory nogc" {
     (eng, _) = compile_native("rc_heap_container.jac", gc_mode="none");
     count_strs = get_func(eng, "count_strs", ctypes.c_int64);
     result = count_strs();
     assert result == 2 , f"Expected 2, got {result}";
 }
 
-test "import sys compiles under --gc rc (argv list is a heap container)" {
+test "import sys compiles under --memory rc (argv list is a heap container)" {
     (eng, _) = compile_native("rc_import_sys.jac", gc_mode="rc");
     addr = eng.get_function_address("argc_minus_one");
     assert addr != 0 , "argc_minus_one not emitted";
@@ -185,7 +185,7 @@ def check_drop_parity(gc_mode: str | None) {
     assert last == 7 , f"last drop should see tag=7, got {last}";
 }
 
-test "drop hook fires on rc release (--gc rc)" {
+test "drop hook fires on rc release (--memory rc)" {
     check_drop_parity("rc");
 }
 

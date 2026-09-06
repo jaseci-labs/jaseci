@@ -639,11 +639,11 @@ impl compute_mro_linearization(cls: ClassType, _visiting: (set | None) = None) -
         result: list[ClassType] = [cls];
         while linearizations {
             candidate: (ClassType | None) = None;
-            for lin in linearizations {
-                if not lin {
+            for linz in linearizations {
+                if not linz {
                     continue;
                 }
-                head = lin[0];
+                head = linz[0];
                 in_tail = False;
                 for other_lin in linearizations {
                     if head in other_lin[1:] {
@@ -662,10 +662,10 @@ impl compute_mro_linearization(cls: ClassType, _visiting: (set | None) = None) -
             result.append(candidate);
 
             new_linearizations: list[list[ClassType]] = [];
-            for lin in linearizations {
+            for linz in linearizations {
                 new_lin = [
                     c
-                    for c in lin
+                    for c in linz
                     if c is not candidate
                 ];
                 if new_lin {

@@ -1688,10 +1688,12 @@ impl SubTag.init(
     *,
     tag: T,
     ownership: OwnershipKind = OwnershipKind.NONE,
+    linear: bool = False,
     kid: Sequence[UniNode] = []
 ) -> None {
     self.tag = tag;
     self.ownership = ownership;
+    self.linear = linear;
     self._link(kid, {});
     self.postinit();
 }

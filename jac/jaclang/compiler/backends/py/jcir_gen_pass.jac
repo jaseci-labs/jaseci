@@ -131,7 +131,8 @@ import from jaclang.compiler.frontend.constant {
     CodeContext,
     EdgeDir,
     is_borrow_kind,
-    OwnershipKind
+    OwnershipKind,
+    SymbolStorage
 }
 import from jaclang.compiler.frontend.constant { Constants as Con }
 import from jaclang.compiler.frontend.constant { Tokens as Tok }
@@ -144,7 +145,8 @@ import from jaclang.compiler.backends.py.jcir_facts {
     JCIR_BUILTIN_NAMES,
     jcir_is_test_path
 }
-import from jaclang.compiler.passes.ast_gen.base_ast_gen_pass { BaseAstGenPass }
+import from jaclang.compiler.backends.common.ast_gen_base { BaseAstGenPass }
+import from jaclang.compiler.frontend.module_facts { ModuleFacts }
 import from jaclang.compiler.frontend.diagnostics {
     E5001,
     E5002,
@@ -367,7 +369,14 @@ walker JcirGenPass(BaseAstGenPass[CgItem]) {
         cls_name: str, keys: list[str], vals: list, l1: int, c1: int, l2: int, c2: int
     ) -> CgNode;
 
-    def _flatten_ast_list(items: list[CgItem | list[CgItem] | None]) -> list[CgItem];
+    def _move_release_stmts(stmt: CodeBlockStmt) -> list[CgNode];
+    def _release_name_stmt(name: str, source: UniNode) -> CgNode;
+    def _scope_cleanup_body(scope: UniNode, body: list[CgNode]) -> list[CgNode];
+    def _stmts_with_releases(stmts: list) -> list[CgItem];
+    def call_node(
+        func: CgNode, args: list, keywords: list, jac_node: (UniNode | None) = None
+    ) -> CgNode;
+
     def outs(nd: UniNode) -> list[CgItem];
     def set_out(nd: UniNode, items: list[CgItem]) -> None;
     def _apply_coercion(nd: Expr) -> None;
@@ -402,6 +411,7 @@ walker JcirGenPass(BaseAstGenPass[CgItem]) {
     def _class_ref(module: str, name: str, jac_node: UniNode) -> CgNode;
     def _materialize(v: any, jac_node: UniNode) -> (CgNode | None);
     def _comptime_if_out(nd: IfStmt) -> bool;
+    def _if_out(nd: IfStmt) -> None;
     def name_load(name_id: str, jac_node: (UniNode | None) = None) -> CgNode;
     def _with_ctx(cgn: CgNode, ctx_cls: str) -> CgNode;
     def jaclib_obj(obj_name: str) -> CgNode;
@@ -428,10 +438,17 @@ walker JcirGenPass(BaseAstGenPass[CgItem]) {
     def _top_level_bound_names(items: any) -> list;
     def _native_test_shim_stmts(nd: Test) -> list;
     def _generate_sv_to_sv_stubs(nd: Import) -> bool;
+    def _sv_consumer_app_expr -> str;
+    def _sv_endpoint_effects(binding: InteropBinding, key: str) -> list[str];
+    def _sv_bridge_walker_call(expr: Expr) -> (FuncCall | None);
+    def _sv_wire_args_dict(
+        names: list[str], types: list[str], boundary_types: dict
+    ) -> str;
+
     def _gen_py_sv_func_stub(
         local_name: str,
         func_name: str,
-        module_name: str,
+        provider_app: str,
         binding: InteropBinding,
         boundary_types: dict[(str, BoundaryTypeInfo)]
     ) -> str;
@@ -439,7 +456,7 @@ walker JcirGenPass(BaseAstGenPass[CgItem]) {
     def _gen_py_sv_walker_stub(
         local_name: str,
         walker_name: str,
-        module_name: str,
+        provider_app: str,
         binding: InteropBinding,
         boundary_types: dict[(str, BoundaryTypeInfo)]
     ) -> str;
@@ -573,6 +590,11 @@ walker JcirGenPass(BaseAstGenPass[CgItem]) {
     can exit_atom_trailer with AtomTrailer exit;
     can exit_atom_unit with AtomUnit exit;
     can exit_func_call with FuncCall exit;
+    def _place_parts(arg: UniNode) -> (tuple | None);
+    def _name_take_expr(owner: str) -> CgNode;
+    def _name_swap_expr(store_id: str, value: CgNode) -> CgNode;
+    def _lower_take(nd: FuncCall) -> (CgNode | None);
+    def _lower_swap(nd: FuncCall) -> (CgNode | None);
     def _exit_func_call_impl(nd: FuncCall) -> None;
     def _fold_sorted_traversal(nd: FuncCall) -> bool;
     def _order_term(

@@ -1,6 +1,8 @@
 import atexit;
 import os;
 import sys;
+import from collections.abc { Callable, Iterator }
+import from contextlib { contextmanager }
 import from jaclang.compiler.passes.transform { DiagnosticPolicy }
 import from jaclang.compiler.driver.program { JacProgram }
 
@@ -44,6 +46,21 @@ def diagnostic_policy_for(
     );
 }
 
+def config_for_app(config: any, app_name: str) -> any {
+    if config is None or not app_name {
+        return config;
+    }
+    apps = config?.apps;
+    if not isinstance(apps, dict) or app_name not in apps {
+        return config;
+    }
+    try {
+        return config.effective_for_app(app_name);
+    } except Exception {
+        return config;
+    }
+}
+
 def build_diagnostic_policy(prog: JacProgram) -> DiagnosticPolicy {
     config: any = None;
     try {
@@ -53,6 +70,7 @@ def build_diagnostic_policy(prog: JacProgram) -> DiagnosticPolicy {
         config = None;
     }
     opts = prog.options;
+    config = config_for_app(config, opts.target_app if opts is not None else '');
     extra: list[str] = (
         list(opts.suppress_codes) if (opts is not None and opts.suppress_codes) else []
     );
@@ -118,6 +136,32 @@ def run_pass(
     if getattr(pass_cls, 'HOST_PASS', False) {
         kwargs['prog'] = prog;
     }
+    completed = prog.analysis.take_early(ir_in, pass_cls.__name__);
+    if completed is not None {
+        if completed.errors_had or completed.warnings_had {
+            sources = {ir_in.source.file_path: ir_in.source};
+            for nd in ir_in._in_mod_nodes {
+                sources[nd.loc.mod_path] = nd.loc.orig_src;
+            }
+            completed.errors_had = [
+                alert
+                for alert in completed.errors_had
+                if alert.code is None
+                    or not pol.is_suppressed(
+                        alert.code, alert.loc, source=sources.get(alert.loc.mod_path)
+                    )
+            ];
+            completed.warnings_had = [
+                alert
+                for alert in completed.warnings_had
+                if alert.code is None
+                    or not pol.is_suppressed(
+                        alert.code, alert.loc, source=sources.get(alert.loc.mod_path)
+                    )
+            ];
+        }
+        kwargs['completed'] = completed;
+    }
     try {
         inst = pass_cls(
             ir_in=ir_in,
@@ -163,3 +207,21 @@ obj _SetupProgress {
 }
 
 glob setup_progress = _SetupProgress();
+
+obj CompileProgress {
+    has _listeners: list[Callable[[str], None]] postinit,
+        _finished_listeners: list[Callable[[str], None]] postinit;
+
+    def postinit -> None;
+    def notify(file_path: str) -> None;
+    @contextmanager
+    def track(file_path: str) -> Iterator[None];
+
+    @contextmanager
+    def listen(
+        callback: Callable[[str], None],
+        on_finished: Callable[[str], None] | None = None
+    ) -> Iterator[None];
+}
+
+glob compile_progress = CompileProgress();

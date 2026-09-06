@@ -333,7 +333,13 @@ async def aws_connect(
         } except Exception {}
         raise ClientConnectionError(detail='Sec-WebSocket-Accept mismatch');
     }
-    return WebSocket(reader=reader, writer=writer, is_client_side=True, accepted=True);
+    return WebSocket(
+        reader=reader,
+        writer=writer,
+        is_client_side=True,
+        accepted=True,
+        subprotocol=str(resp_headers.get('Sec-WebSocket-Protocol') or '').strip()
+    );
 }
 
 def run_blocking(coro: any) -> any {

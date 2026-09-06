@@ -4,6 +4,8 @@ import from .tokens {
     SourceLoc,
     SrcDiag,
     CommentData,
+    is_builtin_type_kind,
+    is_reserved_kind,
     is_special_var_kind
 }
 import from .lexer { tokenize_full }
@@ -553,7 +555,7 @@ obj Parser {
         target: Expr, require_semi: bool = True
     ) -> Assignment;
 
-    def parse_ownership_prefix(kids: list[UniNode]) -> OwnershipKind;
+    def parse_ownership_prefix(kids: list[UniNode]) -> tuple[OwnershipKind, bool];
     def parse_import_stmt -> Import;
     def parse_from_path -> tuple[(ModulePath | None, bool)];
     def parse_import_items(

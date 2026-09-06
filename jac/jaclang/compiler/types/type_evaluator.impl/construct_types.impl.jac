@@ -187,6 +187,9 @@ impl TypeEvaluator._tuple_literal_index_type(
 impl TypeEvaluator._get_iterable_element_type(
     iterable_type: TypeBase, node_for_error: Expr | None = None
 ) -> TypeBase | None {
+    if iterable_type.is_any_instance() {
+        return iterable_type;
+    }
     if isinstance(iterable_type, AnyType) {
         return AnyType(is_foreign=iterable_type.is_foreign);
     }
@@ -694,8 +697,7 @@ impl TypeEvaluator._super_owner_for(
         if (
             member_name in ('init', '__init__')
             and candidate.is_data_class()
-            and isinstance(candidate.shared.symbol_table, Archetype)
-            and candidate.shared.symbol_table.get_has_vars()
+            and self._scope_has_fields(candidate.shared.symbol_table)
         ) {
             return candidate;
         }

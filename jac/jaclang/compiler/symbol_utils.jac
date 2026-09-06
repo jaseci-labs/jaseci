@@ -164,23 +164,6 @@ def _is_user_symbol(sym: Symbol) -> bool {
     return False;
 }
 
-def _symbol_defining_module(sym: Symbol) -> (Module | None) {
-    decl = sym.decl;
-    if decl is None {
-        return None;
-    }
-    return decl.find_parent_of_type(Module);
-}
-
-def _is_local_user_shadow(sym: Symbol, call: FuncCall) -> bool {
-    if not _is_user_symbol(sym) {
-        return False;
-    }
-    call_mod = call.find_parent_of_type(Module);
-    sym_mod = _symbol_defining_module(sym);
-    return call_mod is not None and sym_mod is call_mod;
-}
-
 def intrinsic_registry_if_ready -> object | None {
     import sys;
     _mod = sys.modules.get("jaclang.compiler.intrinsic_registry");
@@ -189,6 +172,10 @@ def intrinsic_registry_if_ready -> object | None {
     }
     import from jaclang.compiler.intrinsic_registry { INTRINSIC_REGISTRY }
     return INTRINSIC_REGISTRY;
+}
+
+def resolved_callee(nd: FuncCall) -> (Ability | None) {
+    return nd.callee_decl or ability_of_symbol(resolve_expr_symbol(nd.target));
 }
 
 def classify_call(nd: FuncCall) -> CallKind {
@@ -224,7 +211,7 @@ def classify_call(nd: FuncCall) -> CallKind {
             return CallKind.CLIB;
         }
     }
-    if sym is not None and _is_local_user_shadow(sym, nd) {
+    if sym is not None and _is_user_symbol(sym) {
         if sym.sym_type
             in (
                 SymbolType.OBJECT_ARCH,
@@ -616,7 +603,7 @@ def client_bridged_endpoint(mod: Module, top: UniNode) -> bool {
         and top.access is not None
         and top.access.tag.name == Tok.KW_PUB
         and top.code_context == CodeContext.SERVER
-        and project_has_server(mod.loc.mod_path or '')
+        and project_has_server(mod)
     );
 }
 
@@ -732,7 +719,7 @@ def serverless_server_evidence(
         get_module_summary,
         project_has_server
     }
-    if project_has_server(mod.loc.mod_path or '') {
+    if project_has_server(mod) {
         return [];
     }
     out: list[tuple[str, str, UniNode]] = [];
@@ -768,7 +755,7 @@ def report_serverless_kind_errors(reporter: any, mod: Module) {
     if not evidence {
         return;
     }
-    kind = project_kind_name(mod.loc.mod_path or '') or 'client-only';
+    kind = project_kind_name(mod) or 'client-only';
     for (name, reason, stmt) in evidence {
         already = _already_reported(reporter, E5087, stmt);
         if not already {

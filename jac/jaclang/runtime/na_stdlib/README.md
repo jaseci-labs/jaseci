@@ -23,7 +23,7 @@ So `import from os.path { normpath }` binds CPython's `posixpath` on the sv
 *same source* on both), while a user module of the same name always shadows the
 bundled one. A bundled module links through the existing cross-module machinery
 (binding population, then extern forward-decl, then `link_in`), on both the AOT
-(`jac nacompile`) and JIT execution paths.
+(`jac build --native`) and JIT execution paths.
 
 ## Shipped modules
 
@@ -324,7 +324,7 @@ bundled one. A bundled module links through the existing cross-module machinery
   symbols: `libzstd` is built with `ZSTD_TRACE` and references those four hooks
   weakly, which the dynamic loader binds to 0 (JIT path) but the AOT static
   linker emits as hard dynamic-undefined symbols -- the stubs satisfy them so a
-  `jac nacompile` binary links and runs. Native-host only (wasm gets a clean
+  `jac build --native` binary links and runs. Native-host only (wasm gets a clean
   link error). Pinned sv<->na congruent by `test_zstd_equivalence.jac`.
 
 - **`tarfile.jac`** (Mechanism B) + **`_tarfile_native.jac`** (tiny libc FFI

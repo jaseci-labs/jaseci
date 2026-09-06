@@ -3,12 +3,13 @@
 The native foundation for the `desktop` target (issue #6436): a Jac
 binding to the OS web engine via the small cross-platform `webview` C library
 (WebKitGTK on Linux, WKWebView on macOS, WebView2 on Windows). A `na` host that
-imports this binding compiles - with `jac nacompile` and Jac's pure-Jac linker
+imports this binding compiles - with `jac build --native` and Jac's pure-Jac linker
 (no cc/ld) - to a single binary that owns an OS-native window.
 
-The `desktop` build target ([`native_desktop_target.jac`](../../native_desktop_target.jac))
-generates and compiles such a host at build time; this directory ships the
-binding it links against.
+The `desktop` kind's client ([`desktop_target.jac`](../../desktop_target.jac))
+with `[desktop] engine = "native"` (the default) generates and compiles such a
+host at build time through [`webview_shell.jac`](../../webview_shell.jac); this
+directory ships the binding it links against.
 
 ## Contents
 
@@ -24,9 +25,9 @@ only - no WebKitGTK/libpython/display): a host that uses the binding compiles an
 links `libwebview.so` with an `$ORIGIN` runpath, and an embedded-CPython host
 links libpython.
 
-The native target AOT-links libpython via Jac `import from "libpython..."` in the
-generated `na` host. The CEF target (`cef`) uses the same embedded-Python
-loopback server with the same AOT-linked libpython pattern; see
+The webview shell AOT-links libpython via Jac `import from "libpython..."` in the
+generated `na` host. The CEF shell (`[desktop] engine = "cef"`) uses the same
+embedded-Python loopback server with the same AOT-linked libpython pattern; see
 [`../cef/README.md`](../cef/README.md) for how the two FFI layers (libpython vs
 libcef) are split there.
 
@@ -47,6 +48,6 @@ sudo ./install_webkit_deps.sh
 - Compiling a host needs no `.so` present (AOT records the link, never dlopens) -
   which is why the tests run with nothing installed.
 - WSLg/WebKit rendering needs `GDK_BACKEND=x11` + the DMABUF/compositor disables
-  (the desktop target sets these when it launches the app).
+  (the webview shell sets these when it launches the app).
 - `libwebview.so` and build caches are git-ignored; regenerate with
   `build_libwebview.sh`.

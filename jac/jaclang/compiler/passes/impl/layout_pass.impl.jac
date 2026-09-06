@@ -66,10 +66,10 @@ impl LayoutPass._collect_archetypes(module: Module) -> dict[str, Archetype] {
 }
 
 impl LayoutPass._collect_isinstance_targets(module: Module) -> None {
-    import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
+    import from jaclang.compiler.frontend.module_facts { ModuleFacts }
     import from jaclang.compiler.frontend.constant { CodeContext }
     calls: list = [];
-    for stmt in ModuleCodegenPass.iter_context_stmts(module, CodeContext.NATIVE) {
+    for stmt in ModuleFacts.iter_context_stmts(module, CodeContext.NATIVE) {
         if isinstance(stmt, FuncCall) {
             calls.append(stmt);
         }
@@ -204,11 +204,15 @@ impl LayoutPass._compute_c3_mro(class_name: str) -> list[str] {
 }
 
 impl LayoutPass._topo_sort(arch_map: dict[str, Archetype]) -> list[str] {
+    return self.registry.dependency_order(list(arch_map));
+}
+
+impl LayoutRegistry.dependency_order(names: list[str]) -> list[str] {
+    """Order layouts after their ancestors, including incomplete imported MROs.""";
     visited: set[str] = set();
     order: list[str] = [];
-    reg = self.registry;
 
-    for aname in arch_map {
+    for aname in names {
         if aname in visited {
             continue;
         }
@@ -224,7 +228,7 @@ impl LayoutPass._topo_sort(arch_map: dict[str, Archetype]) -> list[str] {
                 continue;
             }
             stack.append((name, True));
-            mro = reg.mro_order.get(name, [name]);
+            mro = self.mro_order.get(name, [name]);
             for ancestor in reversed(mro[1:]) {
                 if ancestor not in visited {
                     stack.append((ancestor, False));
