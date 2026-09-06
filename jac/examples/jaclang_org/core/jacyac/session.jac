@@ -34,10 +34,10 @@ def:pub useSession -> Session {
         username: str = "",
         password: str = "",
         error: str = "",
-        busy: bool = False;
-    has githubEnabled: bool = False;
+        busy: bool = False,
+        githubEnabled: bool = False;
 
-    async def checkGithub -> None {
+    async def checkGithub {
         try {
             githubEnabled = await github_enabled();
         } except Exception {
@@ -106,7 +106,7 @@ def:pub useSession -> Session {
         }
     }
 
-    def logout -> None {
+    def logout {
         jacLogout();
         for key in [
             "jacyac_username",

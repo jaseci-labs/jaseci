@@ -11,7 +11,7 @@ obj Theme {
 
 def:pub useTheme -> Theme {
     has dark: bool = __getLocalStorage("jac-theme") != "light";
-    def changed(value: bool) -> None {
+    def changed(value: bool) {
         dark = value;
     }
     can with entry {
@@ -22,7 +22,7 @@ def:pub useTheme -> Theme {
             if listener != changed
         ]; };
     }
-    def toggle -> None {
+    def toggle {
         value = not dark;
         __setLocalStorage("jac-theme", "dark" if value else "light");
         for listener in listeners {

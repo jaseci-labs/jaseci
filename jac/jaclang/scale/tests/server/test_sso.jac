@@ -26,11 +26,13 @@ import from .oauth_fixtures { FakeTokens, fake_users }
 obj RecordingHost(EndpointHost) {
     has users: UserManager,
         endpoints: list[JEndPoint] = [];
+
     has user_manager: UserManager { getter; }
 
     def identity -> UserManager {
         return self.users;
     }
+
     def add_endpoint(endpoint: JEndPoint) {
         self.endpoints.append(endpoint);
     }

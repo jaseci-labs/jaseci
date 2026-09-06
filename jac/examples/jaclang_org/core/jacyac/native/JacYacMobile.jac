@@ -37,25 +37,25 @@ def:pub JacYacMobile(embedded: bool = False) -> JsxElement {
     fontReady = useBrandFont();
     has bioText: str = "";
     viewport = useWindowDimensions();
-    async def navigate(tab: str) -> None {
+    async def navigate(tab: str) {
         await model.navigate(tab);
     }
-    async def handleSearch -> None {
+    async def handleSearch {
         await model.handleSearch(model.searchQuery);
     }
-    async def clearSearch -> None {
+    async def clearSearch {
         await model.handleSearch("");
     }
-    async def handleTrendPress(tag: str) -> None {
+    async def handleTrendPress(tag: str) {
         model.setActiveTab("feed");
         await model.handleSearch(tag);
     }
-    def startEditBio -> None {
+    def startEditBio {
         bioText = model.myProfile.profile.bio if model.myProfile else "";
         model.setEditingProfile(True);
         model.setProfileError("");
     }
-    async def handleSaveBio -> None {
+    async def handleSaveBio {
         await model.handleSaveBio(bioText);
     }
     if model.session.checking {

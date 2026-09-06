@@ -8,7 +8,7 @@ import from core.site.leaderboard.Methodology { Methodology }
 def:pub NinjaScores(model: JacYacState) -> JsxElement {
     scores = useScores(model);
     has url: str = "";
-    async def submit(e: FormEvent) -> None {
+    async def submit(e: FormEvent) {
         e.preventDefault();
         if await model.handleAddProject(url) {
             url = "";

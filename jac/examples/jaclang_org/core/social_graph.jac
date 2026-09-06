@@ -511,7 +511,7 @@ walker:pub get_all_profiles {
     }
 }
 
-def import_legacy -> None {
+def import_legacy {
     for archive_root in allroots() {
         entries = [archive_root-->[?:BoardHub]->:OnBoard:->[?:RepoEntry]];
         if not entries {

@@ -48,7 +48,7 @@ def:pub ChannelsTab(
         newChannelName: str = "",
         newChannelDescription: str = "",
         channelComposerText: str = "";
-    async def submitPost -> None {
+    async def submitPost {
         if await onChannelPost(channelComposerText) {
             channelComposerText = "";
         }

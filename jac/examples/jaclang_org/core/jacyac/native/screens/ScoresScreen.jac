@@ -21,7 +21,7 @@ def:pub ScoresScreen(model: JacYacState) -> JsxElement {
         showRepos: bool = False,
         expandedProject: str = "",
         confirmProject: str = "";
-    async def submit -> None {
+    async def submit {
         if await model.handleAddProject(url) {
             url = "";
         }

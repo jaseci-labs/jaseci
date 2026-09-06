@@ -25,7 +25,7 @@ def ChannelDetail(
     C = theme.colors;
     styles = makeStyles(C);
     has draft: str = "";
-    async def submitPost -> None {
+    async def submitPost {
         if await onPost(draft) {
             draft = "";
         }

@@ -461,9 +461,6 @@ impl SolidBackend.lower_effect(e: Effect) -> list[es.Statement] {
         iife_call = es.CallExpression(callee=async_arrow, arguments=[]);
         effect_body.append(es.ExpressionStatement(expression=iife_call));
     } else {
-        # Solid treats an effect's return as its next input, not teardown.
-        # Capture the setup result while retaining its local closure, and
-        # register callable results with the current reactive owner.
         setup = es.ArrowFunctionExpression(
             params=[],
             body=es.BlockStatement(body=e.body),

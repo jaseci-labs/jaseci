@@ -63,8 +63,6 @@ impl TypeCheckPass.exit_return_stmt with ReturnStmt exit {
             and here.expr
             and not isinstance(here.expr, Null)
         ) {
-            # Client synchronous entry effects return a closure-local cleanup.
-            # Async entry and exit bodies ignore return values, as do walkers.
             if not (
                 scope.in_client_context()
                 and scope.signature.event.name == Tok.KW_ENTRY

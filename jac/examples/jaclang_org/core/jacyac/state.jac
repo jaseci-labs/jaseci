@@ -194,7 +194,7 @@ def:pub useJacYac -> JacYacState {
     async def handleSaveBio(bio: str) -> None;
     async def handleAvatarData(data_url: str) -> None;
 
-    def logout -> None {
+    def logout {
         session.logout();
         activeTab = "feed";
         myProfile = None;
