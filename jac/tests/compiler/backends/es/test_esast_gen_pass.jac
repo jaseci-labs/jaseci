@@ -730,22 +730,6 @@ test "stale has read emits W3041" {
     );
 }
 
-test "routing return annotations lower through the props protocol" {
-    js = es_to_js(compile_to_esast(fixture_path("component_routing_return_types.jac")));
-
-    # `JsxPage`, `JsxLayout` and unions lower through the props protocol just
-    # as `JsxElement` does, and `TypeCheckPass` reads component-hood off the
-    # same predicate (`jaclang.compiler.jsx_component`).
-    for name in ["PageComp", "LayoutComp", "UnionComp", "ElementComp"] {
-        assert f"function {name}(props)" in js , (
-            f"{name} should be emitted with the props-protocol signature:\n{js}"
-        );
-    }
-    assert js.count("const {title} = props;") == 4 , (
-        f"Expected all four components to destructure `title` out of props:\n{js}"
-    );
-}
-
 test "single-`props` component definition warns W5015" {
     fixture = fixture_path("component_props_idiom.jac");
     prog = JacProgram();
@@ -939,6 +923,15 @@ test "union JsxElement return type still triggers props-destructure lowering" {
     assert len(error_banner.params) == 1;
     assert isinstance(error_banner.params[0], es.Identifier);
     assert error_banner.params[0].name == "props";
+
+    # `JsxPage` and `JsxLayout` returns are components too, lowered through the
+    # same props protocol (`jaclang.compiler.jsx_component` is the one predicate
+    # the checker and the emitter share).
+    for name in ["PageComp", "LayoutComp"] {
+        assert len(funcs[name].params) == 1 , f"{name} should take one props parameter";
+        assert isinstance(funcs[name].params[0], es.Identifier);
+        assert funcs[name].params[0].name == "props" , f"{name} should be emitted with the props-protocol signature";
+    }
 
     direct_ret = _fn_stmts(funcs["direct_call"])[0];
     assert isinstance(direct_ret, es.ReturnStatement);

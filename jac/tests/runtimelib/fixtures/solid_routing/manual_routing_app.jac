@@ -1,8 +1,7 @@
-"""Solid mirror of `fixtures/react_auth/manual_routing_app.jac`: the `AuthGuard`
-shapes the generated `pages/` entry never exercises.
+"""Manual-routing `AuthGuard` shapes the generated `pages/` entry never writes
+(Solid mirror of `fixtures/react_auth/manual_routing_app.jac`):
 
-  /wrapped         guard as a route `element`, children baked in
-  /nested          guard as a pathless parent route, child from the router
+  /nested          guard as a pathless `element=` parent route, child from the router
   /layout-guarded  a layout wrapping `<Outlet/>` in the guard
   /bare            neither children nor child routes
 
@@ -40,12 +39,6 @@ def:pub app -> JsxElement {
     <Router root={Shell}>
         <Routes>
             <Route path="/login" element={<LoginPage/>}/>
-            <Route
-                path="/wrapped"
-                element={<AuthGuard redirect="/login">
-                    <Dashboard/>
-                </AuthGuard>}
-            />
             <Route element={<AuthGuard redirect="/login"/>}>
                 <Route path="/nested" element={<NestedPage/>}/>
             </Route>

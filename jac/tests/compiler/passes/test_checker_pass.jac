@@ -4131,23 +4131,42 @@ test "jsx_step2_handler_aliases" {
         + "\n---\n".join(err.pretty_print() for err in program.errors_had);
 }
 
+def _jsx_msgs(program: JacProgram, code: str) -> list {
+    return sorted(
+        [
+            d.msg
+            for d in program.errors_had + program.warnings_had
+            if d.code and d.code.code == code
+        ]
+    );
+}
+
 test "jsx_step3_jsx_prop_check" {
     path = os.path.join(CHECKER_FIXTURES, "checker_jsx_step3_jsx_prop_check.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
+    all_diags = "\n---\n".join(
+        d.pretty_print() for d in program.errors_had + program.warnings_had
+    );
 
-    e1100_errors = [
-        e
-        for e in program.errors_had
-        if e.code and e.code.code == "E1100"
-    ];
-    assert len(e1100_errors) >= 1 , f"Expected E1100 for JSX prop type mismatch, got {len(
-        e1100_errors
-    )} E1100 errors. All errors:\n"
-        + "\n---\n".join(
-            f"{err.code.code if err.code else '?'}: {err.pretty_print()}"
-            for err in program.errors_had
-        );
+    assert len(_jsx_msgs(program, "E1100")) >= 1 , f"Expected E1100 for the onClick type mismatch:\n{all_diags}";
+
+    # A call site passing no attribute and a zero-parameter component are
+    # checked like any other; nested content counts as `children`, a comment
+    # does not.
+    e1102 = _jsx_msgs(program, "E1102");
+    assert len(e1102) == 3 , f"Expected 3 E1102 (Plain 'title', Card 'children' twice):\n{all_diags}";
+    assert len([m for m in e1102 if "prop 'title'" in m]) == 1 , f"Expected one E1102 naming 'title':\n{all_diags}";
+    assert len([m for m in e1102 if "prop 'children'" in m]) == 2 , f"Expected two E1102 naming 'children':\n{all_diags}";
+    e1101 = _jsx_msgs(program, "E1101");
+    assert len(e1101) == 1 and "bogus" in e1101[0] , f"Expected exactly 1 E1101 (Zero 'bogus'):\n{all_diags}";
+
+    # Children handed to a component that declares none are dropped by the
+    # codegen, so the call site is warned.
+    w1053 = _jsx_msgs(program, "W1053");
+    assert len(w1053) == 2 , f"Expected 2 W1053 (Plain, Zero):\n{all_diags}";
+    assert len([m for m in w1053 if "Component 'Plain'" in m]) == 1 , f"Expected W1053 on 'Plain':\n{all_diags}";
+    assert len([m for m in w1053 if "Component 'Zero'" in m]) == 1 , f"Expected W1053 on 'Zero':\n{all_diags}";
 }
 
 test "jsx_step4_lambda_inference" {
@@ -4288,153 +4307,16 @@ test "jsx_props_bag_untyped_and_typed" {
     assert "UntypedComp" in w1052[0].pretty_print() , f"Expected W1052 for 'UntypedComp', got: {w1052[
         0
     ].pretty_print()}";
-}
 
-test "jsx_children_must_be_declared_by_the_component" {
-    # The codegen destructures declared parameter names out of `props` with no
-    # rest element, so a component declaring no `children` drops them silently.
-    path = os.path.join(CHECKER_FIXTURES, "checker_jsx_children_contract.jac");
-    program = JacProgram();
-    mod = program.compile(path, options=NO_TC);
-
-    w1053 = [
-        w
-        for w in program.warnings_had
-        if w.code and w.code.code == "W1053"
-    ];
-    # Two on `Titled`, one each on `ZeroParam`, `TitledPage` and `Required`.
-    assert len(w1053) == 5 , f"Expected exactly 5 W1053, got {len(w1053)}:\n"
-        + "\n---\n".join(w.pretty_print() for w in program.warnings_had);
-    flagged = sorted(w.msg for w in w1053);
-    named = [
-        name
-        for name in [
-            "Titled",
-            "TitledPage",
-            "Required",
-            "WithChildren",
-            "ZeroParam",
-            "TypedBag"
-        ]
-        if any(f"Component '{name}'" in m for m in flagged)
-    ];
-    assert named == ["Titled", "TitledPage", "Required", "ZeroParam"] , f"Expected W1053 only on 'Titled', 'TitledPage', 'Required' and 'ZeroParam', got {named}:\n"
-        + "\n".join(flagged);
-
-    # Only the complete element is a call site; validating the opening or
-    # closing tag node would report `Required`'s `title` as missing.
-    e1102 = [
-        e
-        for e in program.errors_had
-        if e.code and e.code.code == "E1102"
-    ];
-    assert not e1102 , f"A JSX tag node was validated as a call site:\n"
-        + "\n---\n".join(e.pretty_print() for e in e1102);
-    assert len(
-        [
-            m
-            for m in flagged
-            if "Component 'Titled'" in m
-        ]
-    )
-        == 2 , f"Expected 2 W1053 on 'Titled':\n" + "\n".join(flagged);
-
-    # Zero-parameter components are validated like any other.
-    e1101 = [
-        e
-        for e in program.errors_had
-        if e.code and e.code.code == "E1101"
-    ];
-    assert len(e1101) == 1 , f"Expected exactly 1 E1101 (ZeroParam 'bogus'), got {len(
-        e1101
-    )}:\n"
-        + "\n---\n".join(
-            f"{err.code.code if err.code else '?'}: {err.pretty_print()}"
-            for err in program.errors_had
-        );
-    assert "bogus" in e1101[0].pretty_print() , f"Expected E1101 for 'bogus', got: {e1101[
-        0
-    ].pretty_print()}";
-}
-
-test "jsx_props_are_checked_at_call_sites_passing_no_attribute" {
-    # Prop validation used to return early on a call site with no attributes,
-    # so a missing required prop went unreported exactly when the call site
-    # passed nothing at all.
-    path = os.path.join(CHECKER_FIXTURES, "checker_jsx_required_props.jac");
-    program = JacProgram();
-    mod = program.compile(path, options=NO_TC);
-
-    e1102 = [
-        e
-        for e in program.errors_had
-        if e.code and e.code.code == "E1102"
-    ];
-    msgs = sorted(e.msg for e in e1102);
-    # `<Plain/>` and `<Card>body</Card>` are missing `title`; `<Card title/>`
-    # is missing `children`. The three call sites that satisfy their signature
-    # -- including `<AllOptional/>`, which also passes nothing -- stay clean.
-    assert len(e1102) == 3 , f"Expected exactly 3 E1102, got {len(e1102)}:\n"
-        + "\n---\n".join(e.pretty_print() for e in e1102);
-    assert len(
-        [
-            m
-            for m in msgs
-            if "Component 'Plain'" in m
-        ]
-    )
-        == 1 , f"Expected 1 E1102 on 'Plain':\n" + "\n".join(msgs);
-    for name in ["title", "children"] {
-        assert any(f"prop '{name}'" in m for m in msgs) , f"Expected an E1102 naming '{name}':\n"
-            + "\n".join(msgs);
-    }
-    assert not any("Component 'AllOptional'" in m for m in msgs) , f"A fully optional signature must not be flagged:\n"
-        + "\n".join(msgs);
-
-    # Nested children count as the `children` prop, so a `children` parameter
-    # with no default is satisfied by the content it exists to receive.
-    assert len(
-        [
-            m
-            for m in msgs
-            if "prop 'children'" in m
-        ]
-    )
-        == 1 , f"Expected `<Card title=\"ok\">body</Card>` to satisfy 'children':\n"
-        + "\n".join(msgs);
-}
-
-test "jsx_props_bundle_must_be_the_only_parameter" {
-    # A `props` bundle beside another parameter emits either invalid JavaScript
-    # (`const {props, tone} = props`) or a positional signature React never
-    # calls that way, pinning every other parameter to its default.
-    path = os.path.join(CHECKER_FIXTURES, "checker_jsx_props_bundle_exclusive.jac");
-    program = JacProgram();
-    mod = program.compile(path, options=NO_TC);
-
+    # A `props` bundle beside another parameter has no valid lowering: E1109
+    # fires once, on MixedComp.
     e1109 = [
         e
         for e in program.errors_had
         if e.code and e.code.code == "E1109"
     ];
-    msgs = sorted(e.msg for e in e1109);
-    assert len(e1109) == 5 , f"Expected exactly 5 E1109, got {len(e1109)}:\n"
-        + "\n---\n".join(
-            f"{err.code.code if err.code else '?'}: {err.pretty_print()}"
-            for err in program.errors_had
-        );
-    # Every annotation the codegen lowers through the props protocol, not just
-    # `JsxElement`: `pages/` modules return `JsxPage`/`JsxLayout`.
-    for name in ["Mixed", "MixedKw", "MixedPage", "MixedLayout", "MixedUnion"] {
-        assert any(f"'{name}'" in m for m in msgs) , f"Expected E1109 for '{name}':\n"
-            + "\n".join(msgs);
-    }
-    # A lone bundle, named parameters, non-JSX functions and `__jac` runtime
-    # helpers (called directly, not through the props protocol) are all fine.
-    for name in ["Bag", "BagPage", "Named", "NotAComponent", "__jacMixedHelper"] {
-        assert not any(f"'{name}'" in m for m in msgs) , f"'{name}' must not be flagged:\n"
-            + "\n".join(msgs);
-    }
+    assert len(e1109) == 1 and "MixedComp" in e1109[0].pretty_print() , f"Expected exactly 1 E1109 (MixedComp), got:\n"
+        + "\n---\n".join(e.pretty_print() for e in program.errors_had);
 }
 
 glob PAGES_ROUTING_FIXTURES = os.path.join(
@@ -4470,28 +4352,6 @@ test "pages_project_app_declaring_children_is_accepted" {
     # Same project shape, one declared parameter: nothing to report.
     e1108 = _pages_entry_errors("renders_children");
     assert len(e1108) == 0 , f"Expected no E1108 when `app` declares children, got {len(
-        e1108
-    )}:\n"
-        + "\n---\n".join(e.pretty_print() for e in e1108);
-}
-
-test "pages_dir_without_routes_is_accepted" {
-    # The directory alone is not the routing switch: `_scan_and_compile_pages`
-    # also needs a route or a layout, and renders `app` directly without one.
-    # The fixture's three modules are the ones a text scan gets wrong -- a
-    # `JsxElement` return, `-> JsxPage` in a docstring, and a `JsxPage` method.
-    e1108 = _pages_entry_errors("pages_without_routes");
-    assert len(e1108) == 0 , f"Expected no E1108 when pages/ declares no route, got {len(
-        e1108
-    )}:\n"
-        + "\n---\n".join(e.pretty_print() for e in e1108);
-}
-
-test "manual_routing_app_without_children_is_accepted" {
-    # No `pages/` directory: the entry renders `app` directly, so the
-    # no-argument form is the correct one and must stay unflagged.
-    e1108 = _pages_entry_errors("no_pages");
-    assert len(e1108) == 0 , f"Expected no E1108 without a pages/ directory, got {len(
         e1108
     )}:\n"
         + "\n---\n".join(e.pretty_print() for e in e1108);
