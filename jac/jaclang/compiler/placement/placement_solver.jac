@@ -845,7 +845,7 @@ def _pull_boundary_import(imp: uni.Import, module: uni.Module, prog: any) -> int
     return new_stamps;
 }
 
-def solve_program_placement(entry_mod: uni.Module, prog: any) -> None {
+def solve_program_placement(entry_mod: uni.Module, prog: any) {
     work = placement_work(prog);
     work.track(entry_mod);
     hub = prog?.mod?.hub;

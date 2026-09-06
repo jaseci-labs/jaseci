@@ -1,10 +1,3 @@
-"""Program-local placement dependencies, valid until a module's symbols change.
-
-An import is revisited only when a module it read changes. The queue also
-accepts modules materialized during a solve; reentrant solves share that queue.
-This is analysis state for a live compilation, separate from persisted JIR.
-"""
-
 import os;
 import jaclang.compiler.frontend.unitree as uni;
 
@@ -13,7 +6,6 @@ obj PlacementWork {
     has modules: dict[int, uni.Module] = {},
         edges: dict[int, tuple[uni.Import, uni.Module]] = {},
         owned: dict[int, list[int]] = {},
-        # Dictionaries act as ordered sets, preserving dependency discovery order.
         readers: dict[int, dict[int, bool]] = {},
         path_readers: dict[str, dict[int, bool]] = {},
         reads: dict[int, set[int]] = {},
