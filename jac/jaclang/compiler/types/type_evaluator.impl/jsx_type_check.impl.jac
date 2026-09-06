@@ -250,10 +250,6 @@ impl TypeEvaluator._validate_component_jsx_props(
         }
     }
 
-    if expr.children {
-        matched_params.add("children");
-    }
-
     for (pname, p) in param_map.items() {
         if pname not in matched_params and not p.is_optional {
             self.emit_diag(E1102, expr, component=component_name, name=pname);
