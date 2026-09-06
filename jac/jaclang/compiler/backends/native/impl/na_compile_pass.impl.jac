@@ -187,6 +187,7 @@ impl NativeCompilePass._run_impl(ir_in: uni.Module) -> uni.Module {
             } except Exception {}
         }
         module.gen.native_engine = engine;
+        self._share_engine(module, engine);
 
         if native_debug and debug_obj_path {
             fn_names: list[str] = [];
@@ -208,6 +209,27 @@ impl NativeCompilePass._run_impl(ir_in: uni.Module) -> uni.Module {
         }
     }
     return ir_in;
+}
+
+impl NativeCompilePass._share_engine(module: uni.Module, engine: any) -> None {
+    """The plan may have recompiled this module as a unit while settling,
+    which evicts the module the importer will ask about and leaves its
+    products on the program's artifact carrier; the engine and the interop
+    tables go on that carrier too, so the lookup finds them either way.""";
+    import os;
+    if not (module.loc and module.loc.mod_path) {
+        return;
+    }
+    resolved = os.path.realpath(module.loc.mod_path);
+    carrier = self.prog.hub.artifacts.get(resolved);
+    if carrier is None or carrier is module.gen {
+        return;
+    }
+    carrier.native_engine = engine;
+    carrier.interop_py_funcs = module.gen.interop_py_funcs;
+    carrier._interop_callbacks = module.gen._interop_callbacks;
+    carrier.interop_manifest = module.gen.interop_manifest;
+    carrier.native_layout = module.gen.native_layout;
 }
 
 impl NativeCompilePass._emit_debug_products(

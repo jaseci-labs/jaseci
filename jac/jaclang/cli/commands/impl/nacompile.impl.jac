@@ -20,6 +20,24 @@ def _scan_rc_machinery(llvm_ir_str: str) -> tuple[list[str], list[str]] {
 }
 
 
+def _application_ir(plan: any) -> str {
+    import jaclang.compiler.backends.native.llvm.binding as llvm;
+    import from jaclang.compiler.frontend.codeinfo { native_unit_identity }
+    registry = plan.prog.native_units();
+    parts: list[str] = [];
+    for u in plan.units {
+        if native_unit_identity(u.path).startswith("jaclang/") {
+            continue;
+        }
+        bc = registry.bitcode_for(u.path, plan.options);
+        if bc is None {
+            continue;
+        }
+        parts.append(str(llvm.parse_bitcode(bc)));
+    }
+    return "\n".join(parts);
+}
+
 impl nacompile(
     filename: str,
     output: str = "",
@@ -142,8 +160,7 @@ impl nacompile(
         ArtifactKind,
         LinkPlanError,
         build_link_plan,
-        link_artifact,
-        whole_program_module
+        link_artifact
     }
 
     try {
@@ -212,6 +229,9 @@ impl nacompile(
     }
 
     try {
+        """The entry module was just compiled with these options: the plan
+        starts from its products rather than lowering it again.""";
+        prog.native_units().record_module(ir_module, options);
         plan = build_link_plan(prog, [ir_module.loc.mod_path], options, mode=link_mode);
     } except LinkPlanError as e {
         console.error(f"Link plan failed: {e}");
@@ -237,9 +257,7 @@ impl nacompile(
     }
 
     if assert_no_rc {
-        spec = plan.glue_spec(ArtifactKind.EXECUTABLE, "elf", False);
-        (merged, _exports) = whole_program_module(plan, spec);
-        (_rc_syms, _rc_probes) = _scan_rc_machinery(str(merged));
+        (_rc_syms, _rc_probes) = _scan_rc_machinery(_application_ir(plan));
         if _rc_syms or _rc_probes {
             _parts: list[str] = [];
             if _rc_syms {

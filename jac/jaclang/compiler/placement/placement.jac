@@ -758,7 +758,7 @@ def summarize_module(
         es.pinned = '';
         if ps.mod_path {
             import from jaclang.compiler.placement.placement_pins { effective_pin_for }
-            es.pinned = effective_pin_for(ps.mod_path, es.name);
+            es.pinned = effective_pin_for(ps.mod_path, es.name, prog);
         }
         es.is_pub = _is_pub_element(stmt);
         es.reqs = _element_reqs(stmt);

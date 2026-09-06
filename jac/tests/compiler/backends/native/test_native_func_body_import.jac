@@ -175,8 +175,12 @@ test "a native-context body-scoped import contributes its module's clib" {
         options=native_force_opts()
     );
     assert not prog.errors_had , f"Errors: {[str(e) for e in prog.errors_had]}";
-    assert any("libctxgated" in p for p in ir.gen._clib_paths) , (
+    # The link set is the plan's: the imported module is its own unit and its
+    # declared C library rides on that unit's interface.
+    import from jaclang.compiler.backends.native.link_plan { build_link_plan }
+    plan = build_link_plan(prog, [ir.loc.mod_path], native_force_opts());
+    assert any("libctxgated" in p for p in plan.clib_paths()) , (
         f"transitive body-scoped import did not contribute its clib: "
-        f"{ir.gen._clib_paths}"
+        f"{plan.clib_paths()}"
     );
 }

@@ -180,7 +180,9 @@ def native_only(source_path: str) -> bool {
     return is_native_only(rel);
 }
 
-def native_unit(source_path: str, native_unit_compile: (bool | None) = None) -> bool {
+def native_unit(
+    source_path: str, native_unit_compile: (bool | None) = None, prog: any = None
+) -> bool {
     if native_only(source_path) {
         return True;
     }
@@ -189,7 +191,7 @@ def native_unit(source_path: str, native_unit_compile: (bool | None) = None) -> 
         return True;
     }
     import from jaclang.compiler.placement.placement_pins { effective_module_pin }
-    if effective_module_pin(source_path) == SPACE_NATIVE {
+    if effective_module_pin(source_path, prog) == SPACE_NATIVE {
         return True;
     }
     import from jaclang.compiler.native_scope { in_native_scope_path }

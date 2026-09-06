@@ -397,6 +397,12 @@ def build_link_plan(
             );
         }
         for path in sorted(unsettled.keys()) {
+            if not os.path.isfile(path) {
+                raise LinkPlanError(
+                    f"{path} was compiled from a string and cannot be lowered "
+                    f"again to settle ({unsettled[path]})"
+                );
+            }
             registry.forget(path);
             try {
                 prog.invalidate_module(path);
@@ -883,11 +889,7 @@ def jit_engine_for_module(
     if not (module?.loc and module.loc.mod_path) {
         return None;
     }
-    if module.gen.native_iface is not None {
-        prog.native_units().record(
-            module.loc.mod_path, module.gen.native_iface, options
-        );
-    }
+    prog.native_units().record_module(module, options);
     plan = build_link_plan(
         prog, [module.loc.mod_path], options, mode=NATIVE_LINK_MODE_BITCODE
     );

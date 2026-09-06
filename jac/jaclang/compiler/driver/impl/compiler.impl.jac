@@ -622,7 +622,7 @@ impl JacCompiler.parse_str(
                 codespace = _pinned_space;
             }
         }
-        if not codespace and _native_unit(file_path, _native_unit_on) {
+        if not codespace and _native_unit(file_path, _native_unit_on, target_program) {
             codespace = 'native';
         }
         if not codespace {
@@ -1038,7 +1038,7 @@ impl JacCompiler.stamp_boundary_facts(
                 na_intent = (
                     native_ctx
                     or in_native_mod
-                    or import_declares_native_target(nd)
+                    or import_declares_native_target(nd, target_program)
                     or cl_na_edge
                 );
                 facts.native_from_path = resolve_native(module_name, na_intent);
@@ -1103,7 +1103,9 @@ impl JacCompiler.stamp_boundary_facts(
                 module_name = '.'.join(p.value for p in item.path);
                 if module_name {
                     na_intent = (
-                        native_ctx or in_native_mod or import_declares_native_target(nd)
+                        native_ctx
+                        or in_native_mod
+                        or import_declares_native_target(nd, target_program)
                     );
                     facts.native_absorb_path = resolve_native(module_name, na_intent);
                 }
@@ -1121,7 +1123,7 @@ impl JacCompiler.stamp_boundary_facts(
                         na_intent = (
                             native_ctx
                             or in_native_mod
-                            or import_declares_native_target(nd)
+                            or import_declares_native_target(nd, target_program)
                         );
                         item_path = resolve_native(whole_name, na_intent);
                         if item_path {

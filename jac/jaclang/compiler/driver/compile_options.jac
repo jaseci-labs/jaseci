@@ -182,6 +182,7 @@ obj CompileOptions {
             native_link_mode=self.native_link_mode,
             na_gc_mode=self.na_gc_mode,
             nogc_enforce_all=self.nogc_enforce_all,
+            nogc_cli_target=self.nogc_cli_target,
             nogc_enforce_modules=list(self.nogc_enforce_modules or []),
             nogc_grandfathered=list(self.nogc_grandfathered or []),
             rc_debug_codegen=self.rc_debug_codegen,

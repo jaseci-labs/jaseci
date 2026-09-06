@@ -210,6 +210,27 @@ obj NativeUnitRegistry {
         return self._register(resolved, iface, self.stamp_for(options), "compile");
     }
 
+    def record_module(
+        module: any, options: (CompileOptions | None) = None
+    ) -> (NativeUnitEntry | None) {
+        """A module this process just lowered enters the registry with the
+        digests of the dependencies it was lowered against, which are the
+        entries those dependencies registered before it.""";
+        if not (module?.loc and module.loc.mod_path) {
+            return None;
+        }
+        gen = module.gen;
+        if gen.native_iface is None {
+            return None;
+        }
+        return self.record(
+            module.loc.mod_path,
+            gen.native_iface,
+            options,
+            dep_digests=self.dep_digests(list(gen.native_deps or []))
+        );
+    }
+
     def recorded_native_deps(path: str) -> list[tuple[str, str]] {
         resolved = os.path.realpath(path);
         live = self.recorded_deps.get(resolved);
@@ -343,7 +364,7 @@ obj NativeUnitRegistry {
             dep = os.path.realpath(row.path);
             if dep.endswith(".jac")
                 and os.path.isfile(dep)
-                and native_unit(dep, native_unit_compile) {
+                and native_unit(dep, native_unit_compile, self.prog) {
                 out.append(dep);
             }
         }

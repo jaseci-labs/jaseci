@@ -33,6 +33,7 @@ walker NativeCompilePass(Transform) {
     def transform(ir_in: uni.Module) -> uni.Module;
     def _run_impl(ir_in: uni.Module) -> uni.Module;
     def _load_unit_clibs(module: uni.Module) -> None;
+    def _share_engine(module: uni.Module, engine: any) -> None;
     def _emit_debug_products(
         module: uni.Module, mod: ModuleRef, target_machine: TargetMachine
     ) -> str;

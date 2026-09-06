@@ -947,7 +947,14 @@ impl NaIRGenCore._register_imported_struct_types -> None {
         if v
     };
 
-    for _direct in dep_edges.get(None, []) {
+    _dep_seen: set[str] = set();
+    _dep_todo: list[str] = list(dep_edges.get(None, []));
+    while _dep_todo {
+        _direct = _dep_todo.pop(0);
+        if _direct in _dep_seen {
+            continue;
+        }
+        _dep_seen.add(_direct);
         if typed_only.get(_direct, False) {
             import from jaclang.compiler.placement.placement_facts {
                 native_unit as _typed_native_unit
@@ -971,6 +978,10 @@ impl NaIRGenCore._register_imported_struct_types -> None {
         );
         if _has_own_code {
             self._note_native_dep(_direct);
+        } else {
+            """A module made only of imports and includes is a re-export
+            surface: the units behind it are what this module links to.""";
+            _dep_todo.extend(dep_edges.get(_direct, []));
         }
     }
 
