@@ -408,7 +408,10 @@ def precompile_unit(
     compiler = Jac.get_compiler();
 
     if not _unit_program {
-        _unit_program.append(JacProgram());
+        import from jaclang.compiler.driver.compile_options { CompileOptions }
+        fresh = JacProgram();
+        fresh.options = CompileOptions(skip_native_engine=True);
+        _unit_program.append(fresh);
     }
     program = _unit_program[0];
     compiler.unit_collect = collect;

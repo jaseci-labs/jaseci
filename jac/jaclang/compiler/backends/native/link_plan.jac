@@ -16,7 +16,7 @@ import from jaclang.compiler.driver.compile_options {
 }
 import from jaclang.compiler.driver.native_iface {
     NativeIface,
-    layout_digest,
+    layout_digest as layout_digest_of,
     merge_class_layouts
 }
 import from jaclang.compiler.backends.native.link_glue {
@@ -152,7 +152,7 @@ obj LinkPlan {
     }
 
     def layout_digest -> str {
-        return layout_digest(self.merged_layout());
+        return layout_digest_of(self.merged_layout());
     }
 
     def demoted_symbols -> list[str] {
@@ -435,7 +435,7 @@ def whole_program_module(
         if bc is None {
             raise LinkPlanError(f"no bitcode for native unit {u.path}");
         }
-        unit_mod = llvm.parse_bitcode(bc);
+        unit_mod: ModuleRef = llvm.parse_bitcode(bc);
         if merged is None {
             merged = unit_mod;
         } else {
@@ -538,7 +538,7 @@ def _write_sidecar(
     plan: LinkPlan, output_path: str, plan_digest: str
 ) -> tuple[dict, str] {
     classes = plan.merged_layout();
-    ldigest = layout_digest(classes);
+    ldigest = layout_digest_of(classes);
     unit_paths = [u.path for u in plan.units];
     sidecar = {
         "classes": classes,

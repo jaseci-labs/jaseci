@@ -235,7 +235,9 @@ impl JacCompiler.get_bytecode(
         setup_progress.on_internal_compile(full_target);
         self.selfhost.enter_bytecode();
     }
-    options = CompileOptions();
+    options = CompileOptions(
+        skip_native_engine=not self._wants_native_engine(full_target, actual_program)
+    );
     result: (uni.Module | None) = None;
     try {
         result = self.compile(

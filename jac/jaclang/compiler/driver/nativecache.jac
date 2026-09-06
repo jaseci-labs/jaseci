@@ -453,12 +453,25 @@ obj NativeUnitRegistry {
             return ent.digest;
         }
         found = self._module_jir(resolved);
+        import from jaclang.compiler.driver.compile_options { env_na_debug }
         if found is None {
+            if env_na_debug() {
+                import sys;
+                sys.stderr.write(f"NA_DEBUG known_digest {resolved}: no valid module cache entry\n");
+            }
             return "";
         }
-        payload = native_section_payload(
-            read_section_bytes(found[0], SEC_NIFACE), self.stamp_for()
-        );
+        raw = read_section_bytes(found[0], SEC_NIFACE);
+        payload = native_section_payload(raw, self.stamp_for());
+        if payload is None and env_na_debug() {
+            import sys;
+            have = NativeStamp.unpack(raw);
+            sys.stderr.write(
+                f"NA_DEBUG known_digest {resolved}: "
+                + ("no native interface section" if have is None else f"stamp mismatch: disk {have[0].compiler_digest[:12]}/{have[0].codegen_identity}/{have[0].triple} want {self.stamp_for().compiler_digest[:12]}/{self.stamp_for().codegen_identity}/{self.stamp_for().triple}")
+                + "\n"
+            );
+        }
         return NativeIface.read_digest(payload) or "";
     }
 
