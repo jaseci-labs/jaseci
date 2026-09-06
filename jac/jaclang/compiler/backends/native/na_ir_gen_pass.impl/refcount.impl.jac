@@ -634,7 +634,14 @@ impl NaIRGenPass._opt_result_owned(val: ir.Value, expr: object) -> bool {
 }
 
 impl NaIRGenPass._can_native_move_lower(nd: object) -> bool {
-    if not isinstance(nd, uni.Assignment) or not nd.na_move_lowerable {
+    if not isinstance(nd, uni.Assignment) {
+        return False;
+    }
+    if self._nogc_consume_local(nd.value) {
+        self.rc_ops_elided += 1;
+        return True;
+    }
+    if not nd.na_move_lowerable {
         return False;
     }
     rhs = nd.value;
@@ -1338,9 +1345,6 @@ impl NaIRGenPass._nogc_owned_world -> bool {
         return False;
     }
     _opts = self.prog.options;
-    if bool(getattr(_opts, "kernel_unit", False)) {
-        return False;
-    }
     try {
         return bool(_opts.nogc_enforced_for(self.ir_in.name));
     } except Exception {

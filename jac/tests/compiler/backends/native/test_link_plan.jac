@@ -629,3 +629,20 @@ test "native build CLI reuses warm artifacts under each memory profile" {
         assert native_run(output).strip() == "7";
     }
 }
+
+test "unhandled errors in a qualified native entry fail the executable" {
+    import from tests.support { native_build }
+    with tempfile.TemporaryDirectory(prefix="jac-native-entry-error-") as tmp {
+        src = os.path.join(tmp, "main.jac");
+        output = os.path.join(tmp, "program");
+        Path(src).write_text(
+            "def fail(v: int) { assert v > 0; }\nwith entry { fail(0); }\n"
+        );
+        for mode in [NATIVE_LINK_MODE_OBJECTS, NATIVE_LINK_MODE_BITCODE] {
+            native_build(src, output, memory="nogc", extra=["--link-mode", mode]);
+            result = subprocess.run([output], capture_output=True, text=True);
+            assert result.returncode != 0 , "an unhandled assertion silently succeeded";
+            assert "jac: unhandled exception:" in result.stdout + result.stderr;
+        }
+    }
+}
