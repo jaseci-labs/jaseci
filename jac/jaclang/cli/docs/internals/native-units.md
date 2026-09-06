@@ -68,6 +68,11 @@ reading unit's own root. A unit outside any root is referenced by its real
 path. This is what lets the sealed kit's units, compiled at the build's
 staging directory, be linked from wherever the kit lands.
 
+Explicit imports of the compiler's runtime modules resolve against the
+running compiler package before searching nearby checkouts. They must use
+the same units as implicit walker and region support, so a checkout beside
+an installed kit cannot introduce a second copy of the runtime state.
+
 ### Dependency edges
 
 The IR generator records an edge for every unit it calls into and for every

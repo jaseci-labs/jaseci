@@ -569,6 +569,16 @@ def resolve_native_module(
     clean = module_name.lstrip('.');
     path_name = clean.replace('.', os.sep);
 
+    if module_name == clean and clean.startswith('jaclang.') {
+        runtime_rel = clean[len('jaclang.'):].replace('.', '/') + '.jac';
+        if runtime_rel in KERNEL_UNIT_REL {
+            runtime_path = kernel_unit_path(runtime_rel);
+            if os.path.isfile(runtime_path) {
+                return (path_name, runtime_path);
+            }
+        }
+    }
+
     if allow_inferred {
         local = _inferred_native_path(
             _native_variant_path(os.path.join(base_dir, clean))
