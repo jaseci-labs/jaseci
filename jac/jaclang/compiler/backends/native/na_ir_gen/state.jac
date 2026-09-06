@@ -2,6 +2,7 @@ import from jaclang.compiler.backends.native.llvm { ir }
 import from jaclang.runtime.scalars { ScalarShape }
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.backends.py.module_codegen_pass { ModuleCodegenPass }
+import from jaclang.compiler.frontend.diagnostics { DiagnosticInfo }
 
 obj NaIRGenState(ModuleCodegenPass) {
     has _llvm_module: (ir.Module | None) = None,
@@ -248,6 +249,14 @@ obj NaIRGenState(ModuleCodegenPass) {
     has builder: ir.IRBuilder { getter; }
     has llvm_module: ir.Module { getter; }
     has type_map: dict[str, ir.Type] { getter; }
+
+    override def emit(
+        diag: DiagnosticInfo,
+        node_override: (uni.UniNode | None) = None,
+        related: (list[tuple[str, uni.UniNode]] | None) = None,
+        help_text: (str | None) = None,
+        **kwargs: any
+    ) -> bool;
     has complex_struct_type: ir.Type { getter; }
     has range_struct_type: ir.Type { getter; }
     has slice_struct_type: ir.Type { getter; }
