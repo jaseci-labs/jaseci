@@ -509,6 +509,47 @@ test "a unit retains prepared dependency interfaces when disk products are unava
     assert ent.dep_digests == prior;
 }
 
+test "an isolated unit retains prepared interfaces without disk lookup" {
+    import from unittest.mock { patch }
+    import jaclang.compiler.driver.nativecache as cache;
+    import from jaclang.compiler.driver.nativecache {
+        UNIT_CHILD_DEPTH_ENV,
+        UNIT_ISOLATE_ENV
+    }
+    root_dir = _diamond_copy();
+    (prog, plan) = _plan_for(root_dir);
+    registry = prog.native_units();
+    top = plan.root_unit().path;
+    prior = dict(registry.entries[top].dep_digests);
+    assert prior and all(prior.values());
+    driver = cache._UNIT_CHILD_DRIVER.replace(
+        "ent = reg.compile_unit(",
+        "from jaclang.compiler.driver.nativecache import NativeUnitRegistry\n"
+            + "NativeUnitRegistry._module_jir = lambda self, path: None\n"
+            + "ent = reg.compile_unit("
+    );
+    with patch.object(cache, "_UNIT_CHILD_DRIVER", driver), patch.dict(
+        os.environ, {UNIT_ISOLATE_ENV: "1", UNIT_CHILD_DEPTH_ENV: "0"}
+    ) {
+        ent = registry.compile_unit_detached(top, _opts());
+    }
+    assert ent is not None , registry.failures;
+    assert ent.dep_digests == prior;
+    assert prog.analysis.cache_events.get("native_unit_compile_detached", 0) > 0;
+}
+
+test "a transferred native record rejects a changed source" {
+    root_dir = _diamond_copy();
+    (prog, plan) = _plan_for(root_dir);
+    path = plan.root_unit().path;
+    record = prog.native_units().products_blob(path, _opts(), include_code=False);
+    target = JacProgram().native_units();
+    assert target.register_products_blob(path, record, _opts()) is not None;
+    source = Path(path);
+    source.write_text(source.read_text() + "\n# edit during transfer\n");
+    assert target.register_products_blob(path, record, _opts()) is None;
+}
+
 test "object emission preserves the native record without an existing disk entry" {
     import from jaclang.compiler.driver.jir {
         get_module_cache_path,

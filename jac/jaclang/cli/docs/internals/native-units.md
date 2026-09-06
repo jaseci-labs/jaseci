@@ -302,6 +302,15 @@ read each other's cache entries. Its diagnostics stay in the child unless
 it fails: a first run that derives a kernel would otherwise scroll every
 unit's seam warnings past the program's own output.
 
+The parent also supplies its fresh dependency interfaces through the same
+stamped JIR products codec, without copying object or bitcode payloads.
+Both in-process and isolated compiles select these records with the same
+source, compile-time dependency, and codegen checks. A competing build may
+replace the disk cache with another application's or GC mode's products;
+that must not erase the interfaces already prepared by the active plan.
+Transferred records carry the shared source key and are rejected if their
+source changed before the receiving process reads them.
+
 A program's plan compiles its units in the requesting process
 (`JAC_NATIVE_UNIT_ISOLATE` unset). The child model costs a compiler
 bootstrap and about 1.5 GB per unit, and a test lane running four workers

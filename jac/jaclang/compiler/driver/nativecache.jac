@@ -10,6 +10,7 @@ import from jaclang.compiler.driver.jir {
     SEC_NBITCODE,
     SEC_NIFACE,
     SEC_NOBJ,
+    SEC_MODKEY,
     SEC_PLACEMENT,
     cache_mode,
     current_native_stamp,
@@ -75,6 +76,9 @@ glob _UNIT_CHILD_DRIVER: str = (
          "from jaclang.compiler.driver.compile_options import CompileOptions\n"
          "opts = CompileOptions.from_native_import_env(json.loads(sys.argv[2]))\n"
          "reg = JacProgram().native_units()\n"
+         "with open(sys.argv[4]) as source:\n"
+         "    for path, blob in json.load(source).items():\n"
+         "        reg.register_products_blob(path, bytes.fromhex(blob), opts)\n"
          "ent = reg.compile_unit(sys.argv[1], opts)\n"
          "if ent is None:\n"
          "    why = reg.failures.get(sys.argv[1]) or 'no diagnostic was recorded'\n"
@@ -451,12 +455,26 @@ obj NativeUnitRegistry {
         import tempfile;
         (fd, products) = tempfile.mkstemp(prefix="jac-unit-", suffix=".jirx");
         os.close(fd);
+        (fd, dependencies) = tempfile.mkstemp(prefix="jac-unit-deps-", suffix=".json");
+        os.close(fd);
         try {
+            with open(dependencies, "w", encoding="utf-8") as snapshot {
+                json.dump(
+                    {
+                        ent.path: self.products_blob(
+                            ent.path, base, include_code=False
+                        ).hex() for ent in self._prepared_entries(resolved, base)
+                    },
+                    snapshot
+                );
+            }
             import from jaclang.compiler.driver.compile_options { env_na_debug }
             quiet = not env_na_debug();
             try {
                 proc = subprocess.run(
-                    child_compiler_argv(_UNIT_CHILD_DRIVER, [resolved, env, products]),
+                    child_compiler_argv(
+                        _UNIT_CHILD_DRIVER, [resolved, env, products, dependencies]
+                    ),
                     env=child_env,
                     capture_output=quiet,
                     text=quiet
@@ -483,9 +501,11 @@ obj NativeUnitRegistry {
                 blob = b"";
             }
         } finally {
-            try {
-                os.remove(products);
-            } except OSError {}
+            for temporary in (products, dependencies) {
+                try {
+                    os.remove(temporary);
+                } except OSError {}
+            }
         }
         self.forget(resolved);
         found = self.register_products_blob(resolved, blob, base) if blob else None;
@@ -496,7 +516,7 @@ obj NativeUnitRegistry {
     }
 
     def _product_sections(
-        path: str, options: (CompileOptions | None) = None
+        path: str, options: (CompileOptions | None) = None, include_code: bool = True
     ) -> dict[int, bytes] {
         resolved = os.path.realpath(path);
         ent = self.entries.get(resolved);
@@ -516,17 +536,22 @@ obj NativeUnitRegistry {
             SEC_NIFACE: stamp.pack(ent.iface.to_bytes()),
             SEC_NDEPS: stamp.pack(native_deps_section(ent.dep_digests))
         };
-        if ent.object_bytes is not None {
+        if ent.source_key is not None {
+            sections[SEC_MODKEY] = ent.source_key.encode("utf-8");
+        }
+        if include_code and ent.object_bytes is not None {
             sections[SEC_NOBJ] = stamp.pack(ent.object_bytes);
         }
-        if ent.bitcode is not None {
+        if include_code and ent.bitcode is not None {
             sections[SEC_NBITCODE] = stamp.pack(ent.bitcode);
         }
         return sections;
     }
 
-    def products_blob(path: str, options: (CompileOptions | None) = None) -> bytes {
-        sections = self._product_sections(path, options);
+    def products_blob(
+        path: str, options: (CompileOptions | None) = None, include_code: bool = True
+    ) -> bytes {
+        sections = self._product_sections(path, options, include_code);
         return write_sections(sections) if sections else b"";
     }
 
@@ -536,6 +561,12 @@ obj NativeUnitRegistry {
         import from jaclang.compiler.driver.jir { SEC_NDEPS }
         stamp = self.stamp_for(options);
         sections = read_sections_blob(blob);
+        source_key = sections.get(SEC_MODKEY);
+        if source_key is not None
+            and source_key.decode("utf-8")
+                != NativeUnitRegistry._source_key(resolved) {
+            return None;
+        }
         iface = NativeIface.from_bytes(
             native_section_payload(sections.get(SEC_NIFACE), stamp)
         );
@@ -571,6 +602,15 @@ obj NativeUnitRegistry {
         return ent;
     }
 
+    def _prepared_entries(path: str, options: CompileOptions) -> list[NativeUnitEntry] {
+        stamp = self.stamp_for(options);
+        return [
+            ent
+            for (dep, ent) in self.entries.items()
+            if dep != path and ent.stamp.matches(stamp) and self._entry_fresh(ent)
+        ];
+    }
+
     def compile_unit(
         path: str, options: (CompileOptions | None) = None, use_str: (str | None) = None
     ) -> (NativeUnitEntry | None) {
@@ -588,13 +628,8 @@ obj NativeUnitRegistry {
             import copy;
             unit_prog = JacProgram();
             unit_registry = unit_prog.native_units();
-            stamp = self.stamp_for(base);
-            for (dep, known) in self.entries.items() {
-                if dep != resolved
-                    and known.stamp.matches(stamp)
-                    and self._entry_fresh(known) {
-                    unit_registry.entries[dep] = copy.copy(known);
-                }
+            for known in self._prepared_entries(resolved, base) {
+                unit_registry.entries[known.path] = copy.copy(known);
             }
             try {
                 mod = unit_prog.compile(
