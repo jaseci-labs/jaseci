@@ -67,7 +67,9 @@ impl repo_meta(repo: str, agent: str) -> RepoMeta | None {
     } except Exception {
         return None;
     }
-    if not isinstance(raw, dict) or raw.get("full_name") is None {
+    if not isinstance(raw, dict)
+        or raw.get("full_name") is None
+        or raw.get("private", False) {
         return None;
     }
     login = "";
