@@ -11,8 +11,6 @@ whose record and artifact disagree.
 import hashlib;
 import json;
 import os;
-import shutil;
-import subprocess;
 import sys;
 import tempfile;
 import from pathlib { Path }
@@ -20,12 +18,21 @@ import from jaclang.jac0core.sealed { MANIFEST_FORMAT, SealedImage, load_image }
 import from jaclang.compiler.driver.schedules { native_pipeline_available }
 
 
-def _jac_cmd -> list[str] {
-    exe = shutil.which("jac");
-    if exe {
-        return [exe];
-    }
-    return [sys.executable, "-m", "jaclang"];
+"""Seal `src_root` the way the build's seal stage does, in a child process:
+the `precompile` command is the build's engine, not a sealed kit's command,
+and it ends its process itself."""
+def _seal(src_root: str) -> tuple[int, str] {
+    import subprocess;
+    code = (
+        "import sys\n"
+        "sys.argv = ['precompile', sys.argv[1], '--seal', '--jobs=0']\n"
+        "from jaclang.dist.precompile_bytecode import main\n"
+        "main()\n"
+    );
+    run = subprocess.run(
+        [sys.executable, "-P", "-c", code, src_root], capture_output=True, text=True
+    );
+    return (run.returncode, run.stdout + run.stderr);
 }
 
 
@@ -57,12 +64,8 @@ test "the seal records the native unit and its artifact" {
     } else {
         tmp = tempfile.mkdtemp(prefix="jac-seal-native-");
         src_root = _app(tmp);
-        run = subprocess.run(
-            _jac_cmd() + ["precompile", src_root, "--seal", "--jobs=0"],
-            capture_output=True,
-            text=True,
-        );
-        assert run.returncode == 0 , run.stdout + run.stderr;
+        (code, out) = _seal(src_root);
+        assert code == 0 , out;
         pkg = os.path.join(src_root, "natapp");
         manifest = json.loads(Path(pkg, "_precompiled", "MANIFEST.json").read_text());
         assert manifest["format"] == MANIFEST_FORMAT;
@@ -98,12 +101,8 @@ test "a tampered artifact is refused at load" {
     } else {
         tmp = tempfile.mkdtemp(prefix="jac-seal-native-");
         src_root = _app(tmp);
-        run = subprocess.run(
-            _jac_cmd() + ["precompile", src_root, "--seal", "--jobs=0"],
-            capture_output=True,
-            text=True
-        );
-        assert run.returncode == 0 , run.stdout + run.stderr;
+        (code, out) = _seal(src_root);
+        assert code == 0 , out;
         pkg = os.path.join(src_root, "natapp");
         manifest = json.loads(Path(pkg, "_precompiled", "MANIFEST.json").read_text());
         lib = Path(pkg, manifest["native"]["artifact"]["path"]);
