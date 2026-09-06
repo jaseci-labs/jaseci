@@ -65,6 +65,9 @@ test "native source workspaces never write into installed package assets" {
         with patch.dict(os.environ, {"JAC_TOOLCHAIN_DIR": str(base / "cache")}) {
             first = source_workspace(source, "binding");
             assert first != source;
+            (first / ".native-build.lock").touch();
+            assert source_workspace(source, "binding") == first;
+            assert source_workspace(first, "binding") == first;
             assert (first / "binding.jac").read_text() == "glob value = 1;";
             assert sorted(p.name for p in source.iterdir()) == ["binding.jac"];
             (source / "binding.jac").write_text("glob value = 2;");
@@ -89,6 +92,31 @@ test "CEF refuses unsupported hosts instead of selecting Linux archives" {
                 failed = "not supported" in str(error);
             }
             assert failed;
+        }
+    }
+}
+
+
+test "desktop package installation does not require system patchelf" {
+    import from jaclang.toolchains.system { ensure_linux_desktop }
+    with patch("jaclang.toolchains.host.host_platform", return_value="linux-x64") {
+        with patch(
+            "jaclang.toolchains.system.webkit_module",
+            side_effect=["", "webkit2gtk-4.1"]
+        ) {
+            with patch(
+                "jaclang.toolchains.system.shutil.which",
+                side_effect=lambda (name: str) { "/usr/bin/g++"
+                    if name == "g++"
+                    else None; }
+            ) {
+                with patch(
+                    "jaclang.toolchains.system.install_linux_packages"
+                ) as installer {
+                    ensure_linux_desktop();
+                    installer.assert_called_once();
+                }
+            }
         }
     }
 }

@@ -26,7 +26,7 @@ def source_workspace(source: Path, name: str) -> Path {
         [
             p
             for p in source.iterdir()
-            if p.is_file() and p.suffix in [".jac", ".lock"]
+            if p.is_file() and (p.suffix == ".jac" or p.name == "cef_sums.lock")
         ]
     );
     for path in files {

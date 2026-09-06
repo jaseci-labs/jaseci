@@ -42,6 +42,12 @@ def install_linux_packages(packages: dict[str, list[str]]) {
         options = ["-S", "--needed", "--noconfirm"]
             if manager == "pacman"
             else ["install", "-y"];
+        if manager == "apt-get" {
+            options.append("--no-install-recommends");
+        }
+        if manager == "dnf" {
+            options.append("--setopt=install_weak_deps=False");
+        }
         run_step(
             "Installing native build dependencies: " + ", ".join(names),
             prefix + [binary] + options + names,
@@ -51,7 +57,7 @@ def install_linux_packages(packages: dict[str, list[str]]) {
         return;
     }
     raise RuntimeError(
-        "No supported system package manager found. Install a C++ compiler, pkg-config, GTK3, WebKitGTK 4.1, and patchelf, then retry."
+        "No supported system package manager found. Install a C++ compiler, pkg-config, GTK3 and WebKitGTK 4.1, then retry."
     );
 }
 
@@ -77,7 +83,7 @@ def ensure_linux_desktop {
             f"The current desktop native build backend supports Linux hosts, not {host}."
         );
     }
-    if webkit_module() and shutil.which("g++") {
+    if desktop_system_ready() {
         return;
     }
     install_linux_packages(
@@ -92,7 +98,7 @@ def ensure_linux_desktop {
             "pacman": ["gcc", "pkgconf", "gtk3", "webkit2gtk-4.1"]
         }
     );
-    if not webkit_module() or not shutil.which("g++") or not shutil.which("patchelf") {
+    if not desktop_system_ready() {
         raise RuntimeError(
             "Desktop dependencies remain unavailable after package installation."
         );
@@ -115,4 +121,9 @@ def ensure_patchelf -> str {
     marker = "patchelf-0.17.2.4.data/scripts/patchelf";
     directory = install(artifact, marker);
     return str(directory / marker);
+}
+
+
+def desktop_system_ready -> bool {
+    return bool(webkit_module() and shutil.which("g++"));
 }

@@ -246,6 +246,8 @@ def _native_build_cef(
 
 
 def build_cef_dispatch(cef_dir: Path) -> Path {
+    import from jaclang.toolchains.desktop { source_workspace }
+    cef_dir = source_workspace(cef_dir, "cef");
     return _native_build_cef(
         cef_dir,
         "cef_dispatch.jac",
@@ -256,6 +258,8 @@ def build_cef_dispatch(cef_dir: Path) -> Path {
 }
 
 def build_cef_subprocess(cef_dir: Path) -> Path {
+    import from jaclang.toolchains.desktop { source_workspace }
+    cef_dir = source_workspace(cef_dir, "cef");
     return _native_build_cef(
         cef_dir,
         "cef_subprocess.jac",

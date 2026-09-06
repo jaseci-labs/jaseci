@@ -164,7 +164,7 @@ def fetch(artifact: Artifact, destination: Path | None = None) -> Path {
                             if now - last >= 2.0 {
                                 progress = format_size(received);
                                 if total {
-                                    progress += f" / {total // 1048576} MiB ({received
+                                    progress += f" / {format_size(total)} ({received
                                         * 100
                                         // total}%)";
                                 }

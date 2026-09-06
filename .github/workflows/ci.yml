@@ -1344,13 +1344,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/jac-kit
-      - name: Build an APK with a fresh managed Android SDK
+      - name: Build a release APK with a fresh managed Android SDK
         run: |
           set -euo pipefail
           export JAC_TOOLCHAIN_DIR="$RUNNER_TEMP/toolchains"
           export ANDROID_HOME="$JAC_TOOLCHAIN_DIR/android-sdk/linux-x64"
           export ANDROID_SDK_ROOT="$ANDROID_HOME"
           cp -r jac/tests/client/fixtures/react_native_multiscreen "$RUNNER_TEMP/mobile-app"
+          printf '\n[client.react_native]\nrelease = true\n' >> "$RUNNER_TEMP/mobile-app/jac.toml"
           jac setup --toolchain android
           cd "$RUNNER_TEMP/mobile-app"
           jac build --platform android main.jac

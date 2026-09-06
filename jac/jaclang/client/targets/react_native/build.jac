@@ -513,6 +513,7 @@ def run_gradle_assemble(rn_dir: Path, release: bool = False) -> Path {
     import from jaclang.toolchains.javascript { build_environment }
     import from jaclang.toolchains.store { InstallLock, offline }
     environment = build_environment(ensure_android().env());
+    environment.setdefault("NODE_ENV", "production" if release else "development");
     android_dir = rn_dir / "android";
     if not android_dir.exists() {
         raise RuntimeError(
@@ -606,6 +607,7 @@ def run_xcodebuild_ios(
     import from jaclang.toolchains.javascript { build_environment }
     import from jaclang.toolchains.host { run_step }
     environment = build_environment(ensure_apple());
+    environment.setdefault("NODE_ENV", "production" if release else "development");
     ios_dir = rn_dir / "ios";
     if not ios_dir.exists() {
         raise RuntimeError(
