@@ -936,8 +936,8 @@ jobs:
           WORK="$(mktemp -d)"
           printf 'with entry { print(6*7); }\n' > "$WORK/first.jac"
           out="$(jac run "$WORK/first.jac" 2>&1)" || { echo "$out"; exit 1; }
-          echo "$out" | tail -5
-          echo "$out" | grep -q 42
+          tail -5 <<<"$out"
+          grep -q 42 <<<"$out"
           test -f jac/jaclang/compiler/libjac_compiler.so
           test -f jac/jaclang/compiler/libjac_compiler.so.layout.json
           python3 -c "import json,sys; d=json.load(open('jac/jaclang/compiler/libjac_compiler.so.layout.json')); assert d['plan_digest'] and d['classes'], d.keys()"
@@ -948,8 +948,8 @@ jobs:
           WORK="$(mktemp -d)"
           printf 'with entry { print(7*7); }\n' > "$WORK/second.jac"
           out="$(jac run "$WORK/second.jac" 2>&1)" || { echo "$out"; exit 1; }
-          echo "$out" | grep -q 49
-          if echo "$out" | grep -q "Linking the native compiler kernel"; then
+          grep -q 49 <<<"$out"
+          if grep -q "Linking the native compiler kernel" <<<"$out"; then
             echo "::error::the second run relinked a kernel whose plan digest had not moved"
             exit 1
           fi

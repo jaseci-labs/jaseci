@@ -6,7 +6,7 @@ import type from jaclang.compiler.backends.native.llvm.binding {
 }
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.passes { Transform }
-import from jaclang.compiler.frontend.diagnostics { E5020, W5021, W5022 }
+import from jaclang.compiler.frontend.diagnostics { E5020, E5026, W5021, W5022 }
 import type from jaclang.compiler.driver.compile_options { CompileOptions }
 import type from jaclang.compiler.driver.program { JacProgram }
 

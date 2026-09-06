@@ -359,16 +359,26 @@ obj NativeUnitRegistry {
         (fd, products) = tempfile.mkstemp(prefix="jac-unit-", suffix=".jirx");
         os.close(fd);
         try {
+            import from jaclang.compiler.driver.compile_options { env_na_debug }
+            quiet = not env_na_debug();
             try {
                 proc = subprocess.run(
                     child_compiler_argv(_UNIT_CHILD_DRIVER, [resolved, env, products]),
-                    env=child_env
+                    env=child_env,
+                    capture_output=quiet,
+                    text=quiet
                 );
             } except OSError as exc {
                 self.failures[resolved] = f"{type(exc).__name__}: {exc}";
                 return None;
             }
             if proc.returncode != 0 {
+                """A unit's seam warnings are its own business while it lowers;
+                they reach the terminal only when the child fails, so a first
+                run that derives a kernel does not scroll its diagnostics.""";
+                if quiet and proc.stderr {
+                    sys.stderr.write(proc.stderr[-4000:]);
+                }
                 self.failures[resolved] = (
                     f"the unit compile exited with status {proc.returncode}"
                 );

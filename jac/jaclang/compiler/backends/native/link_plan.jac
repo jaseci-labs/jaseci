@@ -58,6 +58,31 @@ enum ArtifactKind {
 
 class LinkPlanError(RuntimeError) {}
 
+class SymbolCollision(LinkPlanError) {
+    def init(self: SymbolCollision, symbol: str, first: str, second: str) {
+        self.symbol = symbol;
+        self.first = first;
+        self.second = second;
+        RuntimeError.__init__(
+            self,
+            f"symbol collision: '{symbol}' is defined in both {first} and {second}"
+        );
+    }
+}
+
+def check_pub_collisions(units: list[LinkUnit]) {
+    owners: dict[str, str] = {};
+    for u in units {
+        for sym in u.iface.pub_symbols() {
+            first = owners.get(sym);
+            if first is not None and first != u.path {
+                raise SymbolCollision(sym, first, u.path);
+            }
+            owners[sym] = u.path;
+        }
+    }
+}
+
 obj LinkUnit {
     has path: str,
         prefix: str,
@@ -384,6 +409,7 @@ def build_link_plan(
 
     ordered = [units[p] for p in order];
     ordered.sort(key=lambda (u: LinkUnit) { (1 if u.is_root else 0, ); });
+    check_pub_collisions(ordered);
     return LinkPlan(
         prog=prog,
         options=opts,

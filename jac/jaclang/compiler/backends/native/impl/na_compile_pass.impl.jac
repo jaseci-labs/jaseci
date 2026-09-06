@@ -198,7 +198,14 @@ impl NativeCompilePass._run_impl(ir_in: uni.Module) -> uni.Module {
             self._write_symbol_map(module, debug_obj_path, fn_names);
         }
     } except Exception as e {
-        self.emit(E5020, error=str(e));
+        import from jaclang.compiler.backends.native.link_plan { SymbolCollision }
+        if isinstance(e, SymbolCollision) {
+            self.emit(
+                E5026, symbol=e.symbol, existing_module=e.first, new_module=e.second
+            );
+        } else {
+            self.emit(E5020, error=str(e));
+        }
     }
     return ir_in;
 }
