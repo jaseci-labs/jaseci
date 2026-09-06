@@ -8,8 +8,9 @@ import from jaclang.compiler.backends.es.es_unparse { es_to_js }
 import from jaclang.compiler.frontend.constant { CodeContext, SymbolType }
 import from jaclang.compiler.frontend.constant { Tokens as Tok }
 import from jaclang.runtime.osp_model { OspAnalysis, OspModel }
-import from jaclang.compiler.passes.ast_gen { BaseAstGenPass }
-import from jaclang.compiler.passes.ast_gen.jsx_processor { EsJsxProcessor }
+import from jaclang.compiler.backends.common.ast_gen_base { BaseAstGenPass }
+import from jaclang.compiler.frontend.module_facts { ModuleFacts }
+import from jaclang.compiler.backends.es.jsx_processor { EsJsxProcessor }
 import from jaclang.compiler.frontend.codeinfo { ClientManifest }
 import from jaclang.compiler.backends.es.scoped_styles {
     ScopedStyleSheet,
