@@ -2183,6 +2183,7 @@ impl Module.postinit -> None {
     self.ct_file_deps = [];
     self.ct_body_deps = [];
     self.rc_last_use = {};
+    self.rc_scope_cleanup = {};
     _rc_move_in: set[int] = set();
     self.rc_move_in = _rc_move_in;
     _own_move_sites: set[int] = set();

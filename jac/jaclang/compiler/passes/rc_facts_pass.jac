@@ -127,6 +127,7 @@ walker RcFactsPass(Transform) {
     def _is_param_sym(sym: Symbol) -> bool;
     def _last_use_tracked(sym: Symbol) -> bool;
     def _stamp_last_use(ir_in: Module) -> None;
+    def _stamp_scope_cleanup(ir_in: Module) -> None;
     def _stamp_move_in(ir_in: Module) -> None;
     def _collect_last_use(
         owner: UniNode, body: Sequence[UniNode], out: dict[int, list[str]]

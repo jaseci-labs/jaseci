@@ -265,19 +265,20 @@ def native_run(
     return proc.stdout;
 }
 
-"""Run `src` on the Python backend through the CLI and return its stdout."""
+"""Run `src` directly on the Python bytecode backend and return its stdout."""
 def python_run(src: str, args: list[str] | None = None, timeout: int = 120) -> str {
     import os;
     import subprocess;
     import sys;
     proc = subprocess.run(
-        [sys.executable, "-m", "jaclang", "run", src] + list(args or []),
+        [sys.executable, os.path.join(TESTS_DIR, "python_runner.py"), src]
+            + list(args or []),
         capture_output=True,
         text=True,
         timeout=timeout
     );
     assert proc.returncode == 0 , (
-        f"jac run failed for {os.path.basename(src)}: exit={proc.returncode}\n"
+        f"Python backend failed for {os.path.basename(src)}: exit={proc.returncode}\n"
         f"stderr: {proc.stderr[-800:] if proc.stderr else '(empty)'}"
     );
     return proc.stdout;

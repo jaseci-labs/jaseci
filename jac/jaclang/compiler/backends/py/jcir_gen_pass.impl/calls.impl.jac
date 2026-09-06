@@ -282,6 +282,23 @@ impl JcirGenPass._name_swap_expr(store_id: str, value: CgNode) -> CgNode {
     );
 }
 
+# Read before clearing the binding, without extending its lifetime in a helper.
+impl JcirGenPass._name_take_expr(owner: str) -> CgNode {
+    moved = self.nod(
+        'Tuple',
+        ['elts', 'ctx'],
+        [
+            [self.name_load(owner), self._name_swap_expr(owner, self.const_of(None))],
+            self.nod('Load', [], [])
+        ]
+    );
+    return self.nod(
+        'Subscript',
+        ['value', 'slice', 'ctx'],
+        [moved, self.const_of(0), self.nod('Load', [], [])]
+    );
+}
+
 impl JcirGenPass._lower_take(nd: FuncCall) -> (CgNode | None) {
     params = list(nd.params or []);
     if len(params) != 1 or isinstance(params[0], KWPair) {
@@ -293,22 +310,7 @@ impl JcirGenPass._lower_take(nd: FuncCall) -> (CgNode | None) {
     }
     (kind, owner, key) = parts;
     if kind == 'name' {
-        moved = self.nod(
-            'Tuple',
-            ['elts', 'ctx'],
-            [
-                [
-                    self.name_load(owner),
-                    self._name_swap_expr(owner, self.const_of(None))
-                ],
-                self.nod('Load', [], [])
-            ]
-        );
-        return self.nod(
-            'Subscript',
-            ['value', 'slice', 'ctx'],
-            [moved, self.const_of(0), self.nod('Load', [], [])]
-        );
+        return self._name_take_expr(owner);
     }
     helper = '_jac_take_attr' if kind == 'attr' else '_jac_take_item';
     return self.nod(
@@ -344,7 +346,22 @@ impl JcirGenPass._lower_swap(nd: FuncCall) -> (CgNode | None) {
             ['value', 'slice', 'ctx'],
             [inner, self.const_of(0), self.nod('Load', [], [])]
         );
-        return self._name_swap_expr(oa, old_b);
+        return self.nod(
+            'Subscript',
+            ['value', 'slice', 'ctx'],
+            [
+                self.nod(
+                    'Tuple',
+                    ['elts', 'ctx'],
+                    [
+                        [self._name_swap_expr(oa, old_b), self.const_of(None)],
+                        self.nod('Load', [], [])
+                    ]
+                ),
+                self.const_of(1),
+                self.nod('Load', [], [])
+            ]
+        );
     }
     if ka == 'name' or kb == 'name' {
         (name_id, pk, pobj, pkey) = (oa, kb, ob, keyb)
@@ -356,7 +373,22 @@ impl JcirGenPass._lower_swap(nd: FuncCall) -> (CgNode | None) {
             ['func', 'args', 'keywords'],
             [self.builtin_name(helper), [pobj, pkey, self.name_load(name_id)], []]
         );
-        return self._name_swap_expr(name_id, replaced);
+        return self.nod(
+            'Subscript',
+            ['value', 'slice', 'ctx'],
+            [
+                self.nod(
+                    'Tuple',
+                    ['elts', 'ctx'],
+                    [
+                        [self._name_swap_expr(name_id, replaced), self.const_of(None)],
+                        self.nod('Load', [], [])
+                    ]
+                ),
+                self.const_of(1),
+                self.nod('Load', [], [])
+            ]
+        );
     }
     return self.nod(
         'Call',

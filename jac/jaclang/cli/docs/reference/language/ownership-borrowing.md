@@ -193,7 +193,7 @@ def reverse(l: &mut List) {
 def exchange(a: &mut List, b: &mut List) { swap(&mut a.head, &mut b.head); }
 ```
 
-List elements are moved out with `pop()` or `pop(i)`, which hand the element to the receiver; `take` and `swap` address locals and attributes.
+List elements are moved out with `pop()` or `pop(i)`, which hand the element to the receiver; `take` and `swap` address locals and attributes. `take` requires optional storage, and `swap` requires two explicit mutable borrows with the same storage type; invalid places are E1319. Each field receiver is evaluated once, from left to right. `swap` returns `None`.
 
 ### Containers take ownership
 
@@ -218,7 +218,7 @@ Sets of archetypes stay outside this rule (they hash by identity), and a borrowe
 
 ## Receiver modes
 
-A method reads, writes, or consumes its receiver, and the checker knows which. The mode is **inferred from the body**: a method that assigns a field of `self`, grows or mutates a container field of `self` (`append`, `insert`, `pop`, `remove`, `clear`, `extend`, `update`, `sort`, ...), takes `&mut self`, or calls another method that mutates `self` is `&mut self`; every other method is `&self`. Methods that call each other resolve to the least mode consistent with their bodies, so a cycle of read-only methods stays `&self`. The inferred mode is stamped on the method as a fact editors can show.
+A method reads, writes, or consumes its receiver, and the checker knows which. The mode is **inferred from the body**: a method that assigns a field of `self`, grows or mutates a container field of `self` (`append`, `insert`, `pop`, `remove`, `clear`, `extend`, `update`, `sort`, ...), takes `&mut self`, uses `take` on a field, or calls another method that mutates `self` or one of its fields is `&mut self`; every other method is `&self`. Methods that call each other resolve to the least mode consistent with their bodies, so a cycle of read-only methods stays `&self`. The inferred mode is stamped on the method as a fact editors can show.
 
 The **explicit form** reuses the typed `self` parameter the grammar already accepts. Writing `self` in an `obj`, `node`, `edge`, or `walker` method is admitted only to declare a mode: `self: own T` consumes the receiver, `self: &mut T` and `self: &T` pin the inferred modes. A consuming receiver cannot be inferred from intent, which is why it is the one worth writing:
 
@@ -735,10 +735,10 @@ obj Res {
 }
 ```
 
-`drop` fires under every native gc mode, at the same program point for a uniquely-owned value:
+`drop` fires under every native memory profile, at the same program point for a uniquely-owned value:
 
 - **[Enforced headerless modules](native-pathway.md#zero-rc-ownership-compilation)** (`--memory nogc`): the compiler calls the hook from the statically inserted `__drop_<T>` at each drop point.
-- **Managed modes** (`rc` and the default `cycles`): the hook is invoked by the object's reference-count destructor when the last reference dies. For an unaliased local that is the same point the headerless build drops at, so program output is identical across modes.
+- **Reference-counted profiles** (`rc` and the default `managed`): the hook is invoked by the object's reference-count destructor when the last reference dies. For an unaliased local that is the same point the headerless build drops at, so program output is identical across modes.
 
 **Drops happen after last use, and no later than scope exit.** Drops are scheduled by liveness: a binding whose value the program will never read again can be reclaimed early -- a value whose last use is its own initialization is dropped right away, before later statements run. This eager case is observable through `drop`:
 
@@ -750,18 +750,20 @@ def run {
 # prints 7, then "alive" -- r's last use is its declaration, so it drops first
 ```
 
-The current native backend does not yet place every drop at the *statement* granularity a full non-lexical-lifetime scheme would: a binding that is read partway through a frame is observed to drop at frame exit rather than immediately after that last read. Rely on the guarantee the compiler actually provides today -- a uniquely-owned value drops after its last use and no later than scope exit, at the same program point under every native gc mode -- rather than on exact statement-level timing.
+The current native backend does not yet place every drop at the *statement* granularity a full non-lexical-lifetime scheme would: a binding that is read partway through a frame is observed to drop at frame exit rather than immediately after that last read. Rely on the guarantee the compiler actually provides today -- a uniquely-owned value drops after its last use and no later than scope exit, at the same program point under every native memory profile -- rather than on exact statement-level timing.
+
+At scope exit, remaining owned bindings are released in reverse declaration order. List destruction releases elements from the last index to the first on both native and Python backends. Explicit `del` invokes an archetype's drop hook once, even when graph metadata keeps the object reachable.
 
 Two caveats:
 
-- Under `cycles`, objects that die as members of a reference cycle are destroyed by the collector; each member's `drop` still runs, but the order within the cycle is unspecified and sibling objects may already be gone -- don't traverse other heap objects from a cyclic `drop`.
+- Under `managed`, objects that die as members of a reference cycle are destroyed by the collector; each member's `drop` still runs, but the order within the cycle is unspecified and sibling objects may already be gone -- don't traverse other heap objects from a cyclic `drop`.
 - There is no resurrection: `drop` must not store `self` anywhere; the object is freed as soon as the hook returns.
 
 Outside regions, the Python backend does not invoke `def drop` automatically yet -- rely on it only in native modules. Values allocated under an [`in <handle> { }` open](#regions-first-class-region-handles-and-in-opens) are the exception: their hooks fire at portable points on both backends -- LIFO at the closing brace for an anonymous open, at the handle's death for a named one. (Named-handle timing on the Python backend rides CPython reference death, which approximates but does not exactly equal the native static drop point; the anonymous case is exactly portable.)
 
 ## Zero-RC native builds
 
-On the native backend, full ownership coverage is what lets the memory-management runtime disappear from the artifact entirely. A **nogc-enforced** module (`jac build --native --memory nogc`, or `jac.toml [memory]` patterns) must keep every heap-typed contract position -- parameter, return type, `has` field -- in the owned world, with violations reported as hard [`E1401`-`E1406`](../diagnostics.md#zero-rc-enforcement-errors) errors that block codegen. Compiled with `--memory nogc`, such a module gets **headerless owned codegen**: allocations and frees at statically determined points (a bare `malloc` at construction, a direct `__drop_<T>` call after last use), no reference counting, and no collector -- and `jac build --native` fails the build if the emitted IR contains any RC/collector machinery, making the absence checkable in the binary. Heap values leave an enforced module only through the explicit `managed(...)` membrane builtin. The full model -- gc modes, the enforcement contract, and the `rc-stats` coverage report -- lives in [Zero-RC ownership compilation](native-pathway.md#zero-rc-ownership-compilation).
+On the native backend, full ownership coverage is what lets the memory-management runtime disappear from the artifact entirely. A **nogc-enforced** module (`jac build --native --memory nogc`, or `jac.toml [memory]` patterns) must keep every heap-typed contract position -- parameter, return type, `has` field -- in the owned world, with violations reported as hard [`E1401`-`E1406`](../diagnostics.md#zero-rc-enforcement-errors) errors that block codegen. Compiled with `--memory nogc`, such a module gets **headerless owned codegen**: allocations and frees at statically determined points (a bare `malloc` at construction, a direct `__drop_<T>` call after last use), no reference counting, and no collector -- and `jac build --native` fails the build if the emitted IR contains any RC/collector machinery, making the absence checkable in the binary. Heap values leave an enforced module only through the explicit `managed(...)` membrane builtin. The full model -- memory profiles, the enforcement contract, and the `rc-stats` coverage report -- lives in [Zero-RC ownership compilation](native-pathway.md#zero-rc-ownership-compilation).
 
 ## What `&x` compiles to
 
@@ -773,4 +775,4 @@ The native backend does hand the checked facts to the optimizer: heap-typed para
 
 - [Ownership Checker Specification](../../internals/ownership-checker-spec.md) -- the authoritative statement of what each `E13xx` code guarantees, the checker's symbol-level granularity, and the facts contract backends consume.
 - [Errors and Warnings](../diagnostics.md#ownership-borrow-errors) -- the full `E1301`-`E1309` code table (`E1305` is reserved for the planned `linear` marker and not yet registered).
-- [Native Compilation Reference](native-pathway.md#memory-management) -- the emit-time `--gc` modes, zero-RC ownership compilation, and how the native backend proves [reference-count elision](native-pathway.md#reference-count-elision) independently of this checker.
+- [Native Compilation Reference](native-pathway.md#memory-management) -- the `--memory` profiles, zero-RC ownership compilation, and how the native backend proves [reference-count elision](native-pathway.md#reference-count-elision) independently of this checker.

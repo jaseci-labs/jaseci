@@ -49,7 +49,14 @@ glob _MOVE_EXEMPT_CALLS: tuple = (
          "replace",
          "join",
          "get",
-         "write"
+         "write",
+         "issubset",
+         "issuperset",
+         "isdisjoint",
+         "union",
+         "intersection",
+         "difference",
+         "symmetric_difference"
      ),
      _NONRETAINING_STDLIB_MODULES: tuple = (
          "os",
@@ -104,12 +111,9 @@ impl OwnershipCheckPass._run_impl(ir_in: Module) -> Module {
     ir_in.own_move_sites = set();
     self.receiver_modes = {};
     self.receiver_probe = set();
-    self.view_archs = set();
-    self.view_arch_memo = {};
     self.arch_view_syms = set();
 
     self._build_index(ir_in);
-    self._compute_view_archs();
     self._stamp_receiver_modes();
     self._stamp_raises_effects();
     self._stamp_ownership();
@@ -118,6 +122,7 @@ impl OwnershipCheckPass._run_impl(ir_in: Module) -> Module {
     self._stamp_arch_view_bindings();
     self._process_partition_sugar();
     self._nogc_setup();
+    self._emit_place_intrinsic_diagnostics();
     if not self.owned_decl
         and not self.borrow_meta
         and not self.imm_decl
@@ -790,16 +795,8 @@ impl OwnershipCheckPass._handled_by_enclosing_try(
 }
 
 impl OwnershipCheckPass._callee_ability(call: FuncCall) -> (Ability | None) {
-    tgt = call.target;
-    sym = tgt.sym
-        if isinstance(tgt, (Name, AtomTrailer)) and hasattr(tgt, "sym")
-        else None;
-    decl = sym.decl if sym is not None else None;
-    ability = decl.find_parent_of_type(Ability) if decl is not None else None;
-    if ability is None or decl is not ability.name_ref {
-        return None;
-    }
-    return ability;
+    import from jaclang.compiler.symbol_utils { resolved_callee }
+    return resolved_callee(call);
 }
 
 impl OwnershipCheckPass._local_raises(ab: UniNode) -> set[str] {
@@ -855,10 +852,8 @@ impl OwnershipCheckPass._stamp_raises_effects -> None {
         ab.raises = [];
     }
     changed = True;
-    rounds = 0;
-    while changed and rounds < 64 {
+    while changed {
         changed = False;
-        rounds += 1;
         for ab in abilities {
             new = sorted(self._local_raises(ab));
             if new != ab.raises {
@@ -1393,6 +1388,18 @@ impl OwnershipCheckPass._method_writes_self(ability: Ability) -> bool {
         }
     }
     for call in ability.get_all_sub_nodes(FuncCall) {
+        if call.call_kind == "builtin"
+            and isinstance(call.target, Name)
+            and call.target.sym_name == "take" {
+            for param in self._call_params(call) {
+                if isinstance(param, Expr) {
+                    base = self._place_of(param);
+                    if base is not None and base.sym_name == "self" {
+                        return True;
+                    }
+                }
+            }
+        }
         trailer = call.target;
         if not (isinstance(trailer, AtomTrailer) and trailer.is_attr) {
             continue;
@@ -1465,9 +1472,8 @@ impl OwnershipCheckPass._self_method_callees(ability: Ability) -> list[Ability] 
         if not (isinstance(trailer, AtomTrailer) and trailer.is_attr) {
             continue;
         }
-        if not (
-            isinstance(trailer.target, Name) and trailer.target.sym_name == "self"
-        ) {
+        recv_root = self._place_of(trailer.target);
+        if recv_root is None or recv_root.sym_name != "self" {
             continue;
         }
         callee = call.callee_decl;
@@ -1523,19 +1529,18 @@ impl OwnershipCheckPass._receiver_mode(ability: Ability | None) -> OwnershipKind
 
 impl OwnershipCheckPass._stamp_receiver_modes -> None {
     changed = True;
-    rounds = 0;
     methods = [
         a
         for a in self.ir_in.get_all_sub_nodes(Ability)
         if a.is_method
     ];
-    while changed and rounds < 8 {
+    while changed {
         changed = False;
-        rounds += 1;
         for m in methods {
             before = self.receiver_modes.get(id(m));
             self.receiver_modes.pop(id(m), None);
             mode = self._receiver_mode(m);
+            self.receiver_modes[id(m)] = mode;
             if before != mode {
                 changed = True;
             }
@@ -1548,8 +1553,20 @@ impl OwnershipCheckPass._stamp_receiver_modes -> None {
 
 impl OwnershipCheckPass._emit_receiver_diagnostics -> None {
     for call in self.ir_in.get_all_sub_nodes(FuncCall) {
-        mode = self._method_call_mode(call);
-        if mode != OwnershipKind.MUT_BORROW {
+        if call.call_kind == "builtin"
+            and isinstance(call.target, Name)
+            and call.target.sym_name in ("take", "swap") {
+            for param in self._call_params(call) {
+                if isinstance(param, Expr) {
+                    recv = self._place_of(param);
+                    if recv is not None {
+                        self._check_mutating_receiver(recv, call, call.target.sym_name);
+                    }
+                }
+            }
+            continue;
+        }
+        if self._method_call_mode(call) != OwnershipKind.MUT_BORROW {
             continue;
         }
         recv = self._method_call_receiver(call);
@@ -1558,51 +1575,58 @@ impl OwnershipCheckPass._emit_receiver_diagnostics -> None {
             continue;
         }
         method = trailer.right.sym_name if isinstance(trailer.right, Name) else "";
-        sid = self._name_sym_id(recv);
-        if sid in self.imm_decl {
-            self._emit_imm_mutation(sid, call, self.imm_decl.get(sid));
-            continue;
-        }
-        if sid in self.borrow_meta
-            and sid not in self.view_syms
-            and not self._borrow_is_mut_of(sid) {
-            owner_id = self._borrow_owner_of(sid);
+        self._check_mutating_receiver(recv, call, method);
+    }
+}
+
+impl OwnershipCheckPass._check_mutating_receiver(
+    recv: Name, call: FuncCall, method: str
+) -> None {
+    if recv.sym is None {
+        return;
+    }
+    sid = self._name_sym_id(recv);
+    if sid in self.imm_decl {
+        self._emit_imm_mutation(sid, call, self.imm_decl.get(sid));
+        return;
+    }
+    if sid in self.borrow_meta
+        and sid not in self.view_syms
+        and not self._borrow_is_mut_of(sid) {
+        owner_id = self._borrow_owner_of(sid);
+        self.emit(
+            E1318,
+            node_override=call,
+            method=method,
+            name=self._owned_name(owner_id, recv.sym_name)
+                if owner_id is not None
+                else recv.sym_name
+        );
+        return;
+    }
+    owner_id = self._target_owner_sym(recv);
+    if owner_id is None {
+        return;
+    }
+    cfg = self._cfg_owner(call);
+    if cfg is None {
+        return;
+    }
+    for borrow_id in self._active_borrows_at(cfg) {
+        if owner_id in self._borrow_owners_of(borrow_id)
+            and not self._borrow_is_mut_of(borrow_id) {
+            borrow_site = self.borrow_created_at.get(borrow_id);
+            borrow_name = self._borrow_display_name(borrow_id, "");
+            related = [(f"shared borrow of '{borrow_name}' created here", borrow_site)]
+                if borrow_site is not None
+                else None;
             self.emit(
-                E1318,
+                E1303,
                 node_override=call,
-                method=method,
-                name=self._owned_name(owner_id, recv.sym_name)
-                    if owner_id is not None
-                    else recv.sym_name
+                name=self._owned_name(owner_id, ""),
+                related=related
             );
-            continue;
-        }
-        owner_id = self._target_owner_sym(recv);
-        if owner_id is None {
-            continue;
-        }
-        cfg = self._cfg_owner(call);
-        if cfg is None {
-            continue;
-        }
-        for borrow_id in self._active_borrows_at(cfg) {
-            if owner_id in self._borrow_owners_of(borrow_id)
-                and not self._borrow_is_mut_of(borrow_id) {
-                borrow_site = self.borrow_created_at.get(borrow_id);
-                borrow_name = self._borrow_display_name(borrow_id, "");
-                related = [
-                    (f"shared borrow of '{borrow_name}' created here", borrow_site)
-                ]
-                    if borrow_site is not None
-                    else None;
-                self.emit(
-                    E1303,
-                    node_override=call,
-                    name=self._owned_name(owner_id, ""),
-                    related=related
-                );
-                break;
-            }
+            break;
         }
     }
 }

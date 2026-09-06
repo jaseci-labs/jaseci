@@ -2297,6 +2297,7 @@ impl NaIRGenPass._codegen_instantiation(
             }
         }
         self.builder.call(init_fn, coerced_args, name="call.init");
+        self._emit_err_check(self._linked_callee_decl(init_fn));
     }
 
     _pi_auto = init_fn is None;
@@ -2373,6 +2374,7 @@ impl NaIRGenPass._codegen_instantiation(
         self.builder.call(
             postinit_fn, [self._coerce_type(obj_ptr, postinit_fn.args[0].type)]
         );
+        self._emit_err_check(self._linked_callee_decl(postinit_fn));
     }
     return obj_ptr;
 }
@@ -4222,6 +4224,9 @@ impl NaIRGenPass._emit_class_routed_call(
         }
     }
     _sr = self.builder.call(_sfunc, _sargs, name=f"scall.{method_name}");
+    self._emit_err_check(
+        self._callee_ability_of(nd) or self._linked_callee_decl(_sfunc)
+    );
     if isinstance(_sfunc.return_value.type, ir.VoidType) {
         return None;
     }

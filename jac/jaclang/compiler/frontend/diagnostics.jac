@@ -1036,6 +1036,14 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " exclusive receiver. Take the borrow with `&mut`, or call it on the"
          " owner directly."
      ),
+     E1319 = _err(
+         "E1319",
+         Category.SEMANTIC,
+         "Invalid {operation} place: {reason}",
+         help="take(place) requires an optional local or field and leaves None."
+         " swap(&mut a, &mut b) requires two writable places of the same type."
+         " Use pop() to move an owned container element out."
+     ),
      W1310 = _warn(
          "W1310",
          Category.LINT,

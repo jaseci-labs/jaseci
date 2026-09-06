@@ -327,6 +327,7 @@ Emitted by `OwnershipCheckPass` for `own`/`imm`/`borrow`/`&`/`&mut` bindings and
 | `E1316` | Cannot move '{name}' out of '{place}' without take() |
 | `E1317` | Cannot move '{name}' out of the element '{place}' |
 | `E1318` | Cannot call mutating method '{method}' through a shared borrow of '{name}' |
+| `E1319` | Invalid {operation} place: {reason} |
 
 ### Zero-RC Enforcement Errors
 

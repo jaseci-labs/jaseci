@@ -364,17 +364,14 @@ test "jac build --native itself registers a parser for its target (#8788)" {
     # control the previous test did not answer.
     #
     # The C floor import is what puts `module asm` in this module at all, so
-    # JAC_DUMP_IR is read back first: it holds the finalized module, written
-    # just BEFORE emission, and is therefore present in the aborting case too.
-    # Without that check a fixture that quietly lost its clib import would make
-    # this pass while proving nothing.
+    # the produced ELF is read back first: the outline-atomics helpers ride on
+    # that import and land in the binary's symbol table, so a fixture that
+    # quietly lost its clib import would make this pass while proving nothing.
     #
     # No aarch64 toolchain is involved. The abort is at object emission, which
     # is upstream of linking, so cross-compiling from any host reaches it.
     work = tempfile.mkdtemp();
-    dump = os.path.join(work, "finalized.ll");
-    env = dict(os.environ);
-    env["JAC_DUMP_IR"] = dump;
+    out_bin = os.path.join(work, "crc32_aarch64");
     res = subprocess.run(
         [
             sys.executable,
@@ -386,28 +383,30 @@ test "jac build --native itself registers a parser for its target (#8788)" {
             "aarch64-unknown-linux-gnu",
             os.path.join(FIXTURES, "static_archive_crc32.jac"),
             "-o",
-            os.path.join(work, "crc32_aarch64")
+            out_bin
         ],
         capture_output=True,
         text=True,
-        timeout=900,
-        env=env
+        timeout=900
     );
     out = res.stdout + res.stderr;
-
-    assert os.path.isfile(dump) , (
-        f"nacompile never dumped its finalized module, so nothing here says "
-        f"whether the run carried module asm at all.\n{out[-800:]}"
-    );
-    with open(dump) as _f {
-        finalized = _f.read();
+    if "Static musl runtime not found" in out {
+        testskip(
+            "aarch64 musl runtime not vendored on this host (zig build vendor-musl-linux-aarch64)"
+        );
     }
-    assert "__aarch64_ldset8_acq_rel" in finalized , (
+    assert os.path.isfile(out_bin) , (
+        f"jac build --native produced no binary for the aarch64 target, so "
+        f"nothing here says whether the run carried module asm at all.\n{out[-800:]}"
+    );
+    with open(out_bin, "rb") as _f {
+        image = _f.read();
+    }
+    assert b"__aarch64_ldset8_acq_rel" in image , (
         "the fixture compiled without the outline-atomics helpers in its "
         "module, so this run exercised nothing: the helpers ride on a C floor "
         "import, and static_archive_crc32.jac must keep one"
     );
-
     assert "Inline asm not supported by this streamer" not in out , (
         f"jac build --native aborted assembling the outline-atomics `module asm` "
         f"for an aarch64 target: the executable compile path registered no asm "

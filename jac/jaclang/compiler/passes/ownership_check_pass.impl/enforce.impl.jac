@@ -1261,67 +1261,22 @@ impl OwnershipCheckPass._is_view_expr(expr: Expr | None) -> bool {
     return self._view_ctor_owners(expr) is not None;
 }
 
-impl OwnershipCheckPass._compute_view_archs -> None {
-    self.view_archs = set();
-    self.view_arch_memo = {};
-}
-
-impl OwnershipCheckPass._is_view_arch(arch: Archetype | None) -> bool {
-    if arch is None or arch.name is None {
-        return False;
-    }
-    key = id(arch);
-    if key in self.view_arch_memo {
-        return self.view_arch_memo[key];
-    }
-    self.view_arch_memo[key] = False;
-    local_archs: dict[str, Archetype] = {};
-    for other in self.ir_in.get_all_sub_nodes(Archetype) {
-        if other.name is not None {
-            local_archs[other.name.value] = other;
-        }
-    }
-    result = False;
-    for hv in arch.get_all_sub_nodes(HasVar) {
-        if hv.find_parent_of_type(Archetype) is not arch or hv.type_tag is None {
-            continue;
-        }
-        if type_tag_borrows(hv.type_tag) {
-            result = True;
-            break;
-        }
-        for nm in hv.type_tag.get_all_sub_nodes(Name) {
-            if not isinstance(nm, Name) {
-                continue;
-            }
-            inner = local_archs.get(nm.value);
-            if inner is not None and inner is not arch and self._is_view_arch(inner) {
-                result = True;
-                break;
-            }
-        }
-        if result {
-            break;
-        }
-    }
-    self.view_arch_memo[key] = result;
-    if result {
-        self.view_archs.add(arch.name.value);
-    }
-    return result;
-}
-
 impl OwnershipCheckPass._view_arch_of_call(call: FuncCall) -> (Archetype | None) {
-    tgt = call.target;
-    if not isinstance(tgt, Name) or tgt.sym is None or tgt.sym.decl is None {
+    import from jaclang.compiler.types.types { ClassType }
+    import from jaclang.compiler.types.ownership { contains_borrow }
+    target_type = call.target.type;
+    if not isinstance(target_type, ClassType)
+        or target_type._shared is None
+        or not target_type.is_instantiable() {
         return None;
     }
-    decl = tgt.sym.decl;
-    arch = decl if isinstance(decl, Archetype) else decl.find_parent_of_type(Archetype);
-    if arch is None or arch.name is None or arch.name.value != tgt.sym_name {
+    arch = target_type.shared.symbol_table;
+    if not isinstance(arch, Archetype) {
         return None;
     }
-    return arch if self._is_view_arch(arch) else None;
+    return arch
+        if contains_borrow(call.type) or type_tag_borrows(call.target)
+        else None;
 }
 
 impl OwnershipCheckPass._view_ctor_owners(expr: Expr | None) -> (list[SymId] | None) {

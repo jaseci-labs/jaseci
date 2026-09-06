@@ -70,6 +70,18 @@ import from jaclang.compiler.backends.native.na_constants {
     RC_CYCLE_THRESHOLD
 }
 
+obj NativeFinalizer {
+    has body: uni.FinallyStmt | None,
+        function: ir.Function,
+        loop_depth: int,
+        handler_depth: int,
+        pop_handler: bool = False;
+}
+
+obj NativeErrorHandler {
+    has dispatch: ir.Block;
+}
+
 walker NaIRGenPass(Transform) {
     has prog: JacProgram;
     static has HOST_PASS: bool = True,
@@ -134,8 +146,11 @@ walker NaIRGenPass(Transform) {
         _subclassed_arch_names: (set[str] | None) = None,
         _aos_deciding: set[str] = set(),
         _self_owned: bool = False,
-        _slot_try_stack: list = [],
-        _nogc_err_globals: (tuple | None) = None,
+        _slot_try_stack: list[NativeErrorHandler] = [],
+        _finally_stack: list[NativeFinalizer] = [],
+        _caught_error_stack:
+            list[tuple[ir.Function, tuple[ir.Value, ir.Value, ir.Value]]] = [],
+        _exc_context_fn: (ir.Function | None) = None,
         method_funcs: dict[str, ir.Function] = {},
         static_methods: dict[str, bool] = {},
         static_fields: dict[str, object] = {},
@@ -187,7 +202,6 @@ walker NaIRGenPass(Transform) {
         set_helpers: dict[str, dict] = {},
         _peer_container_ty: (ir.Type | None) = None,
         _exc_state_type: (ir.Type | None) = None,
-        _exc_handler_global: (ir.GlobalVariable | None) = None,
         _exc_push_fn: (ir.Function | None) = None,
         _exc_pop_fn: (ir.Function | None) = None,
         _exc_raise_fn: (ir.Function | None) = None,
@@ -327,6 +341,15 @@ walker NaIRGenPass(Transform) {
     def _register_region_kernel -> None;
     def _region_kernel_fn(name: str) -> ir.Function;
     def _emit_region_tls_slot -> None;
+    def _emit_tls_slot(
+        slot_name: str,
+        get_name: str,
+        set_name: str,
+        destructor: ir.Function | None = None
+    ) -> tuple[ir.Function, ir.Function];
+
+    def _get_exception_context_fn -> ir.Function;
+    def _exception_handler_slot(b: ir.IRBuilder) -> ir.Value;
     def _region_i64(val: ir.Value, name: str = "rgn.i64") -> ir.Value;
     def _region_ptr(val: ir.Value, name: str = "rgn.p") -> ir.Value;
     def _region_new_handle -> ir.Value;
@@ -697,7 +720,8 @@ walker NaIRGenPass(Transform) {
         layout: dict,
         tag: str,
         body_cb: Callable[..., ir.IRBuilder],
-        fields: (list | None) = None
+        fields: (list | None) = None,
+        reverse: bool = False
     ) -> ir.IRBuilder;
 
     def _emit_rc_alloc_container(
@@ -2031,7 +2055,6 @@ walker NaIRGenPass(Transform) {
     ) -> (ir.Value | None);
 
     def _generate_inherited_method_wrappers -> None;
-
     def _emit_take(nd: uni.FuncCall) -> (ir.Value | None);
     def _emit_swap(nd: uni.FuncCall) -> (ir.Value | None);
     def _callee_ability_of(nd: uni.FuncCall) -> (uni.Ability | None);
@@ -2042,6 +2065,7 @@ walker NaIRGenPass(Transform) {
         release_args: list,
         offset: int = 0
     ) -> list;
+
     def _emit_elem_slot_drop(
         b: ir.IRBuilder,
         fn: ir.Function,
@@ -2050,30 +2074,42 @@ walker NaIRGenPass(Transform) {
         data_index: int,
         val: ir.Value
     ) -> ir.IRBuilder;
+
     def _slot_lowering_active -> bool;
-    def _nogc_err_slot -> tuple;
+    def _nogc_err_slot -> tuple[ir.Value, ir.Value, ir.Value];
+    def _emit_finalizers(loop_depth: int = 0) -> bool;
     def _emit_err_check(callee: (uni.Ability | None)) -> None;
     def _emit_err_propagate(loc: str = "") -> None;
     def _codegen_raise_slot(payload: ir.Value, type_id: int, msg: ir.Value) -> None;
     def _codegen_try_slot(nd: uni.TryStmt) -> None;
+    def _codegen_try_unwind(nd: uni.TryStmt, emit_finally: bool = True) -> None;
+    def _codegen_finally_guard(nd: uni.TryStmt) -> None;
+    def _push_exception_handler(
+        dispatch: ir.Block, body: ir.Block
+    ) -> tuple[ir.Value, ir.Value];
+
+    def _exception_values(state: ir.Value) -> tuple[ir.Value, ir.Value, ir.Value];
     def _nogc_owned_param(p: uni.ParamVar) -> bool;
+    def _emit_rc_gc_env_off_fn -> ir.Function;
     def _aos_elem_struct(type_key: str) -> (ir.Type | None);
     def _container_is_view(nd: uni.UniNode) -> bool;
     def _codegen_method_call_inner(nd: uni.FuncCall) -> (ir.Value | None);
     def _field_slot_ptr(
         obj_val: ir.Value, field_name: str, type_name: str
     ) -> ir.Value;
+
     def _codegen_place_ptr(expr: uni.Expr) -> (ir.Value | None);
     def _nogc_owned_world -> bool;
     def _nogc_opt_slots_owned -> bool;
     def _nogc_drop_op_active(op: str) -> bool;
     def _rc_unwrap_optional(val: ir.Value) -> ir.Value;
     def _is_move_site(expr: uni.UniNode | None) -> bool;
-    def _nogc_consume_local(expr: uni.UniNode | None, owned_only: bool = True) -> bool;
+    def _nogc_consume_local(expr: uni.UniNode | None) -> bool;
     def _drop_hook_for(type_name: str) -> (ir.Function | None);
     def _nogc_drop_fn_for(
         ptr_ty: ir.PointerType, self_type: str = ""
     ) -> (ir.Function | None);
+
     def _nogc_borrow_local_assign(nd: object) -> bool;
     def _aos_elem_name(t: any) -> (str | None);
     def _decl_field_llvm_types(arch_name: str) -> (dict[str, ir.Type] | None);

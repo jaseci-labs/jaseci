@@ -497,7 +497,16 @@ impl NaIRGenPass._emit_rc_helpers -> None {
         unbuf_hdr = release_fn.append_basic_block("unbuf.hdr");
         unbuf_body = release_fn.append_basic_block("unbuf.body");
         unbuf_clear = release_fn.append_basic_block("unbuf.clear");
-        b.cbranch(_cd_is_buffered, unbuf_pre, reclaim_bb);
+        unbuf_or_defer = release_fn.append_basic_block("unbuf.or.defer");
+        b.cbranch(_cd_is_buffered, unbuf_or_defer, reclaim_bb);
+        b = ir.IRBuilder(unbuf_or_defer);
+        _cd_in_coll = b.icmp_unsigned(
+            "!=",
+            b.load(self.rc_collecting_gv, name="cd.coll"),
+            ir.Constant(i8, 0),
+            name="cd.in.coll"
+        );
+        b.cbranch(_cd_in_coll, dbg_rel_bb, unbuf_pre);
         b = ir.IRBuilder(unbuf_pre);
         _ub_buf = b.load(self.rc_roots_buf_gv, name="ub.buf");
         _ub_count = b.load(self.rc_roots_count_gv, name="ub.count");
@@ -1695,7 +1704,14 @@ impl NaIRGenPass._emit_container_drop_fn(cont_name: str) -> (ir.Function | None)
                 return bl;
             }
             bw = self._emit_live_slot_loop(
-                fn, bw, cont, layout, f"edrop{_fi}", _drop_slot, fields=[_fpair]
+                fn,
+                bw,
+                cont,
+                layout,
+                f"edrop{_fi}",
+                _drop_slot,
+                fields=[_fpair],
+                reverse=True
             );
             bw.branch(_next_bb);
             b = ir.IRBuilder(_next_bb);
@@ -2008,10 +2024,8 @@ impl NaIRGenPass._is_move_site(expr: uni.UniNode | None) -> bool {
     return _eid in self.ir_in.own_move_sites or _eid in self.ir_in.rc_move_in;
 }
 
-impl NaIRGenPass._nogc_consume_local(
-    expr: uni.UniNode | None, owned_only: bool = True
-) -> bool {
-    if owned_only and not self._nogc_owned_world() {
+impl NaIRGenPass._nogc_consume_local(expr: uni.UniNode | None) -> bool {
+    if not self._nogc_owned_world() {
         return False;
     }
     if not self._nogc_headerless() or not self._is_move_site(expr) {
@@ -2058,7 +2072,7 @@ impl NaIRGenPass._nogc_elem_prep(
         if self._is_owned(val) or isinstance(expr, uni.FString) {
             return val;
         }
-        if self._nogc_consume_local(expr, owned_only=False) {
+        if self._nogc_consume_local(expr) {
             return val;
         }
         if self.str_new_fn is None {
@@ -2086,7 +2100,7 @@ impl NaIRGenPass._nogc_elem_prep(
             and isinstance(expr, uni.Name)
             and expr.sym_name in self.local_vars
             and expr.sym_name not in self.param_vars
-            and not self._nogc_consume_local(expr, owned_only=False) {
+            and not self._nogc_consume_local(expr) {
             self.nogc_no_free_vars.add(expr.sym_name);
         }
         return val;
@@ -2105,7 +2119,7 @@ impl NaIRGenPass._nogc_elem_prep(
             return val;
         }
     }
-    if self._nogc_consume_local(expr, owned_only=False) {
+    if self._nogc_consume_local(expr) {
         return val;
     }
     return self._rc_strdup(val, name="elem.copy");
@@ -2190,7 +2204,7 @@ impl NaIRGenPass._emit_scope_cleanup(
     }
     self._emit_region_leaves(len(self.region_open_stack));
     _region_handles: list = [];
-    for (var_name, alloca) in self.local_vars.items() {
+    for (var_name, alloca) in reversed(list(self.local_vars.items())) {
         if var_name == "self" and not self._self_owned {
             continue;
         }
@@ -2271,7 +2285,7 @@ impl NaIRGenPass._emit_loop_iter_cleanup(body_locals: list, loc: str = "") -> No
         return;
     }
     _region_handles: list = [];
-    for var_name in body_locals {
+    for var_name in reversed(body_locals) {
         if var_name == "self" or var_name in self.param_vars {
             continue;
         }

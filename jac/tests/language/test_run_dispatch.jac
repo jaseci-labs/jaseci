@@ -88,19 +88,20 @@ test "kind cli-native -> execute via run" {
     assert p.verb == "run";
 }
 
-test "kind native-binary -> build via nacompile" {
+test "kind native-binary -> build via jac build --native" {
     p = _plan("kind = \"native-binary\"\nentry-point = \"main.jac\"\n", "main.jac");
     assert p.action == "build";
-    assert p.verb == "build" , "--native";
+    assert p.verb == "native";
     assert "output" in p.flags;
-    assert "build" , "--native" in p.command_line();
+    assert "--native" in p.command_line();
 }
 
-test "kind native-lib -> build shared via nacompile" {
+test "kind native-lib -> build a shared library via jac build --native --lib" {
     p = _plan("kind = \"native-lib\"\nentry-point = \"lib.jac\"\n", "lib.jac");
     assert p.action == "build";
-    assert p.verb == "build" , "--native";
-    assert p.flags.get("shared") == True;
+    assert p.verb == "native";
+    assert "--native" in p.command_line();
+    assert p.flags.get("lib") == True;
     assert "--lib" in p.command_line();
 }
 
@@ -323,7 +324,7 @@ test "KIND_SPECS is the single source of truth for every kind" {
         # The table key and the spec's own name can never drift apart.
         assert spec.name == kname;
         assert spec.action in ["execute", "build", "serve"];
-        assert spec.verb in ["run", "build", "--native", "build"];
+        assert spec.verb in ["run", "build", "native"];
         assert spec.description;
         assert spec.`entry;
         # kind_entry() reads the table rather than a second hardcoded list.

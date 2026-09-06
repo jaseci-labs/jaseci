@@ -25,15 +25,45 @@ def _fixture(name: str) -> str {
     return os.path.join(FIXTURES, name);
 }
 
+test "cleanup tolerates an owned local whose branch was not entered" {
+    out = assert_native_identity(_fixture("branch_cleanup.jac"));
+    assert out.splitlines() == ["1", "drop 1", "2", "drop 2", "1", "drop 1"];
+}
+
+test "runtime errors propagate through Jac calls without an unwinder" {
+    out = assert_native_identity(_fixture("runtime_errors.jac"));
+    assert out.splitlines()
+        == ["bounds caught", "bounds finalized", "assertion caught"];
+}
+
+test "finalizers run on returns, breaks and continues" {
+    out = assert_native_identity(_fixture("finally_exits.jac"));
+    assert out.splitlines()
+        == ["inner", "outer", "7", "0", "1", "after loop", "after try"];
+}
+
+test "error propagation preserves pending errors and finalizes handlers" {
+    out = assert_native_identity(_fixture("error_nested.jac"));
+    assert out.splitlines()
+        == [
+            "temporary handled",
+            "inner finally",
+            "original handled",
+            "handler finally",
+            "replacement handled",
+            "reraised"
+        ];
+}
+
 test "a named own local moved into an optional own field is owned by the field" {
     out = assert_native_identity(_fixture("optfield_move.jac"));
     assert out.splitlines()
         == [
             "a.next.v=2",
             "h.slot.v=3",
+            "drop node 3",
             "drop node 1",
             "drop node 2",
-            "drop node 3",
             "done"
         ] , out;
 }
@@ -86,12 +116,12 @@ test "pop, insert, del, index-assign and extend on a list of owned elements" {
             "drop 9",
             "assigned -> 7,0,3,4",
             "extended -> 7,0,3,4,11,12",
-            "drop 7",
-            "drop 0",
-            "drop 3",
-            "drop 4",
-            "drop 11",
             "drop 12",
+            "drop 11",
+            "drop 4",
+            "drop 3",
+            "drop 0",
+            "drop 7",
             "6",
             "done"
         ] , out;
@@ -106,10 +136,10 @@ test "views over a borrowed list never own its elements" {
     out = assert_native_identity(_fixture("view_cursor.jac"));
     assert out.splitlines()
         == [
-            "drop item 1",
-            "drop item 2",
-            "drop item 3",
             "drop item 4",
+            "drop item 3",
+            "drop item 2",
+            "drop item 1",
             "123406",
             "done"
         ] , out;
@@ -174,7 +204,7 @@ test "inferred local states never change behavior" {
             "x,X,y,Y",
             "4",
             "012",
-            "drop item 1",
-            "drop item 2"
+            "drop item 2",
+            "drop item 1"
         ];
 }

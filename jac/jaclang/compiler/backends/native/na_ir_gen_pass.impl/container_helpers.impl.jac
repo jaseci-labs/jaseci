@@ -384,13 +384,15 @@ impl NaIRGenPass._emit_live_slot_loop(
     cont: ir.Value,
     layout: dict,
     tag: str,
-    body_cb: object,
-    fields: (list | None) = None
+    body_cb: Callable[..., ir.IRBuilder],
+    fields: (list | None) = None,
+    reverse: bool = False
 ) -> ir.IRBuilder {
     i8 = ir.IntType(8);
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
     _is_hash = layout["kind"] == "hash";
+    _reverse = reverse and not _is_hash;
     _fields = fields if fields is not None else layout["data_fields"];
     _arrs = [];
     for (_fi, _) in _fields {
@@ -426,7 +428,7 @@ impl NaIRGenPass._emit_live_slot_loop(
         );
     }
     _iv = b.alloca(i64, name=f"{tag}.i");
-    b.store(ir.Constant(i64, 0), _iv);
+    b.store(_bound if _reverse else ir.Constant(i64, 0), _iv);
     _cond_bb = fn.append_basic_block(f"{tag}.cond");
     _live_bb = fn.append_basic_block(f"{tag}.live");
     _next_bb = fn.append_basic_block(f"{tag}.next");
@@ -448,17 +450,26 @@ impl NaIRGenPass._emit_live_slot_loop(
         );
     } else {
         bc.cbranch(
-            bc.icmp_unsigned("<", _i, _bound, name=f"{tag}.more"), _live_bb, _end_bb
+            bc.icmp_unsigned(">", _i, ir.Constant(i64, 0), name=f"{tag}.more")
+                if _reverse
+                else bc.icmp_unsigned("<", _i, _bound, name=f"{tag}.more"),
+            _live_bb,
+            _end_bb
         );
     }
     bl = ir.IRBuilder(_live_bb);
+    if _reverse {
+        _i = bl.sub(_i, ir.Constant(i64, 1), name=f"{tag}.index");
+    }
     _elem_ptrs = [
         bl.gep(_arr, [_i], name=f"{tag}.e{_k}.p") for (_k, _arr) in enumerate(_arrs)
     ];
     bl = body_cb(bl, _i, _elem_ptrs);
     bl.branch(_next_bb);
     bn = ir.IRBuilder(_next_bb);
-    bn.store(bn.add(_i, ir.Constant(i64, 1), name=f"{tag}.inc"), _iv);
+    bn.store(
+        _i if _reverse else bn.add(_i, ir.Constant(i64, 1), name=f"{tag}.inc"), _iv
+    );
     bn.branch(_cond_bb);
     return ir.IRBuilder(_end_bb);
 }
@@ -699,7 +710,14 @@ impl NaIRGenPass._emit_container_release_fn(
             return bl;
         }
         b = self._emit_live_slot_loop(
-            release_fn, b, cont_arg, layout, "rel", _release_slot, fields=_fields
+            release_fn,
+            b,
+            cont_arg,
+            layout,
+            "rel",
+            _release_slot,
+            fields=_fields,
+            reverse=True
         );
         b.branch(post_elems_bb);
         b = ir.IRBuilder(post_elems_bb);

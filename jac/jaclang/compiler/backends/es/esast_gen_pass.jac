@@ -681,6 +681,8 @@ walker EsastGenPass(BaseAstGenPass[es.Statement]) {
 
     def _bind_client_value_refs(nd: uni.Module) -> list[es.Statement];
     can exit_func_call with uni.FuncCall exit;
+    def _place_accessors(place: es.Expression) -> es.Expression | None;
+    def _lower_place_builtin(nd: uni.FuncCall) -> es.Expression | None;
     can exit_index_slice with uni.IndexSlice exit;
     can exit_special_var_ref with uni.SpecialVarRef exit;
     can exit_atom_trailer with uni.AtomTrailer exit;

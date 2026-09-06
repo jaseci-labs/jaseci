@@ -1527,35 +1527,13 @@ impl NaIRGenPass._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
     _i32 = ir.IntType(32);
 
     if not self._nogc_headerless() {
-        _getenv_fn = self._get_or_declare_extern("getenv", _i8p, [_i8p]);
-        _strcmp_fn = self._get_or_declare_extern("strcmp", _i32, [_i8p, _i8p]);
-        _gc_key = self.builder.gep(
-            self._get_snprintf_fmt("JAC_GC"),
-            [ir.Constant(_i32, 0), ir.Constant(_i32, 0)],
-            name="gc.key"
+        _gc_is_off = self.builder.call(
+            self._emit_rc_gc_env_off_fn(), [], name="gc.is.off"
         );
-        _gc_val = self.builder.call(_getenv_fn, [_gc_key], name="gc.env");
-        _gc_set = self.builder.icmp_unsigned(
-            "!=", _gc_val, ir.Constant(_i8p, None), name="gc.set"
-        );
-        _gc_check = func.append_basic_block("gc_env_check");
         _gc_off = func.append_basic_block("gc_off");
         _gc_on = func.append_basic_block("gc_on");
         _gc_cont = func.append_basic_block("gc_cont");
-        self.builder.cbranch(_gc_set, _gc_check, _gc_on);
-        b_chk = ir.IRBuilder(_gc_check);
-        _off_lit = b_chk.gep(
-            self._get_snprintf_fmt("off"),
-            [ir.Constant(_i32, 0), ir.Constant(_i32, 0)],
-            name="gc.off.lit"
-        );
-        _is_off = b_chk.icmp_signed(
-            "==",
-            b_chk.call(_strcmp_fn, [_gc_val, _off_lit]),
-            ir.Constant(_i32, 0),
-            name="gc.is.off"
-        );
-        b_chk.cbranch(_is_off, _gc_off, _gc_on);
+        self.builder.cbranch(_gc_is_off, _gc_off, _gc_on);
         if self.rc_alloc_fn is None {
             self._emit_rc_helpers();
         }
@@ -1690,4 +1668,47 @@ impl NaIRGenPass._codegen_entry(nodes: list[uni.ModuleCode]) -> None {
     self._finalize_di_locations(func, entry_line);
     self.has_native_code = True;
     self._builder = None;
+}
+
+impl NaIRGenPass._emit_rc_gc_env_off_fn -> ir.Function {
+    _existing = self.func_symtab.get("__rc_gc_env_off");
+    if _existing is not None {
+        return _existing;
+    }
+    _i8p = ir.IntType(8).as_pointer();
+    _i32 = ir.IntType(32);
+    _i1 = ir.IntType(1);
+    fn = self._define_function("__rc_gc_env_off", ir.FunctionType(_i1, []));
+    fn.linkage = "private";
+    self.func_symtab["__rc_gc_env_off"] = fn;
+    entry_bb = fn.append_basic_block("entry");
+    check_bb = fn.append_basic_block("gc_env_check");
+    b = ir.IRBuilder(entry_bb);
+    _getenv_fn = self._get_or_declare_extern("getenv", _i8p, [_i8p]);
+    _strcmp_fn = self._get_or_declare_extern("strcmp", _i32, [_i8p, _i8p]);
+    _gc_key = b.gep(
+        self._get_snprintf_fmt("JAC_GC"),
+        [ir.Constant(_i32, 0), ir.Constant(_i32, 0)],
+        name="gc.key"
+    );
+    _gc_val = b.call(_getenv_fn, [_gc_key], name="gc.env");
+    _gc_set = b.icmp_unsigned("!=", _gc_val, ir.Constant(_i8p, None), name="gc.set");
+    unset_bb = fn.append_basic_block("gc_unset");
+    b.cbranch(_gc_set, check_bb, unset_bb);
+    b_un = ir.IRBuilder(unset_bb);
+    b_un.ret(ir.Constant(_i1, 0));
+    b_chk = ir.IRBuilder(check_bb);
+    _off_lit = b_chk.gep(
+        self._get_snprintf_fmt("off"),
+        [ir.Constant(_i32, 0), ir.Constant(_i32, 0)],
+        name="gc.off.lit"
+    );
+    _is_off = b_chk.icmp_signed(
+        "==",
+        b_chk.call(_strcmp_fn, [_gc_val, _off_lit]),
+        ir.Constant(_i32, 0),
+        name="gc.is.off"
+    );
+    b_chk.ret(_is_off);
+    return fn;
 }

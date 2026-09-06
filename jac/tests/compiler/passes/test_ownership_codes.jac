@@ -19,6 +19,47 @@ import from tests.ownership_helpers { compile_fixture, expect_ownership_codes }
 
 # (group, case name, fixture, expected E13xx codes, [enforce nogc])
 glob OWNERSHIP_CASES: list[tuple] = [
+         ("places", "take needs optional storage", "take_nonoptional.jac", ["E1319"]),
+         (
+             "places",
+             "take cannot mutate a shared field",
+             "take_shared_field.jac",
+             ["E1318"]
+         ),
+         (
+             "places",
+             "swap requires explicit mutable borrows",
+             "swap_requires_mut.jac",
+             ["E1319", "E1319"]
+         ),
+         (
+             "views",
+             "imported inherited views cannot escape",
+             "view_import_escape.jac",
+             ["E1306", "E1315"],
+             True
+         ),
+         (
+             "views",
+             "inherited views can borrow parameters locally",
+             "view_inherited_local_ok.jac",
+             [],
+             True
+         ),
+         (
+             "views",
+             "inherited borrow fields cannot escape",
+             "view_inherited_escape.jac",
+             ["E1306", "E1315"],
+             True
+         ),
+         (
+             "receiver_modes",
+             "child method mutation requires a mutable receiver",
+             "method_mut_child_shared.jac",
+             ["E1318"],
+             True
+         ),
          # -- linear ----------------------------------------------------------
          (
              "linear",

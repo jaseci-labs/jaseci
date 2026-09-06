@@ -84,6 +84,9 @@ impl NaIRGenPass._transfer_own_args(
     offset: int = 0
 ) -> list {
     _hl = self._nogc_headerless();
+    if _hl and not self._nogc_owned_world() {
+        return release_args;
+    }
     _is_ctor = isinstance(nd.target, uni.Name)
         and (
             nd.target.sym_name in self.arch_ast_map
@@ -157,16 +160,8 @@ impl NaIRGenPass._transfer_own_args(
 }
 
 impl NaIRGenPass._callee_ability_of(nd: uni.FuncCall) -> (uni.Ability | None) {
-    tgt = nd.target;
-    sym = tgt.sym
-        if isinstance(tgt, (uni.Name, uni.AtomTrailer)) and hasattr(tgt, "sym")
-        else None;
-    decl = sym.decl if sym is not None else None;
-    ability = decl.find_parent_of_type(uni.Ability) if decl is not None else None;
-    if ability is None or decl is not ability.name_ref {
-        return None;
-    }
-    return ability;
+    import from jaclang.compiler.symbol_utils { resolved_callee }
+    return resolved_callee(nd);
 }
 
 impl NaIRGenPass._linked_callee_decl(

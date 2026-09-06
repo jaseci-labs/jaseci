@@ -1474,6 +1474,7 @@ impl JacPersistence._destroy_anchors(objs: any, strict: bool) -> list[Anchor] {
 
 impl JacPersistence.destroy(objs: any, strict: bool = False) -> None {
     import from jaclang.runtime.osp_kernel { osp_forget }
+    import from jaclang.runtime.region { run_drop }
     for anchor in JacPersistence._destroy_anchors(objs, strict) {
         if isinstance(anchor.archetype, Root) {
             raise RuntimeError("cannot destroy root");
@@ -1490,6 +1491,7 @@ impl JacPersistence.destroy(objs: any, strict: bool = False) -> None {
                         `edge.detach();
                         `edge.destroyed = True;
                         _edge_handle: any = `edge.archetype;
+                        run_drop(_edge_handle);
                         osp_forget(_edge_handle);
                         if eid is not None {
                             JacRuntimeInterface.get_context().mem.delete(eid);
@@ -1509,6 +1511,7 @@ impl JacPersistence.destroy(objs: any, strict: bool = False) -> None {
             }
             anchor.destroyed = True;
             _handle: any = anchor.archetype;
+            run_drop(_handle);
             osp_forget(_handle);
         }
     }

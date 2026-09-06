@@ -138,7 +138,7 @@ impl JcirGenPass._move_release_stmts(stmt: CodeBlockStmt) -> list[CgNode] {
         names.append(nm.sym_name);
     }
     for ln in last_uses {
-        if ln in names or ln in targets {
+        if ln in names {
             continue;
         }
         sym = stmt.sym_tab.lookup(ln) if stmt.sym_tab is not None else None;
@@ -149,14 +149,7 @@ impl JcirGenPass._move_release_stmts(stmt: CodeBlockStmt) -> list[CgNode] {
         }
         names.append(ln);
     }
-    return [
-        self.nod(
-            'Delete',
-            ['targets'],
-            [[self.nod('Name', ['id', 'ctx'], [n, self.nod('Del', [], [])])]],
-            jac_node=stmt
-        ) for n in names
-    ];
+    return [self._release_name_stmt(n, stmt) for n in names];
 }
 
 impl JcirGenPass.scope_directive_stmts(
@@ -745,5 +738,56 @@ impl JcirGenPass.exit_return_stmt with ReturnStmt exit {
     self.set_out(
         here,
         [self.nod('Return', ['value'], [self.val(here.expr) if here.expr else None])]
+    );
+}
+
+# A moved or branch-local name may already be unbound. Delete each binding
+# independently so one absent name cannot suppress the remaining drops.
+impl JcirGenPass._scope_cleanup_body(
+    scope: UniNode, body: list[CgNode]
+) -> list[CgNode] {
+    names = self.ir_in.rc_scope_cleanup.get(id(scope), []);
+    if not names {
+        return body;
+    }
+    cleanup = [self._release_name_stmt(name, scope) for name in names];
+    offset = self._docstring_offset(body);
+    return [
+        *body[:offset],
+        self.nod(
+            'Try',
+            ['body', 'handlers', 'orelse', 'finalbody'],
+            [body[offset:] or [self.nod('Pass', [], [])], [], [], cleanup]
+        )
+    ];
+}
+
+impl JcirGenPass._release_name_stmt(name: str, source: UniNode) -> CgNode {
+    return self.nod(
+        'Try',
+        ['body', 'handlers', 'orelse', 'finalbody'],
+        [
+            [
+                self.nod(
+                    'Delete',
+                    ['targets'],
+                    [[self.nod('Name', ['id', 'ctx'], [name, self.nod('Del', [], [])])]]
+                )
+            ],
+            [
+                self.nod(
+                    'ExceptHandler',
+                    ['type', 'name', 'body'],
+                    [
+                        self._import_ref('builtins', 'UnboundLocalError', source),
+                        None,
+                        [self.nod('Pass', [], [])]
+                    ]
+                )
+            ],
+            [],
+            []
+        ],
+        jac_node=source
     );
 }

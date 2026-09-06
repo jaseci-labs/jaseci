@@ -330,6 +330,7 @@ impl JcirGenPass.exit_ability with Ability exit {
     if body_hoists {
         body = [*body_hoists, *body];
     }
+    body = self._scope_cleanup_body(here, body);
     directive_stmts = self.scope_directive_stmts(
         [here, here.body if isinstance(here.body, ImplDef) else None]
     );

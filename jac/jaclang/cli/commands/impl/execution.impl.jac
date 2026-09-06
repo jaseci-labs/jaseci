@@ -473,7 +473,7 @@ def _build_plan(plan: RunPlan) -> int {
             }
         }
         return native_build(
-            filename=plan.entry_path, output=out, lib=plan.flags.get("shared", False)
+            filename=plan.entry_path, output=out, lib=plan.flags.get("lib", False)
         );
     }
     if plan.verb == "build" {

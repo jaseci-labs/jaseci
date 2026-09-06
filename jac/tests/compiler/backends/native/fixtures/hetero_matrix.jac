@@ -90,7 +90,7 @@ def hd_read_int -> int {
 }
 
 
-def hd_overwrite(s: str) -> str {
+def hd_overwrite(s: &str) -> str {
     d: dict = {"k": 1, "pad": 2.5};
     d["k"] = s + "-first";
     d["k"] = s + "-second";
@@ -98,14 +98,14 @@ def hd_overwrite(s: str) -> str {
 }
 
 
-def hd_pop_len(s: str) -> int {
+def hd_pop_len(s: &str) -> int {
     d: dict = {"a": s + "abc", "b": 5};
     x: str = d.pop("a");
     return len(x) + len(d);
 }
 
 
-def hd_clear_len(s: str) -> int {
+def hd_clear_len(s: &str) -> int {
     d: dict = {"a": s + "abc", "b": 5, "c": 1.5};
     d.clear();
     return len(d);

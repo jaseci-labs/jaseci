@@ -76,13 +76,11 @@ glob SYMTAB_SCHED_DEPS: tuple = ('jaclang.compiler.symbol_utils', ),
          'jaclang.compiler.tools.jac_auto_lint_pass'
      ),
      CODEGEN_SCHED_DEPS: tuple = (
+         'jaclang.compiler.passes.rc_facts_pass',
          'jaclang.compiler.backends.es',
          'jaclang.compiler.passes.freeze_structure_pass'
      ),
-     NATIVE_CODEGEN_DEPS: tuple = (
-         'jaclang.compiler.passes.rc_facts_pass',
-         'jaclang.compiler.backends.native'
-     );
+     NATIVE_CODEGEN_DEPS: tuple = ('jaclang.compiler.backends.native', );
 
 def module_in_flight(names: tuple) -> str {
     import sys;
@@ -354,16 +352,16 @@ def get_py_code_gen(
     try {
         _import_all(CODEGEN_SCHED_DEPS);
         import from jaclang.compiler.backends.es { EsastGenPass }
+        import from jaclang.compiler.passes.rc_facts_pass { RcFactsPass }
 
-        passes: list[type[Transform]] = [EsastGenPass];
+        passes: list[type[Transform]] = [RcFactsPass, EsastGenPass];
         if native {
             _import_all(NATIVE_CODEGEN_DEPS);
-            import from jaclang.compiler.passes.rc_facts_pass { RcFactsPass }
             import from jaclang.compiler.backends.native {
                 NaIRGenPass,
                 NativeCompilePass
             }
-            passes.extend([RcFactsPass, NaIRGenPass, NativeCompilePass]);
+            passes.extend([NaIRGenPass, NativeCompilePass]);
             _note_native_schedule_failure(None);
         }
         passes.extend(_py_codegen_tail());

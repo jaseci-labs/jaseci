@@ -8,6 +8,7 @@ impl RcFactsPass._run_impl(ir_in: Module) -> Module {
     self._stamp_escapes(ir_in);
     self._stamp_region_handles(ir_in);
     self._stamp_last_use(ir_in);
+    self._stamp_scope_cleanup(ir_in);
     self._stamp_move_in(ir_in);
     return ir_in;
 }
@@ -523,4 +524,52 @@ impl RcFactsPass.transform(ir_in: Module) -> Module {
 
 impl RcFactsPass.run_walk with Module entry {
     self.ir_out = self._run_impl(here);
+}
+
+# Keep owned destruction independent of an interpreter's frame clearing order.
+# Container element markers require the same cleanup even when the outer
+# binding is unmarked on the managed floor.
+impl RcFactsPass._stamp_scope_cleanup(ir_in: Module) -> None {
+    out: dict[int, list[str]] = {};
+    for ability in ir_in.get_all_sub_nodes(Ability) {
+        names: list[str] = [];
+        borrows: list[str] = [];
+        seen: set[int] = set();
+        for nm in ability.get_all_sub_nodes(Name) {
+            sym = nm.sym;
+            if sym is None
+                or id(sym) in seen
+                or sym.storage not in (SymbolStorage.LOCAL, SymbolStorage.PARAM)
+                or nm.find_parent_of_type(Ability) is not ability {
+                continue;
+            }
+            seen.add(id(sym));
+            if is_borrow_kind(sym.ownership) {
+                borrows.append(nm.sym_name);
+                continue;
+            }
+            owns = sym.ownership == OwnershipKind.OWN;
+            if not owns and sym.defn {
+                decl = sym.defn[0].parent;
+                if isinstance(decl, (Assignment, ParamVar))
+                    and decl.type_tag is not None {
+                    owns = any(
+                        [
+                            un.ownership == OwnershipKind.OWN
+                            for un in decl.type_tag.get_all_sub_nodes(UnaryExpr)
+                        ]
+                    );
+                }
+            }
+            if owns {
+                names.append(nm.sym_name);
+            }
+        }
+        if names or borrows {
+            # Borrow aliases must release their interpreter references before
+            # owners are dropped; they must not extend an owner's lifetime.
+            out[id(ability)] = list(reversed(borrows)) + list(reversed(names));
+        }
+    }
+    ir_in.rc_scope_cleanup = out;
 }

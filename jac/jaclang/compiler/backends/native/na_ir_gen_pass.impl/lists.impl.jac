@@ -904,7 +904,8 @@ impl NaIRGenPass._emit_aos_list_helpers(tname: str) -> ir.Type {
         _d_selfp,
         self.container_layouts[f"List.aos.{tname}"],
         "d",
-        _aos_drop_elem
+        _aos_drop_elem,
+        reverse=True
     );
     _d_data = b.load(
         b.gep(_d_selfp, [_z, ir.Constant(i32, 2)], name="d.data.p"), name="d.data"

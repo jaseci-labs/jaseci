@@ -52,10 +52,7 @@ glob FIXTURES = os.path.join(
 def _headerless_opts -> any {
     import from jaclang.compiler.driver.compile_options { CompileOptions }
     return CompileOptions(
-        force_codespace='native',
-        force_target_program=True,
-        memory_profile="nogc",
-        memory_profile="nogc"
+        force_codespace='native', force_target_program=True, memory_profile="nogc"
     );
 }
 

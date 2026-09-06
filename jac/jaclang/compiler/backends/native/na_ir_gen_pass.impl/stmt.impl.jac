@@ -350,6 +350,9 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
     func_ret_type = self.builder.function.return_value.type;
     if nd.expr is not None and isinstance(func_ret_type, ir.VoidType) {
         self._codegen_expr(nd.expr);
+        if self._emit_finalizers() {
+            return;
+        }
         self._emit_scope_cleanup(
             skip_var=None,
             loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
@@ -458,6 +461,9 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
                 );
                 self._mark_owned(val);
             }
+            if self._emit_finalizers() {
+                return;
+            }
             self._emit_scope_cleanup(
                 skip_var=skip_var,
                 ret_val=val,
@@ -470,6 +476,9 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
         }
     }
 
+    if self._emit_finalizers() {
+        return;
+    }
     self._emit_scope_cleanup(
         skip_var=None,
         loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
@@ -3041,6 +3050,9 @@ impl NaIRGenPass._codegen_ctrl(nd: uni.CtrlStmt) -> None {
     }
     (continue_bb, break_bb) = self.loop_stack[-1];
     _loop_depth = len(self.loop_stack);
+    if self._emit_finalizers(_loop_depth) {
+        return;
+    }
     self._emit_region_leaves(
         len(
             [

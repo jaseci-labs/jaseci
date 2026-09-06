@@ -53,7 +53,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
                  action="build",
                  verb="native",
                  summary="Build shared library (.so / .dylib / .dll)",
-                 flags={"shared": True}
+                 flags={"lib": True}
              ),
              KindSpec(
                  name="service",
@@ -193,7 +193,9 @@ obj RunPlan {
     }
 
     def command_line -> str {
-        parts = ["jac", self.verb];
+        parts = ["jac", "build", "--native"]
+            if self.verb == "native"
+            else ["jac", self.verb];
         if self.app {
             parts.append(self.app);
         } elif self.entry_path {

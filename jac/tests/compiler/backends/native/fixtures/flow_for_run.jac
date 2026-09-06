@@ -20,10 +20,9 @@ with entry {
     }
 }
 
-glob xs = [4, 5],
-     k = 3;
-
 with entry {
+    xs = [4, 5];
+    k = 3;
     flow for v in &xs {
         print(v * k);
     }
