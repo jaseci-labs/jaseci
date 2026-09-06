@@ -875,7 +875,8 @@ def jit_engine(plan: LinkPlan) -> ExecutionEngine {
     engine = llvm.create_mcjit_compiler(merged, tm);
     assert isinstance(engine, llvm.ExecutionEngine);
     install_native_static_init(engine, plan.init_symbols());
-    engine._jac_unit_ifaces = [u.iface for u in plan.units];
+    engine_any: any = engine;
+    engine_any._jac_unit_ifaces = [u.iface for u in plan.units];
     root_u = plan.root_unit();
     try {
         setattr(engine, "_jac_unit_path", root_u.path);
