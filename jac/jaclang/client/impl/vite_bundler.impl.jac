@@ -449,7 +449,11 @@ impl ViteBundler._generate_vite_config_content(
     }
 
     entry_dir = entry_relative.rpartition('/')[0];
-    if entry_relative.endswith('/build/main.js') {
+    if is_dev {
+        compiled_base = (self._client_app_dir() / 'compiled').relative_to(
+            build_dir
+        ).as_posix();
+    } elif entry_relative.endswith('/build/main.js') {
         compiled_base = entry_relative[:-13] + '/compiled';
     } elif entry_dir.rpartition('/')[2] == 'compiled' {
         compiled_base = entry_dir;
@@ -643,7 +647,7 @@ function jacCompiledReload() {
   return {
     name: "jac-compiled-reload",
     configureServer(server) {
-      const compiled = path.resolve(buildDir, "compiled");
+      const compiled = path.resolve(buildDir, __JAC_COMPILED_DIR__);
       try { server.watcher.add(compiled); } catch (e) {}
       let timer = null;
       const fire = (file) => {
@@ -671,6 +675,9 @@ function jacCompiledReload() {
 '''
                 if reload_enabled
                 else ""
+        );
+        mobile_compiled_block = mobile_compiled_block.replace(
+            '__JAC_COMPILED_DIR__', json.dumps(compiled_base)
         );
         config_content = f'''import {{ defineConfig }} from "vite";
 import path from "path";
@@ -1110,10 +1117,12 @@ impl ViteBundler.init(
     minify: bool = False,
     config_path: Optional[Path] = None
 ) {
-    self.project_dir = project_dir;
+    import from jaclang.project.config { find_project_root }
+    project_root = find_project_root(project_dir);
+    self.project_dir = project_root[0] if project_root else project_dir;
     self.minify = minify;
     self.config_path = config_path;
-    self.config_loader = JacClientConfig(project_dir);
+    self.config_loader = JacClientConfig(self.project_dir);
 
     self.output_dir = output_dir or (self._client_app_dir() / 'dist');
 
@@ -1353,6 +1362,9 @@ def _dev_head_scripts -> str {
 
 impl ViteBundler._ensure_dev_index_html(self: ViteBundler, build_dir: Path) -> None {
     index_html = build_dir / 'index.html';
+    entry_relative = (self._client_app_dir() / 'compiled' / '_entry.js').relative_to(
+        self._get_client_dir()
+    ).as_posix();
     index_content = '''<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -1392,7 +1404,7 @@ impl ViteBundler._ensure_dev_index_html(self: ViteBundler, build_dir: Path) -> N
         window.$RefreshReg$ = function() {};
         window.$RefreshSig$ = function() { return function(type) { return type; }; };
         window.__jac_refresh_installed__ = true;
-        return import("/compiled/_entry.js");
+        return import(__JAC_DEV_ENTRY__);
       }).then(function() {
         // entry loaded cleanly: clears the client slot in /__build_status
         try { import.meta.hot.send("jac:client-ready"); } catch(e) {}
@@ -1406,12 +1418,15 @@ impl ViteBundler._ensure_dev_index_html(self: ViteBundler, build_dir: Path) -> N
         });
       });
     } else {
-      import("/compiled/_entry.js").catch(function() {});
+      import(__JAC_DEV_ENTRY__).catch(function() {});
     }
     </script>
   </body>
 </html>
 ''';
+    index_content = index_content.replace(
+        '__JAC_DEV_ENTRY__', json.dumps('/' + entry_relative)
+    );
     if head_scripts := _dev_head_scripts() {
         index_content = index_content.replace('  </head>', f'{head_scripts}  </head>');
     }
