@@ -244,6 +244,12 @@ def native_symbol(eng: any, name: str) -> str {
             return found;
         }
     }
+    for unit_iface in (eng?._jac_unit_ifaces or []) {
+        found = unit_iface.symbol_of(name);
+        if found is not None {
+            return found;
+        }
+    }
     if not path {
         return name;
     }

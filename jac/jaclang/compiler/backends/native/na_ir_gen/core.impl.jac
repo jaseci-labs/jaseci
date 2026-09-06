@@ -1381,11 +1381,31 @@ impl NaIRGenCore._forward_declare_imported_ability(
     nd: uni.Ability, unavailable: (set | None) = None, imp_layout: any = None
 ) -> None {
     name = nd.name_ref.sym_name if nd.name_ref else None;
-    if name is None or name in self.func_symtab {
+    if name is None {
         return;
+    }
+    _owner = nd.find_parent_of_type(uni.Module);
+    _owner_name = _owner.name if _owner is not None else "";
+    _existing = self.func_symtab.get(name);
+    if _existing is not None {
+        """A second imported module defining the same name declares its
+        function under the module-qualified key; the bare name keeps the
+        binding it already has. Two `:pub` definitions share one bare
+        symbol, which the link plan reports as a collision.""";
+        if not _owner_name
+            or f"{_owner_name}.{name}" in self.func_symtab
+            or self._func_def_mod.get(name) == _owner_name
+            or bool(nd.access and nd.access.tag.name == Tok.KW_PUB) {
+            return;
+        }
     }
 
     if nd.body is None {
+        return;
+    }
+    if bool(nd.access and nd.access.tag.name == Tok.KW_PRIV) {
+        """A private function of another module is not callable from here;
+        it neither declares nor marks its name as demoted.""";
         return;
     }
     if not nd.type_params {
@@ -1396,12 +1416,24 @@ impl NaIRGenCore._forward_declare_imported_ability(
                 and name not in imp_layout.functions
             );
         if _fd_demoted {
-            self._native_skipped_methods.add(name);
+            if _owner_name {
+                self._native_skipped_methods.add(f"{_owner_name}.{name}");
+            }
+            if _existing is None {
+                self._native_skipped_methods.add(name);
+            }
             return;
         }
     }
+    _prev_def_mod = self._func_def_mod.get(name);
     self._maybe_declare_ability(nd);
     self._record_linked_decl(self.func_symtab.get(name), nd);
+    if _existing is not None {
+        self.func_symtab[name] = _existing;
+        if _prev_def_mod is not None {
+            self._func_def_mod[name] = _prev_def_mod;
+        }
+    }
 }
 
 impl NaIRGenCore._record_linked_decl(

@@ -241,11 +241,13 @@ obj NativeUnitRegistry {
         if found is None {
             return [];
         }
-        return read_native_dep_hashes(found[0], self.stamp_for(), found[1]);
+        return read_native_dep_hashes(found[0], self.stamp_for(), found[1], resolved);
     }
 
-    def _deps_match(data: bytes, stamp: NativeStamp, base_dir: str) -> bool {
-        for (dep, recorded) in read_native_dep_hashes(data, stamp, base_dir) {
+    def _deps_match(
+        data: bytes, stamp: NativeStamp, base_dir: str, anchor: str = ""
+    ) -> bool {
+        for (dep, recorded) in read_native_dep_hashes(data, stamp, base_dir, anchor) {
             ent = self.ensure(dep, compile_on_miss=False);
             if ent is None or ent.digest != recorded {
                 return False;
@@ -276,7 +278,8 @@ obj NativeUnitRegistry {
         if iface is None {
             return None;
         }
-        if check_deps and not self._deps_match(data, stamp, base_dir) {
+        iface.resolve_deps(resolved);
+        if check_deps and not self._deps_match(data, stamp, base_dir, resolved) {
             self._event("native_dep_miss");
             return None;
         }
@@ -354,6 +357,7 @@ obj NativeUnitRegistry {
         if unpacked is not None {
             iface = NativeIface.from_bytes(unpacked[1]);
             if iface is not None {
+                iface.resolve_deps(resolved);
                 return sorted(os.path.realpath(d) for d in iface.deps);
             }
         }
@@ -472,14 +476,13 @@ obj NativeUnitRegistry {
         if iface is None {
             return None;
         }
+        iface.resolve_deps(resolved);
         deps_raw = native_section_payload(sections.get(SEC_NDEPS), stamp);
         recorded: dict[str, str] = {};
         if deps_raw {
-            for line in deps_raw.decode("utf-8").split("\n") {
-                if "\t" in line {
-                    (dep, digest) = line.split("\t", 1);
-                    recorded[dep] = digest;
-                }
+            import from jaclang.compiler.driver.jir { parse_native_dep_rows }
+            for (dep, digest) in parse_native_dep_rows(deps_raw, resolved) {
+                recorded[dep] = digest;
             }
         }
         self.recorded_deps[resolved] = recorded;

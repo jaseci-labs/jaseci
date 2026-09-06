@@ -164,10 +164,18 @@ obj NativeIface {
     }
 
     def to_dict -> dict {
+        import from jaclang.compiler.frontend.codeinfo { native_unit_ref }
         d = self.digest_fields();
-        d["deps"] = list(self.deps);
+        d["deps"] = [native_unit_ref(x) for x in self.deps];
         d["coverage"] = dict(self.coverage);
         return d;
+    }
+
+    def resolve_deps(anchor: str) {
+        """Dependencies read from disk are references; the unit's own path
+        tells where a same-package reference lives.""";
+        import from jaclang.compiler.frontend.codeinfo { resolve_native_unit_ref }
+        self.deps = [resolve_native_unit_ref(x, anchor) for x in self.deps];
     }
 
     def to_bytes -> bytes {

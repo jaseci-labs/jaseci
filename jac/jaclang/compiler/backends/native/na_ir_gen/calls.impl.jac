@@ -2043,8 +2043,10 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     if _alias_arch is not None and _alias_arch in self.struct_types {
         return self._codegen_instantiation(nd, type_name_override=_alias_arch);
     }
+    _skipped_key = f"{_mod_qual}.{func_name}" if _mod_qual is not None else func_name;
     if (
-        func_name in self._native_skipped_methods and func_name not in self.generic_fns
+        _skipped_key in self._native_skipped_methods
+        and func_name not in self.generic_fns
     ) {
         self.emit(
             E5092,
@@ -2062,10 +2064,15 @@ impl NaIRGenCalls._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         return self._codegen_decorated_call(nd, func_name);
     }
     func = self.func_symtab.get(func_name);
-    if func is not None and _mod_qual is not None {
-        _dm = self._func_def_mod.get(func_name);
-        if _dm is not None and _dm != _mod_qual {
-            func = None;
+    if _mod_qual is not None {
+        _qualified = self.func_symtab.get(f"{_mod_qual}.{func_name}");
+        if _qualified is not None {
+            func = _qualified;
+        } elif func is not None {
+            _dm = self._func_def_mod.get(func_name);
+            if _dm is not None and _dm != _mod_qual {
+                func = None;
+            }
         }
     }
     if func is None {

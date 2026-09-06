@@ -166,9 +166,16 @@ def compile_native(fixture: str) -> tuple {
     # (`static_init_symbols`) and runs them itself on the first address it
     # hands out for a non-chained symbol; remember which unit it was built
     # from so bare Jac names resolve to the unit's qualified symbols.
+    remember_engine_unit(eng, ir, path);
+    return (eng, ir);
+}
+
+"""Pin the unit an engine was built from, so bare Jac names resolve to the
+unit's qualified symbols; every compile path that hands an engine to
+`get_func` calls this."""
+def remember_engine_unit(eng: object, ir: object, path: str = "") {
     unit_path = ir.loc.mod_path if (ir?.loc and ir.loc.mod_path) else path;
     _ENGINE_UNITS[id(eng)] = (unit_path, ir.gen.native_iface, );
-    return (eng, ir);
 }
 
 """The engine symbol for a Jac-level name.

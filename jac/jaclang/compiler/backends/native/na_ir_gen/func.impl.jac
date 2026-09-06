@@ -113,6 +113,11 @@ impl NaIRGenFunc._maybe_declare_ability(nd: uni.ElementStmt) -> None {
     _fdm = nd.find_parent_of_type(uni.Module);
     if _fdm is not None {
         self._func_def_mod[name] = _fdm.name;
+        if _fdm is not self.ir_in {
+            """Two imported modules may each define a function of one name;
+            a module-qualified call finds the one its module defines.""";
+            self.func_symtab[f"{_fdm.name}.{name}"] = func;
+        }
     }
     if _fdm is None or _fdm is self.ir_in {
         self._record_export(

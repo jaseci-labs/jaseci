@@ -1024,7 +1024,7 @@ impl NaIRGenVtable._generate_inherited_method_wrappers -> None {
                 wrapper_fn = ir.Function(
                     self.llvm_module, wrapper_fn_type, name=self._symbol_for(child_full)
                 );
-                wrapper_fn.linkage = "internal";
+                self._record_export(child_full, wrapper_fn.name, "method");
 
                 wrapper_fn.args[0].name = "self";
                 for i in range(1, len(impl_func.args)) {

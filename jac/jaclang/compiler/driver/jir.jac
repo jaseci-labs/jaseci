@@ -707,29 +707,38 @@ def read_dep_hashes(data: bytes, base_dir: str = "") -> list[tuple[str, str]] {
 }
 
 def native_deps_section(dep_digests: dict[str, str]) -> bytes {
+    import from jaclang.compiler.frontend.codeinfo { native_unit_ref }
     lines: list[str] = [];
     for path in sorted(dep_digests) {
-        lines.append(f"{path}\t{dep_digests[path]}");
+        lines.append(f"{native_unit_ref(path)}\t{dep_digests[path]}");
     }
     return "\n".join(lines).encode("utf-8");
 }
 
-def read_native_dep_hashes(
-    data: bytes, stamp: NativeStamp, base_dir: str = ""
-) -> list[tuple[str, str]] {
-    raw = native_section_payload(read_section_bytes(data, SEC_NDEPS), stamp);
+def parse_native_dep_rows(raw: bytes, anchor: str = "") -> list[tuple[str, str]] {
+    import from jaclang.compiler.frontend.codeinfo { resolve_native_unit_ref }
     out: list[tuple[str, str]] = [];
-    if not raw {
-        return out;
-    }
     for line in raw.decode("utf-8").split("\n") {
         if "\t" not in line {
             continue;
         }
         (path, digest) = line.split("\t", 1);
-        out.append((_dep_row_path(path, base_dir), digest, ));
+        out.append((resolve_native_unit_ref(path, anchor), digest, ));
     }
     return out;
+}
+
+def read_native_dep_hashes(
+    data: bytes, stamp: NativeStamp, base_dir: str = "", anchor: str = ""
+) -> list[tuple[str, str]] {
+    raw = native_section_payload(read_section_bytes(data, SEC_NDEPS), stamp);
+    if not raw {
+        return [];
+    }
+    return [
+        (_dep_row_path(path, base_dir), digest, )
+        for (path, digest) in parse_native_dep_rows(raw, anchor)
+    ];
 }
 
 def compute_stub_module_key(source_path: str) -> str {
