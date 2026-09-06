@@ -2028,6 +2028,9 @@ impl NaIRGenPass._codegen_instantiation(
 
     _tt_idx = self.osp_type_tag_field.get(type_name);
     if _tt_idx is not None {
+        if self._osp_ensure_fn is not None {
+            self.builder.call(self._osp_ensure_fn, []);
+        }
         _tt_slot = self.builder.gep(
             obj_ptr,
             [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), _tt_idx)],
@@ -3313,7 +3316,8 @@ impl NaIRGenPass._codegen_accessor_call(
 
 impl NaIRGenPass._own_accessor_result(result: ir.Value) -> ir.Value {
     if isinstance(result.type, ir.PointerType)
-        or self._opt_ptr_payload_of(result.type) is not None {
+        or self._opt_ptr_payload_of(result.type) is not None
+        or (self?.jacval_type and result.type == self.jacval_type) {
         return self._mark_owned(result);
     }
     return result;
@@ -3333,6 +3337,78 @@ impl NaIRGenPass._receiver_union_parts(nd: (uni.UniNode | None)) -> (list[str] |
         if p in self.struct_types
     ];
     return _rp if len(_rp) >= 2 else None;
+}
+
+impl NaIRGenPass._codegen_union_member(
+    obj_val: ir.Value, field_name: str, nd: uni.AtomTrailer, parts: list[str]
+) -> (ir.Value | None) {
+    """Read each union member through its own field layout or accessor.""";
+    result_type = self._lower_type(nd.type);
+    if result_type is None {
+        return None;
+    }
+    arms: list[str] = [];
+    for member in parts {
+        slot = self._accessor_slot_of(member, field_name, "property");
+        if slot is not None {
+            if self._resolve_method(member, slot) is None {
+                return None;
+            }
+        } elif field_name not in self.struct_field_indices.get(member, {}) {
+            return None;
+        }
+        arms.append(member);
+    }
+    receiver = self._narrow_receiver_ptr(obj_val, parts[0]);
+    if receiver is None {
+        return None;
+    }
+    obj_val = receiver;
+    if self._emit_runtime_class_name_fn() is None {
+        return None;
+    }
+    b = self.builder;
+    self._emit_runtime_raise(
+        b.icmp_unsigned("==", obj_val, ir.Constant(obj_val.type, None)),
+        "AttributeError",
+        "'NoneType' object has no attribute"
+    );
+    done = b.append_basic_block(name="union.property.done");
+    incoming: list[tuple[ir.Value, ir.Block]] = [];
+    for member in arms {
+        hit = b.append_basic_block(name="union.property.hit");
+        next_arm = b.append_basic_block(name="union.property.next");
+        matches = self._isinstance_class_name_hit(obj_val, [member]);
+        if matches is None {
+            return None;
+        }
+        b.cbranch(matches, hit, next_arm);
+        b.position_at_end(hit);
+        value = self._codegen_field_access(obj_val, field_name, member);
+        if value is None {
+            return None;
+        }
+        if not self._is_owned(value) {
+            self._emit_rc_retain(value, op="union_member", loc="");
+        }
+        value = self._coerce_type(value, result_type);
+        incoming.append((value, b.block));
+        b.branch(done);
+        b.position_at_end(next_arm);
+    }
+    self._emit_runtime_raise(
+        ir.Constant(ir.IntType(1), 1),
+        "AttributeError",
+        f"object has no attribute '{field_name}'"
+    );
+    incoming.append((self._default_arg_fallback(result_type), b.block));
+    b.branch(done);
+    b.position_at_end(done);
+    result = b.phi(result_type, name="union.property.value");
+    for (value, block) in incoming {
+        result.add_incoming(value, block);
+    }
+    return self._own_accessor_result(result);
 }
 
 impl NaIRGenPass._emit_dispatched_field_ptr(
@@ -4177,40 +4253,67 @@ impl NaIRGenPass._emit_class_routed_call(
 }
 
 
-impl NaIRGenPass._jc_abi_offsets(field_types: list) -> tuple {
-    offsets: list[int] = [];
-    off = 0;
-    for ft in field_types {
-        sz = 8;
-        if isinstance(ft, ir.IntType) {
-            sz = 1 if ft.width <= 8 else (ft.width // 8);
-        } elif isinstance(ft, ir.DoubleType) {
-            sz = 8;
-        } elif isinstance(ft, ir.PointerType) {
-            sz = 8;
-        } elif ft?.elements and ft.elements is not None {
-            (_sub, _ssz) = self._jc_abi_offsets(list(ft.elements));
-            _align = 8;
-            if off % _align != 0 {
-                off += _align - (off % _align);
-            }
-            offsets.append(off);
-            off += _ssz;
-            continue;
-        }
-        if off % sz != 0 {
-            off += sz - (off % sz);
-        }
-        offsets.append(off);
-        off += sz;
+impl NaIRGenPass._jc_reference_schema(
+    ft: ir.Type, layouts: dict, semantic: object = None
+) -> (dict | None) {
+    """Combine semantic reference types with the backend's container ABI.""";
+    args = semantic.private.type_args or [] if isinstance(semantic, ClassType) else [];
+    semantic_name = semantic.shared.class_name
+        if isinstance(semantic, ClassType)
+        else "";
+    if not isinstance(ft, ir.PointerType) {
+        return None;
     }
-    if off % 8 != 0 {
-        off += 8 - (off % 8);
+    if isinstance(ft.pointee, ir.IntType) and ft.pointee.width == 8 {
+        if semantic_name in self.struct_field_indices {
+            return {"code": "obj", "class": semantic_name};
+        }
+        return {"code": "str"};
     }
-    return (offsets, off);
+    name = getattr(ft.pointee, "name", "") or "";
+    if name in self.struct_field_indices {
+        return {"code": "obj", "class": name};
+    }
+    layout = self.container_layouts.get(name);
+    if layout is None {
+        return None;
+    }
+    data_fields = layout["data_fields"];
+    (offsets, _) = layouts[name];
+    if layout["kind"] == "dense" and len(data_fields) == 1 {
+        child = self._jc_reference_schema(
+            data_fields[0][1], layouts, args[0] if args else None
+        );
+        if child is not None {
+            return {
+                "code": "list",
+                "element": child,
+                "data_offset": offsets[data_fields[0][0]]
+            };
+        }
+    } elif layout["kind"] == "hash" and len(data_fields) == 2 {
+        key = self._jc_reference_schema(
+            data_fields[0][1], layouts, args[0] if args else None
+        );
+        child = self._jc_reference_schema(
+            data_fields[1][1], layouts, args[1] if len(args) > 1 else None
+        );
+        if key is not None and key["code"] == "str" and child is not None {
+            return {
+                "code": "dict",
+                "element": child,
+                "key_offset": offsets[data_fields[0][0]],
+                "data_offset": offsets[data_fields[1][0]],
+                "order_offset": offsets[layout["order_idx"]]
+            };
+        }
+    }
+    return None;
 }
 
 impl NaIRGenPass._build_jc_layout -> dict {
+    import from jaclang.compiler.backends.native.abi { struct_layouts }
+    layouts = struct_layouts(self.llvm_module);
     out: dict = {"classes": {}};
     _model = self.ir_in.gen.osp_model;
     _tags = _model.tags if _model is not None else {};
@@ -4224,10 +4327,18 @@ impl NaIRGenPass._build_jc_layout -> dict {
         if st is None or st?.elements is None {
             continue;
         }
-        (offsets, total) = self._jc_abi_offsets(list(st.elements));
+        (offsets, total) = layouts[arch_name];
         idx_map = self.struct_field_indices.get(arch_name, {});
         ftypes = self.struct_field_types.get(arch_name, {});
         enum_map = self.struct_field_enum_type.get(arch_name, {});
+        arch_layout = self._arch_layout(arch_name);
+        semantic_fields = {
+            f.name: f.decl_node.type
+            for f in arch_layout.fields
+            if f.decl_node is not None
+        }
+            if arch_layout is not None
+            else {};
         fields: dict = {};
         for (fname, fidx) in idx_map.items() {
             if fidx >= len(offsets) {
@@ -4291,6 +4402,15 @@ impl NaIRGenPass._build_jc_layout -> dict {
                 "code": code,
                 "aux": aux
             };
+            if code == "ptr" and isinstance(ft, ir.PointerType) {
+                schema = self._jc_reference_schema(
+                    ft, layouts, semantic_fields.get(fname)
+                );
+                if schema is not None and schema["code"] == "dict" {
+                    fields[fname]["code"] = "natdict";
+                    fields[fname]["schema"] = schema;
+                }
+            }
         }
         _lay_tag_idx = self.osp_type_tag_field.get(arch_name);
         out["classes"][arch_name] = {

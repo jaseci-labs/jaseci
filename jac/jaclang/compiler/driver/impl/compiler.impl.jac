@@ -655,7 +655,18 @@ impl JacCompiler.parse_str(
             }
         }
         (mod, had_error) = parse_woven(
-            source_str, file_path, target_program, annex_sources(file_path)
+            source_str,
+            file_path,
+            target_program,
+            annex_sources(file_path),
+            early_context=(
+                codespace
+                or (
+                    'server'
+                        if _default_codespace_for(target_program) != 'native'
+                        else ''
+                )
+            )
         );
         if (codespace == 'client') {
             _coerce_client_module(mod);

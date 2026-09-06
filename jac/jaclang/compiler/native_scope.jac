@@ -20,6 +20,15 @@ glob NATIVE_SCOPE: tuple[NativeScopeEntry, ...] = (
          ),
          NativeScopeEntry(module="jaclang.compiler.jc_materialize", strict=True),
          NativeScopeEntry(module="jaclang.compiler.jc_unit", strict=True),
+         NativeScopeEntry(module="jaclang.compiler.frontend.diagnostics", strict=True),
+         NativeScopeEntry(module="jaclang.compiler.passes.transform", strict=True),
+         NativeScopeEntry(module="jaclang.compiler.passes.uni_pass", strict=True),
+         NativeScopeEntry(
+             module="jaclang.compiler.passes.ast_validation_pass", strict=True
+         ),
+         NativeScopeEntry(
+             module="jaclang.compiler.passes.sym_tab_build_pass", strict=True
+         ),
 
      ),
      KERNEL_ROOT_MODULE: str = "jaclang.compiler.jc_unit",

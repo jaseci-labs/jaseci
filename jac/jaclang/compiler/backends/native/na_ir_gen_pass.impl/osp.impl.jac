@@ -207,9 +207,18 @@ impl NaIRGenPass._osp_collect_slots(arch_name: str, is_entry: bool) -> list {
     if _model is None {
         return slots;
     }
-    _src = _model.entry_slots(arch_name) if is_entry else _model.exit_slots(arch_name);
-    for _slot in _src {
-        thunk = self.osp_thunk_funcs.get(f"{arch_name}.{_slot.ability}");
+
+    merged: dict = {};
+    layout = self._arch_layout(arch_name);
+    order = layout.mro if layout is not None else [arch_name];
+    for owner in reversed(order) {
+        source = _model.entry_slots(owner) if is_entry else _model.exit_slots(owner);
+        for slot in source {
+            merged[slot.ability] = slot;
+        }
+    }
+    for _slot in merged.values() {
+        thunk = self.osp_thunk_funcs.get(f"{_slot.owner}.{_slot.ability}");
         if thunk is None {
             continue;
         }

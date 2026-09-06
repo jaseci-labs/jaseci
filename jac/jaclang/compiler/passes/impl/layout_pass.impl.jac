@@ -204,11 +204,15 @@ impl LayoutPass._compute_c3_mro(class_name: str) -> list[str] {
 }
 
 impl LayoutPass._topo_sort(arch_map: dict[str, Archetype]) -> list[str] {
+    return self.registry.dependency_order(list(arch_map));
+}
+
+impl LayoutRegistry.dependency_order(names: list[str]) -> list[str] {
+    """Order layouts after their ancestors, including incomplete imported MROs.""";
     visited: set[str] = set();
     order: list[str] = [];
-    reg = self.registry;
 
-    for aname in arch_map {
+    for aname in names {
         if aname in visited {
             continue;
         }
@@ -224,7 +228,7 @@ impl LayoutPass._topo_sort(arch_map: dict[str, Archetype]) -> list[str] {
                 continue;
             }
             stack.append((name, True));
-            mro = reg.mro_order.get(name, [name]);
+            mro = self.mro_order.get(name, [name]);
             for ancestor in reversed(mro[1:]) {
                 if ancestor not in visited {
                     stack.append((ancestor, False));

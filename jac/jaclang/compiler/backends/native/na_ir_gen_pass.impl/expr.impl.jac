@@ -127,7 +127,8 @@ impl NaIRGenPass._codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None) {
             }
         }
 
-        if isinstance(_result.type, ir.PointerType) {
+        if isinstance(_result.type, ir.PointerType)
+            or (self?.jacval_type and _result.type == self.jacval_type) {
             import from jaclang.compiler.passes.rc_facts_pass {
                 Ownership,
                 result_ownership
@@ -139,6 +140,9 @@ impl NaIRGenPass._codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None) {
 
         _narrowed = self._apply_flow_narrowing(nd, _result);
         if _narrowed is not _result {
+            if self._is_owned(_result) {
+                self._mark_owned(_narrowed);
+            }
             _narrowed.jac_loc = _jac_loc;
             _result = _narrowed;
         }
@@ -757,17 +761,23 @@ impl NaIRGenPass._codegen_kernel_spawn(
         _h["append"], [_starts, self._coerce_type(loc_val, i64)], op="append", loc=""
     );
 
-    _ks_model = self.ir_in.gen.osp_model;
-    _wtag = _ks_model.tags.get(walker_name, 0) if (_ks_model is not None) else 0;
+    _tag_slot = self.osp_type_tag_field.get(walker_name);
+    if _tag_slot is None {
+        return None;
+    }
+    _wtag = self.builder.load(
+        self.builder.gep(
+            walker_val, [ir.Constant(i32, 0), ir.Constant(i32, _tag_slot)]
+        ),
+        name="spawn.walker_tag"
+    );
     _nd_fn = self.func_symtab.get("osp_node_desc");
     if _nd_fn is None {
         return walker_val;
     }
     _nd_args = _nd_fn.function_type.args;
     _descp = self.builder.call(
-        _nd_fn,
-        [self._coerce_type(ir.Constant(i64, _wtag), _nd_args[0])],
-        name="spawn.descp"
+        _nd_fn, [self._coerce_type(_wtag, _nd_args[0])], name="spawn.descp"
     );
     _dead_fn = self.func_symtab.get("osp_is_dead");
     if _dead_fn is not None {
@@ -783,7 +793,7 @@ impl NaIRGenPass._codegen_kernel_spawn(
         );
     }
     _rt = self.builder.load(self._osp_rt_global, name="spawn.rt");
-    self.builder.call(
+    _spawn_result = self.builder.call(
         osp_spawn_fn,
         [
             self._coerce_type(_rt, _argtys[0]),
@@ -792,6 +802,7 @@ impl NaIRGenPass._codegen_kernel_spawn(
             self._coerce_type(_starts, _argtys[3])
         ]
     );
+    self._emit_elem_release(self.builder, _spawn_result.type, _spawn_result);
     self._emit_rc_release_simple(_starts, op="spawn_starts", loc="");
     return walker_val;
 }
@@ -2088,6 +2099,24 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 }
             }
 
+            _property_parts = self._receiver_union_parts(nd);
+            if _property_parts is not None
+                and any(
+                    self._accessor_slot_of(part, right_name, "property") is not None
+                    for part in _property_parts
+                )
+                and all(
+                    self._accessor_slot_of(part, right_name, "property") is not None
+                        or right_name in self.struct_field_indices.get(part, {})
+                    for part in _property_parts
+                ) {
+                _property_receiver = self._codegen_expr(nd.target);
+                if _property_receiver is not None {
+                    return self._codegen_union_member(
+                        _property_receiver, right_name, nd, _property_parts
+                    );
+                }
+            }
             _fa_type_name = self._struct_name_of(nd.target);
             if _fa_type_name is not None {
                 type_name = _fa_type_name;

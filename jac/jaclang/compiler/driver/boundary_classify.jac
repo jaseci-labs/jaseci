@@ -9,19 +9,7 @@ import from jaclang.compiler.placement.workspace {
 }
 
 def _coerce_module(module: uni.Module, context: CodeContext) {
-    module.decided_codespace = context.value;
-    for elem in module.body {
-        if isinstance(elem, uni.ContextAwareNode) {
-            elem.code_context = context;
-            if (isinstance(elem, uni.ModuleCode) and elem.body) {
-                for inner in elem.body {
-                    if isinstance(inner, uni.ContextAwareNode) {
-                        inner.code_context = context;
-                    }
-                }
-            }
-        }
-    }
+    module.set_code_context(context);
 }
 
 def _coerce_client_module(module: uni.Module) {

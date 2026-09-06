@@ -1544,6 +1544,22 @@ impl Symbol.__repr__ -> str {
     return f"Symbol({self.sym_name}, {self.sym_type}, {self.access},{self.defn})";
 }
 
+impl Module.set_code_context(context: CodeContext) -> None {
+    self.decided_codespace = context.value;
+    for elem in self.body {
+        if isinstance(elem, ContextAwareNode) {
+            elem.code_context = context;
+            if isinstance(elem, ModuleCode) and elem.body {
+                for inner in elem.body {
+                    if isinstance(inner, ContextAwareNode) {
+                        inner.code_context = context;
+                    }
+                }
+            }
+        }
+    }
+}
+
 impl UniScopeNode._init_scope(
     name: str, parent_scope: (UniScopeNode | None) = None
 ) -> None {
@@ -1732,9 +1748,13 @@ impl UniScopeNode.adopt_primary(sym: Symbol, alias: str = "") -> None {
 }
 
 impl UniScopeNode._drop_primary(sym: Symbol) -> None {
-    for e in [edge self->:ScopePrimary:->] {
-        if getattr(e, "__jac__").target.archetype is sym {
-            del e;
+    edges = [edge self->:ScopePrimary:->];
+    targets = [self->:ScopePrimary:->];
+    for i in range(len(targets)) {
+        target: Symbol = targets[i];
+        if target is sym {
+            edge_to_drop = edges[i];
+            del edge_to_drop;
             break;
         }
     }
@@ -1931,7 +1951,11 @@ impl ContextAwareNode.postinit -> None {}
 
 impl ContextAwareNode.code_context.getter -> CodeContext {
     found = [self->:PlacedIn:->];
-    return CodeContext(found[0].kind) if found else CodeContext.SERVER;
+    if found {
+        target: Codespace = found[0];
+        return CodeContext(target.kind);
+    }
+    return CodeContext.SERVER;
 }
 
 impl ContextAwareNode.code_context.setter(code_context: CodeContext) {
@@ -1941,7 +1965,11 @@ impl ContextAwareNode.code_context.setter(code_context: CodeContext) {
 
 impl Module.decided_codespace.getter -> str {
     found = [self->:DecidedCodespace:->];
-    return found[0].kind if found else "";
+    if found {
+        target: Codespace = found[0];
+        return target.kind;
+    }
+    return "";
 }
 
 impl Module.decided_codespace.setter(decided_codespace: str) {
