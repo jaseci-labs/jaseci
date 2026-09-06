@@ -271,3 +271,25 @@ test "the glue supplies the region-death hook only when no unit does" {
     (gglue_ir, _gexports) = link_glue_ir(gspec);
     assert REGION_DIED_HOOK not in gglue_ir;
 }
+
+
+test "the glue defines atexit wherever glibc would leave it unresolved" {
+    import from jaclang.compiler.backends.native.link_glue { link_glue_ir }
+    root_dir = _diamond_copy();
+    (prog, plan) = _plan_for(root_dir);
+    shim = "define hidden i32 @atexit(";
+    dynamic_exec = plan.glue_spec(ArtifactKind.EXECUTABLE, "elf", False);
+    assert dynamic_exec.needs_atexit_shim , (
+        "a dynamically linked ELF executable resolves atexit itself"
+    );
+    assert shim in link_glue_ir(dynamic_exec)[0];
+    shared = plan.glue_spec(ArtifactKind.SHARED, "elf", False);
+    assert shared.needs_atexit_shim;
+    static_exec = plan.glue_spec(ArtifactKind.EXECUTABLE, "elf", True);
+    assert not static_exec.needs_atexit_shim , "musl's libc.a supplies atexit";
+    assert shim not in link_glue_ir(static_exec)[0];
+    macho = plan.glue_spec(ArtifactKind.EXECUTABLE, "macho", False);
+    assert not macho.needs_atexit_shim;
+    jit = plan.glue_spec(ArtifactKind.JIT, "jit", False);
+    assert not jit.needs_atexit_shim;
+}
