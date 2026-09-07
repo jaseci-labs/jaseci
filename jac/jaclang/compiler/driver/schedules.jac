@@ -80,7 +80,10 @@ glob SYMTAB_SCHED_DEPS: tuple = ('jaclang.compiler.symbol_utils', ),
          'jaclang.compiler.backends.es',
          'jaclang.compiler.passes.freeze_structure_pass'
      ),
-     NATIVE_CODEGEN_DEPS: tuple = ('jaclang.compiler.backends.native', );
+     NATIVE_CODEGEN_DEPS: tuple = (
+         'jaclang.compiler.backends.native.na_ir_gen_pass',
+         'jaclang.compiler.backends.native.na_compile_pass'
+     );
 
 def module_in_flight(names: tuple) -> str {
     import sys;
@@ -357,8 +360,8 @@ def get_py_code_gen(
         passes: list[type[Transform]] = [RcFactsPass, EsastGenPass];
         if native {
             _import_all(NATIVE_CODEGEN_DEPS);
-            import from jaclang.compiler.backends.native {
-                NaIRGenPass,
+            import from jaclang.compiler.backends.native.na_ir_gen_pass { NaIRGenPass }
+            import from jaclang.compiler.backends.native.na_compile_pass {
                 NativeCompilePass
             }
             passes.extend([NaIRGenPass, NativeCompilePass]);

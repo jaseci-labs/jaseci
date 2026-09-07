@@ -21,7 +21,7 @@ what freed memory happens to contain.
 
 import ctypes;
 import os;
-import from tests.support { TESTS_DIR, get_func }
+import from tests.support { TESTS_DIR, get_func, names_function, native_address }
 import jaclang;
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.driver.program { JacProgram }
@@ -38,7 +38,7 @@ def fn_ir(ir: uni.Module, name: str) -> str {
     out: list[str] = [];
     inside = False;
     for ln in str(ir.gen.llvm_ir).split("\n") {
-        if not inside and ln.startswith("define") and (('@"' + name + '"') in ln) {
+        if not inside and ln.startswith("define") and names_function(ln, name) {
             inside = True;
         }
         if inside {
@@ -60,7 +60,6 @@ def compile_native(
     prog = JacProgram();
     opts = CompileOptions(
         force_codespace='native',
-        force_target_program=True,
         na_gc_mode=(gc_mode if gc_mode is not None else "cycles")
     );
     ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)), options=opts);
@@ -163,7 +162,7 @@ test "heap-element container compiles and runs under plain --memory nogc" {
 
 test "import sys compiles under --memory rc (argv list is a heap container)" {
     (eng, _) = compile_native("rc_import_sys.jac", gc_mode="rc");
-    addr = eng.get_function_address("argc_minus_one");
+    addr = native_address(eng, "argc_minus_one");
     assert addr != 0 , "argc_minus_one not emitted";
 }
 

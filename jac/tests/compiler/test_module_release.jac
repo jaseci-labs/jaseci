@@ -11,6 +11,23 @@ import from jaclang.compiler.driver.program { JacProgram }
 
 glob SRC = "def area(r: float) -> float { return 3.14 * r * r; }\n";
 
+test "programs hydrate independent semantic objects from shared catalog bytes" {
+    first = JacProgram();
+    second = JacProgram();
+    first._get_compiler().ensure_stub_catalog();
+    second._get_compiler().ensure_stub_catalog();
+    left = first.stub_catalog();
+    right = second.stub_catalog();
+    assert left is not None and right is not None;
+    assert left is not right;
+    assert left.buf is right.buf;
+    left_type = first.get_type_evaluator().prefetch.literal_string_class;
+    right_type = second.get_type_evaluator().prefetch.literal_string_class;
+    assert left_type is not None and right_type is not None;
+    assert left_type.shared is not right_type.shared;
+    assert first.stub_catalog() is left;
+}
+
 def _probe(prog: JacProgram) -> tuple {
     mod = prog.parse_str(SRC, "release_probe.jac");
     assert mod is not None;
@@ -94,4 +111,48 @@ test "typeshed never enters the hub and builtins bindings survive a release" {
     assert second is not None and not prog.errors_had , f"{[
         str(e) for e in prog.errors_had
     ]}";
+}
+
+
+test "releasing a closure releases the catalog and evaluator together" {
+    import os;
+    import from unittest.mock { patch }
+    prog = JacProgram();
+    def analyze -> tuple {
+        mod = prog.compile(file_path="catalog_session_probe.jac", use_str=STUB_SRC);
+        assert not prog.errors_had , [e.pretty_print() for e in prog.errors_had];
+        return (
+            weakref.ref(prog.get_type_evaluator()),
+            weakref.ref(prog.stub_catalog())
+        );
+    }
+    (evaluator, catalog) = analyze();
+    with patch.dict(os.environ, {"JAC_UNIT_COLLECT_EVERY": "1"}) {
+        prog.release_compile_closure();
+    }
+    assert catalog() is None , "a released catalog is still owned outside its session";
+    assert evaluator() is None , "a released evaluator is still owned outside its session";
+}
+
+test "compiler execution retains its own analysis until the outer import completes" {
+    import from jaclang.compiler.driver.selfhost { SelfHostCache }
+    prog = JacProgram();
+    cache = SelfHostCache(_program=prog);
+    (path, mod_ref, kid_ref, anchor_ref) = _probe(prog);
+    cache.enter_execution();
+    try {
+        cache.enter_execution();
+        try {
+            cache.evict_unit(path, None, collect=False);
+            assert prog.find_module(path) is not None;
+        } finally {
+            cache.exit_execution();
+        }
+        assert prog.find_module(path) is not None;
+    } finally {
+        cache.exit_execution();
+    }
+    assert prog.find_module(path) is None;
+    gc.collect();
+    assert mod_ref() is None and kid_ref() is None and anchor_ref() is None;
 }

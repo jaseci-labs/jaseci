@@ -308,7 +308,7 @@ def _compiled_app_edges(
         );
     }
     edges: list[tuple[str, str]] = [];
-    for hub in prog._search_hubs() {
+    for hub in prog.execution_hubs() {
         for mod in hub.values() {
             if not (mod and mod.gen) {
                 continue;

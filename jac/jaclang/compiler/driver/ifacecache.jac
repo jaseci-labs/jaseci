@@ -1,6 +1,9 @@
 import os;
 import time;
+import type from jaclang.compiler.driver.program { JacProgram }
+import type from jaclang.compiler.frontend.unitree { Module }
 import from jaclang.compiler.driver.jir {
+    DepRow,
     SEC_CTDEPS,
     SEC_DEPS,
     SEC_DIAG,
@@ -309,12 +312,14 @@ obj IfaceRegistry {
         return out;
     }
 
-    def dep_rows(resolved_path: str, mod: any) -> list[tuple[str, str, str]] {
+    def dep_rows(resolved_path: str, mod: any) -> list[DepRow] {
         bucket = self.direct_deps.get(resolved_path, {});
         client = self._client_edges(mod) if mod is not None else set();
-        out: list[tuple[str, str, str]] = [];
+        out: list[DepRow] = [];
         for (path, digest) in bucket.items() {
-            out.append((path, digest, "c" if path in client else "", ));
+            out.append(
+                DepRow(path=path, digest=digest, flags="c" if path in client else "")
+            );
         }
         return out;
     }
@@ -404,7 +409,9 @@ obj IfaceRegistry {
     }
 
     def _deps_match(data: bytes, base_dir: str = "") -> bool {
-        for (dep, recorded) in read_dep_hashes(data, base_dir) {
+        import from jaclang.compiler.driver.jir { read_dep_rows }
+        for row in read_dep_rows(data, base_dir) {
+            (dep, recorded) = (row.path, row.digest);
             if not recorded {
                 return False;
             }
@@ -960,9 +967,9 @@ obj IfaceRegistry {
         }
         edges: list[str] = [];
         import from jaclang.compiler.driver.jir { read_dep_rows }
-        for (dep, _digest, flags) in read_dep_rows(data, base_dir) {
-            if "c" in flags {
-                edges.append(dep);
+        for row in read_dep_rows(data, base_dir) {
+            if "c" in row.flags {
+                edges.append(row.path);
             }
         }
         self._event("boundary_facts");
@@ -1022,23 +1029,23 @@ obj IfaceRegistry {
         return None;
     }
 
-    def _fresh_verify_program -> any {
+    def _fresh_verify_program -> JacProgram {
         import from jaclang.compiler.driver.program { JacProgram }
-        return JacProgram();
+        prog = JacProgram();
+        prog.iface_registry().verifying = True;
+        return prog;
     }
 
     def _verify_iface(resolved: str, ent: IfaceEntry) -> None {
+        prog2 = self._fresh_verify_program();
+        fresh: Module | None = None;
         self.verifying = True;
         try {
             import from jaclang.compiler.driver.compile_options { CompileOptions }
-            prog2 = self._fresh_verify_program();
             fresh = prog2.compile(
                 resolved,
                 options=CompileOptions(
-                    symtab_ir_only=True,
-                    no_cgen=True,
-                    force_target_program=True,
-                    need_full_ast=True
+                    symtab_ir_only=True, no_cgen=True, need_full_ast=True
                 )
             );
             served = ent.module;
@@ -1073,21 +1080,22 @@ obj IfaceRegistry {
             }
         } finally {
             self.verifying = False;
+            fresh = None;
+            prog2.release_compile_closure();
         }
     }
 
     def _verify_analysis(resolved: str, options: any, prof: dict) {
+        prog2 = self._fresh_verify_program();
         self.verifying = True;
         try {
             import from jaclang.compiler.driver.compile_options { CompileOptions }
-            prog2 = self._fresh_verify_program();
             try {
                 prog2.compile(
                     resolved,
                     options=CompileOptions(
                         no_cgen=options.no_cgen,
                         native_parity=options.native_parity,
-                        force_target_program=True,
                         suppress_codes=list(options.suppress_codes or []),
                         need_full_ast=True
                     )
@@ -1124,6 +1132,7 @@ obj IfaceRegistry {
             }
         } finally {
             self.verifying = False;
+            prog2.release_compile_closure();
         }
     }
 }

@@ -45,10 +45,7 @@ def dual_compile(src: str, path: str) -> tuple {
         use_str=src,
         file_path=path,
         options=CompileOptions(
-            force_codespace="server",
-            skip_native_engine=True,
-            no_ir_cache=True,
-            suppress_codes=["E5092"]
+            force_codespace="server", skip_native_engine=True, suppress_codes=["E5092"]
         )
     );
     assert len(prog.errors_had) == 0 , str([str(e) for e in prog.errors_had]);
@@ -65,7 +62,7 @@ def dual_compile(src: str, path: str) -> tuple {
 """The same double emission, for a fixture that must be compiled from disk."""
 def dual_compile_file(path: str) -> tuple {
     prog = JacProgram();
-    mod = prog.compile(path, options=CompileOptions(no_ir_cache=True));
+    mod = prog.compile(path, options=CompileOptions());
     assert len(prog.errors_had) == 0 , str([str(e) for e in prog.errors_had]);
     ref_tree = mod.gen.py_ast[0];
     emitter = JcirGenPass(ir_in=mod);

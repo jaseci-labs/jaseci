@@ -57,9 +57,7 @@ def _project(dep_body: str = "") -> tuple[str, str] {
 }
 
 def _check_opts -> CompileOptions {
-    return CompileOptions(
-        no_cgen=True, native_parity=True, force_target_program=True, iface_ok=True
-    );
+    return CompileOptions(no_cgen=True, native_parity=True, iface_ok=True);
 }
 
 def _check(main: str) -> tuple[JacProgram, list[str]] {
@@ -478,12 +476,7 @@ test "a tree-demanding closure does not disable hydration for later compiles" {
     (main, dep) = _project();
     _check(main);
     prog = JacProgram();
-    prog.compile(
-        main,
-        options=CompileOptions(
-            no_cgen=True, force_target_program=True, need_full_ast=True
-        )
-    );
+    prog.compile(main, options=CompileOptions(no_cgen=True, need_full_ast=True));
     assert prog.analysis.cache_events.get("dep_hydrate", 0) == 0 , "a tree-demanding closure must not hydrate its dependencies";
     prog.release_compile_closure();
     prog.load_dependency_module(dep);
@@ -540,10 +533,7 @@ test "an interface is identical however many twins of its module are reachable" 
         mod = prog.compile(
             target,
             options=CompileOptions(
-                no_cgen=True,
-                symtab_ir_only=True,
-                force_target_program=True,
-                need_full_ast=True
+                no_cgen=True, symtab_ir_only=True, need_full_ast=True
             )
         );
         payload = build_module_iface(mod, prog.get_type_evaluator(), pkg);
@@ -701,10 +691,7 @@ test "an interface that cannot place a class is not persisted" {
     }
     paths = _twin_project();
     prog = JacProgram();
-    prog.compile(
-        paths["provider"],
-        options=CompileOptions(no_cgen=True, force_target_program=True)
-    );
+    prog.compile(paths["provider"], options=CompileOptions(no_cgen=True));
     _class_scope(prog, paths["models"], "Cfg").parent_scope = None;
     provider = prog.mod.hub[paths["provider"]];
     refused = False;
@@ -747,7 +734,7 @@ test "a cross-reference into a stub is answered by the catalog" {
 test "a codegen compile records dependency rows but encodes no interface" {
     (main, dep) = _project();
     prog = JacProgram();
-    prog.compile(main, options=CompileOptions(force_target_program=True));
+    prog.compile(main, options=CompileOptions());
     data = get_module_cache_path(main).read_bytes();
     assert read_section_bytes(data, SEC_DEPS) is not None , "no SEC_DEPS after codegen";
     assert read_section_bytes(data, SEC_IFACE) is None , (
@@ -764,4 +751,76 @@ test "a codegen compile records dependency rows but encodes no interface" {
     assert read_section_bytes(data, SEC_DEPS) is not None , (
         "the frontier merge dropped the dependency rows"
     );
+}
+
+test "cache verification compares once and releases its temporary program" {
+    import from unittest.mock { patch }
+    import from jaclang.compiler.driver.ifacecache { IfaceRegistry }
+    (main, dep) = _project();
+    _check(main);
+    temporary: list[JacProgram] = [];
+    factory = vars(IfaceRegistry)["_fresh_verify_program"];
+    def record(reg: IfaceRegistry) -> JacProgram {
+        prog = factory(reg);
+        temporary.append(prog);
+        return prog;
+    }
+    with patch.dict(os.environ, {"JAC_IFACE_VERIFY": "1"}), patch.object(
+        IfaceRegistry, "_fresh_verify_program", new=record
+    ) {
+        (served, _) = _check(main);
+    }
+    assert served.analysis.cache_events.get("analysis_replay", 0) == 1;
+    assert len(temporary) == 1 , (
+        f"verification recursively verified its own fresh dependencies: {len(
+            temporary
+        )} programs"
+    );
+    assert temporary[0].type_evaluator is None;
+    assert not temporary[0].mod.hub , "the verification retained its compile closure";
+}
+
+test "a verification program does not recursively verify cached dependencies" {
+    import from unittest.mock { patch }
+    import from jaclang.compiler.driver.ifacecache { IfaceRegistry }
+    (main, dep) = _project();
+    _check(main);
+    oracle = JacProgram().iface_registry()._fresh_verify_program();
+    try {
+        with patch.dict(os.environ, {"JAC_IFACE_VERIFY": "1"}), patch.object(
+            IfaceRegistry,
+            "_fresh_verify_program",
+            side_effect=AssertionError(
+                "verification recursively created another oracle"
+            )
+        ) as nested {
+            oracle.load_dependency_module(dep);
+        }
+        assert oracle.analysis.cache_events.get("dep_hydrate", 0) == 1;
+        assert nested.call_count == 0;
+    } finally {
+        oracle.release_compile_closure();
+    }
+}
+
+test "include preserves the lazy type provider of hydrated dependency symbols" {
+    import from jaclang.compiler.types.types { ClassType }
+    with tempfile.TemporaryDirectory() as tmpdir {
+        base = Path(tmpdir).resolve() / "included_base.jac";
+        facade = Path(tmpdir).resolve() / "included_facade.jac";
+        base.write_text("obj Exported { has value: int; }\n");
+        facade.write_text("include included_base;\n");
+        (first, _diags) = _check(str(facade));
+        assert not first.errors_had;
+        prog = JacProgram();
+        dependency = prog.load_dependency_module(str(base));
+        original = dependency.sym_tab.lookup("Exported");
+        assert original is not None and original.provider is not None;
+        module = prog.load_dependency_module(str(facade));
+        imported = module.sym_tab.lookup("Exported");
+        assert imported is not None and imported.provider is original.provider;
+        assert isinstance(
+            prog.get_type_evaluator().get_type_of_symbol(imported), ClassType
+        );
+    }
 }

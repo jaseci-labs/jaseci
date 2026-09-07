@@ -128,7 +128,7 @@ def build_serve_manifest(entry_file: Path, proj_root: Path) -> (dict | None) {
         return bool(mp) and os.path.abspath(str(mp)).startswith(proj_prefix);
     }
 
-    for hub in Jac.get_program()._search_hubs() {
+    for hub in Jac.get_program().execution_hubs() {
         for hmod in hub.values() {
             if not in_project(hmod) {
                 continue;
@@ -147,7 +147,7 @@ def build_serve_manifest(entry_file: Path, proj_root: Path) -> (dict | None) {
     endpoint_effects: dict[str, any] = {};
     cross: list[dict] = [];
     seen: set = set();
-    for hub in Jac.get_program()._search_hubs() {
+    for hub in Jac.get_program().execution_hubs() {
         for hmod in hub.values() {
             if not in_project(hmod) {
                 continue;

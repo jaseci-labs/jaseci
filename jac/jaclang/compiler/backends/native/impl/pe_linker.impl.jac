@@ -1174,7 +1174,7 @@ def _pe_write_shdr(
 
 
 impl PeLinker.link(
-    obj_bytes: bytes,
+    objects: list[bytes],
     output_path: str,
     needed_libs: list[str] = ["msvcrt.dll"],
     symbol_lib_map: dict[str, str] = {},
@@ -1183,8 +1183,14 @@ impl PeLinker.link(
     init_funcs: list[str] = [],
     soname: str = ""
 ) -> bool {
+    if len(objects) != 1 {
+        raise ValueError(
+            f"PeLinker.link takes exactly one object (got {len(objects)}); "
+            "link the units in bitcode mode first"
+        );
+    }
     linker = PeLinker(
-        obj_data=obj_bytes,
+        obj_data=objects[0],
         symbols=[],
         sections=[],
         relocations=[],
