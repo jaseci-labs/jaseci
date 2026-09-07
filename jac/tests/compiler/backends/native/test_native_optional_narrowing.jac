@@ -209,17 +209,16 @@ test "a callee that rebinds the attribute keeps the checked unwrap" {
     );
 }
 
-test "a value live across a loop back edge keeps the checked unwrap" {
-    # n=6 keeps the rebound value non-None on every iteration, so both
-    # backends agree. n=2 puts None on the back edge and sv raises TypeError,
-    # so the in-loop use must not have been narrowed away.
+test "a value live across a loop back edge is guarded before binary use" {
+    # The back-edge merge re-widens v. The explicit conditional keeps the
+    # binary operation on the proven path and handles None like the sv backend.
     (eng, ir) = compile_native(FIXTURE);
     sv = sv_module();
     vals = congruent(eng, sv, "back_edge_rewiden", [0, 6]);
     assert vals == [-1, 21] , f"unexpected back_edge_rewiden results: {vals}";
     body = func_ir(str(ir.gen.llvm_ir), "back_edge_rewiden");
     assert "opt.isnone" in body , (
-        "a use the loop body rebinds after must keep its checked unwrap"
+        "a re-widened loop value must still be checked before the binary use"
     );
 }
 
