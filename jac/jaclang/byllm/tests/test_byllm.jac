@@ -1386,6 +1386,74 @@ test "async def by llm(stream=True) streams end to end" {
 }
 
 
+# ModelPool's cost-based-routing branch collects the whole stream and returns a
+# list, not a generator, so the base wrapper must call it off the loop thread and
+# accept any iterable. Regression for the review on #8955.
+obj _ListStream8932(_byllm_llm_mod.BaseLLM) {
+    override def model_call_with_stream(params: dict) -> object {
+        return [
+            litellm.ModelResponseStream(
+                **{
+                    "id": "c",
+                    "object": "chat.completion.chunk",
+                    "created": 1,
+                    "model": "fake",
+                    "choices": [
+                        {"index": 0, "delta": {"content": w}, "finish_reason": None}
+                    ]
+                }
+            ) for w in ["list ", "backed"]
+        ];
+    }
+}
+
+
+test "async streaming accepts a provider call that returns a list" {
+    llm = _ListStream8932(model_name="list-8932");
+    assert asyncio.run(_drain_8932(llm)) == "list backed";
+}
+
+
+test "model_call_no_stream_async raises and logs AuthenticationError" {
+    log_output = io.StringIO();
+    _loguru_logger.remove();
+    handler_id = _loguru_logger.add(log_output, level="ERROR");
+    try {
+        with unittest.mock.patch.dict(
+            _byllm_llm_mod._litellm_config,
+            {"debug": False, "drop_params": True},
+            clear=True
+        ) {
+            model = Model(model_name="gpt-4o-mini");
+            auth_err = litellm.exceptions.AuthenticationError(
+                message="Invalid API key", llm_provider="openai", model="gpt-4o-mini"
+            );
+            async def _run_no_stream_auth {
+                with unittest.mock.patch("litellm.acompletion", side_effect=auth_err) {
+                    raised = False;
+                    try {
+                        await model.model_call_no_stream_async(
+                            {"model": "gpt-4o-mini", "messages": []}
+                        );
+                    } except AuthenticationError as e {
+                        raised = True;
+                        assert "Invalid API key" in str(e);
+                    }
+                    assert raised , "AuthenticationError should propagate from async path";
+                }
+            }
+            asyncio.run(_run_no_stream_auth());
+            log_value = log_output.getvalue();
+            assert "LLM AuthenticationError" in log_value , (
+                f"logger.error should fire for async AuthenticationError, got: {log_value}"
+            );
+        }
+    } finally {
+        _loguru_logger.remove(handler_id);
+    }
+}
+
+
 test "model_call_with_stream_async raises and logs RateLimitError" {
     log_output = io.StringIO();
     _loguru_logger.remove();

@@ -1826,7 +1826,7 @@ impl BaseLLM.model_call_with_stream_async(params: dict) -> AsyncIterator[object]
         }
     }
     async def _iter -> AsyncGenerator[object, None] {
-        gen = self.model_call_with_stream(params);
+        gen = iter(await asyncio.to_thread(self.model_call_with_stream, params));
         while True {
             (has_value, chunk) = await asyncio.to_thread(_next_chunk, gen);
             if not has_value {
