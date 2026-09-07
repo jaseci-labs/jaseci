@@ -255,9 +255,12 @@ def back_edge_rewiden(n: int) -> int {
     total = 0;
     i = 0;
     while i < 2 {
-        total = total + (v if v is not None else 0);
-        v = pick(n - 5);
         i += 1;
+        if v is None {
+            continue;
+        }
+        total = total + v;
+        v = pick(n - 5);
     }
     return total;
 }
