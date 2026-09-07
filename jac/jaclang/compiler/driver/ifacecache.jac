@@ -1,5 +1,7 @@
 import os;
 import time;
+import type from jaclang.compiler.driver.program { JacProgram }
+import type from jaclang.compiler.frontend.unitree { Module }
 import from jaclang.compiler.driver.jir {
     DepRow,
     SEC_CTDEPS,
@@ -1027,16 +1029,19 @@ obj IfaceRegistry {
         return None;
     }
 
-    def _fresh_verify_program -> any {
+    def _fresh_verify_program -> JacProgram {
         import from jaclang.compiler.driver.program { JacProgram }
-        return JacProgram();
+        prog = JacProgram();
+        prog.iface_registry().verifying = True;
+        return prog;
     }
 
     def _verify_iface(resolved: str, ent: IfaceEntry) -> None {
+        prog2 = self._fresh_verify_program();
+        fresh: Module | None = None;
         self.verifying = True;
         try {
             import from jaclang.compiler.driver.compile_options { CompileOptions }
-            prog2 = self._fresh_verify_program();
             fresh = prog2.compile(
                 resolved,
                 options=CompileOptions(
@@ -1075,14 +1080,16 @@ obj IfaceRegistry {
             }
         } finally {
             self.verifying = False;
+            fresh = None;
+            prog2.release_compile_closure();
         }
     }
 
     def _verify_analysis(resolved: str, options: any, prof: dict) {
+        prog2 = self._fresh_verify_program();
         self.verifying = True;
         try {
             import from jaclang.compiler.driver.compile_options { CompileOptions }
-            prog2 = self._fresh_verify_program();
             try {
                 prog2.compile(
                     resolved,
@@ -1125,6 +1132,7 @@ obj IfaceRegistry {
             }
         } finally {
             self.verifying = False;
+            prog2.release_compile_closure();
         }
     }
 }

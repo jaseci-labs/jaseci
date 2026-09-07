@@ -752,3 +752,53 @@ test "a codegen compile records dependency rows but encodes no interface" {
         "the frontier merge dropped the dependency rows"
     );
 }
+
+test "cache verification compares once and releases its temporary program" {
+    import from unittest.mock { patch }
+    import from jaclang.compiler.driver.ifacecache { IfaceRegistry }
+    (main, dep) = _project();
+    _check(main);
+    temporary: list[JacProgram] = [];
+    factory = vars(IfaceRegistry)["_fresh_verify_program"];
+    def record(reg: IfaceRegistry) -> JacProgram {
+        prog = factory(reg);
+        temporary.append(prog);
+        return prog;
+    }
+    with patch.dict(os.environ, {"JAC_IFACE_VERIFY": "1"}), patch.object(
+        IfaceRegistry, "_fresh_verify_program", new=record
+    ) {
+        (served, _) = _check(main);
+    }
+    assert served.analysis.cache_events.get("analysis_replay", 0) == 1;
+    assert len(temporary) == 1 , (
+        f"verification recursively verified its own fresh dependencies: {len(
+            temporary
+        )} programs"
+    );
+    assert temporary[0].type_evaluator is None;
+    assert not temporary[0].mod.hub , "the verification retained its compile closure";
+}
+
+test "a verification program does not recursively verify cached dependencies" {
+    import from unittest.mock { patch }
+    import from jaclang.compiler.driver.ifacecache { IfaceRegistry }
+    (main, dep) = _project();
+    _check(main);
+    oracle = JacProgram().iface_registry()._fresh_verify_program();
+    try {
+        with patch.dict(os.environ, {"JAC_IFACE_VERIFY": "1"}), patch.object(
+            IfaceRegistry,
+            "_fresh_verify_program",
+            side_effect=AssertionError(
+                "verification recursively created another oracle"
+            )
+        ) as nested {
+            oracle.load_dependency_module(dep);
+        }
+        assert oracle.analysis.cache_events.get("dep_hydrate", 0) == 1;
+        assert nested.call_count == 0;
+    } finally {
+        oracle.release_compile_closure();
+    }
+}
