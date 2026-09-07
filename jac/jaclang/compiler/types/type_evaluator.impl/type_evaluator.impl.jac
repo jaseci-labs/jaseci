@@ -2949,15 +2949,20 @@ impl TypeEvaluator._assign_class(
                         )
                         else None;
                     if tp and tp.is_covariant {
-                        valid = self.assign_type(src_arg, dest_arg, strict);
+                        if not self.assign_type(src_arg, dest_arg, strict) {
+                            return False;
+                        }
                     } elif tp and tp.is_contravariant {
-                        valid = self.assign_type(dest_arg, src_arg, strict);
+                        if not self.assign_type(dest_arg, src_arg, strict) {
+                            return False;
+                        }
                     } else {
-                        valid = self.assign_type(src_arg, dest_arg, strict)
-                            and self.assign_type(dest_arg, src_arg, strict);
-                    }
-                    if not valid {
-                        return False;
+                        if not self.assign_type(src_arg, dest_arg, strict) {
+                            return False;
+                        }
+                        if not self.assign_type(dest_arg, src_arg, strict) {
+                            return False;
+                        }
                     }
                 }
             }
@@ -2991,10 +2996,10 @@ impl TypeEvaluator._assign_class(
                             return False;
                         }
                     } else {
-                        if (
-                            not self.assign_type(src_arg, dest_arg, strict)
-                            or not self.assign_type(dest_arg, src_arg, strict)
-                        ) {
+                        if not self.assign_type(src_arg, dest_arg, strict) {
+                            return False;
+                        }
+                        if not self.assign_type(dest_arg, src_arg, strict) {
                             return False;
                         }
                     }
