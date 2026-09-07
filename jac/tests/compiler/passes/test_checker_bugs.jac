@@ -13,6 +13,7 @@ Bug index:
   #12     - CompareExpr has no handler (returns UnknownType)
   #13     - IfExpr (ternary) has no handler (returns UnknownType)
   #15     - No generic type argument checking (list[int] -> list[str])
+  #8550   - Same-class generic assignment ignores declared variance
   #21     - _get_method_with_overloads doesn't specialize the base method
   #22     - Tuple unpacking in for loops returns UnknownType
   #23     - With statement alias typed as Unknown (wrong traversal order)
@@ -120,6 +121,7 @@ Bug index:
 """
 
 import os;
+import from typing { cast }
 import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
@@ -129,6 +131,7 @@ import from jaclang.compiler.types.type_utils { compute_mro_linearization }
 import from jaclang.compiler.types.types {
     ClassDetailsShared,
     ClassType,
+    TypeBase,
     TypeFlags,
     UnknownType
 }
@@ -209,19 +212,19 @@ test "bug_6_mro_not_c3_diamond" {
     a_type.shared.mro = [a_type];
 
     b_shared = ClassDetailsShared(
-        class_name="B", symbol_table=_no_symtab, mro=[], base_classes=[a_type]
+        class_name="B", symbol_table=_no_symtab, mro=[], base_classes=[cast(TypeBase, a_type)]
     );
     b_type = ClassType(_shared=b_shared, flags=TypeFlags.Instantiable);
     compute_mro_linearization(b_type);
 
     c_shared = ClassDetailsShared(
-        class_name="C", symbol_table=_no_symtab, mro=[], base_classes=[a_type]
+        class_name="C", symbol_table=_no_symtab, mro=[], base_classes=[cast(TypeBase, a_type)]
     );
     c_type = ClassType(_shared=c_shared, flags=TypeFlags.Instantiable);
     compute_mro_linearization(c_type);
 
     d_shared = ClassDetailsShared(
-        class_name="D", symbol_table=_no_symtab, mro=[], base_classes=[b_type, c_type]
+        class_name="D", symbol_table=_no_symtab, mro=[], base_classes=[cast(TypeBase, b_type), cast(TypeBase, c_type)]
     );
     d_type = ClassType(_shared=d_shared, flags=TypeFlags.Instantiable);
     compute_mro_linearization(d_type);
@@ -253,7 +256,7 @@ test "cyclic_heritage_mro_does_not_recurse" {
         class_name="A", symbol_table=_no_symtab, mro=[], base_classes=[]
     );
     a_type = ClassType(_shared=a_shared, flags=TypeFlags.Instantiable);
-    a_type.shared.base_classes = [a_type];
+    a_type.shared.base_classes = [cast(TypeBase, a_type)];
     compute_mro_linearization(a_type);
     assert a_type.shared.mro and a_type.shared.mro[0] is a_type;
 
@@ -266,8 +269,8 @@ test "cyclic_heritage_mro_does_not_recurse" {
         class_name="C", symbol_table=_no_symtab, mro=[], base_classes=[]
     );
     c_type = ClassType(_shared=c_shared, flags=TypeFlags.Instantiable);
-    b_type.shared.base_classes = [c_type];
-    c_type.shared.base_classes = [b_type];
+    b_type.shared.base_classes = [cast(TypeBase, c_type)];
+    c_type.shared.base_classes = [cast(TypeBase, b_type)];
     compute_mro_linearization(b_type);
     assert b_type.shared.mro and b_type.shared.mro[0] is b_type;
 }
@@ -392,13 +395,24 @@ test "bug_15_no_generic_variance_check" {
 }
 
 # =========================================================================
+# Bug #8550: Same-class generic assignment ignores declared variance
+#
+# The same-class branch of _assign_class must apply the type parameter's
+# declared variance, just like the generic-base branch does.
+# =========================================================================
+test "bug_8550_same_class_generic_variance" {
+    program = compile_and_check("checker_bug_same_generic_variance.jac");
+
+    # Both the variable assignment and function call must reject list[Dog]
+    # because list's type parameter is invariant.
+    assert len(program.errors_had) == 2 , (
+        "Bug #8550: same-class generic arguments must honor variance. "
+        f"Expected 2 type errors but got {len(program.errors_had)}."
+    );
+}
+
+# =========================================================================
 # Bug #23: With statement alias typed as Unknown
-#
-# In `with open(...) as f`, the alias `f` was typed as Unknown because
-# the type binding happened in exit_with_stmt (after the body was visited)
-# instead of enter_with_stmt (before the body was visited).
-#
-# Impact: `f.write()` fails with "Type is Unknown, cannot access attribute"
 # =========================================================================
 test "bug_23_with_stmt_alias_unknown" {
     program = compile_and_check("checker_bug_with_stmt_alias_unknown.jac");

@@ -2936,13 +2936,34 @@ impl TypeEvaluator._assign_class(
         }
 
         if src_type.private.type_args and dest_type.private.type_args {
-            if len(src_type.private.type_args) == len(dest_type.private.type_args) {
-                for i in range(len(src_type.private.type_args)) {
-                    src_arg = self._convert_to_instance(src_type.private.type_args[i]);
-                    dest_arg = self._convert_to_instance(
-                        dest_type.private.type_args[i]
-                    );
+            if len(src_type.private.type_args) != len(dest_type.private.type_args) {
+                return False;
+            }
+            for i in range(len(src_type.private.type_args)) {
+                src_arg = self._convert_to_instance(src_type.private.type_args[i]);
+                dest_arg = self._convert_to_instance(
+                    dest_type.private.type_args[i]
+                );
+                tp = dest_type.shared.type_params[i]
+                    if (
+                        dest_type.shared.type_params
+                        and i < len(dest_type.shared.type_params)
+                    )
+                    else None;
+                if tp and tp.is_covariant {
                     if not self.assign_type(src_arg, dest_arg, strict) {
+                        return False;
+                    }
+                } elif tp and tp.is_contravariant {
+                    if not self.assign_type(dest_arg, src_arg, strict) {
+                        return False;
+                    }
+                } else {
+                    if isinstance(dest_arg, UnknownType) {
+                        continue;
+                    }
+                    if not self.assign_type(src_arg, dest_arg, strict)
+                        or not self.assign_type(dest_arg, src_arg, strict) {
                         return False;
                     }
                 }
@@ -2977,7 +2998,11 @@ impl TypeEvaluator._assign_class(
                             return False;
                         }
                     } else {
-                        if not self.assign_type(src_arg, dest_arg, strict) {
+                        if isinstance(dest_arg, UnknownType) {
+                            continue;
+                        }
+                        if not self.assign_type(src_arg, dest_arg, strict)
+                            or not self.assign_type(dest_arg, src_arg, strict) {
                             return False;
                         }
                     }
