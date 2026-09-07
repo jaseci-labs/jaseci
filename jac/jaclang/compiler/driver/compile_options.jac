@@ -25,7 +25,6 @@ obj CompileOptions {
         need_full_ast: bool = False,
         skip_native_engine: bool = False,
         resolve_annex_parent: bool = False,
-        force_target_program: bool = False,
         aot_mode: bool = False,
         native_unit: bool = False,
         native_link_mode: (str | None) = None,
@@ -183,7 +182,6 @@ obj CompileOptions {
             skip_native_engine=True,
             aot_mode=True,
             default_codespace='native',
-            force_target_program=True,
             native_unit=self.native_unit,
             native_link_mode=self.native_link_mode,
             na_gc_mode=self.na_gc_mode,
@@ -205,58 +203,6 @@ obj CompileOptions {
             target_app=self.target_app,
             ui=self.ui,
             project_root=self.project_root
-        );
-    }
-
-    def native_import_env -> dict {
-        return {
-            "memory_profile": self.memory_profile,
-            "native_threads": self.native_threads,
-            "native_unit": bool(self.native_unit),
-            "native_link_mode": self.native_link_mode,
-            "na_gc_mode": self.na_gc_mode,
-            "nogc_enforce_all": bool(self.nogc_enforce_all),
-            "memory_enforce": list(self.memory_enforce or []),
-            "memory_exempt": list(self.memory_exempt or []),
-            "rc_debug_codegen": self.rc_debug_codegen,
-            "native_target": self.native_target,
-            "native_debug": self.native_debug,
-            "opt_level": self.opt_level,
-            "dump_ir_path": self.dump_ir_path,
-            "debug_ir": self.debug_ir,
-            "rc_stats": self.rc_stats,
-            "nogc_debug": self.nogc_debug,
-            "na_debug": self.na_debug,
-            "target_app": self.target_app,
-            "app_kind": self.app_kind
-        };
-    }
-
-    static def from_native_import_env(env: dict) -> CompileOptions {
-        return CompileOptions(
-            skip_native_engine=True,
-            aot_mode=True,
-            default_codespace='native',
-            force_target_program=True,
-            memory_profile=env.get("memory_profile"),
-            native_threads=env.get("native_threads"),
-            native_unit=bool(env.get("native_unit", False)),
-            native_link_mode=env.get("native_link_mode"),
-            na_gc_mode=env.get("na_gc_mode"),
-            nogc_enforce_all=bool(env.get("nogc_enforce_all", False)),
-            memory_enforce=list(env.get("memory_enforce") or []),
-            memory_exempt=list(env.get("memory_exempt") or []),
-            rc_debug_codegen=env.get("rc_debug_codegen"),
-            native_target=env.get("native_target"),
-            native_debug=env.get("native_debug"),
-            opt_level=env.get("opt_level"),
-            dump_ir_path=env.get("dump_ir_path"),
-            debug_ir=env.get("debug_ir"),
-            rc_stats=env.get("rc_stats"),
-            nogc_debug=env.get("nogc_debug"),
-            na_debug=env.get("na_debug"),
-            target_app=env.get("target_app") or "",
-            app_kind=env.get("app_kind") or ""
         );
     }
 

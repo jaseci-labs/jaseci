@@ -57,9 +57,7 @@ def _project(dep_body: str = "") -> tuple[str, str] {
 }
 
 def _check_opts -> CompileOptions {
-    return CompileOptions(
-        no_cgen=True, native_parity=True, force_target_program=True, iface_ok=True
-    );
+    return CompileOptions(no_cgen=True, native_parity=True, iface_ok=True);
 }
 
 def _check(main: str) -> tuple[JacProgram, list[str]] {
@@ -478,12 +476,7 @@ test "a tree-demanding closure does not disable hydration for later compiles" {
     (main, dep) = _project();
     _check(main);
     prog = JacProgram();
-    prog.compile(
-        main,
-        options=CompileOptions(
-            no_cgen=True, force_target_program=True, need_full_ast=True
-        )
-    );
+    prog.compile(main, options=CompileOptions(no_cgen=True, need_full_ast=True));
     assert prog.analysis.cache_events.get("dep_hydrate", 0) == 0 , "a tree-demanding closure must not hydrate its dependencies";
     prog.release_compile_closure();
     prog.load_dependency_module(dep);
@@ -540,10 +533,7 @@ test "an interface is identical however many twins of its module are reachable" 
         mod = prog.compile(
             target,
             options=CompileOptions(
-                no_cgen=True,
-                symtab_ir_only=True,
-                force_target_program=True,
-                need_full_ast=True
+                no_cgen=True, symtab_ir_only=True, need_full_ast=True
             )
         );
         payload = build_module_iface(mod, prog.get_type_evaluator(), pkg);
@@ -701,10 +691,7 @@ test "an interface that cannot place a class is not persisted" {
     }
     paths = _twin_project();
     prog = JacProgram();
-    prog.compile(
-        paths["provider"],
-        options=CompileOptions(no_cgen=True, force_target_program=True)
-    );
+    prog.compile(paths["provider"], options=CompileOptions(no_cgen=True));
     _class_scope(prog, paths["models"], "Cfg").parent_scope = None;
     provider = prog.mod.hub[paths["provider"]];
     refused = False;
@@ -747,7 +734,7 @@ test "a cross-reference into a stub is answered by the catalog" {
 test "a codegen compile records dependency rows but encodes no interface" {
     (main, dep) = _project();
     prog = JacProgram();
-    prog.compile(main, options=CompileOptions(force_target_program=True));
+    prog.compile(main, options=CompileOptions());
     data = get_module_cache_path(main).read_bytes();
     assert read_section_bytes(data, SEC_DEPS) is not None , "no SEC_DEPS after codegen";
     assert read_section_bytes(data, SEC_IFACE) is None , (

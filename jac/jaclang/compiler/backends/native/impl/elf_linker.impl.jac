@@ -721,8 +721,8 @@ impl ElfLinker.build_executable -> bytes {
     code_align: int = 16;
     rodata_align: int = 16;
     data_align: int = 16;
-    sec_idx = 0;
-    for sec in self.sections {
+    for sec_idx in _section_order(self.sections) {
+        sec = self.sections[sec_idx];
         if sec.typ == SHT_PROGBITS and (sec.flags & SHF_EXECINSTR) {
             if len(sec.data) > 0 {
                 off = _append_to_blob(code_data, sec.data, sec.align, len(sec.data));
@@ -754,7 +754,6 @@ impl ElfLinker.build_executable -> bytes {
                 }
             }
         }
-        sec_idx += 1;
     }
 
     known_data_syms = {"stdin", "stdout", "stderr", "environ"};
@@ -1132,9 +1131,15 @@ impl ElfLinker.build_executable -> bytes {
         }
     }
 
-    _ia = data_sections.get(".init_array");
-    _ia_vaddr = (data_vaddr + _ia[0]) if _ia is not None else 0;
-    _ia_count = (_ia[1] // 8) if _ia is not None else 0;
+    init_ranges = [
+        data_sections[sec.name]
+        for sec in self.sections
+        if sec.typ == SHT_INIT_ARRAY and sec.name in data_sections
+    ];
+    _ia_start = min([span[0] for span in init_ranges], `default=0);
+    _ia_end = max([span[0] + span[1] for span in init_ranges], `default=0);
+    _ia_vaddr = data_vaddr + _ia_start if init_ranges else 0;
+    _ia_count = (_ia_end - _ia_start) // 8;
     _ia_sym = local_sym_map.get("__jac_init_array");
     _ic_sym = local_sym_map.get("__jac_init_count");
     if _ia_sym is not None and _ia_sym[0] == "data" {
@@ -1668,8 +1673,8 @@ impl ElfLinker.build_shared_object -> bytes {
     data_sections: dict[str, tuple[int, int]] = {};
     section_placement: dict[int, tuple[str, int]] = {};
     data_align: int = 16;
-    sec_idx = 0;
-    for sec in self.sections {
+    for sec_idx in _section_order(self.sections) {
+        sec = self.sections[sec_idx];
         if sec.typ == SHT_PROGBITS and (sec.flags & SHF_EXECINSTR) {
             if len(sec.data) > 0 {
                 off = _append_to_blob(code_data, sec.data, sec.align, len(sec.data));
@@ -1695,7 +1700,6 @@ impl ElfLinker.build_shared_object -> bytes {
                 }
             }
         }
-        sec_idx += 1;
     }
 
     known_data_syms = {"stdin", "stdout", "stderr", "environ"};
@@ -1749,10 +1753,40 @@ impl ElfLinker.build_shared_object -> bytes {
         }
     }
 
-    inits: list[str] = [];
+    inits: list[tuple[str, int]] = [];
+    init_sections = {
+        sec.name: sec
+        for sec in self.sections
+        if sec.typ == SHT_INIT_ARRAY
+    };
+    init_relocs: list[ElfRela] = [
+        rela
+        for rela in self.relocations
+        if rela.target_sec in init_sections
+    ];
+    init_relocs.sort(
+        key=lambda (rela: ElfRela) { (
+            _init_priority(rela.target_sec),
+            rela.target_sec,
+            rela.offset
+        ); }
+    );
+    for rela in init_relocs {
+        target = local_sym_map.get(rela.sym_name) if rela.sym_name else None;
+        if target is None {
+            target = sym_idx_placement.get(rela.sym_idx);
+        }
+        if target is None or rela.rtype != arch.abs64_rtype {
+            raise ValueError(
+                f"ELF linker: unsupported constructor relocation in {rela.target_sec}"
+            );
+        }
+        inits.append((target[0], target[1] + rela.addend));
+    }
     for nm in self.init_funcs {
-        if nm in local_sym_map and nm not in inits {
-            inits.append(nm);
+        target = local_sym_map.get(nm);
+        if target is not None and target not in inits {
+            inits.append(target);
         }
     }
     _soname = self.soname or "lib.so";
@@ -2277,8 +2311,7 @@ impl ElfLinker.build_shared_object -> bytes {
         );
     }
     init_arr_data = bytearray();
-    for nm in inits {
-        (seg, off) = local_sym_map[nm];
+    for (seg, off) in inits {
         va = _resolve_seg_vaddr(seg, off, text_vaddr, rodata_vaddr, data_vaddr);
         slot_va = init_arr_vaddr + len(init_arr_data);
         init_arr_data.extend(struct.pack("<Q", va));
@@ -2844,8 +2877,8 @@ impl ElfLinker.build_static_executable -> bytes {
     rodata_align: int = 16;
     data_align: int = 16;
     tls_align: int = 1;
-    sec_idx = 0;
-    for sec in self.sections {
+    for sec_idx in _section_order(self.sections) {
+        sec = self.sections[sec_idx];
         if sec.flags & SHF_TLS {
             off = _append_to_blob(tls_blob, sec.data, sec.align, sec.mem_size);
             section_placement[sec_idx] = ("tls", off);
@@ -2883,7 +2916,6 @@ impl ElfLinker.build_static_executable -> bytes {
                 }
             }
         }
-        sec_idx += 1;
     }
     tls_file_size = len(tls_blob);
     tls_mem_size = len(tls_blob);
@@ -3108,9 +3140,15 @@ impl ElfLinker.build_static_executable -> bytes {
         );
     }
 
-    _ia = data_sections.get(".init_array");
-    _ia_vaddr = (data_vaddr + _ia[0]) if _ia is not None else 0;
-    _ia_count = (_ia[1] // 8) if _ia is not None else 0;
+    init_ranges = [
+        data_sections[sec.name]
+        for sec in self.sections
+        if sec.typ == SHT_INIT_ARRAY and sec.name in data_sections
+    ];
+    _ia_start = min([span[0] for span in init_ranges], `default=0);
+    _ia_end = max([span[0] + span[1] for span in init_ranges], `default=0);
+    _ia_vaddr = data_vaddr + _ia_start if init_ranges else 0;
+    _ia_count = (_ia_end - _ia_start) // 8;
     _ia_sym = local_sym_map.get("__jac_init_array");
     _ic_sym = local_sym_map.get("__jac_init_count");
     if _ia_sym is not None and _ia_sym[0] == "data" {
@@ -3322,4 +3360,23 @@ impl ElfLinker.link(
     }
 
     return True;
+}
+
+
+def _init_priority(name: str) -> int {
+    suffix = name.removeprefix(".init_array.");
+    return int(suffix) if suffix.isdigit() else 65535;
+}
+
+
+def _section_order(sections: list[ElfSection]) -> list[int] {
+    indices: list[int] = list(range(len(sections)));
+    indices.sort(
+        key=lambda (idx: int) { (
+            1 if sections[idx].typ == SHT_INIT_ARRAY else 0,
+            _init_priority(sections[idx].name),
+            idx
+        ); }
+    );
+    return indices;
 }

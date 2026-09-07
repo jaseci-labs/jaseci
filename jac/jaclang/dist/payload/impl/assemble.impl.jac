@@ -269,6 +269,8 @@ impl precompile_env(pbs_py_dir: str, site: str) -> dict[str, str] {
 }
 
 impl precompile(py: str, pbs_py_dir: str, site: str, seal: bool, debug_src: bool) {
+    import time;
+    compile_start = time.monotonic();
     pc = os.path.join(site, "jaclang", "dist", "precompile_bytecode.jac");
     if not file_exists(pc) {
         return;
@@ -300,7 +302,10 @@ impl precompile(py: str, pbs_py_dir: str, site: str, seal: bool, debug_src: bool
         );
     }
     delete_file(result);
-    log("   _precompiled: compile pass ran to completion");
+    log(
+        f"   _precompiled: compile pass completed in {time.monotonic()
+            - compile_start:.1f}s"
+    );
 
     if not seal {
         return;
@@ -310,6 +315,7 @@ impl precompile(py: str, pbs_py_dir: str, site: str, seal: bool, debug_src: bool
         fin.append("--debug-src");
     }
     log("==> sealing (finalize): completeness check + manifest + freeze bootstrap");
+    finalize_start = time.monotonic();
     if not run_child(fin, env, True) {
         die("mkpayload: seal-finalize failed (see log above).");
     }
@@ -319,7 +325,8 @@ impl precompile(py: str, pbs_py_dir: str, site: str, seal: bool, debug_src: bool
         );
     }
     log(
-        "   sealed: MANIFEST.json present; payload boots from JIR (sources ship for tracebacks, never compiled)."
+        f"   sealed in {time.monotonic()
+            - finalize_start:.1f}s: MANIFEST.json present; payload boots from JIR."
     );
 }
 

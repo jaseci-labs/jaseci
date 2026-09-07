@@ -62,7 +62,6 @@ def shared_opts(triple: str) -> CompileOptions {
     return CompileOptions(
         aot_mode=True,
         default_codespace='native',
-        force_target_program=True,
         skip_native_engine=True,
         native_target=triple
     );

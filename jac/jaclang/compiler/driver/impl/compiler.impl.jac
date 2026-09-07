@@ -9,7 +9,7 @@ impl JacCompiler.selfhost.getter -> SelfHostCache {
 }
 
 impl JacCompiler.stub_catalog -> any {
-    if self.stub_catalog_disabled or self._stub_trees_served {
+    if self.stub_catalog_disabled {
         return None;
     }
     found = self._stub_catalog;
@@ -23,7 +23,7 @@ impl JacCompiler.stub_catalog -> any {
 }
 
 impl JacCompiler.note_stub_tree_served(path: str, program: JacProgram) -> None {
-    if self._stub_trees_served or self.selfhost.is_selfhost(program) {
+    if program._stub_trees_served {
         return;
     }
     if self.stub_catalog() is not None {
@@ -31,12 +31,12 @@ impl JacCompiler.note_stub_tree_served(path: str, program: JacProgram) -> None {
     }
     import from jaclang.compiler.driver.modresolver { _in_typeshed_tree }
     if _in_typeshed_tree(path) {
-        self._stub_trees_served = True;
+        program._stub_trees_served = True;
     }
 }
 
 impl JacCompiler.ensure_stub_catalog -> any {
-    if self.stub_catalog_disabled or self._stub_trees_served {
+    if self.stub_catalog_disabled {
         return None;
     }
     found = self.stub_catalog();
@@ -1197,13 +1197,7 @@ impl JacCompiler.compile(
         _outer_prog: (JacProgram | None) = None;
         _scratch_prog: (JacProgram | None) = None;
         try {
-            if options.force_target_program {
-                _wrap_prog = target_program;
-            } else {
-                _wrap_prog = self.selfhost.resolve(
-                    file_path, target_program, native_unit=options.native_unit
-                );
-            }
+            _wrap_prog = target_program;
 
             _scratch_prog = _wrap_prog;
             _wrap_prog.scratch.compile_depth += 1;
@@ -1488,11 +1482,7 @@ impl JacCompiler._compile_once(
             );
         }
     }
-    if options.force_target_program {
-        actual_program = target_program;
-    } else {
-        actual_program = self.selfhost.resolve(file_path, target_program);
-    }
+    actual_program = target_program;
 
     _prev_opts = actual_program.options;
     if _prev_opts is not None
@@ -1747,9 +1737,7 @@ impl JacCompiler._compile_pipeline(
         cb_worklist: list = [mod_targ];
         cb_paths: list[str] = [];
 
-        cb_opts = CompileOptions(
-            no_cgen=True, force_target_program=True, cancel_token=options.cancel_token
-        );
+        cb_opts = CompileOptions(no_cgen=True, cancel_token=options.cancel_token);
         cb_reg = actual_program.iface_registry();
         while cb_worklist or cb_paths {
             if cb_worklist {
@@ -1866,7 +1854,7 @@ impl JacCompiler._compile_pipeline(
 impl JacCompiler.build(
     file_path: str, target_program: JacProgram, use_str: (str | None) = None
 ) -> uni.Module {
-    actual_program = self.selfhost.resolve(file_path, target_program);
+    actual_program = target_program;
     mod_targ = self.compile(
         file_path, actual_program, use_str, options=CompileOptions()
     );
@@ -2024,7 +2012,7 @@ impl JacCompiler._report_missing_native_ir(
     }
     from_pass: any = JcirGenPass;
     try {
-        import from jaclang.compiler.backends.native { NaIRGenPass }
+        import from jaclang.compiler.backends.native.na_ir_gen_pass { NaIRGenPass }
         from_pass = NaIRGenPass;
     } except Exception {}
     deliver_alerts(

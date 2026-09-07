@@ -39,7 +39,8 @@ import from jaclang.compiler.backends.native.linker_common {
     clib_needed_libs,
     clib_symbol_lib_map,
     collect_floor_archives,
-    collect_musl_static
+    load_musl_static,
+    load_outline_atomics
 }
 import from jaclang.compiler.frontend.codeinfo {
     install_native_static_init,
@@ -47,7 +48,7 @@ import from jaclang.compiler.frontend.codeinfo {
 }
 import type from jaclang.compiler.driver.program { JacProgram }
 
-glob PLAN_DIGEST_FORMAT: int = 1;
+glob PLAN_DIGEST_FORMAT: int = 2;
 
 enum ArtifactKind {
     EXECUTABLE = "executable",
@@ -105,8 +106,8 @@ obj LinkInputs {
         static_musl: bool = False;
 
     def digest(plan_digest: str, kind: str, soname: str) -> str {
-        """Hash the actual linker inputs, including selected archive members.
-        The plan's interfaces alone cannot identify a linked artifact.""";
+        """Hash a build action from code inputs and runtime contents.
+        Code inputs may be bitcode before whole-program optimization.""";
         payload = {
             "plan": plan_digest,
             "kind": kind,
@@ -308,6 +309,41 @@ def build_link_plan(
     mode: str = "",
     native_unit: bool = False
 ) -> LinkPlan {
+    import from jaclang.compiler.driver.nativecache { NativeBuildSession }
+    opts = options if options is not None else CompileOptions();
+    if native_unit and not opts.native_unit {
+        opts = opts.clone_for_native_import();
+        opts.native_unit = True;
+    }
+    registry = prog.native_units();
+    if registry.session is not None {
+        return _build_link_plan(prog, roots, opts, mode, native_unit);
+    }
+    session = NativeBuildSession(registry=registry, options=opts);
+    registry.session = session;
+    import from jaclang.compiler.driver.compile_options {
+        push_native_target,
+        pop_native_target
+    }
+    target_token = push_native_target(opts.native_target or "");
+    try {
+        plan = _build_link_plan(prog, roots, opts, mode, native_unit);
+        session.finish([unit.path for unit in plan.units]);
+        return plan;
+    } finally {
+        registry.session = None;
+        session.close();
+        pop_native_target(target_token);
+    }
+}
+
+def _build_link_plan(
+    prog: JacProgram,
+    roots: list[str],
+    options: (CompileOptions | None) = None,
+    mode: str = "",
+    native_unit: bool = False
+) -> LinkPlan {
     opts = options if options is not None else CompileOptions();
     if native_unit and not opts.native_unit {
         opts = opts.clone_for_native_import();
@@ -339,7 +375,7 @@ def build_link_plan(
             path, compile_on_miss=False, options=opts, check_deps=False
         );
         if ent is None and os.path.isfile(path) {
-            ent = registry.compile_unit_detached(path, opts);
+            ent = registry.compile_unit(path, opts);
         }
         if ent is None {
             why = [
@@ -462,9 +498,9 @@ def build_link_plan(
             registry.forget(u.path);
             prog.invalidate_module(u.path);
             ent = (
-                registry.compile_unit_detached(u.path, opts, use_str=source_text)
+                registry.compile_unit(u.path, opts, use_str=source_text)
                     if source_text is not None
-                    else registry.compile_unit_detached(u.path, opts)
+                    else registry.compile_unit(u.path, opts)
             );
             if ent is None {
                 raise LinkPlanError(
@@ -694,7 +730,7 @@ def _write_sidecar(
     plan: LinkPlan,
     output_path: str,
     plan_digest: str,
-    input_digest: str = "",
+    action_digest: str = "",
     artifact_sha256: str = ""
 ) -> tuple[dict, str] {
     classes = plan.merged_layout();
@@ -708,7 +744,7 @@ def _write_sidecar(
         "units": unit_paths,
         "unit_ids": [native_unit_identity(p) for p in unit_paths],
         "source_key": units_source_key(unit_paths, plan.options),
-        "input_digest": input_digest,
+        "action_digest": action_digest,
         "artifact_sha256": artifact_sha256
     };
     with open(output_path + ".layout.json", "w", encoding="utf-8") as lf {
@@ -726,11 +762,11 @@ def _sha256_of(path: str) -> str {
 }
 
 def _reuse_artifact(
-    plan: LinkPlan, output_path: str, input_digest: str
+    plan: LinkPlan, output_path: str, action_digest: str
 ) -> (LinkResult | None) {
     import from jaclang.compiler.driver.jir { cache_mode }
     (rebuild, _) = cache_mode();
-    if rebuild or plan.options.native_debug {
+    if rebuild or plan.options.native_debug or plan.options.dump_ir_path {
         return None;
     }
     try {
@@ -738,7 +774,7 @@ def _reuse_artifact(
             sidecar = json.load(f);
         }
         if not isinstance(sidecar, dict)
-            or sidecar.get("input_digest") != input_digest {
+            or sidecar.get("action_digest") != action_digest {
             return None;
         }
         classes = plan.merged_layout();
@@ -810,9 +846,23 @@ def link_artifact(
 
     tm = _target_machine(plan, kind);
     spec = plan.glue_spec(kind, platform, static_musl);
-    (objects, glue_exports) = plan_objects(plan, spec, kind, tm);
-
-    inputs = LinkInputs(objects=objects, archive_members=archive_members);
+    spec.data_layout = str(tm.target_data);
+    (glue_ir, glue_exports) = link_glue_ir(spec);
+    registry = plan.prog.native_units();
+    code_inputs: list[bytes] = [];
+    for unit in plan.units {
+        product = (
+            registry.bitcode_for(unit.path, plan.options)
+                if plan.mode == NATIVE_LINK_MODE_BITCODE
+                else registry.object_for(unit.path, plan.options)
+        );
+        if product is None {
+            raise LinkPlanError(f"no {plan.mode} product for native unit {unit.path}");
+        }
+        code_inputs.append(product);
+    }
+    code_inputs.append(glue_ir.encode("utf-8"));
+    inputs = LinkInputs(objects=code_inputs, archive_members=archive_members);
     if shared {
         inputs.init_funcs = [SHARED_INIT_SYMBOL];
         for sym in plan.pub_exports() + glue_exports {
@@ -840,33 +890,67 @@ def link_artifact(
     );
     inputs.static_musl = static_musl;
 
+    runtime = load_musl_static(plan.triple) if static_musl else None;
     if static_musl {
-        musl = collect_musl_static(inputs.objects, plan.triple);
-        if musl is None {
+        if runtime is None {
             raise LinkPlanError(
                 "Static musl runtime not found. Expected a vendored musl "
                 "libc.a under .pbs-build/<arch>/musl/lib (run `zig build "
                 "vendor-musl`) or set JAC_NATIVE_MUSL_DIR."
             );
         }
-        (musl_members, crt_objects) = musl;
-        inputs.archive_members = inputs.archive_members + musl_members;
-        inputs.crt_objects = crt_objects;
-        if log is not None {
-            log(
-                f"  Static-linking musl: {len(musl_members)} libc member(s) + "
-                f"{len(crt_objects)} crt object(s)."
+        inputs.archive_members = inputs.archive_members + runtime.archives;
+        inputs.crt_objects = runtime.crt_objects;
+    }
+    atomics = load_outline_atomics(plan.triple);
+    if atomics is None and archive_members {
+        import from jaclang.compiler.backends.native.linker_common {
+            object_undefined_symbols
+        }
+        missing_atomics = sorted(
+            {
+                symbol for member in archive_members
+                for symbol in object_undefined_symbols(member)
+                if symbol.startswith("__aarch64_")
+            }
+        );
+        if missing_atomics {
+            raise LinkPlanError(
+                "AArch64 compiler runtime archive not found for floor symbols: "
+                    + ", ".join(missing_atomics)
+                    + ". Run `zig build vendor-musl` for the target or set JAC_NATIVE_MUSL_DIR."
             );
         }
     }
+    if atomics is not None {
+        inputs.archive_members = inputs.archive_members + atomics.archives;
+    }
     soname = os.path.basename(output_path);
-    input_digest = inputs.digest(plan.plan_digest(), kind.value, soname);
-    reused = _reuse_artifact(plan, output_path, input_digest);
+    action_digest = inputs.digest(plan.plan_digest(), kind.value, soname);
+    reused = _reuse_artifact(plan, output_path, action_digest);
     if reused is not None {
         plan.prog.native_units().note_link(True);
         return reused;
     }
     plan.prog.native_units().note_link(False);
+    (objects, _) = plan_objects(plan, spec, kind, tm);
+    inputs.objects = objects;
+    inputs.archive_members = archive_members;
+    if atomics is not None {
+        inputs.archive_members = inputs.archive_members
+            + atomics.select(objects + archive_members);
+    }
+    if runtime is not None {
+        inputs.archive_members = inputs.archive_members
+            + runtime.select(objects + inputs.archive_members);
+        if log is not None {
+            log(
+                f"  Static-linking musl: {len(inputs.archive_members)
+                    - len(archive_members)} libc member(s) + "
+                f"{len(inputs.crt_objects)} crt object(s)."
+            );
+        }
+    }
     if is_windows {
         import from jaclang.compiler.backends.native.pe_linker { PeLinker }
         ok = PeLinker.link(
@@ -913,7 +997,7 @@ def link_artifact(
     digest = plan.plan_digest();
     artifact_sha256 = _sha256_of(output_path);
     (classes, ldigest) = _write_sidecar(
-        plan, output_path, digest, input_digest, artifact_sha256
+        plan, output_path, digest, action_digest, artifact_sha256
     );
     return LinkResult(
         output_path=output_path,

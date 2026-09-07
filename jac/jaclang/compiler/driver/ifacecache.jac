@@ -1040,10 +1040,7 @@ obj IfaceRegistry {
             fresh = prog2.compile(
                 resolved,
                 options=CompileOptions(
-                    symtab_ir_only=True,
-                    no_cgen=True,
-                    force_target_program=True,
-                    need_full_ast=True
+                    symtab_ir_only=True, no_cgen=True, need_full_ast=True
                 )
             );
             served = ent.module;
@@ -1092,7 +1089,6 @@ obj IfaceRegistry {
                     options=CompileOptions(
                         no_cgen=options.no_cgen,
                         native_parity=options.native_parity,
-                        force_target_program=True,
                         suppress_codes=list(options.suppress_codes or []),
                         need_full_ast=True
                     )

@@ -689,7 +689,6 @@ test "no consumer-site NULL guards on string operands" {
 
 
 test "native import handoff preserves memory policy and generated thread defaults" {
-    import json;
     parent = CompileOptions(
         memory_profile="nogc",
         memory_enforce=["app.*"],
@@ -698,10 +697,7 @@ test "native import handoff preserves memory policy and generated thread default
         native_link_mode="bitcode",
         native_target="aarch64-unknown-linux-gnu"
     );
-    detached = CompileOptions.from_native_import_env(
-        json.loads(json.dumps(parent.native_import_env()))
-    );
-    for child in [parent.clone_for_native_import(), detached] {
+    for child in [parent.clone_for_native_import()] {
         assert child.codegen_identity() == parent.codegen_identity();
         assert child.analysis_identity() == parent.analysis_identity();
         assert child.memory_profile == "nogc" and child.nogc_enforce_all;

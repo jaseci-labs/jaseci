@@ -3751,10 +3751,7 @@ test "nacompile auto-promoted .jac links a bundled na_stdlib import (#7013 Findi
     mod = prog.compile(
         fixture,
         options=CompileOptions(
-            aot_mode=True,
-            default_codespace='native',
-            force_target_program=True,
-            skip_native_engine=True
+            aot_mode=True, default_codespace='native', skip_native_engine=True
         )
     );
     assert not prog.errors_had , f"Errors: {[str(e) for e in prog.errors_had]}";

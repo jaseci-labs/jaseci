@@ -384,13 +384,8 @@ impl NaIRGenPass._full_ast_of(full_path: str) -> (uni.Module | None) {
     if found is not None {
         return found;
     }
-    import from jaclang.compiler.driver.program { JacProgram as _FaProgram }
-    opts = self.prog.options.clone_for_native_import();
-    opts.no_cgen = True;
-    opts.symtab_ir_only = True;
-    opts.need_full_ast = True;
     try {
-        mod = _FaProgram().compile(key, options=opts);
+        mod = self.prog.load_dependency_module(key, need_tree=True);
     } except Exception as exc {
         import from jaclang.compiler.driver.compile_options { env_na_debug }
         if env_na_debug() {
@@ -454,7 +449,6 @@ impl NaIRGenPass._load_native_unit_module(path: str) -> (uni.Module | None) {
                 aot_mode=True,
                 default_codespace='native',
                 force_codespace='native',
-                force_target_program=True,
                 native_unit=True
             )
         );

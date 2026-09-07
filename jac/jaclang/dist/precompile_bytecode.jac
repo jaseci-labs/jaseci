@@ -381,7 +381,6 @@ def precompile_native_unit(jac_path: str, collect: bool = True) -> str {
     options = CompileOptions(
         aot_mode=True,
         default_codespace="native",
-        force_target_program=True,
         native_unit=True,
         skip_native_engine=True
     );
@@ -834,8 +833,6 @@ def seal_native(
         link_artifact
     }
     import from jaclang.compiler.backends.native.kernel_resolve { kernel_lib_name }
-    import from jaclang.compiler.driver.nativecache { UNIT_ISOLATE_ENV }
-    os.environ[UNIT_ISOLATE_ENV] = "1";
     import from jaclang.compiler.driver.jir {
         native_section_payload,
         read_section_bytes as _rsb
@@ -847,7 +844,6 @@ def seal_native(
     options = CompileOptions(
         aot_mode=True,
         default_codespace="native",
-        force_target_program=True,
         native_unit=True,
         skip_native_engine=True
     );
@@ -862,6 +858,8 @@ def seal_native(
         );
     }
     console.print(f"  Native units: {len(units)} (roots: {len(roots)})");
+    import time;
+    native_start = time.monotonic();
 
     import from jaclang.compiler.driver.compile_options { NATIVE_LINK_MODE_BITCODE }
     plan = build_link_plan(
@@ -873,6 +871,14 @@ def seal_native(
         plan, str(artifact_path), ArtifactKind.SHARED, log=console.print
     );
 
+    console.print(
+        f"  Native build: {time.monotonic() - native_start:.1f}s; "
+            + f"analysis/lowering/codegen: {prog.analysis.cache_events.get(
+                'native_unit_analysis', 0
+            )}/"
+            + f"{prog.analysis.cache_events.get('native_unit_lower', 0)}/"
+            + f"{prog.analysis.cache_events.get('native_unit_codegen', 0)}"
+    );
     unit_records: dict[str, dict] = {};
     stamp = prog.native_units().stamp_for(options);
     for u in plan.units {

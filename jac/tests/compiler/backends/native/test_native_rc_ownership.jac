@@ -60,7 +60,6 @@ def compile_native(
     prog = JacProgram();
     opts = CompileOptions(
         force_codespace='native',
-        force_target_program=True,
         na_gc_mode=(gc_mode if gc_mode is not None else "cycles")
     );
     ir = prog.compile(file_path=str(os.path.join(FIXTURES, fixture)), options=opts);

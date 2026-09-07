@@ -20,73 +20,10 @@ import from jaclang.compiler.driver.jir {
     module_cache_key,
     native_section_payload,
     read_native_dep_hashes,
-    read_section_bytes,
-    read_sections_blob,
-    write_sections
+    read_section_bytes
 }
 import from jaclang.compiler.driver.compile_options { CompileOptions }
 import from jaclang.compiler.driver.native_iface { NativeIface }
-
-def compiler_package_parent -> str {
-    """The directory holding the `jaclang` package this process runs: what a
-child must put first on its path to run the same compiler. A build boots
-its interpreter with `-I` and an explicit `sys.path`, which a child does
-not inherit, and `python -c` would otherwise put the working directory
-first, where a checkout's own `jaclang` shadows the tree being built.""";
-    import from jaclang.compiler.frontend.codeinfo { jaclang_pkg_root }
-    return os.path.dirname(jaclang_pkg_root());
-}
-
-def child_compiler_argv(code: str, args: list[str]) -> list[str] {
-    """The command line of a child compiler process: this interpreter, safe
-path mode so the working directory never joins `sys.path`, the driver
-code, its arguments, and the package parent for the driver to insert
-first. `import jaclang` registers the `.jac` importer itself.""";
-    import sys;
-    return [sys.executable, "-P", "-c", code]
-        + list(args)
-        + [compiler_package_parent()];
-}
-
-def child_compiler_env(extra: (dict[str, str] | None) = None) -> dict[str, str] {
-    env = dict(os.environ);
-    pkg_parent = compiler_package_parent();
-    prior = env.get("PYTHONPATH", "");
-    parts = [pkg_parent] + ([prior] if prior else []);
-    env["PYTHONPATH"] = os.pathsep.join(parts);
-    if extra {
-        env.update(extra);
-    }
-    return env;
-}
-
-glob _UNITS_IN_FLIGHT: set[str] = set(),
-     UNIT_CHILD_DEPTH_ENV: str = "JAC_NATIVE_UNIT_DEPTH",
-     UNIT_ISOLATE_ENV: str = "JAC_NATIVE_UNIT_ISOLATE",
-     UNIT_CHILD_MAX_DEPTH: int = 2;
-
-def unit_isolation_wanted -> bool {
-    return os.environ.get(UNIT_ISOLATE_ENV, "") not in ("", "0");
-}
-
-glob _UNIT_CHILD_DRIVER: str = (
-         "import json, sys\n"
-         "sys.path.insert(0, sys.argv[-1])\n"
-         "from jaclang.compiler.driver.program import JacProgram\n"
-         "from jaclang.compiler.driver.compile_options import CompileOptions, push_native_target\n"
-         "opts = CompileOptions.from_native_import_env(json.loads(sys.argv[2]))\n"
-         "push_native_target(opts.native_target or '')\n"
-         "reg = JacProgram().native_units()\n"
-         "with open(sys.argv[4]) as source:\n"
-         "    for path, blob in json.load(source).items():\n"
-         "        reg.register_products_blob(path, bytes.fromhex(blob), opts)\n"
-         "ent = reg.compile_unit(sys.argv[1], opts)\n"
-         "if ent is None:\n"
-         "    why = reg.failures.get(sys.argv[1]) or 'no diagnostic was recorded'\n"
-         "    sys.stderr.write('jac: native unit ' + sys.argv[1] + ' failed: ' + why + '\\n')\n"
-         "    sys.exit(3)\n"
-         "open(sys.argv[3], 'wb').write(reg.products_blob(sys.argv[1], opts))\n"
-     );
 
 obj NativeUnitEntry {
     has path: str,
@@ -110,6 +47,7 @@ obj NativeVerdict {
 
 obj NativeUnitRegistry {
     has prog: JacProgram,
+        session: (NativeBuildSession | None) = None,
         entries: dict[str, NativeUnitEntry] = {},
         building: set[str] postinit,
         checking: set[str] postinit,
@@ -390,16 +328,6 @@ obj NativeUnitRegistry {
         return self.compile_unit(resolved, options);
     }
 
-    def read_unit(
-        path: str, options: (CompileOptions | None) = None
-    ) -> (NativeUnitEntry | None) {
-        resolved = os.path.realpath(path);
-        self.entries.pop(resolved, None);
-        return self._read_from_disk(
-            resolved, self.stamp_for(options), check_deps=False, options=options
-        );
-    }
-
     def known_native_deps(path: str, native_unit_compile: bool = False) -> list[str] {
         resolved = os.path.realpath(path);
         ent = self.entries.get(resolved);
@@ -433,91 +361,8 @@ obj NativeUnitRegistry {
         return sorted(set(out));
     }
 
-    def compile_unit_detached(
-        path: str, options: (CompileOptions | None) = None, use_str: (str | None) = None
-    ) -> (NativeUnitEntry | None) {
-        import json;
-        import subprocess;
-        import sys;
-        resolved = os.path.realpath(path);
-        base = options if options is not None else self._options();
-        depth = int(os.environ.get(UNIT_CHILD_DEPTH_ENV, "0") or "0");
-        if use_str is not None
-            or depth >= UNIT_CHILD_MAX_DEPTH
-            or not unit_isolation_wanted() {
-            """A program's few units compile in this process; a child per
-            unit is for the plans that compile the compiler itself, where
-            what each compile leaves behind adds up across dozens of units.""";
-            return self.compile_unit(resolved, base, use_str);
-        }
-        child_env = child_compiler_env({UNIT_CHILD_DEPTH_ENV: str(depth + 1)});
-        env = json.dumps(base.clone_for_native_import().native_import_env());
-        self._event("native_unit_compile_detached");
-        import tempfile;
-        (fd, products) = tempfile.mkstemp(prefix="jac-unit-", suffix=".jirx");
-        os.close(fd);
-        (fd, dependencies) = tempfile.mkstemp(prefix="jac-unit-deps-", suffix=".json");
-        os.close(fd);
-        try {
-            with open(dependencies, "w", encoding="utf-8") as snapshot {
-                json.dump(
-                    {
-                        ent.path: self.products_blob(
-                            ent.path, base, include_code=False
-                        ).hex() for ent in self._prepared_entries(resolved, base)
-                    },
-                    snapshot
-                );
-            }
-            import from jaclang.compiler.driver.compile_options { env_na_debug }
-            quiet = not env_na_debug();
-            try {
-                proc = subprocess.run(
-                    child_compiler_argv(
-                        _UNIT_CHILD_DRIVER, [resolved, env, products, dependencies]
-                    ),
-                    env=child_env,
-                    capture_output=quiet,
-                    text=quiet
-                );
-            } except OSError as exc {
-                self.failures[resolved] = f"{type(exc).__name__}: {exc}";
-                return None;
-            }
-            if proc.returncode != 0 {
-                """A unit's seam warnings are its own business while it lowers;
-                they reach the terminal only when the child fails, so a first
-                run that derives a kernel does not scroll its diagnostics.""";
-                if quiet and proc.stderr {
-                    sys.stderr.write(proc.stderr[-4000:]);
-                }
-                self.failures[resolved] = (
-                    f"the unit compile exited with status {proc.returncode}"
-                );
-                return None;
-            }
-            try {
-                blob = open(products, "rb").read();
-            } except OSError {
-                blob = b"";
-            }
-        } finally {
-            for temporary in (products, dependencies) {
-                try {
-                    os.remove(temporary);
-                } except OSError {}
-            }
-        }
-        self.forget(resolved);
-        found = self.register_products_blob(resolved, blob, base) if blob else None;
-        if found is None {
-            self.failures[resolved] = "the unit compile handed back no native products";
-        }
-        return found;
-    }
-
     def _product_sections(
-        path: str, options: (CompileOptions | None) = None, include_code: bool = True
+        path: str, options: (CompileOptions | None) = None
     ) -> dict[int, bytes] {
         resolved = os.path.realpath(path);
         ent = self.entries.get(resolved);
@@ -540,161 +385,41 @@ obj NativeUnitRegistry {
         if ent.source_key is not None {
             sections[SEC_MODKEY] = ent.source_key.encode("utf-8");
         }
-        if include_code and ent.object_bytes is not None {
+        if ent.object_bytes is not None {
             sections[SEC_NOBJ] = stamp.pack(ent.object_bytes);
         }
-        if include_code and ent.bitcode is not None {
+        if ent.bitcode is not None {
             sections[SEC_NBITCODE] = stamp.pack(ent.bitcode);
         }
         return sections;
     }
 
-    def products_blob(
-        path: str, options: (CompileOptions | None) = None, include_code: bool = True
-    ) -> bytes {
-        sections = self._product_sections(path, options, include_code);
-        return write_sections(sections) if sections else b"";
-    }
-
-    def register_products_blob(
-        resolved: str, blob: bytes, options: (CompileOptions | None) = None
-    ) -> (NativeUnitEntry | None) {
-        import from jaclang.compiler.driver.jir { SEC_NDEPS }
-        stamp = self.stamp_for(options);
-        sections = read_sections_blob(blob);
-        source_key = sections.get(SEC_MODKEY);
-        if source_key is not None
-            and source_key.decode("utf-8")
-                != NativeUnitRegistry._source_key(resolved) {
-            return None;
-        }
-        iface = NativeIface.from_bytes(
-            native_section_payload(sections.get(SEC_NIFACE), stamp)
-        );
-        if iface is None {
-            return None;
-        }
-        iface.resolve_deps(resolved);
-        deps_raw = native_section_payload(sections.get(SEC_NDEPS), stamp);
-        recorded: dict[str, str] = {};
-        if deps_raw {
-            import from jaclang.compiler.driver.jir { parse_native_dep_rows }
-            for (dep, digest) in parse_native_dep_rows(deps_raw, resolved) {
-                recorded[dep] = digest;
-            }
-        }
-        import from jaclang.compiler.frontend.codeinfo { CodeGenTarget }
-        carrier = self.prog.hub.artifacts.get(resolved);
-        if carrier is None {
-            carrier = CodeGenTarget();
-            self.prog.hub.artifacts[resolved] = carrier;
-        }
-        carrier.native_iface = iface;
-        carrier.native_object = native_section_payload(sections.get(SEC_NOBJ), stamp);
-        carrier.native_bitcode = native_section_payload(
-            sections.get(SEC_NBITCODE), stamp
-        );
-        ent = self._register(resolved, iface, stamp, "child");
-        ent.compile_deps = native_section_payload(sections.get(SEC_NCTDEPS), stamp)
-            or b"";
-        ent.dep_digests = recorded;
-        ent.object_bytes = carrier.native_object;
-        ent.bitcode = carrier.native_bitcode;
-        return ent;
-    }
-
-    def _prepared_entries(path: str, options: CompileOptions) -> list[NativeUnitEntry] {
-        stamp = self.stamp_for(options);
-        return [
-            ent
-            for (dep, ent) in self.entries.items()
-            if dep != path and ent.stamp.matches(stamp) and self._entry_fresh(ent)
-        ];
-    }
-
     def compile_unit(
         path: str, options: (CompileOptions | None) = None, use_str: (str | None) = None
     ) -> (NativeUnitEntry | None) {
-        resolved = os.path.realpath(path);
-        if resolved in self.building or resolved in _UNITS_IN_FLIGHT {
-            return None;
+        if self.session is not None {
+            return self.session.lower(path, use_str);
         }
-        base = options if options is not None else self._options();
-        self.building.add(resolved);
-        _UNITS_IN_FLIGHT.add(resolved);
-        mod: any = None;
+        import from jaclang.compiler.backends.native.link_plan { build_link_plan }
+        opts = options if options is not None else self._options();
+        resolved = os.path.realpath(path);
+        session = NativeBuildSession(registry=self, options=opts);
+        self.session = session;
+        self.forget(resolved);
         try {
-            self._event("native_unit_compile");
-            import from jaclang.compiler.driver.program { JacProgram }
-            import copy;
-            unit_prog = JacProgram();
-            unit_registry = unit_prog.native_units();
-            for known in self._prepared_entries(resolved, base) {
-                unit_registry.entries[known.path] = copy.copy(known);
+            if use_str is not None and session.lower(resolved, use_str) is None {
+                return None;
             }
-            try {
-                mod = unit_prog.compile(
-                    resolved, use_str=use_str, options=base.clone_for_native_import()
-                );
-            } finally {
-                if unit_prog.errors_had {
-                    self.failures[resolved] = "\n".join(
-                        e.pretty_print() for e in unit_prog.errors_had[:5]
-                    );
-                }
-            }
+            plan = build_link_plan(self.prog, [resolved], opts);
+            session.finish([unit.path for unit in plan.units]);
+            return self.entries.get(resolved);
         } except Exception as exc {
-            import traceback;
-            self.failures[resolved] = (
-                f"{type(exc).__name__}: {exc}"
-                + (f" ({self.failures[resolved]})" if resolved in self.failures else "")
-            );
-            import from jaclang.compiler.driver.compile_options { env_na_debug }
-            if env_na_debug() {
-                import sys;
-                sys.stderr.write(f"NA_DEBUG native unit {resolved} raised:\n");
-                sys.stderr.write(traceback.format_exc());
-                sys.stderr.write("NA_DEBUG requested from:\n");
-                sys.stderr.write("".join(traceback.format_stack(limit=30)));
-            }
+            self.failures[resolved] = f"{type(exc).__name__}: {exc}";
             return None;
         } finally {
-            self.building.discard(resolved);
-            _UNITS_IN_FLIGHT.discard(resolved);
+            self.session = None;
+            session.close();
         }
-        iface = mod.gen.native_iface if (mod is not None and mod.gen) else None;
-        self.compiled_paths.extend(unit_prog.native_units().compiled_paths);
-        if iface is None {
-            found = self.entries.get(resolved);
-            if found is None {
-                key = NativeUnitRegistry._source_key(resolved);
-                if key is not None {
-                    self.not_native[resolved] = key;
-                }
-            }
-            return found;
-        }
-        self.not_native.pop(resolved, None);
-        gen = mod.gen;
-        if use_str is not None {
-            unit_prog.native_units().record_module(mod, base);
-        }
-        ent = self._register(resolved, iface, self.stamp_for(base), "compile");
-        ent.compile_deps = ct_deps_section(mod.ct_file_deps, mod.ct_body_deps);
-        ent.dep_digests = dict(
-            unit_prog.native_units().recorded_native_deps(resolved, base)
-        );
-        self._stash_products(resolved, gen);
-        try {
-            unit_prog.release_compile_closure(collect=False);
-            if not _UNITS_IN_FLIGHT {
-                shared = unit_prog._get_compiler().selfhost.peek_program();
-                if shared is not None and shared is not unit_prog {
-                    shared.scrub_hub_types();
-                }
-            }
-        } except Exception {}
-        return ent;
     }
 
     def _stash_products(resolved: str, gen: CodeGenTarget) {
@@ -843,6 +568,142 @@ obj NativeUnitRegistry {
         import from jaclang.compiler.placement.placement { note_native_verdict }
         note_native_verdict(self.prog, resolved, code, detail);
         self.entries.pop(resolved, None);
+    }
+}
+
+obj NativeBuildSession {
+    has registry: NativeUnitRegistry,
+        options: CompileOptions,
+        prog: JacProgram postinit,
+        lowered: dict[str, Module] = {},
+        source_keys: dict[str, str | None] = {};
+
+    def postinit {
+        import from jaclang.compiler.driver.program { JacProgram }
+        self.prog = JacProgram();
+        self.prog.options = self.options.clone_for_native_import();
+        self.prog._natives = self.registry;
+    }
+
+    def lower(path: str, use_str: (str | None) = None) -> (NativeUnitEntry | None) {
+        resolved = os.path.realpath(path);
+        if resolved in self.registry.building {
+            return None;
+        }
+        self.registry.building.add(resolved);
+        import from jaclang.compiler.frontend.codeinfo {
+            set_native_unit_compile,
+            reset_native_unit_compile,
+            get_effective_default_codespace_override,
+            set_effective_default_codespace
+        }
+        import from jaclang.compiler.driver.compile_options {
+            push_native_target,
+            pop_native_target
+        }
+        unit_token = set_native_unit_compile(self.options.native_unit);
+        target_token = push_native_target(self.options.native_target or "");
+        prior_codespace = get_effective_default_codespace_override();
+        prior_options = self.prog.options;
+        errors_before = len(self.prog.errors_had);
+        try {
+            opts = self.options.clone_for_native_import();
+            mod = self.lowered.get(resolved);
+            if mod is None {
+                self.source_keys[resolved] = NativeUnitRegistry._source_key(resolved);
+                opts.no_cgen = True;
+                mod = self.prog.compile(resolved, use_str=use_str, options=opts);
+                self.registry._event("native_unit_analysis");
+            }
+            if len(self.prog.errors_had) > errors_before {
+                return None;
+            }
+            opts.no_cgen = False;
+            self.prog.options = opts;
+            set_effective_default_codespace("native");
+            import from jaclang.compiler.passes.rc_facts_pass { RcFactsPass }
+            import from jaclang.compiler.backends.native.na_ir_gen_pass { NaIRGenPass }
+            mod.gen.llvm_ir = None;
+            mod.gen.native_iface = None;
+            mod.gen.native_bitcode = None;
+            mod.gen.native_object = None;
+            self.prog.run_schedule(mod, [RcFactsPass, NaIRGenPass]);
+            self.registry._event("native_unit_lower");
+            if len(self.prog.errors_had) > errors_before
+                or mod.gen.native_iface is None {
+                return None;
+            }
+            self.lowered[resolved] = mod;
+            ent = self.registry.record_module(mod, opts);
+            self.registry._stash_products(resolved, mod.gen);
+            return ent;
+        } except Exception as exc {
+            self.registry.failures[resolved] = f"{type(exc).__name__}: {exc}";
+            return None;
+        } finally {
+            if len(self.prog.errors_had) > errors_before {
+                self.registry.failures[resolved] = "\n".join(
+                    alert.pretty_print()
+                    for alert in self.prog.errors_had[errors_before:]
+                );
+            }
+            self.registry.building.discard(resolved);
+            self.prog.options = prior_options;
+            set_effective_default_codespace(prior_codespace);
+            pop_native_target(target_token);
+            reset_native_unit_compile(unit_token);
+        }
+    }
+
+    def finish(paths: list[str]) {
+        import from jaclang.compiler.driver.compile_options {
+            push_native_target,
+            pop_native_target
+        }
+        token = push_native_target(self.options.native_target or "");
+        try {
+            self._finish(paths);
+        } finally {
+            pop_native_target(token);
+        }
+    }
+
+    def _finish(paths: list[str]) {
+        """Optimize and persist only after every consumed interface agrees.
+        Cyclic interface settlement reuses the analyzed trees and never emits
+        optimized products for an intermediate state.""";
+        import from jaclang.compiler.backends.native.na_compile_pass {
+            NativeCompilePass
+        }
+        self.prog.options = self.options.clone_for_native_import();
+        for path in paths {
+            if path in self.source_keys
+                and self.source_keys[path] != NativeUnitRegistry._source_key(path) {
+                raise RuntimeError(f"native source changed during analysis: {path}");
+            }
+        }
+        for path in paths {
+            mod = self.lowered.get(path);
+            if mod is None {
+                continue;
+            }
+            errors_before = len(self.prog.errors_had);
+            self.prog.run_schedule(mod, [NativeCompilePass]);
+            if len(self.prog.errors_had) > errors_before
+                or mod.gen.native_bitcode is None {
+                raise RuntimeError(f"native product emission failed for {path}");
+            }
+            self.registry.record_module(mod, self.prog.options);
+            self.registry._stash_products(path, mod.gen);
+            self.prog._get_compiler()._persist_native_unit(path, mod, self.prog);
+        }
+    }
+
+    def close {
+        self.lowered.clear();
+        self.source_keys.clear();
+        self.prog._natives = None;
+        self.prog.release_compile_closure();
     }
 }
 

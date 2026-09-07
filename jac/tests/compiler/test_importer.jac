@@ -774,7 +774,7 @@ test "check preserves caller GC state" {
     }
 }
 
-test "release compile closure clears ASTs and evaluator but keeps stubs" {
+test "release compile closure clears source trees, stubs and evaluator" {
     with tempfile.TemporaryDirectory(dir=_test_tmp_dir) as d {
         source_path = os.path.join(d, "source.jac");
         stub_path = os.path.join(d, "types.pyi");
@@ -789,12 +789,8 @@ test "release compile closure clears ASTs and evaluator but keeps stubs" {
         prog.release_compile_closure();
         gc.collect();
         assert ast_ref() is None , "released AST is still strongly referenced";
-        # The hub is keyed by the resolved path (JacProgram.hub_key), and
-        # find_module is the accessor that normalizes for you. Typeshed lives
-        # in the stub catalog and never enters the hub; a project .pyi loaded
-        # from source is retained across a release like any stub tree.
         assert prog.find_module(source_path) is None;
-        assert prog.find_module(stub_path) is not None;
+        assert prog.find_module(stub_path) is None;
         assert prog.type_evaluator is None;
     }
 }
@@ -819,26 +815,18 @@ test "release compile closure honors no unit eviction" {
     }
 }
 
-test "release compile closure keeps synthesized type identity stable" {
-    # `jac check`/`jac lint` release each file's compile closure between files,
-    # which drops and recreates the type evaluator. LiteralString is synthesized
-    # (not a real stub class), so re-minting it per evaluator gave it a fresh
-    # identity every file while the stub AST it derives from (str) survives with
-    # the prior instance cached on it -- breaking `Literal[...] <: LiteralString`
-    # and surfacing spurious E1001s on every checked file after the first. The
-    # synthesized type must be memoized on the (stable) str class so it survives
-    # evaluator churn.
+test "release compile closure recreates synthesized types with their catalog" {
     prog = JacProgram();
     ev1 = prog.get_type_evaluator();
     ls1 = ev1.prefetch.literal_string_class;
-    assert ls1 is not None , "LiteralString was not prefetched";
+    assert ls1 is not None;
     prog.release_compile_closure();
     assert prog.type_evaluator is None;
     ev2 = prog.get_type_evaluator();
     ls2 = ev2.prefetch.literal_string_class;
     assert ls2 is not None;
-    assert ev1 is not ev2 , "evaluator was not recreated";
-    assert ls1.shared is ls2.shared , "LiteralString identity changed across evaluator recreation";
+    assert ev1 is not ev2;
+    assert ls1.shared is not ls2.shared;
 }
 
 test "internal get_bytecode evicts unit AST after compile" {

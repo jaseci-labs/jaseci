@@ -33,9 +33,7 @@ def check_na_inline(label: str, code: str) -> JacProgram {
     prog.compile(
         file_path=os.path.join(FIXTURES, f"_idiom_{label}.jac"),
         use_str=code,
-        options=CompileOptions(
-            no_cgen=True, force_codespace="native", force_target_program=True
-        )
+        options=CompileOptions(no_cgen=True, force_codespace="native")
     );
     return prog;
 }
@@ -184,7 +182,7 @@ test "helpers.jac lowers when a native unit reaches it" {
     );
     prog = JacProgram();
     opts = CompileOptions(
-        aot_mode=True, force_codespace='native', force_target_program=True
+        aot_mode=True, force_codespace='native'
     ).clone_for_native_import();
     na_coverage_begin();
     try {

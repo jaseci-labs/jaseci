@@ -37,8 +37,7 @@ def measured -> tuple {
     na_coverage_begin();
     try {
         ir = prog.compile(
-            file_path=path,
-            options=CompileOptions(force_codespace='native', force_target_program=True)
+            file_path=path, options=CompileOptions(force_codespace='native')
         );
     } finally {
         coverage = na_coverage_end();
@@ -95,10 +94,7 @@ test "a mismatched call argument is the checker's refusal, not the emitter's" {
             f.write(src);
         }
         prog = JacProgram();
-        prog.compile(
-            file_path=path,
-            options=CompileOptions(force_codespace='native', force_target_program=True)
-        );
+        prog.compile(file_path=path, options=CompileOptions(force_codespace='native'));
         hits = [
             str(e)
             for e in prog.errors_had

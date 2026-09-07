@@ -42,7 +42,6 @@ def _opts(mode: str = "") -> CompileOptions {
     return CompileOptions(
         aot_mode=True,
         default_codespace='native',
-        force_target_program=True,
         skip_native_engine=True,
         native_link_mode=(mode or None)
     );
@@ -183,6 +182,27 @@ test "bitcode builds emit objects on demand without lowering again" {
     assert registry.compiled_paths == emitted_before;
 }
 
+test "a warm bitcode artifact skips whole-program optimization and emission" {
+    import from unittest.mock { patch }
+    if _can_link_host() {
+        root_dir = _diamond_copy();
+        (_, plan) = _plan_for(root_dir, NATIVE_LINK_MODE_BITCODE);
+        output = os.path.join(root_dir, "program");
+        first = link_artifact(plan, output, ArtifactKind.EXECUTABLE);
+        (_, warm) = _plan_for(root_dir, NATIVE_LINK_MODE_BITCODE);
+        with patch(
+            "jaclang.compiler.backends.native.link_plan.plan_objects",
+            side_effect=AssertionError("warm artifact ran object generation")
+        ) {
+            second = link_artifact(warm, output, ArtifactKind.EXECUTABLE);
+            assert second.reused and second.sha256 == first.sha256;
+        }
+        Path(output).write_bytes(b"corrupted");
+        repaired = link_artifact(warm, output, ArtifactKind.EXECUTABLE);
+        assert not repaired.reused and repaired.sha256 == first.sha256;
+    }
+}
+
 test "settlement refreshes edges and removes dependencies no longer reachable" {
     import from unittest.mock { patch }
     import from jaclang.compiler.driver.native_iface { NativeIface }
@@ -214,7 +234,7 @@ test "settlement refreshes edges and removes dependencies no longer reachable" {
         );
     }
     with patch.object(
-        registry, "compile_unit_detached", side_effect=recompile
+        registry, "compile_unit", side_effect=recompile
     ) as compile_unit {
         plan = build_link_plan(prog, [paths["top"]], opts);
         assert compile_unit.call_count == 1;
@@ -509,45 +529,56 @@ test "a unit retains prepared dependency interfaces when disk products are unava
     assert ent.dep_digests == prior;
 }
 
-test "an isolated unit retains prepared interfaces without disk lookup" {
+test "native plans compile without per-unit subprocesses" {
     import from unittest.mock { patch }
-    import jaclang.compiler.driver.nativecache as cache;
-    import from jaclang.compiler.driver.nativecache {
-        UNIT_CHILD_DEPTH_ENV,
-        UNIT_ISOLATE_ENV
-    }
     root_dir = _diamond_copy();
-    (prog, plan) = _plan_for(root_dir);
-    registry = prog.native_units();
-    top = plan.root_unit().path;
-    prior = dict(registry.entries[top].dep_digests);
-    assert prior and all(prior.values());
-    driver = cache._UNIT_CHILD_DRIVER.replace(
-        "ent = reg.compile_unit(",
-        "from jaclang.compiler.driver.nativecache import NativeUnitRegistry\n"
-            + "NativeUnitRegistry._module_jir = lambda self, path: None\n"
-            + "ent = reg.compile_unit("
-    );
-    with patch.object(cache, "_UNIT_CHILD_DRIVER", driver), patch.dict(
-        os.environ, {UNIT_ISOLATE_ENV: "1", UNIT_CHILD_DEPTH_ENV: "0"}
+    with patch(
+        "subprocess.run", side_effect=AssertionError("native unit started a subprocess")
     ) {
-        ent = registry.compile_unit_detached(top, _opts());
+        (prog, plan) = _plan_for(root_dir);
     }
-    assert ent is not None , registry.failures;
-    assert ent.dep_digests == prior;
-    assert prog.analysis.cache_events.get("native_unit_compile_detached", 0) > 0;
+    events = prog.analysis.cache_events;
+    assert events.get("native_unit_analysis", 0) > 0;
+    assert events.get("native_unit_analysis", 0)
+        == len(prog.native_units().compiled_paths);
+    assert prog.native_units().session is None;
 }
 
-test "a transferred native record rejects a changed source" {
-    root_dir = _diamond_copy();
-    (prog, plan) = _plan_for(root_dir);
-    path = plan.root_unit().path;
-    record = prog.native_units().products_blob(path, _opts(), include_code=False);
-    target = JacProgram().native_units();
-    assert target.register_products_blob(path, record, _opts()) is not None;
-    source = Path(path);
-    source.write_text(source.read_text() + "\n# edit during transfer\n");
-    assert target.register_products_blob(path, record, _opts()) is None;
+test "an import cycle settles without repeating frontend analysis or optimization" {
+    with tempfile.TemporaryDirectory(prefix="jac-native-cycle-") as root_dir {
+        even = Path(root_dir) / "even.jac";
+        odd = Path(root_dir) / "odd.jac";
+        even.write_text(
+            "import from odd { odd }\n"
+                + "def even(n: int) -> bool { if n == 0 { return True; } return odd(n - 1); }\n"
+                + "with entry { print(even(10)); }\n"
+        );
+        odd.write_text(
+            "import from even { even }\n"
+                + "def odd(n: int) -> bool { if n == 0 { return False; } return even(n - 1); }\n"
+        );
+        prog = JacProgram();
+        plan = build_link_plan(prog, [str(even)], _opts());
+        events = prog.analysis.cache_events;
+        compiled = prog.native_units().compiled_paths;
+        assert str(even.resolve()) in compiled and str(odd.resolve()) in compiled;
+        assert len(compiled) == len(set(compiled));
+        assert events.get("native_unit_analysis", 0) == len(compiled);
+        for unit in plan.units {
+            consumed = prog.native_units().entries[unit.path].dep_digests;
+            for dep in unit.iface.deps {
+                dependency = plan.unit(dep);
+                assert dependency is not None;
+                assert consumed[dep] == dependency.digest;
+            }
+        }
+        if _can_link_host() {
+            output = str(Path(root_dir) / "cycle");
+            link_artifact(plan, output, ArtifactKind.EXECUTABLE);
+            run = subprocess.run([output], capture_output=True, text=True, timeout=10);
+            assert run.returncode == 0 and run.stdout.strip() == "True" , run.stderr;
+        }
+    }
 }
 
 test "object emission preserves the native record without an existing disk entry" {
@@ -576,39 +607,28 @@ test "object emission preserves the native record without an existing disk entry
     assert warm.bitcode == prior.bitcode;
 }
 
-test "isolated cross-target units preserve source identity and prepared interfaces" {
+test "cross-target build sessions preserve source identity and prepared interfaces" {
     import from unittest.mock { patch }
-    import jaclang.compiler.driver.nativecache as cache;
-    import from jaclang.compiler.driver.compile_options {
-        push_native_target,
-        pop_native_target
-    }
+    import from jaclang.compiler.driver.nativecache { NativeUnitRegistry }
+    import jaclang.compiler.backends.native.llvm.binding as llvm;
+    host = CompileOptions().effective_triple();
     root_dir = _diamond_copy();
     opts = _opts();
     opts.native_target = "aarch64-unknown-linux-gnu";
-    prev = push_native_target(opts.native_target);
-    try {
-        prog = JacProgram();
-        plan = build_link_plan(prog, [os.path.join(root_dir, "top.jac")], opts);
-        registry = prog.native_units();
-        top = plan.root_unit().path;
-        prior = dict(registry.entries[top].dep_digests);
-        driver = cache._UNIT_CHILD_DRIVER.replace(
-            "ent = reg.compile_unit(",
-            "from jaclang.compiler.driver.nativecache import NativeUnitRegistry\n"
-                + "NativeUnitRegistry._module_jir = lambda self, path: None\n"
-                + "ent = reg.compile_unit("
-        );
-        with patch.object(cache, "_UNIT_CHILD_DRIVER", driver), patch.dict(
-            os.environ, {cache.UNIT_ISOLATE_ENV: "1", cache.UNIT_CHILD_DEPTH_ENV: "0"}
-        ) {
-            ent = registry.compile_unit_detached(top, opts);
-        }
-        assert ent is not None , registry.failures;
-        assert ent.dep_digests == prior;
-    } finally {
-        pop_native_target(prev);
+    prog = JacProgram();
+    plan = build_link_plan(prog, [os.path.join(root_dir, "top.jac")], opts);
+    registry = prog.native_units();
+    top = plan.root_unit().path;
+    prior = dict(registry.entries[top].dep_digests);
+    with patch.object(NativeUnitRegistry, "_module_jir", return_value=None) {
+        ent = registry.compile_unit(top, opts);
     }
+    assert ent is not None , registry.failures;
+    assert ent.dep_digests == prior;
+    assert ent.bitcode is not None;
+    assert f'target triple = "{opts.native_target}"'
+        in str(llvm.parse_bitcode(ent.bitcode));
+    assert CompileOptions().effective_triple() == host;
 }
 
 test "native build CLI reuses warm artifacts under each memory profile" {
@@ -642,7 +662,34 @@ test "unhandled errors in a qualified native entry fail the executable" {
             native_build(src, output, memory="nogc", extra=["--link-mode", mode]);
             result = subprocess.run([output], capture_output=True, text=True);
             assert result.returncode != 0 , "an unhandled assertion silently succeeded";
-            assert "jac: unhandled exception:" in result.stdout + result.stderr;
+            assert "jac: unhandled exception:" in result.stdout + result.stderr , f"{mode}: exit={result.returncode}, stdout={result.stdout!r}, stderr={result.stderr!r}";
         }
+    }
+}
+
+
+test "a source edit during settlement aborts without persisting a stale unit" {
+    import from jaclang.compiler.driver.nativecache { NativeBuildSession }
+    with tempfile.TemporaryDirectory() as work {
+        source = Path(work) / "changed.jac";
+        source.write_text("def value() -> int { return 1; }\n");
+        prog = JacProgram();
+        registry = prog.native_units();
+        session = NativeBuildSession(registry=registry, options=_opts());
+        registry.session = session;
+        try {
+            assert session.lower(str(source)) is not None;
+            source.write_text("def value() -> int { return 2; }\n");
+            with testraises(RuntimeError, `match="source changed during analysis") {
+                session.finish([str(source.resolve())]);
+            }
+            assert not registry.compiled_paths;
+        } finally {
+            registry.session = None;
+            session.close();
+        }
+        plan = build_link_plan(prog, [str(source)], _opts());
+        assert plan.root_unit().path == str(source.resolve());
+        assert len(registry.compiled_paths) > 0;
     }
 }

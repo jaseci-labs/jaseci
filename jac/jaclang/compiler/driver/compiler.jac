@@ -96,7 +96,6 @@ obj JacCompiler {
         _stub_catalog: any = None,
         _stub_catalog_tried: bool = False,
         stub_catalog_disabled: bool = False,
-        _stub_trees_served: bool = False,
         unit_collect: bool = True;
 
     has selfhost: SelfHostCache { getter; }

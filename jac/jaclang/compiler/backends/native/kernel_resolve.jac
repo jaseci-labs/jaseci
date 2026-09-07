@@ -127,7 +127,6 @@ def kernel_options -> CompileOptions {
     return CompileOptions(
         aot_mode=True,
         default_codespace="native",
-        force_target_program=True,
         native_unit=True,
         skip_native_engine=True,
         native_target="",
@@ -163,8 +162,6 @@ def build_kernel(dst: str, prog: any = None, log: any = None) -> any {
         ArtifactKind,
         link_artifact
     }
-    import from jaclang.compiler.driver.nativecache { UNIT_ISOLATE_ENV }
-    os.environ[UNIT_ISOLATE_ENV] = "1";
     with _StoreParserSpan() {
         plan = kernel_plan(prog, mode=NATIVE_LINK_MODE_BITCODE);
         os.makedirs(os.path.dirname(os.path.abspath(dst)) or ".", exist_ok=True);
@@ -238,13 +235,6 @@ def _from_source_tree -> (ResolvedKernel | None) {
     found = _accept_in_tree(lib_path);
     if found is not None {
         return found;
-    }
-    import from jaclang.compiler.driver.nativecache { UNIT_CHILD_DEPTH_ENV }
-    if os.environ.get(UNIT_CHILD_DEPTH_ENV, "") {
-        """A unit compile child parses with the store parser rather than
-        derive a kernel from inside a link plan; the plan that spawned it
-        has a kernel or is the kernel build itself.""";
-        return None;
     }
     try {
         return _derive_in_tree(lib_path);
@@ -352,12 +342,7 @@ def _adopt_bundled(lib_path: str) -> (ResolvedKernel | None) {
 
 def _build_kernel_in_child(dst: str) {
     import subprocess;
-    import from jaclang.compiler.driver.nativecache {
-        child_compiler_argv,
-        child_compiler_env
-    }
-    import from jaclang.compiler.driver.nativecache { UNIT_ISOLATE_ENV }
-    env = child_compiler_env({KERNEL_LIB_ENV: "off", UNIT_ISOLATE_ENV: "1"});
+    env = child_compiler_env({KERNEL_LIB_ENV: "off"});
     code = (
         "import sys\n"
         "sys.path.insert(0, sys.argv[-1])\n"
@@ -427,4 +412,37 @@ def resolve_kernel -> (ResolvedKernel | None) {
         return sealed;
     }
     return _from_source_tree();
+}
+
+def compiler_package_parent -> str {
+    """The directory holding the `jaclang` package this process runs: what a
+child must put first on its path to run the same compiler. A build boots
+its interpreter with `-I` and an explicit `sys.path`, which a child does
+not inherit, and `python -c` would otherwise put the working directory
+first, where a checkout's own `jaclang` shadows the tree being built.""";
+    import from jaclang.compiler.frontend.codeinfo { jaclang_pkg_root }
+    return os.path.dirname(jaclang_pkg_root());
+}
+
+def child_compiler_argv(code: str, args: list[str]) -> list[str] {
+    """The command line of a child compiler process: this interpreter, safe
+path mode so the working directory never joins `sys.path`, the driver
+code, its arguments, and the package parent for the driver to insert
+first. `import jaclang` registers the `.jac` importer itself.""";
+    import sys;
+    return [sys.executable, "-P", "-c", code]
+        + list(args)
+        + [compiler_package_parent()];
+}
+
+def child_compiler_env(extra: (dict[str, str] | None) = None) -> dict[str, str] {
+    env = dict(os.environ);
+    pkg_parent = compiler_package_parent();
+    prior = env.get("PYTHONPATH", "");
+    parts = [pkg_parent] + ([prior] if prior else []);
+    env["PYTHONPATH"] = os.pathsep.join(parts);
+    if extra {
+        env.update(extra);
+    }
+    return env;
 }

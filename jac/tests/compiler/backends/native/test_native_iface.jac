@@ -38,10 +38,7 @@ glob FIXTURES = str(Path(__file__).resolve().parent / "fixtures" / "link_diamond
 
 def _native_opts -> CompileOptions {
     return CompileOptions(
-        aot_mode=True,
-        default_codespace='native',
-        force_target_program=True,
-        skip_native_engine=True
+        aot_mode=True, default_codespace='native', skip_native_engine=True
     );
 }
 

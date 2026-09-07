@@ -335,10 +335,7 @@ def _materialize_module(path: str, prog: any) -> (uni.Module | None) {
     try {
         import from jaclang.compiler.driver.compile_options { CompileOptions }
         prog.compile(
-            file_path=path,
-            options=CompileOptions(
-                symtab_ir_only=True, no_cgen=True, force_target_program=True
-            )
+            file_path=path, options=CompileOptions(symtab_ir_only=True, no_cgen=True)
         );
     } except Exception {
         return None;

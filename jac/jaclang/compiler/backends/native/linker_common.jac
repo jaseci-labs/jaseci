@@ -259,10 +259,70 @@ def musl_lib_dir(triple: str) -> (str | None) {
     return None;
 }
 
-def collect_musl_static(
-    objects: list[bytes], triple: str
-) -> (tuple[list[bytes], list[bytes]] | None) {
-    import hashlib;
+obj StaticRuntime {
+    has archives: list[bytes],
+        crt_objects: list[bytes];
+
+    def select(objects: list[bytes]) -> list[bytes] {
+        import hashlib;
+        work_roots: list[str] = [];
+        known: set[str] = set();
+        for blob in list(objects) + self.crt_objects {
+            for u in object_undefined_symbols(blob) {
+                if u not in known {
+                    known.add(u);
+                    work_roots.append(u);
+                }
+            }
+        }
+
+        member_bytes: list[bytes] = [];
+        seen_members: set[bytes] = set();
+        changed = True;
+        while changed {
+            changed = False;
+            for data in self.archives {
+                for m in select_ar_members(data, work_roots) {
+                    key = hashlib.sha256(m.data).digest();
+                    if key in seen_members {
+                        continue;
+                    }
+                    seen_members.add(key);
+                    member_bytes.append(m.data);
+                    changed = True;
+                    for u in object_undefined_symbols(m.data) {
+                        if u not in known {
+                            known.add(u);
+                            work_roots.append(u);
+                        }
+                    }
+                }
+            }
+        }
+        return member_bytes;
+    }
+}
+
+def load_outline_atomics(triple: str) -> (StaticRuntime | None) {
+    import os;
+    import from jaclang.runtime.graph_utils { triple_arch }
+    if triple_arch(triple) != "aarch64" or "linux" not in triple {
+        return None;
+    }
+    lib_dir = musl_lib_dir(triple);
+    if lib_dir is None {
+        return None;
+    }
+    path = os.path.join(lib_dir, "libclang_rt.atomics.a");
+    if not os.path.isfile(path) {
+        return None;
+    }
+    with open(path, "rb") as archive {
+        return StaticRuntime(archives=[archive.read()], crt_objects=[]);
+    }
+}
+
+def load_musl_static(triple: str) -> (StaticRuntime | None) {
     import os;
     lib_dir = musl_lib_dir(triple);
     if lib_dir is None {
@@ -300,41 +360,17 @@ def collect_musl_static(
         }
     }
 
-    work_roots: list[str] = [];
-    known: set[str] = set();
-    for blob in list(objects) + crt_objects {
-        for u in object_undefined_symbols(blob) {
-            if u not in known {
-                known.add(u);
-                work_roots.append(u);
-            }
-        }
-    }
+    return StaticRuntime(archives=archives_data, crt_objects=crt_objects);
+}
 
-    member_bytes: list[bytes] = [];
-    seen_members: set[bytes] = set();
-    changed = True;
-    while changed {
-        changed = False;
-        for data in archives_data {
-            for m in select_ar_members(data, work_roots) {
-                key = hashlib.sha256(m.data).digest();
-                if key in seen_members {
-                    continue;
-                }
-                seen_members.add(key);
-                member_bytes.append(m.data);
-                changed = True;
-                for u in object_undefined_symbols(m.data) {
-                    if u not in known {
-                        known.add(u);
-                        work_roots.append(u);
-                    }
-                }
-            }
-        }
+def collect_musl_static(
+    objects: list[bytes], triple: str
+) -> (tuple[list[bytes], list[bytes]] | None) {
+    runtime = load_musl_static(triple);
+    if runtime is None {
+        return None;
     }
-    return (member_bytes, crt_objects);
+    return (runtime.select(objects), runtime.crt_objects);
 }
 
 def object_undefined_symbols(mem: bytes) -> list[str];

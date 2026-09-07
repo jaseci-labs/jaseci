@@ -10,7 +10,7 @@ page describes the JIR sections the interface layer owns.
 
 ## The unit
 
-A native unit is one module compiled in a program of its own. Its products
+A native unit is one module analyzed in a build-owned compiler session. Its products
 live in the module's JIR entry, beside the bytecode the compiler runs for
 the same file, under `MODKEY` plus a stamp in the section's own header:
 
@@ -102,8 +102,8 @@ callers, and the plan knows nothing about any of them.
    recursively compiling their consumers; the plan owns dependency agreement.
 3. Schedule the reachable graph through `driver/dependency_graph.jac`. The
    deterministic scheduler puts dependencies first and groups import cycles.
-   Native units still lower individually, in process for applications and in
-   child processes for the kernel and seal.
+   One `NativeBuildSession` owns the reachable semantic graph. Each stale unit
+   runs frontend analysis once; interface settlement reuses its typed tree.
 4. Recompile a unit only when its source/compile-time inputs changed or a
    dependency's recorded interface differs. Process dependents after their
    dependencies, refresh edges after lowering, and recompute reachability when
@@ -111,7 +111,8 @@ callers, and the plan knows nothing about any of them.
    convergence error rather than an arbitrary six-round cutoff.
    Fileless modules retry from their in-memory source through the same compile
    API, and record the interfaces they consumed even without a disk cache entry.
-5. Order initializers topologically and synthesize the glue object.
+5. Optimize and persist each reachable changed unit once, after interface
+   agreement. Order initializers topologically and synthesize the glue object.
 6. Collect floor archives, clib paths and needed libraries from the unit
    interfaces.
 7. Link in one of two modes. `objects`, the incremental default, links the
@@ -142,7 +143,7 @@ membership and content. Deletion and restored timestamps do not make stale
 sources fresh. Native compile-time dependencies have their own stamped section so a
 bytecode compile cannot erase them. They reuse the existing CTDEPS codec
 and are rebased with the other native sections when sealing.
-The registry's `compiled_paths` records actual lowering work;
+The registry's `compiled_paths` records finalized unit code generation;
 cache counters distinguish unit code generation, object emission, linking,
 and artifact reuse.
 
@@ -152,17 +153,18 @@ debug builds still eagerly produce their debugger artifacts. The optimization le
 The JIT still optimizes and emits a merged program; this is not incremental
 whole-program optimization.
 
-For native linked files, the existing layout sidecar also records a digest
-of the actual linker inputs (objects, selected archive members, CRT objects,
-exports, libraries, kind and output name) and the artifact's SHA-256. A matching
-artifact is reused without invoking the linker or rewriting the output.
-Corruption or changed inputs cause a relink. Bitcode mode still runs its
-whole-program pipeline before this final linker-input check; wasm uses its
-existing emission path.
+For native linked files, the existing layout sidecar records an action digest
+of the unit products, textual glue IR, runtime archive contents, exports,
+libraries, kind and output name, plus the artifact's SHA-256. The check happens
+before whole-program optimization and object emission. A matching artifact is
+reused without rewriting it. Corruption or changed inputs cause a rebuild;
+debug builds and explicit IR dumps bypass reuse. Wasm retains its existing
+emission path.
 
-Compiler-source edits still change the producer compiler digest. A stable
-bootstrap compiler and group-wide frontend analysis remain separate follow-up
-work; the scheduler does not weaken compiler identity or claim those speedups.
+Compiler-source edits still change the producing compiler digest. This is a
+correctness boundary: results from different compiler implementations cannot
+be assumed interchangeable. The existing Jac0 seed has its own content-keyed
+bootstrap cache; native products retain the full compiler identity.
 
 ### The glue
 
@@ -171,8 +173,7 @@ module built from the plan's unit records, never by pattern-matching linked
 IR: the `jac_entry` preamble (the root's runtime probe, every initializer in
 dependency order, the root's entry body), the platform entry point, the
 `__jac_shared_init` a shared library exports, the `jac_retain` /
-`jac_release` / `jac_str_new` C ABI wrappers, the `atexit` shim and the
-aarch64 outline-atomics helpers the C floor was built against. The shim is
+`jac_release` / `jac_str_new` C ABI wrappers and the `atexit` shim. The shim is
 for glibc, which exports `__cxa_atexit` but keeps `atexit` in
 `libc_nonshared.a`: every ELF artifact that is not static against musl
 defines `atexit` over `__cxa_atexit`, or the loader refuses it.
@@ -263,79 +264,64 @@ a source tree start in well under a second. The derivation runs in a child
 on purpose: the first parse of a checkout happens inside the compiler's own
 import chain, where half the checker is not importable yet, and a rebuild
 must not depend on the state of the process that asked for it. The kernel
-build and the seal are the plans that compile each unit in a child of
-their own (`JAC_NATIVE_UNIT_ISOLATE`); a program's handful of units lowers
-in the requesting process, where a child per unit would only multiply
-compiler processes across a machine already running several.
+build and the seal use the same in-process build session as applications.
 
 The kernel is always the host's. `kernel_options()` pins the target to the
-host whatever `JAC_NATIVE_TARGET` says, so a cross-compiled artifact's
-units parse with the same kernel and never provoke a derivation for a
-triple the process could not load. A unit compile child never derives a
-kernel either: the plan that spawned it either has one or is the kernel
-build itself, and a child that cannot accept the kernel on disk parses with
-the store parser.
+host whatever `JAC_NATIVE_TARGET` says, so a cross-compiled artifact's units
+parse with a kernel the process can load.
 
 The toolchain units (the OSP kernel, the format kernel, the region arena)
 are ordinary native units pulled in by dependency edge. The region arena
 allocates on the heap for the kernel units themselves and in the current
 arena for everything else; the kernel unit never depends on itself.
 
-## Why a child process per unit
+## Semantic ownership and lifetime
 
-A unit compile in an isolated program in the same process retained about
-450 MB after it returned. The unit's evaluator caches types and comptime
-values on nodes of modules it shares with the selfhost program (the
-compiler's own modules) and with the stub catalog, and a comptime value
-wraps bound methods of that evaluator, so every shared node pinned the
-whole closure. A kernel build reached 47 GB. Releasing the unit program's
-closure and scrubbing the shared hub after the outermost compile recovered
-part of it; the rest is held through the catalog's memo tables, which are
-global by design.
+Dependency types resolve on demand through the evaluator. In particular, a
+context-manager alias uses the same binding operation during lazy dependency
+analysis and the statement checker; its type does not depend on which walker
+visited a body first.
 
-Compiling each unit in a child `jac -c` process ends the question for the
-plans that compile dozens of units, the kernel build and the seal: the
-parent stays flat (about 100 MB), a unit's closure dies with its process,
-and the nested compiles an import cycle causes stay inside the child that
-hit the cycle. A child that would itself spawn past two levels compiles in
-process instead, so a cycle cannot spawn without bound. The child receives
-the native-import options as JSON (`CompileOptions.native_import_env`),
-rebuilds them with `from_native_import_env`, and writes its interface,
-dependency digests, object and bitcode to a products blob the parent
-registers, so two plans with different identities in one process never
-read each other's cache entries. Its diagnostics stay in the child unless
-it fails: a first run that derives a kernel would otherwise scroll every
-unit's seam warnings past the program's own output.
+The build session owns its `JacProgram`, module hub, evaluator and hydrated
+catalog objects. Source analysis never borrows mutable trees from the
+process-global program used to execute the compiler itself. A `StubCatalog`
+session shares immutable catalog bytes and their backing storage, while its
+memo tables and hydrated types belong to that session. Releasing a compile
+closure drops the evaluator, every module (including stubs), and the catalog.
 
-The parent also supplies its fresh dependency interfaces through the same
-stamped JIR products codec, without copying object or bitcode payloads.
-Both in-process and isolated compiles select these records with the same
-source, compile-time dependency, and codegen checks. A competing build may
-replace the disk cache with another application's or GC mode's products;
-that must not erase the interfaces already prepared by the active plan.
-Transferred records carry the shared source key and are rejected if their
-source changed before the receiving process reads them.
+The meta importer keeps the compiler's own analysis session alive until the
+outermost module execution completes, including its nested imports. Retrieving
+bytecode alone does not end that session: otherwise execution immediately
+re-ingests the dependencies just analyzed. The existing self-host cache defers
+its release to that boundary, including exception unwinding.
 
-A program's plan compiles its units in the requesting process
-(`JAC_NATIVE_UNIT_ISOLATE` unset). The child model costs a compiler
-bootstrap and about 1.5 GB per unit, and a test lane running four workers
-held thirteen compiler processes at once; a program's handful of units
-leaves nothing behind that a process which will end anyway needs to shed.
+This ownership boundary replaces per-unit subprocess isolation and its option
+serialization, recursion guards and product-transfer codec. Interface records
+still pass through `NativeUnitRegistry`; the build session uses the same
+registry, source keys and compile-time dependency checks as disk cache reads.
+A full AST requested behind a catalog interface loads through the program's
+existing dependency loader.
 
-Two consequences of running the compiler's modules through the same JIR
-entries as their native products deserve a note:
+`NativeBuildSession.lower()` reuses analyzed trees during dependency-ordered
+interface settlement. `finish()` checks source revisions, optimizes each
+reachable changed unit once, and persists ordinary JIR products. Session
+cleanup runs on success and failure. Target and codespace overrides are scoped
+to the build and restored on exit. The existing analysis counters distinguish
+frontend analysis, lowering visits and final code generation.
 
-- A module the checker served from its interface catalog has no archetype
-  bodies. The typed-import walk that lays out imported classes asks for the
-  full AST when it meets one (`_full_ast_of`), and a direct import served
-  that way is recorded as a dependency edge rather than mistaken for an
-  empty re-export module.
-- Loading a compiler-tree module's bytecode for execution must never
-  rebuild an in-process engine from its native sections, even though a
-  unit compile in progress may have routed that module to the runtime
-  program. Its native product belongs to the kernel or to an artifact that
-  links it. Without this guard an import inside a unit child built a plan,
-  which spawned a child, which imported the same module.
+## Compiler runtime archives
+
+Linux AArch64 floor libraries call outline-atomic helpers supplied by compiler-rt.
+The payload vendor builds the pinned upstream LLVM implementations into
+`libclang_rt.atomics.a`, with one helper per archive member and a separate CPU
+detection member. The ordinary archive selection code follows undefined
+symbols to select the helpers and their feature flag, without bringing in
+unrelated libc definitions. The upstream helpers use LSE where available and
+fall back to LL/SC. No handwritten atomic ABI implementation is emitted in glue.
+
+The ELF linker preserves input constructors and their priority order for shared
+and executable artifacts, so the runtime's CPU detection runs before application
+initializers. Runtime archive bytes participate in artifact invalidation.
 
 ## Sealed applications
 
@@ -365,16 +351,12 @@ frontend, macOS arm64, September 2026:
 | kernel, cold derivation | about 3 min | about 5.5 min |
 | kernel size | 9.2 MB | 8.4 MB |
 
-Runtime and parse speed are at parity: bitcode mode keeps the whole-program
-optimization a fused build had, and the JIT runs the same pass pipeline
-over the merged module. The unit model pays on first compile, where it emits
-both an object and bitcode and persists the interface, and on the cold
-kernel build, where the frontend's import cycles make demotion-dependent
-interfaces settle over more than one round. The right follow-up for the
-cold kernel is to compile a strongly connected component as one group and
-emit per-unit products from it: one checker pass and one demotion fixpoint
-for the group, per-unit objects for the link, incremental relinks for
-acyclic edits.
+The table above records the original unit-model implementation, before build
+sessions. A local session-path kernel build took 175 seconds for 34 units:
+34 frontend analyses, 73 lowering visits and 34 final code generations, with
+about 7.5 GB peak process RSS. These are local measurements, not a controlled
+CI comparison. Build-kit timing must be measured separately because it also
+includes bytecode sealing, runtime packaging and compression.
 
 ## Diagnosing a broken artifact
 

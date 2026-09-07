@@ -4,12 +4,12 @@ import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.frontend.relations { ScopeChild }
 import from jaclang.compiler.passes.transform { Alert, PassResult }
 import type from jaclang.compiler.driver.mtp { Info }
-import type from jaclang.compiler.frontend.codeinfo { ClientArtifact }
+import type from jaclang.compiler.frontend.codeinfo { ClientArtifact, CodeGenTarget }
 
 obj ModuleHub {
     has mod: uni.ProgramModule,
         stamps: dict[str, float] = {},
-        artifacts: dict[str, any] = {},
+        artifacts: dict[str, CodeGenTarget] = {},
         client_artifacts: dict[str, ClientArtifact] = {};
 
     def stamp(resolved_path: str) {
@@ -73,19 +73,7 @@ obj ModuleHub {
     }
 
     def reset {
-        retained_mods: dict[str, uni.Module] = {};
-        retained_stamps: dict[str, float] = {};
-        dropped: list[uni.Module] = [];
-        for (path, mod) in self.mod.hub.items() {
-            if path.endswith(".pyi") {
-                retained_mods[path] = mod;
-                if path in self.stamps {
-                    retained_stamps[path] = self.stamps[path];
-                }
-            } else {
-                dropped.append(mod);
-            }
-        }
+        dropped = list(self.mod.hub.values());
         dropped_ids: set[int] = set(id(m) for m in dropped);
         prog_root = self.mod;
         main = prog_root.main_mod;
@@ -104,9 +92,7 @@ obj ModuleHub {
             del [edge mod<-:ScopeChild:<-];
         }
         prog_root.hub.clear();
-        prog_root.hub.update(retained_mods);
         self.stamps.clear();
-        self.stamps.update(retained_stamps);
         self.client_artifacts.clear();
     }
 }
@@ -198,6 +184,14 @@ obj DiagLedger {
         return [
             a
             for a in self.errors
+            if self._owned(a, path)
+        ];
+    }
+
+    def owned_warnings(path: str) -> list[Alert] {
+        return [
+            a
+            for a in self.warnings
             if self._owned(a, path)
         ];
     }
@@ -373,8 +367,8 @@ obj UnitCollectBudget {
     has releases: int = 0,
         last_peak_mb: int = 0;
 
-    def due -> bool {
-        self.releases += 1;
+    def due(units: int = 1) -> bool {
+        self.releases += units;
         every = _env_int("JAC_UNIT_COLLECT_EVERY", UNIT_COLLECT_EVERY);
         growth = _env_int("JAC_UNIT_COLLECT_GROWTH_MB", UNIT_COLLECT_GROWTH_MB);
         peak = _peak_rss_mb();

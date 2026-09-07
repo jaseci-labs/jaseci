@@ -34,6 +34,7 @@ import from jaclang.compiler.frontend.unitree {
     EventSignature,
     Except,
     Expr,
+    ExprAsItem,
     ExprStmt,
     FString,
     FilterCompr,
@@ -395,6 +396,10 @@ walker TypeEvaluator {
     def _get_type_from_module(module: Module, name: str) -> TypeBase;
     def _prefetch_types;
     def get_none_type -> TypeBase;
+    def get_type_of_context_binding(
+        item: ExprAsItem, is_async: bool = False
+    ) -> TypeBase;
+
     def emit_diag(diag: DiagnosticInfo, nd: UniNode, **kwargs: object) -> None;
     def _invalidate_expr_type_cache(node_: UniNode) -> None;
     def get_index_of_symbol_resolution(symbol: Symbol) -> int | None;
