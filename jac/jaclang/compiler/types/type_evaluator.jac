@@ -556,12 +556,6 @@ walker TypeEvaluator {
     def get_getter_type_from_property(symbol: Symbol) -> (TypeBase | None);
     def get_property_write_type(symbol: Symbol) -> PropertyWriteResult;
     def _get_setter_value_type(symbol: Symbol, prop_name: str) -> (TypeBase | None);
-    def _assign_generic_args(
-        src_args: list[TypeBase],
-        dest_args: list[TypeBase],
-        type_params: (list[TypeVarType] | None),
-        strict: bool = False
-    ) -> bool;
     def _assign_class(
         src_type: ClassType, dest_type: ClassType, strict: bool = False
     ) -> bool;

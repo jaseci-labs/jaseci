@@ -2898,44 +2898,6 @@ impl TypeEvaluator._assign_callable(
     return True;
 }
 
-impl TypeEvaluator._assign_generic_args(
-    src_args: list[TypeBase],
-    dest_args: list[TypeBase],
-    type_params: (list[TypeVarType] | None),
-    strict: bool = False
-) -> bool {
-    if len(src_args) != len(dest_args) {
-        return False;
-    }
-
-    for i in range(len(src_args)) {
-        src_arg = self._convert_to_instance(src_args[i]);
-        dest_arg = self._convert_to_instance(dest_args[i]);
-        tp = type_params[i]
-            if type_params and i < len(type_params)
-            else None;
-
-        if tp and tp.is_covariant {
-            if not self.assign_type(src_arg, dest_arg, strict) {
-                return False;
-            }
-        } elif tp and tp.is_contravariant {
-            if not self.assign_type(dest_arg, src_arg, strict) {
-                return False;
-            }
-        } else {
-            if isinstance(dest_arg, UnknownType) {
-                continue;
-            }
-            if not self.assign_type(src_arg, dest_arg, strict)
-                or not self.assign_type(dest_arg, src_arg, strict) {
-                return False;
-            }
-        }
-    }
-    return True;
-}
-
 impl TypeEvaluator._assign_class(
     src_type: ClassType, dest_type: ClassType, strict: bool = False
 ) -> bool {
@@ -2974,13 +2936,37 @@ impl TypeEvaluator._assign_class(
         }
 
         if src_type.private.type_args and dest_type.private.type_args {
-            if not self._assign_generic_args(
-                src_type.private.type_args,
-                dest_type.private.type_args,
-                dest_type.shared.type_params,
-                strict
-            ) {
+            if len(src_type.private.type_args) != len(dest_type.private.type_args) {
                 return False;
+            }
+            for i in range(len(src_type.private.type_args)) {
+                src_arg = self._convert_to_instance(src_type.private.type_args[i]);
+                dest_arg = self._convert_to_instance(
+                    dest_type.private.type_args[i]
+                );
+                tp = dest_type.shared.type_params[i]
+                    if (
+                        dest_type.shared.type_params
+                        and i < len(dest_type.shared.type_params)
+                    )
+                    else None;
+                if tp and tp.is_covariant {
+                    if not self.assign_type(src_arg, dest_arg, strict) {
+                        return False;
+                    }
+                } elif tp and tp.is_contravariant {
+                    if not self.assign_type(dest_arg, src_arg, strict) {
+                        return False;
+                    }
+                } else {
+                    if isinstance(dest_arg, UnknownType) {
+                        continue;
+                    }
+                    if not self.assign_type(src_arg, dest_arg, strict)
+                        or not self.assign_type(dest_arg, src_arg, strict) {
+                        return False;
+                    }
+                }
             }
         }
         return True;
@@ -2990,13 +2976,37 @@ impl TypeEvaluator._assign_class(
         if dest_type.private.type_args {
             specialized = specialize_for_base_class(src_type, dest_type);
             src_args = specialized.private.type_args;
-            if src_args and not self._assign_generic_args(
-                src_args,
-                dest_type.private.type_args,
-                dest_type.shared.type_params,
-                strict
-            ) {
-                return False;
+            if src_args and len(src_args) == len(dest_type.private.type_args) {
+                for i in range(len(src_args)) {
+                    src_arg = self._convert_to_instance(src_args[i]);
+                    dest_arg = self._convert_to_instance(
+                        dest_type.private.type_args[i]
+                    );
+
+                    tp = dest_type.shared.type_params[i]
+                        if (
+                            dest_type.shared.type_params
+                            and i < len(dest_type.shared.type_params)
+                        )
+                        else None;
+                    if tp and tp.is_covariant {
+                        if not self.assign_type(src_arg, dest_arg, strict) {
+                            return False;
+                        }
+                    } elif tp and tp.is_contravariant {
+                        if not self.assign_type(dest_arg, src_arg, strict) {
+                            return False;
+                        }
+                    } else {
+                        if isinstance(dest_arg, UnknownType) {
+                            continue;
+                        }
+                        if not self.assign_type(src_arg, dest_arg, strict)
+                            or not self.assign_type(dest_arg, src_arg, strict) {
+                            return False;
+                        }
+                    }
+                }
             }
         }
         return True;
