@@ -18,7 +18,7 @@ import sys;
 import tempfile;
 import time;
 import from jaclang.compiler.driver.compiler { JacCompiler }
-import from jaclang.compiler.driver.jir { SEC_NBITCODE }
+import from jaclang.compiler.driver.jir { NativeStamp, SEC_NBITCODE }
 import jaclang.compiler.backends.native.llvm.binding as llvm;
 import from jaclang.compiler.driver.jir {
     SEC_CTDEPS,
@@ -371,8 +371,10 @@ def _native_ir(path: str) -> str {
     if not cache_path.is_file() {
         return "";
     }
-    bitcode = read_section_bytes(cache_path.read_bytes(), SEC_NBITCODE);
-    return str(llvm.parse_bitcode(bitcode)) if bitcode is not None else "";
+    record = NativeStamp.unpack(
+        read_section_bytes(cache_path.read_bytes(), SEC_NBITCODE)
+    );
+    return str(llvm.parse_bitcode(record[1])) if record is not None else "";
 }
 
 test "a native-placed fold is not served from stale JIR bitcode" {
