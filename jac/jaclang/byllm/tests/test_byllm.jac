@@ -2,6 +2,7 @@
 
 import contextlib;
 import io;
+import time;
 import os;
 import sys;
 import warnings;
@@ -1360,29 +1361,16 @@ test "async streaming works on MockLLM" {
 }
 
 
-# The chain a user actually hits: codegen -> Jac.acall_llm -> ainvoke ->
-# adispatch_streaming. The tests above call adispatch_streaming directly, and
-# "async by llm() end-to-end with mocked acall_llm" stops short of the dispatch.
-glob _surface_8932 = FakeLLM(
-         model_name="fake-8932", replies=[say("streamed reply")]
-     );
-
-
-async def _ask_8932(topic: str) -> str by _surface_8932(stream=True);
-
-
-async def _run_surface_8932 -> str {
-    stream: any = await _ask_8932("anything");
-    out: list[object] = [];
-    async for chunk in stream {
-        out.append(chunk);
-    }
-    return "".join([str(c) for c in out]);
-}
-
-
-test "async def by llm(stream=True) streams end to end" {
-    assert asyncio.run(_run_surface_8932()) == "streamed reply";
+def _mk_chunk_8932(text: str) -> object {
+    return litellm.ModelResponseStream(
+        **{
+            "id": "c",
+            "object": "chat.completion.chunk",
+            "created": 1,
+            "model": "fake",
+            "choices": [{"index": 0, "delta": {"content": text}, "finish_reason": None}]
+        }
+    );
 }
 
 
@@ -1391,19 +1379,7 @@ test "async def by llm(stream=True) streams end to end" {
 # accept any iterable. Regression for the review on #8955.
 obj _ListStream8932(_byllm_llm_mod.BaseLLM) {
     override def model_call_with_stream(params: dict) -> object {
-        return [
-            litellm.ModelResponseStream(
-                **{
-                    "id": "c",
-                    "object": "chat.completion.chunk",
-                    "created": 1,
-                    "model": "fake",
-                    "choices": [
-                        {"index": 0, "delta": {"content": w}, "finish_reason": None}
-                    ]
-                }
-            ) for w in ["list ", "backed"]
-        ];
+        return [_mk_chunk_8932("list "), _mk_chunk_8932("backed")];
     }
 }
 
@@ -1411,6 +1387,104 @@ obj _ListStream8932(_byllm_llm_mod.BaseLLM) {
 test "async streaming accepts a provider call that returns a list" {
     llm = _ListStream8932(model_name="list-8932");
     assert asyncio.run(_drain_8932(llm)) == "list backed";
+}
+
+
+# The review fix moved the provider call off the loop thread. These pin the
+# behaviour that move has to preserve, and the behaviour it buys.
+obj _EagerStream8932(_byllm_llm_mod.BaseLLM) {
+    """Builds the whole stream eagerly, like ModelPool cost-based-routing."""
+    has build_s: float = 0.0;
+
+    override def model_call_with_stream(params: dict) -> object {
+        time.sleep(self.build_s);
+        return [_mk_chunk_8932("eager "), _mk_chunk_8932("list")];
+    }
+}
+
+
+obj _LazyStream8932(_byllm_llm_mod.BaseLLM) {
+    """Records when each chunk is produced, to prove laziness survives."""
+    has produced: list[float] = [];
+
+    override def model_call_with_stream(params: dict) -> object {
+        for w in ["one ", "two ", "three"] {
+            self.produced.append(time.perf_counter());
+            yield _mk_chunk_8932(w);
+        }
+    }
+}
+
+
+async def _ticked_drain_8932(llm: _byllm_llm_mod.BaseLLM) -> tuple[int, str] {
+    ticks: list[int] = [0];
+    stop: list[bool] = [False];
+
+    async def _tick {
+        while not stop[0] {
+            ticks[0] += 1;
+            await asyncio.sleep(0.01);
+        }
+    }
+    task = asyncio.ensure_future(_tick());
+    text = await _drain_8932(llm);
+    stop[0] = True;
+    await task;
+    return (ticks[0], text);
+}
+
+
+test "async streaming keeps the loop free while an eager provider builds" {
+    llm = _EagerStream8932(model_name="eager-8932", build_s=0.3);
+    (ticks, text) = asyncio.run(_ticked_drain_8932(llm));
+    assert text == "eager list";
+    assert ticks > 10 , f"loop was blocked during the eager build: {ticks} ticks";
+}
+
+
+async def _paced_drain_8932(llm: _byllm_llm_mod.BaseLLM) -> str {
+    stream: any = llm.adispatch_streaming(mk_run(stream=True));
+    acc: list[object] = [];
+    async for c in stream {
+        acc.append(c);
+        await asyncio.sleep(0.12);
+    }
+    return "".join([str(x) for x in acc]);
+}
+
+
+test "async streaming stays lazy: the producer waits for the consumer" {
+    llm = _LazyStream8932(model_name="lazy-8932");
+    assert asyncio.run(_paced_drain_8932(llm)) == "one two three";
+    gaps = [llm.produced[i] - llm.produced[i - 1] for i in range(1, len(llm.produced))];
+    assert all(g > 0.08 for g in gaps) , f"stream was buffered, not lazy: {gaps}";
+}
+
+
+test "async def by llm(stream=True) streams end to end" {
+    # The chain a user actually hits: codegen -> Jac.acall_llm -> ainvoke ->
+    # adispatch_streaming. The tests above call adispatch_streaming directly,
+    # and "async by llm() end-to-end with mocked acall_llm" mocks acall_llm, so
+    # neither reaches the dispatch. The by llm() declaration lives in a fixture
+    # because a module-level one here perturbs the codegen tests' JacProgram.
+    code_gen = (prog := JacProgram()).compile(
+        os.path.join(FIXTURE_DIR, "async_stream_by_llm.jac")
+    );
+    assert not prog.errors_had , f"Compilation errors: {prog.errors_had}";
+    compiled = compile(code_gen.gen.py_ast[0], filename="<ast>", mode="exec");
+    module = types.ModuleType("async_stream_by_llm_fixture");
+    module.__dict__["__file__"] = code_gen.loc.mod_path;
+    exec(compiled, module.__dict__);
+
+    async def _run -> str {
+        stream: any = await module.__dict__["ask"](topic="anything");
+        acc: list[object] = [];
+        async for chunk in stream {
+            acc.append(chunk);
+        }
+        return "".join([str(c) for c in acc]);
+    }
+    assert asyncio.run(_run()) == "streamed reply";
 }
 
 
