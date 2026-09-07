@@ -18,9 +18,12 @@ import sys;
 import tempfile;
 import time;
 import from jaclang.compiler.driver.compiler { JacCompiler }
+import from jaclang.compiler.driver.jir { SEC_NBITCODE }
+import jaclang.compiler.backends.native.llvm.binding as llvm;
 import from jaclang.compiler.driver.jir {
     SEC_CTDEPS,
     get_module_cache_path,
+    precompiled_jir_matches_source,
     read_section_bytes
 }
 import from jaclang.compiler.driver.program { JacProgram }
@@ -351,5 +354,79 @@ test "a bundle promoted into the module cache carries its comptime deps" {
         assert "spec two" in warm , (
             f"the promoted module cache served a stale fold: {warm}"
         );
+    }
+}
+
+def _native_compile(path: str) {
+    prog = JacProgram();
+    prog.compile(path);
+    assert not prog.errors_had , (
+        f"native compile of {path} failed: "
+        f"{[a.pretty_print() for a in prog.errors_had]}"
+    );
+}
+
+def _native_ir(path: str) -> str {
+    cache_path = get_module_cache_path(path);
+    if not cache_path.is_file() {
+        return "";
+    }
+    bitcode = read_section_bytes(cache_path.read_bytes(), SEC_NBITCODE);
+    return str(llvm.parse_bitcode(bitcode)) if bitcode is not None else "";
+}
+
+test "a native-placed fold is not served from stale JIR bitcode" {
+    tmp = tempfile.mkdtemp();
+    with _isolated(tmp) {
+        _write(
+            os.path.join(tmp, "jac.toml"),
+            "[project]\nname = \"natfold\"\n\n"
+            "[placement.pins]\nnatmod = \"native\"\n",
+            backdate=True
+        );
+        producer = os.path.realpath(os.path.join(tmp, "tagmod.jac"));
+        native = os.path.realpath(os.path.join(tmp, "natmod.jac"));
+        main_mod = os.path.realpath(os.path.join(tmp, "entrymod.jac"));
+        _write(producer, "comptime TAG: str = \"alpha\";\n", backdate=True);
+        _write(
+            native,
+            "comptime import from tagmod { TAG }\n\n"
+            "comptime LABEL: str = TAG;\n\n"
+            "def tagged -> str {\n    return LABEL;\n}\n",
+            backdate=True
+        );
+        _write(
+            main_mod,
+            "import from natmod { tagged }\n\n"
+            "with entry {\n    print(tagged());\n}\n",
+            backdate=True
+        );
+        _native_compile(main_mod);
+        cold = _native_ir(native);
+        assert cold , "the native lane wrote no JIR bitcode for the pinned module";
+        assert "alpha" in cold , f"the cold native IR did not fold the producer";
+        _write(producer, "comptime TAG: str = \"beta\";\n");
+        _native_compile(main_mod);
+        warm = _native_ir(native);
+        assert "beta" in warm , (
+            "the native JIR served a stale fold after its comptime " "producer changed"
+        );
+    }
+}
+
+
+test "precompile reuse rejects changed producers before sealing" {
+    paths = _spec_pair("spec one");
+    with _isolated(paths["root"]) {
+        _folded(paths["consumer"]);
+        blob = precompile_unit(paths["consumer"], paths["root"]);
+        assert blob is not None;
+        assert precompiled_jir_matches_source(
+            blob, paths["consumer"], package_root=paths["root"]
+        );
+        _write(paths["producer"], "comptime SPEC: str = \"spec two\";\n");
+        assert not precompiled_jir_matches_source(
+            blob, paths["consumer"], package_root=paths["root"]
+        ) , "precompile would reuse and seal the old producer's value";
     }
 }
