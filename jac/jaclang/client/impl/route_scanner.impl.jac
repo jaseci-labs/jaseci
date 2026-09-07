@@ -240,11 +240,6 @@ impl _route_exports_from_ast(mod: any) -> tuple[((str | None), (str | None))] {
     return (page_name, layout_name);
 }
 
-"""The generated `pages/` entry renders `app` with the route tree as its
-children. The codegen destructures only declared parameter names out of
-`props`, so an `app` without `children` (or a lone `props`) discards every
-route, from JavaScript no checker sees. Read off the compiled manifest so a
-warm build never re-enters the compiler for it."""
 impl entry_drops_route_children(manifest: any) -> bool {
     if manifest is None or "app" not in manifest.exports {
         return False;

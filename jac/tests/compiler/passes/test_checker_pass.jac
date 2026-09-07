@@ -4156,8 +4156,22 @@ test "jsx_step3_jsx_prop_check" {
     # does not.
     e1102 = _jsx_msgs(program, "E1102");
     assert len(e1102) == 3 , f"Expected 3 E1102 (Plain 'title', Card 'children' twice):\n{all_diags}";
-    assert len([m for m in e1102 if "prop 'title'" in m]) == 1 , f"Expected one E1102 naming 'title':\n{all_diags}";
-    assert len([m for m in e1102 if "prop 'children'" in m]) == 2 , f"Expected two E1102 naming 'children':\n{all_diags}";
+    assert len(
+        [
+            m
+            for m in e1102
+            if "prop 'title'" in m
+        ]
+    )
+        == 1 , f"Expected one E1102 naming 'title':\n{all_diags}";
+    assert len(
+        [
+            m
+            for m in e1102
+            if "prop 'children'" in m
+        ]
+    )
+        == 2 , f"Expected two E1102 naming 'children':\n{all_diags}";
     e1101 = _jsx_msgs(program, "E1101");
     assert len(e1101) == 1 and "bogus" in e1101[0] , f"Expected exactly 1 E1101 (Zero 'bogus'):\n{all_diags}";
 
@@ -4165,8 +4179,22 @@ test "jsx_step3_jsx_prop_check" {
     # codegen, so the call site is warned.
     w1053 = _jsx_msgs(program, "W1053");
     assert len(w1053) == 2 , f"Expected 2 W1053 (Plain, Zero):\n{all_diags}";
-    assert len([m for m in w1053 if "Component 'Plain'" in m]) == 1 , f"Expected W1053 on 'Plain':\n{all_diags}";
-    assert len([m for m in w1053 if "Component 'Zero'" in m]) == 1 , f"Expected W1053 on 'Zero':\n{all_diags}";
+    assert len(
+        [
+            m
+            for m in w1053
+            if "Component 'Plain'" in m
+        ]
+    )
+        == 1 , f"Expected W1053 on 'Plain':\n{all_diags}";
+    assert len(
+        [
+            m
+            for m in w1053
+            if "Component 'Zero'" in m
+        ]
+    )
+        == 1 , f"Expected W1053 on 'Zero':\n{all_diags}";
 }
 
 test "jsx_step4_lambda_inference" {
