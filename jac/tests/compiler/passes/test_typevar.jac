@@ -14,6 +14,20 @@ glob CHECKER_FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "fixtures", "checker", "typevar"
      );
 
+"""Mutable generic containers require invariant type arguments."""
+test "invariant_generic_arguments" {
+    program = JacProgram();
+    mod = program.compile(os.path.join(
+        CHECKER_FIXTURES, "checker_invariant_generics.jac"
+    ));
+
+    errors = [e.pretty_print() for e in program.errors_had];
+    all_errors = "\n".join(errors);
+
+    assert len(errors) == 2 , f"Expected 2 invariant generic errors, got:\n{all_errors}";
+    assert all_errors.count("Cannot assign") == 2 , f"Expected both container substitutions to be rejected, got:\n{all_errors}";
+}
+
 """Test TypeVar validation errors (Pyright: createTypeVarType, assignTypeToExpression)."""
 test "typevar1_validation_errors" {
     program = JacProgram();
