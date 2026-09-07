@@ -355,6 +355,7 @@ impl JacProgram.release_compile_closure(
         ev.symbol_resolution_stack.clear();
     }
     self.type_evaluator = None;
+    ev = None;
     self._stub_catalog = None;
     self._stub_trees_served = False;
     self.diags.clear();

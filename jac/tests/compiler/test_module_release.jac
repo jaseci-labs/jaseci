@@ -115,6 +115,8 @@ test "typeshed never enters the hub and builtins bindings survive a release" {
 
 
 test "releasing a closure releases the catalog and evaluator together" {
+    import os;
+    import from unittest.mock { patch }
     prog = JacProgram();
     def analyze -> tuple {
         mod = prog.compile(file_path="catalog_session_probe.jac", use_str=STUB_SRC);
@@ -125,8 +127,9 @@ test "releasing a closure releases the catalog and evaluator together" {
         );
     }
     (evaluator, catalog) = analyze();
-    prog.release_compile_closure();
-    gc.collect();
+    with patch.dict(os.environ, {"JAC_UNIT_COLLECT_EVERY": "1"}) {
+        prog.release_compile_closure();
+    }
     assert catalog() is None , "a released catalog is still owned outside its session";
     assert evaluator() is None , "a released evaluator is still owned outside its session";
 }
