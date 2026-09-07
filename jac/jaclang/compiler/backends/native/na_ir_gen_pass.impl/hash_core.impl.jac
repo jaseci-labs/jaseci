@@ -432,6 +432,12 @@ impl NaIRGenPass._emit_hash_core_helpers(
             ov_u: any = bu.load(vsp, name="ov");
             bu.store(v_s, vsp);
             self._emit_elem_release(bu, _vt, ov_u);
+        } elif _hl
+            and isinstance(_vt, ir.PointerType)
+            and self._elem_kind(_vt) != "raw" {
+            ov_hl: any = bu.load(vsp, name="ov");
+            bu.store(v_s, vsp);
+            bu = self._emit_elem_slot_drop(bu, ins_fn, d_s, layout, 1, ov_hl);
         } else {
             bu.store(v_s, vsp);
         }
@@ -601,6 +607,8 @@ impl NaIRGenPass._emit_hash_core_helpers(
         vv_rm: any = bdel.load(bdel.gep(va_rm, [res_rm], name="vvp"), name="vv");
         if not _hl {
             self._emit_elem_release(bdel, _vt, vv_rm);
+        } elif isinstance(_vt, ir.PointerType) {
+            bdel = self._emit_elem_slot_drop(bdel, remove_fn, d_rm, layout, 1, vv_rm);
         }
         bdel.store(
             ir.Constant(val_type, None), bdel.gep(va_rm, [res_rm], name="vclear")

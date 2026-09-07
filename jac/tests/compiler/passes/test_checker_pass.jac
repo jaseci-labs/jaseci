@@ -5200,3 +5200,19 @@ test "match_wildcard_no_warning_noise" {
         "case _ must not draw warning noise; got: " + str([str(w) for w in noise])
     );
 }
+
+test "client cleanup returns only warn when ignored" {
+    program = JacProgram();
+    program.compile(
+        os.path.join(CHECKER_FIXTURES, "checker_client_effect_returns.jac"),
+        options=NO_TC
+    );
+    assert not program.errors_had , str(program.errors_had);
+    ignored = [
+        w
+        for w in program.warnings_had
+        if w.code and w.code.code == "W2014"
+    ];
+    assert len(ignored) == 2 , str(ignored);
+    assert [w.loc.first_line for w in ignored] == [7, 10];
+}

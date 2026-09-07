@@ -349,15 +349,6 @@ impl NaIRGenPass._codegen_enum_ctor(
         );
         return None;
     }
-    if lay.is_string_enum {
-        self._emit_enum_ctor_refusal(
-            nd,
-            enum_name,
-            "Its members carry string values, whose runtime form is the "
-            "ordinal rather than the value, so the lookup is not the identity."
-        );
-        return None;
-    }
     if not lay.all_values_known {
         self._emit_enum_ctor_refusal(
             nd,
@@ -371,6 +362,44 @@ impl NaIRGenPass._codegen_enum_ctor(
     if _arg is None {
         self._emit_enum_ctor_refusal(nd, enum_name, "Its argument did not lower.");
         return None;
+    }
+    if lay.is_string_enum {
+        arg_key = self._type_key_of(_params[0]);
+        if arg_key == enum_name {
+            return _arg;
+        }
+        if arg_key != "str" {
+            self._emit_enum_ctor_refusal(
+                nd, enum_name, "Its argument must be a string or a member of this enum."
+            );
+            return None;
+        }
+        value = self._str_norm(_arg);
+        if value is None {
+            return None;
+        }
+        i64 = ir.IntType(64);
+        ordinal: ir.Value = ir.Constant(i64, -1);
+
+        for member in reversed(lay.members) {
+            text = self._make_global_string(
+                member.str_value or "", name_prefix=".enum.value"
+            );
+            cmp = self._call_str_cmp(self.builder, value, text, name="enum.value.cmp");
+            hit = self.builder.icmp_signed("==", cmp, ir.Constant(ir.IntType(32), 0));
+            ordinal = self.builder.select(
+                hit, ir.Constant(i64, member.ordinal), ordinal
+            );
+        }
+        if self._is_owned(value) {
+            self._emit_rc_release_simple(value, op="enum_ctor", loc="");
+        }
+        self._emit_runtime_raise(
+            self.builder.icmp_signed("==", ordinal, ir.Constant(i64, -1)),
+            "ValueError",
+            f"is not a valid {enum_name}"
+        );
+        return ordinal;
     }
     if not isinstance(_arg.type, ir.IntType) {
         self._emit_enum_ctor_refusal(

@@ -136,6 +136,7 @@ import from jaclang.compiler.frontend.relations {
     CfgSucc,
     CfgTrue,
     DecidedCodespace,
+    Codespace,
     Defines,
     InScope,
     PlacedIn,
@@ -258,6 +259,8 @@ node Symbol {
         imported: bool postinit,
         semstr: str postinit,
         ownership: OwnershipKind = OwnershipKind.NONE,
+        linear: bool = False,
+        is_view: bool = False,
         param_rebound: bool = False,
         na_escapes: bool = False,
         na_region_handle: bool = False,
@@ -614,12 +617,14 @@ node MatchPattern(UniNode) {}
 
 node SubTag[T](UniNode) {
     has tag: T,
-        ownership: OwnershipKind = OwnershipKind.NONE;
+        ownership: OwnershipKind = OwnershipKind.NONE,
+        linear: bool = False;
 
     def init(
         *,
         tag: T,
         ownership: OwnershipKind = OwnershipKind.NONE,
+        linear: bool = False,
         kid: Sequence[UniNode] = []
     ) -> None;
 
@@ -628,6 +633,8 @@ node SubTag[T](UniNode) {
 }
 
 node Module(AstDocNode, UniScopeNode) {
+    def set_code_context(context: CodeContext) -> None;
+
     has name: str,
         source: Source,
         terminals: list[Token],
@@ -648,7 +655,9 @@ node Module(AstDocNode, UniScopeNode) {
         native_viols_reported: bool = False,
         client_viols_reported: bool = False,
         rc_last_use: dict[int, list[str]] postinit,
-        rc_move_in: set[int] postinit;
+        rc_scope_cleanup: dict[int, list[str]] postinit,
+        rc_move_in: set[int] postinit,
+        own_move_sites: set[int] postinit;
 
     has body: Sequence[ElementStmt | String | EmptyToken] { getter; }
 
@@ -1069,6 +1078,9 @@ node Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBlo
     ) -> None;
 
     def postinit -> None;
+
+    has receiver_mode: OwnershipKind = OwnershipKind.NONE,
+        raises: list[str] postinit;
 
     has is_method: bool { getter; }
     has is_cls_method: bool { getter; }

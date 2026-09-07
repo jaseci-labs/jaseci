@@ -39,7 +39,7 @@ maintain: they are compiler output, owned and re-derived on every build.
 |---|---|---|
 | **CPython 3.14** | System Python, pyenv, venvs | Bundled -- runs your `.jac` files and PyPI imports |
 | **Bun** | Node.js, npm, npx | Bundled -- compiles `.jac` to JS, manages npm deps |
-| **LLVM + Zig linker** | gcc, clang, make, cmake | Bundled -- `jac build --as native` produces native binaries |
+| **LLVM + Zig linker** | gcc, clang, make, cmake | Bundled -- `jac build <file> --native` produces native binaries |
 | **Package manager** | pip, npm, pipx | `jac install` for PyPI and npm |
 | **REST server** | Flask, FastAPI, Express | `jac run` -- walkers become API endpoints |
 | **Kubernetes deployer** | Docker + kubectl + Helm | `jac scale deploy` -- one-command K8s deployment |
@@ -139,7 +139,7 @@ For machines with nothing installed at all -- no Jac, no Python, no Node -- proj
 jac build --as binary      # -> one executable, full runtime included
 ```
 
-And when your program fits the restricted `na` subset, `jac build --as native` compiles it through LLVM into a small, dependency-free binary instead. See [`jac build`](../reference/cli/index.md#jac-build) for all artifact projections and the binary-vs-native trade-off.
+And when your program fits the restricted `na` subset, `jac build <file> --native` compiles it through LLVM into a small, dependency-free binary instead. See [`jac build`](../reference/cli/index.md#jac-build) for all artifact projections and the binary-vs-native trade-off.
 
 ## How It Works
 

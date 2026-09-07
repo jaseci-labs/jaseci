@@ -906,6 +906,15 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " of it is still live. A borrow must not outlive the value it points to; keep"
          " '{name}' in scope for at least as long as every borrow of it."
      ),
+     E1305 = _err(
+         "E1305",
+         Category.SEMANTIC,
+         "Linear binding '{name}' is never consumed",
+         help="'{name}' is declared `lin`, so every path must move it exactly once"
+         " (pass it to an `own` parameter, store it in an owned place, or return"
+         " it) before it goes out of scope. Consume it on the path that drops it,"
+         " or declare it `own` if dropping it unconsumed is acceptable."
+     ),
      E1306 = _err(
          "E1306",
          Category.SEMANTIC,
@@ -986,16 +995,54 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      E1315 = _err(
          "E1315",
          Category.SEMANTIC,
-         "A string view does not allow {name}",
-         help="in a nogc-enforced module a step-free string slice is a zero-copy"
-         " view into its base: it is usable locally and returnable only when it"
-         " derives from the function's single `&`/`imm` parameter (or a method's"
-         " `self`), so every caller knows which argument the result borrows."
-         " Views may not be stored into containers, fields, or module globals,"
-         " may not be bound `own`, and a function with two or more borrowable"
-         " parameters may not return one. Materialize an owned copy with a"
-         " stepped slice (`s[a:b:1]`) where the value must escape.",
+         "A view does not allow {name}",
+         help="a view is a value that carries a borrow: an archetype with a"
+         " `&`-typed field, a container declared over `&T`, or (in a"
+         " nogc-enforced module) a step-free string slice. It lives on the stack"
+         " and is usable locally; it may not be stored into a field, a container,"
+         " or a module global, may not be bound `own`, and may be returned only"
+         " when it derives from the function's borrowed parameters (or a method's"
+         " `self`), so every caller knows what the result borrows. Materialize an"
+         " owned value where it must escape (a stepped slice `s[a:b:1]` for a"
+         " string, a fresh archetype otherwise).",
          blocks_codegen=True
+     ),
+     E1316 = _err(
+         "E1316",
+         Category.SEMANTIC,
+         "Cannot move '{name}' out of '{place}' without take()",
+         help="'{place}' is an owned slot inside another value, so reading it into"
+         " an owning destination (an `own` binding, an owned field, an `own`"
+         " parameter, or an owned return) would leave two owners of one value."
+         " Move it out explicitly with `take({place})`, which leaves None behind,"
+         " or borrow it with `&{place}` if the destination only needs to read it."
+     ),
+     E1317 = _err(
+         "E1317",
+         Category.SEMANTIC,
+         "Cannot move '{name}' out of the element '{place}'",
+         help="the elements of an owned list are owned by the list, so reading"
+         " one into an owning destination (an `own` binding, an owned field, an"
+         " `own` parameter, or an owned return) would leave two owners of one"
+         " value. Move it out with `pop()` or `pop(i)`, or borrow it in place"
+         " with `&{place}`."
+     ),
+     E1318 = _err(
+         "E1318",
+         Category.SEMANTIC,
+         "Cannot call mutating method '{method}' through a shared borrow of '{name}'",
+         help="'{method}' writes to its receiver (it assigns a field, grows a"
+         " container field, or calls another mutating method), so it needs an"
+         " exclusive receiver. Take the borrow with `&mut`, or call it on the"
+         " owner directly."
+     ),
+     E1319 = _err(
+         "E1319",
+         Category.SEMANTIC,
+         "Invalid {operation} place: {reason}",
+         help="take(place) requires an optional local or field and leaves None."
+         " swap(&mut a, &mut b) requires two writable places of the same type."
+         " Use pop() to move an owned container element out."
      ),
      W1310 = _warn(
          "W1310",
@@ -1010,8 +1057,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Heap-typed {position} '{name}' has no ownership state in a nogc-enforced module ({provenance})",
          help="Inside a nogc-enforced module every heap-typed contract position"
          " (parameter, return, or `has` field) must be in the owned world: annotate"
-         " it `own`, `&`, `&mut`, or `imm`. Locals still infer ownership from a fresh"
-         " right-hand side; only contracts must be explicit.",
+         " it `own`, `&`, `&mut`, or `imm`. A local infers its state from its"
+         " right-hand side: a call, container literal, f-string, concatenation or"
+         " `own` copy is `own`; a string literal is `imm`; a field or element read"
+         " borrows its root; a conditional whose arms agree takes their state."
+         " Write the state only when the arms disagree or the value comes from"
+         " outside the owned world.",
          blocks_codegen=True
      ),
      E1402 = _err(
@@ -1052,18 +1103,26 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " restructure so the closure does not outlive the scope.",
          blocks_codegen=True
      ),
+     E1407 = _err(
+         "E1407",
+         Category.SEMANTIC,
+         "'{name}' raises {exc}, and the entry block does not handle it",
+         help="Under the nogc profile a raise returns through a hidden error slot"
+         " that each caller checks; a function propagates it automatically, but an"
+         " entry block has no caller, so an unhandled raise here would abort the"
+         " program. Wrap the call in `try { ... } except {exc} { ... }`."
+     ),
      E1406 = _err(
          "E1406",
          Category.SEMANTIC,
-         "'{name}' has retaining or aliasing semantics not supported in a nogc-enforced module ({provenance})",
-         help="This builtin or construct retains or aliases its heap arguments, which"
-         " the zero-RC contract cannot express yet. Containers of str elements"
-         " are supported: fresh strings (f-strings, concats, slices, call"
-         " results) move into the container and named bindings or literals are"
-         " copied in; a borrowed or field-read str must be copied explicitly"
-         " (xs.append(f\"{{p}}\")). Containers of archetypes or nested"
-         " containers stay on the ownership roadmap: use an owned-compatible"
-         " alternative, or move this code outside the enforced module.",
+         "{name} ({provenance})",
+         help="A nogc-enforced module keeps every heap value in the owned world. A"
+         " container owns its elements, so a value enters one by moving in: a"
+         " named `own` binding, a fresh call, literal, f-string or concatenation,"
+         " or an `own <expr>` copy. A borrow, an `imm` value, a place read or a"
+         " managed value cannot be stored as it is, and builtins that retain or"
+         " alias their arguments (`iter`, `globals`, `locals`) and `managed()`"
+         " under a nogc build have no owned-world form.",
          blocks_codegen=True
      ),
      W1050 = _warn("W1050", Category.TYPE, "Unknown intrinsic JSX element '<{tag}>'"),
@@ -1203,15 +1262,19 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      W2014 = _warn(
          "W2014",
          Category.SEMANTIC,
-         "Avoid 'return' with a value in an event-driven ability — "
-         "abilities are triggered by walkers and their return values are ignored. "
-         "Update node or walker fields directly instead."
+         "Return value is ignored in this event ability. "
+         "Return cleanup functions only from synchronous client 'can with entry' "
+         "blocks; otherwise update state directly."
      ),
      E2015 = _err(
          "E2015",
          Category.SEMANTIC,
          "Explicit 'self' parameter is not allowed in {arch_type} method '{name}' — "
-         "'self' is implicit in obj, node, edge, and walker methods."
+         "'self' is implicit in obj, node, edge, and walker methods.",
+         help="write `self` explicitly only to declare the receiver mode:"
+         " `self: own T` consumes the receiver, `self: &mut T` mutates it,"
+         " `self: &T` reads it. Without a mode the receiver is inferred from the"
+         " body."
      ),
      E2016 = _err(
          "E2016",
@@ -1683,13 +1746,13 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E5024",
          Category.CODEGEN,
          "Failed to compile native module {path}: {error}. "
-         "Fix the error in the imported module or nacompile will produce a broken binary."
+         "Fix the error in the imported module or the native build will produce a broken binary."
      ),
      E5025 = _err(
          "E5025",
          Category.CODEGEN,
          "Failed to link native module {path}: {error}. "
-         "Fix the error in the imported module or nacompile will produce a broken binary."
+         "Fix the error in the imported module or the native build will produce a broken binary."
      ),
      E5026 = _err(
          "E5026",
@@ -1704,7 +1767,7 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Native module '{path}' was built with different compile options "
          "(cached fingerprint {cached_fp}, current build {current_fp}); "
          "refusing a mixed-options link.",
-         help="Every module in a native link must carry the same codegen options fingerprint (gc mode, nogc enforcement, target triple, opt level, debug gates). Rebuild the module under the current options, or scrub the stale native cache with `jac nacompile --scrub`."
+         help="Every module in a native link must carry the same codegen options fingerprint (gc mode, nogc enforcement, target triple, opt level, debug gates). Rebuild the module under the current options, or scrub the stale native cache with `jac build --native --scrub`."
      ),
      E5028 = _err(
          "E5028",

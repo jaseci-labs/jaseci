@@ -27,8 +27,14 @@ impl native_compiler_fingerprint(options: any) -> str {
     import from jaclang.compiler.driver.jir { FORMAT_VERSION }
     _comp_h.update(str(FORMAT_VERSION).encode());
     for _cp in [
+        _cfp_os.path.join(_nat_dir, "*.jac"),
         _cfp_os.path.join(_nat_dir, "impl", "*.jac"),
-        _cfp_os.path.join(_nat_dir, "na_ir_gen", "*.jac"),
+        _cfp_os.path.join(_nat_dir, "na_ir_gen_pass.impl", "*.jac"),
+        _cfp_os.path.join(_jl_dir, "compiler", "backends", "common", "*.jac"),
+        _cfp_os.path.join(_jl_dir, "compiler", "passes", "layout_pass.jac"),
+        _cfp_os.path.join(
+            _jl_dir, "compiler", "passes", "impl", "layout_pass.impl.jac"
+        ),
         _cfp_os.path.join(_jl_dir, "compiler", "types", "*.jac"),
         _cfp_os.path.join(_jl_dir, "compiler", "types", "*", "*.jac"),
         _cfp_os.path.join(_jl_dir, "compiler", "type_registry.jac"),
@@ -47,14 +53,11 @@ impl native_compiler_fingerprint(options: any) -> str {
 }
 
 impl native_dep_cache_paths(real_path: str, options: any) -> tuple {
-    import hashlib as _dcp_hash;
     import os as _dcp_os;
-    import from jaclang.compiler.driver.jir { get_native_cache_dir }
+    import from jaclang.compiler.driver.jir { ct_dep_digest, get_native_cache_dir }
     _ir_cache_dir = str(get_native_cache_dir(real_path));
     _src_stem = _dcp_os.path.splitext(_dcp_os.path.basename(real_path))[0];
-    with open(real_path, "rb") as _sf {
-        _source_hash = _dcp_hash.sha256(_sf.read()).hexdigest()[:12];
-    }
+    _source_hash = ct_dep_digest(real_path, with_annexes=True)[:12];
     _fp = native_compiler_fingerprint(options);
     return (
         _dcp_os.path.join(_ir_cache_dir, f"{_src_stem}.{_source_hash}.{_fp}.ir_cache"),
@@ -647,16 +650,22 @@ impl NativeCompilePass._compile_and_link_native_imports(
         }
     }
 
-    _INTERNAL_LINKAGE = 8;
-    _PRIVATE_LINKAGE = 9;
-    _WEAK_LINKAGE = 5;
-    _WEAK_ODR_LINKAGE = 6;
+    import from jaclang.compiler.backends.native.llvm.binding.value { Linkage }
+    non_unique_linkages = {
+        Linkage.internal,
+        Linkage.private,
+        Linkage.weak_any,
+        Linkage.weak_odr,
+        Linkage.linkonce_any,
+        Linkage.linkonce_odr,
+        Linkage.linkonce_odr_autohide
+    };
     for _mfn in _mod_functions(main_mod) {
         _mfn_name = str(_mfn.name);
         if _mfn.is_declaration or _mfn_name.startswith("llvm.") {
             continue;
         }
-        if _mfn.linkage == _INTERNAL_LINKAGE or _mfn.linkage == _PRIVATE_LINKAGE {
+        if _mfn.linkage in non_unique_linkages {
             continue;
         }
         symbol_origins[_mfn_name] = _MAIN_ORIGIN;
@@ -667,7 +676,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
         if _mgv.is_declaration {
             continue;
         }
-        if _mgv.linkage == _INTERNAL_LINKAGE or _mgv.linkage == _PRIVATE_LINKAGE {
+        if _mgv.linkage in non_unique_linkages {
             continue;
         }
         symbol_origins[_mgv_name] = _MAIN_ORIGIN;
@@ -727,6 +736,19 @@ impl NativeCompilePass._compile_and_link_native_imports(
             continue;
         }
         linked_modules[real_path] = None;
+
+        import from jaclang.compiler.backends.common.kernel_units { kernel_unit_owner }
+        _kernel_owner = kernel_unit_owner(
+            real_path, source_mod_path.replace(os.sep, ".")
+        );
+        if _kernel_owner {
+            manifest = module.gen.interop_manifest;
+            if _kernel_owner not in manifest.native_transitive_sources {
+                manifest.native_transitive_sources.append(_kernel_owner);
+                manifest.native_transitive_keys.append("");
+            }
+            continue;
+        }
 
         import from jaclang.compiler.driver.jir { get_native_cache_dir }
         _src_stem = os.path.splitext(os.path.basename(real_path))[0];
@@ -1067,10 +1089,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 if _func_name.startswith("llvm.") or func.is_declaration {
                     continue;
                 }
-                if func.linkage == _INTERNAL_LINKAGE
-                    or func.linkage == _PRIVATE_LINKAGE
-                    or func.linkage == _WEAK_LINKAGE
-                    or func.linkage == _WEAK_ODR_LINKAGE {
+                if func.linkage in non_unique_linkages {
                     continue;
                 }
                 exported_funcs.append(_func_name);
@@ -1096,11 +1115,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
             exported_globals: list[str] = [];
             for gv in _mod_globals(imported_mod) {
                 _gv_name = str(gv.name);
-                if gv.is_declaration
-                    or gv.linkage == _INTERNAL_LINKAGE
-                    or gv.linkage == _PRIVATE_LINKAGE
-                    or gv.linkage == _WEAK_LINKAGE
-                    or gv.linkage == _WEAK_ODR_LINKAGE {
+                if gv.is_declaration or gv.linkage in non_unique_linkages {
                     continue;
                 }
                 exported_globals.append(_gv_name);
@@ -1414,7 +1429,7 @@ def _compile_fmt_kernel_ir -> (str | None) {
     }
 
     kernel_opts = _KernelOpts(
-        aot_mode=True, default_codespace='native', na_gc_mode='cycles'
+        aot_mode=True, default_codespace='native', memory_profile='managed'
     );
     cache_key = kernel_opts.codegen_fingerprint();
     if cache_key in _FMT_KERNEL_IR_CACHE {

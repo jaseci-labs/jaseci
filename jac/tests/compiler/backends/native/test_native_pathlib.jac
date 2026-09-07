@@ -38,7 +38,7 @@ def _na_run(fixture: str) -> str {
     src = os.path.join(FIXTURES, fixture);
     out_bin = os.path.join(tempfile.mkdtemp(), "probe.bin");
     comp = subprocess.run(
-        [sys.executable, "-m", "jaclang", "nacompile", src, "-o", out_bin],
+        [sys.executable, "-m", "jaclang", "build", "--native", src, "-o", out_bin],
         capture_output=True,
         text=True,
         timeout=900
@@ -75,7 +75,7 @@ test "a Path member outside the provided surface fails the native compile" {
     src = os.path.join(FIXTURES, "pathlib_unsupported.jac");
     out_bin = os.path.join(tempfile.mkdtemp(), "nope.bin");
     comp = subprocess.run(
-        [sys.executable, "-m", "jaclang", "nacompile", src, "-o", out_bin],
+        [sys.executable, "-m", "jaclang", "build", "--native", src, "-o", out_bin],
         capture_output=True,
         text=True,
         timeout=900

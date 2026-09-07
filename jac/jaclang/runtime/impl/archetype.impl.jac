@@ -230,7 +230,7 @@ impl EdgeAnchor.detach -> None {
     sv_forget_edge(self);
 
     import from jaclang.runtime.runtime { JacRuntime }
-    ctx = JacRuntime.exec_ctx;
+    ctx = JacRuntime.peek_context();
     aid = self.id;
     if ctx is not None and aid is not None {
         ctx.mem.delete(aid);

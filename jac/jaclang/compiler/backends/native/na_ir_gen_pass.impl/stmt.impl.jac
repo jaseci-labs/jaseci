@@ -60,7 +60,7 @@ impl NaIRGenPass._emit_last_use_releases(stmt: uni.UniNode) -> None {
         return;
     }
     for name in names {
-        if name == "self" or name in self.param_vars {
+        if (name == "self" and not self._self_owned) or name in self.param_vars {
             continue;
         }
         if name in self.nogc_no_free_vars {
@@ -71,7 +71,12 @@ impl NaIRGenPass._emit_last_use_releases(stmt: uni.UniNode) -> None {
             continue;
         }
         slot_ty = alloca.type?.pointee;
-        if not (isinstance(slot_ty, ir.PointerType) and slot_ty?.pointee) {
+        _lu_ptr = isinstance(slot_ty, ir.PointerType) and slot_ty?.pointee;
+        if not _lu_ptr
+            and (
+                self._opt_ptr_payload_of(slot_ty) is None
+                or not self._nogc_owned_world()
+            ) {
             continue;
         }
         if name in self.region_handle_vars {
@@ -80,7 +85,7 @@ impl NaIRGenPass._emit_last_use_releases(stmt: uni.UniNode) -> None {
         if name in self.closure_cell_handles {
             continue;
         }
-        val = self.builder.load(alloca, name=f"lu.{name}");
+        val = self._rc_unwrap_optional(self.builder.load(alloca, name=f"lu.{name}"));
         self._emit_rc_release_typed(val, op="last_use", loc="");
         self.builder.store(ir.Constant(slot_ty, None), alloca);
     }
@@ -345,6 +350,9 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
     func_ret_type = self.builder.function.return_value.type;
     if nd.expr is not None and isinstance(func_ret_type, ir.VoidType) {
         self._codegen_expr(nd.expr);
+        if self._emit_finalizers() {
+            return;
+        }
         self._emit_scope_cleanup(
             skip_var=None,
             loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
@@ -437,6 +445,13 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
                 );
                 self._mark_owned(val);
             }
+            if skip_var is None
+                and self?.jacval_type
+                and val.type == self.jacval_type
+                and not self._is_owned(val) {
+                self._emit_elem_retain(self.builder, val.type, val);
+                self._mark_owned(val);
+            }
             if (
                 skip_var is None
                 and self._opt_ptr_payload_of(val.type) is not None
@@ -453,6 +468,9 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
                 );
                 self._mark_owned(val);
             }
+            if self._emit_finalizers() {
+                return;
+            }
             self._emit_scope_cleanup(
                 skip_var=skip_var,
                 ret_val=val,
@@ -465,6 +483,9 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
         }
     }
 
+    if self._emit_finalizers() {
+        return;
+    }
     self._emit_scope_cleanup(
         skip_var=None,
         loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
@@ -1651,19 +1672,6 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
     ) {
         value = self._instantiate_generic_for_target(nd.value.value, nd.type_tag.tag);
     }
-    if value is None
-        and nd.type_tag is not None
-        and isinstance(nd.value, uni.ListVal)
-        and not (nd.value.values or []) {
-        _aos_t = self._aos_elem_of(nd.type_tag);
-        if _aos_t is not None {
-            self._emit_aos_list_helpers(_aos_t);
-            value = self.builder.call(
-                self.list_helpers[f"aos.{_aos_t}"]["new"], [], name="aos.new"
-            );
-            self._mark_owned(value);
-        }
-    }
     if value is None {
         value = self._codegen_expr(nd.value) if nd.value else None;
     }
@@ -1771,7 +1779,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                     );
                 }
             } else {
-                self._codegen_field_assign(target_expr, value);
+                self._codegen_field_assign(target_expr, value, value_node=nd.value);
             }
             continue;
         }
@@ -2382,10 +2390,13 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 } elif _is_raw_int_ptr {
                     self.param_vars.add(var_name);
                 } else {
-                    if self._nogc_headerless()
+                    if (
+                        self._nogc_headerless()
                         and isinstance(nd.value, uni.Name)
                         and nd.value.sym is not None
-                        and nd.value.sym.storage == uni.SymbolStorage.MODULE_GLOBAL {
+                        and nd.value.sym.storage == uni.SymbolStorage.MODULE_GLOBAL
+                    )
+                        or self._nogc_borrow_local_assign(nd) {
                         self.nogc_no_free_vars.add(var_name);
                     }
                     if not self._is_owned(value)
@@ -2893,10 +2904,13 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                         and nd.target[0].sym is not None
                         and nd.target[0].sym.ownership == OwnershipKind.OWN
                     );
-                    if self._nogc_headerless()
+                    if (
+                        self._nogc_headerless()
                         and isinstance(nd.value, uni.Name)
                         and nd.value.sym is not None
-                        and nd.value.sym.storage == uni.SymbolStorage.MODULE_GLOBAL {
+                        and nd.value.sym.storage == uni.SymbolStorage.MODULE_GLOBAL
+                    )
+                        or self._nogc_borrow_local_assign(nd) {
                         self.nogc_no_free_vars.add(var_name);
                     }
                     _moved_here = False;
@@ -3053,6 +3067,9 @@ impl NaIRGenPass._codegen_ctrl(nd: uni.CtrlStmt) -> None {
     }
     (continue_bb, break_bb) = self.loop_stack[-1];
     _loop_depth = len(self.loop_stack);
+    if self._emit_finalizers(_loop_depth) {
+        return;
+    }
     self._emit_region_leaves(
         len(
             [
@@ -3805,7 +3822,7 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
     );
     _pjoin = self._get_or_declare_extern("pthread_join", i32, [i64, i8p]);
 
-    _env_key_gv = self._get_snprintf_fmt("JAC_FLOW_THREADS");
+    _env_key_gv = self._get_snprintf_fmt("JAC_THREADS");
     _env_key = self.builder.gep(
         _env_key_gv, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="ffor.env.key"
     );
@@ -3814,7 +3831,8 @@ impl NaIRGenPass._try_flow_for_parallel(nd: uni.InForStmt) -> bool {
         "==", _env_val, ir.Constant(i8p, None), name="ffor.env.null"
     );
     _nt_slot = self.builder.alloca(i32, name="ffor.nt.slot");
-    self.builder.store(ir.Constant(i32, 4), _nt_slot);
+    _cfg_threads = int(getattr(self.prog?.options, "native_threads", 4) or 4);
+    self.builder.store(ir.Constant(i32, _cfg_threads), _nt_slot);
     _envfunc = self.builder.function;
     _env_parse = _envfunc.append_basic_block("ffor.env.parse");
     _env_done = _envfunc.append_basic_block("ffor.env.done");

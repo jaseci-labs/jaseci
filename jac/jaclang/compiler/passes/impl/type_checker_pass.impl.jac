@@ -63,7 +63,13 @@ impl TypeCheckPass.exit_return_stmt with ReturnStmt exit {
             and here.expr
             and not isinstance(here.expr, Null)
         ) {
-            self.emit(W2014, node_override=here);
+            if not (
+                scope.in_client_context()
+                and scope.signature.event.name == Tok.KW_ENTRY
+                and not scope.is_async
+            ) {
+                self.emit(W2014, node_override=here);
+            }
             return;
         }
 
@@ -817,6 +823,7 @@ impl TypeCheckPass.enter_ability with Ability entry {
 }
 
 impl TypeCheckPass.exit_ability with Ability exit {
+    import from jaclang.compiler.frontend.constant { OwnershipKind }
     self.evaluator.validate_typevar_variance(here);
 
     self._check_intrinsic_collision(here);
@@ -836,6 +843,10 @@ impl TypeCheckPass.exit_ability with Ability exit {
                 len(all_params) > 0
                 and isinstance(all_params[0].name, Name)
                 and all_params[0].name.value == "self"
+                and (
+                    all_params[0].type_tag is None
+                    or all_params[0].type_tag.ownership == OwnershipKind.NONE
+                )
             ) {
                 self.emit(
                     E2015,

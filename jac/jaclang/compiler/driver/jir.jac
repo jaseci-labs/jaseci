@@ -363,15 +363,15 @@ def _analysis_fingerprint_for(source_path: str) -> str {
     } except Exception {
         cfg = None;
     }
-    gc_cfg = cfg.gc if cfg is not None else None;
-    native_cfg = cfg.build.native if cfg is not None else None;
+    import from jaclang.compiler.frontend.codeinfo { effective_native_target }
+    mem_cfg = cfg.memory if cfg is not None else None;
+    native_cfg = cfg.native if cfg is not None else None;
     return CompileOptions(
-        na_gc_mode=(gc_cfg.`default if gc_cfg else "cycles"),
-        nogc_enforce_modules=(list(gc_cfg.enforce.modules) if gc_cfg else []),
-        nogc_grandfathered=(list(gc_cfg.enforce.grandfathered) if gc_cfg else []),
+        memory_profile=(mem_cfg.profile if mem_cfg else "managed"),
+        memory_enforce=(list(mem_cfg.enforce) if mem_cfg else []),
+        memory_exempt=(list(mem_cfg.exempt) if mem_cfg else []),
         native_target=(
-            os.environ.get("JAC_NATIVE_TARGET", "")
-            or (native_cfg.target if native_cfg else "")
+            effective_native_target() or (native_cfg.target if native_cfg else "")
         )
     ).analysis_fingerprint();
 }
@@ -669,13 +669,14 @@ def compute_precompile_module_key(source_path: str, compiler_digest: str = "") -
 }
 
 def precompiled_jir_matches_source(
-    jir_data: bytes, source_path: str, compiler_digest: str = ""
+    jir_data: bytes, source_path: str, compiler_digest: str = "", package_root: str = ""
 ) -> bool {
     stored = read_modkey(jir_data);
     if stored is None {
         return False;
     }
-    return stored == compute_precompile_module_key(source_path, compiler_digest);
+    return stored == compute_precompile_module_key(source_path, compiler_digest)
+        and ct_deps_fresh(jir_data, package_root);
 }
 
 def jir_cacheable_source_path(source_path: str) -> bool {
