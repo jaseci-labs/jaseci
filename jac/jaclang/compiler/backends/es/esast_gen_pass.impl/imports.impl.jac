@@ -131,6 +131,9 @@ impl EsastGenPass.exit_import with uni.Import exit {
     } else {
         return;
     }
+    if resolved_path.endswith(".jac") {
+        self.module_import_paths[js_import_path] = resolved_path;
+    }
     source = self.sync_loc(es.Literal(value=js_import_path), jac_node=here.from_loc);
     specifiers:
         list[
@@ -488,4 +491,47 @@ impl EsastGenPass._import_item_named(name: str) -> (uni.ModuleItem | None) {
         }
     }
     return None;
+}
+
+impl EsastGenPass._finalize_runtime_imports(program: es.Program) -> None {
+    if not self.module_import_paths {
+        return;
+    }
+    manifest = self.client_manifest;
+    assert manifest is not None;
+    value_body = es.Program(
+        body=[
+            stmt
+            for stmt in program.body
+            if not isinstance(stmt, es.ImportDeclaration)
+        ]
+    );
+    referenced = {ref.name for ref in free_identifiers(value_body, set())};
+    for stmt in program.body {
+        if not isinstance(stmt, es.ImportDeclaration) {
+            continue;
+        }
+        source = stmt.source;
+        assert source is not None;
+        source_path = self.module_import_paths.get(str(source.value));
+        if source_path is None {
+            continue;
+        }
+        stmt.specifiers = [
+            spec
+            for spec in stmt.specifiers
+            if spec.local is not None and spec.local.name in referenced
+        ];
+        names: list[str] = [];
+        for spec in stmt.specifiers {
+            if isinstance(spec, es.ImportSpecifier) {
+                imported = spec.imported;
+                assert imported is not None;
+                names.append(imported.name);
+            } elif isinstance(spec, es.ImportDefaultSpecifier) {
+                names.append("default");
+            }
+        }
+        manifest.runtime_imports.setdefault(source_path, []).extend(names);
+    }
 }
