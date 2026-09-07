@@ -327,7 +327,12 @@ def _ct_deps_extra(jac_path: str, pkg_root: str) -> dict[int, bytes] {
 }
 
 def _native_extra(jac_path: str, pkg_root: str) -> dict[int, bytes] {
-    import from jaclang.compiler.driver.jir { SEC_NCTDEPS, NativeStamp }
+    import from jaclang.compiler.driver.jir {
+        SEC_NCTDEPS,
+        NativeStamp,
+        native_section_variants,
+        pack_native_variants
+    }
     out: dict[int, bytes] = {};
     try {
         cache_path = get_module_cache_path(jac_path);
@@ -345,13 +350,19 @@ def _native_extra(jac_path: str, pkg_root: str) -> dict[int, bytes] {
                 raw = rebase_placement_section(raw, os.path.normpath(pkg_root));
             }
             if sec == SEC_NCTDEPS {
-                unpacked = NativeStamp.unpack(raw);
-                if unpacked is None {
-                    continue;
+                rebased: dict[str, bytes] = {};
+                for (key, record) in native_section_variants(raw).items() {
+                    unpacked = NativeStamp.unpack_record(record);
+                    if unpacked is not None {
+                        wrapped = unpacked[0].pack(
+                            rebase_ct_deps_section(
+                                unpacked[1], os.path.normpath(pkg_root)
+                            )
+                        );
+                        rebased.update(native_section_variants(wrapped));
+                    }
                 }
-                raw = unpacked[0].pack(
-                    rebase_ct_deps_section(unpacked[1], os.path.normpath(pkg_root))
-                );
+                raw = pack_native_variants(rebased);
             }
             out[int(sec)] = raw;
         }

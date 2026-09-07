@@ -54,81 +54,10 @@ impl optimize_unit(
     mpm.run(mod, pb);
 }
 
-impl jit_load_clib(lib_path: str) -> bool {
-    import os;
-    import sys;
-    import ctypes.util;
-
-    def is_darwin_abort_stub(cand: str) -> bool {
-        if sys.platform != "darwin" {
-            return False;
-        }
-        cand_base = os.path.basename(cand);
-        if cand_base not in ("libcrypto.dylib", "libssl.dylib") {
-            return False;
-        }
-        if os.path.isabs(cand) {
-            return os.path.dirname(os.path.realpath(cand)) == "/usr/lib";
-        }
-        return True;
-    }
-
-    probe = lib_path;
-    if probe.startswith("$ORIGIN/") {
-        probe = probe[8:];
-    } elif probe.startswith("@loader_path/") {
-        probe = probe[13:];
-    }
-    base = os.path.basename(probe);
-
-    for cand in [lib_path, probe, os.path.join(".", base)] {
-        if cand and os.path.exists(cand) and not is_darwin_abort_stub(cand) {
-            llvm.load_library_permanently(os.path.abspath(cand));
-            return True;
-        }
-    }
-
-    if not is_darwin_abort_stub(base) {
-        try {
-            llvm.load_library_permanently(base);
-            return True;
-        } except Exception {}
-    }
-
-    stem = base;
-    if stem.startswith("lib") {
-        stem = stem[3:];
-    }
-    for _ext in [".so", ".dylib", ".dll"] {
-        _i = stem.find(_ext);
-        if _i != -1 {
-            stem = stem[:_i];
-        }
-    }
-    found = ctypes.util.find_library(stem) or ctypes.util.find_library(probe);
-    if found and not is_darwin_abort_stub(found) {
-        llvm.load_library_permanently(found);
-        return True;
-    }
-    return False;
-}
-
 impl NativeCompilePass.postinit -> None {
     llvm.initialize_native_target();
     llvm.initialize_native_asmprinter();
     super.postinit();
-}
-
-impl NativeCompilePass._load_unit_clibs(module: uni.Module) -> None {
-    for lib_path in module.gen._clib_paths or [] {
-        try {
-            if not jit_load_clib(lib_path) {
-                self.emit(W5021, path=lib_path);
-            }
-        } except Exception as lib_err {
-            self.emit(W5022, path=lib_path, error=str(lib_err));
-        }
-    }
 }
 
 impl NativeCompilePass._run_impl(ir_in: uni.Module) -> uni.Module {
@@ -179,13 +108,6 @@ impl NativeCompilePass._run_impl(ir_in: uni.Module) -> uni.Module {
             module.gen.interop_py_funcs = py_func_table;
             module.gen._interop_callbacks = callbacks_list;
         }
-
-        import ctypes.util;
-        libc_name = ctypes.util.find_library("c");
-        if libc_name {
-            llvm.load_library_permanently(libc_name);
-        }
-        self._load_unit_clibs(module);
 
         import from jaclang.compiler.backends.native.link_plan { jit_engine_for_module }
         engine = jit_engine_for_module(self.prog, module, options);

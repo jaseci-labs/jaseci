@@ -4,9 +4,10 @@ import struct;
 import sys;
 import zlib;
 import from pathlib { Path }
+import from jaclang.jac0core.cache_paths { FileLock }
 
 glob MAGIC = b"JIR\x00",
-     FORMAT_VERSION: int = 27,
+     FORMAT_VERSION: int = 28,
      HEADER_SIZE: int = 32,
      HEADER_FMT: str = "<4sHHIIIIII",
      EXTERNAL_REF: int = 0xFFFFFF,
@@ -41,7 +42,8 @@ glob NATIVE_SECTIONS: tuple[int, ...] = (
          SEC_NDEPS,
          SEC_NCTDEPS
      ),
-     NATIVE_STAMP_MAGIC: bytes = b"JNS1";
+     NATIVE_STAMP_MAGIC: bytes = b"JNS1",
+     NATIVE_VARIANTS_MAGIC: bytes = b"JNV1";
 
 obj NativeStamp {
     has compiler_digest: str = "",
@@ -64,10 +66,13 @@ obj NativeStamp {
 
     def pack(payload: bytes) -> bytes {
         head = self.key().encode("utf-8");
-        return NATIVE_STAMP_MAGIC + struct.pack("<I", len(head)) + head + payload;
+        record = NATIVE_STAMP_MAGIC + struct.pack("<I", len(head)) + head + payload;
+        return pack_native_variants({self.key(): record});
     }
 
-    static def unpack(data: (bytes | None)) -> (tuple[NativeStamp, bytes] | None) {
+    static def unpack_record(
+        data: (bytes | None)
+    ) -> (tuple[NativeStamp, bytes] | None) {
         if data is None or len(data) < 8 or data[:4] != NATIVE_STAMP_MAGIC {
             return None;
         }
@@ -108,13 +113,44 @@ def current_native_stamp(codegen_identity: str, triple: str) -> NativeStamp {
     );
 }
 
-def native_section_payload(data: (bytes | None), want: NativeStamp) -> (bytes | None) {
-    found = NativeStamp.unpack(data);
-    if found is None {
-        return None;
+def native_section_variants(data: (bytes | None)) -> dict[str, bytes] {
+    variants: dict[str, bytes] = {};
+    if data is None or len(data) < 8 or data[:4] != NATIVE_VARIANTS_MAGIC {
+        return variants;
     }
-    (stamp, payload) = found;
-    return payload if stamp.matches(want) else None;
+    (count, ) = struct.unpack_from("<I", data, 4);
+    pos = 8;
+    for _ in range(count) {
+        if pos + 4 > len(data) {
+            return {};
+        }
+        (size, ) = struct.unpack_from("<I", data, pos);
+        pos += 4;
+        if size > len(data) - pos {
+            return {};
+        }
+        record = data[pos:pos + size];
+        found = NativeStamp.unpack_record(record);
+        if found is None or found[0].key() in variants {
+            return {};
+        }
+        variants[found[0].key()] = record;
+        pos += size;
+    }
+    return variants if pos == len(data) else {};
+}
+
+def pack_native_variants(variants: dict[str, bytes]) -> bytes {
+    records = [variants[key] for key in sorted(variants)];
+    return NATIVE_VARIANTS_MAGIC
+        + struct.pack("<I", len(records))
+        + b"".join(struct.pack("<I", len(record)) + record for record in records);
+}
+
+def native_section_payload(data: (bytes | None), want: NativeStamp) -> (bytes | None) {
+    record = native_section_variants(data).get(want.key());
+    found = NativeStamp.unpack_record(record);
+    return found[1] if found is not None else None;
 }
 
 obj JirHeader {
@@ -1191,6 +1227,41 @@ def _mergeable_sections(
     }
 }
 
+def merge_native_sections(
+    existing: dict[int, bytes], incoming: dict[int, bytes]
+) -> dict[int, bytes] {
+    merged: dict[int, bytes] = {};
+    before = native_section_variants(existing.get(SEC_NBITCODE));
+    after = native_section_variants(incoming.get(SEC_NBITCODE));
+    changed = {
+        key
+        for (key, value) in after.items()
+        if before.get(key) != value
+    };
+    for tag in NATIVE_SECTIONS {
+        variants = native_section_variants(existing.get(tag));
+        if tag == SEC_NOBJ {
+            for key in changed {
+                variants.pop(key, None);
+            }
+        }
+        if tag in incoming {
+            updates = native_section_variants(incoming[tag]);
+            digests = {key.split("\x1f")[0] for key in updates};
+            variants = {
+                key: value
+                for (key, value) in variants.items()
+                if key.split("\x1f")[0] in digests
+            };
+            variants.update(updates);
+        }
+        if tag in existing or tag in incoming {
+            merged[tag] = pack_native_variants(variants);
+        }
+    }
+    return merged;
+}
+
 def write_module_cache(
     source_path: str,
     bytecode: (bytes | None),
@@ -1204,33 +1275,40 @@ def write_module_cache(
     try {
         cache_path = get_module_cache_path(resolved_path);
         key_sections = module_jir_key_sections(resolved_path);
-        (existing, existing_flags) = _mergeable_sections(cache_path, key_sections);
-        sections: dict[int, bytes] = {};
-        sections.update(existing);
-        sections.update(key_sections);
-        if bytecode is not None {
-            sections[SEC_BYTECODE] = bytecode;
-        }
-        if extra_sections is not None {
-            for (k, v) in extra_sections.items() {
-                sections[k] = v;
-            }
-        }
-        merged_flags = flags | existing_flags;
-        if existing and sections == existing and merged_flags == existing_flags {
-            return False;
-        }
-        cache_path.parent.mkdir(parents=True, exist_ok=True);
         _sweep_once(_module_cache_root(resolved_path));
-        jir_bytes = write_precompiled_jir(None, "", merged_flags, sections);
-        tmp_path = cache_path.with_suffix(f'.{os.getpid()}.tmp');
-        try {
-            tmp_path.write_bytes(jir_bytes);
-            tmp_path.rename(cache_path);
-        } finally {
-            tmp_path.unlink(missing_ok=True);
+        with FileLock(cache_path.with_suffix(".lock")) {
+            (existing, existing_flags) = _mergeable_sections(cache_path, key_sections);
+            sections: dict[int, bytes] = {};
+            sections.update(existing);
+            sections.update(key_sections);
+            if bytecode is not None {
+                sections[SEC_BYTECODE] = bytecode;
+            }
+            if extra_sections is not None {
+                for (k, v) in extra_sections.items() {
+                    if k not in NATIVE_SECTIONS {
+                        sections[k] = v;
+                    }
+                }
+                if any(tag in extra_sections for tag in NATIVE_SECTIONS) {
+                    sections.update(merge_native_sections(existing, extra_sections));
+                }
+            }
+            merged_flags = flags | existing_flags;
+            if existing and sections == existing and merged_flags == existing_flags {
+                return False;
+            }
+            cache_path.parent.mkdir(parents=True, exist_ok=True);
+            jir_bytes = write_precompiled_jir(None, "", merged_flags, sections);
+            tmp_path = cache_path.with_suffix(f'.{os.getpid()}.tmp');
+            try {
+                tmp_path.write_bytes(jir_bytes);
+                tmp_path.rename(cache_path);
+            } finally {
+                tmp_path.unlink(missing_ok=True);
+            }
+            return True;
         }
-        return True;
     } except Exception {
         return False;
     }

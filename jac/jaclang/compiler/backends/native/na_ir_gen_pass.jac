@@ -47,7 +47,7 @@ import from jaclang.compiler.passes.layout_pass {
 }
 import from jaclang.compiler.type_registry { JacTypeEntry }
 import from jaclang.compiler.frontend.module_facts { ModuleFacts }
-import from jaclang.compiler.types.types { ClassType }
+import from jaclang.compiler.types.types { ClassType, ModuleType }
 import from jaclang.compiler.frontend.const_fold { fold_const }
 import from jaclang.runtime.osp_model { stable_osp_tag }
 import type from jaclang.compiler.driver.program { JacProgram }

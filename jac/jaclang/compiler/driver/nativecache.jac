@@ -328,10 +328,10 @@ obj NativeUnitRegistry {
         return self.compile_unit(resolved, options);
     }
 
-    def known_native_deps(path: str, native_unit_compile: bool = False) -> list[str] {
+    def known_native_deps(path: str, options: CompileOptions) -> list[str] {
         resolved = os.path.realpath(path);
         ent = self.entries.get(resolved);
-        if ent is not None {
+        if ent is not None and ent.stamp.matches(self.stamp_for(options)) {
             return sorted(os.path.realpath(d) for d in ent.iface.deps);
         }
         found = self._module_jir(resolved);
@@ -339,9 +339,11 @@ obj NativeUnitRegistry {
             return [];
         }
         (data, base_dir) = found;
-        unpacked = NativeStamp.unpack(read_section_bytes(data, SEC_NIFACE));
-        if unpacked is not None {
-            iface = NativeIface.from_bytes(unpacked[1]);
+        payload = native_section_payload(
+            read_section_bytes(data, SEC_NIFACE), self.stamp_for(options)
+        );
+        if payload is not None {
+            iface = NativeIface.from_bytes(payload);
             if iface is not None {
                 iface.resolve_deps(resolved);
                 return sorted(os.path.realpath(d) for d in iface.deps);
@@ -354,7 +356,7 @@ obj NativeUnitRegistry {
             dep = os.path.realpath(row.path);
             if dep.endswith(".jac")
                 and os.path.isfile(dep)
-                and native_unit(dep, native_unit_compile, self.prog) {
+                and native_unit(dep, options.native_unit, self.prog) {
                 out.append(dep);
             }
         }
@@ -462,17 +464,8 @@ obj NativeUnitRegistry {
         payload = native_section_payload(raw, self.stamp_for());
         if payload is None and env_na_debug() {
             import sys;
-            have = NativeStamp.unpack(raw);
             sys.stderr.write(
-                f"NA_DEBUG known_digest {resolved}: "
-                    + (
-                        "no native interface section"
-                            if have is None
-                            else f"stamp mismatch: disk {have[0].compiler_digest[:12]}/{have[
-                                0
-                            ].codegen_identity}/{have[0].triple} want {self.stamp_for().compiler_digest[:12]}/{self.stamp_for().codegen_identity}/{self.stamp_for().triple}"
-                    )
-                    + "\n"
+                f"NA_DEBUG known_digest {resolved}: no native interface for {self.stamp_for().key()}\n"
             );
         }
         return NativeIface.read_digest(payload) or "";

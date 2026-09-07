@@ -1,3 +1,4 @@
+import from jaclang.jac0core.cache_paths { FileLock }
 import json;
 import os;
 import sys;
@@ -169,43 +170,6 @@ def build_kernel(dst: str, prog: any = None, log: any = None) -> any {
     }
 }
 
-class _KernelLock {
-    def init(self: _KernelLock, path: str) {
-        self.path = path + ".lock";
-        self.handle: any = None;
-    }
-
-    def acquire(self: _KernelLock) {
-        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True);
-        self.handle = open(self.path, "a+");
-        if sys.platform.startswith("win") {
-            import msvcrt;
-            msvcrt.locking(self.handle.fileno(), msvcrt.LK_LOCK, 1);
-        } else {
-            import fcntl;
-            fcntl.flock(self.handle.fileno(), fcntl.LOCK_EX);
-        }
-    }
-
-    def release(self: _KernelLock) {
-        if self.handle is None {
-            return;
-        }
-        try {
-            if sys.platform.startswith("win") {
-                import msvcrt;
-                msvcrt.locking(self.handle.fileno(), msvcrt.LK_UNLCK, 1);
-            } else {
-                import fcntl;
-                fcntl.flock(self.handle.fileno(), fcntl.LOCK_UN);
-            }
-        } finally {
-            self.handle.close();
-            self.handle = None;
-        }
-    }
-}
-
 class _StoreParserSpan {
     def init(self: _StoreParserSpan) {
         self.prev = None;
@@ -360,7 +324,7 @@ def _derive_in_tree(lib_path: str) -> (ResolvedKernel | None) {
     if found is not None {
         return found;
     }
-    lock = _KernelLock(lib_path);
+    lock = FileLock(lib_path + ".lock");
     lock.acquire();
     try {
         found = _accept_in_tree(lib_path) or _adopt_bundled(lib_path);

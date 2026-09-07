@@ -5,7 +5,7 @@ import type from jaclang.compiler.backends.native.llvm.binding {
 }
 import jaclang.compiler.frontend.unitree as uni;
 import from jaclang.compiler.passes { Transform }
-import from jaclang.compiler.frontend.diagnostics { E5020, E5026, W5021, W5022 }
+import from jaclang.compiler.frontend.diagnostics { E5020, E5026 }
 import type from jaclang.compiler.driver.compile_options { CompileOptions }
 import type from jaclang.compiler.driver.program { JacProgram }
 
@@ -23,8 +23,6 @@ def optimize_unit(
     mod: ModuleRef, target_machine: TargetMachine, opt_level: int
 ) -> None;
 
-def jit_load_clib(lib_path: str) -> bool;
-
 walker NativeCompilePass(Transform) {
     has prog: JacProgram;
     static has HOST_PASS: bool = True;
@@ -32,7 +30,6 @@ walker NativeCompilePass(Transform) {
     def postinit -> None;
     def transform(ir_in: uni.Module) -> uni.Module;
     def _run_impl(ir_in: uni.Module) -> uni.Module;
-    def _load_unit_clibs(module: uni.Module) -> None;
     def _share_engine(module: uni.Module, engine: any) -> None;
     def _emit_debug_products(
         module: uni.Module, mod: ModuleRef, target_machine: TargetMachine

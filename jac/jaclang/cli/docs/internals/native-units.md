@@ -12,7 +12,7 @@ page describes the JIR sections the interface layer owns.
 
 A native unit is one module analyzed in a build-owned compiler session. Its products
 live in the module's JIR entry, beside the bytecode the compiler runs for
-the same file, under `MODKEY` plus a stamp in the section's own header:
+the same file, under `MODKEY`. Each native section holds a map of stamped variants:
 
 | Section | Holds |
 |---|---|
@@ -24,9 +24,13 @@ the same file, under `MODKEY` plus a stamp in the section's own header:
 
 The stamp (`NativeStamp`) names the compiler digest, the codegen identity
 (gc mode, target, opt level and the rest of `CompileOptions.codegen_identity`)
-and the triple. A reader that finds a stamp it did not produce treats the
-section as absent. Only a native compile writes these five sections; a
-bytecode compile of the same file merges around them. That is why the native
+and the triple. Readers select the matching variant; different options and
+targets coexist without evicting one another. A compiler upgrade discards
+obsolete compiler variants. Only a native compile writes these five sections;
+a bytecode compile of the same file merges around them. The shared bootstrap-safe
+file lock covers the complete JIR read/merge/replace transaction, so concurrent
+writers preserve one another’s products. JIR format 28 makes this a clean
+cache-format break. That is why the native
 digests have their own section: when they lived in `SEC_DEPS`, every
 bytecode compile of a unit rewrote the rows without them and the next link
 plan recompiled the whole closure.
@@ -128,6 +132,13 @@ the merged module optimized whole-program before MCJIT sees it. Its target
 machine is llvmlite's default for `jit=True`: with the position-independent
 small-model pair the linked artifacts use, MCJIT's AArch64 stubs branch into
 the GOT instead of through it.
+
+C imports bind through handles for their declared shared libraries, using
+the platform loader's search paths. The link plan installs those addresses
+in the execution engine and retains the handles for the engine's lifetime.
+Missing libraries or symbols fail compilation before an engine is returned;
+a symbol from an unrelated library already loaded in the process cannot
+silently replace the declared dependency.
 
 ### Incremental development builds
 

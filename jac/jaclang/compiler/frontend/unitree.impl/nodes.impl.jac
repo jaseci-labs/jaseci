@@ -1662,6 +1662,7 @@ impl UniScopeNode.insert(
     collision = self.names_in_scope[nd.sym_name].defn[-1]
         if (single and (nd.sym_name in self.names_in_scope))
         else None;
+    provider = nd.sym.provider if imported and nd.sym is not None else None;
     symbol = nd.name_spec.create_symbol(
         access=access_spec
             if isinstance(access_spec, SymbolAccess)
@@ -1669,6 +1670,7 @@ impl UniScopeNode.insert(
         parent_tab=self,
         imported=imported
     );
+    symbol.provider = provider;
     current = self.names_in_scope;
     if (nd.sym_name in current) {
         self +>:ScopeOverload:+> symbol;

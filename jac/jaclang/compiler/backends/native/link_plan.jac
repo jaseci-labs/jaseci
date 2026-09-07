@@ -1,3 +1,4 @@
+import ctypes;
 import hashlib;
 import json;
 import os;
@@ -32,7 +33,6 @@ import from jaclang.compiler.backends.native.link_glue {
 import from jaclang.compiler.backends.native.na_compile_pass {
     NATIVE_CODE_MODEL,
     NATIVE_RELOC_MODEL,
-    jit_load_clib,
     optimize_unit
 }
 import from jaclang.compiler.backends.native.linker_common {
@@ -367,7 +367,7 @@ def _build_link_plan(
         if path in stack {
             return;
         }
-        for dep in registry.known_native_deps(path, opts.native_unit) {
+        for dep in registry.known_native_deps(path, opts) {
             walk_unit(dep, stack + [path]);
         }
         errs_before = len(prog.errors_had);
@@ -1093,6 +1093,62 @@ def undefined_functions(mod: ModuleRef) -> list[str] {
     return sorted(names);
 }
 
+def load_jit_library(lib_path: str) -> ctypes.CDLL {
+    import os;
+    import sys;
+    import ctypes.util;
+
+    def is_darwin_abort_stub(cand: str) -> bool {
+        if sys.platform != "darwin" {
+            return False;
+        }
+        cand_base = os.path.basename(cand);
+        if cand_base not in ("libcrypto.dylib", "libssl.dylib") {
+            return False;
+        }
+        if os.path.isabs(cand) {
+            return os.path.dirname(os.path.realpath(cand)) == "/usr/lib";
+        }
+        return True;
+    }
+
+    probe = lib_path;
+    if probe.startswith("$ORIGIN/") {
+        probe = probe[8:];
+    } elif probe.startswith("@loader_path/") {
+        probe = probe[13:];
+    }
+    base = os.path.basename(probe);
+
+    for cand in [lib_path, probe, os.path.join(".", base)] {
+        if cand and os.path.exists(cand) and not is_darwin_abort_stub(cand) {
+            return ctypes.CDLL(os.path.abspath(cand));
+        }
+    }
+
+    if not is_darwin_abort_stub(base) {
+        try {
+            return ctypes.CDLL(base);
+        } except Exception {}
+    }
+
+    stem = base;
+    if stem.startswith("lib") {
+        stem = stem[3:];
+    }
+    for _ext in [".so", ".dylib", ".dll"] {
+        _i = stem.find(_ext);
+        if _i != -1 {
+            stem = stem[:_i];
+        }
+    }
+    found = ctypes.util.find_library(stem) or ctypes.util.find_library(probe);
+    if found and not is_darwin_abort_stub(found) {
+        return ctypes.CDLL(found);
+    }
+    raise LinkPlanError(f"C library not found for JIT: {lib_path}");
+}
+
 def jit_engine(plan: LinkPlan) -> ExecutionEngine {
     tm = _target_machine(plan, ArtifactKind.JIT);
     spec = plan.glue_spec(ArtifactKind.JIT, _platform_of(plan.triple), False);
@@ -1104,15 +1160,39 @@ def jit_engine(plan: LinkPlan) -> ExecutionEngine {
             f"undefined: {undefined_functions(merged)}\n"
         );
     }
-    for lib_path in plan.clib_paths() {
+    libraries: dict[str, ctypes.CDLL] = {};
+    symbols: dict[str, int] = {};
+    symbol_lib = plan.clib_symbol_lib();
+    for symbol in undefined_functions(merged) {
+        lib_path = symbol_lib.get(symbol);
+        if lib_path is None {
+            continue;
+        }
+        if lib_path not in libraries {
+            libraries[lib_path] = load_jit_library(lib_path);
+        }
         try {
-            jit_load_clib(lib_path);
-        } except Exception {}
+            address = ctypes.cast(
+                getattr(libraries[lib_path], symbol), ctypes.c_void_p
+            ).value;
+        } except AttributeError {
+            raise LinkPlanError(f"C symbol '{symbol}' not found in '{lib_path}'");
+        }
+        if address is None {
+            raise LinkPlanError(
+                f"C symbol '{symbol}' has a null address in '{lib_path}'"
+            );
+        }
+        symbols[symbol] = address;
     }
     engine = llvm.create_mcjit_compiler(merged, tm);
     assert isinstance(engine, llvm.ExecutionEngine);
+    for (symbol, address) in symbols.items() {
+        engine.add_global_mapping(merged.get_function(symbol), address);
+    }
     install_native_static_init(engine, plan.init_symbols());
     engine_any: any = engine;
+    engine_any._jac_libraries = libraries;
     engine_any._jac_unit_ifaces = [u.iface for u in plan.units];
     root_u = plan.root_unit();
     try {

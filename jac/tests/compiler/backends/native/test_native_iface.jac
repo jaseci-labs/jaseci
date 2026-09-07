@@ -159,9 +159,9 @@ test "the section in the module JIR carries the stamp of its compile" {
     data = get_module_cache_path(path).read_bytes();
     raw = read_section_bytes(data, SEC_NIFACE);
     assert raw is not None , "the native interface must be in the module JIR";
-    unpacked = NativeStamp.unpack(raw);
-    assert unpacked is not None;
-    (stamp, payload) = unpacked;
+    stamp = prog.native_units().stamp_for(opts);
+    payload = native_section_payload(raw, stamp);
+    assert payload is not None;
     assert stamp.codegen_identity == opts.codegen_identity();
     assert NativeIface.read_digest(payload) == mod.gen.native_iface.digest();
     other = NativeStamp(compiler_digest="x", codegen_identity="y", triple="z");

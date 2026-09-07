@@ -2017,7 +2017,10 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 self?._native_module_imports
                 and target_name in self._native_module_imports
                 and target_name not in self.local_vars
-                and target_name not in self.struct_types
+                and (
+                    target_name not in self.struct_types
+                    or isinstance(nd.target.type, ModuleType)
+                )
                 and right_name in self.global_vars
             ) {
                 return self.builder.load(

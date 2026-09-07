@@ -187,9 +187,21 @@ test "a warm bitcode artifact skips whole-program optimization and emission" {
     if _can_link_host() {
         root_dir = _diamond_copy();
         (_, plan) = _plan_for(root_dir, NATIVE_LINK_MODE_BITCODE);
+        products = {
+            u.path: hashlib.sha256(
+                plan.prog.native_units().bitcode_for(u.path, plan.options) or b""
+            ).hexdigest() for u in plan.units
+        };
         output = os.path.join(root_dir, "program");
         first = link_artifact(plan, output, ArtifactKind.EXECUTABLE);
         (_, warm) = _plan_for(root_dir, NATIVE_LINK_MODE_BITCODE);
+        assert first.plan_digest == warm.plan_digest() , "warm link plan changed";
+        warm_products = {
+            u.path: hashlib.sha256(
+                warm.prog.native_units().bitcode_for(u.path, warm.options) or b""
+            ).hexdigest() for u in warm.units
+        };
+        assert products == warm_products , f"warm unit products changed: {products} -> {warm_products}";
         with patch(
             "jaclang.compiler.backends.native.link_plan.plan_objects",
             side_effect=AssertionError("warm artifact ran object generation")
@@ -691,5 +703,116 @@ test "a source edit during settlement aborts without persisting a stale unit" {
         plan = build_link_plan(prog, [str(source)], _opts());
         assert plan.root_unit().path == str(source.resolve());
         assert len(registry.compiled_paths) > 0;
+    }
+}
+
+
+test "alternating native configurations retain their reusable unit products" {
+    with tempfile.TemporaryDirectory() as cache_dir {
+        source = str(Path(cache_dir) / "configurations.jac");
+        Path(source).write_text("with entry { print(42); }\n");
+        standard = _opts(NATIVE_LINK_MODE_BITCODE);
+        alternate = _opts(NATIVE_LINK_MODE_BITCODE);
+        alternate.native_threads = int(standard.native_threads or 4) + 1;
+        first = JacProgram();
+        first.options = standard;
+        cold = build_link_plan(first, [source], standard);
+        other = JacProgram();
+        other.options = alternate;
+        build_link_plan(other, [source], alternate);
+        warm = JacProgram();
+        warm.options = standard;
+        plan = build_link_plan(warm, [source], standard);
+        assert not warm.native_units().compiled_paths , warm.native_units().compiled_paths;
+        assert plan.plan_digest() == cold.plan_digest();
+    }
+}
+
+test "concurrent JIR writers preserve every native variant and bytecode" {
+    import time;
+    import from concurrent.futures { ThreadPoolExecutor }
+    import from threading { Barrier }
+    import from unittest.mock { patch }
+    import jaclang.compiler.driver.jir as jir;
+    with tempfile.TemporaryDirectory() as cache_dir {
+        source = str(Path(cache_dir) / "concurrent.jac");
+        Path(source).write_text("with entry { print(42); }\n");
+        barrier = Barrier(8);
+        original = jir._mergeable_sections;
+        def slow_read(
+            path: Path, keys: dict[int, bytes]
+        ) -> tuple[dict[int, bytes], int] {
+            snapshot = original(path, keys);
+            time.sleep(0.02);
+            return snapshot;
+        }
+        def writer(index: int) -> bool {
+            barrier.wait(timeout=30);
+            stamp = jir.NativeStamp(
+                compiler_digest="compiler", codegen_identity=str(index), triple="target"
+            );
+            return jir.write_module_cache(
+                source,
+                None,
+                extra_sections={jir.SEC_NBITCODE: stamp.pack(str(index).encode())}
+            );
+        }
+        assert jir.write_module_cache(source, b"bytecode");
+        with patch.object(jir, "_mergeable_sections", side_effect=slow_read) {
+            with ThreadPoolExecutor(max_workers=8) as pool {
+                assert all(pool.map(writer, range(8)));
+            }
+        }
+        data = jir.get_module_cache_path(source).read_bytes();
+        assert jir.read_section_bytes(data, jir.SEC_BYTECODE) == b"bytecode";
+        section = jir.read_section_bytes(data, jir.SEC_NBITCODE);
+        for index in range(8) {
+            stamp = jir.NativeStamp(
+                compiler_digest="compiler", codegen_identity=str(index), triple="target"
+            );
+            assert jir.native_section_payload(section, stamp) == str(index).encode();
+        }
+        replacement = jir.NativeStamp(
+            compiler_digest="new compiler", codegen_identity="0", triple="target"
+        );
+        assert jir.write_module_cache(
+            source, None, extra_sections={jir.SEC_NBITCODE: replacement.pack(b"new")}
+        );
+        data = jir.get_module_cache_path(source).read_bytes();
+        section = jir.read_section_bytes(data, jir.SEC_NBITCODE);
+        assert len(jir.native_section_variants(section)) == 1;
+        assert jir.native_section_payload(section, replacement) == b"new";
+    }
+}
+
+
+test "replacing native bitcode invalidates its previous optional object" {
+    import jaclang.compiler.driver.jir as jir;
+    with tempfile.TemporaryDirectory() as cache_dir {
+        source = str(Path(cache_dir) / "products.jac");
+        Path(source).write_text("with entry { print(42); }\n");
+        stamp = jir.NativeStamp(
+            compiler_digest="compiler", codegen_identity="options", triple="target"
+        );
+        assert jir.write_module_cache(
+            source,
+            None,
+            extra_sections={
+                jir.SEC_NBITCODE: stamp.pack(b"old bitcode"),
+                jir.SEC_NOBJ: stamp.pack(b"old object")
+            }
+        );
+        assert jir.write_module_cache(
+            source, None, extra_sections={jir.SEC_NBITCODE: stamp.pack(b"new bitcode")}
+        );
+        data = jir.get_module_cache_path(source).read_bytes();
+        assert jir.native_section_payload(
+            jir.read_section_bytes(data, jir.SEC_NBITCODE), stamp
+        )
+            == b"new bitcode";
+        assert jir.native_section_payload(
+            jir.read_section_bytes(data, jir.SEC_NOBJ), stamp
+        )
+            is None;
     }
 }

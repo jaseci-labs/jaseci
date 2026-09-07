@@ -3208,9 +3208,10 @@ test "clib extensionless logical import produces extern declares (issue #6387)" 
     # extern `declare`s for the brace-block decls and resolve to exactly one
     # logical library name -- no cross-module dependency leak.
     prog = JacProgram();
+    opts = native_force_opts();
+    opts.skip_native_engine = True;
     ir = prog.compile(
-        str(os.path.join(FIXTURES, "clib_logical_import.jac")),
-        options=native_force_opts()
+        str(os.path.join(FIXTURES, "clib_logical_import.jac")), options=opts
     );
     assert not prog.errors_had , f"Errors: {prog.errors_had}";
     s = str(ir.gen.llvm_ir);
@@ -3220,9 +3221,7 @@ test "clib extensionless logical import produces extern declares (issue #6387)" 
     assert ir.gen._clib_paths is not None;
     assert len(ir.gen._clib_paths) == 1 , f"unexpected clib paths: {ir.gen._clib_paths}";
     # Managed inertness: the bare-name `raylib` must NOT be resolved as a managed
-    # module, so the type-checker emits no W1100 "module not found" for it. (A
-    # W5021 "C library not found" at JIT time is expected here and unrelated --
-    # raylib is not installed on the test host.)
+    # module, so the type-checker emits no W1100 "module not found" for it.
     _warns = [
         w
         for w in prog.warnings_had
@@ -3251,7 +3250,7 @@ test "clib extensionless import resolves per platform (issue #6387)" {
         ] {
             push_native_target(tgt);
             prog = JacProgram();
-            ir = prog.compile(_fix, options=CompileOptions());
+            ir = prog.compile(_fix, options=CompileOptions(skip_native_engine=True));
             assert not prog.errors_had , f"{tgt}: {prog.errors_had}";
             assert list(ir.gen._clib_paths) == [want] , f"{tgt}: got {ir.gen._clib_paths}, want [{want}]";
         }
@@ -4611,7 +4610,7 @@ test "switch_stmt" {
 test "jir bitcode cache round-trip" {
     import from jaclang.compiler.driver.compiler { JacCompiler }
     import from jaclang.compiler.driver.jir {
-        NativeStamp,
+        native_section_payload,
         get_module_cache_path,
         SECTIONS_MAGIC,
         HEADER_SIZE,
@@ -4644,9 +4643,9 @@ test "jir bitcode cache round-trip" {
     # digest, codegen identity and target triple the bitcode was produced
     # under, followed by the bitcode payload.
     sec_data = secs[SEC_NBITCODE];
-    unpacked = NativeStamp.unpack(sec_data);
-    assert unpacked is not None , "SEC_NBITCODE does not start with a native stamp";
-    (stamp, payload) = unpacked;
+    stamp = prog1.native_units().stamp_for();
+    payload = native_section_payload(sec_data, stamp);
+    assert payload is not None , "SEC_NBITCODE has no matching native variant";
     import jaclang.compiler.backends.native.llvm.binding as llvm;
     assert stamp.triple == llvm.get_default_triple() , (
         f"Triple mismatch: {stamp.triple} != {llvm.get_default_triple()}"

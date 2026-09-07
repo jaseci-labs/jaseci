@@ -768,22 +768,12 @@ impl JacCompiler.resolve_absorb_imports(
         }
         resolved = path_node.resolve_relative_path();
         module: (uni.Module | None) = None;
-        if (resolved in target_program.mod.hub) {
-            module = target_program.mod.hub[resolved];
-        } elif resolved.endswith('.pyi') {
-            try {
-                module = target_program.load_dependency_module(
-                    resolved, importer_path=mod.loc.mod_path
-                );
-            } except Exception {
-                module = None;
-            }
-        } else {
-            try {
-                module = target_program.compile(resolved, no_cgen=True);
-            } except Exception {
-                module = None;
-            }
+        try {
+            module = target_program.load_dependency_module(
+                resolved, importer_path=mod.loc.mod_path
+            );
+        } except Exception {
+            module = None;
         }
         imp.absorbed_mod = module;
     }

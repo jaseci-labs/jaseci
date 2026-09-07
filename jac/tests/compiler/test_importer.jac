@@ -393,6 +393,55 @@ test "pyi loads build via PyastBuildPass and never compile" {
     }
 }
 
+test "Python star imports load dependency scopes once without checking implementation bodies" {
+    import from unittest.mock { patch }
+    with tempfile.TemporaryDirectory(dir=_test_tmp_dir) as tmpdir {
+        first = os.path.join(tmpdir, "star_first.py");
+        second = os.path.join(tmpdir, "star_second.py");
+        with open(first, "w") as f {
+            f.write("from star_second import *\nclass First: pass\n");
+        }
+        with open(second, "w") as f {
+            f.write("from star_first import *\nclass Second: pass\n");
+        }
+        calls: list[tuple[str, bool]] = [];
+        original: any = JacProgram.compile;
+        def observe(
+            self: JacProgram,
+            file_path: str,
+            use_str: (str | None) = None,
+            no_cgen: bool = False,
+            symtab_ir_only: bool = False,
+            cancel_token: any = None,
+            options: any = None
+        ) -> any {
+            if file_path.startswith(tmpdir) {
+                calls.append((file_path, bool(options and options.symtab_ir_only)));
+            }
+            return original(
+                self,
+                file_path,
+                use_str=use_str,
+                no_cgen=no_cgen,
+                symtab_ir_only=symtab_ir_only,
+                cancel_token=cancel_token,
+                options=options
+            );
+        }
+        prog = JacProgram();
+        with patch.object(JacProgram, "compile", observe) {
+            module = prog.load_dependency_module(first);
+        }
+        assert module.sym_tab.lookup("First") is not None;
+        assert module.sym_tab.lookup("Second") is not None;
+        assert sorted(calls) == sorted([(first, True), (second, True)]) , (
+            len(calls),
+            calls[:6]
+        );
+        assert first in prog.deps.dependents[os.path.realpath(second)];
+    }
+}
+
 test "resolve_import_source_module never compiles pyi stubs" {
     import jaclang.compiler.frontend.unitree as uni;
     import from jaclang.compiler.symbol_utils { resolve_import_source_module }

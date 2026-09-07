@@ -802,3 +802,25 @@ test "a verification program does not recursively verify cached dependencies" {
         oracle.release_compile_closure();
     }
 }
+
+test "include preserves the lazy type provider of hydrated dependency symbols" {
+    import from jaclang.compiler.types.types { ClassType }
+    with tempfile.TemporaryDirectory() as tmpdir {
+        base = Path(tmpdir).resolve() / "included_base.jac";
+        facade = Path(tmpdir).resolve() / "included_facade.jac";
+        base.write_text("obj Exported { has value: int; }\n");
+        facade.write_text("include included_base;\n");
+        (first, _diags) = _check(str(facade));
+        assert not first.errors_had;
+        prog = JacProgram();
+        dependency = prog.load_dependency_module(str(base));
+        original = dependency.sym_tab.lookup("Exported");
+        assert original is not None and original.provider is not None;
+        module = prog.load_dependency_module(str(facade));
+        imported = module.sym_tab.lookup("Exported");
+        assert imported is not None and imported.provider is original.provider;
+        assert isinstance(
+            prog.get_type_evaluator().get_type_of_symbol(imported), ClassType
+        );
+    }
+}
